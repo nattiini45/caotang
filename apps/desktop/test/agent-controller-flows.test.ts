@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore, type ChatChunk } from '@caotang/gateway';
-import { createMockProvider, isDraftCall, isPlannerCall, userTextOf, type MockScript } from '@caotang/gateway/mock';
+import { COMPACTION_PREFIX, createMockProvider, isDraftCall, isPlannerCall, userTextOf, type MockScript } from '@caotang/gateway/mock';
 import { RUN_LOG_VERSION, type PlanStep } from '@caotang/harness';
-import { addDocument, createRunLogPort, MemoryIndexedDb, openRuntimeStore, type RunEventInput, type RunRow } from '@caotang/store';
+import { addDocument, createRunLogPort, MemoryIndexedDb, openRuntimeStore, readAgentSessions, type RunEventInput, type RunRow } from '@caotang/store';
 
 import { AgentController, queuePausedText, type AgentSnapshot } from '../src/app/agent.js';
 import type { AppDb } from '../src/app/app-db.js';
@@ -104,7 +104,7 @@ async function fixture(scripts: readonly MockScript[] = [], options: { fiveScene
   sessions.push({ session, controller });
   const node = (title: string) => state.manifest.tree.find((entry) => entry.title === title)!;
   const steps: PlanStep[] = [{ tool: 'meta.set', params: { targets: [node('The Storm').id], keywords_add: ['storm'] }, expect: 'The Storm is tagged' }];
-  return { state, session, controller, node, steps, port: createRunLogPort(store) };
+  return { state, session, controller, providers, node, steps, port: createRunLogPort(store) };
 }
 
 it('runs edited queued turns in order, putting an undelivered note ahead of them only after the current turn settles', async () => {
@@ -143,6 +143,116 @@ it('runs edited queued turns in order, putting an undelivered note ahead of them
     if (counts[index]! > counts[index - 1]!) expect(seen[index - 1]!.busy).toBe(false);
   }
   expect(f.controller.snapshot()).toMatchObject({ queue: [], notes: [] });
+});
+
+it('saves automatic role-local summaries, retains only valid fork coverage, and starts New without memory', async () => {
+  const f = await fixture([
+    { match: (req) => req.role === 'background' && req.messages.some((message) => typeof message.content === 'string' && message.content.startsWith(COMPACTION_PREFIX)), respond: () => ({ content: JSON.stringify({ standingRequests: 'Keep the storm.', decisions: 'Use the lighthouse.', done: 'Eight exchanges.', openThreads: 'Finish the scene.' }) }) },
+    ...Array.from({ length: 8 }, (_, index) => reply(`Chat ${index + 1}.`, `Answer ${index + 1}.`)),
+  ]);
+  for (let index = 1; index <= 8; index += 1) expect((await f.controller.submit(`Chat ${index}.`))?.status).toBe('replied');
+  const originalId = f.controller.snapshot().sessionId;
+  const rows = await readAgentSessions(f.session.runtimeStore(), f.session.projectId);
+  const summary = rows.find((row) => row.sessionId === originalId)?.summaries?.chat;
+  expect(summary).toMatchObject({ origin: 'auto', covers: { from: `${originalId}.turn-1`, to: `${originalId}.turn-5`, turns: 5 } });
+  expect(summary?.text).toContain('Keep the storm.');
+  expect(rows[0]?.summaries?.drafting).toBeUndefined();
+
+  const turns = f.controller.snapshot().turns;
+  await f.controller.forkSession(turns[7]!.turnId);
+  expect((await readAgentSessions(f.session.runtimeStore(), f.session.projectId)).find((row) => row.active)?.summaries?.chat).toEqual(summary);
+  await f.controller.openSession(originalId);
+  await f.controller.forkSession(turns[2]!.turnId);
+  expect((await readAgentSessions(f.session.runtimeStore(), f.session.projectId)).find((row) => row.active)?.summaries?.chat).toBeUndefined();
+  await f.controller.newSession();
+  expect((await readAgentSessions(f.session.runtimeStore(), f.session.projectId)).find((row) => row.active)?.summaries).toBeUndefined();
+});
+
+it('retries summary edits without a provider call, reloads them into context, and persists rewind invalidation', async () => {
+  const f = await fixture([
+    { match: (req) => req.role === 'background', respond: () => ({ content: JSON.stringify({ standingRequests: 'Keep the storm.', decisions: 'Use the lighthouse.', done: 'Read the opening.', openThreads: 'Finish the scene.' }) }) },
+    reply('One.', 'First outcome.'), reply('Two.', 'Second outcome.'), reply('Three.', 'Third outcome.'),
+  ]);
+  for (const intent of ['One.', 'Two.', 'Three.']) await f.controller.submit(intent);
+  expect((await f.controller.compactSession('chat', 'Keep the lighthouse decision.'))?.status).toBe('replied');
+  const saved = (await readAgentSessions(f.session.runtimeStore(), f.session.projectId)).find((row) => row.active)!;
+  expect(saved.summaries?.chat).toMatchObject({ origin: 'manual', focus: 'Keep the lighthouse decision.', covers: { turns: 1 } });
+  const requests = f.providers.gateway.ledger.turnRows().length;
+  expect(await f.controller.editSessionSummary('chat', 'The writer chose the harbour instead.', saved.summaries!.chat!)).toBe(true);
+  expect(f.providers.gateway.ledger.turnRows()).toHaveLength(requests);
+  expect((await readAgentSessions(f.session.runtimeStore(), f.session.projectId)).find((row) => row.active)?.summaries?.chat).toMatchObject({ text: 'The writer chose the harbour instead.', editedAt: expect.any(Number), covers: saved.summaries!.chat!.covers });
+  expect(await f.controller.editSessionSummary('chat', 'An obsolete editor must not replace the correction.', saved.summaries!.chat!)).toBe(false);
+  const edited = (await readAgentSessions(f.session.runtimeStore(), f.session.projectId)).find((row) => row.active)!.summaries!.chat!;
+  vi.spyOn(f.session.runtimeStore().db, 'transaction').mockImplementationOnce(() => { throw new Error('summary write refused'); });
+  expect(await f.controller.editSessionSummary('chat', 'The writer chose the harbour instead. Keep the letter.', edited)).toBe(false);
+  expect(f.controller.snapshot().sessionSave.failure).toContain('summary write refused');
+  expect(await f.controller.compactSession()).toBeNull();
+  expect(f.providers.gateway.ledger.turnRows()).toHaveLength(requests);
+  await f.controller.retrySessionSave();
+  expect(f.controller.snapshot().sessionSave.failure).toBeNull();
+  expect(f.providers.gateway.ledger.turnRows()).toHaveLength(requests);
+  f.controller.detach();
+  await f.controller.tasksIdle();
+  const reloaded = new AgentController(f.session, f.providers, () => ({}), () => false, { store: new TaskStore(memoryDb()) });
+  sessions.find((entry) => entry.controller === f.controller)!.controller = reloaded;
+  await reloaded.loadSessions();
+  expect(JSON.stringify(await reloaded.previewRequest('Continue.'))).toContain('The writer chose the harbour instead. Keep the letter.');
+  expect(reloaded.rewindConversation(saved.summaries!.chat!.covers.from)?.rewound).not.toEqual([]);
+  await when(reloaded, (snapshot) => snapshot.sessionSave.kind !== 'writing');
+  expect((await readAgentSessions(f.session.runtimeStore(), f.session.projectId)).find((row) => row.active)?.summaries?.chat).toBeUndefined();
+  expect(JSON.stringify(await reloaded.previewRequest('Continue.'))).not.toContain('The writer chose the harbour instead.');
+  expect(reloaded.snapshot().summaryNotice).toContain('summary was removed');
+});
+
+it('retains same-policy summary memory through a controller reload and does not upgrade a withheld writer edit', async () => {
+  const f = await fixture([
+    { match: (req) => req.role === 'background', respond: () => ({ content: JSON.stringify({ standingRequests: 'Keep the storm.', decisions: 'Summary privacy sentinel.', done: 'Read the opening.', openThreads: 'Finish the scene.' }) }) },
+    reply('One.', 'First outcome.'), reply('Two.', 'Second outcome.'), reply('Three.', 'Third outcome.'),
+  ]);
+  f.session.setAgentRules([{ tool: '*', effect: 'deny', access: 'read', scope: { subtree: f.node('The Storm').id } }]);
+  for (const intent of ['One.', 'Two.', 'Three.']) await f.controller.submit(intent);
+  expect((await f.controller.compactSession())?.status).toBe('replied');
+  const saved = (await readAgentSessions(f.session.runtimeStore(), f.session.projectId)).find((row) => row.active)!.summaries!.chat!;
+  expect(saved.readPolicy).toMatch(/^[a-f0-9]{64}$/);
+  f.controller.detach();
+  await f.controller.tasksIdle();
+  const reloaded = new AgentController(f.session, f.providers, () => ({}), () => false, { store: new TaskStore(memoryDb()) });
+  sessions.find((entry) => entry.controller === f.controller)!.controller = reloaded;
+  await reloaded.loadSessions();
+  expect(reloaded.snapshot().sessionMemory.find((memory) => memory.role === 'chat')?.withheld).toBe(false);
+  expect(JSON.stringify(await reloaded.previewRequest('Continue.'))).toContain('Summary privacy sentinel.');
+  f.session.setAgentRules([{ tool: '*', effect: 'deny', access: 'read', scope: { subtree: f.node('The Friend').id } }]);
+  reloaded.refresh();
+  expect(reloaded.snapshot().sessionMemory.find((memory) => memory.role === 'chat')?.withheld).toBe(true);
+  expect(JSON.stringify(await reloaded.previewRequest('Continue.'))).not.toContain('Summary privacy sentinel.');
+  const calls = f.providers.gateway.ledger.turnRows().length;
+  expect(await reloaded.editSessionSummary('chat', 'Edited privacy sentinel.', saved)).toBe(true);
+  const edited = (await readAgentSessions(f.session.runtimeStore(), f.session.projectId)).find((row) => row.active)!.summaries!.chat!;
+  expect(edited.readPolicy).toBe(saved.readPolicy);
+  expect(reloaded.snapshot().summaryNotice).toBe('Summary changed locally. No provider call was made.');
+  expect(JSON.stringify(await reloaded.previewRequest('Continue.'))).not.toContain('Edited privacy sentinel.');
+  expect(await reloaded.compactSession()).toBeNull();
+  expect(reloaded.snapshot().turns.at(-1)?.report?.askBack?.reason).toContain('read boundary');
+  expect(f.providers.gateway.ledger.turnRows()).toHaveLength(calls);
+});
+
+it('removes a covered summary visibly after discarding its source log without another provider request', async () => {
+  const f = await fixture([
+    { match: (req) => req.role === 'background', respond: () => ({ content: JSON.stringify({ standingRequests: 'Keep the storm.', decisions: 'Discarded summary sentinel.', done: 'Read the opening.', openThreads: 'Finish the scene.' }) }) },
+    reply('One.', 'First outcome.'), reply('Two.', 'Second outcome.'), reply('Three.', 'Third outcome.'),
+  ]);
+  for (const intent of ['One.', 'Two.', 'Three.']) await f.controller.submit(intent);
+  await f.controller.compactSession();
+  const saved = (await readAgentSessions(f.session.runtimeStore(), f.session.projectId)).find((row) => row.active)!;
+  expect(saved.summaries?.chat?.covers.turns).toBe(1);
+  const calls = f.providers.gateway.ledger.turnRows().length;
+  await f.controller.loadInterrupted();
+  await f.controller.discardRun(saved.turns[0]!.runId, 1);
+  await when(f.controller, (snapshot) => snapshot.sessionSave.kind !== 'writing');
+  expect((await readAgentSessions(f.session.runtimeStore(), f.session.projectId)).find((row) => row.active)?.summaries?.chat).toBeUndefined();
+  expect(f.controller.snapshot().summaryNotice).toContain('summary was removed');
+  expect(JSON.stringify(await f.controller.previewRequest('Continue.'))).not.toContain('Discarded summary sentinel.');
+  expect(f.providers.gateway.ledger.turnRows()).toHaveLength(calls);
 });
 
 it('pauses queued turns after an ask-back and runs them only when the writer resumes the queue', async () => {

@@ -7,6 +7,7 @@ The design behind each item is in [architecture/](architecture/), and the decisi
 ## Built
 
 - **Durable agent conversations.** Sessions per project survive reloads, can be reopened or forked through any settled turn without branching the manuscript, and export as Markdown. Session metadata references existing run logs; count/age settings and actual log size are visible in Settings › Data.
+- **Long conversation memory.** Role-local summaries and a recent tail keep prompts bounded; a read-only history tool recovers exact earlier outcomes. Automatic/manual Background compaction, local summary edits, recorded spend and known-window recovery preserve original turns and project files.
 
 The first release (0.1.0) is a complete writing studio that runs in the browser:
 

@@ -5,6 +5,7 @@ import type { ProjectSession } from '../app/session.js';
 import type { AgentController } from '../app/agent.js';
 import { agentFor, whenAgent } from '../app/agent-registry.js';
 import { InterruptedRuns } from './InterruptedRuns.js';
+import { CompactionActivity } from './CompactionActivity.js';
 
 export function RunHistory({ session, onResume }: { session: ProjectSession; onResume: () => void }): ReactNode {
   const [agent, setAgent] = useState(() => agentFor(session));
@@ -23,6 +24,7 @@ function History({ agent, session, onResume }: { agent: AgentController; session
   const [error, setError] = useState<string | null>(null);
   const [preferenceFailed, setPreferenceFailed] = useState(false);
   const folder = session.folderBaseline()?.folder;
+  const compactions = snapshot.turns.flatMap((turn) => turn.report?.compactions ?? []);
   useEffect(() => {
     let active = true;
     void agent.folderCopyEnabled().then((enabled) => { if (active) { setCopy(enabled); setPreferenceFailed(false); } }, () => { if (active) { setCopy(null); setPreferenceFailed(true); setError(t`The folder-copy preference could not be read. Reopen Activity to try again.`); } });
@@ -58,6 +60,7 @@ function History({ agent, session, onResume }: { agent: AgentController; session
       {snapshot.runHistoryLoad.kind === 'loading' ? <p role="status"><Trans>Loading retained agent runs…</Trans></p> : null}
       {snapshot.runHistoryLoad.kind === 'failed' ? <div role="alert"><p>{snapshot.runHistoryLoad.message}</p><button type="button" className="button" disabled={snapshot.busy} onClick={() => void agent.loadInterrupted()}><Trans>Retry run history</Trans></button></div> : null}
       {snapshot.runHistory.length === 0 ? snapshot.runHistoryLoad.kind === 'ready' ? <p className="muted"><Trans>No retained agent runs in this project.</Trans></p> : null : <InterruptedRuns agent={agent} runs={snapshot.runHistory} busy={snapshot.busy} history onResume={onResume} />}
+      {compactions.length === 0 ? null : <details className="agent-context"><summary><Trans>Conversation compaction in this session</Trans></summary><CompactionActivity entries={compactions} profiles={snapshot.usageProfiles} /></details>}
     </details>
   );
 }

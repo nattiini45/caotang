@@ -49,6 +49,8 @@ import { TranscriptionReviewDialog } from '../media/TranscriptionReviewDialog.js
 import { ConfirmDialog, EmptyState, useComposingEnter, useReport, useSession } from './shared.js';
 import { AgentQueue, type HeldNote } from './AgentQueue.js';
 import { AgentSessions } from './AgentSessions.js';
+import { AgentMemory } from './AgentMemory.js';
+import { CompactionActivity } from './CompactionActivity.js';
 import { CommandComposer } from './CommandComposer.js';
 import { openDialog } from './dialog-requests.js';
 import { PlanCard, planHeading, type TranscriptionRouteChoice } from './PlanCard.js';
@@ -61,6 +63,7 @@ import { InterruptedRuns } from './InterruptedRuns.js';
 import { TaskChecklist } from './TaskChecklist.js';
 import { renderRef, WRITER_VALUE_KEYS } from '../i18n/render-ref.js';
 import { accessibleText } from '../i18n/accessible-text.js';
+import { formatCount } from '../i18n/locale.js';
 import { UserText } from '../i18n/UserText.js';
 import { RestoreResult } from './RestoreResult.js';
 
@@ -108,6 +111,7 @@ export interface AgentPanelProps {
   readonly onClose?: () => void;
   /** Opens Settings › Providers. Only the window gets it, and offers it under the demo's refusal (#363). */
   readonly onAddProvider?: () => void;
+  readonly onOpenProviders?: () => void;
 }
 
 /**
@@ -155,6 +159,7 @@ export function AgentPanel({
   placement = 'drawer',
   onClose,
   onAddProvider,
+  onOpenProviders,
 }: AgentPanelProps): ReactNode {
   const inWindow = placement === 'window';
   const sectionHeading = inWindow ? 3 : 4;
@@ -163,6 +168,14 @@ export function AgentPanel({
   useLingui();
   const sessionVersion = useSession(session);
   const snapshot = useSyncExternalStore(agent.subscribe, agent.snapshot);
+  const chatMemory = snapshot.sessionMemory.find((memory) => memory.role === 'chat');
+  const windowRecovery: WindowRecovery = {
+    disabled: snapshot.busy || snapshot.queue.length > 0 || snapshot.sessionSave.kind === 'writing' || snapshot.sessionSave.failure !== null,
+    canCompact: chatMemory !== undefined && !chatMemory.withheld && (chatMemory.summary !== undefined || chatMemory.turns > 2),
+    onCompact: () => { void agent.compactSession('chat'); },
+    onNew: () => { void agent.newSession(); },
+    onProviders: onOpenProviders,
+  };
   const keyboardLayout = useSyncExternalStore(keyboardLayoutStore.subscribe, keyboardLayoutStore.snapshot);
   const report = useReport();
   // The pictures' file names, by id: a codex step's visual references are shown by name on its card (plan-preview.ts).
@@ -493,7 +506,8 @@ export function AgentPanel({
             {snapshot.phase === 'starting' ? t`The agent is loading.`
               : snapshot.phase === 'approving' ? t`Your approval is being processed.`
                 : snapshot.phase === 'stopping' ? t`The agent is stopping.`
-                  : stepLine ?? (snapshot.pending !== null || snapshot.offer !== null ? t`Waiting for you` : t`Working…`)}
+                  : running?.compacting === true ? t`Summarising earlier conversation with Background…`
+                    : stepLine ?? (snapshot.pending !== null || snapshot.offer !== null ? t`Waiting for you` : t`Working…`)}
           </span>
         ) : null}
         {/* What the run has used of the limits the writer set: tokens, cost, steps and time worked, after each model call. */}
@@ -607,6 +621,7 @@ export function AgentPanel({
             </div>
           ) : null}
 
+          <AgentMemory key={snapshot.sessionId} agent={agent} snapshot={snapshot} />
           {snapshot.turns.length === 0 ? (
             <EmptyState title={t`The agent has not run yet`}>
               <Trans>Ask it to draft a scene, fill the synopses of a chapter, or check the manuscript for continuity. It proposes each
@@ -633,6 +648,7 @@ export function AgentPanel({
                     onRestoreStep={(turnId, summary, stepId) => openRestore(restoreOf(agent, turnId, summary, false, stepId))}
                     onRewind={rewind}
                     onRunHeld={(turnId) => void agent.runHeldPlan(turnId)}
+                    windowRecovery={windowRecovery}
                     onResolveReview={(turnId, mode) => {
                       // The card offers this only while it shows a pending count, so nothing settled means the marks are still there.
                       if (agent.resolveReview(turnId, mode) === 0) report({ text: UNRESOLVED_NOTICE, tone: 'info' });
@@ -826,6 +842,7 @@ function TurnBlock({
   onRewind,
   onRunHeld,
   onResolveReview,
+  windowRecovery,
 }: {
   turn: TurnView;
   snapshot: AgentSnapshot;
@@ -851,6 +868,7 @@ function TurnBlock({
   onRunHeld: (turnId: string) => void;
   /** Keeps or puts back the suggestions this turn's edits still have marked in the editor (editor-engine §15). */
   onResolveReview: (turnId: string, mode: 'accept' | 'reject') => void;
+  windowRecovery: WindowRecovery;
 }): ReactNode {
   useLingui();
   const live = snapshot.pending !== null && snapshot.pending.turnId === turn.turnId;
@@ -917,7 +935,7 @@ function TurnBlock({
             : phaseLabel(turn.phase)}
         </span>
       </header>
-      {settled && !turn.command?.startsWith('mcp-') && !turn.command?.startsWith('macro-') ? <SaveCommand session={session} intent={turn.intent} /> : null}
+      {settled && !turn.report?.compactions?.some((entry) => entry.origin === 'manual') && !turn.command?.startsWith('mcp-') && !turn.command?.startsWith('macro-') ? <SaveCommand session={session} intent={turn.intent} /> : null}
       <TaskChecklist list={turn.tasks} settled={settled} />
       {turn.provider !== null ? <p className="agent-on muted"><Trans>Ran on <UserText value={turn.provider} /></Trans></p> : null}
 
@@ -995,7 +1013,8 @@ function TurnBlock({
 
       {turn.findings.length > 0 ? <FindingsList findings={turn.findings} /> : null}
 
-      {turn.report?.askBack !== undefined ? <AskBackCard askBack={turn.report.askBack} /> : null}
+      {turn.report?.askBack !== undefined ? <AskBackCard askBack={turn.report.askBack} windowRecovery={windowRecovery} /> : null}
+      {(turn.clearedResults?.length ?? 0) === 0 ? null : <details className="agent-context"><summary><Trans>Older tool results cleared to fit the model window</Trans></summary><p><Trans>The call records remain. The model can call the tools again if it needs their results.</Trans></p><ul>{turn.clearedResults?.map((item, index) => <li key={index}><bdi>{item.tool}</bdi>{item.toolCallId === undefined ? null : <> · <bdi>{item.toolCallId}</bdi></>}</li>)}</ul></details>}
 
       {turn.checkpoint !== null ? (
         <CheckpointRow
@@ -1186,13 +1205,31 @@ const ASKBACK_TITLES: Readonly<Record<AskBack['code'], string>> = {
 };
 
 /** The ask-back envelope (agent-harness §2): why the turn stopped and the next actions it offers, as a card. */
-export function AskBackCard({ askBack }: { askBack: AskBack }): ReactNode {
+interface WindowRecovery {
+  readonly disabled: boolean;
+  readonly canCompact: boolean;
+  readonly onCompact: () => void;
+  readonly onNew: () => void;
+  readonly onProviders?: () => void;
+}
+
+export function AskBackCard({ askBack, windowRecovery }: { askBack: AskBack; windowRecovery?: WindowRecovery }): ReactNode {
   useLingui();
   const options = askBackOptions(askBack);
+  const window = askBack.window;
   return (
     <aside className={`askback is-${askBack.code}`} aria-label={ASKBACK_TITLES[askBack.code]}>
       <h4>{ASKBACK_TITLES[askBack.code]}</h4>
-      <p>{askBack.reason}</p>
+      <p>{window === undefined ? askBack.reason : t`This request needs about ${{ promptTokens: formatCount(window.promptTokens) }} prompt tokens plus ${{ reserveTokens: formatCount(window.reserveTokens) }} reserved tokens. The model window is ${{ windowTokens: formatCount(window.windowTokens) }} tokens. No request was sent.`}</p>
+      {window === undefined ? null : <>
+        <p><Trans>A larger budget does not enlarge this model’s window. Choose a model with a larger window in Settings › Providers, compact the earlier Chat conversation, or start a new session. Send your request again when ready.</Trans></p>
+        <p className="muted"><Trans>Compact makes a separate Background request within your current limits. It does not retry the stopped request or change the manuscript.</Trans></p>
+        {windowRecovery === undefined ? null : <div className="agent-memory-actions">
+          <button type="button" className="button" disabled={windowRecovery.disabled || !windowRecovery.canCompact} onClick={windowRecovery.onCompact}><Trans>Compact Chat conversation</Trans></button>
+          <button type="button" className="button is-quiet" disabled={windowRecovery.disabled} onClick={windowRecovery.onNew}><Trans>Start a new session</Trans></button>
+          {windowRecovery.onProviders === undefined ? null : <button type="button" className="button is-quiet" disabled={windowRecovery.disabled} onClick={windowRecovery.onProviders}><Trans>Open provider settings</Trans></button>}
+        </div>}
+      </>}
       {askBack.candidates !== undefined && askBack.candidates.length > 0 ? (
         <ul className="askback-candidates">
           {askBack.candidates.map((candidate) => (
@@ -1202,7 +1239,7 @@ export function AskBackCard({ askBack }: { askBack: AskBack }): ReactNode {
           ))}
         </ul>
       ) : null}
-      {options.length > 0 ? (
+      {window === undefined && options.length > 0 ? (
         <ul className="askback-options" aria-label={t`Next steps`}>
           {options.map((option) => (
             <li key={option}>{option}</li>
@@ -1295,16 +1332,20 @@ function ReportLine({ report, profiles, restoration, accountingUnavailable }: { 
   const prompt = tokens.promptTokens;
   const completion = tokens.completionTokens;
   const totals = sumUsage(report.usage ?? []);
+  const summary = report.status === 'replied' && report.compactions?.some((entry) => entry.origin === 'manual' && entry.status === 'replied')
+    ? t`Earlier conversation summarised. Read or edit the summary above.`
+    : report.summary;
   if (report.usage === undefined && report.costUsd === undefined) totals.unpricedRequests = report.tokens.requests;
   const cost = report.costUsd;
   return (
     <div className="agent-report" aria-label={t`Report`} data-input-tokens={accountingUnavailable ? undefined : prompt} data-output-tokens={accountingUnavailable ? undefined : completion} data-cost-usd={cost}>
-      <p className="agent-report-text">{restoration === null ? report.summary : <RestoreResult summary={report.summary} restoration={restoration} />}</p>
+      <p className="agent-report-text">{restoration === null ? summary : <RestoreResult summary={summary} restoration={restoration} />}</p>
       <p className="muted agent-report-meta">
         {accountingUnavailable ? <Trans>Usage was not recorded for this earlier turn.</Trans> : plural(calls, { one: `# model call · about ${prompt} tokens in, ${completion} out`, other: `# model calls · about ${prompt} tokens in, ${completion} out` })}
       </p>
       {cost !== undefined ? <p className="muted agent-report-meta" data-testid="agent-turn-cost">{t`About ${{ cost: formatUsd(cost) }} for this turn, using recorded call costs.`}</p> : null}
       <UsageNotes totals={totals} />
+      {(report.compactions?.length ?? 0) === 0 ? null : <details className="agent-context"><summary><Trans>Conversation compaction</Trans></summary><CompactionActivity entries={report.compactions ?? []} profiles={profiles} /></details>}
       {report.usage === undefined || report.usage.length === 0 ? null : <details className="agent-context">
         <summary><Trans>Usage by profile, model and role</Trans></summary>
         <UsageBreakdown rows={groupUsage(report.usage)} names={new Map(profiles.map((profile) => [profile.id, profile.name]))} />

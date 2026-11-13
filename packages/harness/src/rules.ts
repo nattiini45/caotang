@@ -13,7 +13,9 @@
  */
 
 import { refusal, type CommandError } from '@caotang/bus';
+import { sha256HexOfText } from '@caotang/skills';
 import type { PermissionRule, ProjectState, RuleScope, TreeNode } from '@caotang/store';
+import { canonicalJson } from './util.js';
 
 export type { PermissionRule, RuleAccess, RuleEffect, RuleScope } from '@caotang/store';
 
@@ -254,6 +256,14 @@ export function withheldAnywhere(set: RuleSet, state: Pick<ProjectState, 'manife
     for (const id of scopeNodes(rule.scope, state.manifest.tree) ?? []) out.add(id);
   }
   return out;
+}
+
+export function memoryReadPolicy(set: RuleSet, state: Pick<ProjectState, 'manifest'>): string | undefined {
+  const denies = [...new Set(set.rules.filter((rule) => rule.effect === 'deny' && rule.scope !== undefined && (rule.access ?? 'any') !== 'write').map((rule) =>
+    canonicalJson({ tool: rule.tool, scope: rule.scope, nodes: [...(scopeNodes(rule.scope!, state.manifest.tree) ?? [])].sort() }),
+  ))].sort();
+  if (denies.length === 0 && set.unreadable !== true) return undefined;
+  return sha256HexOfText(canonicalJson({ denies, unreadable: set.unreadable === true }));
 }
 
 const SOURCE_WORDS: Readonly<Record<RuleSource, string>> = { app: 'your app settings', project: 'this project’s file', session: 'this session' };

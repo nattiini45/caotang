@@ -10,7 +10,9 @@
 import type { ActivityEntry } from '@caotang/bus';
 import type { MentionIndex } from '@caotang/codex';
 import type { ChatMessage, ImageSummary } from '@caotang/gateway';
-import type { ProjectState } from '@caotang/store';
+import type { ProjectState, SessionSummary } from '@caotang/store';
+
+export type { SessionSummary } from '@caotang/store';
 
 /** §2's fixed layer order. Rendering and the prompt preview both follow it. */
 export const LAYER_IDS = ['L0', 'LI', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7'] as const;
@@ -105,6 +107,8 @@ export interface RecentTurn {
   readonly rewound?: boolean;
   /** A turn the planner is never told of (a macro run): L6 leaves it out, intent and outcome both, before the turn limit applies. */
   readonly hidden?: boolean;
+  readonly external?: boolean;
+  readonly readPolicy?: string;
 }
 
 /** The app state assembly reads. Assembly never writes any of it. */
@@ -118,6 +122,9 @@ export interface AppSnapshot {
   readonly mentions?: MentionIndex;
   /** Agent turns, oldest first. L6 keeps the last two. */
   readonly turns?: readonly RecentTurn[];
+  readonly sessionSummary?: SessionSummary;
+  readonly sessionKeepTurns?: number;
+  readonly readPolicy?: string;
   /** Activity rows, for the turns' outcome and undo-group lines. */
   readonly activity?: readonly ActivityEntry[];
   /**

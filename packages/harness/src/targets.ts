@@ -252,6 +252,7 @@ export const TOOL_TARGETS: Readonly<Record<ToolName, ToolTargets>> = {
   'memory.write': 'project',
   'instructions.propose': 'project',
   'agent.delegate': docList('scope', 'reads'),
+  'session.history': 'project',
   // The PR's timeline, picture and comic rows. A picture id (a_…) or placement id (l_…) is not a binder node, so a call that
   // names only those is a 'project' row.
   'timeline.read': timelineRead,

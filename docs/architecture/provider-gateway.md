@@ -194,6 +194,8 @@ Existing actionable local-server CORS/permission guidance is retained separately
 
 ## 8. Mock provider contract (test-critical)
 
+The app's keyless provider also scripts the harness's structured Background compaction request, matched by role, schema hint and the fixed compaction system prefix. It returns four deterministic section strings, explicitly labelled as a demo rather than a factual account of the manuscript. It does not infer decisions or echo the supplied history into a scene. The gateway/harness prefix guard pins the two constants without introducing a gateway dependency on the harness; unrelated demo drafting requests keep their existing refusal.
+
 The mock provider is a **deterministic, scriptable** implementation of `ProviderGateway` used by Vitest headless tests and Playwright runs (ARCHITECTURE §1.6).
 
 ```ts

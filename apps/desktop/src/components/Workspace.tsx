@@ -1001,6 +1001,7 @@ export function Workspace({
           open={agentOpen}
           onToggle={() => setAgentOpen((on) => !on)}
           sample={sample}
+          onOpenProviders={openProviders}
         />
       ),
     // The same panel for a shell that hosts it in a window of its own (Modern's companion, modern-interface.md §7.4, §8.10): always open,
@@ -1017,6 +1018,7 @@ export function Workspace({
           onToggle={() => setAgentOpen((on) => !on)}
           onClose={() => setAgentOpen(false)}
           onAddProvider={openProviders}
+          onOpenProviders={openProviders}
           placement="window"
           sample={sample}
         />

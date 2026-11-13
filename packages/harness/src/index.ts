@@ -113,11 +113,14 @@ export {
   type MacroTool,
 } from './macro.js';
 export { continuityTask, sceneTask } from './agent/scene-task.js';
+export { fitToWindow, type ClearedToolResult, type WindowBudget } from './agent/window.js';
 export {
   createAgentSession,
   synopsisInstruction,
   type AgentSession,
   type AgentSessionOptions,
+  type CompactionPolicy,
+  type CompactionReport,
   type ContextPreview,
   type RequestContextPreview,
   type OfferAnswer,
@@ -377,7 +380,7 @@ export { CACHE_MISS_CAUSES, CacheWatch, missCause, stableToolOrder, type CacheMi
 // The Context section's preview: the prompt a scene draft would send, assembled as the loop assembles it (context-assembly §5).
 export { instructionsReport, scenePromptPreview, type InstructionsReport, type ScenePreviewOptions } from './agent/step-preview.js';
 // The plan card renders a step's prompt preview; the app reads its shape from here, not from @caotang/context.
-export { withheldState } from '@caotang/context';
+export { summaryPrefix, withheldState } from '@caotang/context';
 export type { ContextConfig, ContextMeter, ContextOverrides, ContextRef, PreviewLayer, PromptPreview } from '@caotang/context';
 export { DEFAULT_INSTRUCTIONS_BUDGET, REQUEST_PIN_REASON } from '@caotang/context';
 export {
@@ -430,6 +433,7 @@ export {
   STEP_EXTERNAL_CHECKPOINT_NOTE,
   type AgentEvent,
   type CardRecord,
+  type CompactionActivity,
   type Decision,
   type PendingCard,
   type SteeringNote,
@@ -511,6 +515,7 @@ export {
 } from './agent/trace.js';
 export {
   DRAFT_SYSTEM_PREFIX,
+  COMPACTION_SYSTEM_PREFIX,
   PLANNER_SYSTEM_PREFIX,
   REPLY_SCHEMA_HINT,
   parseReply,

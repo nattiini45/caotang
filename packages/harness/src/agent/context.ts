@@ -32,6 +32,7 @@ import {
   type PreviewLayer,
   type PromptPreview,
   type RecentTurn,
+  type SessionSummary,
 } from '@caotang/context';
 import type { ChatMessage, MessageContent } from '@caotang/gateway';
 import { contentTokens, partsOf, promptTokensOf } from '@caotang/gateway';
@@ -55,6 +56,9 @@ export interface ContextRequest {
   readonly state?: ProjectState;
   /** The turns before this one, oldest first. L6 keeps the last two (context-assembly §2). */
   readonly turns?: readonly RecentTurn[];
+  readonly sessionSummary?: SessionSummary;
+  readonly sessionKeepTurns?: number;
+  readonly readPolicy?: string;
   /** The activity rows of those turns, which give L6 its outcome lines. */
   readonly activity?: readonly ActivityEntry[];
   /** The two languages the turn pinned at its start. Absent in a headless host: the call carries no language line (i18n §6.1). */
@@ -159,7 +163,7 @@ export interface ContextPortOptions {
  */
 export function withRole(prompt: AssembledPrompt, role: string): AssembledPrompt {
   // A call whose user message carries an envelope (layer LI) is told what the markers mean, whatever its role text is (system prompt v2).
-  const enveloped = prompt.layers.some((layer) => layer.id === 'LI' && layer.included);
+  const enveloped = prompt.layers.some((layer) => layer.included && (layer.id === 'LI' || layer.kept.some((item) => item.label === 'session summary')));
   const sent = enveloped && !role.includes(UNTRUSTED_RULE) ? `${role}\n\n${UNTRUSTED_RULE}` : role;
   const messages: ChatMessage[] = [{ role: 'system', content: sent }, ...prompt.messages.slice(1)];
   const roleTokens = tokensForChars(sent.length);
@@ -200,6 +204,9 @@ export function createContextPort(options: ContextPortOptions): ContextPort {
         state: request.state ?? stateOf(),
         ...(withheld === undefined || withheld.size === 0 ? {} : { withheld }),
         ...(request.turns === undefined ? {} : { turns: request.turns }),
+        ...(request.sessionSummary === undefined ? {} : { sessionSummary: request.sessionSummary }),
+        ...(request.sessionKeepTurns === undefined ? {} : { sessionKeepTurns: request.sessionKeepTurns }),
+        ...(request.readPolicy === undefined ? {} : { readPolicy: request.readPolicy }),
         ...(request.activity === undefined ? {} : { activity: request.activity }),
         ...(request.nonce === undefined ? {} : { nonce: request.nonce }),
       };

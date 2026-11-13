@@ -32,6 +32,7 @@ import { isRecord } from '../util.js';
 export const PLANNER_SYSTEM_PREFIX = "You are Caotang's agent.";
 /** The first words of a drafting call's system message: prose, synopses or findings for one tool. */
 export const DRAFT_SYSTEM_PREFIX = 'You are drafting prose for Caotang.';
+export const COMPACTION_SYSTEM_PREFIX = "Summarise this role's earlier conversation";
 /** The first words of a delegated agent's system message (agent-harness §2, "Delegate"). The mock scripts match on it (gateway mock). */
 export const SUBAGENT_SYSTEM_PREFIX = 'You are a delegated agent for Caotang.';
 

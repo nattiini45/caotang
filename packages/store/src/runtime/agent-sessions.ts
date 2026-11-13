@@ -12,6 +12,17 @@ export interface AgentSessionTurnRef {
   readonly restoredFromStep?: number;
 }
 
+export interface SessionSummary {
+  readonly version: 1;
+  readonly covers: { readonly from: string; readonly to: string; readonly turns: number };
+  readonly text: string;
+  readonly origin: 'auto' | 'manual';
+  readonly focus?: string;
+  readonly external: boolean;
+  readonly readPolicy?: string;
+  readonly editedAt?: number;
+}
+
 export interface AgentSessionRow {
   readonly projectId: string;
   readonly sessionId: string;
@@ -22,6 +33,7 @@ export interface AgentSessionRow {
   readonly active: boolean;
   readonly turns: readonly AgentSessionTurnRef[];
   readonly nextTurn?: Readonly<Partial<Record<AgentSessionTurnRef['role'], number>>>;
+  readonly summaries?: Readonly<Partial<Record<AgentSessionTurnRef['role'], SessionSummary>>>;
   readonly forkedFrom?: { readonly sessionId: string; readonly turnSeq: number };
 }
 
@@ -31,6 +43,21 @@ export interface AgentSessionRetention {
 }
 
 export const DEFAULT_AGENT_SESSION_RETENTION: AgentSessionRetention = Object.freeze({ days: 30, count: 50 });
+
+function validSummary(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const summary = value as Record<string, unknown>;
+  const covers = summary['covers'];
+  if (typeof covers !== 'object' || covers === null) return false;
+  const span = covers as Record<string, unknown>;
+  return summary['version'] === 1 && typeof summary['text'] === 'string' && summary['text'].trim() !== '' &&
+    (summary['origin'] === 'auto' || summary['origin'] === 'manual') && typeof summary['external'] === 'boolean' &&
+    (summary['focus'] === undefined || typeof summary['focus'] === 'string') &&
+    (summary['editedAt'] === undefined || (typeof summary['editedAt'] === 'number' && Number.isFinite(summary['editedAt']) && summary['editedAt'] >= 0)) &&
+    (summary['readPolicy'] === undefined || (typeof summary['readPolicy'] === 'string' && /^[a-f0-9]{64}$/.test(summary['readPolicy']))) &&
+    typeof span['from'] === 'string' && span['from'].trim() !== '' && typeof span['to'] === 'string' && span['to'].trim() !== '' &&
+    typeof span['turns'] === 'number' && Number.isSafeInteger(span['turns']) && span['turns'] > 0;
+}
 
 function byUpdated(a: AgentSessionRow, b: AgentSessionRow): number {
   return b.updatedAt - a.updatedAt || (a.sessionId < b.sessionId ? -1 : a.sessionId > b.sessionId ? 1 : 0);
@@ -50,6 +77,7 @@ function persistSession(store: RuntimeStore, row: AgentSessionRow, turn?: { runI
       if (project.result === undefined) throw new ProjectNotFoundError(row.projectId);
       if (row.formatVersion !== 1) throw new Error('unsupported agent session version');
       if (row.nextTurn !== undefined && Object.values(row.nextTurn).some((value) => !Number.isSafeInteger(value) || value <= 0)) throw new Error('agent session counters need positive whole numbers');
+      if (row.summaries !== undefined && (typeof row.summaries !== 'object' || row.summaries === null || Object.entries(row.summaries).some(([role, summary]) => !['chat', 'drafting', 'background'].includes(role) || !validSummary(summary)))) throw new Error('invalid agent session summary');
       if (turn !== undefined && !row.turns.some((ref) => ref.runId === turn.runId)) throw new Error('the settled turn must be referenced by its session');
       const runs = tx.objectStore(RUN_STORE);
       const ids = [...new Set(row.turns.map((ref) => ref.runId))];

@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Long conversation memory.** Each role keeps a durable summary beside its recent turns, with exact earlier outcomes available through the read-only `session.history` tool. Automatic and focused manual compaction use one bounded Background-provider call; local summary edits make none. Failed summaries preserve the earlier memory, changed read boundaries withhold derived text, and rewind/restore/discard invalidation stays visible. Reports retain the actual compaction profile/model spend without adding it to totals twice. Known model-window overflow clears eligible old tool results before refusing an unsendable request with explicit recovery controls; no automatic resend or spend increase occurs.
+
 - **Durable agent sessions.** Conversations stay with each project in this browser across reloads. Sessions opens earlier conversations, starts a new one, exports Markdown with a JSON head, or deletes one. Fork from here branches only the conversation, never the manuscript. Settings › Data controls session count/age and shows retained run-log size. Restoring an earlier-visit turn still requires its tab's undo history; Activity's durable run restore is separate.
 
 - **Request-local context controls.** The agent composer estimates prompt capacity as you type, previews the planner request without a provider call and shows actual planner meters while running. `@` pins codex entries or up to three bounded document excerpts; shared previews can leave optional items out, with fresh approval after a plan-step context edit. Queued requests retain their own choices. Saved inclusion policies, Never and read-deny rules remain unchanged.
@@ -28,6 +30,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Hook editor and tests.** Settings › Hooks creates and edits all four check kinds and all seven events. Test an unsaved hook against an explicit document, tool, issuer and sample text without making a change or calling a provider; a disabled or unmatched hook says it did not run. The controls and guidance are translated into German.
 
 - **Hook lifecycle checks.** Pure checks now run before and after turns and exports, and before explicit folder and bundle saves. A submit check can stop a turn before any provider request; end and save checks only warn. A writer's blocked export offers **Compile anyway** for that export only, while the agent cannot override it. Export warnings enter the compile log, and opening a project announces its hooks. Settings › Hooks lists existing hooks with an enable switch and undoable deletion.
+
+### Known limits
+
+- Conversation compaction uses a visible provider-independent summary, not opaque provider-native checkpoints. Unknown model windows cannot be checked before a request; provider-reported limits and recorded bills remain authoritative.
 
 ### Fixed
 

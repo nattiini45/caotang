@@ -8,8 +8,8 @@
 
 import type { CommandError } from '@caotang/bus';
 
-import type { ContextMeter, LayerReport, PromptPreview } from '@caotang/context';
-import type { TurnUsageRow } from '@caotang/gateway';
+import type { ContextMeter, LayerReport, PromptPreview, SessionSummary } from '@caotang/context';
+import type { TaskRole, TurnUsageRow } from '@caotang/gateway';
 
 import type { HookRun } from '../hooks.js';
 import type { AskBack, PlanStep } from '../plan.js';
@@ -18,6 +18,7 @@ import type { BudgetSpend, BudgetStop, RunLimits } from './budget.js';
 import type { Finding } from './drafting.js';
 import type { BudgetUse, PermissionMode } from './mode.js';
 import type { TurnCacheUse } from './cache-watch.js';
+import type { ClearedToolResult } from './window.js';
 
 /** One tool call as it ran, in order. An eval's trace matcher reads these (agent-harness §9). */
 export interface TraceEntry {
@@ -74,12 +75,24 @@ export interface SteeringNote {
 }
 
 /** The compact turn summary (agent-harness §2 step 5): what changed, the undo group, and what it cost. */
+export interface CompactionActivity {
+  readonly at: number;
+  readonly origin: SessionSummary['origin'];
+  readonly role: TaskRole;
+  readonly status: 'replied' | 'failed' | 'cancelled';
+  readonly covers: SessionSummary['covers'];
+  readonly usage: readonly TurnUsageRow[];
+}
+
 export interface TurnReport {
   readonly turnId: string;
   readonly status: TurnStatus;
   /** The reply's text, when the turn ended with an answer. */
   readonly text?: string;
   readonly summary: string;
+  readonly external?: boolean;
+  readonly readPolicy?: string;
+  readonly compactions?: readonly CompactionActivity[];
   readonly steps: readonly StepRecord[];
   readonly cards: readonly CardRecord[];
   readonly trace: readonly TraceEntry[];
@@ -164,6 +177,11 @@ export type AgentEvent =
   | { readonly type: 'draft.delta'; readonly turnId: string; readonly docTitle: string; readonly delta: string; readonly start?: boolean }
   | { readonly type: 'context'; readonly turnId: string; readonly layers: readonly Pick<LayerReport, 'id' | 'tokens'>[]; readonly dropped: readonly string[] }
   | { readonly type: 'context-meter'; readonly turnId: string; readonly meter: ContextMeter; readonly preview: PromptPreview }
+  | { readonly type: 'context.cleared'; readonly turnId: string; readonly cleared: readonly ClearedToolResult[] }
+  | { readonly type: 'session.compacted'; readonly turnId: string; readonly summary: SessionSummary; readonly tokens: { readonly promptTokens: number; readonly completionTokens: number } }
+  | { readonly type: 'session.summary.changed'; readonly turnId: string; readonly role: TaskRole; readonly summary?: SessionSummary; readonly reason: 'coverage' | 'rewind' | 'restore' | 'undo-restore' | 'edit' }
+  | { readonly type: 'session.compacting'; readonly turnId: string }
+  | { readonly type: 'session.compaction'; readonly turnId: string; readonly activity: CompactionActivity }
   | { readonly type: 'card'; readonly turnId: string; readonly card: StatusCard }
   /** `auto` marks a card the mode's policy approved instead of the writer (agent-harness §4): it is shown collapsed, with an auto-approved badge. */
   | { readonly type: 'plan'; readonly turnId: string; readonly card: PlanCardView; readonly auto?: true }
