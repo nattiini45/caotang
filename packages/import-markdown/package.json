@@ -1,0 +1,21 @@
+{
+  "name": "@caotang/import-markdown",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "The Markdown reader for the Markdown import (#280): a single .md file, a folder of chapters and scenes, or a zip of either, read into the import block list with its front matter mapped and its losses. No DOM and no third-party dependencies, so it runs on the main thread, in a 'self' Worker and in Node.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@caotang/import-core": "workspace:*",
+    "@caotang/import-read": "workspace:*",
+    "@caotang/store": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

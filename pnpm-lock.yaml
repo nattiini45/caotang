@@ -855,6 +855,18 @@ importers:
 
   packages/import-core: {}
 
+  packages/import-markdown:
+    dependencies:
+      '@caotang/import-core':
+        specifier: workspace:*
+        version: link:../import-core
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../import-read
+      '@caotang/store':
+        specifier: workspace:*
+        version: link:../store
+
   packages/import-read:
     dependencies:
       '@caotang/import-core':
