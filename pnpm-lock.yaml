@@ -891,6 +891,18 @@ importers:
         specifier: workspace:*
         version: link:../import-read
 
+  packages/import-textbundle:
+    dependencies:
+      '@caotang/import-core':
+        specifier: workspace:*
+        version: link:../import-core
+      '@caotang/import-markdown':
+        specifier: workspace:*
+        version: link:../import-markdown
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../import-read
+
   packages/machine: {}
 
   packages/mcp-client:

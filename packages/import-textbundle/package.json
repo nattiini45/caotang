@@ -1,0 +1,21 @@
+{
+  "name": "@caotang/import-textbundle",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "The TextBundle and TextPack reader for the Markdown interchange of Ulysses, Bear and iA Writer (#282): a .textbundle folder or a zipped TextPack, read into the import block list over the Markdown reader, with the app's comments, tags and Content Blocks mapped. No DOM and no third-party dependencies, so it runs on the main thread, in a 'self' Worker and in Node.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@caotang/import-core": "workspace:*",
+    "@caotang/import-markdown": "workspace:*",
+    "@caotang/import-read": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}
