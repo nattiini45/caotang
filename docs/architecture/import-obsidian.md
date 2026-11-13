@@ -1,6 +1,6 @@
 # import-obsidian — the Obsidian vault and Longform reader
 
-Status: reader, Worker, preview and UI built (#281, epic #263); guides and e2e in progress. Package `@caotang/import-obsidian`.
+Status: built (#281, epic #263): reader, Worker, preview, UI, guides and e2e. Package `@caotang/import-obsidian`.
 
 ## 1. What it reads
 
