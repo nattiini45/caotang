@@ -873,6 +873,21 @@ importers:
         specifier: workspace:*
         version: link:../store
 
+  packages/import-novelcrafter:
+    dependencies:
+      '@caotang/import-core':
+        specifier: workspace:*
+        version: link:../import-core
+      '@caotang/import-markdown':
+        specifier: workspace:*
+        version: link:../import-markdown
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../import-read
+      '@caotang/store':
+        specifier: workspace:*
+        version: link:../store
+
   packages/import-obsidian:
     dependencies:
       '@caotang/import-core':
