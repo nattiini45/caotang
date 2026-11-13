@@ -2475,7 +2475,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
       },
       model: () => agentCall(turn, agentPath, spec.maxModelCalls),
-      read: (call) => Promise.resolve(harness.call(call, { turnId: turn.id, agentPath, ...signalOf(turn) })),
+      read: async (call) => {
+        guardReadBoundary(turn);
+        const context = { turnId: turn.id, agentPath, ...signalOf(turn) };
+        return awaited(call.name) ? harness.callAsync(call, context) : harness.call(call, context);
+      },
       trace: (entry) => {
         const row: TraceEntry = { ...entry, agentPath };
         pushRow(turn, row);

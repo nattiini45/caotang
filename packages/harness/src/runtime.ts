@@ -122,6 +122,7 @@ import type { ResultData } from './results.js';
 import { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
 import { NO_SERVERS, toolSearchPort } from './tools/search.js';
 import { sessionHistoryPort } from './tools/session-history.js';
+import { textSearchPort } from './tools/text-search.js';
 import { createSkillLoads, isWriterInvocable, skillLoadData, skillLoadPort, skillReadPort, skillResourcePaths, skillStatesOf, skillToolRefusal, type LoadedSkill, type SkillsOption } from './tools/skills.js';
 import { storyboardPorts } from './tools/storyboard.js';
 import { stageTimelineEdit, type TimelineProposal } from './tools/timeline-edit.js';
@@ -721,6 +722,7 @@ export function createHarness(options: HarnessOptions): Harness {
     ...coherencePorts(clock, options.coherence),
     'tool.search': toolSearchPort(index, deferredRows, loaded),
     'session.history': sessionHistoryPort,
+    ...(options.asyncPorts?.['text.search'] === undefined ? { 'text.search': textSearchPort } : {}),
     // The project's skills: wired only where the app says how to find the writer's review of one (HarnessOptions.skills).
     ...(options.skills === undefined ? {} : {
       'skill.load': (params, context) => skillLoadPort(skillStates, skillLoads, SKILL_LOAD_CAP,
@@ -757,6 +759,7 @@ export function createHarness(options: HarnessOptions): Harness {
   const withheldFor = (tool: string): ReadonlySet<string> => {
     const set = currentRules();
     if (set.rules.length === 0) return NO_WITHHELD;
+    if (tool === 'text.search') return withheldAnywhere(set, state);
     const own = withheldNodes(set, state, tool);
     // A row that stands for an in-app tool keeps from its prompt what a read-deny keeps from that tool's (metadata `mirrors`).
     const mirrored = metadataFor(tool)?.mirrors;
@@ -766,7 +769,10 @@ export function createHarness(options: HarnessOptions): Harness {
   const targetsOf = (meta: ToolMetadata, params: CallParams): CallTargets | undefined => {
     if (meta.targets === 'project') return NO_TARGETS;
     const targets = meta.targets(params, state);
-    return targets.ok ? targets.value : undefined;
+    if (!targets.ok) return undefined;
+    if (meta.name !== 'text.search') return targets.value;
+    const excluded = withheldFor(meta.name);
+    return { ...targets.value, reads: targets.value.reads.filter((id) => !excluded.has(id)) };
   };
   /** The verdict of the rules for a native tool call, and the call's targets (which name the operation of a compound call). */
   const verdictFor = (meta: ToolMetadata, params: CallParams): { readonly verdict: RuleVerdict; readonly targets?: CallTargets } => {

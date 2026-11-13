@@ -925,6 +925,7 @@ describe('the registry seam', () => {
             'pictures.view',
             'project.overview',
             'scene.brief',
+            'text.search',
             'timeline.read',
           ]);
           expect(await listedNames(rwClient)).toEqual([
@@ -961,6 +962,7 @@ describe('the registry seam', () => {
             'scene.brief',
             'shots.annotate',
             'synopsis.set',
+            'text.search',
             'timeline.edit',
             'timeline.read',
             'vocabulary.upsert',

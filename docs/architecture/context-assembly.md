@@ -143,7 +143,7 @@ The refusal carries optional typed `AskBack.window` metadata (`promptTokens`, `r
 | # | Item | Status |
 |---|---|---|
 | D11 | Role-local session summaries are L6 inputs; compaction happens outside pure assembly | **Delegated** (#67). One bounded Background request folds older intent/outcome records; the current role's summary precedes its recent tail, with separate reasons and drops. Exact history remains behind a paged read tool. Layer-budget ranking preserves the newest turn longest; the total-budget pass still removes L6 whole. |
-| D1 | Keyed context (synopsis-tree + mention codex), zero embeddings v0.1 | **Resolved by competitive evidence** (Novelcrafter, Sudowrite); embeddings stay a backlog candidate. |
+| D1 | Keyed context (synopsis-tree + mention codex), zero embeddings v0.1 | **Resolved by competitive evidence** (Novelcrafter, Sudowrite); embeddings stay a backlog candidate. Explicit local lexical search is a read tool, not an automatic assembly layer ([retrieval.md](retrieval.md)). |
 | D2 | Fixed layer stack + bottom-up drop + upward budget flow | Delegated; rejected: per-tool free-form prompt tuning (eval-hostile; Novelcrafter's prompt-library sprawl is the cautionary example). |
 | D3 | Defaults: tail 3k chars, story-so-far 2k tokens, codex 1k tokens | Calibrated to Sudowrite's documented ~1k words + ~20k-word continuity band; config-exposed, not hardcoded. |
 | D4 | Forward-outline excluded by default | Delegated (spoiler-suppression lesson); per-call opt-in flag. |

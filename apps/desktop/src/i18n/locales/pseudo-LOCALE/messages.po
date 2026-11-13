@@ -7719,6 +7719,11 @@ msgstr ""
 msgid "Final Draft (.fdx)"
 msgstr ""
 
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.textSearch.content"
+msgstr ""
+
 #. Changes a timeline scene can be given from the keyboard. Interpolated values: title, name, count, delta, other, part, day are scene titles, part words or numbers.
 #: apps/desktop/src/components/timeline/SceneChanges.tsx
 msgid "Find the scene it must follow"
@@ -7734,6 +7739,11 @@ msgstr ""
 #: apps/desktop/src/app/coherence-report-words.ts
 #: apps/desktop/src/app/findings-model.ts
 msgid "Finding"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.textSearch.active"
 msgstr ""
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
@@ -9561,6 +9571,10 @@ msgstr ""
 #: apps/desktop/src/media/PictureBoard.tsx
 #: apps/desktop/src/media/TranscriptionReviewDialog.tsx
 msgid "Loading…"
+msgstr ""
+
+#: apps/desktop/src/app/text-search-worker.ts
+msgid "Local passage search is unavailable. Nothing was written."
 msgstr ""
 
 #: apps/desktop/src/components/InspectorDialogue.tsx
@@ -14017,6 +14031,10 @@ msgstr ""
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
 #: apps/desktop/src/components/AgentSessions.tsx
 msgid "Retry saving the conversation"
+msgstr ""
+
+#: apps/desktop/src/app/text-search-worker.ts
+msgid "Retry the search, or reopen the project in a browser with worker support."
 msgstr ""
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.

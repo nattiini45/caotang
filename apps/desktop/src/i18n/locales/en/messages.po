@@ -7719,6 +7719,11 @@ msgstr "Filters"
 msgid "Final Draft (.fdx)"
 msgstr "Final Draft (.fdx)"
 
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.textSearch.content"
+msgstr "Find project passages"
+
 #. Changes a timeline scene can be given from the keyboard. Interpolated values: title, name, count, delta, other, part, day are scene titles, part words or numbers.
 #: apps/desktop/src/components/timeline/SceneChanges.tsx
 msgid "Find the scene it must follow"
@@ -7735,6 +7740,11 @@ msgstr "Find the scene to place it after"
 #: apps/desktop/src/app/findings-model.ts
 msgid "Finding"
 msgstr "Finding"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.textSearch.active"
+msgstr "Finding project passages"
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
@@ -9562,6 +9572,10 @@ msgstr "Loading the picture…"
 #: apps/desktop/src/media/TranscriptionReviewDialog.tsx
 msgid "Loading…"
 msgstr "Loading…"
+
+#: apps/desktop/src/app/text-search-worker.ts
+msgid "Local passage search is unavailable. Nothing was written."
+msgstr "Local passage search is unavailable. Nothing was written."
 
 #: apps/desktop/src/components/InspectorDialogue.tsx
 msgid "Locale"
@@ -14018,6 +14032,10 @@ msgstr "Retry run history"
 #: apps/desktop/src/components/AgentSessions.tsx
 msgid "Retry saving the conversation"
 msgstr "Retry saving the conversation"
+
+#: apps/desktop/src/app/text-search-worker.ts
+msgid "Retry the search, or reopen the project in a browser with worker support."
+msgstr "Retry the search, or reopen the project in a browser with worker support."
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx

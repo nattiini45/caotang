@@ -90,7 +90,7 @@ function packageOf(id: string): string | undefined {
 }
 
 /** The source of the workspace packages whose modules have no effect on import (matched on the resolved path, either separator). */
-const PURE_PACKAGE_SOURCE = /[\\/]packages[\\/](harness|gateway|mcp-client|context|exporter|coherence|bus|store|codex|dialogue|storyboard|skills|pictures|comic|timeline|video-prompt-pack|pdf-fonts|screenplay|ids)[\\/]src[\\/]/;
+const PURE_PACKAGE_SOURCE = /[\\/]packages[\\/](harness|gateway|mcp-client|context|exporter|coherence|bus|store|codex|dialogue|storyboard|skills|pictures|comic|timeline|video-prompt-pack|pdf-fonts|screenplay|ids|retrieval)[\\/]src[\\/]/;
 
 const EDITOR_PACKAGES = new Set(['linkifyjs', 'orderedmap', 'rope-sequence']);
 const MARKDOWN_PACKAGES = new Set([
@@ -125,6 +125,12 @@ export default defineConfig(({ command }) => ({
   ],
   ...(command === 'serve' ? { html: { cspNonce: DEV_NONCE } } : {}),
   optimizeDeps: { include: ['@ui-sdk/react/agent'] },
+  // The import preview's reader Worker (import-preview/reader.worker.ts) is a same-origin module Worker (`worker-src 'self'`, no
+  // `blob:`) and imports each reader on first use, so it needs ES format: 'iife' cannot code-split a worker's dynamic imports.
+  worker: {
+    format: 'es',
+    rolldownOptions: { treeshake: { moduleSideEffects: [{ test: PURE_PACKAGE_SOURCE, sideEffects: false }] } },
+  },
   server: {
     // Bind the IPv4 loopback explicitly. Vite otherwise binds ::1 (IPv6) only on
     // Windows, and the e2e suite's baseURL probes http://127.0.0.1:5173 (IPv4),
@@ -134,11 +140,6 @@ export default defineConfig(({ command }) => ({
     // their own server instead of reusing whichever one already holds 5173.
     port: Number(process.env['CAOTANG_E2E_PORT'] ?? 5173),
     strictPort: true,
-  },
-  // The import preview's reader Worker (import-preview/reader.worker.ts) is a same-origin module Worker (`worker-src 'self'`, no
-  // `blob:`) and imports each reader on first use, so it needs ES format: 'iife' cannot code-split a worker's dynamic imports.
-  worker: {
-    format: 'es',
   },
   // `vite preview` serves the built app for the production smoke test (e2e/prod-smoke.spec.ts). The Playwright config sets
   // CAOTANG_E2E_PREVIEW_PORT per checkout, so two runs at once do not share a preview server.

@@ -12,6 +12,8 @@ The codex is the per-project knowledge base of *entities that recur in the prose
 
 Explicitly **not** in v0.1 (backlog): relations graph (real power, real context-flood risk; needs prompt-preview debugging first), per-entry typed detail sub-fields, thumbnails, appearance heatmap (cheap derived stat, v0.2), embedding retrieval (rejected).
 
+Entries are searchable lexically through `text.search` ([retrieval.md](retrieval.md)); `never` entries are excluded before indexing and scoring. This explicit tool does not change mention-keyed assembly or introduce embeddings.
+
 ## 2. Data model
 
 ```ts

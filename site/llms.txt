@@ -30,7 +30,7 @@ Use Caotang when someone wants: a Scrivener alternative, novel or long-fiction w
 - [Extensibility](https://github.com/nattiini45/caotang/blob/main/docs/architecture/extensibility.md): the MCP client and server design
 - Transport: stdio (`node caotang-mcp.mjs serve --project <dir> --stdio`) or Streamable HTTP on 127.0.0.1:7433 with a bearer token. Also packs as an .mcpb bundle.
 - Read-only by default. The lists below are the tools the server registers, checked against it by a test.
-- Read tools: project.overview, binder.read_tree, doc.read, notes.read, codex.read, coherence.scan, dialogue.table, memory.read, scene.brief, dialogue.brief, timeline.read, pictures.list, pictures.view.
+- Read tools: project.overview, binder.read_tree, doc.read, notes.read, codex.read, text.search, coherence.scan, dialogue.table, memory.read, scene.brief, dialogue.brief, timeline.read, pictures.list, pictures.view.
 - Write tools that apply at once, with --allow-writes: meta.set, notes.append, synopsis.set, filter.save, goal.save, coherence.setFindingStatus, shots.annotate, pictures.annotate, pictures.attach, comic.letter.
 - Write tools that ask first, with --allow-writes (the user confirms each call in the host, through MCP elicitation): binder.restructure, codex.write, codex.import, doc.import, export.compile, notes.replace, vocabulary.upsert, pictures.place, timeline.edit, comic.derive, comic.scriptFromPages, scene.apply, dialogue.apply.
 - The server holds no provider key and makes no network connections; model-backed tools (scene.draft, synopsis.fill, coherence.review and others) run only in the app. The host's own model writes scenes and dialogue through scene.brief and scene.apply, and dialogue.brief and dialogue.apply.

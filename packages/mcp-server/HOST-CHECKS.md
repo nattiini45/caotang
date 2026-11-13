@@ -23,8 +23,8 @@ Run these on each host. Tick a row only for the host and date you record in the 
 
 - [ ] Not yet run. The install dialog shows the display name, the description and the two settings, and **Allow changes** is off by default.
 - [ ] Not yet run. A project folder with spaces and non-ASCII characters in its path (for example `~/Schreiben/Roman 草堂`) reaches `--project` intact.
-- [ ] Not yet run. With **Allow changes** off, the host lists 13 tools and `coherence.scan` runs. Record what the server's stderr says about `CAOTANG_MCP_ALLOW_WRITES` (`is unset`, `is "true"`, `is "false"` or `is other`). The server logs the class only, never the value the host sent.
-- [ ] Not yet run. With **Allow changes** on, the host lists 36 tools. A write that applies at once (`notes.append`) applies. A write that asks (`codex.write`) shows the host's confirmation dialog; declining writes nothing, accepting writes.
+- [ ] Not yet run. With **Allow changes** off, the host lists 14 tools and `coherence.scan` runs. Record what the server's stderr says about `CAOTANG_MCP_ALLOW_WRITES` (`is unset`, `is "true"`, `is "false"` or `is other`). The server logs the class only, never the value the host sent.
+- [ ] Not yet run. With **Allow changes** on, the host lists 37 tools. A write that applies at once (`notes.append`) applies. A write that asks (`codex.write`) shows the host's confirmation dialog; declining writes nothing, accepting writes.
 - [ ] Not yet run. With **Allow changes** on, `timeline.edit` asks in the host with the edits in words ("change day of …"), and accepting answers `status: "persisted"` with a `readback` of the scene's day. A second call that changes the same day after the file was edited by another program answers `status: "conflict"` and writes nothing.
 - [ ] Not yet run. The fonts load from `server/fonts/`: a contact-sheet export with CJK and emoji text through `export.compile` shows the characters. The WebP decoder loads from `server/webp_dec.wasm`: a contact sheet whose shot has a WebP picture draws it.
 - [ ] Not yet run. Uninstalling removes the server and leaves the project folder clean, with no `.caotang-mcp.lock` left in it.
