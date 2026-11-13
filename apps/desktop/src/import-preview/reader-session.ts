@@ -17,7 +17,8 @@ type State =
   | { readonly reader: 'text' | 'rtf'; readonly bytes: Uint8Array }
   | { readonly reader: 'rtfd'; readonly archive: ImportArchive }
   | { readonly reader: 'markdown'; readonly bytes: Uint8Array; readonly fileName: string }
-  | { readonly reader: 'markdown-archive'; readonly archive: ImportArchive };
+  | { readonly reader: 'markdown-archive'; readonly archive: ImportArchive }
+  | { readonly reader: 'textbundle'; readonly archive: ImportArchive };
 
 /** Flattens an RTF or archive refusal to a code and a message, so it survives the structured clone (an Error's own `code` does not). */
 function serialiseRtf(result: RtfReadResult | RtfdReadResult): SerializableRtfResult {
@@ -39,14 +40,16 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
     }
     const { openFolder, openZip } = await import('@caotang/import-read/zip');
     const archive =
-      req.reader === 'rtfd-zip' || req.reader === 'markdown-zip'
+      req.reader === 'rtfd-zip' || req.reader === 'markdown-zip' || req.reader === 'textbundle-zip'
         ? await openZip(req.bytes)
         : openFolder(req.files.map((file) => ({ path: file.path, size: file.size, read: async () => file.bytes })));
     if (!archive.ok) throw new Error(archive.error.message);
     state =
       req.reader === 'markdown-folder' || req.reader === 'markdown-zip'
         ? { reader: 'markdown-archive', archive: archive.value }
-        : { reader: 'rtfd', archive: archive.value };
+        : req.reader === 'textbundle-folder' || req.reader === 'textbundle-zip'
+          ? { reader: 'textbundle', archive: archive.value }
+          : { reader: 'rtfd', archive: archive.value };
   };
 
   const read = async (req: ReaderRead): Promise<ReaderResult> => {
@@ -75,6 +78,11 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
         return { kind: 'markdown', result: await readMarkdownArchive(state.archive, options) };
       }
       throw new Error('The import reader is not a Markdown reader.');
+    }
+    if (req.reader === 'textbundle') {
+      if (state.reader !== 'textbundle') throw new Error('The import reader is not a TextBundle reader.');
+      const { readTextBundle } = await import('@caotang/import-textbundle');
+      return { kind: 'textbundle', result: await readTextBundle(state.archive) };
     }
     const { readRtf, readRtfd } = await import('@caotang/import-rtf');
     const options = {

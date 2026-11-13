@@ -297,6 +297,9 @@ importers:
       '@caotang/import-rtf':
         specifier: workspace:*
         version: link:../../packages/import-rtf
+      '@caotang/import-textbundle':
+        specifier: workspace:*
+        version: link:../../packages/import-textbundle
       '@caotang/machine':
         specifier: workspace:*
         version: link:../../packages/machine
