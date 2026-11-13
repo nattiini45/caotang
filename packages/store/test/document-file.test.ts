@@ -132,6 +132,53 @@ describe('front matter', () => {
   });
 });
 
+describe('front matter read for imports (epic #263)', () => {
+  it('reads a block sequence of scalars into the same field a flow sequence fills', () => {
+    const fields = parseFrontMatterFields('tags:\n  - sea\n  - grief');
+    expect(fields.get('tags')).toEqual({ inline: ['sea', 'grief'] });
+  });
+
+  it('reads quoted [[links]] in a block sequence unquoted', () => {
+    const fields = parseFrontMatterFields('aliases:\n  - "[[The Island]]"\n  - \'[[Elena]]\'');
+    expect(fields.get('aliases')).toEqual({ inline: ['[[The Island]]', '[[Elena]]'] });
+  });
+
+  it('keeps a nested list verbatim as a literal block so nothing is lost', () => {
+    const fields = parseFrontMatterFields('scenes:\n  - name: One\n    file: one.md\n  - name: Two');
+    const field = fields.get('scenes');
+    expect(field?.block).toBe('literal');
+    expect(field?.scalar).toBe('- name: One\n  file: one.md\n- name: Two');
+  });
+
+  it('keeps a nested map verbatim as a literal block', () => {
+    const fields = parseFrontMatterFields('meta:\n  author: Jane\n  year: 2026');
+    expect(fields.get('meta')).toEqual({ scalar: 'author: Jane\nyear: 2026', block: 'literal' });
+  });
+
+  it('reads a date as the plain scalar it is written as', () => {
+    const fields = parseFrontMatterFields('date: 2026-01-01');
+    expect(fields.get('date')).toEqual({ scalar: '2026-01-01' });
+  });
+
+  it('reads a block sequence followed by another key without swallowing it', () => {
+    const fields = parseFrontMatterFields('tags:\n  - sea\ntitle: The Landing');
+    expect(fields.get('tags')).toEqual({ inline: ['sea'] });
+    expect(fields.get('title')).toEqual({ scalar: 'The Landing' });
+  });
+
+  it('still reads an empty key with no block under it as null', () => {
+    const fields = parseFrontMatterFields('status:\ntitle: The Landing');
+    expect(fields.get('status')).toEqual({ scalar: null });
+    expect(fields.get('title')).toEqual({ scalar: 'The Landing' });
+  });
+
+  it('does not change what the store writes: keywords stay a flow sequence', () => {
+    const text = formatFrontMatter(fm());
+    expect(text).toContain('keywords: [sea, grief]');
+    expect(parseFrontMatter(text).keywords).toEqual(['sea', 'grief']);
+  });
+});
+
 describe('document file', () => {
   it('puts exactly one blank line between the fence and the body', () => {
     expect(serializeDocumentFile(fm(), 'The ferry was late, as always.')).toBe(

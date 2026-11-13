@@ -213,6 +213,67 @@ function parseBlockScalar(indicator: string, blockLines: readonly string[]): str
 }
 
 /**
+ * Reads the block under a key whose inline value is empty (epic #263, the
+ * Markdown import). A block sequence of plain scalars (`- item`, possibly
+ * quoted, as Obsidian writes `aliases`) becomes `inline`, the same field a flow
+ * sequence fills. Anything deeper — a nested list, a sequence of mappings, a
+ * nested map — is kept verbatim as a literal block, so an import preserves it in
+ * notes rather than dropping it. Returns null when the next line is not an
+ * indented block; the key then holds null, exactly as before. The store's own
+ * writer only ever emits a flow sequence, so its round trip is untouched.
+ */
+function readBlockValue(
+  lines: readonly string[],
+  start: number,
+): { field: FrontMatterField; end: number } | null {
+  let j = start;
+  while (j < lines.length && (lines[j] as string).trim() === '') j += 1;
+  if (j >= lines.length) return null;
+  const indentOf = (s: string): number => (/^[ \t]*/.exec(s)?.[0].length ?? 0);
+  const baseIndent = indentOf(lines[j] as string);
+  if (baseIndent === 0) return null;
+
+  const body: string[] = [];
+  let k = j;
+  let deeper = false;
+  for (; k < lines.length; k += 1) {
+    const ln = (lines[k] as string).replace(/[ \t]+$/, '');
+    if (ln.trim() === '') {
+      body.push('');
+      continue;
+    }
+    const indent = indentOf(ln);
+    if (indent < baseIndent) break;
+    if (indent > baseIndent) deeper = true;
+    body.push(ln);
+  }
+  while (body.length > 0 && body[body.length - 1] === '') body.pop();
+
+  const items: string[] = [];
+  let scalarSequence = !deeper && body.length > 0;
+  for (const ln of body) {
+    if (ln.trim() === '') continue;
+    const match = /^-[ \t]+(.*)$/.exec(ln.slice(baseIndent));
+    const raw = match?.[1]?.trim();
+    // A mapping item (`- key: value`) or a non-item line is nested structure.
+    if (raw === undefined || /^\w[\w-]*:(\s|$)/.test(raw)) {
+      scalarSequence = false;
+      break;
+    }
+    try {
+      items.push(unquote(raw));
+    } catch {
+      scalarSequence = false;
+      break;
+    }
+  }
+  if (scalarSequence) return { field: { inline: items }, end: k - 1 };
+
+  const text = body.map((ln) => (ln === '' ? '' : ln.slice(baseIndent))).join('\n');
+  return { field: { scalar: text, block: 'literal' }, end: k - 1 };
+}
+
+/**
  * Parse a front matter block into its fields, without deciding what a *shape*
  * of front matter means.
  *
@@ -264,6 +325,16 @@ export function parseFrontMatterFields(input: string): ReadonlyMap<string, Front
     const value = (pair[2] as string).trim();
     if (value.startsWith('[') && value.endsWith(']')) {
       fields.set(key, { inline: parseFlowSequence(value) });
+    } else if (value === '') {
+      // A key with no inline value may carry a block sequence or a nested block
+      // (the Markdown import, epic #263). With no block under it, it is null.
+      const block = readBlockValue(lines, i + 1);
+      if (block) {
+        fields.set(key, block.field);
+        i = block.end;
+      } else {
+        fields.set(key, { scalar: null });
+      }
     } else {
       // Store the *decoded* value: a quoted scalar must come back unquoted,
       // and `null`/`~`/empty must come back as null rather than as those words.

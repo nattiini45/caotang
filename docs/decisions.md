@@ -10,6 +10,9 @@
 
 - [delegated 2026-11-12] Captain Patrick's H4a render corrections: session Open is the verb Öffnen in its own catalogue context; forks get distinct saved, localized numbered titles. The parent remains an inline metadata link, not a pill. The bounded Sessions popover keeps its list's mouse/keyboard scrolling inside its own edge and Modern's panel. Why: a writer must distinguish a fork and reach every saved session without losing the surrounding controls (#66).
 
+- [owner 2026-11-12] #280's front matter is read by extending the store's existing codec, per Caspar: "Extend the existing codec (recommended, no new dependency)". No gray-matter (it evaluates code) and no yaml dependency.
+- [delegated 2026-11-12] The front-matter codec now reads a block sequence of plain scalars into the same field a flow sequence fills, and keeps anything deeper — a nested list, a sequence of mappings, a nested map — verbatim as a literal block so the Markdown import preserves it in notes; it writes neither, so the store's own round trip is unchanged. Why: an import must keep every key without a YAML engine (#280, epic #263).
+
 - [delegated 2026-11-11] Captain Patrick's A5 render review: use one complete English/German saved-but-unverified sentence per cause, including rejected key, missing model list, unreachable provider and timeout; show the provider's own text separately as **Provider reply:** / **Antwort des Anbieters:**. Do not glue save templates together, localize arbitrary provider text, or send a writer already in Settings back to Settings. Existing gateway messages and retry behavior stay compatible; typed cause/reply metadata is additive.
 
 - [owner 2026-11-09] A5's persistent profile mark follows Caspar's answer 5, "Approve all": Settings keeps **Not verified** for unknown or failed verification after reload, with English and German copy. Active selection and response-format capability do not imply verification.

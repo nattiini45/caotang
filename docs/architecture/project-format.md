@@ -179,7 +179,7 @@ The ferry was late, as always.
 - **No title heading in the body.** Compile inserts headings from node titles (Scrivener model: `chapter = folder, scene = document` — titles are structural). Keeps files paste-agnostic. There are no per-document heading overrides (§9 A2).
 - **Scene separator inside a document = `***` (CommonMark thematic break)**, mapped at compile time to the configured separator. Rich-text ceiling cases (alignment, scoped endnotes) render in-editor and style at compile — never stored as non-Markdown.
 - **Inline annotations** (comments, agent notes) are *not* v0.1 — deferred to the Markdown-superset decision, which depends on the editor engine and on syntax round-trip.
-- Front matter is YAML parsed by `gray-matter`-class tooling; writer emits **stable key order, `>-` folded synopsis**, so diffs stay minimal.
+- Front matter is YAML parsed by the store's own small codec (`packages/store/src/frontmatter.ts`), not a YAML engine; writer emits **stable key order, `>-` folded synopsis**, so diffs stay minimal. For imports (epic #263) the codec also *reads* a block sequence of plain scalars into the same field a flow sequence fills, and keeps anything deeper — a nested list, a sequence of mappings, a nested map — verbatim as a literal block so an import preserves it rather than dropping it; it writes neither, so the store's own round trip is unchanged.
 
 ## 4. Write path (atomicity & crash safety)
 
