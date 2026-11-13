@@ -136,6 +136,9 @@ describe('a listed tool', () => {
     expect(tree.isError).not.toBe(true);
     const read = await client.callTool({ name: 'doc.read', arguments: { doc: LANDING, response_format: 'concise' } });
     expect(read.isError).not.toBe(true);
+    const search = await client.callTool({ name: 'text.search', arguments: { query: 'ferry', fields: ['body'] } });
+    expect(search.isError).not.toBe(true);
+    expect(search.structuredContent).toMatchObject({ affected: [], data: { total: 1, truncated: false, hits: [{ nodeId: LANDING, field: 'body' }] } });
     const notes = await client.callTool({ name: 'notes.read', arguments: { doc: LANDING } });
     expect(notes.isError).not.toBe(true);
     // The picture reads are registered beside the mapping (pictures.ts) and still answer in the advertised envelope.

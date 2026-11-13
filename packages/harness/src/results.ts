@@ -25,6 +25,7 @@ import type { ToolData, ToolValue } from '@caotang/bus';
 import type { ToolName } from './metadata.js';
 import { param, type ObjectSpec } from './schema.js';
 import { sessionHistoryResult, type SessionHistoryPage } from './tools/session-history.js';
+import { textSearchResult, type TextSearchData } from './tools/text-search.js';
 
 /* ------------------------------------------------------------------ *
  * Shared pieces
@@ -571,6 +572,7 @@ export const RESULT_SPECS = {
   'memory.read': memoryReadResult,
   'agent.delegate': agentDelegateResult,
   'session.history': sessionHistoryResult,
+  'text.search': textSearchResult,
   'scene.brief': sceneBriefResult,
   'scene.apply': sceneDraftResult,
   'dialogue.brief': dialogueBriefResult,
@@ -599,6 +601,7 @@ export const RESULT_SPECS = {
 /** The rows whose result spec is complete, so a key it does not list is refused. The checklist of open rows is every name not here. */
 export const RESULT_CLOSED: ReadonlySet<CallableToolName> = new Set<CallableToolName>([
   'session.history',
+  'text.search',
   'project.overview',
   'binder.read_tree',
   'doc.read',
@@ -868,6 +871,7 @@ export interface ToolResults {
     readonly unreadable?: Names;
   };
   'session.history': SessionHistoryPage;
+  'text.search': TextSearchData;
   'agent.delegate': {
     readonly notice: string;
     readonly agent: 'reader' | 'general';

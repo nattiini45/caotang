@@ -75,6 +75,7 @@ const plain = (content: MessageRef, activeForm: MessageRef): TaskPhrase =>
  * is fixed wording plus the call's own params: a tool's description is never used (descriptions of external tools are untrusted).
  */
 export const TASK_PHRASES: Readonly<Record<ToolName, TaskPhraseFn>> = {
+  'text.search': () => plain({ id: 'harness.progress.textSearch.content', message: 'Find project passages' }, { id: 'harness.progress.textSearch.active', message: 'Finding project passages' }),
   'session.history': () => plain({ id: 'harness.progress.sessionHistory.content', message: 'Read this role’s earlier turns' }, { id: 'harness.progress.sessionHistory.active', message: 'Reading this role’s earlier turns' }),
   'project.overview': () => plain({ id: 'harness.progress.projectOverview.content', message: 'Read the project overview' }, { id: 'harness.progress.projectOverview.active', message: 'Reading the project overview' }),
   'binder.read_tree': () => plain({ id: 'harness.progress.binderReadTree.content', message: 'Read the binder' }, { id: 'harness.progress.binderReadTree.active', message: 'Reading the binder' }),

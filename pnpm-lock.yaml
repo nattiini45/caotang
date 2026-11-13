@@ -306,6 +306,9 @@ importers:
       '@caotang/pictures':
         specifier: workspace:*
         version: link:../../packages/pictures
+      '@caotang/retrieval':
+        specifier: workspace:*
+        version: link:../../packages/retrieval
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../../packages/screenplay
@@ -836,6 +839,9 @@ importers:
       '@caotang/pictures':
         specifier: workspace:*
         version: link:../pictures
+      '@caotang/retrieval':
+        specifier: workspace:*
+        version: link:../retrieval
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../screenplay
@@ -1039,6 +1045,15 @@ importers:
       '@caotang/crypto':
         specifier: workspace:*
         version: link:../crypto
+      '@caotang/store':
+        specifier: workspace:*
+        version: link:../store
+
+  packages/retrieval:
+    dependencies:
+      '@caotang/codex':
+        specifier: workspace:*
+        version: link:../codex
       '@caotang/store':
         specifier: workspace:*
         version: link:../store

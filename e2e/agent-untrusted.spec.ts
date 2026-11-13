@@ -34,7 +34,7 @@ const model: FakeReply = (request): FakeAnswer | string => {
     return { text: 'Done.' };
   }
   if (intent('Send the crossing to the story bible.')) {
-    if (turn === 0) return { text: 'Find the note tool.', toolCalls: [call('c5', 'tool.search', { query: 'note' })] };
+    if (turn === 0) return { text: 'Find the note tool.', toolCalls: [call('c5', 'tool.search', { query: 'write_note' })] };
     if (turn === 1) return { text: 'Send it.', toolCalls: [call('c6', loaded(request.tools, 'write_note'), { text: `Crossing: ${SENTENCE}.` })] };
     return { text: 'Sent.' };
   }

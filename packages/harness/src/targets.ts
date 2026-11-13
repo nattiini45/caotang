@@ -17,6 +17,7 @@
 
 import { ok, type CommandError, type Result } from '@caotang/bus';
 import { resolveContainer } from '@caotang/dialogue';
+import { searchCandidates, type UnitField } from '@caotang/retrieval';
 import type { ProjectState } from '@caotang/store';
 
 import { failure } from './errors.js';
@@ -130,6 +131,11 @@ const coherenceScope: TargetsFn = (params) => {
 const readTree: TargetsFn = (params, state) => {
   const id = typeof params['root'] === 'string' ? params['root'] : 'root';
   return state.manifest.tree.some((node) => node.id === id) ? ok({ reads: [id], writes: [] }) : ok(NONE);
+};
+
+const textSearch: TargetsFn = (params, state) => {
+  const candidates = searchCandidates(state, { fields: params['fields'] as readonly UnitField[] | undefined, scope: params['scope'] as readonly string[] | undefined, excludeAfter: params['excludeAfter'] as string | undefined });
+  return ok({ reads: candidates.eligible.map((node) => node.id), writes: [] });
 };
 
 /** A goal sits on the manuscript or a folder (the filter `goal.save` resolves with). */
@@ -253,6 +259,7 @@ export const TOOL_TARGETS: Readonly<Record<ToolName, ToolTargets>> = {
   'instructions.propose': 'project',
   'agent.delegate': docList('scope', 'reads'),
   'session.history': 'project',
+  'text.search': textSearch,
   // The PR's timeline, picture and comic rows. A picture id (a_…) or placement id (l_…) is not a binder node, so a call that
   // names only those is a 'project' row.
   'timeline.read': timelineRead,

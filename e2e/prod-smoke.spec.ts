@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 import { NO_PIN } from './classic-pin.js';
+import { searchWhileTyping } from './text-search-flow.js';
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
 import { binderTitle, createProject, firstChapter, waitForSaved, writerText } from './support.js';
 
@@ -19,6 +20,10 @@ import { binderTitle, createProject, firstChapter, waitForSaved, writerText } fr
 /** The policy apps/desktop/index.html declares. The build must carry it unchanged: no nonce, nothing relaxed. */
 const POLICY =
   "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src *; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'";
+
+test('cold local passage search leaves typing responsive under the production CSP', async ({ page, context }) => {
+  await searchWhileTyping(page, context);
+});
 
 /** A 1×1 PNG, so the cover goes through the image paths (an object URL for the preview, the bytes into the EPUB). */
 const COVER_PNG = Buffer.from(
