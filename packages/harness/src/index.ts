@@ -363,6 +363,7 @@ export {
 } from './tools/transcription-model.js';
 export {
   appendLanguageLine,
+  contextOverridesOk,
   createContextPort,
   dropLinesOf,
   languageDirective,

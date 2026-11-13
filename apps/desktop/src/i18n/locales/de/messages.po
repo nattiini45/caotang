@@ -5759,6 +5759,11 @@ msgstr "Kontext-Budgets"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
+msgid "Context choices"
+msgstr "Kontextauswahl"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
 msgid "Context choices for the next request"
 msgstr "Kontextauswahl für die nächste Anfrage"
 
@@ -7974,11 +7979,6 @@ msgstr "Für die nächste Anfrage"
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "For you. Never sent to the model."
 msgstr "Für Sie. Wird nie an das Modell gesendet."
-
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-#: apps/desktop/src/components/AgentPanel.tsx
-msgid "Foreground only"
-msgstr "Nur im Vordergrund"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -12357,6 +12357,13 @@ msgstr "Für diese Anfrage angeheftet"
 msgid "Pins and leave-outs affect optional context only. Required tool input, conversation history and read permissions do not change."
 msgstr "Anheften und Weglassen betreffen nur optionalen Kontext. Erforderliche Eingaben für Werkzeuge, der Gesprächsverlauf und Leseberechtigungen bleiben unverändert."
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/AgentPanel.tsx
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "Pins and leave-outs stay with this request when it runs in the background."
+msgstr "Angeheftete und ausgelassene Inhalte bleiben mit dieser Anfrage verknüpft, auch wenn sie im Hintergrund ausgeführt wird."
+
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Pixels"
 msgstr "Pixel"
@@ -13798,13 +13805,6 @@ msgstr "Anfrageprotokoll"
 #: apps/desktop/src/components/UsagePanel.tsx
 msgid "Requests"
 msgstr "Anfragen"
-
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
-#: apps/desktop/src/components/AgentPanel.tsx
-#: apps/desktop/src/components/PlanCard.tsx
-msgid "Requests with pins or leave-outs run here, not as background tasks. Remove these choices before requesting a background task."
-msgstr "Anfragen mit angeheftetem oder ausgelassenem Kontext laufen hier, nicht als Hintergrundaufgaben. Entfernen Sie diese Auswahl, bevor Sie eine Hintergrundaufgabe anfordern."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -16964,6 +16964,11 @@ msgstr "Das vollständige Skript, das aus „<0/>“ geschrieben wurde, vor der 
 #: apps/desktop/src/app/mcp-model.ts
 msgid "The connection was cancelled. Choose Connect to try again."
 msgstr "Die Verbindung wurde abgebrochen. Wählen Sie Verbinden, um es erneut zu versuchen."
+
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "The context choices could not be kept. Run this plan here, or send the request again."
+msgstr "Die Kontextauswahl konnte nicht beibehalten werden. Führen Sie diesen Plan hier aus oder senden Sie die Anfrage erneut."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts

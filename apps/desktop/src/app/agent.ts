@@ -2433,7 +2433,7 @@ export class AgentController {
     if (held === null) return;
     if (choice === 'background') {
       if (held.view.unavailable !== null) return;
-      const queued = await this.tasks.enqueue(this.intentForNextTurn ?? '', held.view.offer.steps);
+      const queued = await this.tasks.enqueue(this.intentForNextTurn ?? '', held.view.offer.steps, held.view.offer.contextOverrides);
       if (this.offer !== held) return;
       if (!queued.ok) {
         this.move({ type: 'offer-error', held, error: queued.reason });
@@ -2463,7 +2463,7 @@ export class AgentController {
       return null;
     }
     const { task, review } = found;
-    const report = await this.turnWith(task.intent, {}, (agent, turn) =>
+    const report = await this.turnWith(task.intent, task.contextOverrides === undefined ? {} : { contextOverrides: task.contextOverrides }, (agent, turn) =>
       agent.submitStaged(task.intent, { steps: review.steps }, review.proposals, review.revisions, turn),
     );
     if (report?.status === 'applied') await this.tasks.markApplied(id);
