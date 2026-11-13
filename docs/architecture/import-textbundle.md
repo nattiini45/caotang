@@ -1,6 +1,6 @@
 # import-textbundle — the TextBundle and TextPack reader
 
-Status: reader built (#282, epic #263); preview wiring in progress. Package `@caotang/import-textbundle`.
+Status: built (#282, epic #263); reader, Worker, preview and UI. Package `@caotang/import-textbundle`.
 
 TextBundle (a `.textbundle` folder) and TextPack (its zip) are the open interchange of the Apple writing apps: Markdown plus `assets/`
 plus `info.json`. This reader is a **thin layer over the Markdown reader** ([import-markdown.md](import-markdown.md), #280): it finds the

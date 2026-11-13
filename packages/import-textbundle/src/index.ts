@@ -14,13 +14,19 @@ import { decodePlainText } from '@caotang/import-read/text';
 
 export type TextBundleApp = 'ulysses' | 'bear' | 'ia-writer' | 'generic';
 
+/** What the app mapping did, as codes the preview names in the writer's language (the package carries no words). */
+export type TextBundleNotice =
+  | { kind: 'ulysses-comments'; count: number }
+  | { kind: 'bear-tags'; count: number }
+  | { kind: 'ia-authorship' };
+
 export interface TextBundleImport {
   document: ImportDocument;
   frontMatter: Record<string, MarkdownFileFacts>;
   title: string;
   assetData: Map<string, Uint8Array>;
   app: TextBundleApp;
-  notices: string[];
+  notices: TextBundleNotice[];
 }
 
 export type TextBundleError =
@@ -122,7 +128,7 @@ export async function readTextBundle(archive: ImportArchive): Promise<TextBundle
   if (decoded.status === 'too-large') return { ok: false, error: { kind: 'too-large', bytes: decoded.bytes, limit: decoded.limit } };
   if (decoded.status === 'too-many-lines') return { ok: false, error: { kind: 'too-many-lines', lines: decoded.lines, limit: decoded.limit } };
 
-  const notices: string[] = [];
+  const notices: TextBundleNotice[] = [];
   let text = decoded.text;
   const extraNotes: string[] = [];
   const extraKeywords: string[] = [];
@@ -132,16 +138,16 @@ export async function readTextBundle(archive: ImportArchive): Promise<TextBundle
     const result = ulyssesComments(text);
     text = result.body;
     extraNotes.push(...result.notes);
-    if (result.notes.length > 0) notices.push(`${result.notes.length} Ulysses comment(s) kept as notes.`);
+    if (result.notes.length > 0) notices.push({ kind: 'ulysses-comments', count: result.notes.length });
   } else if (app === 'bear') {
     const result = bearTags(text, title);
     text = result.body;
     extraKeywords.push(...result.keywords);
-    if (result.keywords.length > 0) notices.push(`${result.keywords.length} Bear tag(s) kept as keywords.`);
+    if (result.keywords.length > 0) notices.push({ kind: 'bear-tags', count: result.keywords.length });
   } else if (app === 'ia-writer') {
     const result = iaAuthorship(text);
     text = result.body;
-    if (result.stripped) notices.push('The iA Writer Authorship block was kept out of the body.');
+    if (result.stripped) notices.push({ kind: 'ia-authorship' });
   }
 
   const fileName = textPath.split('/').pop() ?? 'text.md';

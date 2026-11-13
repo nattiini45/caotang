@@ -656,6 +656,11 @@ msgstr "{count, plural, one {{name}: in {where} erwähnt, sendet # Referenz} oth
 msgid "{count, plural, one {{name}: named by this shot, sends # reference} other {{name}: named by this shot, sends # references}}"
 msgstr "{count, plural, one {{name}: von dieser Einstellung genannt, sendet # Referenz} other {{name}: von dieser Einstellung genannt, sendet # Referenzen}}"
 
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "{count, plural, one {# Bear tag kept as a keyword.} other {# Bear tags kept as keywords.}}"
+msgstr "{count, plural, one {# Bear-Tag als Schlagwort behalten.} other {# Bear-Tags als Schlagwörter behalten.}}"
+
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "{count, plural, one {# change applied. Undo restores it.} other {# changes applied. Undo restores them.}}"
@@ -792,6 +797,11 @@ msgstr "{count, plural, one {# Einstellung} other {# Einstellungen}}"
 msgid "{count, plural, one {# turn} other {# turns}}"
 msgstr "{count, plural, one {# Durchgang} other {# Durchgänge}}"
 
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "{count, plural, one {# Ulysses comment kept as a note.} other {# Ulysses comments kept as notes.}}"
+msgstr "{count, plural, one {# Ulysses-Kommentar als Notiz behalten.} other {# Ulysses-Kommentare als Notizen behalten.}}"
+
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #: apps/desktop/src/components/Inspector.tsx
 msgid "{count, plural, one {1 item inside} other {{shown} items inside}}"
@@ -814,8 +824,10 @@ msgstr "{count, plural, one {Ein Bild wurde beim Öffnen des Projekts verworfen,
 
 #. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/markdown-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
+#: apps/desktop/src/import-preview/textbundle-source.ts
 msgid "{count, plural, one {Import # picture} other {Import # pictures}}"
 msgstr "{count, plural, one {# Bild importieren} other {# Bilder importieren}}"
 
@@ -2918,8 +2930,10 @@ msgstr "etwa {size}"
 
 #. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/markdown-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
+#: apps/desktop/src/import-preview/textbundle-source.ts
 msgid "About {size} MB."
 msgstr "Etwa {size} MB."
 
@@ -8378,6 +8392,16 @@ msgstr "RTFD importieren…"
 msgid "Import script"
 msgstr "Drehbuch importieren"
 
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import TextBundle…"
+msgstr "TextBundle importieren…"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import TextPack…"
+msgstr "TextPack importieren…"
+
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.picturesImport.content"
@@ -8760,15 +8784,30 @@ msgstr "Es macht auch diese späteren Änderungen rückgängig, die ältesten zu
 msgid "It has more lines than a Markdown import reads."
 msgstr "Es hat mehr Zeilen, als ein Markdown-Import liest."
 
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "It has more lines than a TextBundle import reads."
+msgstr ""
+
 #. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/markdown-source.ts
 msgid "It holds no Markdown files."
 msgstr "Es enthält keine Markdown-Dateien."
 
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "It holds no Markdown text file."
+msgstr ""
+
 #. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportProofView.tsx
 msgid "It is a binary file that Caotang cannot draw here, and a look-alike drawn in its place could differ from the real file. The Draft shows what goes in; compile and open the file to see its pages. Markdown, plain text and the other text formats (Fountain, Final Draft, the Ink story, the CSV tables, the prompt pack and the coherence report) have a Proof."
 msgstr "Es ist eine Binärdatei, die Caotang hier nicht darstellen kann, und eine an ihrer Stelle gezeichnete Nachbildung könnte von der echten Datei abweichen. Der Entwurf zeigt, was hineinkommt; kompilieren und öffnen Sie die Datei, um ihre Seiten zu sehen. Markdown, reiner Text und die anderen Textformate (Fountain, Final Draft, die Ink-Geschichte, die CSV-Tabellen, das Prompt-Pack und der Kohärenzbericht) haben einen Abzug."
+
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "It is a Fountain script. Use Import script to import it."
+msgstr ""
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -8779,6 +8818,11 @@ msgstr "Es ist auch im Projektordner."
 #: apps/desktop/src/import-preview/markdown-source.ts
 msgid "It is larger than a Markdown import reads."
 msgstr "Es ist größer, als ein Markdown-Import liest."
+
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "It is larger than a TextBundle import reads."
+msgstr ""
 
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/rtf-source.ts
@@ -8794,6 +8838,11 @@ msgstr "Es ist kein Markdown-Import."
 #: apps/desktop/src/media/shot-image-model.ts
 msgid "it is not a PNG, JPEG or WebP picture"
 msgstr "es ist kein Bild im Format PNG, JPEG oder WebP"
+
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "It is not a TextBundle import."
+msgstr ""
 
 #. Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number.
 #: apps/desktop/src/media/prompt-pack-model.ts
@@ -8883,7 +8932,9 @@ msgid "Its shots are in “{title}”."
 msgstr "Ihre Einstellungen sind in „{title}“."
 
 #. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/markdown-source.ts
+#: apps/desktop/src/import-preview/textbundle-source.ts
 msgid "Its text encoding could not be recognised. Save it as UTF-8 and import it again."
 msgstr "Die Textkodierung konnte nicht erkannt werden. Speichern Sie die Datei als UTF-8 und importieren Sie sie erneut."
 
@@ -11386,6 +11437,11 @@ msgstr "Nichts wurde importiert."
 msgid "Nothing was opened or changed."
 msgstr "Nichts wurde geöffnet oder geändert."
 
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "Notices"
+msgstr "Hinweise"
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Numbered"
@@ -13039,10 +13095,12 @@ msgstr "“{doc}” wird gelesen"
 
 #. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/markdown-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 #: apps/desktop/src/import-preview/text-source.ts
+#: apps/desktop/src/import-preview/textbundle-source.ts
 msgid "Reading {file}…"
 msgstr "{file} wird gelesen …"
 
@@ -16316,6 +16374,21 @@ msgstr "Text zu Video"
 msgid "text writes"
 msgstr "Text schreibt"
 
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "TextBundle"
+msgstr "TextBundle"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "TextBundle folder"
+msgstr "TextBundle-Ordner"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "TextPack file"
+msgstr "TextPack-Datei"
+
 #. Interpolated values: calls, count, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "That card is no longer waiting for a decision, so nothing was sent."
@@ -17151,6 +17224,11 @@ msgstr "der Wert des Headers"
 #: apps/desktop/src/app/picture-transcoder.ts
 msgid "The HEIC photo is larger than a picture may be."
 msgstr "Das HEIC-Foto ist größer, als ein Bild sein darf."
+
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "The iA Writer Authorship block was kept out of the body."
+msgstr "Der iA-Writer-Autorenschaftsblock wurde aus dem Textkörper herausgehalten."
 
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/media/StoryboardView.tsx
@@ -18142,6 +18220,16 @@ msgstr "Der Text von {file} ist leer, daher kann er nicht genehmigt werden. Füg
 #: apps/desktop/src/app/encoding-review.ts
 msgid "The text of {kind, select, document {the document “{name}”} codex {the codex entry “{name}”} other {the file “{name}”}} was converted from {from} and opens with the project. Its original bytes are kept at “{backup}”."
 msgstr "Der Text von {kind, select, document {dem Dokument „{name}“} codex {dem Kodexeintrag „{name}“} other {der Datei „{name}“}} wurde aus {from} konvertiert und öffnet sich mit dem Projekt. Seine ursprünglichen Bytes bleiben unter „{backup}“ erhalten."
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "The TextBundle could not be read: {problem}"
+msgstr "Das TextBundle konnte nicht gelesen werden: {problem}"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "The TextBundle is too large to import."
+msgstr "Das TextBundle ist zu groß zum Importieren."
 
 #. Modern interface: the stage and the page.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
@@ -20055,6 +20143,11 @@ msgstr "Was soll Caotang damit tun?"
 #: apps/desktop/src/components/ContextSection.tsx
 msgid "What the agent may send the model in one request, in tokens. An empty field keeps the default of the profile and the spec. A change applies from the agent’s next request."
 msgstr "Was der Agent dem Modell in einer Anfrage senden darf, in Tokens. Ein leeres Feld behält den Standard des Profils und der Spezifikation bei. Eine Änderung gilt ab der nächsten Anfrage des Agenten."
+
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "What the import mapped"
+msgstr "Was der Import zugeordnet hat"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.

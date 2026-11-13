@@ -23,6 +23,8 @@ export function ManuscriptImportActions(): ReactNode {
   const rtfdFolder = useRef<HTMLInputElement>(null);
   const mdFile = useRef<HTMLInputElement>(null);
   const mdFolder = useRef<HTMLInputElement>(null);
+  const tbFile = useRef<HTMLInputElement>(null);
+  const tbFolder = useRef<HTMLInputElement>(null);
 
   const failed = (file: File, failure: unknown): void => {
     const problem = failure instanceof Error ? failure.message : String(failure);
@@ -130,6 +132,43 @@ export function ManuscriptImportActions(): ReactNode {
     }
   };
 
+  const openTextBundleZip = async (file: File): Promise<void> => {
+    try {
+      const { textbundleZipPreviewSource } = await import('../import-preview/textbundle-source.js');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      openImportPreview({ source: textbundleZipPreviewSource(file.name, bytes) });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
+  // A `.textbundle` is a package folder (text.md plus info.json plus assets/), so it is picked whole; the bytes are read here (I/O)
+  // and the bundle is parsed in the preview's Worker (import-textbundle.md).
+  const openTextBundleFolder = async (files: readonly File[]): Promise<void> => {
+    const list = [...files];
+    if (list.length === 0) return;
+    try {
+      const { textbundlePreviewSource } = await import('../import-preview/textbundle-source.js');
+      const { ARCHIVE_LIMITS } = await import('@caotang/import-read/zip');
+      const total = list.reduce((sum, file) => sum + file.size, 0);
+      if (list.length > ARCHIVE_LIMITS.maxEntries || total > ARCHIVE_LIMITS.maxTotalBytes) {
+        report({ text: t`The TextBundle is too large to import.`, tone: 'error' });
+        return;
+      }
+      const top = (list[0]?.webkitRelativePath ?? '').split('/')[0] || t`TextBundle`;
+      const read = await Promise.all(
+        list.map(async (file) => ({
+          path: file.webkitRelativePath === '' ? file.name : file.webkitRelativePath,
+          size: file.size,
+          bytes: new Uint8Array(await file.arrayBuffer()),
+        })),
+      );
+      openImportPreview({ source: textbundlePreviewSource(top, read) });
+    } catch (failure) {
+      report({ text: t`The TextBundle could not be read: ${{ problem: failure instanceof Error ? failure.message : String(failure) }}`, tone: 'error' });
+    }
+  };
+
   return (
     <div className="script-import" role="group" aria-label={t`Import a manuscript`}>
       <button type="button" className="button is-quiet" onClick={() => textFile.current?.click()}>
@@ -146,6 +185,12 @@ export function ManuscriptImportActions(): ReactNode {
       </button>
       <button type="button" className="button is-quiet" onClick={() => mdFolder.current?.click()}>
         <Trans>Import Markdown folder…</Trans>
+      </button>
+      <button type="button" className="button is-quiet" onClick={() => tbFile.current?.click()}>
+        <Trans>Import TextPack…</Trans>
+      </button>
+      <button type="button" className="button is-quiet" onClick={() => tbFolder.current?.click()}>
+        <Trans>Import TextBundle…</Trans>
       </button>
       <input
         ref={textFile}
@@ -211,6 +256,32 @@ export function ManuscriptImportActions(): ReactNode {
           const list = files === null ? [] : [...files];
           event.currentTarget.value = '';
           if (list.length > 0) void openMarkdownFolder(list);
+        }}
+      />
+      <input
+        ref={tbFile}
+        type="file"
+        hidden
+        accept=".textpack,.zip"
+        aria-label={t`TextPack file`}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file !== undefined) void openTextBundleZip(file);
+        }}
+      />
+      <input
+        ref={tbFolder}
+        type="file"
+        multiple
+        hidden
+        aria-label={t`TextBundle folder`}
+        {...{ webkitdirectory: '' }}
+        onChange={(event) => {
+          const files = event.currentTarget.files;
+          const list = files === null ? [] : [...files];
+          event.currentTarget.value = '';
+          if (list.length > 0) void openTextBundleFolder(list);
         }}
       />
     </div>
