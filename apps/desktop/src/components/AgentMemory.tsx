@@ -1,5 +1,11 @@
 /* lingui-set comment="Interpolated values: tokens, coveredTurns" */
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Button } from '@ui-sdk/react/button';
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@ui-sdk/react/collapsible';
+import { Field, FieldDescription, FieldLabel } from '@ui-sdk/react/field';
+import { Input } from '@ui-sdk/react/input';
+import { Radio, RadioGroup } from '@ui-sdk/react/radio';
+import { Textarea } from '@ui-sdk/react/textarea';
 import { plural, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { useLingui } from '@lingui/react';
@@ -17,15 +23,17 @@ export function AgentMemory({ agent, snapshot }: { readonly agent: AgentControll
   if (snapshot.sessionMemory.every((item) => item.turns === 0 && item.summary === undefined) && snapshot.summaryNotice === null) return null;
   return <section className="agent-memory" data-testid="agent-memory">
     {snapshot.summaryNotice === null ? null : <p role="status">{snapshot.summaryNotice}</p>}
-    <details>
-      <summary>{snapshot.sessionMemory.some((item) => item.summary !== undefined) ? <Trans>Earlier in this session, summarised</Trans> : <Trans>Conversation memory</Trans>}</summary>
-      <div className="agent-memory-content">
-        <label className="field"><span><Trans>Conversation role</Trans></span><select value={role} disabled={editingRole || snapshot.busy} onChange={(event) => setRole(event.target.value as TaskRole)}>
-          {snapshot.sessionMemory.map((item) => <option key={item.role} value={item.role}>{i18n._(USAGE_ROLES[item.role])}</option>)}
-        </select></label>
+    <Collapsible>
+      <CollapsibleTrigger className="button is-quiet agent-memory-disclosure">{snapshot.sessionMemory.some((item) => item.summary !== undefined) ? <Trans>Earlier in this session, summarised</Trans> : <Trans>Conversation memory</Trans>}</CollapsibleTrigger>
+      <CollapsiblePanel keepMounted className="agent-memory-content">
+        <Field className="field"><FieldLabel><Trans>Conversation role</Trans></FieldLabel>
+          <RadioGroup<TaskRole> className="agent-memory-roles" value={role} disabled={editingRole || snapshot.busy} onValueChange={(value) => { if (value !== null) setRole(value); }}>
+            {snapshot.sessionMemory.map((item) => <Radio key={item.role} className="button is-quiet" value={item.role}>{i18n._(USAGE_ROLES[item.role])}</Radio>)}
+          </RadioGroup>
+        </Field>
         <MemoryRole key={role} agent={agent} snapshot={snapshot} memory={memory} onEditingChange={setEditingRole} />
-      </div>
-    </details>
+      </CollapsiblePanel>
+    </Collapsible>
   </section>;
 }
 
@@ -43,8 +51,6 @@ function MemoryRole({ agent, snapshot, memory, onEditingChange }: { readonly age
     else if (wasEditing.current) editButton.current?.focus();
     wasEditing.current = isEditing;
   }, [isEditing, saving]);
-  const hint = useId();
-  const editorLabel = useId();
   const summary = memory.summary;
   const coveredTurns = summary?.covers.turns ?? 0;
   const unavailable = snapshot.busy || snapshot.queue.length > 0 || snapshot.sessionSave.kind === 'writing' || snapshot.sessionSave.failure !== null || saving;
@@ -56,21 +62,24 @@ function MemoryRole({ agent, snapshot, memory, onEditingChange }: { readonly age
       {editing === null ? <div className="agent-memory-text" dir="auto">{summary.text.split(/^(## [^\n]+)$/m).map((part, index) => part.startsWith('## ') ? <strong key={index}>{part.slice(3)}</strong> : part)}</div> : null}
     </>}
     {editing !== null ? <>
-        <label className="field"><span id={editorLabel}><Trans>Session summary</Trans></span><textarea ref={editor} rows={8} value={editing.text} dir="auto" disabled={saving} aria-labelledby={editorLabel} aria-describedby={hint} onChange={(event) => setEditing({ ...editing, text: event.target.value })} /></label>
-        <p id={hint} className="muted">{t`About ${{ tokens }} of 600 summary tokens. Saving an edit makes no provider call.`}</p>
+        <Field className="field" invalid={tokens === 0 || tokens > 600}>
+          <FieldLabel><Trans>Session summary</Trans></FieldLabel>
+          <Textarea ref={editor} rows={8} value={editing.text} dir="auto" disabled={saving} onValueChange={(text) => setEditing({ ...editing, text })} />
+          <FieldDescription className="muted">{t`About ${{ tokens }} of 600 summary tokens. Saving an edit makes no provider call.`}</FieldDescription>
+        </Field>
         <div className="agent-memory-actions">
-          <button type="button" className="button" disabled={unavailable || tokens === 0 || tokens > 600} onClick={() => {
+          <Button className="button" disabled={unavailable || tokens === 0 || tokens > 600} onClick={() => {
             setSaving(true);
             void agent.editSessionSummary(memory.role, editing.text, editing.source).then((saved) => { if (saved) { setEditing(null); onEditingChange(false); } }).finally(() => setSaving(false));
-          }}>{saving ? <Trans>Saving summary…</Trans> : <Trans>Save summary</Trans>}</button>
-          <button type="button" className="button is-quiet" disabled={saving} onClick={() => { setEditing(null); onEditingChange(false); }}><Trans>Cancel</Trans></button>
+          }}>{saving ? <Trans>Saving summary…</Trans> : <Trans>Save summary</Trans>}</Button>
+          <Button className="button is-quiet" disabled={saving} onClick={() => { setEditing(null); onEditingChange(false); }}><Trans>Cancel</Trans></Button>
         </div>
       </> : <>
-    {summary === undefined ? null : <button ref={editButton} type="button" className="button is-quiet" disabled={unavailable} onClick={() => { setEditing({ source: summary, text: summary.text }); onEditingChange(true); }}><Trans>Edit summary</Trans></button>}
+    {summary === undefined ? null : <Button ref={editButton} className="button is-quiet" disabled={unavailable} onClick={() => { setEditing({ source: summary, text: summary.text }); onEditingChange(true); }}><Trans>Edit summary</Trans></Button>}
     <p className="muted"><Trans>Earlier requests are summarised automatically after more than six unsummarised turns. The newest two stay separate. Original turns remain below.</Trans></p>
-    <label className="field"><span><Trans>Compaction focus (optional)</Trans></span><input value={focus} disabled={unavailable || editing !== null} onChange={(event) => setFocus(event.target.value)} /></label>
+    <Field className="field"><FieldLabel><Trans>Compaction focus (optional)</Trans></FieldLabel><Input value={focus} disabled={unavailable || editing !== null} onValueChange={setFocus} /></Field>
     <p className="muted"><Trans>Compact sends this role’s earlier conversation to your Background provider in one request, within your run limits. It does not change the manuscript. New session starts without this memory.</Trans></p>
-    <button type="button" className="button" disabled={unavailable || editing !== null || memory.withheld || (summary === undefined && memory.turns <= 2)} onClick={() => void agent.compactSession(memory.role, focus)}><Trans>Compact</Trans></button>
+    <Button className="button" data-agent-confirm={t`Compact sends this role’s earlier conversation to your Background provider in one request, within your run limits. It does not change the manuscript. New session starts without this memory.`} disabled={unavailable || editing !== null || memory.withheld || (summary === undefined && memory.turns <= 2)} onClick={() => void agent.compactSession(memory.role, focus)}><Trans>Compact</Trans></Button>
     {summary === undefined && memory.turns <= 2 ? <p className="muted"><Trans>Continue this role’s conversation for at least three turns before compacting.</Trans></p> : null}
     </>}
   </>;

@@ -1575,9 +1575,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     let used = 0;
     return {
       gateway: {
-      complete: (request, signal) => {
-        if (used >= limit) throw modelCallBound(limit);
-        if (harness.readPolicy() !== turn.readPolicy) turn.readPolicy = undefined;
+        complete: (request, signal) => {
+          if (used >= limit) throw modelCallBound(limit);
+          if (harness.readPolicy() !== turn.readPolicy) turn.readPolicy = undefined;
           const asked = { ...request, sessionId: usageSessionId, ...(options.role === undefined ? {} : { role: options.role }) };
           const reservation = reserveCall(turn, asked);
           used += 1;

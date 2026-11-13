@@ -5587,10 +5587,12 @@ msgid "Compact earlier conversation turns. Focus: {focus}"
 msgstr "Compact earlier conversation turns. Focus: {focus}"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Compact makes a separate Background request within your current limits. It does not retry the stopped request or change the manuscript."
 msgstr "Compact makes a separate Background request within your current limits. It does not retry the stopped request or change the manuscript."
 
+#. Interpolated values: tokens, coveredTurns
 #. Interpolated values: tokens, coveredTurns
 #: apps/desktop/src/components/AgentMemory.tsx
 msgid "Compact sends this role’s earlier conversation to your Background provider in one request, within your run limits. It does not change the manuscript. New session starts without this memory."

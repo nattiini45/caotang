@@ -126,6 +126,7 @@ export default defineConfig(({ command }) => ({
     devCsp(),
   ],
   ...(command === 'serve' ? { html: { cspNonce: DEV_NONCE } } : {}),
+  optimizeDeps: { include: ['@ui-sdk/react/agent'] },
   server: {
     // Bind the IPv4 loopback explicitly. Vite otherwise binds ::1 (IPv6) only on
     // Windows, and the e2e suite's baseURL probes http://127.0.0.1:5173 (IPv4),

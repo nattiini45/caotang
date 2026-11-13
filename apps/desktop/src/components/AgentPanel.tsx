@@ -13,6 +13,8 @@ import './request-context.css';
 import { plural, t } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
+import { Button } from '@ui-sdk/react/button';
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@ui-sdk/react/collapsible';
 import { isolate } from '@caotang/i18n';
 import {
   groupCards,
@@ -1225,9 +1227,9 @@ export function AskBackCard({ askBack, windowRecovery }: { askBack: AskBack; win
         <p><Trans>A larger budget does not enlarge this model’s window. Choose a model with a larger window in Settings › Providers, compact the earlier Chat conversation, or start a new session. Send your request again when ready.</Trans></p>
         <p className="muted"><Trans>Compact makes a separate Background request within your current limits. It does not retry the stopped request or change the manuscript.</Trans></p>
         {windowRecovery === undefined ? null : <div className="agent-memory-actions">
-          <button type="button" className="button" disabled={windowRecovery.disabled || !windowRecovery.canCompact} onClick={windowRecovery.onCompact}><Trans>Compact Chat conversation</Trans></button>
-          <button type="button" className="button is-quiet" disabled={windowRecovery.disabled} onClick={windowRecovery.onNew}><Trans>Start a new session</Trans></button>
-          {windowRecovery.onProviders === undefined ? null : <button type="button" className="button is-quiet" disabled={windowRecovery.disabled} onClick={windowRecovery.onProviders}><Trans>Open provider settings</Trans></button>}
+          <Button className="button" data-agent-confirm={t`Compact makes a separate Background request within your current limits. It does not retry the stopped request or change the manuscript.`} disabled={windowRecovery.disabled || !windowRecovery.canCompact} onClick={windowRecovery.onCompact}><Trans>Compact Chat conversation</Trans></Button>
+          <Button className="button is-quiet" disabled={windowRecovery.disabled} onClick={windowRecovery.onNew}><Trans>Start a new session</Trans></Button>
+          {windowRecovery.onProviders === undefined ? null : <Button className="button is-quiet" disabled={windowRecovery.disabled} onClick={windowRecovery.onProviders}><Trans>Open provider settings</Trans></Button>}
         </div>}
       </>}
       {askBack.candidates !== undefined && askBack.candidates.length > 0 ? (
@@ -1345,7 +1347,7 @@ function ReportLine({ report, profiles, restoration, accountingUnavailable }: { 
       </p>
       {cost !== undefined ? <p className="muted agent-report-meta" data-testid="agent-turn-cost">{t`About ${{ cost: formatUsd(cost) }} for this turn, using recorded call costs.`}</p> : null}
       <UsageNotes totals={totals} />
-      {(report.compactions?.length ?? 0) === 0 ? null : <details className="agent-context"><summary><Trans>Conversation compaction</Trans></summary><CompactionActivity entries={report.compactions ?? []} profiles={profiles} /></details>}
+      {(report.compactions?.length ?? 0) === 0 ? null : <Collapsible className="agent-context"><CollapsibleTrigger className="button is-quiet agent-memory-disclosure"><Trans>Conversation compaction</Trans></CollapsibleTrigger><CollapsiblePanel><CompactionActivity entries={report.compactions ?? []} profiles={profiles} /></CollapsiblePanel></Collapsible>}
       {report.usage === undefined || report.usage.length === 0 ? null : <details className="agent-context">
         <summary><Trans>Usage by profile, model and role</Trans></summary>
         <UsageBreakdown rows={groupUsage(report.usage)} names={new Map(profiles.map((profile) => [profile.id, profile.name]))} />
