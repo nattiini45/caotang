@@ -1174,6 +1174,9 @@ importers:
 
   packages/sync-server:
     devDependencies:
+      '@caotang/machine':
+        specifier: workspace:*
+        version: link:../machine
       '@cloudflare/workers-types':
         specifier: 5.20261113.1
         version: 5.20261113.1
