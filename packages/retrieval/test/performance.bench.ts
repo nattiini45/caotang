@@ -1,4 +1,4 @@
-import { it } from 'vitest';
+import { expect, it } from 'vitest';
 import { setBody } from '@caotang/store';
 import { createLexicalIndex } from '../src/index.js';
 import { id, project } from './fixtures.js';
@@ -21,4 +21,6 @@ it('benchmarks 200,000 words and 100 scenes', async ({ bench }) => {
     if (hits.length === 0) throw new Error('The benchmark must perform a real search.');
   }).run({ iterations: 50, time: 0, warmupTime: 0, warmupIterations: 0 });
   console.warn(JSON.stringify({ words: 200_000, scenes: 100, vocabulary: incremental.stats.terms, units: incremental.stats.units, cold: cold.latency, edited: edited.latency }));
+  expect(cold.latency.p99).toBeLessThanOrEqual(250);
+  expect(edited.latency.p99).toBeLessThanOrEqual(50);
 }, 30_000);

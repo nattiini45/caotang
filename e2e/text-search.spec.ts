@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
 import { fakeEndpoint, useFakeEndpoint } from './endpoint.js';
 import { projectTrace } from './support.js';
+import { searchWhileTyping } from './text-search-flow.js';
+
+test('cold local passage search leaves typing responsive under the development CSP', async ({ page, context }) => {
+  await searchWhileTyping(page, context);
+});
 
 test('the agent discovers local passage search and reads its result without a manuscript write', async ({ page }) => {
   const received: string[] = [];

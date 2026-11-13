@@ -1,14 +1,13 @@
-import { ok } from '@caotang/bus';
-import { createLexicalIndex, type HitPosition, type LexicalIndex, type SearchHit, type UnitField } from '@caotang/retrieval';
-import type { ProjectState } from '@caotang/store';
+import { ok, type CommandError, type Result } from '@caotang/bus';
+import { createLexicalIndex, type HitPosition, type LexicalIndex, type SearchHit, type SearchState, type UnitField } from '@caotang/retrieval';
 import { failure, invalidParams } from '../errors.js';
 import { param } from '../schema.js';
 import { fitsCap } from '../tokens.js';
-import type { PrepareFn, ToolValue } from '../types.js';
+import type { CallParams, ToolValue } from '../types.js';
 
 const fields: readonly UnitField[] = ['body', 'synopsis', 'notes', 'codex'];
 const positions: readonly HitPosition[] = ['manuscript', 'before-focus', 'focus', 'after-focus', 'research', 'codex'];
-const indexes = new WeakMap<ProjectState, LexicalIndex>();
+const indexes = new WeakMap<SearchState, LexicalIndex>();
 export const TEXT_SEARCH_CAP = 4_000;
 
 export const textSearchParams = param.object('Search current project text locally, without a provider request.', {
@@ -49,7 +48,7 @@ export const textSearchResult = param.object('Ranked local lexical results under
 export type TextSearchHit = Omit<SearchHit, 'unit'> & Pick<SearchHit['unit'], 'nodeId' | 'field' | 'from' | 'to' | 'revision'>;
 export type TextSearchData = { readonly hits: readonly TextSearchHit[]; readonly total: number; readonly truncated: boolean; readonly hint?: string };
 
-export const prepareTextSearch: PrepareFn = (params, context) => {
+export const textSearchPort = (params: CallParams, context: { readonly state: SearchState; readonly withheld?: ReadonlySet<string> }): Result<ToolValue, CommandError> => {
   const state = context.state;
   const scope = params['scope'] as readonly string[] | undefined;
   if (scope?.some((id) => !state.manifest.tree.some((node) => node.id === id))) return failure(invalidParams('A search scope id is not in this project.', 'use binder.read_tree for current node ids', 'scope'));
@@ -77,6 +76,5 @@ export const prepareTextSearch: PrepareFn = (params, context) => {
     if (!fitsCap(answer(), TEXT_SEARCH_CAP) || !fitsCap({ tool: 'text.search', ok: true, data: data() }, TEXT_SEARCH_CAP)) { hits.pop(); break; }
   }
   if (hits.length === 0 && total > 0) return failure(invalidParams('A search hit is too large for the response cap. No hit was skipped.', 'narrow the scope or inspect the document directly', 'scope'));
-  const value = answer();
-  return ok({ commands: [], finish: () => ok(value) });
+  return ok(answer());
 };

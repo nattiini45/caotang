@@ -306,6 +306,9 @@ importers:
       '@caotang/pictures':
         specifier: workspace:*
         version: link:../../packages/pictures
+      '@caotang/retrieval':
+        specifier: workspace:*
+        version: link:../../packages/retrieval
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../../packages/screenplay

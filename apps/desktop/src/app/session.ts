@@ -636,6 +636,7 @@ export class ProjectSession {
         ...(this.harnessOptions.coherence === undefined ? {} : { coherence: this.harnessOptions.coherence }),
       });
       this.harnessRuntime = runtime;
+      if (this.handle.getSnapshot().kind === 'closing' || this.handle.getSnapshot().kind === 'closed') runtime.dispose();
       return runtime;
     }).catch((error: unknown) => {
       // A download that failed is not kept, so the next turn asks for it again.
@@ -2125,6 +2126,7 @@ export class ProjectSession {
       };
       try {
         this.detachCoherenceFlush();
+        this.harnessRuntime?.dispose();
         this.detachPendingKeep();
         if (this.pendingTimer !== null) clearTimeout(this.pendingTimer);
         this.pendingTimer = null;

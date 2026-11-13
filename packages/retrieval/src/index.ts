@@ -2,6 +2,10 @@ import * as codexText from '@caotang/codex';
 import type { ProjectState, TreeNode } from '@caotang/store';
 
 export type UnitField = 'body' | 'synopsis' | 'notes' | 'codex';
+export interface SearchState {
+  readonly manifest: Pick<ProjectState['manifest'], 'tree' | 'codex'> & { readonly project: Pick<ProjectState['manifest']['project'], 'language'> };
+  readonly documents: ProjectState['documents'];
+}
 export type HitPosition = 'manuscript' | 'before-focus' | 'focus' | 'after-focus' | 'research' | 'codex';
 export interface SearchUnit {
   readonly id: string;
@@ -36,7 +40,7 @@ export interface LexicalIndexStats {
   readonly matches: number;
 }
 export interface LexicalIndex {
-  search(state: ProjectState, query: string, options?: SearchOptions): readonly SearchHit[];
+  search(state: SearchState, query: string, options?: SearchOptions): readonly SearchHit[];
   bumpCodexRevision(): number;
   readonly stats: LexicalIndexStats;
 }

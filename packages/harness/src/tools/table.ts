@@ -54,7 +54,7 @@ import {
 } from './ports.js';
 import { delegateParams } from './delegate.js';
 import { sessionHistoryParams } from './session-history.js';
-import { prepareTextSearch, textSearchParams } from './text-search.js';
+import { textSearchParams } from './text-search.js';
 import { memoryReadParams, prepareMemoryRead } from './memory.js';
 import { skillLoadParams, skillReadParams } from './skills.js';
 import { prepareTimelineRead, timelineReadParams } from './timeline-read.js';
@@ -108,7 +108,7 @@ const DEFINITIONS: Readonly<Record<ToolName, Definition>> = {
   // Delegation to a built-in helper agent (agent-harness §2): the loop answers it; the port is the answer outside a turn.
   'agent.delegate': { kind: 'port', port: 'agent.delegate', params: delegateParams },
   'session.history': { kind: 'port', port: 'session.history', params: sessionHistoryParams },
-  'text.search': { kind: 'native', params: textSearchParams, prepare: prepareTextSearch },
+  'text.search': { kind: 'port', params: textSearchParams, port: 'text.search' },
   // The story timeline's read (timeline.md §5.1). Its write, timeline.edit, is a primitive below.
   'timeline.read': { kind: 'native', params: timelineReadParams, prepare: prepareTimelineRead },
   // The picture registry's native tools (pictures.md §8.1).
