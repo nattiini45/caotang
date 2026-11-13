@@ -1,6 +1,6 @@
 import { err, refusal } from '@caotang/bus';
 import { t } from '@lingui/core/macro';
-import { searchCandidates, type SearchState, type UnitField } from '@caotang/retrieval';
+import { codexSearchable, searchCandidates, type SearchState, type UnitField } from '@caotang/retrieval';
 import type { AsyncToolPort } from '@caotang/harness';
 import type { TextSearchReply, TextSearchRequest } from './text-search-protocol.js';
 
@@ -61,7 +61,7 @@ export function createTextSearchWorker(): { readonly port: AsyncToolPort; dispos
         const snapshot: SearchState = { manifest: {
           project: { language: project.language },
           tree: tree.map((node) => ({ id: node.id, parentId: node.parentId, type: node.type, title: node.title, order: node.order, synopsis: eligible.has(node.id) ? node.synopsis : '', notes: eligible.has(node.id) ? node.notes : '' })),
-          codex: codex?.filter((entry) => entry.includePolicy !== 'never' && !context.withheld?.has(entry.id)).map((entry) => ({ id: entry.id, name: entry.name, aliases: entry.aliases, description: entry.description, includePolicy: entry.includePolicy })),
+          codex: codex?.filter((entry) => codexSearchable(entry, context.withheld)).map((entry) => ({ id: entry.id, name: entry.name, aliases: entry.aliases, description: entry.description, includePolicy: entry.includePolicy })),
         }, documents };
         worker!.postMessage({ id, state: snapshot, params, withheld: context.withheld } satisfies TextSearchRequest);
       } catch {

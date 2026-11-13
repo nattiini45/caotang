@@ -4,7 +4,7 @@ import type { CodexEntry, ProjectState, TreeNode } from '@caotang/store';
 export type UnitField = 'body' | 'synopsis' | 'notes' | 'codex';
 type SearchNode = Pick<TreeNode, 'id' | 'parentId' | 'type' | 'title' | 'order' | 'synopsis' | 'notes'>;
 export interface SearchState {
-  readonly manifest: { readonly tree: readonly SearchNode[]; readonly codex?: readonly Pick<CodexEntry, 'id' | 'name' | 'aliases' | 'description' | 'includePolicy'>[]; readonly project: Pick<ProjectState['manifest']['project'], 'language'> };
+  readonly manifest: { readonly tree: readonly SearchNode[]; readonly codex?: readonly (Pick<CodexEntry, 'id' | 'name' | 'aliases' | 'description' | 'includePolicy'> & Partial<Pick<CodexEntry, 'attachments'>>)[]; readonly project: Pick<ProjectState['manifest']['project'], 'language'> };
   readonly documents: ProjectState['documents'];
 }
 export type HitPosition = 'manuscript' | 'before-focus' | 'focus' | 'after-focus' | 'research' | 'codex';
@@ -25,6 +25,10 @@ export interface SearchHit {
   readonly matched: readonly string[];
   readonly snippet: { readonly text: string; readonly from: number; readonly to: number };
   readonly position: HitPosition;
+}
+export function codexSearchable(entry: { readonly id: string; readonly includePolicy: string; readonly attachments?: readonly string[] }, excluded?: ReadonlySet<string>): boolean {
+  if (entry.includePolicy === 'never' || excluded?.has(entry.id)) return false;
+  return excluded === undefined || entry.attachments === undefined || entry.attachments.length === 0 || !entry.attachments.every((id) => excluded.has(id));
 }
 export interface SearchOptions {
   readonly limit?: number;
@@ -183,7 +187,7 @@ export function createLexicalIndex(config: { readonly locale?: string; readonly 
       const visibleCodex = new Set<string>();
       const codexNames = new Map<string, string>();
       if (options.scope === undefined) for (const entry of [...(state.manifest.codex ?? [])].sort((a, b) => compare(a.id, b.id))) {
-        if (entry.includePolicy === 'never' || options.excluded?.has(entry.id)) continue;
+        if (!codexSearchable(entry, options.excluded)) continue;
         visibleCodex.add(entry.id);
         codexNames.set(entry.id, entry.name);
         const text = [entry.name, ...entry.aliases, entry.description].join('\n');
