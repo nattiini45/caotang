@@ -32,6 +32,8 @@ export interface MarkdownImport {
   frontMatter: Record<string, MarkdownFileFacts>;
   /** The import's title: the first file's `title`, else the folder/file name. */
   title: string;
+  /** Resolved picture bytes by asset ref, for the picture pipeline (empty for a lone file). */
+  assetData: Map<string, Uint8Array>;
 }
 
 export type MarkdownError =
@@ -102,6 +104,7 @@ export function readMarkdownFile(bytes: Uint8Array, fileName: string, options: R
       document,
       frontMatter: { [fileName]: { scene: mapped.scene, notes: mapped.notes } },
       title,
+      assetData: new Map(),
     },
   };
 }
@@ -152,7 +155,8 @@ export async function readMarkdownArchive(archive: ImportArchive, options: ReadO
   }
 
   // Resolve relative image bytes against the archive, nearest the file's folder.
-  const resolved = await resolveImages(archive, paths, assets);
+  const assetData = new Map<string, Uint8Array>();
+  const resolved = await resolveImages(archive, paths, assets, assetData);
 
   const document: ImportDocument = {
     blocks,
@@ -161,7 +165,7 @@ export async function readMarkdownArchive(archive: ImportArchive, options: ReadO
     ...(title !== undefined ? { metadata: { title } } : {}),
     assets: [...resolved.values()],
   };
-  return { ok: true, value: { document, frontMatter, title: title ?? titleFromName(paths[0] as string) } };
+  return { ok: true, value: { document, frontMatter, title: title ?? titleFromName(paths[0] as string), assetData } };
 }
 
 /** Fill image assets with bytes from the archive where a matching file exists. */
@@ -169,6 +173,7 @@ async function resolveImages(
   archive: ImportArchive,
   paths: readonly string[],
   assets: Map<string, ImportAsset>,
+  assetData: Map<string, Uint8Array>,
 ): Promise<Map<string, ImportAsset>> {
   if (assets.size === 0) return assets;
   const dirs = [...new Set(paths.map((p) => p.split('/').slice(0, -1).join('/')))];
@@ -182,6 +187,7 @@ async function resolveImages(
       const read = await archive.read(candidate);
       if (read.ok) {
         assets.set(ref, { ...asset, name: candidate.split('/').pop(), bytes: read.value.length });
+        assetData.set(ref, read.value);
         break;
       }
     }

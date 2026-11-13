@@ -221,5 +221,6 @@ describe('archive read', () => {
     if (!result.ok) return;
     const asset = result.value.document.assets?.find((a) => a.ref === 'assets/pier.png');
     expect(asset?.bytes).toBe('fake-png-bytes'.length);
+    expect(new TextDecoder().decode(result.value.assetData.get('assets/pier.png'))).toBe('fake-png-bytes');
   });
 });
