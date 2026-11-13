@@ -27,7 +27,7 @@ import { contextOverridesOk } from './context.js';
 import { canonicalJson } from '../util.js';
 import type { BudgetSpend } from './budget.js';
 import type { StepRevisions } from './background.js';
-import type { TurnReport, TurnStatus } from './events.js';
+import type { CompactionActivity, TurnReport, TurnStatus } from './events.js';
 import type { LoadedSkill } from '../tools/skills.js';
 import type { SourcedRule } from '../rules.js';
 
@@ -66,6 +66,7 @@ export type RunEvent =
       readonly command?: string;
       readonly hiddenFromPlanner?: boolean;
       readonly outsidePrompt?: OutsidePrompt;
+      readonly compaction?: { readonly focus?: string };
       readonly contextOverrides?: ContextOverrides;
     })
   | (Stamp & { readonly t: 'messages'; readonly turnId: string; readonly appended: readonly ChatMessage[] })
@@ -114,7 +115,7 @@ export type RunEvent =
       /** Model calls started and not settled when this was written: a crash loses them, and a resume counts them as spent. */
       readonly reservedCalls: number;
     })
-  | (Stamp & { readonly t: 'turn.end'; readonly turnId: string; readonly status: TurnStatus; readonly summary: string });
+  | (Stamp & { readonly t: 'turn.end'; readonly turnId: string; readonly status: TurnStatus; readonly summary: string; readonly external?: boolean; readonly readPolicy?: string; readonly compactions?: readonly CompactionActivity[] });
 
 /** An event as the writer is handed it: the writer numbers and stamps it. */
 export type RunEventDraft = RunEvent extends infer E ? (E extends unknown ? Omit<E, 'seq' | 'at'> : never) : never;
@@ -342,8 +343,21 @@ function outsidePromptOk(value: unknown): value is OutsidePrompt {
   return isRecord(value) && isString(value['serverName']) && isString(value['name']) && isString(value['text']);
 }
 
+function compactionsOk(value: unknown, turnId: unknown): boolean {
+  return Array.isArray(value) && value.every((entry: unknown) => isRecord(entry) && isAmount(entry['at']) && entry['at'] <= 8.64e15 &&
+    ['auto', 'manual'].includes(entry['origin'] as string) && ['chat', 'drafting', 'background'].includes(entry['role'] as string) &&
+    ['replied', 'failed', 'cancelled'].includes(entry['status'] as string) && isRecord(entry['covers']) &&
+    isString(entry['covers']['from']) && entry['covers']['from'].trim() !== '' && isString(entry['covers']['to']) && entry['covers']['to'].trim() !== '' &&
+    Number.isSafeInteger(entry['covers']['turns']) && (entry['covers']['turns'] as number) > 0 &&
+    Array.isArray(entry['usage']) && entry['usage'].every((row: unknown) => isRecord(row) && row['version'] === 1 && row['turnId'] === turnId && row['role'] === 'background' &&
+      isString(row['profileId']) && isString(row['model']) && (row['sessionId'] === undefined || isString(row['sessionId'])) && (row['agentPath'] === undefined || isString(row['agentPath'])) &&
+      ['promptTokens', 'completionTokens', 'cachedPromptTokens', 'cacheWritePromptTokens', 'reasoningTokens'].every((key) => isAmount(row[key])) &&
+      ['requests', 'estimatedRequests', 'unpricedRequests', 'providerCostRequests'].every((key) => isCount(row[key])) &&
+      (row['costUsd'] === undefined || isAmount(row['costUsd']))));
+}
+
 const SHAPES: Readonly<Record<RunEvent['t'], (event: Record<string, unknown>) => boolean>> = {
-  'turn.start': (e) => e['v'] === RUN_LOG_VERSION && isString(e['turnId']) && isString(e['intent']) && (e['wire'] === 'planner' || e['wire'] === 'plan') && typeof e['native'] === 'boolean' && (e['withheld'] === undefined || (Array.isArray(e['withheld']) && e['withheld'].every(isString))) && (e['command'] === undefined || isCommandName(e['command'])) && (e['hiddenFromPlanner'] === undefined || typeof e['hiddenFromPlanner'] === 'boolean') && (e['outsidePrompt'] === undefined || outsidePromptOk(e['outsidePrompt'])) && (e['contextOverrides'] === undefined || contextOverridesOk(e['contextOverrides'])),
+  'turn.start': (e) => e['v'] === RUN_LOG_VERSION && isString(e['turnId']) && isString(e['intent']) && (e['wire'] === 'planner' || e['wire'] === 'plan') && typeof e['native'] === 'boolean' && (e['withheld'] === undefined || (Array.isArray(e['withheld']) && e['withheld'].every(isString))) && (e['command'] === undefined || isCommandName(e['command'])) && (e['hiddenFromPlanner'] === undefined || typeof e['hiddenFromPlanner'] === 'boolean') && (e['outsidePrompt'] === undefined || outsidePromptOk(e['outsidePrompt'])) && (e['contextOverrides'] === undefined || contextOverridesOk(e['contextOverrides'])) && (e['compaction'] === undefined || (isRecord(e['compaction']) && Object.keys(e['compaction']).every((key) => key === 'focus') && (e['compaction']['focus'] === undefined || isString(e['compaction']['focus'])))),
   messages: (e) => isString(e['turnId']) && messagesOk(e['appended']),
   'skills.loading': (e) => isString(e['turnId']),
   'skills.loaded': (e) => isString(e['turnId']) && skillsOk(e['skills']),
@@ -364,7 +378,7 @@ const SHAPES: Readonly<Record<RunEvent['t'], (event: Record<string, unknown>) =>
   'step.applied': (e) => isString(e['turnId']) && isString(e['callId']) && isCount(e['index']) && isString(e['tool']) && revisionsOk(e['after']) && (e['summary'] === undefined || isString(e['summary'])),
   'step.failed': (e) => isString(e['turnId']) && isString(e['callId']) && isCount(e['index']) && isString(e['tool']) && isString(e['error']),
   spend: (e) => isString(e['turnId']) && spendOk(e['spend']) && isCount(e['reservedCalls']),
-  'turn.end': (e) => isString(e['turnId']) && ['replied', 'applied', 'failed', 'cancelled'].includes(e['status'] as string) && isString(e['summary']),
+  'turn.end': (e) => isString(e['turnId']) && ['replied', 'applied', 'failed', 'cancelled'].includes(e['status'] as string) && isString(e['summary']) && (e['external'] === undefined || typeof e['external'] === 'boolean') && (e['readPolicy'] === undefined || (typeof e['readPolicy'] === 'string' && /^[a-f0-9]{64}$/.test(e['readPolicy']))) && (e['compactions'] === undefined || compactionsOk(e['compactions'], e['turnId'])),
 };
 
 /** The events of a stored log, checked, or the reason one was refused. A row of a type or a shape this build does not know refuses the whole log. */
@@ -404,6 +418,7 @@ export interface ReplayCard {
 
 /** What a log says about its run: the state a resumed turn starts from. */
 export interface RunReplay {
+  readonly compaction?: { readonly focus?: string };
   readonly contextOverrides?: ContextOverrides;
   readonly turnId: string;
   readonly intent: string;
@@ -457,6 +472,7 @@ function replayOf(events: readonly RunEvent[]): Replayed {
   let command: string | undefined;
   let hiddenFromPlanner = false;
   let outsidePrompt: OutsidePrompt | undefined;
+  let compaction: RunReplay['compaction'];
   let contextOverrides: ContextOverrides | undefined;
   const messages: ChatMessage[] = [];
   let skills: readonly LoadedSkill[] | undefined;
@@ -484,6 +500,7 @@ function replayOf(events: readonly RunEvent[]): Replayed {
           command = event.command;
           hiddenFromPlanner = event.hiddenFromPlanner === true;
           outsidePrompt = event.outsidePrompt;
+          compaction = event.compaction;
           contextOverrides = event.contextOverrides;
           wire = event.wire;
           started = true;
@@ -551,6 +568,7 @@ function replayOf(events: readonly RunEvent[]): Replayed {
     ...(command === undefined ? {} : { command }),
     ...(hiddenFromPlanner ? { hiddenFromPlanner: true } : {}),
     ...(outsidePrompt === undefined ? {} : { outsidePrompt }),
+    ...(compaction === undefined ? {} : { compaction }),
     ...(contextOverrides === undefined ? {} : { contextOverrides }),
     messages,
     ...(skills === undefined ? {} : { skills }),
@@ -697,7 +715,7 @@ export function planResume(rows: readonly unknown[], revisions: (docId: string) 
     return { ok: true, kind: 're-run', replay, rerun: { callId: pending.callId, index: pending.index, tool: pending.tool } };
   }
 
-  if (replay.card === undefined && replay.wire === 'plan') {
+  if (replay.card === undefined && replay.wire === 'plan' && replay.compaction === undefined) {
     return { ok: false, reason: 'ask-back', detail: 'the run stopped before its plan reached a card, and there is no conversation to continue', docs: [], replay };
   }
   return { ok: true, kind: 'clean', replay };

@@ -162,6 +162,12 @@ const textOf = (request: ChatRequest | undefined): string => request?.messages.m
 const count = (text: string, part: string): number => text.split(part).length - 1;
 
 describe('an external result reaches the model in an envelope (JSON wire)', () => {
+  it('marks the settled outcome as external so later history and compaction cannot lose its provenance', async () => {
+    const { report } = await jsonTurn('Remember the connected answer.', [FIND('lore'), READ, answer('Hanne keeps the light.')]);
+    expect(report.status).toBe('replied');
+    expect(report.external).toBe(true);
+  });
+
   it('puts the content between a marker with the source and the turn’s id and one with the same id, and shows hidden characters as escapes', async () => {
     const { report, requests } = await jsonTurn('Look Hanne up.', [FIND('lore'), READ, answer('Done.')]);
     expect(report.status).toBe('replied');

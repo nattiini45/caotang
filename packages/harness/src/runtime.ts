@@ -105,6 +105,7 @@ import {
   NO_VERDICT,
   askRefusal,
   evaluateRules,
+  memoryReadPolicy,
   ruleRefusal,
   withheldAnywhere,
   withheldNodes,
@@ -120,6 +121,7 @@ import { TOOL_METADATA, capOf, metadataFor, type ToolMetadata, type ToolName, ty
 import type { ResultData } from './results.js';
 import { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
 import { NO_SERVERS, toolSearchPort } from './tools/search.js';
+import { sessionHistoryPort } from './tools/session-history.js';
 import { createSkillLoads, isWriterInvocable, skillLoadData, skillLoadPort, skillReadPort, skillResourcePaths, skillStatesOf, skillToolRefusal, type LoadedSkill, type SkillsOption } from './tools/skills.js';
 import { storyboardPorts } from './tools/storyboard.js';
 import { stageTimelineEdit, type TimelineProposal } from './tools/timeline-edit.js';
@@ -347,6 +349,7 @@ export interface Harness {
   withheld(tool: string): ReadonlySet<string>;
   /** The binder nodes a read-deny keeps from any tool: what a prompt built now would leave out, whichever tool it was for. */
   withheldAnywhere(): ReadonlySet<string>;
+  readPolicy(): string | undefined;
   /**
    * The hook runs that spoke (a warning, a block, a note) on this turn's calls since the last time this was asked, oldest first. A run
    * that only allowed is not kept. The agent loop reads them into the turn's report and trace (hooks.md §7).
@@ -717,6 +720,7 @@ export function createHarness(options: HarnessOptions): Harness {
   const ports: Readonly<Partial<Record<PortToolName, ToolPort>>> = {
     ...coherencePorts(clock, options.coherence),
     'tool.search': toolSearchPort(index, deferredRows, loaded),
+    'session.history': sessionHistoryPort,
     // The project's skills: wired only where the app says how to find the writer's review of one (HarnessOptions.skills).
     ...(options.skills === undefined ? {} : {
       'skill.load': (params, context) => skillLoadPort(skillStates, skillLoads, SKILL_LOAD_CAP,
@@ -1076,10 +1080,13 @@ export function createHarness(options: HarnessOptions): Harness {
       return settle(name, await dispatchAsync(name, command, turn, `${call.callId}:port:${tally.attempts}`));
     };
     const permission = grantedBy(turn);
+    const readPolicy = call.name === 'session.history' ? memoryReadPolicy(currentRules(), state) : undefined;
     return {
       state,
       turnId: turn.turnId,
+      ...(readPolicy === undefined ? {} : { readPolicy }),
       ...(turn.sessionId === undefined ? {} : { sessionId: turn.sessionId }),
+      ...(call.name !== 'session.history' || turn.source === 'mcp' || turn.agentPath !== undefined || turn.sessionHistory === undefined ? {} : { sessionHistory: turn.sessionHistory }),
       dispatch: (name, command) => run(name, command),
       // A compound tool's own grant, inherited by the primitive it composes (command-bus §4).
       dispatchInherited: (name, command) => run(name, command, 'write-confirm'),
@@ -1535,7 +1542,7 @@ export function createHarness(options: HarnessOptions): Harness {
   const externalMayCall = (risk: ToolRisk): boolean => risk === 'read' || (risk === 'write-auto' && externalWrites);
 
   const external: ExternalHarness = {
-    tools: () => listTools().filter((tool) => tool.callable && externalMayCall(tool.risk)),
+    tools: () => listTools().filter((tool) => tool.name !== 'session.history' && tool.callable && externalMayCall(tool.risk)),
     // An external caller cannot stage a proposal: only the agent loop may, so it is dropped here, before any port sees it.
     call: (call, turn) => callTool({ name: call.name, callId: call.callId, params: call.params }, { turnId: turn.turnId, source: 'mcp' }),
     endTurn: (turnId) => clearTurn(externalTurnId(turnId)),
@@ -1611,6 +1618,7 @@ export function createHarness(options: HarnessOptions): Harness {
     },
     loadedExternalTools: () => index().tools.filter((tool) => loaded.isLoaded(tool.qualifiedName)),
     withheld: withheldFor,
+    readPolicy: () => memoryReadPolicy(currentRules(), state),
     lifecycleHooks: (input) => {
       const runs = hooks?.run(input) ?? [];
       recordHooks(input.turnId, runs, input.params);

@@ -60,6 +60,7 @@ export interface BudgetMeter {
   spend(): BudgetSpend;
   /** Refuses when spend plus every reservation in flight plus this call's worst case would pass a cap. */
   reserve(call: Omit<Reservation, 'id'>): Result<Reservation, BudgetStop>;
+  release(reservation: Reservation): void;
   /**
    * Replaces the reservation with what the call used. With no usage the call settles at `estimate` (the prompt and the text that
    * arrived) or, with none given, at its whole reservation, and the tokens count as estimated.
@@ -285,6 +286,10 @@ export function createBudgetMeter(limits: RunLimits = {}, options: BudgetMeterOp
       held.set(reservation.id, reservation);
       modelCalls += 1;
       return ok(reservation);
+    },
+
+    release(reservation) {
+      if (held.delete(reservation.id)) modelCalls -= 1;
     },
 
     settle(reservation, usage, estimate) {

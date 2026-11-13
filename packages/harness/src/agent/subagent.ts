@@ -52,7 +52,7 @@ export const SUMMARY_MAX_TOKENS = 1500;
 const CHARS_PER_TOKEN = 4;
 
 /** Tools no delegated agent is ever given, whatever a spec lists: the protocol row, the search, a nested delegation, the external bridge. */
-const NEVER_LISTED: ReadonlySet<string> = new Set(['agent.delegate', 'agent.plan', 'tool.search', 'mcp.invoke']);
+const NEVER_LISTED: ReadonlySet<string> = new Set(['agent.delegate', 'agent.plan', 'tool.search', 'mcp.invoke', 'session.history']);
 
 /** A built-in agent. A closed set, like the tool registry (agent-harness §3): this build has no user-defined agents. */
 export interface SubagentSpec {
