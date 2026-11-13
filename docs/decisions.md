@@ -1,5 +1,6 @@
 # Decisions
 
+- [owner 2026-11-12] Caspar on the HTML import's parser (#299): "Own XHTML walker (recommended, no new dependency)". The walker reads well-formed XHTML over the shared XML reader and is shared by the EPUB, AO3, Kanka and Notion imports; rehype and turndown are not added.
 - Codex-only passage searches do not read, tokenize or transfer binder text. Field-aware metadata eligibility is shared by permission targets, the index and the browser worker snapshot; excluded binder text and Never codex entries stay out of that snapshot. Why: filtering result fields after indexing still accessed binder text without its scoped read confirmation. [delegated 2026-11-13]
 
 - Local passage search resolves all eligible binder candidates for scoped read-ask confirmation before reading text. Scope expansion and forward-scene filtering share the index's metadata-only candidate resolver; read-denied candidates remain excluded before scoring. Why: a project-level target label bypassed confirmation rules on searched subtrees. [delegated 2026-11-13]
