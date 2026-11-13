@@ -98,7 +98,7 @@ pnpm dev
 
 `pnpm dev` serves the app at http://127.0.0.1:5173.
 
-For a production build, run `pnpm build`, then `pnpm --filter @caotang/desktop preview`. The build goes to `apps/desktop/dist/`, with a `THIRD-PARTY-NOTICES.md` beside it. The preview serves it at http://127.0.0.1:4173 by default. Two things to know about it:
+For a production build, run `pnpm build`, then `pnpm --filter @caotang/desktop preview`. The build goes to `apps/desktop/dist/`, with `THIRD-PARTY-NOTICES.md` inside it. A custom Vite `--outDir` carries the same production notices in that directory. The preview serves it at http://127.0.0.1:4173 by default. Two things to know about it:
 
 - The build works at the root of its origin, so serve it from the root, as the preview does, unless you built it for a sub-path with `CAOTANG_BASE` (see Self-hosting).
 - Projects are kept per origin, which is the address and the port together. A project you made at http://127.0.0.1:5173 does not appear at http://127.0.0.1:4173. Export a bundle to move one.

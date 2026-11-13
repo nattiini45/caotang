@@ -33,6 +33,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- Builds with a custom output directory include `THIRD-PARTY-NOTICES.md` beside their assets instead of writing into the default output directory.
+
 - **Editor focus and replacement races.** Ctrl+Home no longer jumps back to the old caret immediately after focusing a scene (#569). Superseded editor loads report cancellation instead of successful replacement, while keeping the existing agent-edit API and saved formats.
 - Prose, screenplay and Ink views share one store-rebase lifecycle, so an older asynchronous replacement cannot acknowledge an obsolete revision or report an error after a newer change or teardown. The Modern sidebar waits for editor readiness rather than guessing how many frames loading will take, and moves focus to the page if the editor fails to open or reconcile.
 - **Project-session cleanup.** A failed settle no longer skips closing a project or leaves its lease held. Failed opens also release their session resources, and closing a project clears its unsaved timeline proposals. Demo opening now blocks duplicate starts and competing project actions; recovery, encoding and folder-version questions share one pending-open state.
