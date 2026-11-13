@@ -122,6 +122,18 @@ const KNOWN_META = new Set(['title', 'author', 'language']);
 /** Map the front-matter fields to metadata, scene facts and a notes block. */
 export function mapFrontMatter(front: string, format: FrontMatterFormat): MappedFrontMatter {
   const fields = format === 'toml' ? parseTomlFields(front) : parseFrontMatterFields(front);
+  return mapFields(fields);
+}
+
+/** Map plain key→value fields (e.g. Obsidian Dataview) with the same rules as front matter. */
+export function mapScalarFields(record: Record<string, string>): MappedFrontMatter {
+  const fields = new Map<string, FrontMatterField>();
+  for (const [key, value] of Object.entries(record)) fields.set(key, { scalar: value });
+  return mapFields(fields);
+}
+
+/** Sort already-parsed fields into metadata, scene facts and a keep-everything notes block. */
+function mapFields(fields: ReadonlyMap<string, FrontMatterField>): MappedFrontMatter {
   const metadata: ImportMetadata = {};
   const scene: MarkdownSceneFacts = {};
   const notesLines: string[] = [];

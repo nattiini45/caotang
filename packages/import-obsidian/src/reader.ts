@@ -6,7 +6,7 @@
  */
 
 import type { ImportDocument } from '@caotang/import-core';
-import { parseMarkdownBody, splitFrontMatter, mapFrontMatter, type MarkdownFileFacts } from '@caotang/import-markdown';
+import { parseMarkdownBody, splitFrontMatter, mapFrontMatter, mapScalarFields, type MarkdownFileFacts } from '@caotang/import-markdown';
 import type { ImportArchive } from '@caotang/import-read/zip';
 import { preprocessObsidian } from './obsidian.js';
 import { parseLongformIndex, chooseDraft, type LongformIndex, type LongformScene } from './longform.js';
@@ -109,6 +109,8 @@ export async function readObsidianVault(archive: ImportArchive): Promise<Obsidia
     resolved.dataview += Object.keys(pre.dataview).length;
     resolved.comments += pre.notes.length;
     const mapped = split.front !== null && split.format !== null ? mapFrontMatter(split.front, split.format) : null;
+    // Dataview fields map like front matter (known keys become scene facts, the rest notes); front matter wins.
+    const dataviewMapped = Object.keys(pre.dataview).length > 0 ? mapScalarFields(pre.dataview) : null;
     const props: Record<string, string> = {};
     const aliases: string[] = [];
     if (split.front !== null) {
@@ -127,10 +129,15 @@ export async function readObsidianVault(archive: ImportArchive): Promise<Obsidia
       continue;
     }
 
-    // A manuscript note: its front-matter facts and its preprocessed body become blocks.
+    // A manuscript note: its front-matter and Dataview facts and its preprocessed body become blocks.
     const fileName = path;
-    if (mapped !== null) frontMatter[fileName] = { scene: mapped.scene, notes: mapped.notes };
-    if (title === '' && mapped?.metadata.title !== undefined && mapped.metadata.title !== '') title = mapped.metadata.title;
+    if (mapped !== null || dataviewMapped !== null) {
+      const scene = { ...(dataviewMapped?.scene ?? {}), ...(mapped?.scene ?? {}) };
+      const notes = [dataviewMapped?.notes ?? '', mapped?.notes ?? ''].filter((n) => n !== '').join('\n');
+      frontMatter[fileName] = { scene, notes };
+    }
+    const noteTitle = mapped?.metadata.title ?? dataviewMapped?.metadata.title;
+    if (title === '' && noteTitle !== undefined && noteTitle !== '') title = noteTitle;
     const parsed = parseMarkdownBody(pre.body, fileName);
     manuscriptNotes.set(path, { body: pre.body, blocks: parsed.blocks, embeds: pre.embeds });
     // Merge the note's tags into its scene keywords.

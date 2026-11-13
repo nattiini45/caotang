@@ -99,6 +99,30 @@ describe('the Obsidian vault reader (#281)', () => {
     expect(text).not.toContain('import:obsidian-embed');
   });
 
+  it('maps Dataview fields to scene facts and keeps the rest as notes', async () => {
+    const read = await readObsidianVault(vaultOf({
+      'Chapter One.md': '# Chapter One\n\nstatus:: draft\npov:: Mara\nmood:: tense\n\nThe ferry came.',
+    }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const facts = read.value.frontMatter['Chapter One.md'];
+    expect(facts?.scene.status).toBe('draft');
+    expect(facts?.scene.pov).toBe('Mara');
+    expect(facts?.notes).toContain('mood: tense');
+    expect(read.value.resolved.dataview).toBe(3);
+    // Own-line fields leave the prose.
+    expect(JSON.stringify(read.value.document.blocks)).not.toContain('status::');
+  });
+
+  it('lets front matter win over a Dataview field for the same key', async () => {
+    const read = await readObsidianVault(vaultOf({
+      'Chapter One.md': '---\nstatus: final\n---\n# Chapter One\n\nstatus:: draft\n\nThe ferry came.',
+    }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.frontMatter['Chapter One.md']?.scene.status).toBe('final');
+  });
+
   it('refuses a vault with no notes', async () => {
     const read = await readObsidianVault(vaultOf({ '.obsidian/app.json': '{}' }));
     expect(read.ok).toBe(false);

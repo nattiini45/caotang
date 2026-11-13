@@ -17,7 +17,7 @@ import { parseMarkdownBody } from './markdown.js';
 import { splitFrontMatter, mapFrontMatter, type MarkdownSceneFacts } from './frontmatter.js';
 
 export { parseMarkdownBody } from './markdown.js';
-export { splitFrontMatter, mapFrontMatter } from './frontmatter.js';
+export { splitFrontMatter, mapFrontMatter, mapScalarFields } from './frontmatter.js';
 export type { MarkdownSceneFacts, MappedFrontMatter, FrontMatterFormat } from './frontmatter.js';
 
 /** The front-matter facts for one source file, keyed by its `sourceUnit`. */

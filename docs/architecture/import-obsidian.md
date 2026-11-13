@@ -18,8 +18,9 @@ third-party dependencies; it runs on the main thread, in a `'self'` Worker and i
 - `%%comments%%` (inline or across lines) become notes, never dropped. `==highlights==` keep their text and drop the markers, counted.
 - Callouts `> [!type]` stay blockquotes with a labelled type. A trailing `^block-id` is stripped, counted.
 - `#tags` become keywords; a heading (`# Word`) is left alone. `aliases:` front matter is kept for the codex entry.
-- Dataview fields (`Key:: value` on its own line, `[key:: v]` / `(key:: v)` inline) become metadata; own-line fields leave the prose,
-  inline ones keep their rendered value.
+- Dataview fields (`Key:: value` on its own line, `[key:: v]` / `(key:: v)` inline) map like front matter: the keys the import
+  understands (`status`, `pov`, `synopsis`, `tags`…) become scene facts, every other key is kept as a notes line, and front matter
+  wins a shared key. Own-line fields leave the prose; inline ones keep their rendered value. All are counted.
 - Fenced code and inline code are never rewritten.
 
 ## 3. The vault
