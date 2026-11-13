@@ -109,6 +109,9 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
   const [codexTypes, setCodexTypes] = useState<Record<string, string>>({});
   const [scrollTo, setScrollTo] = useState<{ readonly block: number; readonly seq: number } | null>(null);
   const abort = useRef<AbortController | null>(null);
+  const [readVersion, setReadVersion] = useState(0);
+  const [readFailure, setReadFailure] = useState<{ readonly settings: PreviewSettings; readonly message: string } | null>(null);
+  const readSeq = useRef(0);
 
   useModalDialog(ref);
 
@@ -136,7 +139,40 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
 
   const ready = phase.kind === 'ready' || phase.kind === 'committing' || phase.kind === 'commit-failed';
   const committing = phase.kind === 'committing';
-  const plan: PreviewPlan | null = useMemo(() => (ready ? source.plan(settings, edits.overrides) : null), [ready, source, settings, edits.overrides]);
+
+  // A reader that runs in a Worker (#390) reads each new setting off the main thread before the plan re-runs. `reading` is derived from
+  // the source's own cache: the first read happened in load, so the default settings are already prepared and nothing flashes; a reader
+  // chip or option change names an unprepared key, shows Reading…, and the effect below reads it. The version bump (in the async
+  // callback only) re-renders once the read lands, so the derived `reading` flips back and the plan re-runs.
+  const reading = ready && source.prepare !== undefined && (source.prepared?.(settings) ?? true) === false && readFailure?.settings !== settings;
+  useEffect(() => {
+    if (!ready || source.prepare === undefined || source.prepared?.(settings) === true) return;
+    const controller = new AbortController();
+    const seq = ++readSeq.current;
+    const settle = (): void => {
+      if (seq === readSeq.current && !controller.signal.aborted) setReadVersion((version) => version + 1);
+    };
+    const fail = (failure: unknown): void => {
+      if (seq !== readSeq.current || controller.signal.aborted) return;
+      // A failed re-read must not leave the preview on Reading…: name the failure and let the plan show it as a loss.
+      setReadFailure({ settings, message: failure instanceof Error ? failure.message : String(failure) });
+      setReadVersion((version) => version + 1);
+    };
+    source.prepare(settings, controller.signal).then(settle, fail);
+    return () => controller.abort();
+  }, [source, settings, ready]);
+
+  // The preview's Worker (if any) is released when the dialog goes away, including when a newer import replaces it.
+  useEffect(() => () => source.dispose?.(), [source]);
+
+  const plan: PreviewPlan | null = useMemo(() => {
+    // readVersion advances when an off-thread read lands, so the source's cached document for these settings is fresh.
+    void readVersion;
+    if (!ready || reading) return null;
+    const base = source.plan(settings, edits.overrides);
+    if (readFailure === null || readFailure.settings !== settings) return base;
+    return { ...base, losses: [{ message: readFailure.message }, ...base.losses] };
+  }, [ready, reading, source, settings, edits.overrides, readVersion, readFailure]);
   const shown = useMemo(() => (plan === null ? [] : applyEdits(plan.tree, edits)), [plan, edits]);
   const rows = useMemo(() => visibleRows(shown, collapsed), [shown, collapsed]);
   const extraScan = useMemo(() => (ready ? (source.scanExtra?.() ?? []) : []), [ready, source]);
@@ -256,6 +292,11 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
         {phase.kind === 'failed' ? (
           <p className="import-preview-error" role="alert">
             {source.fileName} could not be read: {phase.message}
+          </p>
+        ) : null}
+        {ready && reading ? (
+          <p className="import-preview-progress" role="status" aria-live="polite">
+            {t`Reading…`}
           </p>
         ) : null}
         {plan !== null ? (

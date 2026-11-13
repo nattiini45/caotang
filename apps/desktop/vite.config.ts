@@ -125,6 +125,8 @@ export default defineConfig(({ command }) => ({
   ],
   ...(command === 'serve' ? { html: { cspNonce: DEV_NONCE } } : {}),
   optimizeDeps: { include: ['@ui-sdk/react/agent'] },
+  // The import preview's reader Worker (import-preview/reader.worker.ts) is a same-origin module Worker (`worker-src 'self'`, no
+  // `blob:`) and imports each reader on first use, so it needs ES format: 'iife' cannot code-split a worker's dynamic imports.
   worker: {
     format: 'es',
     rolldownOptions: { treeshake: { moduleSideEffects: [{ test: PURE_PACKAGE_SOURCE, sideEffects: false }] } },

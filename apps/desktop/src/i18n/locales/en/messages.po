@@ -8509,6 +8509,11 @@ msgstr "Import plain text…"
 msgid "Import RTF…"
 msgstr "Import RTF…"
 
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import RTFD…"
+msgstr "Import RTFD…"
+
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Import script"
@@ -8916,6 +8921,7 @@ msgstr "it is not a PNG, JPEG or WebP picture"
 msgid "it is not an object"
 msgstr "it is not an object"
 
+#. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "It is not an RTF file."
@@ -13166,7 +13172,9 @@ msgid "harness.progress.docRead.active"
 msgstr "Reading “{doc}”"
 
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/rtf-source.ts
+#: apps/desktop/src/import-preview/text-source.ts
 msgid "Reading {file}…"
 msgstr "Reading {file}…"
 
@@ -13233,6 +13241,10 @@ msgstr "Reading the codex"
 msgid "Reading the connected-server prompt…"
 msgstr "Reading the connected-server prompt…"
 
+#: apps/desktop/src/import-preview/reader-host.ts
+msgid "Reading the file took too long."
+msgstr "Reading the file took too long."
+
 #. Interpolated values: count, day, days, error
 #: apps/desktop/src/components/WritingHistory.tsx
 msgid "Reading the history…"
@@ -13290,6 +13302,11 @@ msgstr "Reading the timeline"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.sessionHistory.active"
 msgstr "Reading this role’s earlier turns"
+
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "Reading…"
+msgstr "Reading…"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -14161,6 +14178,16 @@ msgstr "Role"
 #: apps/desktop/src/components/ManuscriptImport.tsx
 msgid "RTF file"
 msgstr "RTF file"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "RTFD package"
+msgstr "RTFD package"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "RTFD package folder"
+msgstr "RTFD package folder"
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -17138,9 +17165,15 @@ msgid "The fields {vendor} receives"
 msgstr "The fields {vendor} receives"
 
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/text-source.ts
 msgid "The file cannot be read as {encoding}. Choose another encoding."
 msgstr "The file cannot be read as {encoding}. Choose another encoding."
+
+#. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/text-source.ts
+msgid "The file could not be read as plain text."
+msgstr "The file could not be read as plain text."
 
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
@@ -17324,6 +17357,18 @@ msgstr "the images of this project could not be listed ({error}), so no export w
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 msgid "The import of “{file}” could not be finished: {reason}"
 msgstr "The import of “{file}” could not be finished: {reason}"
+
+#: apps/desktop/src/import-preview/reader-host.ts
+msgid "The import reader failed to start."
+msgstr "The import reader failed to start."
+
+#: apps/desktop/src/import-preview/reader-host.ts
+msgid "The import reader failed."
+msgstr "The import reader failed."
+
+#: apps/desktop/src/import-preview/reader-host.ts
+msgid "The import was cancelled."
+msgstr "The import was cancelled."
 
 #: apps/desktop/src/components/InkGate.tsx
 msgid "The Ink compiler could not be loaded"
@@ -17899,6 +17944,16 @@ msgstr "The restore stopped part way, because the step could not be taken back: 
 #: apps/desktop/src/components/Settings.tsx
 msgid "The retention is a whole number of days from 1 to {max}."
 msgstr "The retention is a whole number of days from 1 to {max}."
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "The RTFD package could not be read: {problem}"
+msgstr "The RTFD package could not be read: {problem}"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "The RTFD package is too large to import."
+msgstr "The RTFD package is too large to import."
 
 #. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
 #: apps/desktop/src/app/run-log-export.ts

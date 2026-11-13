@@ -189,6 +189,16 @@ export interface ImportPreviewSource {
   readonly intro?: string;
   /** Reads the file. Called once, before anything else, with a progress line and a cancel. */
   load?(progress: (text: string) => void, signal: AbortSignal): Promise<void>;
+  /**
+   * Ensures the document for these settings is read, off the main thread where the reader runs in a Worker (#390). The dialog calls
+   * it before planning whenever the reader's chips or options change; a source that caches by its own read key returns at once when
+   * the settings are already read. `plan` then reads the cached document synchronously.
+   */
+  prepare?(settings: PreviewSettings, signal: AbortSignal): Promise<void>;
+  /** Whether `prepare` would return at once for these settings (the document is already read). Lets the dialog skip a reading flash. */
+  prepared?(settings: PreviewSettings): boolean;
+  /** Releases the source's reader (its Worker) when the preview closes. */
+  dispose?(): void;
   chips(): readonly PreviewChip[];
   options(): readonly PreviewOption[];
   plan(settings: PreviewSettings, overrides: PreviewOverrides): PreviewPlan;

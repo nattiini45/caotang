@@ -686,13 +686,16 @@ describe('the import preview (#267)', () => {
     expect(read('apps/desktop/src/components/TweeImportDialog.tsx')).toContain('tweePreviewSource(');
     expect(guide).toContain('- **The import preview.** An import that brings in a whole book shows it first as a proposed binder beside its text');
     expect(guide).toContain('one **Undo** takes all of it back, pictures and codex entries included');
-    expect(guide).toContain('**Import Twee**, **Import plain text…** and **Import RTF…** open it.');
+    expect(guide).toContain('**Import Twee**, **Import plain text…**, **Import RTF…** and **Import RTFD…** open it.');
+    expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
+    expect(guide).toContain('in the background, so a long file does not hold the page while it is read');
     const manuscript = read('apps/desktop/src/components/ManuscriptImport.tsx');
     expect(manuscript).toContain("await import('../import-preview/text-source.js')");
     expect(manuscript).toContain("await import('../import-preview/rtf-source.js')");
+    expect(manuscript).toContain('rtfdPreviewSource');
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<ManuscriptImportActions />');
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(notYet).toContain('the Twee, plain-text and RTF imports open the preview');
+    expect(notYet).toContain('the Twee, plain-text, RTF and RTFD imports open the preview');
     expect(notYet).not.toContain('There is no **Import RTF** command yet');
     expect(changelog).toContain('**One import preview for every structured import.**');
     expect(read('docs/architecture/import-preview.md')).toContain('## 5. The commit: `binder.importTree`');
