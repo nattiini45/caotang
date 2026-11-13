@@ -201,11 +201,14 @@ describe('the standalone Worker', () => {
       const expires = Date.now() + 1000;
       const clientOptions = { headers: { Cookie: signedTestCookie('session', expires), Origin: ORIGIN }, closeTimeout: 100 };
       socket = new WebSocketClient(endpoint.href, clientOptions);
+      let upgradeStatus: number | undefined;
+      socket.on('upgrade', (response) => { upgradeStatus = response.statusCode; });
       const messages: string[] = [];
       let closed: number | undefined;
       socket.on('message', (message) => messages.push(String(message)));
       socket.on('close', (code) => { closed = code; });
       await once(socket, 'open');
+      expect(upgradeStatus).toBe(101);
       await new Promise((resolve) => setTimeout(resolve, Math.max(0, expires - Date.now() + 10)));
       expect((await local.dispatchFetch(`${ORIGIN}/v1/live/ping`, { method: 'POST', headers: { Cookie: session, Origin: ORIGIN } })).status).toBe(204);
       await expect.poll(() => closed).toBe(1008);
