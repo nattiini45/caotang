@@ -49,6 +49,25 @@ describe('binder.importTree — the descriptor', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('carries the scene facts an import front matter maps: pov, dayOffset, storyPart (#280)', () => {
+    const result = binderImportTree.validate({ nodes: [
+      { type: 'folder', title: 'Chapter 1' },
+      { type: 'document', title: 'Scene', parent: 0, body: SCENE, pov: 'Elena', dayOffset: 3, storyPart: 'prologue' },
+    ] }, makeSnapshot());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.nodes[1]).toMatchObject({ pov: 'Elena', dayOffset: 3, storyPart: 'prologue' });
+  });
+
+  it('refuses a fractional dayOffset and an unknown storyPart (#280)', () => {
+    const failures = failuresOf(binderImportTree.validate({ nodes: [
+      { type: 'folder', title: 'Chapter 1' },
+      { type: 'document', title: 'Scene', parent: 0, body: SCENE, dayOffset: 1.5, storyPart: 'interlude' },
+    ] }, makeSnapshot()));
+    expect(failures.some((f) => (f.target ?? '').includes('dayOffset'))).toBe(true);
+    expect(failures.some((f) => (f.target ?? '').includes('storyPart'))).toBe(true);
+  });
+
   it('refuses a document straight under the manuscript, a parent that is not an earlier folder, and a body on a folder, in one refusal', () => {
     const failures = failuresOf(
       binderImportTree.validate(

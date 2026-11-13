@@ -26,6 +26,7 @@ import {
   createEmptyManifest,
   createProjectCommandRegistry,
   createProjectState,
+  emptyCoherenceState,
   keepsImportedBody,
   rewritePictureRefs,
   serializeManifest,
@@ -129,6 +130,22 @@ describe('binder.importTree — the apply', () => {
 
     undoLast(h);
     expect(snapshotOf(h.state)).toEqual(before);
+  });
+
+  it('writes the scene facts an import front matter maps into SceneMeta, and Undo removes them (#280)', async () => {
+    const h = harness();
+    h.state.coherence = emptyCoherenceState();
+    const result = await executeAsync(command({ nodes: [
+      { type: 'folder', title: 'Chapter 1' },
+      { type: 'document', title: 'Scene', parent: 0, body: 'The ferry came at noon.', pov: 'Elena', dayOffset: 3, storyPart: 'prologue' },
+    ] }), h.bus, h.registry);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const value = result.value.result as { nodeIds: string[] };
+    const sceneId = value.nodeIds[1] as string;
+    expect(h.state.coherence.sceneMeta[sceneId]).toMatchObject({ pov: 'Elena', dayOffset: 3, storyPart: 'prologue' });
+    undoLast(h);
+    expect(h.state.coherence.sceneMeta[sceneId]).toBeUndefined();
   });
 
   it('stores the pictures, writes their ../assets/ path, adds the terms and the codex rows, and Undo restores the project exactly', async () => {

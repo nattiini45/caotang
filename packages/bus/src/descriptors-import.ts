@@ -56,6 +56,10 @@ export type ImportTreeNode = {
   status?: string;
   label?: string;
   notes?: string;
+  /** Scene facts an import's front matter carries (epic #263, the Markdown import #280); the store writes them as SceneMeta. */
+  pov?: string;
+  dayOffset?: number;
+  storyPart?: 'prologue' | 'epilogue';
 };
 
 /** A codex row: a `codex.importBatch` entry that may name an imported document by its index (`node`). */
@@ -71,7 +75,7 @@ export type ImportTreeParams = {
   pictures?: ImportTreePicture[];
 };
 
-const NODE_KEYS = ['type', 'title', 'parent', 'place', 'body', 'synopsis', 'keywords', 'status', 'label', 'notes'] as const;
+const NODE_KEYS = ['type', 'title', 'parent', 'place', 'body', 'synopsis', 'keywords', 'status', 'label', 'notes', 'pov', 'dayOffset', 'storyPart'] as const;
 const PICTURE_KEYS = ['ref', 'stagingId', 'alt', 'caption'] as const;
 const CODEX_KEYS = ['entries', 'pages'] as const;
 const VOCABULARY_KEYS = ['statuses', 'labels'] as const;
@@ -222,6 +226,12 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
       if (status !== undefined && !(typeof status === 'string' && statuses.has(status))) fail(`status ${showValue(status)} is neither a status of the project nor one this import adds`, 'status', 'map it to a status, add it, or leave it out');
       const label = raw['label'];
       if (label !== undefined && !(typeof label === 'string' && labels.has(label))) fail(`label ${showValue(label)} is neither a label of the project nor one this import adds`, 'label', 'map it to a label, add it, or leave it out');
+      const pov = raw['pov'];
+      if (pov !== undefined && (typeof pov !== 'string' || pov.trim() === '' || codePoints(pov) > IMPORT_TREE_TITLE_MAX)) fail('pov must be a non-blank string of at most ' + IMPORT_TREE_TITLE_MAX + ' characters', 'pov');
+      const dayOffset = raw['dayOffset'];
+      if (dayOffset !== undefined && !(typeof dayOffset === 'number' && Number.isInteger(dayOffset))) fail('dayOffset must be a whole number of days', 'dayOffset');
+      const storyPart = raw['storyPart'];
+      if (storyPart !== undefined && storyPart !== 'prologue' && storyPart !== 'epilogue') fail(`storyPart must be "prologue" or "epilogue", got ${showValue(storyPart)}`, 'storyPart');
 
       nodes.push({
         type: type === 'document' ? 'document' : 'folder',
@@ -234,6 +244,9 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
         ...(typeof status === 'string' ? { status } : {}),
         ...(typeof label === 'string' ? { label } : {}),
         ...(typeof notes === 'string' ? { notes } : {}),
+        ...(typeof pov === 'string' ? { pov } : {}),
+        ...(typeof dayOffset === 'number' ? { dayOffset } : {}),
+        ...(storyPart === 'prologue' || storyPart === 'epilogue' ? { storyPart } : {}),
       });
     }
     if (text > IMPORT_TREE_TEXT_MAX) {

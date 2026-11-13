@@ -92,7 +92,9 @@ imported document by index as `node`), and `pictures`.
   document. The store's apply checks every body's round trip again before its first write.
 - **What the apply does.** The pictures first (the only await): through the picture pipeline (dedup by hash, the GPS strip), each
   `](import:…` target becoming the picture's `../assets/` path (pictures.md D5), a codex citation in that body moved with it. Then,
-  synchronously: the terms, the folders and documents, the codex pages and entries (`origin: 'import'`).
+  synchronously: the terms, the folders and documents, the codex pages and entries (`origin: 'import'`). A document's `pov`,
+  `dayOffset` and `storyPart` — the scene facts an import's front matter maps (#280) — are written as the timeline's SceneMeta, and
+  Undo removes them.
 - **One undo.** One compensation takes back the codex entries, the pages, the nodes (last first), the terms and the picture records
   (the files stay, as every picture undo leaves them). Undo returns the manifest to its bytes and every body to what it was.
 - **Who may run it.** The writer: `agentRisk: 'never'`. An agent imports one document at a time through `doc.import`. The command is

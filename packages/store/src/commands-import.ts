@@ -148,6 +148,7 @@ function importTreeApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectAp
     // 4. The nodes, in reading order: each parent is made before its children.
     const created: string[] = [];
     const ids: string[] = [];
+    const metaIds: string[] = [];
     const maps = new Map<number, (offset: number) => number>();
     const destination = params.parentId ?? 'manuscript';
     let documents = 0;
@@ -185,6 +186,16 @@ function importTreeApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectAp
       ids.push(doc.id);
       created.push(doc.id);
       documents += 1;
+      // Scene facts the import's front matter carried (epic #263, #280): the timeline's SceneMeta, not the doc file.
+      if (state.coherence !== undefined && (node.pov !== undefined || node.dayOffset !== undefined || node.storyPart !== undefined)) {
+        state.coherence.sceneMeta[doc.id] = {
+          ...state.coherence.sceneMeta[doc.id],
+          ...(node.pov === undefined ? {} : { pov: node.pov }),
+          ...(node.dayOffset === undefined ? {} : { dayOffset: node.dayOffset }),
+          ...(node.storyPart === undefined ? {} : { storyPart: node.storyPart }),
+        };
+        metaIds.push(doc.id);
+      }
     }
 
     // 5. The codex pages and entries (codex.importBatch's shape), attached to the document each cites.
@@ -236,6 +247,9 @@ function importTreeApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectAp
       }
       for (const id of [...created, ...pageIds].reverse()) {
         if (nodeById(state, id) !== undefined) removeNode(state, id);
+      }
+      if (state.coherence !== undefined) {
+        for (const id of metaIds) delete state.coherence.sceneMeta[id];
       }
       for (const { kind, term } of [...addedTerms].reverse()) {
         const terms = state.manifest.vocabulary[kind];
