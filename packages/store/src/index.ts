@@ -331,6 +331,7 @@ export {
   type AgentSessionRetention,
   type AgentSessionRow,
   type AgentSessionTurnRef,
+  type SessionSummary,
 } from './runtime/agent-sessions.js';
 
 export {

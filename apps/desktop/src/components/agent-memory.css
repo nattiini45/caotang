@@ -1,0 +1,83 @@
+.agent-memory {
+  min-inline-size: 0;
+  margin-block: var(--space-3);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.agent-memory-disclosure {
+  padding-block: var(--space-2);
+  text-align: start;
+}
+
+.agent-memory-disclosure::before {
+  content: '';
+  display: inline-block;
+  inline-size: 0.4em;
+  block-size: 0.4em;
+  margin-inline-end: var(--space-2);
+  border-block-end: 1px solid currentColor;
+  border-inline-end: 1px solid currentColor;
+  transform: rotate(-45deg);
+}
+
+.agent-memory-disclosure[data-open]::before {
+  transform: rotate(45deg);
+}
+
+:dir(rtl) .agent-memory-disclosure:not([data-open])::before {
+  transform: rotate(135deg);
+}
+
+.agent-memory-content {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-2);
+}
+
+.agent-memory .field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.agent-memory :is(input, select, textarea) {
+  inline-size: 100%;
+  box-sizing: border-box;
+}
+
+.agent-memory-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.agent-memory .agent-memory-roles .button[data-checked],
+:root[data-shell='modern'] .agent-memory .agent-memory-roles .button[data-checked],
+:root[data-shell='modern'] .agent-memory .agent-memory-roles .button[data-checked]:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.agent-memory-content > * {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  margin: 0;
+}
+
+.agent-memory-text {
+  white-space: pre-wrap;
+  line-height: var(--leading-prose);
+}
+
+.agent-memory-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.agent-memory button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

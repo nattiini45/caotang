@@ -32,6 +32,7 @@ import type {
 } from '@caotang/bus';
 import type { WireProgress } from '@caotang/mcp-client';
 import type { ProjectState } from '@caotang/store';
+import type { RecentTurn } from '@caotang/context';
 
 import type { ToolMetadata } from './metadata.js';
 import type { JsonSchema, ObjectSpec } from './schema.js';
@@ -131,6 +132,8 @@ export interface PortContext {
   /** The turn this call belongs to. A port that keeps something for one turn (the skills a turn has loaded) keys it by this. */
   readonly turnId: string;
   readonly sessionId?: string;
+  readonly sessionHistory?: readonly RecentTurn[];
+  readonly readPolicy?: string;
   /** Dispatches one command through the bus, under the same turn and permission as the call. */
   readonly dispatch: (name: CommandName, params: CallParams) => Result<ExecutionOutcome, CommandError>;
   /**
@@ -213,6 +216,7 @@ export type PortToolName =
   | 'skill.read'
   // Delegation (agent-harness §2): answered by the agent loop; the port (tools/delegate.ts) is what a caller outside a turn gets.
   | 'agent.delegate'
+  | 'session.history'
   // The picture tools that need the host (pictures.md §8.1): `pictures.view` reads stored bytes and asks the host whether the model
   // sees images, and `pictures.import` consumes a staging id and awaits the file write. Both are async ports, wired where the host supplies them.
   | 'pictures.view'
@@ -271,6 +275,7 @@ export type ToolEntry = NativeEntry | PortEntry | ProtocolEntry;
 export interface TurnContext {
   readonly turnId: string;
   readonly sessionId?: string;
+  readonly sessionHistory?: readonly RecentTurn[];
   readonly source?: ActivitySource;
   /** `approvedPlan` or `confirmed` — the flow facts the gate reads (command-bus §4). */
   readonly permission?: PermissionContext;

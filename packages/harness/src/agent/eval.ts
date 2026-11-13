@@ -171,6 +171,7 @@ export interface Scenario {
   readonly name: string;
   readonly category: ScenarioCategory;
   readonly intent: string;
+  readonly priorIntents?: readonly string[];
   readonly project: () => ProjectState;
   /**
    * Builds the gateway for this scenario. The mock scripts it answers with are the scenario's model. A traced run hands it the
@@ -257,9 +258,9 @@ export interface Evaluation {
 function recording(base: Gateway, into: ChatRequest[]): Gateway {
   return {
     ...base,
-    complete: (request, signal) => {
+    complete: (request, signal, beforeSend) => {
       into.push(request);
-      return base.complete(request, signal);
+      return base.complete(request, signal, beforeSend);
     },
   };
 }
@@ -303,9 +304,11 @@ export async function runScenario(scenario: Scenario, options: { readonly trace?
   const stop = new AbortController();
   const held: { session?: AgentSession; turnId?: string } = {};
   const counts = { modelCall: 0, streaming: 0, card: 0, apply: 0 };
+  let measuring = (scenario.priorIntents?.length ?? 0) === 0;
   const streamed = new Set<string>();
   /** The writer's actions for a moment that has just come: a stop aborts the signal, a note goes to the turn. */
   const happen = (moment: keyof typeof counts): void => {
+    if (!measuring) return;
     counts[moment] += 1;
     for (const action of writer) {
       if (!(moment in action.at) || (action.at as Record<string, number>)[moment] !== counts[moment]) continue;
@@ -347,6 +350,7 @@ export async function runScenario(scenario: Scenario, options: { readonly trace?
   const pending: PendingCard[] = [];
   const queue = [...(scenario.decisions ?? [])];
   const decide = async (card: PendingCard): Promise<Decision> => {
+    if (!measuring) return { action: 'cancel' };
     pending.push(card);
     const next = queue.shift();
     if (next === undefined) return { action: 'approve' };
@@ -359,6 +363,7 @@ export async function runScenario(scenario: Scenario, options: { readonly trace?
     context: createContextPort({ state, ...(scenario.contextOptions ?? {}) }),
     decide,
     emit: (event) => {
+      if (!measuring) return;
       events.push(event);
       held.turnId ??= event.turnId;
       if (event.type === 'model.call') happen('modelCall');
@@ -375,6 +380,12 @@ export async function runScenario(scenario: Scenario, options: { readonly trace?
     ...(scenario.modeOptions ?? {}),
   });
   held.session = session;
+  for (const intent of scenario.priorIntents ?? []) {
+    const report = await session.submit(intent);
+    if (report.status !== 'replied' || projectBytes(state) !== before) throw new Error(`scenario "${scenario.name}": an earlier conversation request did not finish as a read-only reply`);
+  }
+  requests.length = 0;
+  measuring = true;
   const signal = writer.length === 0 ? {} : { signal: stop.signal };
   const resolved =
     scenario.slash === undefined

@@ -82,6 +82,7 @@ export interface CallSpec {
   /** the prompt's estimated size, the fallback when a provider sends no usage */
   readonly promptTokens: number;
   readonly signal?: AbortSignal;
+  readonly beforeSend?: () => void;
   /** overrides the policy's retry count. The §5 probe makes exactly one attempt. */
   readonly maxRetries?: number;
   /** Declares the target a local-network-aware browser should expect (Chrome's Local Network Access). Sent only where fetch supports it. */
@@ -607,6 +608,7 @@ export async function* streamChat(
   let controller: AbortController | undefined;
   try {
     for (;;) {
+      spec.beforeSend?.();
       const attempt = stats.attempts;
       stats.attempts += 1;
       const deadline: Deadline = { attemptStart: clock.now(), totalAt };

@@ -1470,6 +1470,26 @@
     ],
     "additionalProperties": false
   },
+  "session.history": {
+    "type": "object",
+    "description": "Earlier turns in the current role’s conversation, newest first.",
+    "properties": {
+      "before": {
+        "type": "string",
+        "description": "Return only turns older than this turn id from a previous page.",
+        "minLength": 1
+      },
+      "limit": {
+        "type": "integer",
+        "description": "The most turns to return, from 1 to 50. Default 10.",
+        "minimum": 1,
+        "maximum": 50,
+        "default": 10
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
   "timeline.read": {
     "type": "object",
     "description": "Which part of the timeline to read, and how to arrange it. Every parameter is optional.",

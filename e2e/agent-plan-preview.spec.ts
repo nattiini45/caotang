@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { FAKE_ENDPOINT, endpointRoute, fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
-import { idOf, loose, projectTrace, savedMessage } from './support.js';
+import { binderTitle, idOf, loose, projectTrace, savedMessage, waitForSaved } from './support.js';
 
 /**
  * What a plan card shows before the writer approves it (agent-harness §2, §3): the synopses a batch writes, the codex entry a
@@ -114,20 +114,45 @@ async function usePricedEndpoint(page: Page): Promise<void> {
 }
 
 test('a scene draft’s card warns when the prompt is over the model’s window and shows the whole plan’s cost (issue #69)', async ({ page }) => {
+  const prose = 'The ferry crossed the quiet harbour before the storm. '.repeat(1000).trim();
   const plan = {
-    steps: [{ tool: 'scene.draft', params: { doc: 'The Friend', instruction: 'The friend arrives by boat.', mode: 'draft' }, expect: 'The Friend holds a drafted opening scene' }],
+    steps: [{ tool: 'scene.draft', params: { doc: 'The Friend', instruction: 'The friend arrives by boat.', mode: 'rewrite_selection', selection: { from: 0, to: prose.length, exact: prose, prefix: '', suffix: '' } }, expect: 'The Friend holds a drafted opening scene' }],
   };
-  // The listing reports a window far smaller than a scene draft's prompt, so the step's preview is over it.
-  await endpointRoute(page, new URL(FAKE_ENDPOINT).origin, planThenAnswer(plan, 'Drafted.', FRIEND_PROSE), [{ id: 'test-model', context_length: 300 }]);
+  // The planner fits this window, while the protected selection puts the scene draft's own preview over it.
+  await endpointRoute(page, new URL(FAKE_ENDPOINT).origin, planThenAnswer(plan, 'Drafted.', FRIEND_PROSE), [{ id: 'test-model', context_length: 12_000 }]);
   await usePricedEndpoint(page);
   await openSample(page);
+  await binderTitle(page, 'The Friend').click();
+  await expect(page.locator('.caotang-editor')).toHaveAttribute('data-state', 'ready');
+  await page.getByRole('textbox', { name: 'Document text' }).fill(prose);
+  await waitForSaved(page);
   await sendIntent(page, 'Draft the opening of The Friend.');
 
   const card = page.getByTestId('plan-card');
   await expect(card).toContainText('scene.draft');
   // The model's limits reach the app's prompts: the window check and the price are the step's own (context-assembly §5).
-  await expect(card.locator('.plan-notice.is-warn').filter({ hasText: 'model window 300' })).toBeVisible();
+  await expect(card.locator('.plan-notice.is-warn').filter({ hasText: 'model window 12k' })).toBeVisible();
   await expect(card.locator('.plan-cost')).toContainText('About $');
+});
+
+test('a window too small for the planner refuses before a request or plan card, and explains the next step', async ({ page }) => {
+  const requests: string[] = [];
+  await endpointRoute(page, new URL(FAKE_ENDPOINT).origin, (request) => { requests.push(request.user); return 'This request must not be sent.'; }, [{ id: 'test-model', context_length: 300 }]);
+  await usePricedEndpoint(page);
+  await openSample(page);
+  await expect(page.getByTestId('agent-panel')).toHaveAttribute('data-state', 'idle');
+  expect(requests).toEqual([]);
+  const before = await projectTrace(page);
+
+  await sendIntent(page, 'Draft the opening of The Friend.');
+
+  const recovery = page.getByTestId('agent-panel').locator('.askback');
+  await expect(recovery).toContainText('No request was sent.');
+  await expect(recovery).toContainText('300');
+  await expect(recovery.getByRole('button', { name: 'Open provider settings', exact: true })).toBeVisible();
+  await expect(page.getByTestId('plan-card')).toHaveCount(0);
+  expect(requests).toEqual([]);
+  expect(await projectTrace(page)).toEqual(before);
 });
 
 test('a coherence review’s card shows what the review is estimated to cost, at the profile’s price, before Approve is clicked', async ({ page }) => {

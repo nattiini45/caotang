@@ -17,7 +17,11 @@
   },
   {
     "id": "planner.tools.native.all",
-    "sha256": "5d7e4cf387a5e3befff0def9a2609ed99c6ab96228a2ee171af0761dded5fb5a"
+    "sha256": "2804d22fc582b16a88b863c572d7414e68b7be002a8180d477260a866fcc6606"
+  },
+  {
+    "id": "compaction.system",
+    "sha256": "7505de4a4c43d7e4a6842066357a4109fed146e95173d48eabb9a7dcec1cd3a3"
   },
   {
     "id": "draft.scene.prose",
@@ -241,6 +245,11 @@
   {
     "id": "tool.agent.delegate",
     "sha256": "dd2da6d0ca51fded9eb0bd4a15c74c05a1deebef713b04e4eb9ad1641bf2900c",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.session.history",
+    "sha256": "84540fc2f6b6ef520ca0b6d31b066a68278210816764033dd624a0da8c97de37",
     "descriptionVersion": 1
   },
   {

@@ -58,8 +58,8 @@ async function listedNames(client: Client): Promise<string[]> {
   return tools.map((tool) => tool.name).sort();
 }
 
-/** The two write rows this server never lists, with writes on: a standing instruction is changed in the app, at a card (tools.ts, `IN_APP_ONLY`). */
-const IN_APP_ONLY = ['memory.write', 'instructions.propose'];
+/** The app-only rows this server never lists, including current-role conversation recall (tools.ts, `IN_APP_ONLY`). */
+const IN_APP_ONLY = ['memory.write', 'instructions.propose', 'session.history'];
 /** The registry's write rows: every one of them is listed with --allow-writes, unless it needs a model (MODEL_BACKED), is in-app only, or has no port here. */
 const WRITE_TOOLS = TOOL_METADATA.filter((meta) => (meta.risk === 'write-auto' || meta.risk === 'write-confirm') && !IN_APP_ONLY.includes(meta.name)).map((meta) => meta.name);
 
@@ -172,6 +172,20 @@ describe('the tool surface', () => {
     try {
       expect(await listedNames(roClient)).not.toContain('tool.search');
       expect(await listedNames(rwClient)).not.toContain('tool.search');
+    } finally {
+      await roClient.close();
+      await rwClient.close();
+    }
+  });
+
+  it('does not expose the app conversation through session.history in either write mode', async () => {
+    const roClient = await connectClient(readOnly.url, readOnly.token);
+    const rwClient = await connectClient(writable.url, writable.token);
+    try {
+      for (const client of [roClient, rwClient]) {
+        expect(await listedNames(client)).not.toContain('session.history');
+        await expect(client.callTool({ name: 'session.history', arguments: {} })).rejects.toThrow('not found');
+      }
     } finally {
       await roClient.close();
       await rwClient.close();

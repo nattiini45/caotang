@@ -9,7 +9,7 @@ import {
   pruneAgentSessions, pruneRuns, readAgentSessions, readRun, readRunBaseline,
   readRunEvents, readRuns, removeAgentSession, saveAgentSession, settleAgentSessionTurn,
   updateRun, writeBodySnapshot, writeProjectState, writeRunBaseline,
-  type AgentSessionRow, type RunRow, type RuntimeStore,
+  type AgentSessionRow, type RunRow, type RuntimeStore, type SessionSummary,
 } from '../src/index.js';
 
 const DB = 'agent-sessions-test';
@@ -95,6 +95,45 @@ describe('additive v5 upgrade', () => {
 });
 
 describe('session metadata and settled presentation', () => {
+  it('keeps role-local summaries through reload and refuses malformed coverage atomically', async () => {
+    const { factory, store } = await fixture();
+    await logged(store, 'r');
+    await saveAgentSession(store, session('old', [], { active: true }));
+    const summary = {
+      version: 1 as const, covers: { from: 'chat.turn-1', to: 'chat.turn-5', turns: 5 },
+      text: "## Writer's standing requests\nKeep Hale gruff.\n\n## Decisions\nUse the ferry.\n\n## Done\nRead the opening.\n\n## Open threads\nFind the letter.",
+      origin: 'manual' as const, focus: 'Keep the letter decision.', external: true, editedAt: 1234, readPolicy: 'a'.repeat(64),
+    };
+    const row = session('current', ['r'], { active: true, summaries: { chat: summary, drafting: { ...summary, external: false } } });
+    await settleAgentSessionTurn(store, row, 'r', { saved: true });
+    await expect(settleAgentSessionTurn(store, {
+      ...row, sessionId: 'refused', summaries: { chat: { ...summary, covers: { ...summary.covers, turns: 0 } } },
+    }, 'r', { saved: false })).rejects.toThrow('invalid agent session summary');
+    expect(await readRun(store, 'r')).toMatchObject({ presentation: { saved: true } });
+    expect((await readAgentSessions(store, P)).filter((value) => value.active)).toEqual([row]);
+    store.close();
+    const reopened = await openRuntimeStore(factory, DB);
+    opened.push(reopened);
+    expect(await readAgentSessions(reopened, P)).toContainEqual(row);
+    expect((await readAgentSessions(reopened, P)).find((value) => value.sessionId === 'old')).not.toHaveProperty('summaries');
+    expect(reopened.db.version).toBe(5);
+  });
+
+  it.each([
+    { readPolicy: 'short' }, { readPolicy: 'A'.repeat(64) }, { readPolicy: 3 },
+    { editedAt: -1 }, { editedAt: NaN }, { editedAt: Infinity }, { editedAt: 'today' },
+    { external: 'yes' }, { origin: 'edited' }, { focus: 3 },
+  ])('refuses malformed additive summary metadata without replacing presentation or selection: %j', async (invalid) => {
+    const { store } = await fixture();
+    await logged(store, 'r');
+    const original = session('kept', ['r'], { active: true });
+    await settleAgentSessionTurn(store, original, 'r', { saved: true });
+    const summary = { version: 1, covers: { from: 'chat.turn-1', to: 'chat.turn-1', turns: 1 }, text: 'Earlier.', origin: 'manual', external: false, ...invalid } as SessionSummary;
+    await expect(settleAgentSessionTurn(store, { ...original, sessionId: 'refused', summaries: { chat: summary } }, 'r', { saved: false })).rejects.toThrow('invalid agent session summary');
+    expect(await readAgentSessions(store, P)).toEqual([original]);
+    expect(await readRun(store, 'r')).toMatchObject({ presentation: { saved: true } });
+  });
+
   it('round-trips only references, flags and fork metadata, ordered by update with a stable tie', async () => {
     const { factory, store } = await fixture();
     await logged(store, 'r');

@@ -721,7 +721,7 @@ const PICTURES_SERVED_BESIDE = new Set(['pictures.list', 'pictures.view']);
  * which assemble with them), and never writes them: a memory the agent keeps, or a rule in CAOTANG.md, is the writer's decision in the app, at
  * a card, whatever `--allow-writes` opens (context-assembly.md §2, layer LI).
  */
-const IN_APP_ONLY: ReadonlySet<string> = new Set(['memory.write', 'instructions.propose']);
+const IN_APP_ONLY: ReadonlySet<string> = new Set(['memory.write', 'instructions.propose', 'session.history']);
 
 /**
  * Registers every exposed harness tool on `server`. Returns the names registered, in table order. `roundWaitMs` is the

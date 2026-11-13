@@ -1,5 +1,5 @@
 import { parseRunEvents, type TurnReport } from '@caotang/harness';
-import { redactDeep, sumUsage, type TurnUsageRow } from '@caotang/gateway';
+import { redactDeep, sumUsage, textOf, type TurnUsageRow } from '@caotang/gateway';
 import type { AgentSessionRow, AgentSessionTurnRef, RunRow } from '@caotang/store';
 import { newTurnRecord, type TurnRecord } from './agent-model.js';
 
@@ -62,6 +62,7 @@ const mode = choice('plan-only', 'ask', 'accept-edits', 'auto');
 const status = choice('replied', 'applied', 'failed', 'cancelled');
 const message = object({ id: text, message: text, values: optional(dictionary((value) => typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value)) ? value : invalid)) });
 const askBack = object({ code: choice('verify_failed', 'anchor_unresolvable', 'needs_input', 'conflict', 'budget_exhausted', 'hook_blocked'), reason: text, revisionDrift: optional(amount), options: strings,
+  window: optional(object({ promptTokens: count, reserveTokens: count, windowTokens: count })),
   candidates: optional(list(object({ from: count, to: count, similarity: amount }))) });
 const steering = list(object({ noteId: text, text, deliveredAtCall: optional(count) }));
 const trace = list(object({ tool: text, callId: text, outcome: choice('ok', 'refused', 'not-run'), code: optional(text), params, agentPath: optional(text) }));
@@ -70,6 +71,8 @@ const usageRow = object({ version: choice(1), turnId: text, sessionId: optional(
   promptTokens: amount, completionTokens: amount, requests: count, cachedPromptTokens: amount, cacheWritePromptTokens: amount, reasoningTokens: amount,
   estimatedRequests: count, unpricedRequests: count, providerCostRequests: count, costUsd: optional(amount) });
 const tokens = object({ promptTokens: amount, completionTokens: amount, requests: count });
+const compactions = list(object({ at: amount, origin: choice('auto', 'manual'), role: choice('chat', 'drafting', 'background'), status: choice('replied', 'failed', 'cancelled'),
+  covers: object({ from: text, to: text, turns: count }), usage: list(usageRow) }));
 const budgetUse = object({ modelCalls: count, tokens: amount, costUsd: optional(amount), wordsChanged: count, documents: count, steps: count });
 const hooks = list(object({ hookId: text, name: text, event: text, tool: text, callId: optional(text), ms: amount, failed: optional(text),
   decision: (value) => {
@@ -80,7 +83,7 @@ const hooks = list(object({ hookId: text, name: text, event: text, tool: text, c
   } }));
 const planStep = object({ tool: text, params, expect: text });
 const reportValue = object({
-  turnId: text, status, summary: text, text: optional(text),
+  turnId: text, status, summary: text, text: optional(text), external: optional(bool), readPolicy: optional(text), compactions: optional(compactions),
   steps: list(object({ index: count, tool: text, expect: text, status: choice('done', 'failed', 'cancelled'), mayHaveActed: optional(choice(true)), summary: optional(text), data: optional(params), error: optional(text) })),
   cards: list(object({ kind: choice('plan', 'confirm', 'auto'), tools: strings, decision: choice('approved', 'cancelled', 'auto'), edits: count, retries: count })),
   trace, undoGroupId: optional(text), askBack: optional(askBack), tokens, usage: optional(list(usageRow)), costUsd: optional(amount), dropped: strings, modelCalls: count, cutReplies: optional(count),
@@ -102,6 +105,7 @@ const plan = nullable(object({ id: text, turnId: text, kind: choice('plan', 'con
     quotes: list(object({ nodeId: text, title: text, words: count, argPath: text, step: optional(count) })),
     hits: list(object({ kind: choice('invisible', 'role-marker', 'override-phrase', 'foreign-link'), excerpt: text })) })) }));
 const turnValue = object({ turnId: text, intent: text, command: nullable(text), provider: nullable(text), phase: choice('done', 'failed', 'cancelled'), cards, plan, planSeq: count, planAuto: bool, mode: nullable(mode),
+  clearedResults: optional(list(object({ tool: text, toolCallId: optional(text), tokens: amount }))),
   ladder: list(object({ callId: text, attempt: count, askBack })), findings: list(object({ aspect: text, severity: choice('info', 'minor', 'major'), docs: strings, quote: text, note: text })),
   checkpoint: nullable(object({ undoGroupId: text, label: text, mode, note: optional(text) })), report: reportValue,
   tasks: object({ turnId: text, items: list(object({ key: text, content: text, activeForm: text, state: choice('pending', 'waiting', 'in_progress', 'done', 'skipped', 'failed'),
@@ -135,13 +139,24 @@ export function projectSessionTurn(run: RunRow, rows: readonly unknown[], usage?
   const start = parsed.events.findLast((event) => event.t === 'turn.start');
   const end = parsed.events.findLast((event) => event.t === 'turn.end');
   if (start?.t !== 'turn.start' || end?.t !== 'turn.end' || start.turnId !== end.turnId) return null;
+  const activity = end.compactions === undefined ? undefined : compactions(end.compactions);
+  if (activity === invalid) return null;
+  const recordedCompactions = activity as TurnReport['compactions'];
+  const external = end.external === true || parsed.events.some((event) =>
+    ('tool' in event && event.tool.startsWith('mcp__')) ||
+    (event.t === 'messages' && event.appended.some((message) => /<<untrusted source=\\*"mcp/.test(textOf(message.content)))),
+  );
   const value = run.presentation;
   if (record(value) && value['version'] === 1 && record(value['turn'])) {
     const clean = turnValue(value['turn']);
     if (clean !== invalid) {
       const turn = clean as TurnRecord;
       if (turn.turnId === end.turnId && turn.report?.turnId === end.turnId && turn.report.status === end.status && turn.tasks.turnId === end.turnId) {
-        return sessionPresentation(turn, start.hiddenFromPlanner === true);
+        return sessionPresentation({ ...turn, report: { ...turn.report,
+          ...(external || turn.report.trace.some((entry) => entry.tool.startsWith('mcp__')) ? { external: true } : {}),
+          ...(end.readPolicy === undefined ? {} : { readPolicy: end.readPolicy }),
+          ...(recordedCompactions === undefined ? {} : { compactions: recordedCompactions }),
+        } }, start.hiddenFromPlanner === true);
       }
     }
   }
@@ -156,6 +171,9 @@ export function projectSessionTurn(run: RunRow, rows: readonly unknown[], usage?
   const costUsd = totals?.costUsd ?? recorded?.costUsd;
   const report: TurnReport = {
     turnId: end.turnId, status: end.status, summary: end.summary,
+    ...(external ? { external: true } : {}),
+    ...(end.readPolicy === undefined ? {} : { readPolicy: end.readPolicy }),
+    ...(recordedCompactions === undefined ? {} : { compactions: recordedCompactions }),
     ...(end.status === 'replied' ? { text: end.summary } : {}),
     steps: applied.map((event) => ({ index: event.index, tool: event.tool, expect: '', status: 'done', ...(event.summary === undefined ? {} : { summary: event.summary }) })),
     cards: [], trace: [], tokens: { promptTokens, completionTokens, requests: calls },
@@ -180,6 +198,8 @@ export function recentSessionTurns(turns: readonly TurnRecord[], refs: readonly 
     const turn = stored?.turn;
     if (turn === undefined || !ids.has(turn.turnId)) return [];
     return [{ turnId: turn.turnId, intent: turn.intent, outcome: turn.report?.summary.slice(0, 1200) ?? '',
+      ...(turn.report?.external === true ? { external: true } : {}),
+      ...(turn.report?.readPolicy === undefined ? {} : { readPolicy: turn.report.readPolicy }),
       ...(turn.report?.undoGroupId === undefined ? {} : { undoGroupId: turn.report.undoGroupId }),
       ...(stored?.hidden === true ? { hidden: true } : {}),
       ...(ref.rewound === undefined ? {} : { rewound: ref.rewound }),

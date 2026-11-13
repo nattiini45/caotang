@@ -199,8 +199,14 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
   drops.L5.push(...pins.drops);
   // Every layer works on the view without the withheld nodes; the project layer lists them, since every profile has it.
   if (withheldDrops.length > 0) {
-    drops.L1.push(...withheldDrops);
-    notes.L1.push(`${withheldDrops.length} ${withheldDrops.length === 1 ? 'item is' : 'items are'} withheld by a read rule and not in this prompt.`);
+    const memory = withheldDrops.filter((drop) => drop.group === 'summary' || drop.group === 'turn-outcome');
+    const project = withheldDrops.filter((drop) => drop.group !== 'summary' && drop.group !== 'turn-outcome');
+    drops.L1.push(...project);
+    if (project.length > 0) notes.L1.push(`${project.length} ${project.length === 1 ? 'item is' : 'items are'} withheld by a read rule and not in this prompt.`);
+    if (active.has('L6') && memory.length > 0) {
+      drops.L6.push(...memory);
+      notes.L6.push('Earlier outcomes or the session summary are withheld because the read boundary changed. The writer can start a new session to continue without them.');
+    }
   }
   const effective: Partial<Record<LayerId, number>> = {};
 
@@ -299,7 +305,7 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
 
   let turns: Block | undefined;
   if (active.has('L6')) {
-    const plan = turnsBlock(app.turns ?? [], app.activity ?? [], config.formatTime);
+    const plan = turnsBlock(app.turns ?? [], app.activity ?? [], config.formatTime, app.sessionSummary, app.nonce, app.sessionKeepTurns);
     turns = plan.block;
     notes.L6.push(...plan.notes);
     const budget = baseOf('L6');
@@ -409,8 +415,10 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
           // the model is not left to infer that the turns never happened (§2, §7).
           if (step.block.kept > 0) {
             while (step.block.kept > 0) cutOne(step.block, totalBudget);
-            const count = step.block.items.length;
-            notes.L6.push(`${count} ${count === 1 ? 'turn is' : 'turns are'} not sent: the total prompt budget was reached.`);
+            const count = step.block.items.filter((item) => item.group !== 'summary').length;
+            const summary = step.block.items.some((item) => item.group === 'summary');
+            const subject = count === 0 ? 'The session summary' : `${count} ${count === 1 ? 'turn' : 'turns'}${summary ? ' and the session summary' : ''}`;
+            notes.L6.push(`${subject} ${count + (summary ? 1 : 0) === 1 ? 'is' : 'are'} not sent: the total prompt budget was reached.`);
           }
         } else {
           const target = cheapestKept(step.block, step.floor);

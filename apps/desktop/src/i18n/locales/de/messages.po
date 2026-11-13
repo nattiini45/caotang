@@ -969,6 +969,11 @@ msgstr "{count} Wörter"
 msgid "{count}-token window"
 msgstr "{count}-Token-Fenster"
 
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "{coveredTurns, plural, one {# earlier turn summarised} other {# earlier turns summarised}}"
+msgstr "{coveredTurns, plural, one {# früherer Austausch zusammengefasst} other {# frühere Austausche zusammengefasst}}"
+
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "{created, plural, one {Imported # picture.} other {Imported # pictures.}}"
@@ -1925,7 +1930,7 @@ msgstr "{summary} {catalog}"
 msgid "{synopsisCount, plural, one {# synopsis, shown before approval} other {# synopses, shown before approval}}"
 msgstr "{synopsisCount, plural, one {# Zusammenfassung, vor der Genehmigung angezeigt} other {# Zusammenfassungen, vor der Genehmigung angezeigt}}"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "{title} · fork {number}"
 msgstr "{title} · Abzweigung {number}"
@@ -2041,6 +2046,11 @@ msgstr "{totalWords, plural, one {# Wort} other {# Wörter}} im Projekt"
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "{turnCount, plural, one {Rewound - not sent to the model (# turn)} other {Rewound - not sent to the model (# turns)}}"
 msgstr "{turnCount, plural, one {Zurückgespult – nicht an das Modell gesendet (# Durchlauf)} other {Zurückgespult – nicht an das Modell gesendet (# Durchläufe)}}"
+
+#. Interpolated values: turns
+#: apps/desktop/src/components/CompactionActivity.tsx
+msgid "{turns, plural, one {Summary requested for # earlier turn.} other {Summary requested for # earlier turns.}}"
+msgstr "{turns, plural, one {Zusammenfassung für # früheren Gesprächsschritt angefordert.} other {Zusammenfassung für # frühere Gesprächsschritte angefordert.}}"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -2580,6 +2590,11 @@ msgstr "Ein Stichwort hat höchstens {limit} Zeichen."
 msgid "A language code such as en, de or en-GB. EPUB files declare it."
 msgstr "Ein Sprachcode wie en, de oder en-GB. EPUB-Dateien deklarieren ihn."
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "A larger budget does not enlarge this model’s window. Choose a model with a larger window in Settings › Providers, compact the earlier Chat conversation, or start a new session. Send your request again when ready."
+msgstr "Ein höheres Budget vergrößert das Kontextfenster dieses Modells nicht. Wählen Sie unter Einstellungen › Anbieter ein Modell mit größerem Kontextfenster, fassen Sie das frühere Chat-Gespräch zusammen oder beginnen Sie eine neue Sitzung. Senden Sie Ihre Anfrage anschließend erneut."
+
 #. Interpolated values: page
 #. js-lingui-explicit-id
 #: packages/coherence/src/checks/comic.ts
@@ -2814,22 +2829,22 @@ msgstr "Die deklarierte Auflösung eines Handlungsstrangs ist nicht im Manuskrip
 msgid "A tracked change was not kept."
 msgstr "Eine nachverfolgte Änderung wurde nicht behalten."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "A turn in this session could not be read. Keep its run log and try again from Activity."
 msgstr "Ein Durchgang dieser Sitzung konnte nicht gelesen werden. Behalten Sie sein Laufprotokoll und versuchen Sie es unter Aktivität erneut."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "A turn is running"
 msgstr "Ein Durchlauf läuft"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "A turn is running. Wait for it to end or stop it, then send the command again."
 msgstr "Ein Durchlauf läuft. Warte, bis er endet, oder stoppe ihn. Sende den Befehl dann erneut."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "A turn is running. Wait for it to end, or stop it, then run the macro."
 msgstr "Ein Durchlauf läuft. Warten Sie, bis er endet, oder stoppen Sie ihn, und führen Sie das Makro dann aus."
@@ -2923,6 +2938,11 @@ msgstr "Etwa {size} MB."
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "about {text}"
 msgstr "etwa {text}"
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "About {tokens} of 600 summary tokens. Saving an edit makes no provider call."
+msgstr "Etwa {tokens} von 600 Tokens für die Zusammenfassung. Beim Speichern einer Änderung wird kein Anbieter aufgerufen."
 
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/cards.ts
@@ -3187,8 +3207,8 @@ msgstr "Fügen Sie die erste Einstellung über die Schaltfläche unten hinzu. Je
 msgid "Add the first shot with the button below. Each card takes an image and the camera fields. To derive a scene’s shots, open the scene."
 msgstr "Fügen Sie die erste Einstellung über die Schaltfläche unten hinzu. Jede Karte nimmt ein Bild und die Kamerafelder auf. Um die Einstellungen einer Szene abzuleiten, öffnen Sie die Szene."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Add the missing argument to run this command."
 msgstr "Ergänze das fehlende Argument, um diesen Befehl auszuführen."
@@ -3424,7 +3444,7 @@ msgstr "Alle Szenen"
 msgid "Allow never overrides Plan, read-only access, a mode’s restrictions or a turn marked as untrusted. External writes and tools that change agent memory or instructions still need your approval. Rules from projects, imports, MCP servers or the agent cannot grant approval."
 msgstr "Erlauben setzt weder den Plan-Modus, schreibgeschützten Zugriff, die Einschränkungen eines Modus noch einen als nicht vertrauenswürdig markierten Durchlauf außer Kraft. Externe Schreibzugriffe und Tools, die das Gedächtnis oder die Anweisungen des Agenten ändern, brauchen weiterhin Ihre Freigabe. Regeln aus Projekten, Importen, MCP-Servern oder vom Agenten können keine Freigabe erteilen."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Allow write access to the project folder, then retry the folder copy."
 msgstr "Erlauben Sie Schreibzugriff auf den Projektordner und versuchen Sie die Ordnerkopie erneut."
@@ -3502,6 +3522,11 @@ msgstr "Ein Wiederherstellungspunkt eines Agent-Durchlaufs enthält kein Projekt
 msgid "An agent run was interrupted"
 msgstr "Ein Agent-Durchlauf wurde unterbrochen"
 
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "An earlier summary was removed because its covered turns changed. The original turns remain. Compact again to make a new summary."
+msgstr "Eine frühere Zusammenfassung wurde entfernt, weil sich die darin erfassten Austausche geändert haben. Die ursprünglichen Austausche bleiben erhalten. Wählen Sie erneut Zusammenfassen, um eine neue Zusammenfassung zu erstellen."
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "An embedded object was not kept."
@@ -3542,7 +3567,7 @@ msgstr "Einstellungen beschriften"
 msgid "harness.progress.shotsAnnotate.active"
 msgstr "Einstellungen werden beschriftet"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Another agent action is active. Wait for it to finish, then try again."
 msgstr "Eine andere Agent-Aktion ist aktiv. Warten Sie, bis sie beendet ist, und versuchen Sie es erneut."
@@ -3600,7 +3625,7 @@ msgstr "Eine andere Registerkarte hat neueren Text"
 msgid "Another tab has stored newer text for this project, so this tab cannot save. The words here are still on screen."
 msgstr "Eine andere Registerkarte hat neueren Text für dieses Projekt gespeichert, daher kann diese Registerkarte nicht speichern. Die Wörter hier sind noch auf dem Bildschirm."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Another turn started. Open the restore confirmation again."
 msgstr "Ein anderer Durchlauf wurde gestartet. Öffnen Sie die Bestätigung der Wiederherstellung erneut."
@@ -3649,7 +3674,7 @@ msgstr "Überall"
 msgid "API key"
 msgstr "API-Schlüssel"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "App settings are unavailable. The folder copy was not enabled."
 msgstr "Die App-Einstellungen sind nicht verfügbar. Die Ordnerkopie wurde nicht aktiviert."
@@ -3998,7 +4023,7 @@ msgstr "Autor auf der Titelseite"
 msgid "Auto"
 msgstr "Auto"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Auto is turned off in Settings › Agent."
 msgstr "Auto ist in Einstellungen › Agent ausgeschaltet."
@@ -4008,8 +4033,12 @@ msgstr "Auto ist in Einstellungen › Agent ausgeschaltet."
 msgid "Auto-approved"
 msgstr "Automatisch genehmigt"
 
+#. Interpolated values: tokens, coveredTurns
+#. Interpolated values: turns
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/components/AgentMemory.tsx
+#: apps/desktop/src/components/CompactionActivity.tsx
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Automatic"
 msgstr "Automatisch"
@@ -4461,6 +4490,7 @@ msgstr "Kamerabewegung"
 #. Interpolated values: cap, done, omitted, tokens, total, used
 #. Interpolated values: confirm, file, files, generation, name, path
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: tokens, coveredTurns
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
@@ -4473,6 +4503,7 @@ msgstr "Kamerabewegung"
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #. The transcription review dialog. Interpolated values: file is a stored file name; current and total are the page position; second is the second read's word.
 #. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/AgentMemory.tsx
 #: apps/desktop/src/components/BackgroundTasks.tsx
 #: apps/desktop/src/components/BinderFilters.tsx
 #: apps/desktop/src/components/editor-labels.ts
@@ -5071,7 +5102,7 @@ msgstr "Ein Bild von Ihrem Computer wählen"
 msgid "Choose a picture…"
 msgstr "Ein Bild wählen…"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Choose a provider in Settings, then run /context again. No request was sent."
 msgstr "Wählen Sie in den Einstellungen einen Anbieter und führen Sie /context erneut aus. Es wurde keine Anfrage gesendet."
@@ -5531,10 +5562,52 @@ msgstr "Befehlsname"
 msgid "Commands"
 msgstr "Befehle"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Commands that start or restore a turn run between turns. Wait for this one to end or stop it, then send the line again."
 msgstr "Befehle, die einen Durchlauf starten oder wiederherstellen, laufen zwischen den Durchläufen. Warten Sie, bis dieser endet, oder stoppen Sie ihn, und senden Sie die Zeile dann erneut."
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "Compact"
+msgstr "Zusammenfassen"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Compact Chat conversation"
+msgstr "Chat-Gespräch zusammenfassen"
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Compact earlier conversation turns."
+msgstr "Frühere Austausche im Gespräch zusammenfassen."
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Compact earlier conversation turns. Focus: {focus}"
+msgstr "Frühere Austausche im Gespräch zusammenfassen. Schwerpunkt: {focus}"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Compact makes a separate Background request within your current limits. It does not retry the stopped request or change the manuscript."
+msgstr "Beim Zusammenfassen wird eine eigene Anfrage an den Hintergrundanbieter innerhalb Ihrer aktuellen Grenzen gesendet. Die gestoppte Anfrage wird nicht wiederholt und das Manuskript bleibt unverändert."
+
+#. Interpolated values: tokens, coveredTurns
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "Compact sends this role’s earlier conversation to your Background provider in one request, within your run limits. It does not change the manuscript. New session starts without this memory."
+msgstr "Zusammenfassen sendet das frühere Gespräch dieser Rolle mit einer Anfrage an Ihren Hintergrundanbieter, innerhalb Ihrer Durchlauflimits. Das Manuskript bleibt unverändert. Eine neue Sitzung beginnt ohne dieses Gedächtnis."
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "Compaction focus (optional)"
+msgstr "Schwerpunkt der Zusammenfassung (optional)"
+
+#. Interpolated values: turns
+#: apps/desktop/src/components/CompactionActivity.tsx
+msgid "Compaction stopped"
+msgstr "Zusammenfassung gestoppt"
 
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #: apps/desktop/src/components/InspectorGoals.tsx
@@ -5694,7 +5767,7 @@ msgstr "Kontextauswahl für die nächste Anfrage"
 msgid "Context estimate: about {tokens} of {budget} budgeted tokens"
 msgstr "Kontextschätzung: etwa {tokens} von {budget} budgetierten Token"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Context preview is unavailable."
 msgstr "Die Kontextvorschau ist nicht verfügbar."
@@ -5704,16 +5777,47 @@ msgstr "Die Kontextvorschau ist nicht verfügbar."
 msgid "Context to include"
 msgstr "Einzubeziehender Kontext"
 
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "Continue this role’s conversation for at least three turns before compacting."
+msgstr "Führen Sie das Gespräch dieser Rolle mindestens drei Austausche lang fort, bevor Sie es zusammenfassen."
+
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Continuity checks"
 msgstr "Kontinuitätsprüfungen"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#. Interpolated values: turns
+#: apps/desktop/src/components/AgentPanel.tsx
+#: apps/desktop/src/components/CompactionActivity.tsx
+msgid "Conversation compaction"
+msgstr "Gesprächszusammenfassung"
+
+#: apps/desktop/src/components/RunHistory.tsx
+msgid "Conversation compaction in this session"
+msgstr "Gesprächszusammenfassungen in dieser Sitzung"
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "Conversation memory"
+msgstr "Gesprächsgedächtnis"
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Conversation rewound. The agent no longer sees that turn or the ones after it."
 msgstr "Unterhaltung zurückgespult. Der Agent sieht diesen Durchlauf und die folgenden nicht mehr."
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "Conversation role"
+msgstr "Gesprächsrolle"
+
+#. Interpolated values: turns
+#: apps/desktop/src/components/CompactionActivity.tsx
+msgid "Conversation summarised"
+msgstr "Gespräch zusammengefasst"
 
 #. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
 #: apps/desktop/src/components/InterruptedRuns.tsx
@@ -5902,9 +6006,9 @@ msgstr "Cue ist auf zwei Arten geschrieben"
 msgid "Current"
 msgstr "Aktuell"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Current request context"
 msgstr "Kontext der aktuellen Anfrage"
@@ -6067,6 +6171,12 @@ msgstr "Tage, um die verschoben werden soll, zum Beispiel 14 oder -3"
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "Days to shift for change {n}"
 msgstr "Tage, um die für Änderung {n} verschoben werden soll"
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgctxt "session summary section"
+msgid "Decisions"
+msgstr "Entscheidungen"
 
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #: apps/desktop/src/media/DialogueView.tsx
@@ -6575,6 +6685,12 @@ msgstr "erledigt"
 msgid "Done"
 msgstr "Erledigt"
 
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgctxt "session summary section"
+msgid "Done"
+msgstr "Erledigt"
+
 #: apps/desktop/src/app/keymap.ts
 msgctxt "keyboard key"
 msgid "Down"
@@ -6864,6 +6980,11 @@ msgstr "Jede gesprochene Zeile mit ihrer Id, ihrem Sprecher, ihrem Text und ihre
 msgid "Earlier"
 msgstr "Früher"
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Earlier conversation summarised. Read or edit the summary above."
+msgstr "Das frühere Gespräch wurde zusammengefasst. Oben können Sie die Zusammenfassung lesen oder bearbeiten."
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Earlier in reading order"
@@ -6873,6 +6994,16 @@ msgstr "Früher in der Lesereihenfolge"
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Earlier in the panel"
 msgstr "Früher im Panel"
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "Earlier in this session, summarised"
+msgstr "Früheres in dieser Sitzung, zusammengefasst"
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "Earlier requests are summarised automatically after more than six unsummarised turns. The newest two stay separate. Original turns remain below."
+msgstr "Frühere Anfragen werden nach mehr als sechs noch nicht zusammengefassten Austauschen automatisch zusammengefasst. Die neuesten beiden bleiben separat. Die ursprünglichen Austausche finden Sie weiterhin unten."
 
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -6925,6 +7056,11 @@ msgstr "Anbieter bearbeiten"
 msgid "Edit queued message {number}"
 msgstr "Wartende Nachricht {number} bearbeiten"
 
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "Edit summary"
+msgstr "Zusammenfassung bearbeiten"
+
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
 msgid "Edit synopsis"
@@ -6965,6 +7101,11 @@ msgstr "Die Zeitachse bearbeiten"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.timelineEdit.content"
 msgstr "Die Zeitachse bearbeiten ({count, plural, one {# Änderung} other {# Änderungen}})"
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "Edited by you"
+msgstr "Von Ihnen bearbeitet"
 
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -7385,6 +7526,11 @@ msgstr "Die Dialogtabelle von „{doc}“ wird exportiert"
 msgid "Exports are kept in this browser, not in the folder. {reason}"
 msgstr "Exporte werden in diesem Browser aufbewahrt, nicht im Ordner. {reason}"
 
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "External"
+msgstr "Extern"
+
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "External resource read"
@@ -7691,7 +7837,7 @@ msgstr "Rückblende"
 msgid "Focus"
 msgstr "Fokus"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Focus a document and select saved text in the editor, then send the command again."
 msgstr "Öffne ein Dokument und wähle gespeicherten Text im Editor aus. Sende den Befehl dann erneut."
@@ -8714,8 +8860,8 @@ msgstr "Oberfläche"
 msgid "Interface language"
 msgstr "Oberflächensprache"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Interrupted agent runs could not be checked: {reason}"
 msgstr "Unterbrochene Agentenläufe konnten nicht geprüft werden: {reason}"
@@ -9383,7 +9529,7 @@ msgstr "Aufbewahrte Agent-Durchläufe werden geladen…"
 msgid "Loading sessions…"
 msgstr "Sitzungen werden geladen…"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Loading the context preview…"
 msgstr "Die Kontextvorschau wird geladen…"
@@ -9592,7 +9738,11 @@ msgstr "stellen Sie sicher, dass der Projektordner gelesen werden kann, und komp
 msgid "Making the bundle"
 msgstr "Das Bundle wird erstellt"
 
+#. Interpolated values: tokens, coveredTurns
+#. Interpolated values: turns
 #: apps/desktop/src/app/codex-model.ts
+#: apps/desktop/src/components/AgentMemory.tsx
+#: apps/desktop/src/components/CompactionActivity.tsx
 msgid "Manual"
 msgstr "Manuell"
 
@@ -9840,7 +9990,7 @@ msgstr "der Modus ist keiner von {modes}"
 msgid "Mode or strand"
 msgstr "Modus oder Strang"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Mode: {modeKey, select, planOnly {Plan only} ask {Ask} acceptEdits {Accept edits} auto {Auto} other {Ask}}. It applies from the next card."
 msgstr "Modus: {modeKey, select, planOnly {Nur planen} ask {Fragen} acceptEdits {Änderungen akzeptieren} auto {Auto} other {Fragen}}. Er gilt ab der nächsten Karte."
@@ -10357,7 +10507,7 @@ msgstr "Neue Recherchenotiz"
 msgid "New screenplay scene here"
 msgstr "Neue Drehbuchszene hier"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
@@ -10424,7 +10574,7 @@ msgstr "Nächste Schritte"
 msgid "No"
 msgstr "Nein"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "No active planner request is available yet."
 msgstr "Es ist noch keine aktive Planungsanfrage verfügbar."
@@ -10717,7 +10867,7 @@ msgstr "Keine Vorschau"
 msgid "No price is listed for this route."
 msgstr "Für diese Route ist kein Preis hinterlegt."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "No project folder is attached. Save or open this project in its folder first."
 msgstr "Es ist kein Projektordner verbunden. Speichern oder öffnen Sie dieses Projekt zuerst in seinem Ordner."
@@ -10742,7 +10892,7 @@ msgstr "Kein Provider"
 msgid "No provider is active, so the agent cannot run."
 msgstr "Es ist kein Provider aktiv, daher kann der Agent nicht laufen."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "No provider is active. Add one in Settings > Providers to use the agent."
 msgstr "Es ist kein Provider aktiv. Fügen Sie unter Einstellungen > Provider einen hinzu, um den Agenten zu nutzen."
@@ -11167,8 +11317,8 @@ msgstr "Notiz für diese Platzierung"
 msgid "Note not read in time"
 msgstr "Notiz nicht rechtzeitig gelesen"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Note sent. The agent reads it at its next step."
 msgstr "Notiz gesendet. Der Agent liest sie bei seinem nächsten Schritt."
@@ -11366,6 +11516,11 @@ msgstr "Aus: Unterstrichener Text wird ohne Unterstreichung behalten."
 msgid "Off. No server is contacted, and no external tool is offered to the agent."
 msgstr "Aus. Es wird kein Server kontaktiert, und dem Agenten wird kein externes Werkzeug angeboten."
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Older tool results cleared to fit the model window"
+msgstr "Ältere Werkzeugergebnisse für das Kontextfenster des Modells entfernt"
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "On"
@@ -11435,7 +11590,7 @@ msgstr "Nur “{title}”"
 msgid "Only {max} skills can be taken at once; the rest were left out."
 msgstr "Nur {max} Skills können gleichzeitig genommen werden; der Rest wurde ausgelassen."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Only a saved, settled turn can be forked."
 msgstr "Nur ein gespeicherter, abgeschlossener Durchgang kann abgezweigt werden."
@@ -11568,6 +11723,11 @@ msgstr "Seine Ziele im Inspektor öffnen"
 msgid "Open on the board"
 msgstr "Auf dem Board öffnen"
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Open provider settings"
+msgstr "Anbietereinstellungen öffnen"
+
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
 #: apps/desktop/src/components/timeline/TimelineView.tsx
 msgid "Open scene"
@@ -11643,6 +11803,12 @@ msgstr "Diese Kopie trotzdem öffnen"
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Open this project?"
 msgstr "Dieses Projekt öffnen?"
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgctxt "session summary section"
+msgid "Open threads"
+msgstr "Offene Fäden"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -12777,7 +12943,7 @@ msgstr "Eingereiht"
 msgid "Queued messages"
 msgstr "Eingereihte Nachrichten"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Queued. {count} {waiting, plural, one {message} other {messages}} waiting."
 msgstr "Eingereiht. {count} {waiting, plural, one {Nachricht} other {Nachrichten}} wartend."
@@ -12882,7 +13048,7 @@ msgstr "Eine Skill-Referenz lesen"
 msgid "Read again"
 msgstr "Erneut lesen"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Read and approve this skill in Skills, then send the command again."
 msgstr "Lies und genehmige diesen Skill unter Skills. Sende den Befehl dann erneut."
@@ -12971,6 +13137,11 @@ msgstr "Die Zeitachse erneut lesen"
 msgid "Read the user guide"
 msgstr "Benutzerhandbuch lesen"
 
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.sessionHistory.content"
+msgstr "Frühere Austausche dieser Rolle lesen"
+
 #: apps/desktop/src/app/agent-model.ts
 msgid "Reader agent"
 msgstr "Lese-Agent"
@@ -13044,7 +13215,7 @@ msgstr "Der Binder wird gelesen"
 msgid "harness.progress.codexRead.bare.active"
 msgstr "Der Kodex wird gelesen"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Reading the connected-server prompt…"
 msgstr "Prompt des verbundenen Servers wird gelesen…"
@@ -13101,6 +13272,11 @@ msgstr "Die Skill “{name}” wird gelesen"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.timelineRead.active"
 msgstr "Die Zeitachse wird gelesen"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.sessionHistory.active"
+msgstr "Frühere Austausche dieser Rolle werden gelesen"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -13795,7 +13971,7 @@ msgstr "Ergebnisse"
 msgid "Resume"
 msgstr "Fortsetzen"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Resuming the run."
 msgstr "Der Lauf wird fortgesetzt."
@@ -13969,7 +14145,7 @@ msgstr "Rolle"
 msgid "RTF file"
 msgstr "RTF-Datei"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Run /context again to retry. No request was sent."
 msgstr "Führen Sie /context erneut aus, um es noch einmal zu versuchen. Es wurde keine Anfrage gesendet."
@@ -14029,7 +14205,7 @@ msgstr "Limits pro Durchlauf"
 msgid "Run log and details"
 msgstr "Durchlaufprotokoll und Details"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Run log discarded. What the agent wrote stays in the project."
 msgstr "Laufprotokoll verworfen. Was der Agent geschrieben hat, bleibt im Projekt."
@@ -14063,8 +14239,8 @@ msgstr "Test ausführen"
 msgid "Run the queue"
 msgstr "Warteschlange abarbeiten"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Run the selected connected-server prompt."
 msgstr "Den ausgewählten Prompt des verbundenen Servers ausführen."
@@ -14188,7 +14364,7 @@ msgstr "Bild speichern"
 msgid "Save limits"
 msgstr "Limits speichern"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Save or open this project in a folder and allow write access first."
 msgstr "Speichern oder öffnen Sie dieses Projekt zuerst in einem Ordner und erlauben Sie Schreibzugriff."
@@ -14224,6 +14400,11 @@ msgstr "Sitzungsgrenzen speichern"
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "Save shot"
 msgstr "Einstellung speichern"
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "Save summary"
+msgstr "Zusammenfassung speichern"
 
 #: apps/desktop/src/components/TargetQuickSet.tsx
 msgid "Save target"
@@ -14443,6 +14624,11 @@ msgstr "Beim Speichern hier wird die <0>caotang.json</0> jenes Projekts ersetzt 
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Saving here writes <0>caotang.json</0> back into the folder from this tab, with the project as this tab holds it."
 msgstr "Beim Speichern hier wird die <0>caotang.json</0> aus diesem Tab zurück in den Ordner geschrieben, mit dem Projekt, wie dieser Tab es hält."
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "Saving summary…"
+msgstr "Zusammenfassung wird gespeichert…"
 
 #. Interpolated values: name
 #. js-lingui-explicit-id
@@ -14969,17 +15155,22 @@ msgstr "Serverliste als JSON"
 msgid "Server list to import"
 msgstr "Zu importierende Serverliste"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Session opened. The manuscript has not changed."
 msgstr "Sitzung geöffnet. Das Manuskript wurde nicht geändert."
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "Session summary"
+msgstr "Sitzungszusammenfassung"
 
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
 #: apps/desktop/src/components/AgentSessions.tsx
 msgid "Sessions"
 msgstr "Sitzungen"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Sessions could not be loaded: {reason}. Your saved conversations have not been changed. Try again."
 msgstr "Die Sitzungen konnten nicht geladen werden: {reason}. Ihre gespeicherten Gespräche wurden nicht geändert. Versuchen Sie es erneut."
@@ -15571,6 +15762,11 @@ msgstr "Sprintlänge in Minuten"
 msgid "Sprint timer"
 msgstr "Sprint-Timer"
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Start a new session"
+msgstr "Neue Sitzung beginnen"
+
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
 msgid "Start from an example"
@@ -15779,12 +15975,12 @@ msgstr "Gestoppt"
 msgid "Stopped by you"
 msgstr "Von Ihnen gestoppt"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Stopped by you."
 msgstr "Von Ihnen gestoppt."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Stopped by you. The next queued message runs now."
 msgstr "Von Ihnen gestoppt. Die nächste wartende Nachricht läuft jetzt."
@@ -15800,7 +15996,7 @@ msgstr "Beim Schließen des Projekts gestoppt: {done} von {total} erledigt. Zum 
 msgid "Stopped."
 msgstr "Gestoppt."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Stopping the turn."
 msgstr "Der Durchlauf wird gestoppt."
@@ -15959,10 +16155,25 @@ msgstr "Folgefragen vorschlagen"
 msgid "Suggested follow-ups"
 msgstr "Vorgeschlagene Folgefragen"
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Summarising earlier conversation with Background…"
+msgstr "Das frühere Gespräch wird vom Hintergrundanbieter zusammengefasst…"
+
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
 #: apps/desktop/src/app/coherence-report-words.ts
 msgid "Summary"
 msgstr "Zusammenfassung"
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Summary changed locally. No provider call was made."
+msgstr "Zusammenfassung lokal geändert. Es wurde kein Anbieter aufgerufen."
+
+#. Interpolated values: turns
+#: apps/desktop/src/components/CompactionActivity.tsx
+msgid "Summary request failed"
+msgstr "Anfrage zur Zusammenfassung fehlgeschlagen"
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
@@ -16237,7 +16448,7 @@ msgstr "Text zu Video"
 msgid "text writes"
 msgstr "Text schreibt"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "That card is no longer waiting for a decision, so nothing was sent."
 msgstr "Diese Karte wartet nicht mehr auf eine Entscheidung, daher wurde nichts gesendet."
@@ -16291,7 +16502,7 @@ msgstr "Es ist bereits dort."
 msgid "That is not a whole number of days the timeline can hold."
 msgstr "Das ist keine ganze Zahl von Tagen, die die Zeitachse aufnehmen kann."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "That macro is not in the project any more."
 msgstr "Dieses Makro ist nicht mehr im Projekt."
@@ -16323,24 +16534,24 @@ msgstr "Dieses Projekt ist bereits in diesem Browser, daher wurde die Datei als 
 msgid "That project is already in this browser, so the folder opened as a separate copy. This copy may differ from the folder, and saving it into that folder is refused. The original is in the projects list."
 msgstr "Dieses Projekt ist bereits in diesem Browser, daher wurde der Ordner als separate Kopie geöffnet. Diese Kopie kann vom Ordner abweichen, und das Speichern in diesen Ordner wird verweigert. Das Original steht in der Projektliste."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "That run can no longer be resumed."
 msgstr "Dieser Lauf kann nicht mehr fortgesetzt werden."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "That run is no longer in this project."
 msgstr "Dieser Durchlauf gehört nicht mehr zu diesem Projekt."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "That session is no longer available."
 msgstr "Diese Sitzung ist nicht mehr verfügbar."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "That task is no longer ready to review."
 msgstr "Diese Aufgabe ist nicht mehr prüfbereit."
@@ -16350,9 +16561,9 @@ msgstr "Diese Aufgabe ist nicht mehr prüfbereit."
 msgid "that text appears more than once in the document ({places} places); select a longer passage"
 msgstr "dieser Text kommt im Dokument mehrfach vor ({places} Stellen); wählen Sie eine längere Passage"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "That turn wrote nothing, so there is nothing to restore."
 msgstr "Dieser Durchlauf hat nichts geschrieben, daher gibt es nichts wiederherzustellen."
@@ -16492,12 +16703,12 @@ msgstr "Der Agent wartet auf Sie"
 msgid "The agent is working"
 msgstr "Der Agent arbeitet"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The agent is working on another turn. Open this task when it has finished."
 msgstr "Der Agent arbeitet an einem anderen Durchlauf. Öffnen Sie diese Aufgabe, wenn er fertig ist."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The agent is working on another turn. Resume the run when it has finished."
 msgstr "Der Agent arbeitet an einem anderen Durchlauf. Setzen Sie den Lauf fort, wenn er fertig ist."
@@ -16526,7 +16737,7 @@ msgstr "Der Agent startet jede Anfrage mit einer kurzen Werkzeugliste und findet
 msgid "The agent then forgets this turn and the ones after it."
 msgstr "Der Agent vergisst dann diesen Durchlauf und die folgenden."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "the agent’s drafts"
 msgstr "die Entwürfe des Agents"
@@ -16556,7 +16767,7 @@ msgstr "Die App-Einstellungen konnten hier nicht geöffnet werden, daher werden 
 msgid "the aspect ratio is one of the ratios in the list"
 msgstr "das Seitenverhältnis ist eines der Verhältnisse in der Liste"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The attached project folder changed. Enable copying for the new folder explicitly."
 msgstr "Der verbundene Projektordner hat sich geändert. Aktivieren Sie Kopien für den neuen Ordner ausdrücklich."
@@ -16639,6 +16850,11 @@ msgstr "Das Bundle konnte nicht erstellt werden: {error}"
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "The bundle file itself is not changed. Its unreadable caotang.json is not kept, so keep the bundle file if you may need that copy."
 msgstr "Die Bundle-Datei selbst wird nicht geändert. Ihre unlesbare caotang.json wird nicht aufbewahrt; bewahren Sie die Bundle-Datei auf, falls Sie diese Kopie noch brauchen."
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "The call records remain. The model can call the tools again if it needs their results."
+msgstr "Die Aufrufe bleiben protokolliert. Das Modell kann die Werkzeuge erneut aufrufen, wenn es ihre Ergebnisse benötigt."
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -16731,7 +16947,7 @@ msgstr "Das vollständige Skript, das aus „<0/>“ geschrieben wurde, vor der 
 msgid "The connection was cancelled. Choose Connect to try again."
 msgstr "Die Verbindung wurde abgebrochen. Wählen Sie Verbinden, um es erneut zu versuchen."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The context preview could not load."
 msgstr "Die Kontextvorschau konnte nicht geladen werden."
@@ -16741,17 +16957,17 @@ msgstr "Die Kontextvorschau konnte nicht geladen werden."
 msgid "The context preview could not load. Edit the request to try again."
 msgstr "Die Kontextvorschau konnte nicht geladen werden. Bearbeiten Sie die Anfrage, um es erneut zu versuchen."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The conversation change could not be saved: {reason}. Keep this tab open and try again."
 msgstr "Die Gesprächsänderung konnte nicht gespeichert werden: {reason}. Lassen Sie diesen Tab geöffnet und versuchen Sie es erneut."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The conversation could not be saved: {reason}. Keep this tab open and try again."
 msgstr "Das Gespräch konnte nicht gespeichert werden: {reason}. Lassen Sie diesen Tab geöffnet und versuchen Sie es erneut."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The conversation could not be saved: {reason}. The run log is still available in Activity. Try again before closing this project."
 msgstr "Das Gespräch konnte nicht gespeichert werden: {reason}. Das Laufprotokoll ist weiterhin unter Aktivität verfügbar. Versuchen Sie es erneut, bevor Sie dieses Projekt schließen."
@@ -16848,6 +17064,11 @@ msgstr "die Dauer ist eine Zahl von Sekunden, mindestens null"
 #: apps/desktop/src/media/storyboard-model.ts
 msgid "The duration is a number of seconds, at least zero"
 msgstr "Die Dauer ist eine Zahl von Sekunden, mindestens null"
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The earlier summary was restored with the conversation markers."
+msgstr "Die frühere Zusammenfassung wurde mit den Gesprächsmarkierungen wiederhergestellt."
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
@@ -17019,7 +17240,7 @@ msgstr "Die fokussierte Szene"
 msgid "The folder “{folderName}” already has files in it, so nothing was saved there. A new folder for this project must be empty. Choose another folder, or make an empty one in the folder picker."
 msgstr "Der Ordner „{folderName}“ enthält bereits Dateien, daher wurde nichts darin gespeichert. Ein neuer Ordner für dieses Projekt muss leer sein. Wählen Sie einen anderen Ordner oder erstellen Sie im Ordner-Dialog einen leeren."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The folder copy could not be written: {reason}. The browser’s run log is safe. Check folder access, then retry."
 msgstr "Die Ordnerkopie konnte nicht geschrieben werden: {reason}. Das Durchlaufprotokoll im Browser ist sicher. Prüfen Sie den Ordnerzugriff und versuchen Sie es erneut."
@@ -17164,7 +17385,7 @@ msgstr "Die {entryCount, plural, one {letzte Anfrage (#)} other {letzten # Anfra
 msgid "The last day of the month"
 msgstr "Der letzte Tag des Monats"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The last turn stopped on a question. Answer it or choose Run the queue."
 msgstr "Der letzte Zug endete an einer Frage. Beantworten Sie sie oder wählen Sie „Warteschlange ausführen“."
@@ -17307,7 +17528,7 @@ msgstr "Die meisten Feststellungen, die eine Prüfung hinzufügen darf, ist eine
 msgid "The new read matches the approved text."
 msgstr "Die neue Lesung stimmt mit dem genehmigten Text überein."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The next request would send about {tokens} tokens"
 msgstr "Die nächste Anfrage würde etwa {tokens} Token senden"
@@ -17499,32 +17720,32 @@ msgstr "Das Projekt hat diesen Begriff nicht mehr, daher liefert dieser Filter k
 msgid "The project was restored in this tab, but it could not be saved. Keep this tab open and retry the failed save."
 msgstr "Das Projekt wurde in diesem Tab wiederhergestellt, konnte aber nicht gespeichert werden. Lassen Sie diesen Tab geöffnet und versuchen Sie das fehlgeschlagene Speichern erneut."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The project was restored to before this run. Conversation and recorded spend were kept."
 msgstr "Das Projekt wurde auf den Stand vor diesem Durchlauf zurückgesetzt. Gespräch und erfasster Verbrauch blieben erhalten."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The project was restored, but a turn is running, so the conversation was not rewound."
 msgstr "Das Projekt wurde wiederhergestellt, aber ein Durchlauf läuft, daher wurde die Unterhaltung nicht zurückgespult."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The project was restored, but that turn is no longer in this session’s conversation, so nothing was rewound."
 msgstr "Das Projekt wurde wiederhergestellt, aber dieser Durchlauf ist nicht mehr in der Unterhaltung dieser Sitzung, daher wurde nichts zurückgespult."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The project’s images could not be listed again ({reason}), so the export was not applied. Approve it again to try once more."
 msgstr "Die Bilder des Projekts konnten nicht erneut aufgelistet werden ({reason}), daher wurde der Export nicht angewendet. Genehmigen Sie ihn erneut, um es noch einmal zu versuchen."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The project’s images could not be listed again ({reason}). The turn was stopped, so nothing was exported."
 msgstr "Die Bilder des Projekts konnten nicht erneut aufgelistet werden ({reason}). Der Durchlauf wurde gestoppt, deshalb wurde nichts exportiert."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The project’s images could not be listed again, so this export was not applied automatically. Approve it to try again."
 msgstr "Die Bilder des Projekts konnten nicht erneut aufgelistet werden, daher wurde dieser Export nicht automatisch angewendet. Genehmigen Sie ihn, um es erneut zu versuchen."
@@ -17554,8 +17775,8 @@ msgstr "Das Prompt-Paket nennt diese Bilder für die Szenen, in denen dieser Ein
 msgid "the prompt pack’s generations"
 msgstr "die Generierungen des Prompt-Pakets"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The prompt was not run. Review the server in Settings › MCP, then try again."
 msgstr "Der Prompt wurde nicht ausgeführt. Prüfe den Server unter Einstellungen › MCP und versuche es erneut."
@@ -17617,7 +17838,7 @@ msgstr "Das Anfrageprotokoll konnte nicht gelesen werden: {error}"
 msgid "the resolution is 720p or 1080p"
 msgstr "die Auflösung ist 720p oder 1080p"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The restore could not finish: {reason}. Check the project’s save status before trying again."
 msgstr "Die Wiederherstellung konnte nicht abgeschlossen werden: {reason}. Prüfen Sie den Speicherstatus des Projekts, bevor Sie es erneut versuchen."
@@ -17630,7 +17851,7 @@ msgstr "Der Wiederherstellungspunkt enthält einen nicht unterstützten Projektp
 msgid "The restore point contains unsupported binary data."
 msgstr "Der Wiederherstellungspunkt enthält nicht unterstützte Binärdaten."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The restore point could not be prepared: {reason}. Nothing was restored. Try again after saving the project."
 msgstr "Der Wiederherstellungspunkt konnte nicht vorbereitet werden: {reason}. Es wurde nichts wiederhergestellt. Speichern Sie das Projekt und versuchen Sie es erneut."
@@ -17667,22 +17888,22 @@ msgstr "Die Aufbewahrungsfrist ist eine ganze Zahl von Tagen von 1 bis {max}."
 msgid "The run id is not safe for a folder log."
 msgstr "Die Durchlauf-ID ist für ein Ordnerprotokoll nicht sicher."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The run log could not be discarded: {reason}"
 msgstr "Das Laufprotokoll konnte nicht verworfen werden: {reason}"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The run log could not be exported: {reason}. Try again, or keep the log here."
 msgstr "Das Durchlaufprotokoll konnte nicht exportiert werden: {reason}. Versuchen Sie es erneut oder behalten Sie das Protokoll hier."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The run log could not be read: {readError}. The run was not resumed. Try again, or discard the log."
 msgstr "Das Laufprotokoll konnte nicht gelesen werden: {readError}. Der Lauf wurde nicht fortgesetzt. Versuchen Sie es erneut, oder verwerfen Sie das Protokoll."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The run log export is ready."
 msgstr "Der Export des Durchlaufprotokolls ist bereit."
@@ -17899,7 +18120,7 @@ msgstr "Der Server hat eine Werkzeugliste gesendet, die Caotang nicht lesen konn
 msgid "The server took too long to answer. Choose Connect to try again."
 msgstr "Der Server hat zu lange für eine Antwort gebraucht. Wählen Sie Verbinden, um es erneut zu versuchen."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The session action could not finish: {reason}. Try again."
 msgstr "Die Sitzungsaktion konnte nicht abgeschlossen werden: {reason}. Versuchen Sie es erneut."
@@ -17909,7 +18130,7 @@ msgstr "Die Sitzungsaktion konnte nicht abgeschlossen werden: {reason}. Versuche
 msgid "The session and log size could not be read: {reason}. Try again."
 msgstr "Die Sitzungs- und Protokollgröße konnte nicht gelesen werden: {reason}. Versuchen Sie es erneut."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The session could not be exported: {reason}. Your saved session has not changed."
 msgstr "Die Sitzung konnte nicht exportiert werden: {reason}. Ihre gespeicherte Sitzung wurde nicht geändert."
@@ -17971,6 +18192,16 @@ msgstr "Der Skill konnte nicht gelesen werden: {reason}"
 #: apps/desktop/src/components/editor-labels.ts
 msgid "The stream stopped before it finished ({reason}). The text above is partial; Retry or Discard."
 msgstr "Der Stream wurde vor dem Ende abgebrochen ({reason}). Der Text oben ist unvollständig; „Erneut versuchen“ oder „Verwerfen“."
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The summary changed while you were editing it. Read the current summary before replacing it."
+msgstr "Die Zusammenfassung hat sich während Ihrer Bearbeitung geändert. Lesen Sie die aktuelle Zusammenfassung, bevor Sie sie ersetzen."
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The summary could not be changed: {reason}"
+msgstr "Die Zusammenfassung konnte nicht geändert werden: {reason}"
 
 #. The picture board's storage actions. count, removed and remaining are numbers; name and title are a picture's caption or a file name; reason and detail are a sentence a command or a browser wrote.
 #: apps/desktop/src/media/picture-storage-model.ts
@@ -18087,7 +18318,7 @@ msgstr "Der Ablauf enthält die an das Modell gesendeten Prompts und Manuskriptt
 msgid "The trim did not finish: {error}"
 msgstr "Das Kürzen wurde nicht abgeschlossen: {error}"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The turn stopped unexpectedly: {error}"
 msgstr "Der Zug wurde unerwartet beendet: {error}"
@@ -18334,7 +18565,7 @@ msgstr "Diese Erlaubnisregel für {tool} hat keine Wirkung, weil sie nur Lesezug
 msgid "This allow rule has no effect because it names a folder or path."
 msgstr "Diese Erlaubnisregel hat keine Wirkung, weil sie einen Ordner oder Pfad nennt."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "This approval is already saving your typing. Wait for it to finish."
 msgstr "Diese Freigabe speichert gerade deinen Text. Warte, bis sie abgeschlossen ist."
@@ -18406,8 +18637,8 @@ msgstr "Das kann nach einem Update passieren oder wenn die Verbindung abbricht. 
 msgid "This changed since it was proposed, so it is not applied. Read it again, or remove it."
 msgstr "Dies hat sich geändert, seit es vorgeschlagen wurde, daher wird es nicht angewendet. Lesen Sie es erneut oder entfernen Sie es."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "This command stays in the foreground so its skill restrictions or outside-text warnings are kept."
 msgstr "Dieser Befehl bleibt im Vordergrund, damit seine Skill-Beschränkungen oder Warnungen vor externem Text erhalten bleiben."
@@ -18538,7 +18769,7 @@ msgstr "Dies ist die Anfrage des aktiven Durchlaufs. Es wurde keine zusätzliche
 msgid "This line cannot be {element, select, scene_heading {scene heading} action {action} character {character} parenthetical {parenthetical} dialogue {dialogue} transition {transition} centered {centered} note {note} page_break {page break} other {that}} here."
 msgstr "Diese Zeile kann hier nicht {element, select, scene_heading {Szenenüberschrift} action {Aktionszeile} character {Figur} parenthetical {Spielanweisung} dialogue {Dialog} transition {Übergang} centered {Zentriert} note {Notiz} page_break {Seitenumbruch} other {das}} sein."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "This log belongs to {count} sessions. Open Discard log again to confirm removing the turn from all of them."
 msgstr "Dieses Protokoll gehört zu {count} Sitzungen. Öffnen Sie Protokoll verwerfen erneut, um das Entfernen des Durchgangs aus allen Sitzungen zu bestätigen."
@@ -18585,13 +18816,13 @@ msgstr "Dieses Bild wird noch verwendet und kann daher nicht gelöscht werden:"
 msgid "This plan needs {calls} {calls, plural, one {model call} other {model calls}}"
 msgstr "Dieser Plan braucht {calls} {calls, plural, one {Modell-Aufruf} other {Modell-Aufrufe}}"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "This plan needs {calls} {calls, plural, one {model call} other {model calls}}. Choose how it runs."
 msgstr "Dieser Plan braucht {calls} {calls, plural, one {Modell-Aufruf} other {Modell-Aufrufe}}. Wählen Sie, wie er ausgeführt wird."
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "This plan used skill instructions or outside text. Switch to Ask and start the original command or request again so its restrictions and warnings are kept."
@@ -18669,6 +18900,16 @@ msgstr "Dies entfernt den Eintrag und {descendants, plural, one {das # Element} 
 msgid "This request becomes a project skill that only you can invoke. It does not change permissions."
 msgstr "Diese Anfrage wird zu einem Projekt-Skill, den nur du aufrufen kannst. Die Berechtigungen bleiben unverändert."
 
+#. Interpolated values: turns
+#: apps/desktop/src/components/CompactionActivity.tsx
+msgid "This request is already included in the turn and session totals."
+msgstr "Diese Anfrage ist bereits in den Summen des Gesprächsschritts und der Sitzung enthalten."
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "This request needs about {promptTokens} prompt tokens plus {reserveTokens} reserved tokens. The model window is {windowTokens} tokens. No request was sent."
+msgstr "Diese Anfrage benötigt etwa {promptTokens} Prompt-Tokens und {reserveTokens} reservierte Tokens. Das Kontextfenster des Modells umfasst {windowTokens} Tokens. Es wurde keine Anfrage gesendet."
+
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "This restore point was kept for the tab it was made in."
@@ -18689,6 +18930,11 @@ msgstr "Dies stellt das Projekt auf den Stand vor diesem Durchlauf wieder her. I
 msgid "This restores the project’s content, structure, agent files and findings from before this run. Later edits will be taken back too."
 msgstr "Damit werden Inhalt, Struktur, Agent-Dateien und Befunde des Projekts von vor diesem Durchlauf wiederhergestellt. Spätere Änderungen werden ebenfalls zurückgenommen."
 
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "This role has no summary yet."
+msgstr "Für diese Rolle gibt es noch keine Zusammenfassung."
+
 #. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
 #: apps/desktop/src/app/run-log-export.ts
 msgid "This run cannot be resumed."
@@ -18698,17 +18944,17 @@ msgstr "Dieser Durchlauf kann nicht fortgesetzt werden."
 msgid "This run has no restore point."
 msgstr "Dieser Durchlauf hat keinen Wiederherstellungspunkt."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "This run’s log could not be read just now. It has not been changed; reopen the project to try again, or discard it."
 msgstr "Das Protokoll dieses Laufs konnte gerade nicht gelesen werden. Es wurde nicht verändert; öffnen Sie das Projekt erneut, um es noch einmal zu versuchen, oder verwerfen Sie es."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "This run’s log is damaged or was written by another version of Caotang, so it cannot be resumed."
 msgstr "Das Protokoll dieses Laufs ist beschädigt oder wurde von einer anderen Caotang-Version geschrieben, daher kann er nicht fortgesetzt werden."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "This run’s log is damaged or was written by another version of Caotang, so the run was not resumed. You can discard the log."
 msgstr "Das Protokoll dieses Laufs ist beschädigt oder wurde von einer anderen Caotang-Version geschrieben, daher wurde der Lauf nicht fortgesetzt. Sie können das Protokoll verwerfen."
@@ -18819,6 +19065,11 @@ msgstr "Dieser Schritt erstellt das Skriptdokument und verknüpft es mit dem Buc
 #: apps/desktop/src/app/task-queue.ts
 msgid "This step needs {calls} model {calls, plural, one {call} other {calls}}, which would go past the task's limit of {cap}."
 msgstr "Dieser Schritt braucht {calls} Modell-{calls, plural, one {Aufruf} other {Aufrufe}}, womit das Limit der Aufgabe von {cap} überschritten würde."
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgid "This summary is not sent to the model because the read rules changed. Start a new session to continue without this earlier memory."
+msgstr "Diese Zusammenfassung wird nicht an das Modell gesendet, weil sich die Leseregeln geändert haben. Beginnen Sie eine neue Sitzung, um ohne dieses frühere Gedächtnis fortzufahren."
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
@@ -19644,6 +19895,11 @@ msgstr "Nutzung auf diesem Gerät"
 msgid "Usage was not recorded for this earlier turn."
 msgstr "Für diesen früheren Durchgang wurden keine Verbrauchsdaten aufgezeichnet."
 
+#. Interpolated values: turns
+#: apps/desktop/src/components/CompactionActivity.tsx
+msgid "Usage was not recorded for this request."
+msgstr "Für diese Anfrage wurde kein Verbrauch aufgezeichnet."
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Use"
@@ -20259,6 +20515,12 @@ msgstr "Schreibende Person oder Agent"
 msgid "Writer’s note for this shot (not sent to the model)"
 msgstr "Notiz des Autors zu dieser Einstellung (wird nicht an das Modell gesendet)"
 
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgctxt "session summary section"
+msgid "Writer's standing requests"
+msgstr "Dauerhafte Wünsche"
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
@@ -20416,12 +20678,12 @@ msgstr "Ihr Text bleibt auf diesem Computer."
 msgid "your typing"
 msgstr "Ihre Eingabe"
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Your typing could not be saved, so the card was not applied. Approve it again once your words are saved."
 msgstr "Ihre Eingabe konnte nicht gespeichert werden, daher wurde die Karte nicht angewendet. Genehmigen Sie sie erneut, sobald Ihre Worte gespeichert sind."
 
-#. Interpolated values: calls, count, error, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Your typing could not be saved, so this card was not applied automatically. Approve it once your words are saved."
 msgstr "Ihre Eingabe konnte nicht gespeichert werden, daher wurde diese Karte nicht automatisch angewendet. Genehmigen Sie sie, sobald Ihre Worte gespeichert sind."

@@ -26,6 +26,7 @@ import {
   type TaskList,
   type TurnPhase,
   type TurnReport,
+  type ClearedToolResult,
 } from '@caotang/harness';
 import { isolate, numberFormat } from '@caotang/i18n';
 import { plural, select, t } from '@lingui/core/macro';
@@ -65,6 +66,8 @@ export interface ContextView {
 }
 
 export interface TurnRecord {
+  readonly compacting?: boolean;
+  readonly clearedResults?: readonly ClearedToolResult[];
   readonly accountingUnavailable?: true;
   readonly requestContext?: RequestContextPreview;
   readonly turnId: string;
@@ -175,6 +178,12 @@ function reduceView(turn: TurnRecord, event: AgentEvent): TurnRecord {
       return { ...turn, context: { layers: event.layers, dropped: event.dropped } };
     case 'context-meter':
       return { ...turn, requestContext: { preview: event.preview, meter: event.meter } };
+    case 'context.cleared':
+      return { ...turn, clearedResults: [...(turn.clearedResults ?? []), ...event.cleared] };
+    case 'session.compacting':
+      return { ...turn, compacting: true };
+    case 'session.compaction':
+      return { ...turn, compacting: false };
     case 'steer':
       return { ...turn, steering: [...turn.steering, event.note] };
     case 'budget':
@@ -207,7 +216,7 @@ function reduceView(turn: TurnRecord, event: AgentEvent): TurnRecord {
         checkpoint: { undoGroupId: event.undoGroupId, label: event.label, mode: event.mode, ...(event.note === undefined ? {} : { note: event.note }) },
       };
     case 'report':
-      return { ...turn, requestContext: undefined, report: event.report, mode: event.report.mode, ghost: null, plan: turn.plan, streamed: '' };
+      return { ...turn, compacting: false, requestContext: undefined, report: event.report, mode: event.report.mode, ghost: null, plan: turn.plan, streamed: '' };
     default:
       return turn;
   }
