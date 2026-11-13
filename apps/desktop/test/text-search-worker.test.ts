@@ -69,7 +69,7 @@ it('cancels one waiting call without losing another, then terminates an abandone
   search.dispose();
 });
 
-it.each(['error', 'messageerror', 'close', 'postMessage'] as const)('settles every pending request on %s without a synchronous fallback', async (kind) => {
+it.each(['error', 'messageerror', 'close', 'postMessage', 'search'] as const)('settles every pending request on %s without a synchronous fallback', async (kind) => {
   const search = createTextSearchWorker();
   const harness = makeHarness({ asyncPorts: { 'text.search': search.port } });
   if (kind === 'postMessage') vi.spyOn(HeldWorker.prototype, 'postMessage').mockImplementation(() => { throw new Error('clone failed'); });
@@ -80,6 +80,7 @@ it.each(['error', 'messageerror', 'close', 'postMessage'] as const)('settles eve
   if (kind === 'error') worker.onerror?.();
   if (kind === 'messageerror') worker.onmessageerror?.();
   if (kind === 'close') search.dispose();
+  if (kind === 'search') for (const request of worker.messages) worker.onmessage?.(new MessageEvent('message', { data: { id: request.id, result: null } }));
   expect((await first).ok).toBe(false);
   expect((await second).ok).toBe(false);
   expect(worker.terminate).toHaveBeenCalledOnce();

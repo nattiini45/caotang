@@ -11,5 +11,5 @@ export interface TextSearchRequest {
 
 export interface TextSearchReply {
   readonly id: number;
-  readonly result: Result<ToolValue, CommandError>;
+  readonly result: Result<ToolValue, CommandError> | null;
 }

@@ -9567,6 +9567,10 @@ msgstr ""
 msgid "Loading…"
 msgstr ""
 
+#: apps/desktop/src/app/text-search-worker.ts
+msgid "Local passage search is unavailable. Nothing was written."
+msgstr ""
+
 #: apps/desktop/src/components/InspectorDialogue.tsx
 msgid "Locale"
 msgstr ""
@@ -14010,6 +14014,10 @@ msgstr ""
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
 #: apps/desktop/src/components/AgentSessions.tsx
 msgid "Retry saving the conversation"
+msgstr ""
+
+#: apps/desktop/src/app/text-search-worker.ts
+msgid "Retry the search, or reopen the project in a browser with worker support."
 msgstr ""
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.

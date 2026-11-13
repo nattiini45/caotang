@@ -21,9 +21,11 @@ it('keeps the worker index across cloned snapshots and rescans only changed docu
   expect(send().result).toMatchObject({ ok: true, value: { data: { total: 1 } } });
   const original = state.documents.get(LANDING)!.body;
   expect(segment.mock.calls.filter(([text]) => text === original)).toHaveLength(1);
-  expect(send().result.ok).toBe(true);
+  expect(send().result?.ok).toBe(true);
   expect(segment.mock.calls.filter(([text]) => text === original)).toHaveLength(1);
   setBody(state, LANDING, 'The ferry returned.');
   expect(send().result).toMatchObject({ ok: true, value: { data: { hits: [{ snippet: { text: 'The ferry returned.' } }] } } });
   expect(segment.mock.calls.filter(([text]) => text === 'The ferry returned.')).toHaveLength(1);
+  segment.mockImplementationOnce(() => { throw new Error('The search computation failed.'); });
+  expect(send().result).toBeNull();
 });

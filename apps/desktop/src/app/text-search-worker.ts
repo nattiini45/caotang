@@ -1,4 +1,5 @@
 import { err, refusal } from '@caotang/bus';
+import { t } from '@lingui/core/macro';
 import type { AsyncToolPort } from '@caotang/harness';
 import type { TextSearchReply, TextSearchRequest } from './text-search-protocol.js';
 
@@ -6,8 +7,8 @@ export function createTextSearchWorker(): { readonly port: AsyncToolPort; dispos
   let worker: Worker | undefined;
   let closed = false;
   let nextId = 0;
-  const pending = new Map<number, (result: TextSearchReply['result']) => void>();
-  const unavailable = () => err(refusal('io-error', 'Local passage search is unavailable. Nothing was written.', { target: 'text.search', correctiveHint: 'retry the search, or reopen the project in a browser with worker support' }));
+  const pending = new Map<number, (result: NonNullable<TextSearchReply['result']>) => void>();
+  const unavailable = () => err(refusal('io-error', t`Local passage search is unavailable. Nothing was written.`, { target: 'text.search', correctiveHint: t`Retry the search, or reopen the project in a browser with worker support.` }));
   const terminate = () => {
     if (worker === undefined) return;
     worker.onmessage = null;
@@ -25,7 +26,10 @@ export function createTextSearchWorker(): { readonly port: AsyncToolPort; dispos
     try {
       if (worker === undefined) {
         worker = new Worker(new URL('./text-search.worker.ts', import.meta.url), { type: 'module' });
-        worker.onmessage = ({ data }: MessageEvent<TextSearchReply>) => pending.get(data.id)?.(data.result);
+        worker.onmessage = ({ data }: MessageEvent<TextSearchReply>) => {
+          if (data.result === null) { fail(); return; }
+          pending.get(data.id)?.(data.result);
+        };
         worker.onerror = fail;
         worker.onmessageerror = fail;
       }
@@ -34,7 +38,7 @@ export function createTextSearchWorker(): { readonly port: AsyncToolPort; dispos
     }
     return new Promise((resolve) => {
       const id = ++nextId;
-      const finish = (result: TextSearchReply['result']) => {
+      const finish = (result: NonNullable<TextSearchReply['result']>) => {
         pending.delete(id);
         context.signal?.removeEventListener('abort', abort);
         resolve(result);

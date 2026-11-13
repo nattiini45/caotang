@@ -9568,6 +9568,10 @@ msgstr "Das Bild wird geladen…"
 msgid "Loading…"
 msgstr "Wird geladen…"
 
+#: apps/desktop/src/app/text-search-worker.ts
+msgid "Local passage search is unavailable. Nothing was written."
+msgstr "Die lokale Suche nach Textstellen ist nicht verfügbar. Es wurde nichts geändert."
+
 #: apps/desktop/src/components/InspectorDialogue.tsx
 msgid "Locale"
 msgstr "Locale"
@@ -14012,6 +14016,10 @@ msgstr "Durchlaufverlauf erneut laden"
 #: apps/desktop/src/components/AgentSessions.tsx
 msgid "Retry saving the conversation"
 msgstr "Gespräch erneut speichern"
+
+#: apps/desktop/src/app/text-search-worker.ts
+msgid "Retry the search, or reopen the project in a browser with worker support."
+msgstr "Versuchen Sie die Suche erneut, oder öffnen Sie das Projekt erneut in einem Browser, der Web Worker unterstützt."
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx

@@ -1,4 +1,3 @@
-import { err, refusal } from '@caotang/bus';
 import { textSearchPort } from '@caotang/harness/text-search';
 import type { SearchState } from '@caotang/retrieval';
 import type { TextSearchReply, TextSearchRequest } from './text-search-protocol.js';
@@ -11,7 +10,7 @@ self.onmessage = ({ data }: MessageEvent<TextSearchRequest>) => {
   try {
     result = textSearchPort(data.params, { state, withheld: data.withheld });
   } catch {
-    result = err(refusal('io-error', 'Local passage search could not finish.', { target: 'text.search', correctiveHint: 'retry the search, or read a document directly' }));
+    result = null;
   }
   self.postMessage({ id: data.id, result } satisfies TextSearchReply);
 };
