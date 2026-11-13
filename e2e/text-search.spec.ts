@@ -4,11 +4,43 @@ import { fakeEndpoint, useFakeEndpoint } from './endpoint.js';
 import { projectTrace } from './support.js';
 import { searchWhileTyping } from './text-search-flow.js';
 import type * as Store from '../packages/store/src/index.js';
+import type { TextSearchRequest } from '../apps/desktop/src/app/text-search-protocol.js';
 
 const STORE_URL = `/@fs/${fileURLToPath(new URL('../packages/store/src/index.ts', import.meta.url)).replaceAll('\\', '/').replace(/^\/+/, '')}`;
 
 test('cold local passage search leaves typing responsive under the development CSP', async ({ page, context }) => {
   await searchWhileTyping(page, context);
+});
+
+test('a codex-only search sends no binder text to the worker and leaves the manuscript unchanged', async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message: unknown, options?: StructuredSerializeOptions | Transferable[]) {
+      const request = message as TextSearchRequest;
+      if (Array.isArray(request?.params?.['fields']) && request.params['fields'].every((field) => field === 'codex')) {
+        (globalThis as unknown as { searchProjection: unknown }).searchProjection = { documents: request.state.documents.size, text: request.state.manifest.tree.some((node) => node.synopsis !== '' || node.notes !== '') };
+      }
+      return original.call(this, message, Array.isArray(options) ? { transfer: options } : options);
+    };
+  });
+  await fakeEndpoint(page, (request) => {
+    if (request.tools === undefined) return 'Ready.';
+    if (request.assistantTurns === 0) return { text: '', toolCalls: [{ id: 'discover', name: 'tool.search', arguments: '{"query":"find project passages"}' }] };
+    if (request.assistantTurns === 1) return { text: '', toolCalls: [{ id: 'codex', name: 'text.search', arguments: '{"query":"keeper","fields":["codex"]}' }] };
+    return { text: request.tool.includes('"field":"codex"') ? 'The local codex search returned the keeper.' : 'No codex result.' };
+  });
+  await useFakeEndpoint(page);
+  await page.getByRole('button', { name: 'Check for continuity problems', exact: true }).click();
+  await expect.poll(() => projectTrace(page)).toContain('coherence.scan');
+  const panel = page.getByTestId('agent-panel');
+  await expect(panel).toHaveAttribute('data-state', 'idle');
+  const before = await projectTrace(page);
+  await panel.getByRole('combobox', { name: 'Intent' }).fill('Find the keeper in the codex only.');
+  await panel.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(panel.locator('.agent-turn').last()).toContainText('The local codex search returned the keeper.');
+  await expect(panel).toHaveAttribute('data-state', 'idle');
+  expect(await page.evaluate(() => (globalThis as unknown as { searchProjection: unknown }).searchProjection)).toEqual({ documents: 0, text: false });
+  expect(await projectTrace(page)).toEqual(before);
 });
 
 test('a scoped read-ask waits for approval before starting local passage search', async ({ page }) => {

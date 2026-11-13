@@ -17,7 +17,7 @@
 
 import { ok, type CommandError, type Result } from '@caotang/bus';
 import { resolveContainer } from '@caotang/dialogue';
-import { searchCandidates } from '@caotang/retrieval';
+import { searchCandidates, type UnitField } from '@caotang/retrieval';
 import type { ProjectState } from '@caotang/store';
 
 import { failure } from './errors.js';
@@ -134,9 +134,7 @@ const readTree: TargetsFn = (params, state) => {
 };
 
 const textSearch: TargetsFn = (params, state) => {
-  const fields = strings(params['fields']);
-  if (fields.length > 0 && fields.every((field) => field === 'codex')) return ok(NONE);
-  const candidates = searchCandidates(state, { scope: params['scope'] as readonly string[] | undefined, excludeAfter: params['excludeAfter'] as string | undefined });
+  const candidates = searchCandidates(state, { fields: params['fields'] as readonly UnitField[] | undefined, scope: params['scope'] as readonly string[] | undefined, excludeAfter: params['excludeAfter'] as string | undefined });
   return ok({ reads: candidates.eligible.map((node) => node.id), writes: [] });
 };
 

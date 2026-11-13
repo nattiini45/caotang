@@ -2,8 +2,9 @@ import * as codexText from '@caotang/codex';
 import type { ProjectState, TreeNode } from '@caotang/store';
 
 export type UnitField = 'body' | 'synopsis' | 'notes' | 'codex';
+type SearchNode = Pick<TreeNode, 'id' | 'parentId' | 'type' | 'title' | 'order' | 'synopsis' | 'notes'>;
 export interface SearchState {
-  readonly manifest: Pick<ProjectState['manifest'], 'tree' | 'codex'> & { readonly project: Pick<ProjectState['manifest']['project'], 'language'> };
+  readonly manifest: Pick<ProjectState['manifest'], 'codex'> & { readonly tree: readonly SearchNode[]; readonly project: Pick<ProjectState['manifest']['project'], 'language'> };
   readonly documents: ProjectState['documents'];
 }
 export type HitPosition = 'manuscript' | 'before-focus' | 'focus' | 'after-focus' | 'research' | 'codex';
@@ -85,15 +86,15 @@ function passages(text: string): readonly [number, number][] {
   return result;
 }
 
-function binderOrder(tree: readonly TreeNode[]): readonly TreeNode[] {
-  const children = new Map<string | null, TreeNode[]>();
+function binderOrder(tree: readonly SearchNode[]): readonly SearchNode[] {
+  const children = new Map<string | null, SearchNode[]>();
   for (const node of tree) {
     const group = children.get(node.parentId) ?? [];
     group.push(node);
     children.set(node.parentId, group);
   }
   for (const group of children.values()) group.sort((a, b) => a.order - b.order || compare(a.id, b.id));
-  const result: TreeNode[] = [];
+  const result: SearchNode[] = [];
   const seen = new Set<string>();
   const stack = [...(children.get(null) ?? [])].reverse();
   while (stack.length > 0) {
@@ -106,7 +107,7 @@ function binderOrder(tree: readonly TreeNode[]): readonly TreeNode[] {
   return result;
 }
 
-export function searchCandidates(state: SearchState, options: SearchOptions = {}): { readonly ordered: readonly TreeNode[]; readonly eligible: readonly TreeNode[]; readonly research: ReadonlySet<string> } {
+export function searchCandidates(state: SearchState, options: SearchOptions = {}): { readonly ordered: readonly SearchNode[]; readonly eligible: readonly SearchNode[]; readonly research: ReadonlySet<string> } {
   const ordered = binderOrder(state.manifest.tree);
   const roots = options.scope === undefined ? undefined : new Set(options.scope);
   const scope = new Set<string>();
@@ -116,7 +117,7 @@ export function searchCandidates(state: SearchState, options: SearchOptions = {}
     if (roots?.has(node.id) || scope.has(node.parentId ?? '')) scope.add(node.id);
   }
   const afterIndex = ordered.findIndex((node) => node.id === options.excludeAfter);
-  const eligible = ordered.filter((node, index) => !options.excluded?.has(node.id) && (roots === undefined || scope.has(node.id)) && (afterIndex < 0 || index <= afterIndex || research.has(node.id)));
+  const eligible = options.fields?.every((field) => field === 'codex') ? [] : ordered.filter((node, index) => !options.excluded?.has(node.id) && (roots === undefined || scope.has(node.id)) && (afterIndex < 0 || index <= afterIndex || research.has(node.id)));
   return { ordered, eligible, research };
 }
 

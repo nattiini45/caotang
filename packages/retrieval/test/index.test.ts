@@ -5,6 +5,17 @@ import { createLexicalIndex, searchCandidates } from '../src/index.js';
 import { entry, id, project } from './fixtures.js';
 
 describe('local lexical passages', () => {
+  it('does not read or tokenize binder text during a codex-only search, including after a broader search', () => {
+    const state = project(['A private lighthouse passage.']);
+    entry(state);
+    const index = createLexicalIndex();
+    expect(index.search(state, 'lighthouse')).toHaveLength(2);
+    Object.defineProperty(state, 'documents', { get: () => { throw new Error('Binder documents were read by a codex-only search.'); } });
+    for (const node of state.manifest.tree) for (const field of ['synopsis', 'notes'] as const) Object.defineProperty(node, field, { get: () => { throw new Error('Binder text was read by a codex-only search.'); } });
+    expect(index.search(state, 'keeper', { fields: ['codex'] }).map((hit) => hit.unit.field)).toEqual(['codex']);
+    expect(index.stats.units).toBe(1);
+    expect(createLexicalIndex().search(state, 'keeper', { fields: ['codex'] })).toEqual(index.search(state, 'keeper', { fields: ['codex'] }));
+  });
   it('resolves permission candidates from binder metadata without reading document text', () => {
     const state = project(['ferry', 'letter']);
     addDocument(state, { id: 'n_RESRCH0001', parentId: 'research', title: 'Research', body: 'ferry notes', now: new Date('2026-11-13T12:00:00Z') });

@@ -1,5 +1,6 @@
 import { err, refusal } from '@caotang/bus';
 import { t } from '@lingui/core/macro';
+import { searchCandidates, type SearchState, type UnitField } from '@caotang/retrieval';
 import type { AsyncToolPort } from '@caotang/harness';
 import type { TextSearchReply, TextSearchRequest } from './text-search-protocol.js';
 
@@ -51,7 +52,18 @@ export function createTextSearchWorker(): { readonly port: AsyncToolPort; dispos
       context.signal?.addEventListener('abort', abort, { once: true });
       const { project, tree, codex } = context.state.manifest;
       try {
-        worker!.postMessage({ id, state: { manifest: { project: { language: project.language }, tree, codex }, documents: context.state.documents }, params, withheld: context.withheld } satisfies TextSearchRequest);
+        const eligible = new Set(searchCandidates(context.state, { fields: params['fields'] as readonly UnitField[] | undefined, scope: params['scope'] as readonly string[] | undefined, excludeAfter: params['excludeAfter'] as string | undefined, excluded: context.withheld }).eligible.map((node) => node.id));
+        const documents: SearchState['documents'] = new Map();
+        for (const nodeId of eligible) {
+          const document = context.state.documents.get(nodeId);
+          if (document !== undefined) documents.set(nodeId, document);
+        }
+        const snapshot: SearchState = { manifest: {
+          project: { language: project.language },
+          tree: tree.map((node) => ({ id: node.id, parentId: node.parentId, type: node.type, title: node.title, order: node.order, synopsis: eligible.has(node.id) ? node.synopsis : '', notes: eligible.has(node.id) ? node.notes : '' })),
+          codex: codex?.filter((entry) => entry.includePolicy !== 'never' && !context.withheld?.has(entry.id)),
+        }, documents };
+        worker!.postMessage({ id, state: snapshot, params, withheld: context.withheld } satisfies TextSearchRequest);
       } catch {
         fail();
       }

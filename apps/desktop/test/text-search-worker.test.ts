@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createTextSearchWorker } from '../src/app/text-search-worker.js';
 import type { TextSearchReply, TextSearchRequest } from '../src/app/text-search-protocol.js';
 import { textSearchPort } from '@caotang/harness';
-import { makeHarness } from '../../../packages/harness/test/fixtures.js';
+import { CHAPTER_ONE, CHAPTER_TWO, ENTRY_TWO, FRIEND, LANDING, STORM, makeHarness } from '../../../packages/harness/test/fixtures.js';
 
 class HeldWorker {
   static instances: HeldWorker[] = [];
@@ -21,6 +21,41 @@ class HeldWorker {
 
 beforeEach(() => { HeldWorker.instances = []; vi.stubGlobal('Worker', HeldWorker); });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+it('omits binder text from an unconfirmed codex-only worker request under a scoped read-ask', async () => {
+  const search = createTextSearchWorker();
+  const harness = makeHarness({ asyncPorts: { 'text.search': search.port }, rules: () => ({ rules: [{ source: 'app', tool: 'text.search', effect: 'ask', access: 'read', scope: { subtree: CHAPTER_ONE } }] }) });
+  const first = harness.callAsync({ callId: 'codex-only', name: 'text.search', params: { query: 'keeper', fields: ['codex'] } }, { turnId: 'search' });
+  const worker = HeldWorker.instances[0]!;
+  const request = worker.messages[0]!;
+  expect(request.state.documents.size).toBe(0);
+  expect(request.state.manifest.tree.every((node) => node.synopsis === '' && node.notes === '')).toBe(true);
+  worker.answer();
+  expect(await first).toMatchObject({ ok: true, value: { data: { total: 1, hits: [{ field: 'codex' }] } } });
+  expect(await harness.callAsync({ callId: 'binder', name: 'text.search', params: { query: 'ferry' } }, { turnId: 'search' })).toMatchObject({ ok: false, error: { code: 'permission-denied' } });
+  expect(worker.messages).toHaveLength(1);
+  search.dispose();
+});
+
+it.each([
+  { params: { scope: [CHAPTER_TWO] }, denied: false, ids: [FRIEND] },
+  { params: { excludeAfter: LANDING }, denied: false, ids: [LANDING] },
+  { params: {}, denied: true, ids: [FRIEND] },
+])('transfers only eligible binder text for $params with deny $denied', async ({ params, denied, ids }) => {
+  const search = createTextSearchWorker();
+  const harness = makeHarness({ asyncPorts: { 'text.search': search.port }, ...(denied ? { rules: () => ({ rules: [{ source: 'app' as const, tool: 'doc.read', effect: 'deny' as const, access: 'read' as const, scope: { subtree: CHAPTER_ONE } }] }) } : {}) });
+  harness.state.manifest.codex!.find((entry) => entry.id === ENTRY_TWO)!.includePolicy = 'never';
+  const call = harness.callAsync({ callId: 'scoped', name: 'text.search', params: { query: 'keeper', ...params } }, { turnId: 'search' });
+  const worker = HeldWorker.instances[0]!;
+  const snapshot = worker.messages[0]!.state;
+  expect([...snapshot.documents.keys()]).toEqual(ids);
+  expect(snapshot.manifest.codex?.some((entry) => entry.id === ENTRY_TWO)).toBe(false);
+  for (const id of [LANDING, STORM, FRIEND].filter((id) => !ids.includes(id))) expect(snapshot.manifest.tree.find((node) => node.id === id)).toMatchObject({ synopsis: '', notes: '' });
+  expect(Object.keys(snapshot.manifest.tree[0]!)).toEqual(['id', 'parentId', 'type', 'title', 'order', 'synopsis', 'notes']);
+  worker.answer();
+  expect((await call).ok).toBe(true);
+  search.dispose();
+});
 
 it('creates a same-origin module worker lazily, reuses it and sends only search projections', async () => {
   const search = createTextSearchWorker();

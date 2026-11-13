@@ -1,5 +1,7 @@
 # Decisions
 
+- Codex-only passage searches do not read, tokenize or transfer binder text. Field-aware metadata eligibility is shared by permission targets, the index and the browser worker snapshot; excluded binder text and Never codex entries stay out of that snapshot. Why: filtering result fields after indexing still accessed binder text without its scoped read confirmation. [delegated 2026-11-13]
+
 - Local passage search resolves all eligible binder candidates for scoped read-ask confirmation before reading text. Scope expansion and forward-scene filtering share the index's metadata-only candidate resolver; read-denied candidates remain excluded before scoring. Why: a project-level target label bypassed confirmation rules on searched subtrees. [delegated 2026-11-13]
 
 - Codex Never ids participate in the live read-policy fingerprint, in addition to scoped read-denies. A pending local search may hold an earlier codex snippet, so switching that entry to Never stops subsequent provider dispatch and withholds derived memory from the former boundary. Fingerprints without Never entries retain their prior encoding; no project or session format changes. [delegated 2026-11-13]
