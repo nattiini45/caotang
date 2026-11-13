@@ -7719,6 +7719,11 @@ msgstr "Filters"
 msgid "Final Draft (.fdx)"
 msgstr "Final Draft (.fdx)"
 
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.textSearch.content"
+msgstr "Find project passages"
+
 #. Changes a timeline scene can be given from the keyboard. Interpolated values: title, name, count, delta, other, part, day are scene titles, part words or numbers.
 #: apps/desktop/src/components/timeline/SceneChanges.tsx
 msgid "Find the scene it must follow"
@@ -7735,6 +7740,11 @@ msgstr "Find the scene to place it after"
 #: apps/desktop/src/app/findings-model.ts
 msgid "Finding"
 msgstr "Finding"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.textSearch.active"
+msgstr "Finding project passages"
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts

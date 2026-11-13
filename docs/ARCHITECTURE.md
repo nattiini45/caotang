@@ -57,6 +57,11 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 - **Owns:** `coherence.json` (findings, runs, scene metadata, world rules), check registry.
 - **Spec:** [architecture/coherence.md](architecture/coherence.md).
 
+### 2.3d `retrieval`
+- **Responsibility:** explicit local BM25 passage search through `text.search`, alongside unchanged keyed prompt assembly.
+- **Owns:** an in-memory incremental index, never project files or a prompt layer. Runs in the app and Node without network access or embeddings.
+- **Spec:** [architecture/retrieval.md](architecture/retrieval.md).
+
 ### 2.4 `corkboard` (UI) 📐
 - **Responsibility:** index-card view of a container's children: title, status and synopsis per card; drag-reorder writes back to binder order; S/M/L card sizes.
 - **Surfaces:** no commands of its own — every board gesture maps onto the binder command set. Spec: [architecture/ui-modules.md](architecture/ui-modules.md) §3.
@@ -194,7 +199,7 @@ Additive manifest arrays (`codex[]`, `recipes[]`, `filters[]`, `goals[]`, `macro
 
 ## 4. Explicit non-goals
 
-Collaboration and sync in the local version, a plugin system that **runs third-party code in the app**, a theme marketplace, version history beyond git, **embedding/RAG context retrieval** (keyed context is the design; revisit only with usage evidence), a **codex relations graph**. Screen and media formats were once on this list and are now built (§6).
+Collaboration and sync in the local version, a plugin system that **runs third-party code in the app**, a theme marketplace, version history beyond git, **embedding context retrieval** (lexical search is an explicit tool; keyed assembly stays the default and embeddings need usage evidence), a **codex relations graph**. Screen and media formats were once on this list and are now built (§6).
 
 Macros (writer-authored plan templates over the app's own tools, [extensibility.md](architecture/extensibility.md) §10) are not a plugin system: a macro is JSON data with no code and no install path, and only the writer runs one. Nor are the planned declarative extension bundles ([extensions.md](architecture/extensions.md), specified, not built): Markdown and JSON that carry skills and suggested MCP servers, with no code, installed only by the writer from a local file. Sandboxed JS plugins are deferred, not rejected (decisions.md, MCP server and client).
 

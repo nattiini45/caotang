@@ -98,7 +98,7 @@ Which transport a host should use:
 
 These are the tools a host lists, measured from `tools/list` on a server started with each setting. The annotations and descriptions are the harness's registry-to-MCP mapping ([extensibility.md §7](../../docs/architecture/extensibility.md)), unchanged. Two things differ from the whole registry: `tool.search` is not listed, and the tools that need a model are not listed; the host's model writes through a brief and an apply instead ([Drafting with the host's model](#drafting-with-the-hosts-model)). The empty-project note of `project.overview` is the harness's own, and it names a write tool only to a caller whose server allows writes.
 
-**Read-only server (13 tools), and always:**
+**Read-only server (14 tools), and always:**
 
 | Tool | Risk |
 |---|---|
@@ -107,6 +107,7 @@ These are the tools a host lists, measured from `tools/list` on a server started
 | `doc.read` | read |
 | `notes.read` | read |
 | `codex.read` | read |
+| `text.search` | read |
 | `coherence.scan` | read |
 | `dialogue.table` | read |
 | `timeline.read` | read |
@@ -118,7 +119,7 @@ These are the tools a host lists, measured from `tools/list` on a server started
 
 `timeline.read` is a registry row like the rest. `pictures.list` and `pictures.view` are registered on the server itself, beside the mapping, because their descriptions and their size checks are that module's; they never reach the bus or save the folder, so they are listed in every mode. `pictures.list` gives each picture's record, links and uses as text, capped at about 8,000 tokens at whole pictures (it says how many it left out), and narrows by `target` (`project` or a binder item id) or `tag`. `pictures.view` takes one to four ids and returns each stored picture as an image block with its caption, alt text and transcription as text. **This server cannot resize a picture**, so `pictures.view` sends one only when its stored bytes are at most 3,096,576 and its long edge is at most 1,568 px, and it refuses a larger one, before sending any, with its size and the remedy: open the project in the Caotang app and store a working copy, or import a smaller copy. `maxPx` is accepted and not applied, and the answer says so. The picture metadata writes (`pictures.annotate`, `pictures.attach`, `pictures.place`) are registry rows, so they are listed with `--allow-writes`; `pictures.import` and `pictures.transcribe` are not listed, because their ports need the writer's own file, vision and review host, and `asset.sweep` and `asset.transcribe` have no direct tools.
 
-**With `--allow-writes` (36 tools):** the thirteen above, and:
+**With `--allow-writes` (37 tools):** the fourteen above, and:
 
 | Tool | Risk | What the host does |
 |---|---|---|

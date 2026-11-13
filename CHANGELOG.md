@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Local passage search.** The agent's read-only `text.search` tool finds ranked passages in manuscript text, synopses, notes and eligible codex, with exact source offsets and bounded snippets. It supports multilingual words, quoted phrases, scope and forward-scene filtering. Never entries and read-denied text are excluded before scoring. The in-memory incremental BM25 index makes no model call, network request or persistent write; keyed prompt assembly stays unchanged.
+
 - **Long conversation memory.** Each role keeps a durable summary beside its recent turns, with exact earlier outcomes available through the read-only `session.history` tool. Automatic and focused manual compaction use one bounded Background-provider call; local summary edits make none. Failed summaries preserve the earlier memory, changed read boundaries withhold derived text and stop prepared requests before sending, and rewind/restore/discard invalidation stays visible. Reports retain the actual compaction profile/model spend without adding it to totals twice. Known model-window overflow clears eligible old tool results before refusing an unsendable request with explicit recovery controls; no automatic resend or spend increase occurs.
 
 - **Self-hostable server skeleton.** A standalone Worker module provides GitHub sign-in with state, PKCE and secure signed cookies, plus per-identity hibernating WebSocket connectivity. It is not imported by the browser app, stores no projects and does not enable sync in the local app. Runtime tests mock GitHub and exercise real WebSocket upgrades.

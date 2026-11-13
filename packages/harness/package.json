@@ -25,6 +25,7 @@
     "@caotang/machine": "workspace:*",
     "@caotang/mcp-client": "workspace:*",
     "@caotang/pictures": "workspace:*",
+    "@caotang/retrieval": "workspace:*",
     "@caotang/screenplay": "workspace:*",
     "@caotang/skills": "workspace:*",
     "@caotang/store": "workspace:*",

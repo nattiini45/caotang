@@ -1,5 +1,7 @@
 # Caotang
 
+The agent can find passages across manuscript text, synopses, notes and codex with local lexical search. Search makes no provider request; entries marked **Never** and read-denied text are excluded. It is an explicit agent tool, not automatic retrieval into every prompt.
+
 Agent runs retain a local restore point before their first writing step. Activity › Agent run logs offers confirmed restoration, JSONL/Markdown export and opt-in derived copies in an attached project folder. Restoring includes later edits; conversation, recorded spend and external side effects are kept. See [the writer’s guide](docs/USER-GUIDE.md) for the recovery limits.
 
 The agent names when it is loading, processing an approval or stopping. Its composer and Stop stay available while the turn starts.

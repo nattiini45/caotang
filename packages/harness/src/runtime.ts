@@ -757,6 +757,7 @@ export function createHarness(options: HarnessOptions): Harness {
   const withheldFor = (tool: string): ReadonlySet<string> => {
     const set = currentRules();
     if (set.rules.length === 0) return NO_WITHHELD;
+    if (tool === 'text.search') return withheldAnywhere(set, state);
     const own = withheldNodes(set, state, tool);
     // A row that stands for an in-app tool keeps from its prompt what a read-deny keeps from that tool's (metadata `mirrors`).
     const mirrored = metadataFor(tool)?.mirrors;
