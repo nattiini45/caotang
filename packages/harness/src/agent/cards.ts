@@ -564,13 +564,60 @@ function costOf(value: unknown): StepCost | undefined {
 /** The card's view of one staged proposal. A step with nothing staged shows neither a cut nor a prompt. */
 export function stagedOf(proposal: unknown): StagedView {
   if (!isRecord(proposal)) return { cut: false };
-  const context = isRecord(proposal['context']) ? (proposal['context'] as unknown as PromptPreview) : undefined;
+  const context = previewOf(proposal['context']);
   const cost = costOf(proposal['cost']);
   return {
     cut: proposal['cut'] === true,
     ...(context === undefined ? {} : { context }),
     ...(cost === undefined ? {} : { cost }),
   };
+}
+
+function previewOf(value: unknown): PromptPreview | undefined {
+  if (!isRecord(value)) return undefined;
+  const count = (item: unknown): item is number => typeof item === 'number' && Number.isFinite(item) && item >= 0;
+  const optionalCounts = (item: Record<string, unknown>, keys: readonly string[]) => keys.every((key) => item[key] === undefined || count(item[key]));
+  const layerId = (id: unknown) => typeof id === 'string' && ['L0', 'LI', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7'].includes(id);
+  const reference = (item: Record<string, unknown>) => item['ref'] === undefined || contextOverridesOk({ include: [item['ref']] });
+  const reason = (item: unknown): boolean => {
+    if (!isRecord(item)) return false;
+    switch (item['kind']) {
+      case 'writer-excluded': case 'never': case 'empty-description': case 'manual-unattached': case 'withheld': case 'forward-outline': return true;
+      case 'pin-limit': case 'scope-limit': return count(item['limit']);
+      case 'budget': return layerId(item['layer']) && count(item['budget']) && count(item['rank']);
+      case 'total-budget': return layerId(item['layer']) && count(item['total']) && count(item['rank']);
+      case 'instructions-cap': return typeof item['file'] === 'string' && count(item['sentTokens']) && count(item['totalTokens']);
+      case 'reserve-overflow': return layerId(item['layer']) && count(item['need']) && count(item['budget']) && (item['pinned'] === undefined || item['pinned'] === true);
+      default: return false;
+    }
+  };
+  const named = (items: unknown) => Array.isArray(items) && items.every((item: unknown) => isRecord(item) && typeof item['name'] === 'string' && typeof item['reason'] === 'string');
+  if (!count(value['promptTokens']) || !count(value['completionTokens'])) return undefined;
+  const payload = value['payload'];
+  if (!Array.isArray(payload) || !payload.every((message: unknown) => isRecord(message) && typeof message['role'] === 'string' && ['system', 'user', 'assistant', 'tool'].includes(message['role']) &&
+    (typeof message['content'] === 'string' || (Array.isArray(message['content']) && message['content'].every((part: unknown) => isRecord(part) && part['type'] === 'text' && typeof part['text'] === 'string'))) &&
+    (message['parts'] === undefined || (Array.isArray(message['parts']) && message['parts'].every((part: unknown) => isRecord(part) && typeof part['text'] === 'string' && (part['cacheBoundary'] === undefined || typeof part['cacheBoundary'] === 'boolean')))))) return undefined;
+  const images = value['images'];
+  if (!Array.isArray(images) || !images.every((image: unknown) => isRecord(image) && typeof image['hash'] === 'string' && count(image['size']) &&
+    typeof image['mime'] === 'string' && ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(image['mime']) && (image['caption'] === undefined || typeof image['caption'] === 'string'))) return undefined;
+  const layers = value['layers'];
+  if (!Array.isArray(layers) || !layers.every((layer: unknown) => isRecord(layer) && layerId(layer['id']) && typeof layer['name'] === 'string' && typeof layer['included'] === 'boolean' && count(layer['tokens']) &&
+    optionalCounts(layer, ['budget', 'fraction']) && (layer['likelyCached'] === undefined || layer['likelyCached'] === true) &&
+    Array.isArray(layer['notes']) && layer['notes'].every((note: unknown) => typeof note === 'string') &&
+    Array.isArray(layer['drops']) && layer['drops'].every((drop: unknown) => isRecord(drop) && typeof drop['label'] === 'string' && typeof drop['text'] === 'string' && reference(drop) && reason(drop['reason'])) &&
+    (layer['kept'] === undefined || (Array.isArray(layer['kept']) && layer['kept'].every((item: unknown) => isRecord(item) && typeof item['label'] === 'string' && typeof item['reason'] === 'string' && count(item['tokens']) && reference(item)))))) return undefined;
+  const codex = value['codex'];
+  const story = value['storySoFar'];
+  if (!isRecord(codex) || !named(codex['included']) || !named(codex['dropped']) || !isRecord(story) || !count(story['omittedOlder']) || !Array.isArray(story['included']) || !story['included'].every((item: unknown) => typeof item === 'string')) return undefined;
+  const focus = value['focus'];
+  if (focus !== undefined && (!isRecord(focus) || typeof focus['head'] !== 'string' || typeof focus['summary'] !== 'string')) return undefined;
+  const window = value['window'];
+  if (window !== undefined && (!isRecord(window) || !count(window['contextWindow']) || (window['warning'] !== undefined && typeof window['warning'] !== 'string'))) return undefined;
+  const cache = value['cache'];
+  if (cache !== undefined && (!isRecord(cache) || typeof cache['key'] !== 'string' || !count(cache['prefixTokens']) || !count(cache['readMultiplier']))) return undefined;
+  const cost = value['cost'];
+  if (cost !== undefined && (!isRecord(cost) || !count(cost['promptUsd']) || !count(cost['completionUsd']) || !count(cost['totalUsd']) || !optionalCounts(cost, ['cachedTokens']) || (cost['includesThinking'] !== undefined && cost['includesThinking'] !== true))) return undefined;
+  return value as unknown as PromptPreview;
 }
 
 /** The card a state renders to, with the preflight and the previews that were run for it. */

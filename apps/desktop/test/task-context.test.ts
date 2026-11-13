@@ -7,7 +7,7 @@ import { mockGateway } from '../../../packages/harness/test/agent/gateway.js';
 import { prose, steps, transcript } from '../../../packages/harness/test/agent/scripts.js';
 import type { AppDb } from '../src/app/app-db.js';
 import { TaskQueue, type TaskAgent } from '../src/app/task-queue.js';
-import { TaskStore, asTaskRecord, reviewOf, taskKey } from '../src/app/task-store.js';
+import { TaskStore, asTaskRecord, reviewOf, taskKey, type TaskRecord } from '../src/app/task-store.js';
 
 const PROJECT = 'p_TASKPROJ01';
 const step: PlanStep = { tool: 'scene.draft', params: { doc: 'Scene', instruction: 'Open.', mode: 'draft' }, expect: 'A draft' };
@@ -175,15 +175,21 @@ it('keeps every staged synopsis prompt when rebuilding its review batch', async 
   const documents = [STORM, FRIEND];
   const items = documents.map((id) => ({ docId: id, synopsis: 'A synopsis.' }));
   const previews = documents.map((id) => context.assemble({ task: { tool: 'synopsis.fill', focus: id, instruction: 'Summarise.', overrides: contextOverrides }, role: 'Draft.' }).preview);
-  const review = reviewOf({ ...queue.snapshot()[0]!, contextOverrides, steps: [{ tool: 'synopsis.fill', params: { docs: documents, source: 'text' }, expect: 'Two synopses' }],
+  const task: TaskRecord = { ...queue.snapshot()[0]!, contextOverrides, steps: [{ tool: 'synopsis.fill', params: { docs: documents, source: 'text' }, expect: 'Two synopses' }],
     items: documents.map((id, index) => ({ key: `0:${id}`, step: 0, ref: id, state: 'staged', proposal: {
       items: [items[index]], context: previews[index],
     } })),
-  });
+  };
+  const review = reviewOf(task);
   expect(review.proposals[0]).toMatchObject({ items, context: {
     payload: previews.flatMap((preview) => preview.payload),
     promptTokens: previews.reduce((sum, preview) => sum + preview.promptTokens, 0),
     layers: expect.arrayContaining([expect.objectContaining({ id: 'L2', kept: expect.arrayContaining([expect.objectContaining({ ref: { kind: 'codex', id: ENTRY } })]) })]),
   } });
+  for (const damaged of [{}, { ...previews[0], layers: [{}] }]) {
+    const stored = { ...task, items: task.items.map((item) => ({ ...item, proposal: { items: [{ docId: item.ref!, synopsis: 'A synopsis.' }], context: damaged } })) };
+    expect(asTaskRecord(stored, PROJECT)?.contextOverrides).toEqual(contextOverrides);
+    expect(reviewOf(stored).proposals[0]).toEqual({ items });
+  }
   await queue.close();
 });
