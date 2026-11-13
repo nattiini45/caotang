@@ -1,7 +1,8 @@
 # import-novelcrafter — the NovelCrafter manuscript and codex reader
 
-Status: specified (import epic #263, issue #292). The Markdown reader (#280), the splitter (`import-core`) and the preview dialog
-(#273) are shared; the codex batch (`codex.importBatch`) commits the entries. The DOCX manuscript variant needs the DOCX reader (#279).
+Status: built (#292, epic #263): reader, Worker, preview, UI, guides and e2e. Package `@caotang/import-novelcrafter`. The Markdown
+reader (#280), the splitter (`import-core`) and the preview dialog (#273) are shared; the codex batch (`codex.importBatch`) commits the
+entries. The DOCX manuscript variant needs the DOCX reader (#279).
 
 ## 1. What it reads
 
