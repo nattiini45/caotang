@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Self-hostable server skeleton.** A standalone Worker module provides GitHub sign-in with state, PKCE and secure signed cookies, plus per-identity hibernating WebSocket connectivity. It is not imported by the browser app, stores no projects and does not enable sync in the local app. Runtime tests mock GitHub and exercise real WebSocket upgrades.
+
 - **Durable agent sessions.** Conversations stay with each project in this browser across reloads. Sessions opens earlier conversations, starts a new one, exports Markdown with a JSON head, or deletes one. Fork from here branches only the conversation, never the manuscript. Settings › Data controls session count/age and shows retained run-log size. Restoring an earlier-visit turn still requires its tab's undo history; Activity's durable run restore is separate.
 
 - **Request-local context controls.** The agent composer estimates prompt capacity as you type, previews the planner request without a provider call and shows actual planner meters while running. `@` pins codex entries or up to three bounded document excerpts; shared previews can leave optional items out, with fresh approval after a plan-step context edit. Queued requests retain their own choices. Saved inclusion policies, Never and read-deny rules remain unchanged.
