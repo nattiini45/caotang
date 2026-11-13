@@ -18,7 +18,8 @@ type State =
   | { readonly reader: 'rtfd'; readonly archive: ImportArchive }
   | { readonly reader: 'markdown'; readonly bytes: Uint8Array; readonly fileName: string }
   | { readonly reader: 'markdown-archive'; readonly archive: ImportArchive }
-  | { readonly reader: 'obsidian'; readonly archive: ImportArchive };
+  | { readonly reader: 'obsidian'; readonly archive: ImportArchive }
+  | { readonly reader: 'novelcrafter'; readonly archive: ImportArchive };
 
 /** Flattens an RTF or archive refusal to a code and a message, so it survives the structured clone (an Error's own `code` does not). */
 function serialiseRtf(result: RtfReadResult | RtfdReadResult): SerializableRtfResult {
@@ -40,12 +41,16 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
     }
     const { openFolder, openZip } = await import('@caotang/import-read/zip');
     const archive =
-      req.reader === 'rtfd-zip' || req.reader === 'markdown-zip' || req.reader === 'obsidian-zip'
+      req.reader === 'rtfd-zip' || req.reader === 'markdown-zip' || req.reader === 'obsidian-zip' || req.reader === 'novelcrafter-zip'
         ? await openZip(req.bytes)
         : openFolder(req.files.map((file) => ({ path: file.path, size: file.size, read: async () => file.bytes })));
     if (!archive.ok) throw new Error(archive.error.message);
     if (req.reader === 'obsidian-folder' || req.reader === 'obsidian-zip') {
       state = { reader: 'obsidian', archive: archive.value };
+      return;
+    }
+    if (req.reader === 'novelcrafter-folder' || req.reader === 'novelcrafter-zip') {
+      state = { reader: 'novelcrafter', archive: archive.value };
       return;
     }
     state =
@@ -85,6 +90,11 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
       if (state.reader !== 'obsidian') throw new Error('The import reader is not an Obsidian reader.');
       const { readObsidianVault } = await import('@caotang/import-obsidian');
       return { kind: 'obsidian', result: await readObsidianVault(state.archive) };
+    }
+    if (req.reader === 'novelcrafter') {
+      if (state.reader !== 'novelcrafter') throw new Error('The import reader is not a NovelCrafter reader.');
+      const { readNovelCrafterExport } = await import('@caotang/import-novelcrafter');
+      return { kind: 'novelcrafter', result: await readNovelCrafterExport(state.archive) };
     }
     const { readRtf, readRtfd } = await import('@caotang/import-rtf');
     const options = {

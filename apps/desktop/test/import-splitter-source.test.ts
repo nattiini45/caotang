@@ -303,6 +303,33 @@ describe('the sources', () => {
     expect(COMMAND_REGISTRY['binder.importTree'].descriptor.validate({ ...commit.params, pictures: [] }, project() as never).ok).toBe(true);
   });
 
+  it('a codex row’s keywords are kept on the entry the commit makes, and the bus accepts them (#292)', async () => {
+    const opened = plainTextPreviewSource('manuscript-utf8.txt', fixture('packages/import-read/test/fixtures/text/manuscript-utf8.txt'));
+    if (!opened.ok) throw new Error(opened.message);
+    const source = opened.source;
+    await source.load?.(() => {}, new AbortController().signal);
+    const settings = initialSettings(source.chips(), source.options());
+    const plan = source.plan(settings, NO_OVERRIDES);
+    const input: CommitInput = {
+      plan,
+      edits: NO_EDITS,
+      destination: 'manuscript',
+      mapping: {},
+      statuses: [],
+      labels: [],
+      statusAnswers: {},
+      labelAnswers: {},
+      codexRows: [{ id: 'elena', name: 'Elena', type: 'character', keywords: ['captain', 'ferry'], description: 'Elena is the captain.', cite: { quote: 'Mara' } }],
+      codexAnswers: {},
+      codexHeld: [],
+      pictures: [],
+    };
+    const commit = buildCommit(input, PREVIEW_HELPERS);
+    const entry = commit.params.codex?.entries[0];
+    expect(entry?.keywords).toEqual(['captain', 'ferry']);
+    expect(COMMAND_REGISTRY['binder.importTree'].descriptor.validate({ ...commit.params, pictures: [] }, project() as never).ok).toBe(true);
+  });
+
   it('a Windows-1252 guess is an encoding chip, and the report says it is a guess', async () => {
     const opened = plainTextPreviewSource('manuscript-cp1252.txt', fixture('packages/import-read/test/fixtures/text/manuscript-cp1252.txt'));
     if (!opened.ok) throw new Error(opened.message);

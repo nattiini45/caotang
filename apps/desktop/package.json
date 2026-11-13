@@ -33,6 +33,7 @@
     "@caotang/ids": "workspace:*",
     "@caotang/import-core": "workspace:*",
     "@caotang/import-markdown": "workspace:*",
+    "@caotang/import-novelcrafter": "workspace:*",
     "@caotang/import-obsidian": "workspace:*",
     "@caotang/import-read": "workspace:*",
     "@caotang/import-rtf": "workspace:*",

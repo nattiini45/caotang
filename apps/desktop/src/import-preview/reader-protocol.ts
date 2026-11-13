@@ -14,6 +14,7 @@ import type { ParagraphMode, PlainTextRead } from '@caotang/import-read/text';
 import type { RtfImport } from '@caotang/import-rtf';
 import type { MarkdownResult } from '@caotang/import-markdown';
 import type { ObsidianResult } from '@caotang/import-obsidian';
+import type { NovelCrafterResult } from '@caotang/import-novelcrafter';
 import type { DecodableEncoding } from '@caotang/store/encoding';
 
 /** Opens a reader with its input. The bytes (or folder files) are transferred to the Worker and cached there. */
@@ -26,14 +27,17 @@ export type ReaderOpen =
   | { readonly kind: 'open'; readonly reader: 'markdown-folder'; readonly files: readonly { readonly path: string; readonly size: number; readonly bytes: Uint8Array }[] }
   | { readonly kind: 'open'; readonly reader: 'markdown-zip'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'obsidian-folder'; readonly files: readonly { readonly path: string; readonly size: number; readonly bytes: Uint8Array }[] }
-  | { readonly kind: 'open'; readonly reader: 'obsidian-zip'; readonly bytes: Uint8Array };
+  | { readonly kind: 'open'; readonly reader: 'obsidian-zip'; readonly bytes: Uint8Array }
+  | { readonly kind: 'open'; readonly reader: 'novelcrafter-folder'; readonly files: readonly { readonly path: string; readonly size: number; readonly bytes: Uint8Array }[] }
+  | { readonly kind: 'open'; readonly reader: 'novelcrafter-zip'; readonly bytes: Uint8Array };
 
 /** Reads the cached input again with these options. A text read decodes and builds blocks; an RTF read parses. */
 export type ReaderRead =
   | { readonly kind: 'read'; readonly reader: 'text'; readonly encoding?: DecodableEncoding; readonly paragraphs?: ParagraphMode | 'auto'; readonly fileName?: string }
   | { readonly kind: 'read'; readonly reader: 'rtf' | 'rtfd'; readonly underlineAs?: 'italic' | 'none'; readonly assetPrefix?: string }
   | { readonly kind: 'read'; readonly reader: 'markdown'; readonly encoding?: DecodableEncoding }
-  | { readonly kind: 'read'; readonly reader: 'obsidian' };
+  | { readonly kind: 'read'; readonly reader: 'obsidian' }
+  | { readonly kind: 'read'; readonly reader: 'novelcrafter' };
 
 /** An RTF or `.rtfd` read's result, with its error flattened to a code and a message so it survives the clone. */
 export type SerializableRtfResult =
@@ -45,7 +49,8 @@ export type ReaderResult =
   | { readonly kind: 'text'; readonly result: PlainTextRead }
   | { readonly kind: 'rtf'; readonly result: SerializableRtfResult }
   | { readonly kind: 'markdown'; readonly result: MarkdownResult }
-  | { readonly kind: 'obsidian'; readonly result: ObsidianResult };
+  | { readonly kind: 'obsidian'; readonly result: ObsidianResult }
+  | { readonly kind: 'novelcrafter'; readonly result: NovelCrafterResult };
 
 /** The envelope the Worker posts back: the request's id, and its result or a failure message. */
 export interface ReaderReply {
@@ -71,6 +76,7 @@ export function resultTransferList(result: ReaderResult): Transferable[] {
   if (result.kind === 'rtf' && result.result.ok) assetData = result.result.value.assetData;
   else if (result.kind === 'markdown' && result.result.ok) assetData = result.result.value.assetData;
   else if (result.kind === 'obsidian' && result.result.ok) assetData = result.result.value.assetData;
+  else if (result.kind === 'novelcrafter' && result.result.ok) assetData = result.result.value.assetData;
   if (assetData === null) return [];
   const seen = new Set<ArrayBuffer>();
   const buffers: Transferable[] = [];

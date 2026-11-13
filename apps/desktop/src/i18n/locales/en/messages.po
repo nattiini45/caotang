@@ -827,9 +827,11 @@ msgid "{count, plural, one {An image was dropped when the project opened, becaus
 msgstr "{count, plural, one {An image was dropped when the project opened, because its file is not in the project.} other {# images were dropped when the project opened, because their files are not in the project.}}"
 
 #. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/markdown-source.ts
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
 #: apps/desktop/src/import-preview/obsidian-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "{count, plural, one {Import # picture} other {Import # pictures}}"
@@ -1191,6 +1193,11 @@ msgstr "{field}: {message}"
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "{field}: {to}"
 msgstr "{field}: {to}"
+
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
+msgid "{fields, plural, one {# custom field kept in the research text} other {# custom fields kept in the research text}}"
+msgstr "{fields, plural, one {# custom field kept in the research text} other {# custom fields kept in the research text}}"
 
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
@@ -1618,6 +1625,11 @@ msgstr "{plainCount, plural, one {# resource listed by this server.} other {# re
 msgid "{product} documentation"
 msgstr "{product} documentation"
 
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
+msgid "{progressions, plural, one {# progression stays in NovelCrafter} other {# progressions stay in NovelCrafter}}"
+msgstr "{progressions, plural, one {# progression stays in NovelCrafter} other {# progressions stay in NovelCrafter}}"
+
 #. Interpolated values: completion, count, levels, prompt, window
 #: apps/desktop/src/app/provider-details.ts
 msgid "{prompt} in, {completion} out per 1,000 tokens"
@@ -1687,6 +1699,11 @@ msgstr "{reading}."
 #: apps/desktop/src/app/binder-model.ts
 msgid "{refusal} Select a chapter first, or make one with New folder."
 msgstr "{refusal} Select a chapter first, or make one with New folder."
+
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
+msgid "{relations, plural, one {# relation listed as a Connection} other {# relations listed as Connections}}"
+msgstr "{relations, plural, one {# relation listed as a Connection} other {# relations listed as Connections}}"
 
 #. The picture board's storage actions. count, removed and remaining are numbers; name and title are a picture's caption or a file name; reason and detail are a sentence a command or a browser wrote.
 #: apps/desktop/src/media/picture-storage-model.ts
@@ -1953,6 +1970,11 @@ msgstr "{summary} {catalog}"
 msgid "{synopsisCount, plural, one {# synopsis, shown before approval} other {# synopses, shown before approval}}"
 msgstr "{synopsisCount, plural, one {# synopsis, shown before approval} other {# synopses, shown before approval}}"
 
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
+msgid "{thumbnails, plural, one {# thumbnail kept as a picture} other {# thumbnails kept as pictures}}"
+msgstr "{thumbnails, plural, one {# thumbnail kept as a picture} other {# thumbnails kept as pictures}}"
+
 #. Interpolated values: calls, count, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "{title} · fork {number}"
@@ -2164,6 +2186,11 @@ msgstr "{width} × {height} px ({megapixels} MP)"
 #: apps/desktop/src/import-preview/obsidian-source.ts
 msgid "{wikilinks, plural, one {# wikilink became its display text} other {# wikilinks became their display text}}"
 msgstr "{wikilinks, plural, one {# wikilink became its display text} other {# wikilinks became their display text}}"
+
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
+msgid "{withNotes, plural, one {# entry’s notes kept as research notes} other {# entries’ notes kept as research notes}}"
+msgstr "{withNotes, plural, one {# entry’s notes kept as research notes} other {# entries’ notes kept as research notes}}"
 
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
@@ -2948,9 +2975,11 @@ msgid "about {size}"
 msgstr "about {size}"
 
 #. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/markdown-source.ts
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
 #: apps/desktop/src/import-preview/obsidian-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "About {size} MB."
@@ -4965,6 +4994,11 @@ msgstr "Characters, places and lore that recur in the prose are kept here. Their
 #: apps/desktop/src/components/UsageBreakdown.tsx
 msgid "Chat"
 msgstr "Chat"
+
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
+msgid "Chats, snippets and prompts are not part of the export."
+msgstr "Chats, snippets and prompts are not part of the export."
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
@@ -8388,6 +8422,16 @@ msgstr "Import Markdown…"
 
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import NovelCrafter folder…"
+msgstr "Import NovelCrafter folder…"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import NovelCrafter zip…"
+msgstr "Import NovelCrafter zip…"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
 msgid "Import Obsidian vault…"
 msgstr "Import Obsidian vault…"
 
@@ -8803,6 +8847,11 @@ msgstr "It also takes back these later changes, oldest first:"
 msgid "It has more lines than a Markdown import reads."
 msgstr "It has more lines than a Markdown import reads."
 
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
+msgid "It holds no codex entries and no manuscript."
+msgstr "It holds no codex entries and no manuscript."
+
 #. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/markdown-source.ts
 msgid "It holds no Markdown files."
@@ -8837,6 +8886,11 @@ msgstr "It is larger than an RTF import reads."
 #: apps/desktop/src/import-preview/markdown-source.ts
 msgid "It is not a Markdown import."
 msgstr "It is not a Markdown import."
+
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
+msgid "It is not a NovelCrafter import."
+msgstr "It is not a NovelCrafter import."
 
 #. Picture drops on a storyboard. Interpolated values: name and title are a file name and a shot title; number is a shot number; reason is a sentence ending or a failure message; where is a shot position; shotId is an id; counts are numbers.
 #: apps/desktop/src/media/shot-image-model.ts
@@ -11185,6 +11239,11 @@ msgstr "not grouped"
 msgid "Not in the project yet"
 msgstr "Not in the project yet"
 
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
+msgid "Not in this import"
+msgstr "Not in this import"
+
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Not placed on the project or a binder item."
 msgstr "Not placed on the project or a binder item."
@@ -11438,6 +11497,26 @@ msgstr "Nothing was imported."
 #: apps/desktop/src/components/Home.tsx
 msgid "Nothing was opened or changed."
 msgstr "Nothing was opened or changed."
+
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
+msgid "NovelCrafter codex"
+msgstr "NovelCrafter codex"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "NovelCrafter export"
+msgstr "NovelCrafter export"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "NovelCrafter export folder"
+msgstr "NovelCrafter export folder"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "NovelCrafter export zip"
+msgstr "NovelCrafter export zip"
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
@@ -13111,10 +13190,12 @@ msgid "harness.progress.docRead.active"
 msgstr "Reading “{doc}”"
 
 #. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/markdown-source.ts
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
 #: apps/desktop/src/import-preview/obsidian-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 #: apps/desktop/src/import-preview/text-source.ts
@@ -17511,6 +17592,16 @@ msgstr "The notes of “<0/>”, word by word from the old to the new ({wordsBef
 
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "The NovelCrafter export could not be read: {problem}"
+msgstr "The NovelCrafter export could not be read: {problem}"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "The NovelCrafter export is too large to import."
+msgstr "The NovelCrafter export is too large to import."
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
 msgid "The Obsidian vault could not be read: {problem}"
 msgstr "The Obsidian vault could not be read: {problem}"
 
@@ -20136,10 +20227,20 @@ msgstr "what goes in"
 msgid "What should Caotang do with it?"
 msgstr "What should Caotang do with it?"
 
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
+msgid "What stays in NovelCrafter"
+msgstr "What stays in NovelCrafter"
+
 #. Interpolated values: count, layerId, max, min
 #: apps/desktop/src/components/ContextSection.tsx
 msgid "What the agent may send the model in one request, in tokens. An empty field keeps the default of the profile and the spec. A change applies from the agent’s next request."
 msgstr "What the agent may send the model in one request, in tokens. An empty field keeps the default of the profile and the spec. A change applies from the agent’s next request."
+
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
+msgid "What the import kept"
+msgstr "What the import kept"
 
 #. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/obsidian-source.ts

@@ -25,6 +25,8 @@ export function ManuscriptImportActions(): ReactNode {
   const mdFolder = useRef<HTMLInputElement>(null);
   const obsidianFolder = useRef<HTMLInputElement>(null);
   const obsidianZip = useRef<HTMLInputElement>(null);
+  const novelcrafterFolder = useRef<HTMLInputElement>(null);
+  const novelcrafterZip = useRef<HTMLInputElement>(null);
 
   const failed = (file: File, failure: unknown): void => {
     const problem = failure instanceof Error ? failure.message : String(failure);
@@ -169,6 +171,43 @@ export function ManuscriptImportActions(): ReactNode {
     }
   };
 
+  const openNovelCrafterZip = async (file: File): Promise<void> => {
+    try {
+      const { novelcrafterZipPreviewSource } = await import('../import-preview/novelcrafter-source.js');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      openImportPreview({ source: novelcrafterZipPreviewSource(file.name, bytes) });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
+  // A NovelCrafter export is a folder of codex entries (and any manuscript); it is picked whole, the bytes read here (I/O) and the
+  // export parsed in the preview's Worker (import-novelcrafter.md).
+  const openNovelCrafterFolder = async (files: readonly File[]): Promise<void> => {
+    const list = [...files];
+    if (list.length === 0) return;
+    try {
+      const { novelcrafterFolderPreviewSource } = await import('../import-preview/novelcrafter-source.js');
+      const { ARCHIVE_LIMITS } = await import('@caotang/import-read/zip');
+      const total = list.reduce((sum, file) => sum + file.size, 0);
+      if (list.length > ARCHIVE_LIMITS.maxEntries || total > ARCHIVE_LIMITS.maxTotalBytes) {
+        report({ text: t`The NovelCrafter export is too large to import.`, tone: 'error' });
+        return;
+      }
+      const top = (list[0]?.webkitRelativePath ?? '').split('/')[0] || t`NovelCrafter export`;
+      const read = await Promise.all(
+        list.map(async (file) => ({
+          path: file.webkitRelativePath === '' ? file.name : file.webkitRelativePath,
+          size: file.size,
+          bytes: new Uint8Array(await file.arrayBuffer()),
+        })),
+      );
+      openImportPreview({ source: novelcrafterFolderPreviewSource(top, read) });
+    } catch (failure) {
+      report({ text: t`The NovelCrafter export could not be read: ${{ problem: failure instanceof Error ? failure.message : String(failure) }}`, tone: 'error' });
+    }
+  };
+
   return (
     <div className="script-import" role="group" aria-label={t`Import a manuscript`}>
       <button type="button" className="button is-quiet" onClick={() => textFile.current?.click()}>
@@ -191,6 +230,12 @@ export function ManuscriptImportActions(): ReactNode {
       </button>
       <button type="button" className="button is-quiet" onClick={() => obsidianFolder.current?.click()}>
         <Trans>Import Obsidian vault…</Trans>
+      </button>
+      <button type="button" className="button is-quiet" onClick={() => novelcrafterZip.current?.click()}>
+        <Trans>Import NovelCrafter zip…</Trans>
+      </button>
+      <button type="button" className="button is-quiet" onClick={() => novelcrafterFolder.current?.click()}>
+        <Trans>Import NovelCrafter folder…</Trans>
       </button>
       <input
         ref={textFile}
@@ -282,6 +327,32 @@ export function ManuscriptImportActions(): ReactNode {
           const list = files === null ? [] : [...files];
           event.currentTarget.value = '';
           if (list.length > 0) void openObsidianFolder(list);
+        }}
+      />
+      <input
+        ref={novelcrafterZip}
+        type="file"
+        hidden
+        accept=".zip"
+        aria-label={t`NovelCrafter export zip`}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file !== undefined) void openNovelCrafterZip(file);
+        }}
+      />
+      <input
+        ref={novelcrafterFolder}
+        type="file"
+        multiple
+        hidden
+        aria-label={t`NovelCrafter export folder`}
+        {...{ webkitdirectory: '' }}
+        onChange={(event) => {
+          const files = event.currentTarget.files;
+          const list = files === null ? [] : [...files];
+          event.currentTarget.value = '';
+          if (list.length > 0) void openNovelCrafterFolder(list);
         }}
       />
     </div>

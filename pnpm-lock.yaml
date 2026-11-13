@@ -291,6 +291,9 @@ importers:
       '@caotang/import-markdown':
         specifier: workspace:*
         version: link:../../packages/import-markdown
+      '@caotang/import-novelcrafter':
+        specifier: workspace:*
+        version: link:../../packages/import-novelcrafter
       '@caotang/import-obsidian':
         specifier: workspace:*
         version: link:../../packages/import-obsidian

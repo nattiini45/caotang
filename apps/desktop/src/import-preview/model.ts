@@ -147,6 +147,8 @@ export interface PreviewCodexRow {
   readonly type: string;
   /** Other names the entry answers to (an Obsidian note's `aliases:`), kept on the codex entry. */
   readonly aliases?: readonly string[];
+  /** Tags the entry carries (a NovelCrafter entry's `tags:`), kept as the codex entry's keywords. */
+  readonly keywords?: readonly string[];
   readonly description?: string;
   /** The passage that names it, in the imported text: the first document (or this node) that holds the quote. */
   readonly cite?: { readonly nodeId?: string; readonly quote: string };
@@ -693,12 +695,6 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
 
   for (const node of tree) push(node, undefined, undefined);
 
-  // The pictures the kept bodies use, and only those.
-  const bodies = nodes.map((node) => node.body ?? '').join('\n');
-  const pictures = input.pictures.filter((picture) => bodies.includes(`](${picture.ref}`));
-  const dropped = input.pictures.length - pictures.length;
-  if (dropped > 0) notices.push(`${plural(dropped, 'picture')} in left-out text ${dropped === 1 ? 'was' : 'were'} not imported.`);
-
   // The codex rows, by the writer's answers.
   const entries: ImportTreeCodexEntry[] = [];
   const pages: { title: string; body: string }[] = [];
@@ -712,7 +708,7 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
     }
     const name = answer.action === 'rename' ? answer.name.trim() : row.name;
     if (name === '') continue;
-    const base = { name, type: row.type, ...(row.aliases === undefined || row.aliases.length === 0 ? {} : { aliases: [...row.aliases] }), ...(row.description === undefined || row.description === '' ? {} : { description: [...row.description].slice(0, 2000).join('') }) };
+    const base = { name, type: row.type, ...(row.aliases === undefined || row.aliases.length === 0 ? {} : { aliases: [...row.aliases] }), ...(row.keywords === undefined || row.keywords.length === 0 ? {} : { keywords: [...row.keywords] }), ...(row.description === undefined || row.description === '' ? {} : { description: [...row.description].slice(0, 2000).join('') }) };
     const cite = citeOf(row, nodes, indexOf);
     if (cite !== undefined) {
       entries.push({ ...base, node: cite.node, cite: { from: cite.from, to: cite.to, quote: cite.quote } });
@@ -726,6 +722,12 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
     }
     notices.push(`“${row.name}” is not named in the imported text, so its codex entry was not made.`);
   }
+
+  // The pictures the kept bodies use, and only those: the manuscript's and the kept research pages' (a codex thumbnail).
+  const bodies = [...nodes.map((node) => node.body ?? ''), ...pages.map((page) => page.body)].join('\n');
+  const pictures = input.pictures.filter((picture) => bodies.includes(`](${picture.ref}`));
+  const dropped = input.pictures.length - pictures.length;
+  if (dropped > 0) notices.push(`${plural(dropped, 'picture')} in left-out text ${dropped === 1 ? 'was' : 'were'} not imported.`);
 
   const vocabulary = {
     ...(addedStatuses.size === 0 ? {} : { statuses: [...addedStatuses] }),

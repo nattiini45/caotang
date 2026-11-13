@@ -75,6 +75,12 @@ export async function readNovelCrafterExport(archive: ImportArchive): Promise<No
     return { ok: false, error: { kind: 'archive', message: manuscriptMessage(manuscript.error) } };
   }
 
+  // Codex thumbnails are assets too, so the preview counts them and the commit keeps them.
+  const thumbnails = [...assetData.entries()]
+    .filter(([ref]) => ref.startsWith('novelcrafter:thumbnail:'))
+    .map(([ref, bytes]) => ({ ref, name: baseOf(ref.slice('novelcrafter:thumbnail:'.length)), bytes: bytes.length }));
+  if (thumbnails.length > 0) document.assets = [...(document.assets ?? []), ...thumbnails];
+
   if (codex.length === 0 && document.blocks.length === 0) return { ok: false, error: { kind: 'empty' } };
   return { ok: true, value: { document, frontMatter, title, assetData, codex, lost: { progressions } } };
 }
