@@ -6,11 +6,12 @@ CREATE TABLE quota_operations (
   revision INTEGER NOT NULL CHECK (typeof(revision) = 'integer' AND revision BETWEEN 1 AND 9007199254740991),
   deadline INTEGER NOT NULL CHECK (typeof(deadline) = 'integer' AND deadline BETWEEN 0 AND 9007199254740991),
   state TEXT NOT NULL CHECK (state IN ('reserved', 'writing', 'committed', 'aborted', 'released')),
+  swept_at INTEGER NOT NULL DEFAULT 0 CHECK (typeof(swept_at) = 'integer' AND swept_at BETWEEN 0 AND 9007199254740991),
   PRIMARY KEY (account_id, operation_id),
   UNIQUE (account_id, object_key)
 );
 
-CREATE INDEX quota_operations_due ON quota_operations(state, deadline);
+CREATE INDEX quota_operations_due ON quota_operations(state, swept_at, deadline);
 
 CREATE TRIGGER quota_reserve BEFORE INSERT ON quota_operations
 BEGIN

@@ -101,14 +101,16 @@ export class QuotaStore {
 
   private async move(operationId: string, event: QuotaEvent['type']): Promise<QuotaResult> {
     if (!identifier(operationId)) return { ok: false, reason: 'invalid' };
-    const now = this.now();
-    if (!integer(now)) return { ok: false, reason: 'invalid' };
     const { accountId, revision } = this.principal;
     const operation = await this.find(operationId);
     if (!await this.usage()) return { ok: false, reason: 'unavailable' };
     if (!operation) return { ok: false, reason: 'not-found' };
     if (operation.revision !== revision) return { ok: false, reason: 'conflict' };
-    if (operation.state === 'committed' || operation.state === 'released') return { ok: true, operation };
+    if (operation.state === 'committed' || operation.state === 'released') {
+      return event === 'begin' ? { ok: false, reason: 'transition' } : { ok: true, operation };
+    }
+    const now = this.now();
+    if (!integer(now)) return { ok: false, reason: 'invalid' };
     if ((event === 'begin' || event === 'commit') && operation.deadline <= now) return { ok: false, reason: 'expired' };
     if ((event === 'cancel' || event === 'abort') && operation.state === 'aborted') return { ok: true, operation };
     const next = quotaMachine.step({ kind: operation.state }, { type: event });
@@ -123,7 +125,7 @@ export class QuotaStore {
     if (updated) return { ok: true, operation: updated };
     if (!await this.usage()) return { ok: false, reason: 'unavailable' };
     const current = await this.find(operationId);
-    if (current && (current.state === next.kind || current.state === 'committed' || current.state === 'released')) {
+    if (current && (event === 'begin' ? current.state === 'writing' : current.state === next.kind || current.state === 'committed' || current.state === 'released')) {
       return { ok: true, operation: current };
     }
     return { ok: false, reason: 'transition' };
@@ -152,17 +154,17 @@ export async function reconcileQuota(
     AND a.status = 'active' AND a.session_revision = quota_operations.revision))`;
   const pending = await session.prepare(`SELECT account_id AS accountId, ${columns} FROM quota_operations
     WHERE state IN ('reserved', 'writing', 'aborted') AND ${due}
-    ORDER BY deadline, account_id, operation_id LIMIT ?`)
+    ORDER BY swept_at, deadline, account_id, operation_id LIMIT ?`)
     .bind(now, options.batchSize).all<QuotaOperation & { accountId: string }>();
   const result: QuotaReconciliation = { examined: pending.results.length, released: 0, deferred: 0 };
   const deferred = new Map<string, number>();
   for (const operation of pending.results) {
     const next = quotaMachine.step({ kind: operation.state }, { type: 'abort' });
     if (next.kind !== 'aborted') continue;
-    const claimed = await session.prepare(`UPDATE quota_operations SET state = ?
+    const claimed = await session.prepare(`UPDATE quota_operations SET state = ?, swept_at = ?
       WHERE account_id = ? AND operation_id = ? AND state = ? AND ${due}
       RETURNING operation_id`)
-      .bind(next.kind, operation.accountId, operation.operationId, operation.state, now).first();
+      .bind(next.kind, now, operation.accountId, operation.operationId, operation.state, now).first();
     if (!claimed) continue;
     let absent = false;
     try {

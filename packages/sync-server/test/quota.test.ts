@@ -34,21 +34,22 @@ async function account(accountId: string, limit = 10) {
 class FakeUploader {
   readonly objects = new Set<string>();
   readonly fenced = new Set<string>();
+  readonly stuck = new Set<string>();
   available = true;
   failWithError = false;
 
-  write(operationId: string, objectKey: string): boolean {
-    if (this.fenced.has(operationId)) return false;
-    this.objects.add(objectKey);
+  write(accountId: string, operationId: string, objectKey: string): boolean {
+    if (this.fenced.has(`${accountId}/${operationId}`)) return false;
+    this.objects.add(`${accountId}/${objectKey}`);
     return true;
   }
 
   async settle(operation: QuotaSettlement): Promise<boolean> {
     if (this.failWithError) throw new Error(`private-adapter-error:${operation.objectKey}`);
-    if (!this.available) return false;
-    this.fenced.add(operation.operationId);
-    this.objects.delete(operation.objectKey);
-    return !this.objects.has(operation.objectKey);
+    if (!this.available || this.stuck.has(`${operation.accountId}/${operation.operationId}`)) return false;
+    this.fenced.add(`${operation.accountId}/${operation.operationId}`);
+    this.objects.delete(`${operation.accountId}/${operation.objectKey}`);
+    return !this.objects.has(`${operation.accountId}/${operation.objectKey}`);
   }
 }
 
@@ -90,12 +91,12 @@ describe('the D1 quota seam', () => {
     const uploader = new FakeUploader();
     await store.reserve('lease-op', 'lease-object', 10);
     await store.beginWrite('lease-op');
-    expect(uploader.write('lease-op', 'lease-object')).toBe(true);
+    expect(uploader.write('account-lease', 'lease-op', 'lease-object')).toBe(true);
     expect(await reconcileQuota(db, uploader, { now: () => 1_099, batchSize: 10 })).toEqual({ examined: 0, released: 0, deferred: 0 });
     expect(await store.usage()).toEqual({ limitBytes: 10, usedBytes: 0, reservedBytes: 10 });
     expect(await reconcileQuota(db, uploader, { now: () => 1_100, batchSize: 10 })).toEqual({ examined: 1, released: 1, deferred: 0 });
     expect(uploader.objects.size).toBe(0);
-    expect(uploader.write('lease-op', 'lease-object')).toBe(false);
+    expect(uploader.write('account-lease', 'lease-op', 'lease-object')).toBe(false);
     expect(await store.usage()).toEqual({ limitBytes: 10, usedBytes: 0, reservedBytes: 0 });
     expect(await store.commit('lease-op')).toMatchObject({ ok: true, operation: { state: 'released' } });
   });
@@ -104,10 +105,10 @@ describe('the D1 quota seam', () => {
     const first = await account('account-outage');
     const second = await account('account-other');
     const uploader = new FakeUploader();
-    for (const [store, operation, key] of [[first, 'outage-one', 'opaque-one'], [first, 'outage-two', 'opaque-two'], [second, 'outage-three', 'opaque-three']] as const) {
+    for (const [store, accountId, operation, key] of [[first, 'account-outage', 'outage-one', 'opaque-one'], [first, 'account-outage', 'outage-two', 'opaque-two'], [second, 'account-other', 'outage-three', 'opaque-three']] as const) {
       await store.reserve(operation, key, 4);
       await store.beginWrite(operation);
-      uploader.write(operation, key);
+      uploader.write(accountId, operation, key);
     }
     const log = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
@@ -141,7 +142,7 @@ describe('the D1 quota seam', () => {
     for (const [index, store] of stores.entries()) {
       await store.reserve(`bounded-${index}`, `bounded-object-${index}`, 10);
       await store.beginWrite(`bounded-${index}`);
-      uploader.write(`bounded-${index}`, `bounded-object-${index}`);
+      uploader.write(['account-expired', 'account-revoked', 'account-failed'][index]!, `bounded-${index}`, `bounded-object-${index}`);
     }
     await db.prepare("UPDATE accounts SET status = 'disabled', session_revision = 2 WHERE account_id = ?").bind('account-revoked').run();
     expect(await stores[1]!.commit('bounded-1')).toEqual({ ok: false, reason: 'unavailable' });
@@ -220,7 +221,7 @@ describe('the D1 quota seam', () => {
     await store.reserve('cancel-op', 'cancel-object', 10);
     await store.beginWrite('cancel-op');
     const uploader = new FakeUploader();
-    uploader.write('cancel-op', 'cancel-object');
+    uploader.write('account-cancel-race', 'cancel-op', 'cancel-object');
     await Promise.all([store.commit('cancel-op'), store.cancel('cancel-op'), store.abort('cancel-op')]);
     const after = await store.usage();
     expect(after).toSatisfy((usage: { usedBytes: number; reservedBytes: number }) =>
@@ -245,7 +246,7 @@ describe('the D1 quota seam', () => {
     await reconcileQuota(db, uploader, { now: () => 1_100, batchSize: 10 });
     expect(await store.usage()).toEqual({ limitBytes: 10, usedBytes: 0, reservedBytes: 0 });
     expect(await store.reserve('start-op', 'start-object', 10)).toMatchObject({ ok: true, operation: { state: 'released' } });
-    expect(await store.beginWrite('start-op')).toMatchObject({ ok: true, operation: { state: 'released' } });
+    expect(await store.beginWrite('start-op')).toEqual({ ok: false, reason: 'transition' });
     expect(await store.usage()).toEqual({ limitBytes: 10, usedBytes: 0, reservedBytes: 0 });
   });
 
@@ -269,13 +270,13 @@ describe('the D1 quota seam', () => {
     for (let index = 0; index < 3; index++) await store.reserve(`batch-${index}`, `batch-object-${index}`, 2);
     await db.prepare('UPDATE accounts SET session_revision = 2 WHERE account_id = ?').bind('account-batch').run();
     const uploader = new FakeUploader();
-    uploader.objects.add('retained-object');
+    uploader.objects.add('account-batch/retained-object');
     expect(await reconcileQuota(db, uploader, { now: () => 1_050, batchSize: 2 })).toEqual({ examined: 2, released: 2, deferred: 0 });
     const renewed = new QuotaStore(db, { accountId: 'account-batch', revision: 2 }, { leaseMs: 100, now: () => 1_050 });
     expect(await renewed.usage()).toEqual({ limitBytes: 10, usedBytes: 4, reservedBytes: 2 });
     expect(await reconcileQuota(db, uploader, { now: () => 1_050, batchSize: 2 })).toEqual({ examined: 1, released: 1, deferred: 0 });
     expect(await renewed.usage()).toEqual({ limitBytes: 10, usedBytes: 4, reservedBytes: 0 });
-    expect([...uploader.objects]).toEqual(['retained-object']);
+    expect([...uploader.objects]).toEqual(['account-batch/retained-object']);
     for (const batchSize of [0, -1, 0.5, 1_001, Number.POSITIVE_INFINITY]) {
       await expect(reconcileQuota(db, uploader, { now: () => 1_050, batchSize })).rejects.toThrow(RangeError);
     }
@@ -286,7 +287,7 @@ describe('the D1 quota seam', () => {
     await store.reserve('settling-op', 'settling-object', 10);
     await store.beginWrite('settling-op');
     const uploader = new FakeUploader();
-    uploader.write('settling-op', 'settling-object');
+    uploader.write('account-settling', 'settling-op', 'settling-object');
     let finish: () => void = () => {};
     let entered: () => void = () => {};
     const started = new Promise<void>((resolve) => { entered = resolve; });
@@ -305,6 +306,70 @@ describe('the D1 quota seam', () => {
     finish();
     expect(await sweep).toEqual({ examined: 1, released: 1, deferred: 0 });
     expect(await store.usage()).toEqual({ limitBytes: 10, usedBytes: 0, reservedBytes: 0 });
-    expect(uploader.write('settling-op', 'settling-object')).toBe(false);
+    expect(uploader.write('account-settling', 'settling-op', 'settling-object')).toBe(false);
+  });
+
+  it('refuses to begin a write on a committed or released operation', async () => {
+    const store = await account('account-terminal-begin');
+    await store.reserve('committed-op', 'committed-object', 3);
+    await store.beginWrite('committed-op');
+    await store.commit('committed-op');
+    await store.reserve('released-op', 'released-object', 3);
+    await store.cancel('released-op');
+    expect(await store.beginWrite('committed-op')).toEqual({ ok: false, reason: 'transition' });
+    expect(await store.beginWrite('released-op')).toEqual({ ok: false, reason: 'transition' });
+    expect(await store.usage()).toEqual({ limitBytes: 10, usedBytes: 3, reservedBytes: 0 });
+  });
+
+  it('samples the clock again after reading, so a lease that lapsed during the reads is refused', async () => {
+    const seed = await account('account-clock');
+    await seed.reserve('clock-op', 'clock-object', 5);
+    let clock = 1_050;
+    const lapsing = new Proxy(db, { get: (target, property) => property === 'withSession' ? (...args: Parameters<D1Database['withSession']>) => { clock = 1_100; return target.withSession(...args); } : Reflect.get(target, property) });
+    const slow = new QuotaStore(lapsing, { accountId: 'account-clock', revision: 1 }, { leaseMs: 100, now: () => clock });
+    expect(await slow.beginWrite('clock-op')).toEqual({ ok: false, reason: 'expired' });
+    expect(await slow.usage()).toEqual({ limitBytes: 10, usedBytes: 0, reservedBytes: 5 });
+  });
+
+  it('retries a stuck settlement behind operations it has not yet tried', async () => {
+    const store = await account('account-fair', 100);
+    const uploader = new FakeUploader();
+    for (const index of [1, 2, 3, 4]) {
+      await store.reserve(`fair-${index}`, `fair-object-${index}`, 1);
+      await store.beginWrite(`fair-${index}`);
+      uploader.write('account-fair', `fair-${index}`, `fair-object-${index}`);
+    }
+    uploader.stuck.add('account-fair/fair-1');
+    uploader.stuck.add('account-fair/fair-2');
+    const log = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await reconcileQuota(db, uploader, { now: () => 1_100, batchSize: 2 })).toEqual({ examined: 2, released: 0, deferred: 2 });
+      expect(await reconcileQuota(db, uploader, { now: () => 1_200, batchSize: 2 })).toEqual({ examined: 2, released: 2, deferred: 0 });
+      expect(await store.usage()).toEqual({ limitBytes: 100, usedBytes: 0, reservedBytes: 2 });
+      expect(await reconcileQuota(db, uploader, { now: () => 1_300, batchSize: 2 })).toEqual({ examined: 2, released: 0, deferred: 2 });
+      uploader.stuck.clear();
+      expect(await reconcileQuota(db, uploader, { now: () => 1_400, batchSize: 2 })).toEqual({ examined: 2, released: 2, deferred: 0 });
+      expect(await store.usage()).toEqual({ limitBytes: 100, usedBytes: 0, reservedBytes: 0 });
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it('scopes writer fences and object identities to the account when two accounts share operation and object names', async () => {
+    const first = await account('account-scope-one');
+    const second = await account('account-scope-two');
+    const uploader = new FakeUploader();
+    for (const [store, accountId] of [[first, 'account-scope-one'], [second, 'account-scope-two']] as const) {
+      await store.reserve('shared-op', 'shared-object', 4);
+      await store.beginWrite('shared-op');
+      uploader.write(accountId, 'shared-op', 'shared-object');
+    }
+    await db.prepare('UPDATE accounts SET session_revision = 2 WHERE account_id = ?').bind('account-scope-one').run();
+    expect(await reconcileQuota(db, uploader, { now: () => 1_050, batchSize: 10 })).toEqual({ examined: 1, released: 1, deferred: 0 });
+    expect([...uploader.objects]).toEqual(['account-scope-two/shared-object']);
+    expect(uploader.write('account-scope-one', 'shared-op', 'shared-object')).toBe(false);
+    expect(uploader.write('account-scope-two', 'shared-op', 'shared-object')).toBe(true);
+    expect(await second.commit('shared-op')).toMatchObject({ ok: true, operation: { state: 'committed' } });
+    expect(await second.usage()).toEqual({ limitBytes: 10, usedBytes: 4, reservedBytes: 0 });
   });
 });
