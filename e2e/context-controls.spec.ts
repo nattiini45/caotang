@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type BrowserContextOptions, type Page } from '@playwright/test';
+import { classicPin } from './classic-pin.js';
 import { endpointRoute, fakeEndpoint, planThenAnswer, useFakeEndpoint as addFakeProvider, type FakeRequest } from './endpoint.js';
 import { binderTitle, idOf, projectTrace, loose, waitForSaved } from './support.js';
 
@@ -111,11 +112,34 @@ test('context completion ignores emails and composing text and does not offer re
   await expect(popup(page)).not.toContainText('The Landing');
 });
 
+type ProviderState = Exclude<BrowserContextOptions['storageState'], string | undefined>;
+
+const backgroundTest = test.extend<{ storageState: ProviderState }, { providerState: ProviderState }>({
+  providerState: [async ({ browser }, provide, workerInfo) => {
+    const { baseURL, locale } = workerInfo.project.use;
+    const context = await browser.newContext({ baseURL, locale, storageState: classicPin(baseURL === undefined ? [] : [new URL(baseURL).origin]) });
+    let state: ProviderState;
+    try {
+      const page = await context.newPage();
+      await fakeEndpoint(page, () => ({ text: 'Answered.' }));
+      await addFakeProvider(page);
+      state = await context.storageState({ indexedDB: true });
+    } finally {
+      await context.close();
+    }
+    await provide(state);
+  }, { scope: 'worker' }],
+  storageState: async ({ providerState }, provide) => { await provide(providerState); },
+});
+
 for (const shell of ['classic', 'modern'] as const) {
-  test(`${shell} background tasks retain context choices in payloads and review after reload`, async ({ page }, testInfo) => {
+  backgroundTest(`${shell} background tasks retain context choices in payloads and review after reload`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.addInitScript((value) => localStorage.setItem('caotang.interface', value), shell);
-    await sample(page);
+    await fakeEndpoint(page, (request) => request.tools === undefined ? JSON.stringify({ reply: 'Answered.' }) : { text: 'Answered.' });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Check for continuity problems', exact: true }).click();
+    await expect(page.getByTestId('agent-panel')).toHaveAttribute('data-state', 'idle');
     if (shell === 'modern') {
       await page.getByTestId('agent-close').click();
       await page.getByRole('navigation', { name: 'Views and tools' }).getByRole('radio', { name: 'Codex', exact: true }).click();
