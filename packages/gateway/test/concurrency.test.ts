@@ -164,6 +164,77 @@ describe('shared gateway completion admission', () => {
     expect(h.clock.pending).toBe(0);
   });
 
+  it.each([false, true])('pauses at 429 headers while its body is stalled, even if cancelled: %s', async (cancel) => {
+    const stalled = openSse();
+    const net = new ScriptedFetch().push(
+      () => new Response(stalled.response.body, { status: 429, headers: { 'retry-after': '2' } }),
+      () => sseResponse([finish('stop'), '[DONE]']),
+    );
+    const h = harness({ net, retry: { maxRetries: 0 } });
+    await addEndpoint(h, { maxConcurrentRequests: 2 });
+    const abort = new AbortController();
+    const active = collect(h.gateway.complete(userMessage('limited'), abort.signal));
+    await flush();
+    const queued = h.gateway.completeOnce(userMessage('queued'));
+    await flush();
+    expect(net.calls).toHaveLength(1);
+    if (cancel) abort.abort();
+    h.clock.advance(1_999);
+    await flush();
+    expect(net.calls).toHaveLength(1);
+    h.clock.advance(1);
+    await queued;
+    expect(net.calls).toHaveLength(2);
+    stalled.close();
+    const result = await active;
+    if (cancel) expect(result.chunks.at(-1)?.finishReason).toBe('error');
+    else expect(result.error).toMatchObject({ kind: 'rate_limit' });
+    expect(h.gateway.requestLog.entries().find((entry) => entry.outcome === (cancel ? 'cancelled' : 'failed'))?.status).toBe(429);
+    expect(h.clock.pending).toBe(0);
+  });
+
+  it('selects one fallback delay for both header-time pause and the admitted retry', async () => {
+    const random = vi.fn().mockReturnValueOnce(0).mockReturnValue(1);
+    const net = new ScriptedFetch().push(
+      () => new Response('Slow down', { status: 429 }),
+      () => sseResponse([finish('stop'), '[DONE]']),
+    );
+    const h = harness({ net, random, retry: { maxRetries: 1 } });
+    await addEndpoint(h, { maxConcurrentRequests: 1 });
+    const active = h.gateway.completeOnce(userMessage('retry'));
+    await flush();
+    h.clock.advance(799);
+    await flush();
+    expect(net.calls).toHaveLength(1);
+    h.clock.advance(1);
+    await active;
+    expect(net.calls).toHaveLength(2);
+    expect(random).toHaveBeenCalledTimes(1);
+    expect(h.clock.pending).toBe(0);
+  });
+
+  it('keeps a dated Retry-After absolute when reading the error body takes time', async () => {
+    const stalled = openSse();
+    const net = new ScriptedFetch().push(
+      () => new Response(stalled.response.body, { status: 429, headers: { 'retry-after': new Date(h.clock.now() + 2_000).toUTCString() } }),
+      () => sseResponse([finish('stop'), '[DONE]']),
+    );
+    const h = harness({ net, retry: { maxRetries: 1 } });
+    await addEndpoint(h, { maxConcurrentRequests: 1 });
+    const active = h.gateway.completeOnce(userMessage('retry'));
+    await flush();
+    h.clock.advance(1_000);
+    stalled.close();
+    await flush();
+    h.clock.advance(999);
+    await flush();
+    expect(net.calls).toHaveLength(1);
+    h.clock.advance(1);
+    await active;
+    expect(net.calls).toHaveLength(2);
+    expect(h.clock.pending).toBe(0);
+  });
+
   it.each([
     { label: 'missing', header: undefined },
     { label: 'unreadable', header: 'not a delay' },

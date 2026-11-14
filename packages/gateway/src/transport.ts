@@ -391,7 +391,7 @@ async function statusError(deps: TransportDeps, spec: CallSpec, response: Respon
  * One connection attempt: egress check, fetch, the connect deadline, and the status
  * mapping. Returns the response only for a 2xx. Everything else throws.
  */
-async function connect(deps: TransportDeps, spec: CallSpec, deadline: Deadline, controller: AbortController): Promise<Response> {
+async function connect(deps: TransportDeps, spec: CallSpec, deadline: Deadline, controller: AbortController, onRateLimit?: (response: Response) => void): Promise<Response> {
   assertEgress(deps, spec.url, spec.profileId);
 
   const headers: Record<string, string> = { accept: spec.accept, ...spec.headers };
@@ -442,14 +442,15 @@ async function connect(deps: TransportDeps, spec: CallSpec, deadline: Deadline, 
       `${spec.host} redirected the request. Caotang does not follow redirects, so set the base URL to the final address in Settings.`,
     );
   }
+  if (response.status === 429) onRateLimit?.(response);
   if (!response.ok) throw await statusError(deps, spec, response);
   return response;
 }
 
 /** The wait before the next attempt: the provider's `Retry-After` if it sent one, else the backoff. */
-function retryWait(deps: TransportDeps, err: ProviderError, retries: number, maxRetries: number, totalAt: number): number | undefined {
+function retryWait(deps: TransportDeps, err: ProviderError, retries: number, maxRetries: number, totalAt: number, selectedBackoff?: number): number | undefined {
   if (!isRetryable(err) || retries >= maxRetries) return undefined;
-  const wait = err.retryAfterMs ?? backoffMs(retries, deps.random, deps.retry);
+  const wait = err.retryAfterMs ?? selectedBackoff ?? backoffMs(retries, deps.random, deps.retry);
   return deps.clock.now() + wait < totalAt ? wait : undefined;
 }
 
@@ -614,10 +615,15 @@ export async function* streamChat(
       stats.attempts += 1;
       const deadline: Deadline = { attemptStart: clock.now(), totalAt };
       let status: number | undefined;
+      let rateLimitDelay: number | undefined;
       controller = new AbortController();
 
       try {
-        const response = await connect(deps, spec, deadline, controller);
+        const response = await connect(deps, spec, deadline, controller, (response) => {
+          status = response.status;
+          rateLimitDelay = parseRetryAfter(response.headers.get('retry-after'), clock.now()) ?? backoffMs(retries, deps.random, deps.retry);
+          spec.onRateLimit?.(rateLimitDelay);
+        });
         status = response.status;
         const outcome = yield* readStream(deps, spec, response, deadline, state);
         const usage = outcome.usage ?? estimated();
@@ -638,9 +644,9 @@ export async function* streamChat(
         stats.usage = estimated();
         stats.usageSource = 'estimate';
         const wait =
-          err instanceof ProviderError && !state.sawDelta ? retryWait(deps, err, retries, maxRetries, totalAt) : undefined;
+          err instanceof ProviderError && !state.sawDelta ? retryWait(deps, err, retries, maxRetries, totalAt, rateLimitDelay) : undefined;
 
-        if (err instanceof ProviderError && err.kind === 'rate_limit') {
+        if (err instanceof ProviderError && err.kind === 'rate_limit' && rateLimitDelay === undefined) {
           spec.onRateLimit?.(err.retryAfterMs ?? wait ?? backoffMs(retries, deps.random, deps.retry));
         }
 
