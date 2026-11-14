@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type BrowserContextOptions, type Page } from '@playwright/test';
+import { classicPin } from './classic-pin.js';
 import { endpointRoute, fakeEndpoint, planThenAnswer, useFakeEndpoint as addFakeProvider, type FakeRequest } from './endpoint.js';
 import { binderTitle, idOf, projectTrace, loose, waitForSaved } from './support.js';
 
@@ -111,22 +112,49 @@ test('context completion ignores emails and composing text and does not offer re
   await expect(popup(page)).not.toContainText('The Landing');
 });
 
+type BackgroundState = Exclude<BrowserContextOptions['storageState'], string | undefined>;
+type BackgroundShell = 'classic' | 'modern';
+
 for (const shell of ['classic', 'modern'] as const) {
-  test(`${shell} background tasks retain context choices in payloads and review after reload`, async ({ page }, testInfo) => {
+  const backgroundTest = test.extend<{ storageState: BackgroundState }, { backgroundShell: BackgroundShell; backgroundState: BackgroundState }>({
+    backgroundShell: [shell, { scope: 'worker', option: true }],
+    backgroundState: [async ({ browser, backgroundShell }, provide, workerInfo) => {
+      const { baseURL, locale } = workerInfo.project.use;
+      const context = await browser.newContext({ baseURL, locale, viewport: { width: 1280, height: 900 }, storageState: classicPin(baseURL === undefined ? [] : [new URL(baseURL).origin]) });
+      let state: BackgroundState;
+      try {
+        const page = await context.newPage();
+        await page.addInitScript((value) => localStorage.setItem('caotang.interface', value), backgroundShell);
+        await sample(page);
+        if (backgroundShell === 'modern') {
+          await page.getByTestId('agent-close').click();
+          await page.getByRole('navigation', { name: 'Views and tools' }).getByRole('radio', { name: 'Codex', exact: true }).click();
+        } else await page.getByRole('tab', { name: 'Codex', exact: true }).click();
+        await page.getByRole('button', { name: /^Elena/ }).click();
+        await page.getByRole('radio', { name: 'Always', exact: true }).check();
+        await waitForSaved(page);
+        if (backgroundShell === 'modern') {
+          await page.getByRole('navigation', { name: 'Views and tools' }).getByRole('radio', { name: 'Write', exact: true }).click();
+          await page.keyboard.press('Control+j');
+        } else await page.getByRole('tab', { name: 'Binder', exact: true }).click();
+        state = await context.storageState({ indexedDB: true });
+      } finally {
+        await context.close();
+      }
+      await provide(state);
+    }, { scope: 'worker' }],
+    storageState: async ({ backgroundState }, provide) => { await provide(backgroundState); },
+  });
+  backgroundTest(`${shell} background tasks retain context choices in payloads and review after reload`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.addInitScript((value) => localStorage.setItem('caotang.interface', value), shell);
-    await sample(page);
-    if (shell === 'modern') {
-      await page.getByTestId('agent-close').click();
-      await page.getByRole('navigation', { name: 'Views and tools' }).getByRole('radio', { name: 'Codex', exact: true }).click();
-    } else await page.getByRole('tab', { name: 'Codex', exact: true }).click();
-    await page.getByRole('button', { name: /^Elena/ }).click();
-    await page.getByRole('radio', { name: 'Always', exact: true }).check();
-    await waitForSaved(page);
-    if (shell === 'modern') {
-      await page.getByRole('navigation', { name: 'Views and tools' }).getByRole('radio', { name: 'Write', exact: true }).click();
-      await page.keyboard.press('Control+j');
-    } else await page.getByRole('tab', { name: 'Binder', exact: true }).click();
+    await fakeEndpoint(page, (request) => request.tools === undefined ? JSON.stringify({ reply: 'Answered.' }) : { text: 'Answered.' });
+    await page.goto('/');
+    await page.getByRole('listitem').filter({ hasText: 'Sample manuscript' }).getByRole('button', { name: 'Open', exact: true }).click();
+    await expect(page.getByTestId('agent-sessions')).toHaveAttribute('data-state', 'ready');
+    if (shell === 'modern') await page.keyboard.press('Control+j');
+    else await page.getByTestId('agent-panel').locator('.agent-toggle').click();
+    await expect(page.getByTestId('background-tasks').getByTestId('task-status')).toHaveCount(0);
     const seen: FakeRequest[] = [];
     const reply = planThenAnswer({ steps: [
       { tool: 'scene.draft', params: { doc: 'The Friend', instruction: 'Elena returns.', mode: 'draft' }, expect: 'A new opening' },

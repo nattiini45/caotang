@@ -5141,6 +5141,18 @@ msgstr ""
 msgid "Choose a vendor template to see the Proof of the prompt pack."
 msgstr ""
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Choose a whole number from 1 to 8."
+msgstr ""
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Choose a whole number from 1 to 8. Foreground requests go before queued Background requests; requests already running are not interrupted."
+msgstr ""
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Choose an entry…"
@@ -5175,6 +5187,11 @@ msgstr ""
 msgid "Choose another status to see the findings in it."
 msgstr ""
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Choose at least 1 request at once."
+msgstr ""
+
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
 msgid "Choose cover…"
@@ -5183,6 +5200,11 @@ msgstr ""
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
 msgid "Choose how the timeline names the days of your story. The days you set on scenes stay as they are, whichever you choose."
+msgstr ""
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Choose no more than 8 requests at once."
 msgstr ""
 
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
@@ -13803,6 +13825,11 @@ msgstr ""
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #: apps/desktop/src/components/UsagePanel.tsx
 msgid "Requests"
+msgstr ""
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Requests at once"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
