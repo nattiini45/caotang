@@ -318,6 +318,9 @@ importers:
       '@caotang/import-core':
         specifier: workspace:*
         version: link:../../packages/import-core
+      '@caotang/import-html':
+        specifier: workspace:*
+        version: link:../../packages/import-html
       '@caotang/import-inklewriter':
         specifier: workspace:*
         version: link:../../packages/import-inklewriter
