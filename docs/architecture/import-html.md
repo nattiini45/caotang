@@ -1,7 +1,7 @@
 # import-html — the HTML page and Google Docs web-page reader
 
-Status: reader and walker built (#299, epic #263); the preview source, the import command and the guides follow. Package
-`@caotang/import-html`. The walker is shared by the EPUB (#296), AO3 (#297), Kanka (#293) and Notion imports.
+Status: built (#299, epic #263): walker, reader, Worker, preview, UI, guides and e2e. Package `@caotang/import-html`. The walker is
+shared by the EPUB (#296), AO3 (#297), Kanka (#293) and Notion imports.
 
 ## 1. What it reads
 
