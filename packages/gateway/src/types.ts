@@ -46,6 +46,7 @@ export interface ProviderProfile {
   /** sent only when the model row (or `params.temperature`) allows one; there is no built-in default */
   temperature?: number;
   maxOutputTokens?: number;
+  maxConcurrentRequests?: number;
   /** the profile's own request parameters over the model row's; absent follows the row */
   params?: RequestParams;
   /** optional, USD; powers context-assembly cost estimates (display-only) */
@@ -120,6 +121,7 @@ export interface NewProfile {
   customHeaders?: Readonly<Record<string, string>>;
   temperature?: number;
   maxOutputTokens?: number;
+  maxConcurrentRequests?: number;
   /** the profile's own request parameters over the model row's; absent follows the row */
   params?: RequestParams;
   pricePer1k?: { prompt: number; completion: number };
@@ -143,6 +145,7 @@ export interface ProfilePatch {
   /** A new temperature replaces the saved one; `null` clears it; absent keeps it. */
   temperature?: number | null;
   maxOutputTokens?: number;
+  maxConcurrentRequests?: number;
   /** New request parameters replace the saved ones; `null` clears them, so the profile follows its model row again. */
   params?: RequestParams | null;
   /** A new price replaces the saved one. `null` clears it, so the profile is unpriced again; an absent field keeps the saved price. */

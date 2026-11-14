@@ -12,9 +12,13 @@ import { useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore,
 import { i18n, type MessageDescriptor } from '@lingui/core';
 import { msg, plural, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@ui-sdk/react/field';
+import { NumberInput, NumberInputControl, NumberInputGroup } from '@ui-sdk/react/number-input';
 import { isolate } from '@caotang/i18n';
 import {
+  DEFAULT_MAX_CONCURRENT_REQUESTS,
   PRESETS,
+  ProfileError,
   isLocalBase,
   presetFor,
   presetForProfile,
@@ -225,6 +229,7 @@ interface FormState {
   /** The base URL, typed only for a generic endpoint; a named preset's URL is its own (derived from its fields). */
   readonly baseUrl: string;
   readonly model: string;
+  readonly maxConcurrentRequests: number | null;
   readonly apiKey: string;
   /** The preset's extra fields (region, workspace id), keyed by their declared keys. */
   readonly fields: Readonly<Record<string, string>>;
@@ -252,6 +257,7 @@ const BLANK: FormState = {
   name: '',
   baseUrl: '',
   model: '',
+  maxConcurrentRequests: DEFAULT_MAX_CONCURRENT_REQUESTS.endpoint,
   apiKey: '',
   fields: {},
   headers: [],
@@ -270,6 +276,7 @@ function formFor(view: ProfileView): FormState {
     name: view.name,
     baseUrl: view.baseUrl,
     model: view.defaultModel,
+    maxConcurrentRequests: view.maxConcurrentRequests ?? DEFAULT_MAX_CONCURRENT_REQUESTS[view.kind],
     apiKey: '',
     fields: { ...(view.fields ?? {}) },
     headers: [],
@@ -355,6 +362,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
   const [form, setForm] = useState<FormState | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<FormFeedback | null>(null);
+  const [maxConcurrentRequestsError, setMaxConcurrentRequestsError] = useState(false);
   // The last save's model catalogue — `preset` and `baseUrl` resolve whether it is the endpoint's live answer or the
   // registry's table (a first-party host's own preset wins over the profile's, the pin `resolveRoute` applies).
   const [models, setModels] = useState<{ profile: string; preset?: string; baseUrl?: string; list: ModelInfo[] } | null>(null);
@@ -387,7 +395,10 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
     try {
       await work();
     } catch (error) {
-      setMessage({ text: error instanceof Error ? error.message : String(error), tone: 'error' });
+      if (error instanceof ProfileError && error.field === 'maxConcurrentRequests') {
+        setMaxConcurrentRequestsError(true);
+        setMessage(null);
+      } else setMessage({ text: error instanceof Error ? error.message : String(error), tone: 'error' });
     } finally {
       setBusy(false);
       refresh();
@@ -399,7 +410,8 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
   const choosePreset = (presetId: string): void => {
     if (form === null) return;
     const next = presetFor(presetId);
-    setForm({ ...form, preset: presetId, baseUrl: next?.local === undefined ? '' : next.baseUrl, model: next?.defaultModel ?? '', fields: fieldDefaults(next), headers: [], headersTouched: false, params: BLANK_PARAMS });
+    setMaxConcurrentRequestsError(false);
+    setForm({ ...form, preset: presetId, baseUrl: next?.local === undefined ? '' : next.baseUrl, model: next?.defaultModel ?? '', maxConcurrentRequests: DEFAULT_MAX_CONCURRENT_REQUESTS.endpoint, fields: fieldDefaults(next), headers: [], headersTouched: false, params: BLANK_PARAMS });
   };
 
   const setField = (key: string, value: string): void => {
@@ -439,6 +451,11 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
       setMessage({ text: t`Temperature must be a number from 0 to 2.`, tone: 'error' });
       return;
     }
+    const maxConcurrentRequests = form.maxConcurrentRequests;
+    if (maxConcurrentRequests === null || !Number.isInteger(maxConcurrentRequests) || maxConcurrentRequests < 1 || maxConcurrentRequests > 8) {
+      setMaxConcurrentRequestsError(true);
+      return;
+    }
     const headers = headerPatch();
     void run(async () => {
       if (form.id === null) {
@@ -451,6 +468,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
           ...(Object.keys(form.fields).length === 0 ? {} : { fields: form.fields }),
           ...(headers === undefined || headers === null ? {} : { customHeaders: headers }),
           defaultModel: form.model,
+          maxConcurrentRequests,
           ...(form.apiKey === '' ? {} : { apiKey: form.apiKey }),
           ...(price.price === undefined ? {} : { pricePer1k: price.price }),
           promptCache: cachePolicyOf(form),
@@ -458,6 +476,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
           ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
         });
         setForm(null);
+        setMaxConcurrentRequestsError(false);
         if (outcome.models !== undefined) setModels({ profile: outcome.view.name, preset: outcome.view.preset, baseUrl: outcome.view.baseUrl, list: outcome.models });
         setMessage(
           outcome.probeError === undefined
@@ -480,6 +499,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
         ...(preset?.fields === undefined ? {} : { fields: form.fields }),
         ...(isGeneric === true ? { customHeaders: headers } : {}),
         defaultModel: form.model,
+        maxConcurrentRequests,
         ...(form.apiKey === '' ? {} : { apiKey: form.apiKey }),
         ...(priceChange === undefined ? {} : { pricePer1k: priceChange }),
         ...(isMock === true ? {} : { promptCache: cachePolicyOf(form) }),
@@ -487,6 +507,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
         ...(isMock === true ? {} : { params: request.params ?? null, temperature: request.temperature ?? null }),
       });
       setForm(null);
+      setMaxConcurrentRequestsError(false);
       if (outcome.models !== undefined) setModels({ profile: outcome.view.name, preset: outcome.view.preset, baseUrl: outcome.view.baseUrl, list: outcome.models });
       setMessage(
         outcome.probeError === undefined
@@ -582,7 +603,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                     <Trans>Use this profile</Trans>
                   </button>
                 ) : null}
-                <button type="button" className="button is-quiet" disabled={busy} onClick={() => setForm(formFor(profile))}>
+                <button type="button" className="button is-quiet" disabled={busy} onClick={() => { setMaxConcurrentRequestsError(false); setForm(formFor(profile)); }}>
                   <Trans>Edit</Trans>
                 </button>
                 <button
@@ -594,6 +615,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                     void run(async () => {
                       await providers.remove(profile.id);
                       setForm(null);
+                      setMaxConcurrentRequestsError(false);
                       setMessage({
                         text: t`Removed “${{ profile: isolate(profile.name) }}”, and its key from this browser.`,
                         tone: 'info',
@@ -612,7 +634,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
       </ul>
 
       {form === null ? (
-        <button type="button" className="button" disabled={busy} onClick={() => setForm({ ...BLANK })}>
+        <button type="button" className="button" disabled={busy} onClick={() => { setMaxConcurrentRequestsError(false); setForm({ ...BLANK }); }}>
           <Trans>Add a provider</Trans>
         </button>
       ) : (
@@ -781,6 +803,48 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
               />
             </label>
           ) : null}
+          <Field className="request-params" name="maxConcurrentRequests" invalid={maxConcurrentRequestsError || undefined}>
+            <FieldLabel>
+              <Trans>Requests at once</Trans>
+            </FieldLabel>
+            <NumberInput
+              value={form.maxConcurrentRequests}
+              min={1}
+              max={8}
+              step={1}
+              required
+              onValueChange={(maxConcurrentRequests, details) => {
+                if (details.reason === 'input-commit' && form.maxConcurrentRequests !== null && !Number.isInteger(form.maxConcurrentRequests)) {
+                  details.cancel();
+                  setMaxConcurrentRequestsError(true);
+                  return;
+                }
+                setForm({ ...form, maxConcurrentRequests });
+                setMaxConcurrentRequestsError(maxConcurrentRequests !== null && !Number.isInteger(maxConcurrentRequests));
+              }}
+            >
+              <NumberInputGroup>
+                <NumberInputControl />
+              </NumberInputGroup>
+            </NumberInput>
+            <FieldDescription className="field-help">
+              <Trans>
+                Choose a whole number from 1 to 8. Foreground requests go before queued Background requests; requests already running are not interrupted.
+              </Trans>
+            </FieldDescription>
+            {maxConcurrentRequestsError ? (
+              <FieldError match>
+                <Trans>Choose a whole number from 1 to 8.</Trans>
+              </FieldError>
+            ) : (
+              <>
+                <FieldError match="valueMissing"><Trans>Choose a whole number from 1 to 8.</Trans></FieldError>
+                <FieldError match="rangeUnderflow"><Trans>Choose at least 1 request at once.</Trans></FieldError>
+                <FieldError match="rangeOverflow"><Trans>Choose no more than 8 requests at once.</Trans></FieldError>
+                <FieldError match="stepMismatch"><Trans>Choose a whole number from 1 to 8.</Trans></FieldError>
+              </>
+            )}
+          </Field>
           {isGeneric === true ? (
             <fieldset className="price-fields">
               <legend>
@@ -885,7 +949,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
             <button type="submit" className="button is-primary" disabled={busy}>
               <Trans>Save profile</Trans>
             </button>
-            <button type="button" className="button is-quiet" onClick={() => setForm(null)}>
+            <button type="button" className="button is-quiet" onClick={() => { setMaxConcurrentRequestsError(false); setForm(null); }}>
               <Trans>Cancel</Trans>
             </button>
           </div>

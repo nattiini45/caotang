@@ -28,6 +28,8 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 
 Checking a provider in Settings never switches the active profile. **Not verified** stays beside profiles with an unknown or failed model-list check after a reload; edit and save the profile to check it again.
 
+**Requests at once**, in **Settings › Providers**, limits overlapping calls per profile from 1 to 8 (3 for an endpoint, 8 for the demo by default). Queued foreground requests go before Background requests without interrupting a running call. A rate-limit response pauses new calls on that profile; another profile can keep working. This setting does not start parallel work or grant permissions.
+
 ## What works today
 
 An unresolved document conflict keeps its recovery guidance even if a later producer, read or write fails. Copy the unsaved text somewhere safe before reloading.

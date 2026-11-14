@@ -83,6 +83,7 @@ export {
   PROFILE_ID_PATTERN,
   MOCK_DEFAULT_MODEL,
   DEFAULT_MAX_OUTPUT_TOKENS,
+  DEFAULT_MAX_CONCURRENT_REQUESTS,
   mintProfileId,
   type ProfileStore,
   type ProfileStoreOptions,

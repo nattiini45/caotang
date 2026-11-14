@@ -25,6 +25,8 @@
  */
 export const DEFAULT_MAX_OUTPUT_TOKENS = 4_096;
 
+export const DEFAULT_MAX_CONCURRENT_REQUESTS: Readonly<Record<ProfileKind, number>> = { endpoint: 3, mock: 8 };
+
 import { MOCK_BASE_URL, normalizeBaseUrl, normalizeLocalBaseUrl, originOf } from './base-url.js';
 import { ProfileError } from './errors.js';
 import type { KeyStore } from './keys/key-store.js';
@@ -89,6 +91,7 @@ interface StoredProfile {
   defaultModel: string;
   temperature?: number;
   maxOutputTokens?: number;
+  maxConcurrentRequests: number;
   params?: RequestParams;
   pricePer1k?: { prompt: number; completion: number };
   promptCache?: CachePolicy;
@@ -107,6 +110,7 @@ interface CheckedFields {
   customHeaders?: Record<string, string>;
   temperature?: number;
   maxOutputTokens?: number;
+  maxConcurrentRequests: number;
   params?: RequestParams;
   pricePer1k?: { prompt: number; completion: number };
   promptCache?: CachePolicy;
@@ -121,6 +125,7 @@ interface RawFields {
   customHeaders?: Readonly<Record<string, string>> | null;
   temperature?: number;
   maxOutputTokens?: number;
+  maxConcurrentRequests?: number;
   params?: RequestParams;
   pricePer1k?: { prompt: number; completion: number };
   promptCache?: CachePolicy;
@@ -223,7 +228,11 @@ function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
     }
   }
 
-  const checked: CheckedFields = { name, baseUrl, defaultModel };
+  const maxConcurrentRequests = raw.maxConcurrentRequests === undefined ? DEFAULT_MAX_CONCURRENT_REQUESTS[kind] : raw.maxConcurrentRequests;
+  if (!Number.isInteger(maxConcurrentRequests) || maxConcurrentRequests < 1 || maxConcurrentRequests > 8) {
+    throw new ProfileError('invalid', 'Requests at once must be a whole number from 1 to 8.', 'maxConcurrentRequests');
+  }
+  const checked: CheckedFields = { name, baseUrl, defaultModel, maxConcurrentRequests };
   if (fields !== undefined) checked.fields = fields;
   const headers = checkHeaders(kind, preset, raw.customHeaders);
   if (headers !== undefined) checked.customHeaders = headers;
@@ -358,6 +367,7 @@ function toView(rec: StoredProfile): ProfileView {
     ...(rec.fields === undefined ? {} : { fields: { ...rec.fields } }),
     baseUrl: rec.baseUrl,
     defaultModel: rec.defaultModel,
+    maxConcurrentRequests: rec.maxConcurrentRequests,
     isActive: rec.isActive,
     hasKey: rec.hasKey,
   };
@@ -415,6 +425,7 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         name: fields.name,
         baseUrl: fields.baseUrl,
         defaultModel: fields.defaultModel,
+        maxConcurrentRequests: fields.maxConcurrentRequests,
         ...(fields.temperature === undefined ? {} : { temperature: fields.temperature }),
         ...(fields.maxOutputTokens === undefined ? {} : { maxOutputTokens: fields.maxOutputTokens }),
         ...(fields.params === undefined ? {} : { params: fields.params }),
@@ -447,6 +458,7 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         // `null` clears the temperature and the parameters; an absent field keeps what is saved.
         temperature: patch.temperature === null ? undefined : (patch.temperature ?? rec.temperature),
         maxOutputTokens: patch.maxOutputTokens ?? rec.maxOutputTokens,
+        maxConcurrentRequests: patch.maxConcurrentRequests === undefined ? rec.maxConcurrentRequests : patch.maxConcurrentRequests,
         params: patch.params === null ? undefined : (patch.params ?? rec.params),
         pricePer1k: price,
         promptCache: patch.promptCache ?? rec.promptCache,

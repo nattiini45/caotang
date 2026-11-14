@@ -180,3 +180,29 @@ describe('verification metadata', () => {
     expect(service.get(id)?.defaultModel).toBe('second-model');
   });
 });
+
+describe('profile request concurrency persistence', () => {
+  it('round-trips explicit limits and applies kind defaults to older records', async () => {
+    const db = memoryDb();
+    await db.put(APP_KEYS.profiles, [
+      { id: 'prv_0000000000', name: 'Legacy endpoint', kind: 'endpoint', baseUrl: endpoint.baseUrl, defaultModel: endpoint.defaultModel, hasKey: false, isActive: true },
+      { id: 'prv_1111111111', name: 'Limited endpoint', kind: 'endpoint', baseUrl: endpoint.baseUrl, defaultModel: endpoint.defaultModel, maxConcurrentRequests: 6, hasKey: false, isActive: false },
+      { id: 'prv_2222222222', name: 'Legacy mock', kind: 'mock', baseUrl: '', defaultModel: 'mock', hasKey: false, isActive: false },
+    ]);
+
+    const { service } = await ProviderService.open({ db, vault: null });
+    expect(service.get('prv_0000000000')?.maxConcurrentRequests).toBe(3);
+    expect(service.get('prv_1111111111')?.maxConcurrentRequests).toBe(6);
+    expect(service.list().find((profile) => profile.kind === 'mock')?.maxConcurrentRequests).toBe(8);
+
+    await service.persist();
+    const stored = db.rows.get(APP_KEYS.profiles) as { id: string; maxConcurrentRequests?: number }[];
+    expect(stored.find((profile) => profile.id === 'prv_0000000000')?.maxConcurrentRequests).toBe(3);
+    expect(stored.find((profile) => profile.id === 'prv_1111111111')?.maxConcurrentRequests).toBe(6);
+
+    const reopened = await ProviderService.open({ db, vault: null });
+    expect(reopened.service.get('prv_0000000000')?.maxConcurrentRequests).toBe(3);
+    expect(reopened.service.get('prv_1111111111')?.maxConcurrentRequests).toBe(6);
+    expect(reopened.service.list().find((profile) => profile.kind === 'mock')?.maxConcurrentRequests).toBe(8);
+  });
+});
