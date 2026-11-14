@@ -1,8 +1,25 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createKeyStore, createMemoryVaultPort, createProfileStore, type NewProfile, type ProfilePatch } from '../src/index.js';
 import { KEY } from './helpers.js';
 
 describe('app-local profile request limits', () => {
+  it('notifies only committed limit changes and isolates listener failures', async () => {
+    const profiles = createProfileStore({ keys: createKeyStore(createMemoryVaultPort()) });
+    const profile = await profiles.create({ name: 'Demo', kind: 'mock' });
+    const changed = vi.fn();
+    profiles.subscribeLimits?.(() => { throw new Error('observer failed'); });
+    const unsubscribe = profiles.subscribeLimits?.(changed);
+    expect(unsubscribe).toEqual(expect.any(Function));
+    await expect(profiles.update(profile.id, { maxConcurrentRequests: 3 })).resolves.toMatchObject({ maxConcurrentRequests: 3 });
+    expect(changed).toHaveBeenCalledExactlyOnceWith(profile.id);
+    await profiles.update(profile.id, { name: 'Renamed', maxConcurrentRequests: 3 });
+    await expect(profiles.update(profile.id, { maxConcurrentRequests: 0 })).rejects.toMatchObject({ field: 'maxConcurrentRequests' });
+    expect(changed).toHaveBeenCalledTimes(1);
+    unsubscribe?.();
+    await profiles.update(profile.id, { maxConcurrentRequests: 4 });
+    expect(changed).toHaveBeenCalledTimes(1);
+  });
+
   it('defaults legacy endpoint and mock inputs and preserves explicit edits on both kinds', async () => {
     const profiles = createProfileStore({ keys: createKeyStore(createMemoryVaultPort()) });
     const endpoint = await profiles.create({ name: 'Endpoint', kind: 'endpoint', baseUrl: 'https://a.example/v1', apiKey: KEY, defaultModel: 'model-x' });

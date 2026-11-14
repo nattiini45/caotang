@@ -22,6 +22,35 @@ function heldStreams(count: number) {
 }
 
 describe('shared gateway completion admission', () => {
+  it('immediately schedules a raised limit, while lowering it never preempts active calls', async () => {
+    const held = heldStreams(3);
+    const h = harness({ net: held.net });
+    const profile = await addEndpoint(h, { maxConcurrentRequests: 1 });
+    const first = h.gateway.completeOnce(userMessage('first'));
+    await flush();
+    const background = h.gateway.completeOnce({ ...userMessage('background'), role: 'background' });
+    const foreground = h.gateway.completeOnce(userMessage('foreground'));
+    await flush();
+    expect(h.net.calls).toHaveLength(1);
+    await h.profiles.update(profile.id, { maxConcurrentRequests: 2 });
+    await flush();
+    expect(h.net.calls).toHaveLength(2);
+    expect(h.net.bodyOf(1)['messages']).toEqual([{ role: 'user', content: 'foreground' }]);
+    await h.profiles.update(profile.id, { maxConcurrentRequests: 1 });
+    held.end(0);
+    await first;
+    await flush();
+    expect(h.net.calls).toHaveLength(2);
+    held.end(1);
+    await foreground;
+    await flush();
+    expect(h.net.calls).toHaveLength(3);
+    held.end(2);
+    await background;
+    expect(sumUsage(h.gateway.ledger.dayRows()).requests).toBe(3);
+    expect(h.clock.pending).toBe(0);
+  });
+
   it('defaults mock profiles to eight overlapping calls without network traffic', async () => {
     const mock = createMockProvider();
     vi.spyOn(mock, 'complete').mockImplementation(async function* () { yield { delta: 'held' }; });
@@ -242,6 +271,7 @@ describe('shared gateway completion admission', () => {
     const second = await addEndpoint(h, { name: 'Another endpoint', maxConcurrentRequests: 1 });
     await expect(h.gateway.completeOnce({ ...userMessage('limited'), profileId: first.id })).rejects.toMatchObject({ kind: 'rate_limit' });
     const queued = h.gateway.completeOnce({ ...userMessage('queued'), profileId: first.id });
+    await h.profiles.update(first.id, { maxConcurrentRequests: 8 });
     await h.gateway.completeOnce({ ...userMessage('other'), profileId: second.id });
     expect(net.calls).toHaveLength(2);
     h.clock.advance(1_999);

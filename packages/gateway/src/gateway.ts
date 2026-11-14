@@ -184,6 +184,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     const profile = profiles.get(id);
     return profile?.maxConcurrentRequests ?? DEFAULT_MAX_CONCURRENT_REQUESTS[profile?.kind ?? 'endpoint'];
   });
+  profiles.subscribeLimits?.((id) => limiter.refresh(id));
   const ledger = options.ledger ?? new UsageLedger(clock);
   const requestLog = options.requestLog ?? new RequestLog();
   const mock = options.mock ?? createMockProvider();

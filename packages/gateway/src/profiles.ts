@@ -50,6 +50,7 @@ export interface ProfileStore {
    */
   recordProbe(id: string, probe: ResponseFormatProbe, attempt?: number): void;
   recordVerification(id: string, verification: ProfileVerification): void;
+  subscribeLimits?(listener: (profileId: string) => void): () => void;
 }
 
 export interface ProfileStoreOptions {
@@ -385,6 +386,7 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
   const { keys } = options;
   const randomBytes = options.randomBytes ?? defaultRandomBytes;
   const records = new Map<string, StoredProfile>();
+  const limitListeners = new Set<(profileId: string) => void>();
 
   const requireRecord = (id: string): StoredProfile => {
     const rec = records.get(id);
@@ -399,6 +401,10 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
   };
 
   return {
+    subscribeLimits(listener) {
+      limitListeners.add(listener);
+      return () => { limitListeners.delete(listener); };
+    },
     async create(input) {
       // The retired kind name still arrives in data written before presets; it is the endpoint kind.
       const kind: ProfileKind = (input.kind as string) === 'openai-compatible' ? 'endpoint' : input.kind;
@@ -515,6 +521,7 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
       if (records.get(id) !== rec) throw new ProfileError('not-found', `No provider profile has the id ${id}.`);
 
       const endpointChanged = fields.baseUrl !== rec.baseUrl || fields.defaultModel !== rec.defaultModel;
+      const limitChanged = fields.maxConcurrentRequests !== rec.maxConcurrentRequests;
       const { customHeaders: _sealed, ...stored } = fields;
       Object.assign(rec, stored, { hasKey });
       // `Object.assign` cannot clear a key it was not given, so a cleared price is removed from the record here.
@@ -528,7 +535,13 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         rec.responseFormat = undefined;
         rec.verification = providerVerificationMachine.step(rec.verification ?? { kind: 'unknown' }, { type: 'invalidate' });
       }
-      return toView(rec);
+      const view = toView(rec);
+      if (limitChanged) {
+        for (const listener of limitListeners) {
+          try { listener(id); } catch { continue; }
+        }
+      }
+      return view;
     },
 
     async remove(id) {

@@ -87,4 +87,9 @@ export class ProfileLimiter {
     queue.pausedUntil = Math.max(queue.pausedUntil, Math.min(Number.MAX_SAFE_INTEGER, this.clock.now() + delayMs));
     this.pump(profileId, queue);
   }
+
+  refresh(profileId: string): void {
+    const queue = this.queues.get(profileId);
+    if (queue !== undefined) this.pump(profileId, queue);
+  }
 }
