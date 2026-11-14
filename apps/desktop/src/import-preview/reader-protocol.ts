@@ -12,6 +12,7 @@
 
 import type { ParagraphMode, PlainTextRead } from '@caotang/import-read/text';
 import type { RtfImport } from '@caotang/import-rtf';
+import type { HtmlResult } from '@caotang/import-html';
 import type { DecodableEncoding } from '@caotang/store/encoding';
 
 /** Opens a reader with its input. The bytes (or folder files) are transferred to the Worker and cached there. */
@@ -19,12 +20,15 @@ export type ReaderOpen =
   | { readonly kind: 'open'; readonly reader: 'text'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'rtf'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'rtfd'; readonly files: readonly { readonly path: string; readonly size: number; readonly bytes: Uint8Array }[] }
-  | { readonly kind: 'open'; readonly reader: 'rtfd-zip'; readonly bytes: Uint8Array };
+  | { readonly kind: 'open'; readonly reader: 'rtfd-zip'; readonly bytes: Uint8Array }
+  | { readonly kind: 'open'; readonly reader: 'html'; readonly bytes: Uint8Array; readonly fileName: string }
+  | { readonly kind: 'open'; readonly reader: 'html-zip'; readonly bytes: Uint8Array };
 
 /** Reads the cached input again with these options. A text read decodes and builds blocks; an RTF read parses. */
 export type ReaderRead =
   | { readonly kind: 'read'; readonly reader: 'text'; readonly encoding?: DecodableEncoding; readonly paragraphs?: ParagraphMode | 'auto'; readonly fileName?: string }
-  | { readonly kind: 'read'; readonly reader: 'rtf' | 'rtfd'; readonly underlineAs?: 'italic' | 'none'; readonly assetPrefix?: string };
+  | { readonly kind: 'read'; readonly reader: 'rtf' | 'rtfd'; readonly underlineAs?: 'italic' | 'none'; readonly assetPrefix?: string }
+  | { readonly kind: 'read'; readonly reader: 'html' };
 
 /** An RTF or `.rtfd` read's result, with its error flattened to a code and a message so it survives the clone. */
 export type SerializableRtfResult =
@@ -34,7 +38,8 @@ export type SerializableRtfResult =
 export type ReaderResult =
   | { readonly kind: 'opened' }
   | { readonly kind: 'text'; readonly result: PlainTextRead }
-  | { readonly kind: 'rtf'; readonly result: SerializableRtfResult };
+  | { readonly kind: 'rtf'; readonly result: SerializableRtfResult }
+  | { readonly kind: 'html'; readonly result: HtmlResult };
 
 /** The envelope the Worker posts back: the request's id, and its result or a failure message. */
 export interface ReaderReply {
@@ -56,10 +61,13 @@ export function dedicatedBuffer(bytes: Uint8Array): ArrayBuffer | null {
  * in the transfer list makes `postMessage` throw, and the cloned views keep sharing the one transferred buffer (#597 F1).
  */
 export function resultTransferList(result: ReaderResult): Transferable[] {
-  if (result.kind !== 'rtf' || !result.result.ok) return [];
+  let assetData: ReadonlyMap<string, Uint8Array> | null = null;
+  if (result.kind === 'rtf' && result.result.ok) assetData = result.result.value.assetData;
+  else if (result.kind === 'html' && result.result.ok) assetData = result.result.value.assetData;
+  if (assetData === null) return [];
   const seen = new Set<ArrayBuffer>();
   const buffers: Transferable[] = [];
-  for (const bytes of result.result.value.assetData.values()) {
+  for (const bytes of assetData.values()) {
     const buffer = dedicatedBuffer(bytes);
     if (buffer !== null && !seen.has(buffer)) {
       seen.add(buffer);

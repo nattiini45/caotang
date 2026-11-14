@@ -21,6 +21,7 @@ export function ManuscriptImportActions(): ReactNode {
   const textFile = useRef<HTMLInputElement>(null);
   const rtfFile = useRef<HTMLInputElement>(null);
   const rtfdFolder = useRef<HTMLInputElement>(null);
+  const htmlFile = useRef<HTMLInputElement>(null);
 
   const failed = (file: File, failure: unknown): void => {
     const problem = failure instanceof Error ? failure.message : String(failure);
@@ -90,6 +91,17 @@ export function ManuscriptImportActions(): ReactNode {
     }
   };
 
+  const openHtml = async (file: File): Promise<void> => {
+    try {
+      const { htmlPreviewSource, htmlZipPreviewSource } = await import('../import-preview/html-source.js');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const source = /\.zip$/i.test(file.name) ? htmlZipPreviewSource(file.name, bytes) : htmlPreviewSource(file.name, bytes);
+      openImportPreview({ source });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
   return (
     <div className="script-import" role="group" aria-label={t`Import a manuscript`}>
       <button type="button" className="button is-quiet" onClick={() => textFile.current?.click()}>
@@ -100,6 +112,9 @@ export function ManuscriptImportActions(): ReactNode {
       </button>
       <button type="button" className="button is-quiet" onClick={() => rtfdFolder.current?.click()}>
         <Trans>Import RTFD…</Trans>
+      </button>
+      <button type="button" className="button is-quiet" onClick={() => htmlFile.current?.click()}>
+        <Trans>Import HTML…</Trans>
       </button>
       <input
         ref={textFile}
@@ -139,6 +154,18 @@ export function ManuscriptImportActions(): ReactNode {
           const list = files === null ? [] : [...files];
           event.currentTarget.value = '';
           if (list.length > 0) void openRtfd(list);
+        }}
+      />
+      <input
+        ref={htmlFile}
+        type="file"
+        hidden
+        accept=".html,.htm,.xhtml,.zip"
+        aria-label={t`HTML file`}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file !== undefined) void openHtml(file);
         }}
       />
     </div>

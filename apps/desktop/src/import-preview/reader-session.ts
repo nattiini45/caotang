@@ -15,7 +15,9 @@ import type { ReaderOpen, ReaderRead, ReaderResult, SerializableRtfResult } from
 
 type State =
   | { readonly reader: 'text' | 'rtf'; readonly bytes: Uint8Array }
-  | { readonly reader: 'rtfd'; readonly archive: ImportArchive };
+  | { readonly reader: 'rtfd'; readonly archive: ImportArchive }
+  | { readonly reader: 'html'; readonly bytes: Uint8Array; readonly fileName: string }
+  | { readonly reader: 'html-archive'; readonly archive: ImportArchive };
 
 /** Flattens an RTF or archive refusal to a code and a message, so it survives the structured clone (an Error's own `code` does not). */
 function serialiseRtf(result: RtfReadResult | RtfdReadResult): SerializableRtfResult {
@@ -31,13 +33,17 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
       state = { reader: req.reader, bytes: req.bytes };
       return;
     }
+    if (req.reader === 'html') {
+      state = { reader: 'html', bytes: req.bytes, fileName: req.fileName };
+      return;
+    }
     const { openFolder, openZip } = await import('@caotang/import-read/zip');
     const archive =
-      req.reader === 'rtfd-zip'
+      req.reader === 'rtfd-zip' || req.reader === 'html-zip'
         ? await openZip(req.bytes)
         : openFolder(req.files.map((file) => ({ path: file.path, size: file.size, read: async () => file.bytes })));
     if (!archive.ok) throw new Error(archive.error.message);
-    state = { reader: 'rtfd', archive: archive.value };
+    state = req.reader === 'html-zip' ? { reader: 'html-archive', archive: archive.value } : { reader: 'rtfd', archive: archive.value };
   };
 
   const read = async (req: ReaderRead): Promise<ReaderResult> => {
@@ -55,6 +61,12 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
         kind: 'text',
         result: { status: 'read', ...blocks, encoding: decoded.encoding, guessed: decoded.guessed, candidates: decoded.candidates },
       };
+    }
+    if (req.reader === 'html') {
+      const { readHtmlFile, readHtmlArchive } = await import('@caotang/import-html');
+      if (state.reader === 'html') return { kind: 'html', result: readHtmlFile(state.bytes, state.fileName) };
+      if (state.reader === 'html-archive') return { kind: 'html', result: await readHtmlArchive(state.archive) };
+      throw new Error('The import reader is not an HTML reader.');
     }
     const { readRtf, readRtfd } = await import('@caotang/import-rtf');
     const options = {
