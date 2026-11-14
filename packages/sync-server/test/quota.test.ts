@@ -79,7 +79,7 @@ describe('the D1 quota seam', () => {
     const committed = await recovered.commit('op-one');
     expect(committed).toMatchObject({ ok: true, operation: { state: 'committed' } });
     expect(await recovered.commit('op-one')).toEqual(committed);
-    expect(await recovered.cancel('op-one')).toEqual(committed);
+    expect(await recovered.cancel('op-one')).toEqual({ ok: false, reason: 'transition' });
     expect(await recovered.usage()).toEqual({ limitBytes: 10, usedBytes: 7, reservedBytes: 0 });
     await recovered.reserve('op-two', 'object-two', 3);
     expect(await recovered.cancel('op-two')).toMatchObject({ ok: true, operation: { state: 'released' } });
@@ -98,7 +98,8 @@ describe('the D1 quota seam', () => {
     expect(uploader.objects.size).toBe(0);
     expect(uploader.write('account-lease', 'lease-op', 'lease-object')).toBe(false);
     expect(await store.usage()).toEqual({ limitBytes: 10, usedBytes: 0, reservedBytes: 0 });
-    expect(await store.commit('lease-op')).toMatchObject({ ok: true, operation: { state: 'released' } });
+    expect(await store.commit('lease-op')).toEqual({ ok: false, reason: 'transition' });
+    expect(await store.cancel('lease-op')).toMatchObject({ ok: true, operation: { state: 'released' } });
   });
 
   it('keeps failed settlements charged and releases on the first sweep after recovery with exact sanitized logs', async () => {

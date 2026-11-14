@@ -24,6 +24,12 @@ function identifier(value: string): boolean {
   return /^[A-Za-z0-9_-]{1,128}$/.test(value);
 }
 
+function accepted(event: QuotaEvent['type'], state: QuotaState): boolean {
+  if (event === 'begin') return state === 'writing';
+  if (event === 'commit') return state === 'committed';
+  return state === 'aborted' || state === 'released';
+}
+
 function integer(value: number): boolean {
   return Number.isSafeInteger(value) && value >= 0;
 }
@@ -107,7 +113,7 @@ export class QuotaStore {
     if (!operation) return { ok: false, reason: 'not-found' };
     if (operation.revision !== revision) return { ok: false, reason: 'conflict' };
     if (operation.state === 'committed' || operation.state === 'released') {
-      return event === 'begin' ? { ok: false, reason: 'transition' } : { ok: true, operation };
+      return accepted(event, operation.state) ? { ok: true, operation } : { ok: false, reason: 'transition' };
     }
     const now = this.now();
     if (!integer(now)) return { ok: false, reason: 'invalid' };
@@ -125,9 +131,7 @@ export class QuotaStore {
     if (updated) return { ok: true, operation: updated };
     if (!await this.usage()) return { ok: false, reason: 'unavailable' };
     const current = await this.find(operationId);
-    if (current && (event === 'begin' ? current.state === 'writing' : current.state === next.kind || current.state === 'committed' || current.state === 'released')) {
-      return { ok: true, operation: current };
-    }
+    if (current && accepted(event, current.state)) return { ok: true, operation: current };
     return { ok: false, reason: 'transition' };
   }
 }
