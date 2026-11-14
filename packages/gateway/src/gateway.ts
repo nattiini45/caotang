@@ -175,6 +175,7 @@ const ZERO: Usage = { promptTokens: 0, completionTokens: 0 };
 const PROBE_PROMPT = 'Reply with the JSON object {"ok": true}.';
 /** The output cap the format probe asks for; the request log line records it like any other cap. */
 const PROBE_MAX_TOKENS = 16;
+const ITERATOR_ABANDONED = Symbol('iterator-abandoned');
 
 export function createGateway(options: GatewayOptions): Gateway {
   const { profiles, keys } = options;
@@ -393,15 +394,17 @@ export function createGateway(options: GatewayOptions): Gateway {
       responded = true;
       request([]);
       const finishReason: FinishReason = terminal?.finishReason ?? 'error';
+      const abandoned = signal?.aborted === true && signal.reason === ITERATOR_ABANDONED;
+      const cancelled = signal?.aborted === true && !abandoned;
       if (profile.kind === 'mock') {
-        const outcome: RequestOutcome = finishReason !== 'error' ? 'ok' : signal?.aborted === true ? 'cancelled' : 'failed';
+        const outcome: RequestOutcome = finishReason !== 'error' ? 'ok' : cancelled ? 'cancelled' : 'failed';
         tell({ type: 'attempt', id, attempt: 0, outcome, at: clock.now() });
       }
       if (failure === undefined && finishReason === 'error') {
         failure =
-          signal?.aborted === true
+          cancelled
             ? { kind: 'cancelled', message: 'The call was stopped.' }
-            : terminal === undefined
+            : abandoned || terminal === undefined
               ? { kind: 'abandoned', message: 'The caller stopped reading before the reply finished.' }
               : { kind: 'error', message: 'The reply ended with an error.' };
       }
@@ -453,7 +456,25 @@ export function createGateway(options: GatewayOptions): Gateway {
     };
   }
 
-  async function* complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncGenerator<ChatChunk, void, undefined> {
+  function complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncIterableIterator<ChatChunk> {
+    const controller = new AbortController();
+    const combined = signal === undefined ? controller.signal : AbortSignal.any([signal, controller.signal]);
+    const iterator = runComplete(req, combined, beforeSend);
+    return {
+      [Symbol.asyncIterator]() { return this; },
+      next: (...args) => iterator.next(...args),
+      return: (value) => {
+        controller.abort(ITERATOR_ABANDONED);
+        return iterator.return(value);
+      },
+      throw: (error) => {
+        controller.abort(ITERATOR_ABANDONED);
+        return iterator.throw(error);
+      },
+    };
+  }
+
+  async function* runComplete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncGenerator<ChatChunk, void, undefined> {
     // §6: a request that names a role and no profile resolves through the injected router. The answer is the
     // profile it sends through, and the model and thinking level become the defaults the request's own fields
     // still beat. A resolver with no answer leaves the named-or-active rule in place, as a roleless request.
@@ -524,6 +545,10 @@ export function createGateway(options: GatewayOptions): Gateway {
         assertEgress(deps, `${profile.baseUrl}${resolved.adapter.completePath(model)}`, profile.id);
         const revealed = await secretsFor(profile);
         trace?.request(revealed.redact);
+        if (signal?.aborted) {
+          yield { finishReason: 'error', usage: ZERO };
+          return;
+        }
         const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal, onRateLimit: (delayMs: number) => limiter.pause(profile.id, delayMs), ...(beforeSend === undefined ? {} : { beforeSend }) };
         for await (const chunk of streamChat(deps, spec, stats)) {
           trace?.chunk(chunk, stats, signal);

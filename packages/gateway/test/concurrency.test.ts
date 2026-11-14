@@ -118,6 +118,119 @@ describe('shared gateway completion admission', () => {
     expect(h.clock.pending).toBe(0);
   });
 
+  it.each(['return', 'throw'] as const)('cancels queued iterator %s before a slot is released', async (method) => {
+    const held = openSse();
+    const h = harness({ net: new ScriptedFetch().push(() => held.response, () => sseResponse([finish('stop'), '[DONE]'])) });
+    await addEndpoint(h, { maxConcurrentRequests: 1 });
+    const reveal = vi.spyOn(h.keys, 'revealPayload');
+    const active = h.gateway.completeOnce(userMessage('active'));
+    await flush();
+    const beforeSend = vi.fn();
+    const iterator = h.gateway.complete({ ...userMessage('abandoned'), turnId: 'abandoned' }, undefined, beforeSend)[Symbol.asyncIterator]();
+    const pending = iterator.next();
+    await flush();
+    const closing = method === 'return' ? iterator.return?.() : iterator.throw?.(new Error('abandoned iterator'));
+    const closed = method === 'return' ? expect(closing).resolves.toMatchObject({ done: true }) : expect(closing).rejects.toThrow('abandoned iterator');
+    await flush();
+    held.event(finish('stop'));
+    held.close();
+    await active;
+    await closed;
+    expect((await pending).value).toEqual({ finishReason: 'error', usage: { promptTokens: 0, completionTokens: 0 } });
+    expect(h.net.calls).toHaveLength(1);
+    expect(reveal).toHaveBeenCalledTimes(1);
+    expect(beforeSend).not.toHaveBeenCalled();
+    expect(h.gateway.ledger.turnTotals('abandoned').requests).toBe(0);
+    expect(h.gateway.requestLog.entries()).toHaveLength(1);
+    expect(h.clock.pending).toBe(0);
+  });
+
+  it('cancels iterator return racing a freshly granted slot before credentials are read', async () => {
+    const h = harness({ net: new ScriptedFetch().push(() => sseResponse([finish('stop'), '[DONE]'])) });
+    await addEndpoint(h);
+    const reveal = vi.spyOn(h.keys, 'revealPayload');
+    const iterator = h.gateway.complete({ ...userMessage('abandoned'), turnId: 'abandoned' })[Symbol.asyncIterator]();
+    const pending = iterator.next();
+    await iterator.return?.();
+    expect((await pending).value).toEqual({ finishReason: 'error', usage: { promptTokens: 0, completionTokens: 0 } });
+    expect(reveal).not.toHaveBeenCalled();
+    expect(h.net.calls).toHaveLength(0);
+    expect(h.gateway.ledger.turnTotals('abandoned').requests).toBe(0);
+  });
+
+  it('does not send after iterator return while an admitted call is revealing credentials', async () => {
+    const observe = vi.fn();
+    const headerSecret = 'synthetic-secret-header';
+    const h = harness({ observe, net: new ScriptedFetch().push(() => sseResponse([finish('stop'), '[DONE]'])) });
+    await addEndpoint(h, { customHeaders: { 'x-team': headerSecret } });
+    const revealPayload = h.keys.revealPayload.bind(h.keys);
+    let resume!: () => void;
+    vi.spyOn(h.keys, 'revealPayload').mockImplementation(async (id) => {
+      await new Promise<void>((resolve) => { resume = resolve; });
+      return revealPayload(id);
+    });
+    const beforeSend = vi.fn();
+    const iterator = h.gateway.complete({ ...userMessage(`${KEY} ${headerSecret}`), turnId: 'abandoned' }, undefined, beforeSend)[Symbol.asyncIterator]();
+    const pending = iterator.next();
+    await flush();
+    expect(h.net.calls).toHaveLength(0);
+    const closed = iterator.return?.();
+    resume();
+    await closed;
+    expect((await pending).value).toEqual({ finishReason: 'error', usage: { promptTokens: 0, completionTokens: 0 } });
+    expect(h.net.calls).toHaveLength(0);
+    expect(beforeSend).not.toHaveBeenCalled();
+    expect(h.gateway.ledger.turnTotals('abandoned').requests).toBe(0);
+    expect(h.gateway.requestLog.entries()).toEqual([]);
+    expect(JSON.stringify(observe.mock.calls)).not.toContain(KEY);
+    expect(JSON.stringify(observe.mock.calls)).not.toContain(headerSecret);
+    expect(observe).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'response', error: { kind: 'abandoned', message: expect.any(String) } }));
+  });
+
+  it.each(['transport read', 'retry sleep'])('traces iterator return during a pending %s as abandonment', async (phase) => {
+    const observe = vi.fn();
+    const held = openSse();
+    const net = new ScriptedFetch().push(
+      () => phase === 'transport read' ? held.response : new Response('Slow down', { status: 429, headers: { 'retry-after': '2' } }),
+      () => sseResponse([finish('stop'), '[DONE]']),
+    );
+    const h = harness({ observe, net });
+    await addEndpoint(h);
+    const iterator = h.gateway.complete({ ...userMessage('abandoned'), turnId: 'abandoned' })[Symbol.asyncIterator]();
+    const pending = iterator.next();
+    await flush();
+    expect(net.calls).toHaveLength(1);
+    await iterator.return?.();
+    expect((await pending).value).toMatchObject({ finishReason: 'error' });
+    expect(observe).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'response', error: { kind: 'abandoned', message: expect.any(String) } }));
+    expect(h.gateway.ledger.turnTotals('abandoned').requests).toBe(1);
+    expect(h.clock.pending).toBe(0);
+    h.clock.advance(10_000);
+    await flush();
+    expect(net.calls).toHaveLength(1);
+  });
+
+  it('removes a returned queued iterator and its rate-limit timer without sending', async () => {
+    const net = new ScriptedFetch().push(
+      () => new Response('Slow down', { status: 429, headers: { 'retry-after': '2' } }),
+      () => sseResponse([finish('stop'), '[DONE]']),
+    );
+    const h = harness({ net, retry: { maxRetries: 0 } });
+    await addEndpoint(h);
+    await expect(h.gateway.completeOnce(userMessage('limited'))).rejects.toMatchObject({ kind: 'rate_limit' });
+    const iterator = h.gateway.complete({ ...userMessage('abandoned'), turnId: 'abandoned' })[Symbol.asyncIterator]();
+    const pending = iterator.next();
+    await flush();
+    const closed = iterator.return?.();
+    await flush();
+    expect(h.clock.pending).toBe(0);
+    h.clock.advance(2_000);
+    await closed;
+    expect((await pending).value).toEqual({ finishReason: 'error', usage: { promptTokens: 0, completionTokens: 0 } });
+    expect(net.calls).toHaveLength(1);
+    expect(h.gateway.ledger.turnTotals('abandoned').requests).toBe(0);
+  });
+
   it('pauses new admission even on an exhausted 429, without blocking another profile', async () => {
     const net = new ScriptedFetch().push(
       () => new Response('Slow down', { status: 429, headers: { 'retry-after': '2' } }),
