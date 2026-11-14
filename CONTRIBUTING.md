@@ -32,7 +32,7 @@ pnpm exec playwright install firefox webkit # optional, for the nightly cross-br
 CAOTANG_E2E_BROWSERS=all pnpm exec playwright test --project=webkit
 ```
 
-These checks must pass before a pull request is merged. CI runs `pnpm verify`, the production build, bundle-size check, MCP pack and CLI build on Node 22.19.0 and 24; the Node 22.19 leg verifies the pinned pnpm tarball's SHA-512 before installing it directly, while Node 24 uses Corepack. Chromium E2E runs on Node 24 in parallel. A separate workflow runs Firefox and WebKit E2E on every pull request and nightly, two shards per browser, then merges their reports into one HTML report.
+These checks must pass before a pull request is merged. CI runs `pnpm verify`, the production build, bundle-size check, MCP pack and CLI build on Node 22.19.0 and 24; the Node 22.19 leg verifies the pinned pnpm tarball's SHA-512 before installing it directly, while Node 24 uses Corepack. Chromium E2E runs on Node 24 in parallel. A separate workflow runs Firefox and WebKit E2E on every pull request and nightly, three Firefox shards and two WebKit shards plus a Modern gate per browser, then merges their reports into one HTML report. Each leg uses two workers and logs named test progress alongside its blob report.
 
 The Chromium suite runs in two 45-minute shard jobs, with the existing `e2e (chromium)` name kept by an always-running summary that requires both shards and their merged report to succeed. The separate `e2e (chromium, Modern gate)` check keeps its name and runs in parallel; `verify` requires both checks. Workers, retries and local defaults are unchanged. Chromium blob reports use their own artifact prefix, so the Firefox/WebKit report merge remains separate.
 
