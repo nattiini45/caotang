@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import type * as UiAgentModule from '../apps/desktop/test/ui-agent-fixture.js';
 import { sumUsage, type DayUsageRow } from '../packages/gateway/src/index.js';
 
 import { endpointRoute, FAKE_ENDPOINT, fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
@@ -14,6 +16,8 @@ import { bodyOf, createProject, idOf, savedMessage } from './support.js';
  */
 
 const FRIEND_PROSE = 'The ferry came in on the evening tide, low in the water and slow to answer the rope.';
+const uiAgentUrl = `/@fs/${fileURLToPath(new URL('../apps/desktop/test/ui-agent-fixture.ts', import.meta.url)).replaceAll('\\', '/').replace(/^\/+/, '')}`;
+type UiAgent = typeof UiAgentModule;
 
 async function openSettings(page: Page): Promise<ReturnType<Page['getByTestId']>> {
   await page.goto('/');
@@ -421,6 +425,7 @@ test('profile request limits default by kind, clamp with keyboard input, and per
   await expect(settings.getByText(savedMessage('Concurrency'))).toBeVisible();
   expect((await storedProfiles(page)).find((profile) => profile['name'] === 'Concurrency')?.['maxConcurrentRequests']).toBe(5);
 
+  await expect(settings.locator('section[aria-labelledby="settings-providers"]')).toHaveAttribute('data-panel-state', 'idle');
   await page.reload();
   const again = await openSettings(page);
   await again.locator('[data-profile="Demo (no key)"]').getByRole('button', { name: 'Edit' }).click();
@@ -429,6 +434,35 @@ test('profile request limits default by kind, clamp with keyboard input, and per
   await form.getByRole('button', { name: 'Cancel' }).click();
   await again.locator('[data-profile="Concurrency"]').getByRole('button', { name: 'Edit' }).click();
   await expect(again.getByRole('form', { name: 'Edit provider' }).getByLabel('Requests at once')).toHaveValue('5');
+});
+
+test('the UI SDK can set Requests at once and the native save persists it through reload', async ({ page }) => {
+  await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
+  const settings = await openSettings(page);
+  await settings.getByRole('button', { name: 'Add a provider' }).click();
+  const form = settings.getByRole('form', { name: 'New provider' });
+  await form.getByRole('combobox', { name: 'Provider' }).selectOption('generic');
+  await form.getByLabel('Name').fill('UI SDK');
+  await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
+  await form.getByLabel('Model', { exact: true }).fill('test-model');
+
+  const entries = await page.evaluate(async (url) => (await import(/* @vite-ignore */ url) as UiAgent).agent.snapshot(), uiAgentUrl);
+  const requestsAtOnce = entries.find((entry) => entry.label === 'Requests at once');
+  expect(requestsAtOnce).toBeDefined();
+  const action = await page.evaluate(async ({ url, ref }) => {
+    const { agent } = await import(/* @vite-ignore */ url) as UiAgent;
+    return agent.act({ steps: [{ ref, action: 'setValue', args: ['6'] }] });
+  }, { url: uiAgentUrl, ref: requestsAtOnce!.ref });
+  expect(action.ok, JSON.stringify(action)).toBe(true);
+  await expect(form.getByLabel('Requests at once')).toHaveValue('6');
+
+  await form.getByRole('button', { name: 'Save profile' }).click();
+  await expect(settings.getByText(savedMessage('UI SDK'))).toBeVisible();
+  await expect(settings.locator('section[aria-labelledby="settings-providers"]')).toHaveAttribute('data-panel-state', 'idle');
+  await page.reload();
+  const again = await openSettings(page);
+  await again.locator('[data-profile="UI SDK"]').getByRole('button', { name: 'Edit' }).click();
+  await expect(again.getByRole('form', { name: 'Edit provider' }).getByLabel('Requests at once')).toHaveValue('6');
 });
 
 test('a flag-only temperature profile — the SDK shape — keeps its mode through an unrelated edit and a reload', async ({ page }) => {
