@@ -131,7 +131,7 @@ describe('the list each agent is given', () => {
   const tools = makeHarness({ ports: createAgentPorts() }, makeState()).tools();
 
   it('holds the reader’s read tools only, whatever the planner has loaded', () => {
-    expect(namesOf(childTools(READER, tools))).toEqual(['binder.read_tree', 'codex.read', 'dialogue.table', 'doc.read', 'notes.read', 'project.overview', 'timeline.read']);
+    expect(namesOf(childTools(READER, tools))).toEqual(['binder.read_tree', 'codex.read', 'dialogue.table', 'doc.read', 'notes.read', 'project.overview', 'text.search', 'timeline.read']);
     expect(childTools(READER, tools).every((tool) => tool.risk === 'read')).toBe(true);
   });
 

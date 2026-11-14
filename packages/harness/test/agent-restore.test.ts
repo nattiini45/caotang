@@ -327,6 +327,7 @@ describe('the agent has no way to rewind', () => {
   it('registers no tool for a rewind or a restore', () => {
     expect(TOOL_NAMES.filter((name) => /rewind|restore|checkpoint/i.test(name))).toEqual([]);
     expect(TOOL_NAMES).toContain('session.history');
-    expect(TOOL_NAMES).toHaveLength(54);
+    expect(TOOL_NAMES).toContain('text.search');
+    expect(TOOL_NAMES).toHaveLength(55);
   });
 });

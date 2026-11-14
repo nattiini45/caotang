@@ -193,6 +193,7 @@ export type AsyncToolPort = (params: CallParams, context: PortContext) => Promis
  * model call is asynchronous and a port is not, and it is run by `callAsync` (see tools/coherence.ts).
  */
 export type PortToolName =
+  | 'text.search'
   | 'codex.read'
   | 'scene.draft'
   | 'synopsis.fill'

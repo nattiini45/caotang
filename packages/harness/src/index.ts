@@ -52,6 +52,7 @@ export {
 } from './rules.js';
 export { TOOL_TARGETS, type ToolTargets, type TargetsFn } from './targets.js';
 export { createProductHarness, type ProductHarnessOptions } from './product.js';
+export { textSearchPort } from './tools/text-search.js';
 // The coherence module's two ports the agent's scan and review read through, and the gateway as the review's model.
 export { DIALOGUE_CONTAINER_TYPE, containersOf, dialogueFactsOf } from './coherence-facts.js';
 // The Ink compiler loads on demand (dialogue ink-loader.ts); a Node host awaits this before it opens a project, so every dialogue tool and check can compile.
@@ -362,6 +363,7 @@ export {
 } from './tools/transcription-model.js';
 export {
   appendLanguageLine,
+  contextOverridesOk,
   createContextPort,
   dropLinesOf,
   languageDirective,

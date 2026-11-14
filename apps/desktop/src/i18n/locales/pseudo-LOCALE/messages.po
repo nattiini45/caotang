@@ -5758,6 +5758,11 @@ msgstr ""
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
+msgid "Context choices"
+msgstr ""
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
 msgid "Context choices for the next request"
 msgstr ""
 
@@ -7719,6 +7724,11 @@ msgstr ""
 msgid "Final Draft (.fdx)"
 msgstr ""
 
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.textSearch.content"
+msgstr ""
+
 #. Changes a timeline scene can be given from the keyboard. Interpolated values: title, name, count, delta, other, part, day are scene titles, part words or numbers.
 #: apps/desktop/src/components/timeline/SceneChanges.tsx
 msgid "Find the scene it must follow"
@@ -7734,6 +7744,11 @@ msgstr ""
 #: apps/desktop/src/app/coherence-report-words.ts
 #: apps/desktop/src/app/findings-model.ts
 msgid "Finding"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.textSearch.active"
 msgstr ""
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
@@ -7962,11 +7977,6 @@ msgstr ""
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "For you. Never sent to the model."
-msgstr ""
-
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-#: apps/desktop/src/components/AgentPanel.tsx
-msgid "Foreground only"
 msgstr ""
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
@@ -9555,6 +9565,10 @@ msgstr ""
 #: apps/desktop/src/media/PictureBoard.tsx
 #: apps/desktop/src/media/TranscriptionReviewDialog.tsx
 msgid "Loading…"
+msgstr ""
+
+#: apps/desktop/src/app/text-search-worker.ts
+msgid "Local passage search is unavailable. Nothing was written."
 msgstr ""
 
 #: apps/desktop/src/components/InspectorDialogue.tsx
@@ -12342,6 +12356,13 @@ msgstr ""
 msgid "Pins and leave-outs affect optional context only. Required tool input, conversation history and read permissions do not change."
 msgstr ""
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/AgentPanel.tsx
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "Pins and leave-outs stay with this request when it runs in the background."
+msgstr ""
+
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Pixels"
 msgstr ""
@@ -13784,13 +13805,6 @@ msgstr ""
 msgid "Requests"
 msgstr ""
 
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
-#: apps/desktop/src/components/AgentPanel.tsx
-#: apps/desktop/src/components/PlanCard.tsx
-msgid "Requests with pins or leave-outs run here, not as background tasks. Remove these choices before requesting a background task."
-msgstr ""
-
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Requests, newest first"
@@ -14000,6 +14014,10 @@ msgstr ""
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
 #: apps/desktop/src/components/AgentSessions.tsx
 msgid "Retry saving the conversation"
+msgstr ""
+
+#: apps/desktop/src/app/text-search-worker.ts
+msgid "Retry the search, or reopen the project in a browser with worker support."
 msgstr ""
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
@@ -16944,6 +16962,11 @@ msgstr ""
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #: apps/desktop/src/app/mcp-model.ts
 msgid "The connection was cancelled. Choose Connect to try again."
+msgstr ""
+
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "The context choices could not be kept. Run this plan here, or send the request again."
 msgstr ""
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting

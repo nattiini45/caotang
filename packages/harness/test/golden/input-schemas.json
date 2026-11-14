@@ -1470,6 +1470,67 @@
     ],
     "additionalProperties": false
   },
+  "text.search": {
+    "type": "object",
+    "description": "Search current project text locally, without a provider request.",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "Words to find, with optional quoted adjacent-token phrases. No stemming or fuzzy matching.",
+        "minLength": 1,
+        "maxLength": 500
+      },
+      "scope": {
+        "type": "array",
+        "description": "Binder node ids; folders expand to their descendants. Omit for the whole project, including eligible codex.",
+        "items": {
+          "type": "string",
+          "description": "A binder node id.",
+          "minLength": 1
+        },
+        "maxItems": 100,
+        "uniqueItems": true
+      },
+      "fields": {
+        "type": "array",
+        "description": "Fields to search; omit for all four.",
+        "items": {
+          "type": "string",
+          "enum": [
+            "body",
+            "synopsis",
+            "notes",
+            "codex"
+          ],
+          "description": "A project text field."
+        },
+        "minItems": 1,
+        "maxItems": 4,
+        "uniqueItems": true
+      },
+      "limit": {
+        "type": "integer",
+        "description": "The most hits to return, default 8 and at most 25.",
+        "minimum": 1,
+        "maximum": 25,
+        "default": 8
+      },
+      "excludeAfter": {
+        "type": "string",
+        "description": "A focus document id: omit later manuscript passages but keep research.",
+        "minLength": 1
+      },
+      "focus": {
+        "type": "string",
+        "description": "A document id for before/focus/after labels only.",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "additionalProperties": false
+  },
   "session.history": {
     "type": "object",
     "description": "Earlier turns in the current role’s conversation, newest first.",

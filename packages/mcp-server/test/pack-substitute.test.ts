@@ -97,11 +97,12 @@ describe('the .mcpb manifest, as a host runs it', () => {
     if (root !== '') removeDir(root);
   });
 
-  it('opens a project at a path with a space and CJK characters, read-only, and lists 13 tools', async () => {
+  it('opens a project at a path with a space and CJK characters, read-only, and lists 14 tools', async () => {
     const client = await hostFromBundle(unpacked, project, false);
     try {
       const { tools } = await client.listTools();
-      expect(tools).toHaveLength(13);
+      expect(tools).toHaveLength(14);
+      expect(tools.map((tool) => tool.name)).toContain('text.search');
       const tree = resultJson(await client.callTool({ name: 'binder.read_tree', arguments: { root: 'root', depth: 3, include: 'counts' } }));
       expect(JSON.stringify(tree)).toContain('The Landing');
       expect(JSON.stringify(tree)).toContain('Subject Book');
@@ -110,11 +111,12 @@ describe('the .mcpb manifest, as a host runs it', () => {
     }
   });
 
-  it('turns writes on from the manifest setting, and lists 36 tools', async () => {
+  it('turns writes on from the manifest setting, and lists 37 tools', async () => {
     const client = await hostFromBundle(unpacked, project, true);
     try {
       const { tools } = await client.listTools();
-      expect(tools).toHaveLength(36);
+      expect(tools).toHaveLength(37);
+      expect(tools.map((tool) => tool.name)).toContain('text.search');
       expect(tools.map((tool) => tool.name)).toContain('notes.append');
     } finally {
       await client.close();

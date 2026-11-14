@@ -140,6 +140,7 @@ test('a window too small for the planner refuses before a request or plan card, 
   await endpointRoute(page, new URL(FAKE_ENDPOINT).origin, (request) => { requests.push(request.user); return 'This request must not be sent.'; }, [{ id: 'test-model', context_length: 300 }]);
   await usePricedEndpoint(page);
   await openSample(page);
+  await expect.poll(() => projectTrace(page)).toContain('coherence.scan');
   await expect(page.getByTestId('agent-panel')).toHaveAttribute('data-state', 'idle');
   expect(requests).toEqual([]);
   const before = await projectTrace(page);

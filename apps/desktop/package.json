@@ -38,6 +38,7 @@
     "@caotang/mcp-client": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",
     "@caotang/pictures": "workspace:*",
+    "@caotang/retrieval": "workspace:*",
     "@caotang/screenplay": "workspace:*",
     "@caotang/skills": "workspace:*",
     "@caotang/store": "workspace:*",

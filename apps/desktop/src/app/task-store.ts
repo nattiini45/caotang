@@ -10,7 +10,7 @@
  * before it reaches a card (`submitStaged`).
  */
 
-import { MODEL_BACKED_TOOLS, estimatedStepCalls, type PlanStep, type StepRevisions } from '@caotang/harness';
+import { MODEL_BACKED_TOOLS, contextOverridesOk, estimatedStepCalls, mergePreviews, stagedOf, type ContextOverrides, type PlanStep, type PromptPreview, type StepRevisions } from '@caotang/harness';
 import { newId } from '@caotang/ids';
 import type { MachineTable } from '@caotang/machine';
 
@@ -67,6 +67,7 @@ export interface TaskRecord {
   readonly projectId: string;
   readonly intent: string;
   readonly steps: readonly PlanStep[];
+  readonly contextOverrides?: ContextOverrides;
   readonly status: TaskStatus;
   readonly items: readonly TaskItem[];
   /** The most model calls the task may make: the plan's estimate. */
@@ -101,10 +102,11 @@ export function asTaskRecord(value: unknown, projectId: string): TaskRecord | un
   const { id, status, steps, items } = value;
   if (typeof id !== 'string' || value['projectId'] !== projectId || typeof status !== 'string' || !STATUSES.has(status)) return undefined;
   if (typeof value['intent'] !== 'string' || !Array.isArray(steps) || !Array.isArray(items)) return undefined;
+  if (value['contextOverrides'] !== undefined && !contextOverridesOk(value['contextOverrides'])) return undefined;
   for (const field of ['cap', 'used', 'promptTokens', 'completionTokens', 'runs', 'createdAt', 'updatedAt']) {
     if (!isCount(value[field])) return undefined;
   }
-  const stepsOk = steps.every((step) => isObject(step) && typeof step['tool'] === 'string' && isObject(step['params']) && typeof step['expect'] === 'string');
+  const stepsOk = steps.every((step) => isObject(step) && typeof step['tool'] === 'string' && isObject(step['params']) && typeof step['expect'] === 'string' && (step['contextOverrides'] === undefined || contextOverridesOk(step['contextOverrides'])));
   const itemsOk = items.every(
     (item) =>
       isObject(item) &&
@@ -173,16 +175,20 @@ export function reviewOf(task: TaskRecord): TaskReview {
     if (step.tool === 'synopsis.fill' && own.some((item) => item.ref !== undefined)) {
       omitted += own.length - staged.length;
       const merged: { docId: string; synopsis: string }[] = [];
+      const previews: PromptPreview[] = [];
       let cut = false;
       let reads: Record<string, number> = {};
       for (const item of staged) {
         const part = item.proposal as { items?: { docId: string; synopsis: string }[]; cut?: boolean } | undefined;
         merged.push(...(Array.isArray(part?.items) ? part.items : []));
+        const context = stagedOf(item.proposal).context;
+        if (context !== undefined) previews.push(context);
         cut ||= part?.cut === true;
         reads = { ...reads, ...(item.revisions ?? {}) };
       }
       steps.push({ ...step, params: { ...step.params, docs: staged.flatMap((item) => (item.ref === undefined ? [] : [item.ref])) } });
-      proposals.push(cut ? { items: merged, cut: true } : { items: merged });
+      const context = mergePreviews(previews);
+      proposals.push({ items: merged, ...(cut ? { cut: true } : {}), ...(context === undefined ? {} : { context }) });
       revisions.push(reads);
       continue;
     }

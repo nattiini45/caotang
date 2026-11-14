@@ -72,7 +72,7 @@ export interface SubagentSpec {
 }
 
 /** What the agents may read: project facts and text, no model-backed read, and nothing that writes held state outside the bus (`coherence.scan` appends findings). */
-const READS: readonly ToolName[] = ['project.overview', 'binder.read_tree', 'doc.read', 'notes.read', 'codex.read', 'dialogue.table', 'timeline.read'];
+const READS: readonly ToolName[] = ['project.overview', 'binder.read_tree', 'doc.read', 'notes.read', 'codex.read', 'text.search', 'dialogue.table', 'timeline.read'];
 
 export const READER: SubagentSpec = {
   name: 'reader',

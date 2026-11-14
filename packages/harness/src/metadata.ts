@@ -6,6 +6,7 @@ import { PROMPT_PACK_TOOL_ENTRIES } from '@caotang/video-prompt-pack';
 
 import { TOOL_TARGETS, type ToolTargets } from './targets.js';
 import { SESSION_HISTORY_CAP } from './tools/session-history.js';
+import { TEXT_SEARCH_CAP } from './tools/text-search.js';
 import { SUBAGENT_BLURBS } from './tools/delegate.js';
 import { PRIMITIVE_TOOLS } from './tools/primitive-tools.js';
 import { PRIMITIVE_TOOL_NAMES } from './tools/primitive.js';
@@ -93,6 +94,7 @@ export const TOOL_NAMES = [
   'memory.read',
   // Delegation to a built-in helper agent (agent-harness §2).
   'agent.delegate',
+  'text.search',
   'session.history',
   // The story timeline's read (timeline.md §5.1); its write, `timeline.edit`, is one of the primitives below.
   'timeline.read',
@@ -413,6 +415,17 @@ const ROWS: readonly ToolRow[] = [
     surface: 'extension',
     load: 'deferred',
     keywords: ['delegate', 'agent', 'subagent', 'helper', 'research', 'reader', 'summarise', 'long'],
+  },
+  {
+    name: 'text.search',
+    risk: 'read',
+    undoable: false,
+    response_token_cap: TEXT_SEARCH_CAP,
+    descriptionVersion: 1,
+    description: 'Find passages in project bodies, synopses, notes and eligible codex by words or quoted adjacent-token phrases. Returns ranked source ranges and exact snippets. Use it before doc.read when you do not know which document holds something. scope takes binder ids; fields narrows the corpus; limit defaults to 8, at most 25. excludeAfter omits later manuscript passages but keeps research. Never entries and read-denied text are excluded before scoring. Local lexical search makes no provider request and changes nothing.',
+    surface: 'extension',
+    load: 'deferred',
+    keywords: ['search', 'find', 'passage', 'words', 'mention', 'where', 'text'],
   },
   {
     name: 'session.history',

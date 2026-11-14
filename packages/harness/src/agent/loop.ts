@@ -206,7 +206,7 @@ import { modelResult, outsideSources, readsOutsideText, scanForInjection, source
 import { CacheWatch, stableToolOrder, watched, type TurnCacheUse } from './cache-watch.js';
 import { requestCapFor, transmittedOutputCap } from './output-cap.js';
 import { fitToWindow } from './window.js';
-import { appendLanguageLine, createContextPort, dropLinesOf, mergePreviews, type ContextPort, type LanguagePolicy } from './context.js';
+import { appendLanguageLine, contextOverridesOk, createContextPort, dropLinesOf, mergePreviews, type ContextPort, type LanguagePolicy } from './context.js';
 import { createSubagentRunner, framedResult, resultLine, SUBAGENT_SPECS, type ParentTurnHandle } from './subagent.js';
 import {
   BACKGROUND_OFFER_MIN_CALLS,
@@ -364,6 +364,7 @@ export interface AgentSessionOptions {
 export interface PlanOffer {
   readonly turnId: string;
   readonly steps: readonly PlanStep[];
+  readonly contextOverrides?: ContextOverrides;
   /** The model calls staging the plan makes (`estimatedModelCalls`). A background run is capped at this many. */
   readonly estimatedCalls: number;
   /** The most model calls a turn may make here: staging now stops at this many. */
@@ -2475,7 +2476,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
       },
       model: () => agentCall(turn, agentPath, spec.maxModelCalls),
-      read: (call) => Promise.resolve(harness.call(call, { turnId: turn.id, agentPath, ...signalOf(turn) })),
+      read: async (call) => {
+        guardReadBoundary(turn);
+        const context = { turnId: turn.id, agentPath, ...signalOf(turn) };
+        return awaited(call.name) ? harness.callAsync(call, context) : harness.call(call, context);
+      },
       trace: (entry) => {
         const row: TraceEntry = { ...entry, agentPath };
         pushRow(turn, row);
@@ -3592,7 +3597,6 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const ask = options.beforeStage;
     const calls = estimatedModelCalls(plan.steps);
     if (ask === undefined || turn.tainted || harness.loadedSkills(turn.id).length > 0 || calls < BACKGROUND_OFFER_MIN_CALLS || !backgroundEligibility(plan.steps).eligible) return undefined;
-    if ((turn.contextOverrides?.include?.length ?? 0) + (turn.contextOverrides?.exclude?.length ?? 0) > 0) return undefined;
     checkStop(turn);
     phase(turn, 'awaiting-approval');
     const { signal } = turn;
@@ -3600,7 +3604,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     turn.meter?.pauseClock();
     let release = (): void => {};
     try {
-      const asked = ask({ turnId: turn.id, steps: plan.steps, estimatedCalls: calls, turnCap: maxModelCalls });
+      const asked = ask({ turnId: turn.id, steps: plan.steps, ...(turn.contextOverrides === undefined ? {} : { contextOverrides: structuredClone(turn.contextOverrides) }), estimatedCalls: calls, turnCap: maxModelCalls });
       const stopped = new Promise<OfferAnswer>((resolve) => {
         if (signal === undefined) return;
         const onAbort = (): void => resolve('cancel');
@@ -3997,12 +4001,28 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return written;
   }
 
+  function parseStagingPlan(input: unknown): Result<Plan, CommandError> {
+    if (!isRecord(input) || !Array.isArray(input['steps'])) return parsePlan(input);
+    const overrides: (ContextOverrides | undefined)[] = [];
+    const steps: unknown[] = [];
+    for (const step of input['steps'] as unknown[]) {
+      if (!isRecord(step)) return parsePlan(input);
+      const { contextOverrides, ...call } = step;
+      if (contextOverrides !== undefined && !contextOverridesOk(contextOverrides)) return err(refusal('invalid-params', 'the stored step has invalid context choices'));
+      overrides.push(contextOverrides);
+      steps.push(call);
+    }
+    const parsed = parsePlan({ ...input, steps });
+    if (!parsed.ok) return parsed;
+    return ok({ ...parsed.value, steps: parsed.value.steps.map((step, index) => overrides[index] === undefined ? step : { ...step, contextOverrides: structuredClone(overrides[index]) }) });
+  }
+
   /**
    * Stages steps with no card (`stageOnly`). Each step is staged on its own, so one refused or failed step costs the others nothing.
    * Its turn is not recorded as a conversation turn: the session's record and the planner's history stay as they were.
    */
   async function stageSteps(stepsIn: readonly PlanStep[], turnOptions: TurnOptions): Promise<StageOnlyResult> {
-    const parsed = parsePlan({ steps: stepsIn });
+    const parsed = parseStagingPlan({ steps: stepsIn });
     const turn = newTurn(turnOptions, []);
     const steps = parsed.ok ? parsed.value.steps : [];
     const proposals: unknown[] = stepsIn.map(() => undefined);
@@ -4531,7 +4551,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       revisions: readonly (StepRevisions | undefined)[],
       turnOptions: TurnOptions = {},
     ): Promise<TurnReport> {
-      const parsed = parsePlan(plan);
+      const parsed = parseStagingPlan(plan);
       return runTurn(
         intent,
         turnOptions,

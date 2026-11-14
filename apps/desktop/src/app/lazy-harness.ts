@@ -17,6 +17,7 @@ import type { SkillReviews } from './skill-reviews.js';
 import type { TranscriptionReviewBroker } from './transcription-review.js';
 import { resizePictureInBrowser } from './picture-transcoder.js';
 import { activeCoherenceModel } from './coherence-review.js';
+import { createTextSearchWorker } from './text-search-worker.js';
 
 export { createAgentSession, createBudgetMeter, createContextPort, preloadFor, summaryPrefix } from '@caotang/harness';
 
@@ -41,6 +42,7 @@ export interface HarnessHost {
 /** A project's harness with the pieces made beside it that the session and the agent loop reach. */
 export interface HarnessRuntime {
   readonly harness: Harness;
+  dispose(): void;
   /** The transient hand-off between the picture view host and this project's agent session. */
   readonly pictureOutbox: PictureOutbox;
   /** The pictures an external tool returned, held in the session's staging area for ten minutes and dropped when the project closes (pictures.md §8.3). */
@@ -50,6 +52,7 @@ export interface HarnessRuntime {
 export function createHarnessRuntime(host: HarnessHost): HarnessRuntime {
   const pictureOutbox = createPictureOutbox();
   const imageStager = createImageStager({ staging: host.assetStaging });
+  const search = createTextSearchWorker();
   const { coherence } = host;
   const harness = createProductHarness({
     state: host.state,
@@ -59,12 +62,15 @@ export function createHarnessRuntime(host: HarnessHost): HarnessRuntime {
     ports: 'agent',
     // The agent is told only of the skills the writer has read and approved, and the harness checks that on every call.
     skills: { reviewedPin: (name) => host.skillReviews.pinOf(name) },
-    asyncPorts: picturePorts({
-      vision: () => host.pictureVision(),
-      readBytes: async (path) => (await host.assets.readBytes(path)) ?? undefined,
-      ...(typeof createImageBitmap === 'function' ? { resize: resizePictureInBrowser } : {}),
-      deliver: pictureOutbox.deliver,
-    }),
+    asyncPorts: {
+      'text.search': search.port,
+      ...picturePorts({
+        vision: () => host.pictureVision(),
+        readBytes: async (path) => (await host.assets.readBytes(path)) ?? undefined,
+        ...(typeof createImageBitmap === 'function' ? { resize: resizePictureInBrowser } : {}),
+        deliver: pictureOutbox.deliver,
+      }),
+    },
     transcription: {
       vision: () => host.pictureVision(),
       review: (draft, signal) => host.transcriptionReviews.review(draft, signal),
@@ -87,5 +93,5 @@ export function createHarnessRuntime(host: HarnessHost): HarnessRuntime {
           },
         }),
   });
-  return { harness, pictureOutbox, imageStager };
+  return { harness, pictureOutbox, imageStager, dispose: search.dispose };
 }
