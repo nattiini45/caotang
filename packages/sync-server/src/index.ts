@@ -1,5 +1,8 @@
 import { DurableObject } from 'cloudflare:workers';
 import { AccountRegistry, type DurableAccount } from './accounts.js';
+import { StorageCoordinator, storageRoute, sweepQuota } from './storage.js';
+
+export { StorageCoordinator };
 
 export interface SyncServerBindings {
   ASSETS: Fetcher;
@@ -8,6 +11,8 @@ export interface SyncServerBindings {
   ALLOWED_GITHUB_LOGINS?: string;
   AUTHENTICATION_MODE?: string;
   ACCOUNT_DB?: D1Database;
+  PROJECT_STORE?: R2Bucket;
+  STORAGE_COORDINATOR?: DurableObjectNamespace<StorageCoordinator>;
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
   SESSION_SECRET: string;
@@ -235,6 +240,11 @@ export default {
     } else if (ticket.mode !== undefined || !allowed(ticket.identity, env)) {
       return reply(401, 'Sign in to continue.');
     }
+    if (url.pathname.startsWith('/v1/projects/')) {
+      if (!account) return reply(404, 'This API route does not exist.');
+      if (!env.PROJECT_STORE || !env.STORAGE_COORDINATOR) return reply(503, 'Storage is not configured. Contact the server operator.');
+      return storageRoute(request, url, account, env);
+    }
     const hub = account ? env.ACCOUNT_HUBS.getByName(account.id) : env.ACCOUNT_HUBS.getByName(ticket.identity!.id);
     const hubAccount: HubAccount | undefined = account ? { id: account.id, githubId: account.githubId, revision: account.revision } : undefined;
     if (url.pathname === '/v1/session') return request.method === 'GET' ? Response.json(account ? { id: account.githubId, login: account.login } : ticket.identity, { headers: { 'Cache-Control': 'no-store' } }) : reply(405, 'Use GET to read the session.');
@@ -270,6 +280,10 @@ export default {
       return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
     }
     return reply(404, 'This API route does not exist.');
+  },
+
+  async scheduled(_event: ScheduledEvent, env: SyncServerBindings): Promise<void> {
+    if (accountMode(env) && env.ACCOUNT_DB && env.PROJECT_STORE && env.STORAGE_COORDINATOR) await sweepQuota(env);
   },
 };
 
