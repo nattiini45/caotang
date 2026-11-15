@@ -191,7 +191,9 @@ export const BUDGET = {
   // chunks; the first load did not move). The ceiling is the measured size plus about 8 kB.
   // The spreadsheet import (#288): 8,433,618 bytes measured on #298 (+21,917: the RFC 4180 reader, its role tables and the
   // spreadsheet preview source, in lazy chunks; the first load did not move). The ceiling is the measured size plus about 6 kB.
-  totalJs: 8_440_000,
+  // The Excel workbook import (#289): 8,443,492 bytes measured on #288 (+9,874: the workbook reader and its sheet parser, in lazy
+  // chunks, reusing the shared zip, XML and grid code). The ceiling is the measured size plus about 6 kB.
+  totalJs: 8_450_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
