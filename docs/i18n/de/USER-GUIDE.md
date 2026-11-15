@@ -1,5 +1,6 @@
 # Caotang-Benutzerhandbuch
 <!-- source: 633bef70 -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Dieses Handbuch ist für Autorinnen und Autoren. Es beschreibt, was Sie in Caotang sehen und was jedes Steuerelement bewirkt. Zur Einrichtung und zur technischen Seite siehe [README](../README.md). Der letzte Abschnitt listet auf, was in diesem Build noch fehlt.
 
@@ -88,7 +89,6 @@ Die Filterleiste über der Liste engt sie ein. Tippen Sie, um nach Titel, Synops
 
 ## Die Pinnwand
 <!-- source: b9ac5e18 -->
-> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie **Pinnwand** über der Mitte des Fensters, um die Karten des ausgewählten Kapitels zu sehen, oder die der Kapitel des Manuskripts, wenn **Manuscript** ausgewählt ist. **Editor** führt zurück zum Text.
 
@@ -174,6 +174,7 @@ Das Panel rechts zeigt das ausgewählte Element:
 
 ## Der Editor
 <!-- source: be05ace1 -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie eine Szene im Binder, um in ihr zu schreiben.
 
@@ -190,7 +191,6 @@ Wählen Sie eine Szene im Binder, um in ihr zu schreiben.
 
 ## Ein Drehbuch schreiben
 <!-- source: 952ebb2f -->
-> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie **Neue Drehbuchszene hier** aus dem Menü eines Ordners. Eine Drehbuchszene wird in Fountain geschrieben, einem Drehbuchformat in einfachem Text. Ihre Ansicht hat drei Registerkarten:
 
@@ -213,7 +213,6 @@ Kompilieren Sie ein Drehbuch über **Kompilieren…** in der Gruppe „Medien“
 
 ### Das Drehbuch-PDF
 <!-- source: 3adbece3 -->
-> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 **Drehbuch-PDF (`.pdf`)** setzt das Drehbuch auf Seiten im Format US Letter im Standard-Drehbuchlayout:
 
@@ -268,7 +267,6 @@ Die Container-Einstellungen ändern diese Dateien:
 
 ## Ein Storyboard planen
 <!-- source: d2e2c388 -->
-> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie **Neues Storyboard hier** aus dem Menü eines Ordners. Ein Storyboard enthält Einstellungen, und jede Einstellung ist eine Karte. Wählen Sie **Neue Einstellung hier**, um eine hinzuzufügen.
 
@@ -372,6 +370,7 @@ Der Scan sucht nicht in den Zeilen einer Figur oder im Prosatext nach dem Fakt. 
 
 ### Sprecher in einem Drehbuch und seinem Dialog
 <!-- source: 5865ab47 -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Eine Drehbuch-Szene und ein verzweigter Dialog können dieselben Personen auf unterschiedliche Weise nennen, etwa "Marisol" im einen und "Marisol Vega" im anderen. Nichts koppelt eine Szene mit einem Dialog, bis Sie es tun: Wählen Sie in den **Szenendeklarationen** der Szene einen **Dialog-Container**. Ein vollständiger Scan vergleicht dann die Figuren, die die Cues der Szene nennen, mit den Sprechern dieses Containers und vermerkt, wo beide voneinander abweichen:
 
@@ -406,11 +405,14 @@ Die Arbeit des Agenten lesen:
 - **Plankarte.** Der Agent listet seine Schritte auf. Verschieben Sie einen Schritt nach oben oder unten, entfernen Sie einen Schritt oder ändern Sie die Einstellungen eines entworfenen Schritts. Wählen Sie dann **Plan genehmigen** oder **Abbrechen**. Nichts im Plan wird geschrieben, bevor Sie, der Modus oder eine geeignete Erlaubnisregel aus den Einstellungen ihn genehmigt.
 - **Ein-Schritt-Karte.** Eine einzelne Änderung zeigt eine Karte mit **Genehmigen**.
 - **Kohärenzprüfung.** Der Agent kann eine Modellprüfung als einen Schritt planen. Er zeigt den Plan auf einer Karte an und liest das Manuskript erst, nachdem Sie genehmigen.
-- **Hintergrundaufgaben.** Wenn ein Plan fünf oder mehr Modell-Aufrufe braucht, fragt der Agent, bevor er beginnt: **Jetzt ausführen**, **Im Hintergrund ausführen** oder **Abbrechen**. **Im Hintergrund ausführen** macht dieselben Aufrufe einzeln, während Sie weiterschreiben, und der Agent ist frei für Ihre nächste Nachricht. Die Liste **Hintergrundaufgaben** im Agenten-Panel zeigt jede Aufgabe in Worten (wartend, entwerfend, bereit zur Prüfung, fehlgeschlagen, abgebrochen, gestoppt oder angewendet), wie viele Aufrufe sie von den meisten, die sie machen darf, verbraucht hat, und warum etwas fehlschlug. Es wird nichts geschrieben, bis Sie bei einer bereiten Aufgabe **Prüfen** wählen: Das öffnet die übliche Karte, mit jedem Entwurf auf dem Bildschirm in seiner Szene, und **Genehmigen** wendet sie als eine Änderung an, die der Sicherungspunkt wiederherstellen kann. Eine Szene, die Sie geändert haben, seit sie entworfen wurde, ist als veraltet markiert, und ihr Schritt kann nicht genehmigt werden, bis Sie den Entwurf erneut versuchen oder den Schritt entfernen. **Abbrechen** stoppt eine Aufgabe, **Fortsetzen** beendet eine gestoppte, und **Verwerfen** entfernt eine aus der Liste. Eine Aufgabe wird nur entworfen, solange das Projekt in diesem Tab geöffnet ist.
+- **Hintergrundaufgaben.** Braucht ein Entwurfsplan fünf oder mehr Modellaufrufe, fragt der Agent vor dem Start: **Jetzt ausführen**, **Im Hintergrund ausführen** oder **Abbrechen**. Enthält der Plan eine Kohärenzprüfung mit Kostenvorschau, kann diese Auswahl auch unter fünf Aufrufen erscheinen. Im Hintergrund laufen die Aufrufe einzeln, während Sie weiterschreiben; der Agent ist für Ihre nächste Nachricht frei. **Hintergrundaufgaben** zeigt laufende oder gestoppte Arbeit, die Höchstzahl der Aufrufe und mögliche Fehler. Der **Posteingang** hält fertige Entwürfe und veröffentlichte Prüfberichte bereit. Eine Aufgabe läuft nur, solange das Projekt in diesem Tab geöffnet ist.
 
   Die Kontextvorbereitung für diese Entwürfe läuft in einem lokalen Browser-Worker. **Der nächste Entwurf wird vorbereitet.** bedeutet nicht, dass schon ein Provider-Aufruf gestartet wurde. **Abbrechen** funktioniert auch während der Vorbereitung, bevor eine Anfrage gesendet wird. Kann der Browser den Worker nicht ausführen, meldet die Aufgabe einen Fehler, statt den Editor zu blockieren.
 
   Die Prompt-Vorschau nennt ausdrücklich ausgelassene Kodex-Einträge, bevor ihre Beschreibung gelesen wird, auch wenn ein Eintrag nicht erwähnt wird oder leer ist. **Nie** und Lesesperren behalten ihre eigenen Erklärungen und haben weiterhin Vorrang.
+
+- **Posteingang.** Unter **Entwürfe zur Freigabe** öffnet **Prüfen** die übliche Karte mit den Entwürfen in ihren Szenen. **Genehmigen** wendet sie als eine Änderung an, die der Sicherungspunkt wiederherstellen kann. Ist eine Szene inzwischen geändert, müssen Sie ihren Entwurf erneut versuchen oder den Schritt entfernen. Ein Plan ohne Entwürfe steht unter **Weitere Schritte zur Prüfung**. Unter **Prüfberichte** öffnet **Feststellungen anzeigen** den gespeicherten Durchlauf, ohne das Modell erneut aufzurufen oder das Manuskript zu ändern. **Zurück zum Posteingang** neben diesem Durchlauf führt zur Aufgabe zurück. Eine gemischte Aufgabe zeigt ihren veröffentlichten Bericht neben den anderen Schritten, die noch auf Ihre Freigabe warten. Das Öffnen des Berichts führt diese Schritte weder aus noch erneut durch. **Zurückweisen** entfernt die Aufgabe aus dem Posteingang, nicht ihre veröffentlichten Feststellungen.
+- **Kohärenzprüfungen einreihen.** Wählen Sie in **Feststellungen** den Umfang und **Prüfung einreihen**. Lesen Sie vor **Diese Prüfung einreihen** die Dokumente und Auslassungen, Kategorien, das Hintergrundprofil und Modell samt Denkstufe, die Grenzen für Aufrufe und Token, den ersten Prompt und die Kostenschätzung. Ein fehlender Preis ist nicht null. Die Freigabe gilt nur für diese Prüfung; Nur Plan, Schreibschutz, Nie und Verbote gelten weiter. Extraktion und Überprüfung zeigen ihren eigenen Fortschritt. Ein vollständiger Bericht kann null Feststellungen enthalten; ein Teilbericht nennt unvollständige Arbeit. Nach Schließen oder Neuladen behält **Fortsetzen** bestätigte Arbeit und die verbleibende Aufrufgrenze. Eine Anfrage ohne gespeichertes Ergebnis wird nicht zum kostenlosen Neuversuch. Geänderte Eingaben, Zugriffsrechte oder Modellzuordnungen stoppen die alte Freigabe: Bereiten Sie in Feststellungen eine neue Vorschau vor und geben Sie sie frei. Eine abgebrochene oder veraltete Prüfung veröffentlicht kein verspätetes Ergebnis. Die Freigabe erlaubt das Speichern der Feststellungen, nie das Anwenden anderer Planschritte oder einen automatischen Modellstart nach Zeitplan.
 
 - **Entwürfe.** Der Prosatext, den der Agent schreibt, erscheint in seiner Szene, während das Modell ihn schreibt. Eine Vorschauleiste für Entwürfe in der Szene hält den Entwurf mit **Übernehmen**, **Erneut versuchen** und **Verwerfen**. **Übernehmen** schreibt den Entwurf in die Szene, und **Verwerfen** lässt die Szene, wie sie war. Wenn **Übernehmen** oder **Genehmigen** ausgegraut ist, öffnen Sie die Szene: Die Karte wartet, bis ihr Entwurf auf dem Bildschirm war. Ein Entwurf, der an der Ausgabegrenze des Modells abgeschnitten wurde, ist markiert, und seine Karte kann **Genehmigen und den gestrichenen Text behalten** oder **Entwurf erneut versuchen** anbieten.
 - **Kleine Änderungen.** Eine einzelne Änderung von Status, Label, Stichwort oder Notiz läuft sofort ohne Karte. Jeder Zug, der das Projekt ändert, hinterlässt eine Sicherungspunkt-Zeile.
@@ -429,6 +431,7 @@ Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen
 
 ## Wiederkehrende Aufgaben
 <!-- source: 428ce9ad -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
 
@@ -515,6 +518,7 @@ Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen
 
 ## Die moderne Oberfläche
 <!-- source: 981dd95b -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Caotang hat zwei Oberflächen, **Klassisch** und **Modern**, und beide können dasselbe. Wer neu beginnt, startet in Modern. Haben Sie Caotang in diesem Browser schon genutzt, bleibt es bei Klassisch, bis Sie wechseln; Ihre Projekte und Einstellungen sind in beiden dieselben. Gewählt wird unter **Einstellungen › Erscheinungsbild › Oberfläche**, und der Wechsel geschieht sofort; eine ungespeicherte Szene und ein laufender Durchlauf des Agenten bleiben erhalten.
 
@@ -608,7 +612,6 @@ Die Tabs links (**Binder**, **Kodex**, **Aktivität** und **Feststellungen**) un
 
 ## Eigene Texte in einem KI-Werkzeug anhängen
 <!-- source: 598e2a74 -->
-> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Ein KI-Werkzeug, das mit dem MCP-Server verbunden ist, kann Ihre Dokumente, die Notizen eines Dokuments und Ihre Kodex-Einträge als Ressourcen an eine Konversation anhängen. In Claude Code tippen Sie `@` und wählen `caotang`; in Cursor verwenden Sie die Ressourcenauswahl. Was Sie anhängen, ist der ganze Text, keine gekürzte Kopie. Ein Dokument über 2 MiB wird abgelehnt und sagt das, und es wird niemals gekürzt.
 
@@ -618,7 +621,6 @@ Auf einem Server, der mit `--allow-writes` gestartet wurde, erfährt ein Werkzeu
 
 ## Vorhandene Texte über den MCP-Server hereinholen
 <!-- source: 0e9af41a -->
-> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wenn Ihre Texte woanders liegen, etwa in Notizen, einem Wiki oder einem alten Entwurf, kann der MCP-Server sie in ein Caotang-Projekt hereinholen. Zwei Werkzeuge erledigen das:
 
@@ -667,11 +669,13 @@ Der Server läuft auf Ihrem Computer und öffnet keinen Netzwerkport. Die Deinst
 
 ## Caotang per Skript steuern
 <!-- source: 288c79cd -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Ein Entwickler kann den Agenten mit dem Paket `@caotang/sdk` von einem Node-Skript, einer Kommandozeile oder CI aus gegen einen Projektordner laufen lassen. Dort gibt es keine Karten anzuklicken, daher wählt das Skript eine Richtlinie, die an ihrer Stelle antwortet: jede Änderung verweigern (der Standard), jede Karte genehmigen oder eine eigene Funktion. Es wird nichts gespeichert, es sei denn, das Skript fordert es an, und es kann das Diff zuerst lesen. Sein README ist [packages/sdk/README.md](../packages/sdk/README.md). Greifen Sie mit App und Skript nicht gleichzeitig auf denselben Ordner zu: Das Skript hinterlässt dieselbe Sperrdatei wie der MCP-Server, und die App fragt nach, bevor sie darüber speichert.
 
 ## Wenn etwas nicht stimmt
 <!-- source: 0028e42a -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 - **Der Agent sagt, dass er das nicht kann.** Der eingebaute Demo-Anbieter beantwortet nur drei Anfragen. Fügen Sie unter Einstellungen › Anbieter einen Anbieter hinzu.
 - **Genehmigen ist ausgegraut.** Die Karte wartet, bis ihr Entwurf in ihrer Szene angezeigt wurde. Öffnen Sie diese Szene.
@@ -709,7 +713,7 @@ Ein Entwickler kann den Agenten mit dem Paket `@caotang/sdk` von einem Node-Skri
 - **Das MCP-Bundle.** Das `.mcpb`-Bundle ist nicht signiert, daher bittet ein Host Sie um Bestätigung der Installation, und es wurde noch nicht in einem echten Host getestet.
 - **Skill-Skripte und -Dateien.** Skills, die Skripte enthalten: Caotang verwendet ihre Anweisungen und führt die Skripte nicht aus. Nur Textreferenzen und Textdateien unter assets/ können gelesen werden. Es gibt keine projektübergreifenden Skills und keine Möglichkeit, einen Skill beim Namen auszuführen. Nur der Ordner `.agents/skills` des Projekts wird gelesen.
 - **Helfer-Agenten.** Nur die Agenten **Reader** und **General** existieren; eigene können Sie nicht schreiben. Ein Helfer kann keinen anderen Helfer starten, und Helfer laufen einer nach dem anderen.
-- **Hintergrundaufgaben.** Eine Aufgabe wird nur entworfen, solange das Projekt in diesem Tab geöffnet ist: Schließen Sie den Tab und sie stoppt, und **Fortsetzen** beendet sie, wenn Sie das Projekt wieder öffnen. Eine Kohärenzprüfung kann noch nicht eingereiht werden; sie läuft sofort. Ein Hintergrundaufruf wartet, bis der Agent frei ist, aber einer, der bereits gesendet wurde, zählt trotzdem gegen einen ratenbegrenzten Schlüssel.
+- **Hintergrundaufgaben.** Arbeit läuft nur, solange das Projekt in diesem Tab geöffnet ist. Schließen unterbricht die Aufgabe; **Fortsetzen** führt nur Arbeit aus, die noch von ihrer Freigabe und verbleibenden Aufrufgrenze gedeckt ist. **Abbrechen** funktioniert auch beim Start; **Wird abgebrochen…** bedeutet, dass der Lauf noch stoppt. Schließen macht eine abgebrochene Aufgabe nicht fortsetzbar. Eine geänderte Prüfung braucht eine neue Kostenvorschau, keine automatische Modelländerung oder zusätzlichen Aufrufe. Ein Hintergrundaufruf wartet auf den freien Agenten; eine bereits gesendete Anfrage zählt weiterhin gegen das Anfragelimit.
 - **Oberflächensprachen.** Deutsch ist enthalten, aber maschinell übersetzt und nicht muttersprachlich geprüft; der Sprachwähler sagt dies. Ein Entwicklungs-Build kann zwei Testsprachen zeigen, ein englisches mit Akzenten und ein rechts-nach-links laufendes, mit `?pseudo=1`; der ausgelieferte Build hat keins von beiden, und die Adresse bewirkt dort nichts. Eine rechts-nach-links-Oberfläche wird gespiegelt, aber die Spiegelung und die deutsche Textexpansion wurden noch nicht von einem muttersprachlichen Prüfer an echten Seiten geprüft.
 - **Die Desktop-App.** Caotang läuft im Browser. Ein Desktop-Wrapper ist in diesem Build nicht enthalten.
 - **Die gehostete Instanz.** Registrierung, synchronisierte Ende-zu-Ende-verschlüsselte Projekte und das Anbieter-Relay sind geplant und in diesem Build nicht enthalten; Caotang speichert alles in diesem Browser oder einem Ordner, den Sie wählen.

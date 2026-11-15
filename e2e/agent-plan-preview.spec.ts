@@ -166,6 +166,10 @@ test('a coherence review’s card shows what the review is estimated to cost, at
   await openSample(page);
   await sendIntent(page, 'Review the manuscript for contradictions.');
 
+  const offer = page.getByTestId('plan-offer');
+  await expect(offer.getByTestId('queued-review-details')).toContainText('About $');
+  await offer.getByRole('button', { name: 'Run now', exact: true }).click();
+
   const card = page.getByTestId('plan-card');
   await expect(card).toContainText('coherence.review');
   // The review's own estimate, in dollars, on the step and for the whole plan (coherence.md §5.3).

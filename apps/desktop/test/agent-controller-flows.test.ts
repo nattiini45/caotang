@@ -379,6 +379,29 @@ it('keeps an unavailable background offer parked, then cancels or stops it witho
   expect(f.drafts()).toBe(0);
 });
 
+it('aborts a background offer cancelled during its initial save, and refuses competing answers', async () => {
+  const f = await backgroundFixture();
+  const running = f.controller.submit(SYNOPSES);
+  await when(f.controller, (snapshot) => snapshot.offer !== null);
+  const save = deferred();
+  const reached = deferred();
+  vi.spyOn(TaskStore.prototype, 'save').mockImplementation(async () => {
+    reached.resolve();
+    await save.promise;
+  });
+  const background = f.controller.answerOffer('background');
+  await reached.promise;
+  await f.controller.answerOffer('background');
+  await f.controller.answerOffer('now');
+  expect(f.controller.snapshot().offer).not.toBeNull();
+  await f.controller.answerOffer('cancel');
+  save.resolve();
+  await background;
+  expect((await running)?.status).toBe('cancelled');
+  expect(f.controller.snapshot()).toMatchObject({ offer: null, tasks: [] });
+  expect(f.drafts()).toBe(0);
+});
+
 async function seedWaiting(f: Awaited<ReturnType<typeof fixture>>, runId: string, options: Partial<RunRow> = {}) {
   const intent = 'Label the landing.';
   await f.port.create({ schema: RUN_LOG_VERSION, runId, projectId: f.session.projectId, kind: 'turn', intent, createdAt: 1_000, updatedAt: 1_000, status: 'interrupted', ...options });

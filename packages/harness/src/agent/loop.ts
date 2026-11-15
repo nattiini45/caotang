@@ -101,6 +101,7 @@ import { CONTINUITY_MAX_DOCS, SYNOPSIS_MAX_DOCS } from '../tools/ports.js';
 import type { DelegateParams } from '../tools/delegate.js';
 import { fitsCap } from '../tokens.js';
 import { LARGE_SCOPE_APPROVAL, LARGE_SCOPE_APPROVAL_KEY } from '../tools/coherence.js';
+import type { LlmCategory, ReviewPlan } from '@caotang/coherence';
 import { pictureViewMessage, type PictureOutbox } from '../tools/pictures.js';
 import type { PictureTranscriptionGeneration, PictureTranscriptionPlan, TranscriptionSecondRead } from '../tools/transcription.js';
 import {
@@ -136,6 +137,7 @@ import {
   type PlanCardView,
   type StatusCard,
   type StatusState,
+  type StepCost,
 } from './cards.js';
 import { anySignal, runLimitWords, stepLimitWords, type BudgetMeter, type BudgetSpend, type BudgetStop, type Reservation } from './budget.js';
 import {
@@ -215,6 +217,7 @@ import {
   proposalShapeOk,
   revisionsOf,
   staleSteps,
+  type ReviewCallBound,
   type StepRevisions,
 } from './background.js';
 import {
@@ -345,6 +348,7 @@ export interface AgentSessionOptions {
    * (`submitPlan`) is never offered, and neither is a plan that cannot run unattended or is small (`BACKGROUND_OFFER_MIN_CALLS`).
    */
   readonly beforeStage?: (offer: PlanOffer) => Promise<OfferAnswer>;
+  readonly reviewOffer?: (step: PlanStep, plan: ReviewPlan) => PlanOfferReview | undefined;
   /**
    * Logs each turn ahead of the work, so a turn a reload or a crash cut short can be resumed (agent-harness §5.1). Absent, nothing is logged
    * and no turn behaves differently: a logged turn runs a plan one step at a time, awaiting the log between steps.
@@ -369,6 +373,23 @@ export interface PlanOffer {
   readonly estimatedCalls: number;
   /** The most model calls a turn may make here: staging now stops at this many. */
   readonly turnCap: number;
+  readonly reviews?: readonly PlanOfferReview[];
+}
+
+export interface PlanOfferReview {
+  readonly stepIndex: number;
+  readonly plan: ReviewPlan;
+  readonly callBound: ReviewCallBound;
+  readonly route: { readonly profileId: string; readonly model: string; readonly thinking?: ThinkingLevel; readonly label: string };
+  readonly scopeDocIds: readonly string[];
+  readonly categories: readonly LlmCategory[];
+  readonly maxFindings: number;
+  readonly fingerprint: string;
+  readonly cost: StepCost | undefined;
+  readonly costUnknownReason: string | null;
+  readonly scopeTitles: readonly string[];
+  readonly exclusions: readonly string[];
+  readonly contextOverrides?: ContextOverrides;
 }
 
 /** The writer's answer to a `PlanOffer`. `background` is only given once the app has queued the plan. */
@@ -3607,10 +3628,21 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * The writer's choice for a plan that needs many model calls, asked before any of them is made (`AgentSessionOptions.beforeStage`).
    * Undefined means stage the plan now. The wait ends at once with a cancel when the writer stops the turn.
    */
-  async function offerBackground(turn: Turn, plan: Plan): Promise<Settled | undefined> {
+  async function offerBackground(turn: Turn, plan: Plan, fromPlanner: boolean): Promise<Settled | undefined> {
     const ask = options.beforeStage;
-    const calls = estimatedModelCalls(plan.steps);
-    if (ask === undefined || turn.tainted || harness.loadedSkills(turn.id).length > 0 || calls < BACKGROUND_OFFER_MIN_CALLS || !backgroundEligibility(plan.steps).eligible) return undefined;
+    if (ask === undefined || turn.tainted || harness.loadedSkills(turn.id).length > 0) return undefined;
+    const reviews = plan.steps.map((step, index): PlanOfferReview | undefined => {
+      if (step.tool !== 'coherence.review' || options.reviewOffer === undefined) return undefined;
+      const planned = harness.reviewPlan(step.params);
+      if (!planned.ok) return undefined;
+      const preview = options.reviewOffer(step, planned.value);
+      return preview === undefined ? undefined : { ...preview, stepIndex: index, ...(step.contextOverrides === undefined ? {} : { contextOverrides: structuredClone(step.contextOverrides) }) };
+    });
+    const bounds = reviews.map((review) => review?.callBound);
+    if (!backgroundEligibility(plan.steps, bounds).eligible) return undefined;
+    const calls = estimatedModelCalls(plan.steps, bounds);
+    const costedReviews = reviews.filter((review): review is PlanOfferReview => review !== undefined);
+    if (costedReviews.length === 0 && (!fromPlanner || calls < BACKGROUND_OFFER_MIN_CALLS)) return undefined;
     checkStop(turn);
     phase(turn, 'awaiting-approval');
     const { signal } = turn;
@@ -3618,7 +3650,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     turn.meter?.pauseClock();
     let release = (): void => {};
     try {
-      const asked = ask({ turnId: turn.id, steps: plan.steps, ...(turn.contextOverrides === undefined ? {} : { contextOverrides: structuredClone(turn.contextOverrides) }), estimatedCalls: calls, turnCap: maxModelCalls });
+      const asked = ask({ turnId: turn.id, steps: plan.steps, ...(turn.contextOverrides === undefined ? {} : { contextOverrides: structuredClone(turn.contextOverrides) }), estimatedCalls: calls, turnCap: maxModelCalls, ...(costedReviews.length === 0 ? {} : { reviews: costedReviews }) });
       const stopped = new Promise<OfferAnswer>((resolve) => {
         if (signal === undefined) return;
         const onAbort = (): void => resolve('cancel');
@@ -3771,7 +3803,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
 
       if (policyOf(turn).decides) guardRepeats(turn, plan.steps);
-      const offered = policyOf(turn).readOnly ? undefined : await offerBackground(turn, plan);
+      const offered = policyOf(turn).readOnly ? undefined : await offerBackground(turn, plan, true);
       if (offered !== undefined) return offered;
       const staged = await stage(turn, plan.steps);
       if (staged.refusals.length > 0) {
@@ -3963,6 +3995,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function givenPlanTurn(turn: Turn, plan: Plan): Promise<Settled> {
     const readsOnly = plan.steps.every((step) => riskOf(step.tool) === 'read');
     const readsRun = turn.readsWithoutCard === true && readsOnly;
+    if (!readsRun && !policyOf(turn).readOnly) {
+      const offered = await offerBackground(turn, plan, false);
+      if (offered !== undefined) return offered;
+    }
     const staged = await stage(turn, plan.steps, readsRun ? { readsRun } : {});
     if (staged.refusals.length > 0) {
       const named = staged.refusals.map((refused) => `Step ${refused.index + 1} (${refused.tool}) was refused: ${refused.message}`).join(' ');
@@ -3990,7 +4026,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     stored: readonly unknown[],
     revisions: readonly (StepRevisions | undefined)[],
   ): Promise<Settled> {
-    const eligible = backgroundEligibility(plan.steps);
+    const eligible = backgroundEligibility(plan.steps, undefined, { allowNoModelStep: true });
     if (!eligible.eligible) return { status: 'failed', askBack: askBackFor(refusal('invalid-params', eligible.reason, { correctiveHint: 'send the request again' })) };
     const stale = staleSteps(harness.state, plan.steps, stored, revisions);
     // A proposal that fails its shape guard never reaches the card: it is treated as a step that was not drafted.
