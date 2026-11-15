@@ -45,8 +45,9 @@ export function argon2idDescriptor(params: Argon2idParams = ARGON2ID_DEFAULT): K
 }
 
 /** A Kdf that derives 32 bytes with Argon2id at the given parameters. hash-wasm is loaded on first derive. */
-export function createArgon2idKdf(params: Argon2idParams = ARGON2ID_DEFAULT): Kdf {
-  assertParams(params);
+export function createArgon2idKdf(requested: Argon2idParams = ARGON2ID_DEFAULT): Kdf {
+  assertParams(requested);
+  const params: Argon2idParams = { memoryKiB: requested.memoryKiB, iterations: requested.iterations, parallelism: requested.parallelism };
   return {
     id: ARGON2ID_ID,
     async derive(passphrase, salt) {

@@ -87,6 +87,16 @@ describe('the Argon2id adapter', () => {
     expect(hex(resolved)).toBe(hex(reference.tag));
   });
 
+  it('keeps the validated parameters when the caller mutates its object afterwards', async () => {
+    const params = { memoryKiB: 64, iterations: 1, parallelism: 1 };
+    const kdf = createArgon2idKdf(params);
+    params.memoryKiB = 2_000_000_000;
+    const password = new TextEncoder().encode('a passphrase');
+    const salt = fill(16, 5);
+    const derived = await kdf.derive(password, salt);
+    expect(hex(derived)).toBe(hex(argon2Reference({ password, salt, p: 1, t: 1, m: 64, tagLength: 32 }).tag));
+  });
+
   it('refuses a salt shorter than 16 bytes', async () => {
     await expect(createArgon2idKdf({ memoryKiB: 64, iterations: 1, parallelism: 1 }).derive(fill(8, 1), fill(8, 2))).rejects.toThrow(/salt/);
   });
