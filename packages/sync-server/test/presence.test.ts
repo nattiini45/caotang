@@ -1,19 +1,15 @@
-import { readFileSync } from 'node:fs';
 import { createHmac } from 'node:crypto';
 import { once } from 'node:events';
-import { fileURLToPath } from 'node:url';
 import { Miniflare, Response } from 'miniflare';
-import ts from 'typescript';
 import WebSocketClient from 'ws';
 import { expect, it } from 'vitest';
+import { workerModules } from './worker-modules.js';
 
 const ORIGIN = 'https://studio.example.invalid';
 const SECRET = 'test-only-presence-secret-not-a-real-credential';
 const ONE = '00000000-0000-4000-8000-000000000001';
 const TWO = '00000000-0000-4000-8000-000000000002';
 const THREE = '00000000-0000-4000-8000-000000000003';
-const source = readFileSync(fileURLToPath(new URL('../src/index.ts', import.meta.url).href), 'utf8');
-const script = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 
 function cookie(id = 'github:101', expires = Date.now() + 60_000): string {
   const payload = Buffer.from(JSON.stringify({ purpose: 'session', origin: ORIGIN, expires, identity: { id, login: 'reader-one' } })).toString('base64url');
@@ -23,7 +19,7 @@ function cookie(id = 'github:101', expires = Date.now() + 60_000): string {
 async function harness() {
   const runtime = new Miniflare({
     upstream: ORIGIN,
-    modules: [{ type: 'ESModule', path: 'server.mjs', contents: script + `
+    modules: workerModules(`
 export class TestAccountHub extends AccountHub {
   async ageProfile(profile, sweep = true) {
     for (const socket of this.ctx.getWebSockets()) {
@@ -41,7 +37,7 @@ export class TestAccountHub extends AccountHub {
   }
   async nextAlarm() { return this.ctx.storage.getAlarm(); }
 }
-` }],
+`),
     compatibilityDate: '2026-07-30',
     bindings: { PUBLIC_ORIGIN: ORIGIN, ALLOWED_GITHUB_LOGINS: 'reader-one', GITHUB_CLIENT_ID: 'mock-client', GITHUB_CLIENT_SECRET: 'mock-secret', SESSION_SECRET: SECRET },
     durableObjects: { ACCOUNT_HUBS: { className: 'TestAccountHub', useSQLite: true } },

@@ -42,7 +42,7 @@ Deploy the class as a SQLite-backed Durable Object. A local runtime test must ex
 
 ## Optional durable accounts
 
-**Status.** The account registry and quota stores in this package implement the data contracts below and are tested against local D1. The Worker does not read `AUTHENTICATION_MODE` or an `ACCOUNT_DB` binding yet, and the callback claim, account routes and revocation checks described here are the design the Worker wiring must follow. Until that lands, the Worker authenticates with `ALLOWED_GITHUB_LOGINS` alone.
+**Status.** The Worker implements this section: it reads `AUTHENTICATION_MODE` and the `ACCOUNT_DB` binding, claims invitations at the callback, revalidates every protected call, serves `GET /v1/account` and `POST /v1/auth/logout-all`, and checks revocation in the hub. The operator side is the validated SQL planner. D1 provisioning, migration application and the quota writer are outside this package.
 
 `AUTHENTICATION_MODE=accounts` selects the authoritative `ACCOUNT_DB` D1 binding. The default remains the existing allowlist mode. Missing D1 configuration, a database error, an uninvited identity or a disabled account never falls back to `ALLOWED_GITHUB_LOGINS`. Health and static assets remain independent. Deployers apply the package's ordered D1 migrations before selecting account mode.
 
@@ -54,7 +54,7 @@ Account-mode cookies include the mode, account id and session revision as well a
 
 `GET /v1/account` returns only this session's opaque id and `{ limitBytes, usedBytes, reservedBytes }` usage. It accepts no caller account selector. `POST /v1/auth/logout-all` in account mode advances that account's revision and clears the current cookie; its Origin requirement is unchanged. Existing allowlist routes and response shapes remain compatible; these account-only routes are not exposed in allowlist mode. The existing logout remains local to this browser.
 
-Account-mode live hubs are named only from the verified persisted account id. Every incoming application message, notification RPC and handshake checks the current account/revision before acting. Application heartbeat auto-responses are disabled in this mode so they cannot bypass revocation. A best-effort thirty-second alarm closes expired/revoked idle sockets; it is scheduled only while open sockets exist and cancelled after the last closes. The alarm is not a hard real-time guarantee. Failure to validate D1 closes rather than authorizes a socket. Allowlist-mode heartbeat behavior is unchanged.
+Account-mode live hubs are named only from the verified persisted account id. Every incoming application message, notification RPC and handshake checks the current account/revision before acting. Application heartbeat auto-responses are disabled in this mode so they cannot bypass revocation. A best-effort thirty-second alarm closes expired/revoked idle sockets. In account mode the hub keeps the presence lease in a per-socket timestamp refreshed by each checked `ping` message, since auto-responses are off; it is scheduled only while open sockets exist and cancelled after the last closes. The alarm is not a hard real-time guarantee. Failure to validate D1 closes rather than authorizes a socket. Allowlist-mode heartbeat behavior is unchanged.
 
 ## Quota accounting seam
 
