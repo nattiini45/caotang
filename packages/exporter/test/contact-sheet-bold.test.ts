@@ -166,6 +166,26 @@ describe('bold CJK and emoji in the contact sheet', () => {
     expect(around.some((line) => line.endsWith(' Tr') || line.endsWith(' Tc') || line.endsWith(' w'))).toBe(false);
   });
 
+  it('draws bold where the plan marks it, and nowhere else', async () => {
+    // The mark is the single source for both the emitter's base font and the bold file choice: a regular place marked
+    // bold strokes its run, a bold place unmarked draws plain. `planWith` gives a CJK title (a bold place) and a CJK
+    // action line (a regular one), so exactly one run is stroked to begin with.
+    const base = planWith({ title: '第一场', action: '草堂的早晨' });
+    const page = base.pages[0];
+    if (page === undefined) throw new Error('no page');
+    const summary = { text: '概要', x: 40, y: 70, fontSize: 8 };
+    const plan = (sheet: Partial<typeof page>) => ({ ...base, pages: [{ ...page, ...sheet }, ...base.pages.slice(1)] });
+
+    const unmarked = await draw(plan({ summary }));
+    expect(strokedRuns(unmarked.lines)).toHaveLength(1);
+
+    const marked = await draw(plan({ summary: { ...summary, bold: true as const } }));
+    expect(strokedRuns(marked.lines)).toHaveLength(2);
+
+    const untitled = await draw(plan({ title: { ...page.title, bold: undefined } }));
+    expect(strokedRuns(untitled.lines)).toHaveLength(0);
+  });
+
   it('draws the regular run’s glyphs and copies the regular run’s text', async () => {
     const text = '第一场 草堂 🎬';
     const bold = await draw(planWith({ title: text }));
