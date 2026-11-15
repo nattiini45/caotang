@@ -386,6 +386,54 @@ describe('a resume recomposes the pairs the new spans form', () => {
     const bodies = new Map([['sA', 'Elena is twenty-two.'], ['sB', 'Elena is forty-one.'], ['sC', 'Elena is thirty-four.']]);
     for (const next of checkpoints) expect(await reviewCheckpointEvidenceOk(plan, bodies, next)).toBe(true);
   });
+
+  it('a checkpoint taken after resumed extraction but before verification acknowledges only the pairs it verified', async () => {
+    const state = threeDocs();
+    const { plan, checkpoint } = await stoppedBefore('sC', state);
+    const interrupted: ReviewCheckpoint[] = [];
+    const extracting = fake((request) => {
+      if (request.system.includes('continuity extractor')) {
+        const body = bodyOf(request.user);
+        const docId = docIdOf(request.user);
+        return extraction(body, docId, [{ quote: body, category: 'characterization' }]);
+      }
+      return new Error('provider down');
+    });
+    await computeReview(state, emptyCoherenceFile(), plan, {
+      model: extracting,
+      approved: true,
+      resumeFrom: checkpoint,
+      onCheckpoint: (next) => { interrupted.push(structuredClone(next)); },
+    });
+    const mid = interrupted.at(-1)!;
+    expect(mid.extractedDocIds).toEqual(['sA', 'sB', 'sC']);
+    expect(mid.verifiedBatches).toBe(1);
+
+    const resumed = extractingExcept('none', 'second pass age differs');
+    const again = await computeReview(state, emptyCoherenceFile(), plan, { model: resumed, approved: true, resumeFrom: mid });
+    expect(resumed.calls).toHaveLength(1);
+    expect(resumed.calls[0]?.user).toContain('[pair p2]');
+    expect(resumed.calls[0]?.user).toContain('[pair p3]');
+    expect(again.drafts).toHaveLength(3);
+    expect(again.status).toBe('complete');
+  });
+
+  it('a legacy checkpoint taken mid-extraction re-verifies rather than trusting its batch count', async () => {
+    const state = threeDocs();
+    const { plan, checkpoint } = await stoppedBefore('sC', state);
+    const quote = 'Elena is thirty-four.';
+    const { verifiedPairs: _keys, ...mid } = {
+      ...checkpoint,
+      extractedDocIds: ['sA', 'sB', 'sC'],
+      evaluated: ['sA', 'sB', 'sC'],
+      spans: [...checkpoint.spans, { docId: 'sC', from: 0, to: quote.length, quote, category: 'characterization' as const, note: '' }],
+    };
+    const resumed = extractingExcept('none', 'second pass age differs');
+    const again = await computeReview(state, emptyCoherenceFile(), plan, { model: resumed, approved: true, resumeFrom: mid });
+    expect(resumed.calls).toHaveLength(1);
+    expect(again.drafts).toHaveLength(3);
+    expect(again.status).toBe('complete');
+  });
 });
 
 describe('a resume that finishes the missing work completes', () => {
@@ -462,5 +510,28 @@ describe('a resume that finishes the missing work completes', () => {
     expect(resumed.calls).toHaveLength(5);
     expect(resumed.calls[0]?.user).toContain('[pair p1]');
     expect(again.status).toBe('complete');
+  });
+
+  it('a legacy checkpoint that counted an unusable extraction as done asks that document again', async () => {
+    const state = twoDocs();
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const quote = 'Elena is thirty-four.';
+    const legacy: ReviewCheckpoint = {
+      extractedDocIds: ['sA', 'sB'],
+      spans: [{ docId: 'sA', from: 0, to: quote.length, quote, category: 'characterization', note: '' }],
+      verifiedBatches: 0,
+      verdicts: [],
+      usageByPair: {},
+      promptTokens: 100,
+      completionTokens: 20,
+      notes: ['extraction for "Second" was unusable: not the contract'],
+      status: 'partial',
+      evaluated: ['sA'],
+    };
+    const resumed = reviewing();
+    const again = await computeReview(state, emptyCoherenceFile(), plan, { model: resumed, approved: true, resumeFrom: legacy });
+    expect(resumed.calls[0]?.user).toContain('docId: sB');
+    expect(again.status).toBe('complete');
+    expect(again.drafts).toHaveLength(1);
   });
 });

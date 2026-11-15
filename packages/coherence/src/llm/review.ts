@@ -294,6 +294,8 @@ export interface ReviewCheckpoint {
   readonly extractedDocIds: readonly string[];
   readonly spans: readonly ExtractedSpan[];
   readonly verifiedBatches: number;
+  /** The stable keys of the pairs whose verification succeeded, so a resume acknowledges them even when further extraction recomposes the batches. Absent on checkpoints written before this field: their count is trusted only while their extraction is complete. */
+  readonly verifiedPairs?: readonly string[];
   readonly verdicts: readonly ParsedVerdict[];
   readonly usageByPair: Readonly<Record<string, ModelUsage>>;
   readonly promptTokens: number;
@@ -332,7 +334,7 @@ export interface ReviewComputeOptions {
 export const REVIEW_YIELD_EVERY = 2000;
 
 export function emptyReviewCheckpoint(): ReviewCheckpoint {
-  return { extractedDocIds: [], spans: [], verifiedBatches: 0, verdicts: [], usageByPair: {}, promptTokens: 0, completionTokens: 0, notes: [], status: 'complete', evaluated: [] };
+  return { extractedDocIds: [], spans: [], verifiedBatches: 0, verifiedPairs: [], verdicts: [], usageByPair: {}, promptTokens: 0, completionTokens: 0, notes: [], status: 'complete', evaluated: [] };
 }
 
 /**
@@ -362,10 +364,12 @@ export async function reviewCheckpointEvidenceOk(plan: ReviewExecutionPlan, bodi
   }
   const named = new Set(checkpoint.verdicts.map((verdict) => verdict.pairId));
   const captured = new Map<string, PairRef>();
+  const formed = new Set<string>();
   let pairs = 0;
   let sinceYield = 0;
   for (const pair of pairSequence(checkpoint.spans, plan.categories)) {
     pairs += 1;
+    formed.add(pairKey(pair));
     if (named.has(pair.pairId)) captured.set(pair.pairId, pair);
     sinceYield += 1;
     if (yieldToHost !== undefined && sinceYield >= REVIEW_YIELD_EVERY) {
@@ -374,6 +378,7 @@ export async function reviewCheckpointEvidenceOk(plan: ReviewExecutionPlan, bodi
     }
   }
   if (checkpoint.verifiedBatches > Math.ceil(pairs / PAIRS_PER_CALL)) return false;
+  if (checkpoint.verifiedPairs !== undefined && !checkpoint.verifiedPairs.every((key) => formed.has(key))) return false;
   const overlaps = (passage: { docId: string; from: number; to: number }, span: ExtractedSpan): boolean =>
     passage.docId === span.docId && passage.from < span.to && span.from < passage.to;
   for (const verdict of checkpoint.verdicts) {
@@ -421,11 +426,11 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
   if (usable !== undefined) {
     let ordinal = 0;
     for (const pair of pairSequence(usable.spans, plan.categories)) {
-      const key = pairKey(pair);
-      previousKeys.set(pair.pairId, key);
-      if (Math.floor(ordinal / PAIRS_PER_CALL) < usable.verifiedBatches) verifiedKeys.add(key);
+      previousKeys.set(pair.pairId, pairKey(pair));
       ordinal += 1;
     }
+    // A checkpoint written before the keys existed carries a count over a composition that may since have grown; its pairs are verified again and its kept verdicts fold as duplicates.
+    if (usable.verifiedPairs !== undefined) for (const key of usable.verifiedPairs) verifiedKeys.add(key);
   }
   let promptTokens = resume?.promptTokens ?? 0;
   let completionTokens = resume?.completionTokens ?? 0;
@@ -435,6 +440,8 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
   };
   const context = options.context ?? {};
   const extractedDocIds = new Set(usable?.extractedDocIds ?? []);
+  const evaluatedIds = new Set(usable?.evaluated ?? []);
+  for (const docId of [...extractedDocIds]) if (!evaluatedIds.has(docId)) extractedDocIds.delete(docId);
   const spans: ExtractedSpan[] = usable === undefined ? [] : [...usable.spans];
   const evaluated: string[] = usable === undefined ? [] : [...usable.evaluated];
   const usageByPair = new Map<string, ModelUsage | undefined>();
@@ -478,6 +485,7 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
     extractedDocIds: [...extractedDocIds],
     spans: [...spans],
     verifiedBatches,
+    verifiedPairs: [...verifiedKeys],
     verdicts: current.verdicts,
     usageByPair: Object.fromEntries([...current.usageByPair].filter((entry): entry is [string, ModelUsage] => entry[1] !== undefined)),
     promptTokens,
@@ -552,6 +560,10 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
       verifiedBatches = index + 1;
       continue;
     }
+    const acknowledge = (): void => {
+      for (const pair of pending) verifiedKeys.add(pairKey(pair));
+      verifiedBatches = index + 1;
+    };
     if (options.signal?.aborted === true) {
       status = 'partial';
       notes.push('verification stopped: the run was cancelled');
@@ -561,7 +573,7 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
       .map((pair) => blockFor(pair, bodies))
       .filter((block): block is PairBlock => block !== undefined);
     if (blocks.length === 0) {
-      verifiedBatches = index + 1;
+      acknowledge();
       continue;
     }
     const prompt = verificationPrompt(blocks);
@@ -599,7 +611,7 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
       notes.push(`a verification batch was unusable: ${error.message}`);
       break;
     }
-    verifiedBatches = index + 1;
+    acknowledge();
     await options.onCheckpoint?.(checkpoint());
   }
 
