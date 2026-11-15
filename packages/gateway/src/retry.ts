@@ -60,7 +60,10 @@ export function backoffMs(retryIndex: number, random: () => number, policy: Retr
 export function parseRetryAfter(value: string | null, now: number): number | undefined {
   if (value === null) return undefined;
   const trimmed = value.trim();
-  if (/^\d+$/.test(trimmed)) return Number(trimmed) * 1_000;
+  if (/^\d+$/.test(trimmed)) {
+    const milliseconds = Number(trimmed) * 1_000;
+    return Number.isFinite(milliseconds) ? milliseconds : undefined;
+  }
   const dated = Date.parse(trimmed);
   if (Number.isFinite(dated)) return Math.max(0, dated - now);
   return undefined;

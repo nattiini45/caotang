@@ -36,7 +36,9 @@ import {
   type StreamStats,
   type TransportDeps,
 } from './transport.js';
-import { DEFAULT_MAX_OUTPUT_TOKENS } from './profiles.js';
+import { DEFAULT_MAX_CONCURRENT_REQUESTS, DEFAULT_MAX_OUTPUT_TOKENS } from './profiles.js';
+import { ProfileLimiter } from './limiter.js';
+import { CallerCancelled } from './timing.js';
 import { checkRequestImages, imageBase64Of } from './parts.js';
 import { usageFor } from './tokens.js';
 import { cacheSettingsFor, policyOf } from './adapters/cache.js';
@@ -173,10 +175,16 @@ const ZERO: Usage = { promptTokens: 0, completionTokens: 0 };
 const PROBE_PROMPT = 'Reply with the JSON object {"ok": true}.';
 /** The output cap the format probe asks for; the request log line records it like any other cap. */
 const PROBE_MAX_TOKENS = 16;
+const ITERATOR_ABANDONED = Symbol('iterator-abandoned');
 
 export function createGateway(options: GatewayOptions): Gateway {
   const { profiles, keys } = options;
   const clock = options.clock ?? systemClock;
+  const limiter = new ProfileLimiter(clock, (id) => {
+    const profile = profiles.get(id);
+    return profile?.maxConcurrentRequests ?? DEFAULT_MAX_CONCURRENT_REQUESTS[profile?.kind ?? 'endpoint'];
+  });
+  profiles.subscribeLimits?.((id) => limiter.refresh(id));
   const ledger = options.ledger ?? new UsageLedger(clock);
   const requestLog = options.requestLog ?? new RequestLog();
   const mock = options.mock ?? createMockProvider();
@@ -387,15 +395,17 @@ export function createGateway(options: GatewayOptions): Gateway {
       responded = true;
       request([]);
       const finishReason: FinishReason = terminal?.finishReason ?? 'error';
+      const abandoned = signal?.aborted === true && signal.reason === ITERATOR_ABANDONED;
+      const cancelled = signal?.aborted === true && !abandoned;
       if (profile.kind === 'mock') {
-        const outcome: RequestOutcome = finishReason !== 'error' ? 'ok' : signal?.aborted === true ? 'cancelled' : 'failed';
+        const outcome: RequestOutcome = finishReason !== 'error' ? 'ok' : cancelled ? 'cancelled' : 'failed';
         tell({ type: 'attempt', id, attempt: 0, outcome, at: clock.now() });
       }
       if (failure === undefined && finishReason === 'error') {
         failure =
-          signal?.aborted === true
+          cancelled
             ? { kind: 'cancelled', message: 'The call was stopped.' }
-            : terminal === undefined
+            : abandoned || terminal === undefined
               ? { kind: 'abandoned', message: 'The caller stopped reading before the reply finished.' }
               : { kind: 'error', message: 'The reply ended with an error.' };
       }
@@ -447,7 +457,25 @@ export function createGateway(options: GatewayOptions): Gateway {
     };
   }
 
-  async function* complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncGenerator<ChatChunk, void, undefined> {
+  function complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncIterableIterator<ChatChunk> {
+    const controller = new AbortController();
+    const combined = signal === undefined ? controller.signal : AbortSignal.any([signal, controller.signal]);
+    const iterator = runComplete(req, combined, beforeSend);
+    return {
+      [Symbol.asyncIterator]() { return this; },
+      next: (...args) => iterator.next(...args),
+      return: (value) => {
+        controller.abort(ITERATOR_ABANDONED);
+        return iterator.return(value);
+      },
+      throw: (error) => {
+        controller.abort(ITERATOR_ABANDONED);
+        return iterator.throw(error);
+      },
+    };
+  }
+
+  async function* runComplete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncGenerator<ChatChunk, void, undefined> {
     // §6: a request that names a role and no profile resolves through the injected router. The answer is the
     // profile it sends through, and the model and thinking level become the defaults the request's own fields
     // still beat. A resolver with no answer leaves the named-or-active rule in place, as a roleless request.
@@ -457,67 +485,91 @@ export function createGateway(options: GatewayOptions): Gateway {
     if (routed !== undefined && req.role !== undefined && options.roles?.allowed(req.role).includes(routed.profileId) !== true) {
       throw new EgressDeniedError(`Refused a request under the "${req.role}" role: it resolved to a profile that role may not use.`);
     }
-    const profile = targetOf(routed?.profileId ?? req.profileId);
-    const model = req.model ?? routed?.model ?? profile.defaultModel;
-    const sent: ChatRequest =
-      req.thinking === undefined && routed?.thinking !== undefined ? { ...req, thinking: routed.thinking } : req;
-    // §3's image gate, before anything is sent or any key is revealed: a request carrying image
-    // parts needs the active model's `vision` capability and must fit the route's image caps.
-    // A refusal names the remedy and never carries the bytes.
-    const route = profile.kind === 'mock' ? undefined : routeOf(profile, model);
-    const caps = profile.kind === 'mock' ? mock.modelCaps(profile.id, model) : route?.ctx.caps;
-    const imageProblem = checkRequestImages(sent.messages, caps ?? {}, route?.adapter.id, model);
-    if (imageProblem !== undefined) throw new EgressDeniedError(imageProblem);
-    const startedAt = clock.now();
-    const price = callPrice(profile.id, model, sent.thinking, sent);
-    const stats: StreamStats = { attempts: 0, usage: undefined };
-    const trace = observer === undefined ? undefined : startTrace(observer, sent, profile, model);
-
+    const queuedProfile = targetOf(routed?.profileId ?? req.profileId);
+    let release: () => void;
     try {
-      if (profile.kind === 'mock') {
-        beforeSend?.();
-        stats.attempts = 1;
-        trace?.request([]);
-        for await (const chunk of mock.complete(sent, signal)) {
-          if (chunk.usage !== undefined) {
-            stats.usage = chunk.usage;
-            stats.usageSource = 'estimate';
+      release = await limiter.acquire(queuedProfile.id, req.role === 'background', signal);
+    } catch (error) {
+      if (!(error instanceof CallerCancelled)) throw error;
+      yield { finishReason: 'error', usage: ZERO };
+      return;
+    }
+    try {
+      if (signal?.aborted) {
+        yield { finishReason: 'error', usage: ZERO };
+        return;
+      }
+      if (routed !== undefined && req.role !== undefined && options.roles?.allowed(req.role).includes(routed.profileId) !== true) {
+        throw new EgressDeniedError(`Refused a request under the "${req.role}" role: it resolved to a profile that role may not use.`);
+      }
+      const profile = targetOf(queuedProfile.id);
+      const model = req.model ?? routed?.model ?? profile.defaultModel;
+      const sent: ChatRequest =
+        req.thinking === undefined && routed?.thinking !== undefined ? { ...req, thinking: routed.thinking } : req;
+      // §3's image gate, before anything is sent or any key is revealed: a request carrying image
+      // parts needs the active model's `vision` capability and must fit the route's image caps.
+      // A refusal names the remedy and never carries the bytes.
+      const route = profile.kind === 'mock' ? undefined : routeOf(profile, model);
+      const caps = profile.kind === 'mock' ? mock.modelCaps(profile.id, model) : route?.ctx.caps;
+      const imageProblem = checkRequestImages(sent.messages, caps ?? {}, route?.adapter.id, model);
+      if (imageProblem !== undefined) throw new EgressDeniedError(imageProblem);
+      const startedAt = clock.now();
+      const price = callPrice(profile.id, model, sent.thinking, sent);
+      const stats: StreamStats = { attempts: 0, usage: undefined };
+      const trace = observer === undefined ? undefined : startTrace(observer, sent, profile, model);
+
+      try {
+        if (profile.kind === 'mock') {
+          beforeSend?.();
+          stats.attempts = 1;
+          trace?.request([]);
+          for await (const chunk of mock.complete(sent, signal)) {
+            if (chunk.usage !== undefined) {
+              stats.usage = chunk.usage;
+              stats.usageSource = 'estimate';
+            }
+            trace?.chunk(chunk, stats, signal);
+            yield chunk;
           }
+          return;
+        }
+
+        const resolved = route ?? routeOf(profile, model);
+        // On Chat Completions the §5 probe answer governs, and a capability row that names jsonObject false can refuse it — but a
+        // row that says nothing leaves the probe to decide. The other routes have no probe: their row says it.
+        const asksJson = sent.responseFormat !== undefined && sent.responseFormat !== 'text';
+        const jsonObject =
+          asksJson &&
+          (resolved.adapter.id === 'openai-chat'
+            ? profile.responseFormat?.supportsJsonObject === true && resolved.ctx.caps.jsonObject !== false
+            : resolved.ctx.caps.jsonObject === true);
+        assertEgress(deps, `${profile.baseUrl}${resolved.adapter.completePath(model)}`, profile.id);
+        const revealed = await secretsFor(profile);
+        trace?.request(revealed.redact);
+        if (signal?.aborted) {
+          yield { finishReason: 'error', usage: ZERO };
+          return;
+        }
+        const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal, onRateLimit: (delayMs: number) => limiter.pause(profile.id, delayMs), ...(beforeSend === undefined ? {} : { beforeSend }) };
+        for await (const chunk of streamChat(deps, spec, stats)) {
           trace?.chunk(chunk, stats, signal);
           yield chunk;
         }
-        return;
+      } catch (error) {
+        trace?.fail(error);
+        throw error;
+      } finally {
+        trace?.end(stats, signal);
+        if (stats.attempts > 0) {
+          ledger.record(
+            { profileId: profile.id, model, turnId: req.turnId ?? req.usageTurnId, sessionId: req.sessionId, agentPath: req.agentPath, role: req.role, at: startedAt, pricePer1k: price },
+            { ...(stats.usage ?? ZERO), source: profile.kind === 'mock' ? 'provider' : stats.usageSource ?? 'estimate' },
+            stats.attempts,
+          );
+        }
       }
-
-      const resolved = route ?? routeOf(profile, model);
-      // On Chat Completions the §5 probe answer governs, and a capability row that names jsonObject false can refuse it — but a
-      // row that says nothing leaves the probe to decide. The other routes have no probe: their row says it.
-      const asksJson = sent.responseFormat !== undefined && sent.responseFormat !== 'text';
-      const jsonObject =
-        asksJson &&
-        (resolved.adapter.id === 'openai-chat'
-          ? profile.responseFormat?.supportsJsonObject === true && resolved.ctx.caps.jsonObject !== false
-          : resolved.ctx.caps.jsonObject === true);
-      assertEgress(deps, `${profile.baseUrl}${resolved.adapter.completePath(model)}`, profile.id);
-      const revealed = await secretsFor(profile);
-      trace?.request(revealed.redact);
-      const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal, ...(beforeSend === undefined ? {} : { beforeSend }) };
-      for await (const chunk of streamChat(deps, spec, stats)) {
-        trace?.chunk(chunk, stats, signal);
-        yield chunk;
-      }
-    } catch (error) {
-      trace?.fail(error);
-      throw error;
     } finally {
-      trace?.end(stats, signal);
-      if (stats.attempts > 0) {
-        ledger.record(
-          { profileId: profile.id, model, turnId: req.turnId ?? req.usageTurnId, sessionId: req.sessionId, agentPath: req.agentPath, role: req.role, at: startedAt, pricePer1k: price },
-          { ...(stats.usage ?? ZERO), source: profile.kind === 'mock' ? 'provider' : stats.usageSource ?? 'estimate' },
-          stats.attempts,
-        );
-      }
+      release();
     }
   }
 
