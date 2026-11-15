@@ -25,6 +25,7 @@ export function ManuscriptImportActions(): ReactNode {
   const epubFile = useRef<HTMLInputElement>(null);
   const ao3File = useRef<HTMLInputElement>(null);
   const kankaFile = useRef<HTMLInputElement>(null);
+  const docxFile = useRef<HTMLInputElement>(null);
 
   const failed = (file: File, failure: unknown): void => {
     const problem = failure instanceof Error ? failure.message : String(failure);
@@ -135,6 +136,16 @@ export function ManuscriptImportActions(): ReactNode {
     }
   };
 
+  const openDocx = async (file: File): Promise<void> => {
+    try {
+      const { docxPreviewSource } = await import('../import-preview/docx-source.js');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      openImportPreview({ source: docxPreviewSource(file.name, bytes) });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
   return (
     <div className="script-import" role="group" aria-label={t`Import a manuscript`}>
       <button type="button" className="button is-quiet" onClick={() => textFile.current?.click()}>
@@ -154,6 +165,9 @@ export function ManuscriptImportActions(): ReactNode {
       </button>
       <button type="button" className="button is-quiet" onClick={() => ao3File.current?.click()}>
         <Trans>Import AO3…</Trans>
+      </button>
+      <button type="button" className="button is-quiet" onClick={() => docxFile.current?.click()}>
+        <Trans>Import Word…</Trans>
       </button>
       <button type="button" className="button is-quiet" onClick={() => kankaFile.current?.click()}>
         <Trans>Import Kanka…</Trans>
@@ -244,6 +258,18 @@ export function ManuscriptImportActions(): ReactNode {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
           if (file !== undefined) void openKanka(file);
+        }}
+      />
+      <input
+        ref={docxFile}
+        type="file"
+        hidden
+        accept=".docx,.zip"
+        aria-label={t`Word file`}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file !== undefined) void openDocx(file);
         }}
       />
     </div>

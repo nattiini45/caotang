@@ -20,7 +20,8 @@ type State =
   | { readonly reader: 'html-archive'; readonly archive: ImportArchive }
   | { readonly reader: 'epub'; readonly archive: ImportArchive }
   | { readonly reader: 'ao3'; readonly bytes: Uint8Array; readonly fileName: string }
-  | { readonly reader: 'kanka'; readonly archive: ImportArchive };
+  | { readonly reader: 'kanka'; readonly archive: ImportArchive }
+  | { readonly reader: 'docx'; readonly bytes: Uint8Array; readonly archive: ImportArchive };
 
 /** Flattens an RTF or archive refusal to a code and a message, so it survives the structured clone (an Error's own `code` does not). */
 function serialiseRtf(result: RtfReadResult | RtfdReadResult): SerializableRtfResult {
@@ -46,7 +47,7 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
     }
     const { openFolder, openZip } = await import('@caotang/import-read/zip');
     const archive =
-      req.reader === 'rtfd-zip' || req.reader === 'html-zip' || req.reader === 'epub' || req.reader === 'kanka'
+      req.reader === 'rtfd-zip' || req.reader === 'html-zip' || req.reader === 'epub' || req.reader === 'kanka' || req.reader === 'docx'
         ? await openZip(req.bytes)
         : openFolder(req.files.map((file) => ({ path: file.path, size: file.size, read: async () => file.bytes })));
     if (!archive.ok) throw new Error(archive.error.message);
@@ -57,7 +58,9 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
           ? { reader: 'epub', archive: archive.value }
           : req.reader === 'kanka'
             ? { reader: 'kanka', archive: archive.value }
-            : { reader: 'rtfd', archive: archive.value };
+            : req.reader === 'docx'
+              ? { reader: 'docx', bytes: req.bytes, archive: archive.value }
+              : { reader: 'rtfd', archive: archive.value };
   };
 
   const read = async (req: ReaderRead): Promise<ReaderResult> => {
@@ -98,6 +101,13 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
       if (state.reader !== 'kanka') throw new Error('The import reader is not a Kanka reader.');
       const { readKankaArchive } = await import('@caotang/import-kanka');
       return { kind: 'kanka', result: await readKankaArchive(state.archive, req.labels === undefined ? {} : { labels: req.labels }) };
+    }
+    if (req.reader === 'docx') {
+      if (state.reader !== 'docx') throw new Error('The import reader is not a Word reader.');
+      const { readDocxArchive, readDocxZip } = await import('@caotang/import-docx');
+      // One Word file, or a zip of them: the archive's own entries say which.
+      const single = state.archive.entry('word/document.xml') !== undefined;
+      return { kind: 'docx', result: single ? await readDocxArchive(state.archive, req.options ?? {}) : await readDocxZip(state.bytes, req.options ?? {}) };
     }
     const { readRtf, readRtfd } = await import('@caotang/import-rtf');
     const options = {

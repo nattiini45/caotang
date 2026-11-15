@@ -19,6 +19,7 @@ import { RTF_OPTIONS, rtfErrorText, rtfPreviewSource, rtfSizeRefusal } from '../
 import { epubPreviewSource } from '../src/import-preview/epub-source.js';
 import { ao3PreviewSource } from '../src/import-preview/ao3-source.js';
 import { kankaPreviewSource } from '../src/import-preview/kanka-source.js';
+import { docxPreviewSource } from '../src/import-preview/docx-source.js';
 import { rawZip } from '../../../packages/import-read/test/zip-fixtures.js';
 import {
   SPLIT_CHIPS,
@@ -491,6 +492,35 @@ describe('the sources', () => {
       ['Secret', 'manual', ['journals']],
     ]);
     expect(commit.params.codex?.pages).toHaveLength(3);
+    source.dispose?.();
+  });
+
+  it('a Word file offers its tracked changes as a chip, and rejecting them re-reads the text', async () => {
+    const W_NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+    const styles = `<?xml version="1.0"?><w:styles ${W_NS}><w:style w:styleId="Heading1"><w:name w:val="heading 1"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style></w:styles>`;
+    const body =
+      '<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>The Landing</w:t></w:r></w:p>' +
+      '<w:p><w:r><w:t xml:space="preserve">The ferry </w:t></w:r><w:ins w:id="1"><w:r><w:t>came at noon</w:t></w:r></w:ins><w:del w:id="2"><w:r><w:delText>left at dawn</w:delText></w:r></w:del></w:p>' +
+      '<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Salt</w:t></w:r></w:p>' +
+      '<w:p><w:r><w:t>The letter arrived.</w:t></w:r></w:p>';
+    const zip = rawZip([
+      { name: 'word/document.xml', data: enc(`<?xml version="1.0"?><w:document ${W_NS}><w:body>${body}</w:body></w:document>`) },
+      { name: 'word/styles.xml', data: enc(styles) },
+    ]);
+    const source = docxPreviewSource('manuscript.docx', zip);
+    await source.load?.(() => {}, new AbortController().signal);
+    const settings = initialSettings(source.chips(), source.options());
+    expect(source.chips().some((chip) => chip.id === 'docx-tracked')).toBe(true);
+    const accepted = source.plan(settings, NO_OVERRIDES);
+    expect(accepted.tree.map((node) => node.title)).toEqual(['The Landing', 'Salt']);
+    expect(JSON.stringify(accepted.blocks)).toContain('came at noon');
+    expect(source.report?.(accepted)[0]?.lines).toContain('1 insertion was read');
+
+    const rejecting = { ...settings, chips: { ...settings.chips, 'docx-tracked': 'reject' } };
+    await source.prepare?.(rejecting, new AbortController().signal);
+    const rejected = source.plan(rejecting, NO_OVERRIDES);
+    expect(JSON.stringify(rejected.blocks)).toContain('left at dawn');
+    expect(JSON.stringify(rejected.blocks)).not.toContain('came at noon');
     source.dispose?.();
   });
 
