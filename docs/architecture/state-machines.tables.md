@@ -705,6 +705,8 @@ Initial: `queued`. Final: `applied`, `cancelled`, `completed`, `failed`.
 | --- | --- | --- |
 | `applied` | — | — |
 | `cancelled` | — | — |
+| `cancelling` | `complete` | `completed` |
+| `cancelling` | `ready` | `ready` |
 | `cancelling` | `settle` | `cancelled` |
 | `completed` | — | — |
 | `failed` | — | — |

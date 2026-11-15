@@ -2557,11 +2557,14 @@ export class AgentController {
     const view = withheldState(this.session.state, withheld);
     const context = reviewContextOf(view, contextOverrides);
     const tree = this.session.state.manifest.tree;
-    const effective = scopeDocIds.map((id) => ({
-      doc: [id, getRevision(this.session.state, id), tree.find((node) => node.id === id)?.title ?? ''],
-      codex: (context.codex?.(id) ?? []).map((block) => [block.key, block.text]),
-      story: (context.storySoFar?.(id) ?? []).map((block) => [block.key, block.text]),
-    }));
+    const effective = scopeDocIds.map((id) => {
+      const node = tree.find((candidate) => candidate.id === id);
+      return {
+        doc: [id, getRevision(this.session.state, id), node?.title ?? '', node?.status === 'archived'],
+        codex: (context.codex?.(id) ?? []).map((block) => [block.key, block.text]),
+        story: (context.storySoFar?.(id) ?? []).map((block) => [block.key, block.text]),
+      };
+    });
     const endpoint = this.providers.get(route.profileId)?.baseUrl ?? null;
     const languages = this.languagePolicy();
     return textDigest(JSON.stringify({

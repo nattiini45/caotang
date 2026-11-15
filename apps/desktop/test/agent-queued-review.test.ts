@@ -505,6 +505,18 @@ it('invalidates an approval when the focus document is renamed, but not for a do
   if (!refused.ok) expect(refused.reason).toContain('changed since it was approved');
 });
 
+it('invalidates an approval when a scoped document is archived, even the first with no story so far', async () => {
+  const f = await fixture();
+  const focus = f.state.manifest.tree.filter((node) => node.type === 'document')[0]!;
+  const prepared = await f.controller.prepareQueuedReview({ scope: { mode: 'doc', docIds: [focus.id] }, maxFindings: 50 });
+  expect(prepared.ok).toBe(true);
+  if (!prepared.ok) return;
+  focus.status = 'archived';
+  const refused = await f.controller.queuePreparedReview(prepared.preview);
+  expect(refused.ok).toBe(false);
+  if (!refused.ok) expect(refused.reason).toContain('changed since it was approved');
+});
+
 it('queues the held offer steps, not a caller-mutated steps array', async () => {
   const step: PlanStep = { tool: 'coherence.review', params: { scope: { mode: 'full' } }, expect: 'A coherence review' };
   const plannerScript: MockScript = { match: () => true, respond: () => ({ content: JSON.stringify({ steps: [step] }) }) };

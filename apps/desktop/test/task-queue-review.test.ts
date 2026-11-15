@@ -222,6 +222,55 @@ describe('a queued coherence review', () => {
     expect(task?.reviewCheckpoint?.extractedDocIds).toContain('sA');
   });
 
+  it('completes a review whose findings were published before a cancel during its save settled', async () => {
+    const state = twoDocs();
+    const held = { file: emptyCoherenceFile() };
+    const model = reviewing();
+    let releaseSave!: () => void;
+    const saveHeld = new Promise<void>((resolve) => { releaseSave = resolve; });
+    let saveStarted!: () => void;
+    const started = new Promise<void>((resolve) => { saveStarted = resolve; });
+    const rows = new Map<string, unknown>();
+    const db: AppDb = {
+      async get<T>(key: string) { return structuredClone(rows.get(key)) as T | undefined; },
+      async put(key, value) { rows.set(key, structuredClone(value)); },
+      async list<T>(prefix: string) { return [...rows].filter(([key]) => key.startsWith(prefix)).map(([key, value]) => ({ key, value: structuredClone(value) as T })); },
+      async delete(key) { rows.delete(key); },
+      close() {},
+    };
+    const queue = new TaskQueue({
+      projectId: PROJECT,
+      store: new TaskStore(db),
+      agentFor: () => ({ stageOnly: async () => ({ proposals: [], revisions: [], refusals: [], stopped: false, modelCalls: 0, tokens: { promptTokens: 0, completionTokens: 0, requests: 0 } }) }),
+      reviewFor: () => async (current, host) => {
+        const approval = current.review;
+        if (approval === undefined) return { status: 'failed', error: 'no approval' };
+        const computed = await computeReview(state, held.file, approval.plan, { model, approved: true, signal: host.signal, beforeCall: () => host.reserve(), onCheckpoint: (checkpoint) => host.checkpoint(checkpoint) });
+        const result = publishReview(held.file, computed, { now: NOW, ...(current.reviewRunId === undefined ? {} : { runId: current.reviewRunId }) });
+        held.file = result.file;
+        saveStarted();
+        await saveHeld;
+        return { status: result.status, report: { runId: result.run.id, outcome: result.status, findingsCount: result.run.findingsUpserted.length, scopeTitles: approval.plan.documents.map((d) => d.title), routeLabel: approval.route.label, usage: { modelCalls: 0, promptTokens: computed.promptTokens, completionTokens: computed.completionTokens, source: 'estimated' } } };
+      },
+      foregroundBusy: () => false,
+      locksAvailable: () => true,
+      newId: () => 'task_TEST000001',
+    });
+    await queue.open();
+    const queued = await queue.enqueue('Review.', [reviewStep], undefined, approvalFor(state));
+    expect(queued.ok).toBe(true);
+    await started;
+    await queue.cancel('task_TEST000001');
+    releaseSave();
+    await queue.idle();
+    const task = queue.snapshot()[0];
+    expect(task?.status).toBe('completed');
+    expect(task?.report?.outcome).toBe('complete');
+    expect(task?.report?.findingsCount).toBe(1);
+    expect(held.file.findings).toHaveLength(1);
+    expect(held.file.runs).toHaveLength(1);
+  });
+
   it('resume repeats no acknowledged stage and stays inside the remaining bound', async () => {
     const state = twoDocs();
     const held = { file: emptyCoherenceFile() };

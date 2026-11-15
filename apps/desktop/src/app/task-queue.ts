@@ -473,7 +473,7 @@ export class TaskQueue {
       const errorText = error instanceof Error ? error.message : String(error);
       outcome = { status: signal.aborted ? 'cancelled' : 'failed', error: errorText };
     }
-    if (outcome.status === 'cancelled' || signal.aborted) {
+    if (outcome.status === 'cancelled' || (signal.aborted && outcome.report === undefined)) {
       return false;
     }
     if (outcome.status === 'failed') {
@@ -533,6 +533,10 @@ export class TaskQueue {
     const task = this.find(id);
     if (task === undefined) return;
     const phase = this.phase(task);
+    if (phase === 'cancelling' && task.report !== undefined) {
+      await this.move(id, task.kind === 'review' ? 'complete' : 'ready');
+      return;
+    }
     if (phase === 'cancelling' || phase === 'interrupted') {
       await this.move(id, 'settle');
       return;
