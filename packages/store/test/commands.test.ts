@@ -1620,8 +1620,9 @@ describe('the bus/store split these applies depend on', () => {
     // store's own, and `asset.sweep`, `asset.relink` and `asset.storeWorkingCopies` register only with the host's asset port: 77 names, 61 implemented.
     // The seven comic commands need no port: 84 names, 68 implemented.
     // The import preview's commit adds `binder.importTree`, which registers only with the asset port: 85 names, 68 implemented.
-    expect(Object.keys(registry)).toHaveLength(86);
-    expect(implemented).toHaveLength(68);
+    // The publish field patch adds `binder.setPublish`, with an apply of the store's own: 86 names, 69 implemented.
+    expect(Object.keys(registry)).toHaveLength(87);
+    expect(implemented).toHaveLength(69);
   });
 });
 
@@ -1655,5 +1656,73 @@ describe('notes.append — one call repeated under one key', () => {
     h.run(cmd({ name: 'notes.append', params, issuedBy: 'agent', turnId: 'turn-a', callId: 'call-a' }));
     h.run(cmd({ name: 'notes.append', params, issuedBy: 'agent', turnId: 'turn-b', callId: 'call-b' }));
     expect(node(h.state, LANDING).notes.split('The tide table was wrong.')).toHaveLength(3);
+  });
+});
+
+describe('binder.setPublish — a document’s publish metadata (web-publishing.md §2)', () => {
+  it('sets every field and undoes to the prior absence', () => {
+    const h = harness();
+    const patch = {
+      slug: 'the-landing',
+      publishedAt: '2026-11-15T12:00:00Z',
+      tags: ['serial', 'lighthouse'],
+      canonical: 'https://example.com/posts/the-landing',
+      description: 'The ferry was late.',
+      layout: 'post',
+    };
+    const outcome = h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch } }));
+    expect(node(h.state, LANDING).publish).toEqual(patch);
+    // The inverse names every key the dispatch wrote, each with the value it held before — null where it held none.
+    expect(inverseOf(h, outcome.undoGroupId).params).toEqual({
+      nodeId: LANDING,
+      patch: { slug: null, publishedAt: null, tags: null, canonical: null, description: null, layout: null },
+    });
+    h.undoGroup(outcome.undoGroupId!);
+    expect('publish' in node(h.state, LANDING)).toBe(false);
+  });
+
+  it('clears a field with null, keeps the keys it was not handed, and restores them on undo', () => {
+    const h = harness();
+    node(h.state, LANDING).publish = { slug: 'old-slug', customField: 'kept' };
+    const outcome = h.run(
+      cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { slug: null, tags: ['serial'] } } }),
+    );
+    // The merge keeps `customField`: the record is unknown-tolerant, and a command drops no key it does not name.
+    expect(node(h.state, LANDING).publish).toEqual({ customField: 'kept', tags: ['serial'] });
+    expect(inverseOf(h, outcome.undoGroupId).params).toEqual({
+      nodeId: LANDING,
+      patch: { slug: 'old-slug', tags: null },
+    });
+    h.undoGroup(outcome.undoGroupId!);
+    expect(node(h.state, LANDING).publish).toEqual({ slug: 'old-slug', customField: 'kept' });
+  });
+
+  it('is idempotent: a field set to the value the node already holds writes and stamps nothing', () => {
+    const h = harness();
+    node(h.state, LANDING).publish = { slug: 'the-landing', tags: ['serial'] };
+    const before = node(h.state, LANDING).updatedAt;
+    const same = h.run(
+      cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { slug: 'the-landing', tags: ['serial'] } } }),
+    );
+    expect(node(h.state, LANDING).updatedAt).toBe(before);
+    expect(inverseOf(h, same.undoGroupId).params).toEqual({ nodeId: LANDING, patch: {} });
+  });
+
+  it('refuses a relative canonical, a bad instant, an unknown field, an empty patch and a non-document', () => {
+    const h = harness();
+    const registry = createProjectCommandRegistry({ clock });
+    const refused = (patch: Record<string, unknown>, nodeId = LANDING) =>
+      refusalOf(execute(cmd({ name: 'binder.setPublish', params: { nodeId, patch } }), h.bus, registry));
+
+    expect(refused({ canonical: '/posts/the-landing' }).code).toBe('invalid-params');
+    expect(refused({ publishedAt: '2026-11-15' }).code).toBe('invalid-params');
+    expect(refused({ bogus: 'x' }).code).toBe('invalid-params');
+    expect(refused({}).code).toBe('invalid-params');
+    const folder = refused({ slug: 'chapter-1' }, CHAPTER_ONE);
+    expect(folder.code).toBe('invalid-params');
+    expect(folder.message).toContain('only a document carries publish metadata');
+
+    expect('publish' in node(h.state, LANDING)).toBe(false);
+    expect(h.undo.groups()).toHaveLength(0);
   });
 });

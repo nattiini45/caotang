@@ -97,6 +97,7 @@ export const COMMAND_NAMES = [
   'binder.rename',
   'binder.setMeta',
   'binder.setSynopsis',
+  'binder.setPublish',
   'notes.set',
   'notes.append',
   'doc.write',
@@ -668,6 +669,7 @@ export interface CommandParams {
   'binder.rename': BinderRenameParams;
   'binder.setMeta': BinderSetMetaParams;
   'binder.setSynopsis': BinderSetSynopsisParams;
+  'binder.setPublish': BinderSetPublishParams;
   'notes.set': NotesSetParams;
   'notes.append': NotesAppendParams;
   'doc.write': DocWriteParams;
@@ -946,6 +948,24 @@ export type BinderRenameParams = { nodeId: string; title: string };
 export type BinderSetMetaParams = { nodeId: string; patch: MetaPatch };
 
 export type BinderSetSynopsisParams = { nodeId: string; synopsis: string };
+
+/**
+ * The fields `binder.setPublish` patches (web-publishing.md §2). A named key sets the field; `null` clears it; a key
+ * left out is untouched — the same patch discipline as {@link MetaPatch}. A document with no `publishedAt` is a draft.
+ */
+export type PublishPatch = {
+  slug?: string | null;
+  publishedAt?: string | null;
+  tags?: string[] | null;
+  canonical?: string | null;
+  description?: string | null;
+  layout?: string | null;
+};
+
+/** The publish fields, in spec order — shared by the descriptor's validation and the store's apply. */
+export const PUBLISH_FIELD_NAMES = ['slug', 'publishedAt', 'tags', 'canonical', 'description', 'layout'] as const;
+
+export type BinderSetPublishParams = { nodeId: string; patch: PublishPatch };
 
 export type NotesSetParams = { nodeId: string; notes: string };
 

@@ -30,7 +30,7 @@
  */
 
 import { err, ok, type CommandError, type Result } from './result.js';
-import { SCENE_STYLES } from './command.js';
+import { PUBLISH_FIELD_NAMES, SCENE_STYLES } from './command.js';
 import type {
   McpInvokeParams,
   McpReadResourceParams,
@@ -41,7 +41,9 @@ import type {
   BinderMoveParams,
   BinderRenameParams,
   BinderSetMetaParams,
+  BinderSetPublishParams,
   BinderSetSynopsisParams,
+  PublishPatch,
   CodexAttachParams,
   CodexUpsertOp,
   CodexUpsertParams,
@@ -122,6 +124,11 @@ export const KEYWORD_CHARS_MAX = 64;
 export const NOTES_MAX = 50_000;
 const NOTES_APPEND_MAX = 2000;
 const CODEX_BATCH_MAX = 20;
+/** web-publishing.md §2's limits for `binder.setPublish`, local like the notes caps: a load keeps what it finds. */
+const PUBLISH_TEXT_MAX = 2000;
+const PUBLISH_TAGS_MAX = 64;
+/** The RFC 3339 shape §2 pins `publishedAt` to — a full instant, not a date. */
+const RFC3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
 /**
  * codex.md §2's limits, **exported**.
@@ -692,6 +699,97 @@ export const binderSetSynopsis: CommandDescriptor<BinderSetSynopsisParams> = {
     const synopsis = requireString(p.value, 'synopsis', SYNOPSIS_MAX);
     if (!synopsis.ok) return synopsis;
     return ok({ nodeId: node.value.id, synopsis: synopsis.value });
+  },
+};
+
+/**
+ * `binder.setPublish` — a patch of a document's publish metadata (web-publishing.md §2), validated as a whole: one bad
+ * field refuses the patch. A named key sets the field, `null` clears it and a key left out is untouched; `publishedAt`
+ * must be an RFC 3339 instant and `canonical` an absolute https address, because those are the two fields a feed or a
+ * page reaches for without asking.
+ */
+export const binderSetPublish: CommandDescriptor<BinderSetPublishParams> = {
+  mutates: 'project',
+  agentRisk: 'write-auto',
+  undo: 'inverse',
+  validate: (params, snapshot) => {
+    const p = requireDeclaredParams('binder.setPublish', params);
+    if (!p.ok) return p;
+    const node = requireNode(snapshot, p.value, 'nodeId');
+    if (!node.ok) return node;
+    if (node.value.type !== 'document') {
+      return invalid(
+        `"${node.value.title}" is a ${node.value.type}, and only a document carries publish metadata`,
+        'name a document node',
+        'nodeId',
+      );
+    }
+    const patch = p.value['patch'];
+    if (!isRecord(patch)) {
+      return invalid(
+        `params.patch must be an object, got ${patch === undefined ? 'nothing' : typeof patch}`,
+        `pass a patch with any of: ${PUBLISH_FIELD_NAMES.join(', ')}`,
+        'patch',
+      );
+    }
+    for (const key of Object.keys(patch)) {
+      if (!(PUBLISH_FIELD_NAMES as readonly string[]).includes(key)) {
+        return invalid(
+          `params.patch.${key} is not a publish field`,
+          `a patch carries only: ${PUBLISH_FIELD_NAMES.join(', ')}`,
+          `patch.${key}`,
+        );
+      }
+    }
+    const typed: PublishPatch = {};
+    for (const key of ['slug', 'publishedAt', 'canonical', 'description', 'layout'] as const) {
+      const field = optionalNullableString(patch, key, PUBLISH_TEXT_MAX);
+      if (!field.ok) return field;
+      if (field.value !== undefined) typed[key] = field.value;
+    }
+    if (typeof typed.slug === 'string' && typed.slug.trim() === '') {
+      return invalid('a slug cannot be empty', 'type a slug like "first-post", or null to clear it', 'patch.slug');
+    }
+    if (typeof typed.publishedAt === 'string' && !RFC3339.test(typed.publishedAt)) {
+      return invalid(
+        `"${typed.publishedAt}" is not an RFC 3339 instant`,
+        'type a full timestamp like "2026-11-15T12:00:00Z", or null to clear the date',
+        'patch.publishedAt',
+      );
+    }
+    if (typeof typed.canonical === 'string') {
+      let absolute = false;
+      try {
+        absolute = new URL(typed.canonical).protocol === 'https:';
+      } catch {
+        absolute = false;
+      }
+      if (!absolute) {
+        return invalid(
+          `"${typed.canonical}" is not an absolute https address`,
+          'type the full address, like "https://example.com/post", or null to clear it',
+          'patch.canonical',
+        );
+      }
+    }
+    if (patch['tags'] !== undefined) {
+      if (patch['tags'] === null) {
+        typed.tags = null;
+      } else {
+        const tags = requireStringArray(patch, 'tags', { maxItems: PUBLISH_TAGS_MAX });
+        if (!tags.ok) return tags;
+        typed.tags = tags.value;
+      }
+    }
+    // The same shape refusal as `binder.setMeta`: a patch naming no field asks for nothing at all.
+    if (Object.keys(typed).length === 0) {
+      return changesNothing(
+        'the patch names no field to write, so it asks for nothing to change',
+        `name at least one of: ${PUBLISH_FIELD_NAMES.join(', ')}`,
+        'patch',
+      );
+    }
+    return ok({ nodeId: node.value.id, patch: typed });
   },
 };
 

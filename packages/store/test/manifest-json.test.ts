@@ -125,6 +125,33 @@ describe('manifest serializer', () => {
     expect(back.project.author).toBe('Ada Writer');
   });
 
+  it('round-trips a document’s publish fields, keeps an unknown key and writes nothing when unset (web-publishing.md §2)', () => {
+    const m = rich();
+    m.tree[1]!.publish = {
+      slug: 'the-landing',
+      publishedAt: '2026-11-15T12:00:00Z',
+      tags: ['serial'],
+      canonical: 'https://example.com/posts/the-landing',
+      description: 'The ferry was late.',
+      layout: 'post',
+      customField: 'kept',
+    };
+
+    const back = JSON.parse(serializeManifest(m)) as Manifest;
+    expect(back.tree[1]!.publish).toEqual(m.tree[1]!.publish);
+    // The unknown key comes back untouched — unknown-tolerant means kept, not read.
+    expect(back.tree[1]!.publish?.['customField']).toBe('kept');
+
+    const r = validateManifest(back);
+    expect(r.ok).toBe(true);
+    if (r.ok && r.manifest !== undefined) {
+      expect(r.manifest.tree[1]!.publish).toEqual(m.tree[1]!.publish);
+    }
+
+    const bare = JSON.parse(serializeManifest(createEmptyManifest('Bare', T))) as Manifest;
+    expect(bare.tree[1]).not.toHaveProperty('publish');
+  });
+
   it('drops a malformed EPUB slot or recipe with a warning, and keeps the rest (load tolerance)', () => {
     const m = rich();
     (m.project as unknown as Record<string, unknown>)['language'] = '';

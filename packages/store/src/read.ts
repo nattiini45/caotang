@@ -212,6 +212,7 @@ export const KNOWN_NODE_KEYS = new Set([
   'comicPage',
   'showMeta',
   'episodeMeta',
+  'publish',
   'style',
 ]);
 

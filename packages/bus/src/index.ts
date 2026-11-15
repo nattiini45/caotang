@@ -1,6 +1,7 @@
 export {
   COMMAND_NAMES,
   FIXED_ROOT_IDS,
+  PUBLISH_FIELD_NAMES,
   SCENE_STYLES,
   VIEW_COMMAND_NAMES,
   isFixedRootId,
@@ -11,7 +12,9 @@ export type {
   BinderMoveParams,
   BinderRenameParams,
   BinderSetMetaParams,
+  BinderSetPublishParams,
   BinderSetSynopsisParams,
+  PublishPatch,
   CodexAttachParams,
   CodexSourceCitation,
   CodexUpsertOp,
