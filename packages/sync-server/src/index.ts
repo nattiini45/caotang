@@ -108,17 +108,20 @@ function accountMode(env: SyncServerBindings): boolean {
   return env.AUTHENTICATION_MODE === 'accounts';
 }
 
-function configured(env: SyncServerBindings): boolean {
+function cookiesConfigured(env: SyncServerBindings): boolean {
   try {
     const origin = new URL(env.PUBLIC_ORIGIN);
-    const mode = env.AUTHENTICATION_MODE;
-    if (mode !== undefined && mode !== '' && mode !== 'allowlist' && mode !== 'accounts') return false;
-    return origin.protocol === 'https:' && origin.origin === env.PUBLIC_ORIGIN && encoder.encode(env.SESSION_SECRET).length >= 32
-      && Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET)
-      && (accountMode(env) ? typeof env.ACCOUNT_DB?.withSession === 'function' : Boolean(env.ALLOWED_GITHUB_LOGINS?.trim()));
+    return origin.protocol === 'https:' && origin.origin === env.PUBLIC_ORIGIN && encoder.encode(env.SESSION_SECRET).length >= 32;
   } catch {
     return false;
   }
+}
+
+function configured(env: SyncServerBindings): boolean {
+  const mode = env.AUTHENTICATION_MODE;
+  if (mode !== undefined && mode !== '' && mode !== 'allowlist' && mode !== 'accounts') return false;
+  return cookiesConfigured(env) && Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET)
+    && (accountMode(env) ? typeof env.ACCOUNT_DB?.withSession === 'function' : Boolean(env.ALLOWED_GITHUB_LOGINS?.trim()));
 }
 
 function registry(env: SyncServerBindings): AccountRegistry {
@@ -205,7 +208,11 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === '/healthz') return request.method === 'GET' ? Response.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } }) : reply(405, 'Use GET for the health check.');
     if (!url.pathname.startsWith('/v1/')) return env.ASSETS.fetch(request);
-    if (!configured(env)) return reply(503, 'Sign-in is not configured. Contact the server operator.');
+    if (!configured(env)) {
+      const clearing = accountMode(env) && request.method === 'POST' && url.pathname === '/v1/auth/logout' && cookiesConfigured(env)
+        && url.origin === env.PUBLIC_ORIGIN && request.headers.get('Origin') === env.PUBLIC_ORIGIN && await verify(readCookie(request, SESSION_COOKIE), 'session', env) !== null;
+      return clearing ? new Response(null, { status: 204, headers: { 'Set-Cookie': cookie(SESSION_COOKIE, '', 0), 'Cache-Control': 'no-store' } }) : reply(503, 'Sign-in is not configured. Contact the server operator.');
+    }
     if (url.origin !== env.PUBLIC_ORIGIN) return reply(403, 'Use the configured server address.');
     const crossOrigin = request.headers.get('Origin') !== env.PUBLIC_ORIGIN;
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && crossOrigin) return reply(403, 'This request must come from the app.');

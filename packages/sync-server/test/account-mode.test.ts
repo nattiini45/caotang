@@ -113,6 +113,13 @@ describe('the Worker in account mode', () => {
     expect((await withoutDatabase.dispatch('/healthz')).status).toBe(200);
     const unknown = await runtime({ AUTHENTICATION_MODE: 'accounts-only' });
     expect((await unknown.dispatch('/v1/auth/github')).status).toBe(503);
+    const cookie = signed({ purpose: 'session', origin: ORIGIN, expires: Date.now() + 60_000, mode: 'accounts', identity: { id: 'github:101', login: 'reader-one' }, account: { id: 'any', revision: 1 } });
+    const cleared = await withoutDatabase.dispatch('/v1/auth/logout', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } });
+    expect(cleared.status).toBe(204);
+    expect(cleared.headers.getSetCookie()[0]).toContain('Max-Age=0');
+    expect((await withoutDatabase.dispatch('/v1/auth/logout', { method: 'POST', headers: { Cookie: cookie } })).status).toBe(503);
+    expect((await withoutDatabase.dispatch('/v1/auth/logout', { method: 'POST', headers: { Cookie: `${cookie}x`, Origin: ORIGIN } })).status).toBe(503);
+    expect((await withoutDatabase.dispatch('/v1/session', { headers: { Cookie: cookie } })).status).toBe(503);
   });
 
   it('returns a sanitized 503 when the account database fails and issues no session', async () => {
