@@ -34,4 +34,10 @@ describe('base64', () => {
     // Two bytes: the third character’s low two bits must be zero. "AAB" leaves a stray bit.
     expect(() => decodeBase64('AAB=')).toThrow(/trailing bits/);
   });
+
+  it('handles a long run of padding without polynomial backtracking', () => {
+    expect(decodeBase64('='.repeat(100000))).toEqual(new Uint8Array(0));
+    // Many '=' followed by a non-'=' is the shape that backtracks a /=+$/ regex; it must stay linear.
+    expect(() => decodeBase64('='.repeat(200000) + 'A')).toThrow(CryptoError);
+  });
 });

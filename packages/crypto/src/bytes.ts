@@ -94,7 +94,9 @@ export function encodeBase64(bytes: Uint8Array): string {
 
 /** The inverse of {@link encodeBase64}; refuses a non-canonical character or length. */
 export function decodeBase64(text: string): Uint8Array {
-  const clean = text.replace(/=+$/, '');
+  let end = text.length;
+  while (end > 0 && text[end - 1] === '=') end--;
+  const clean = text.slice(0, end);
   if (/[^A-Za-z0-9+/]/.test(clean)) throw new CryptoError('bad-format', 'the base64 text holds a non-base64 character');
   const out: number[] = [];
   let acc = 0;
