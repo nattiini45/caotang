@@ -172,7 +172,10 @@ export const BUDGET = {
   // preview source and the reader session's HTML branch, in lazy chunks; the first load did not move). The walker is reached from
   // both the main thread and the reader Worker, so it is in the build twice until #649 shares that code. The ceiling is the measured
   // size plus about 4 kB.
-  totalJs: 8_310_000,
+  // The EPUB import (#296): 8,324,326 bytes measured on #299 (+18,280: the OPF, navigation and spine reader, the EPUB preview source
+  // and the reader session's EPUB branch, in lazy chunks; the first load did not move). The ceiling is the measured size plus about
+  // 6 kB. #649 (the walker and readers shared between the main thread and the Worker) is what brings this back down.
+  totalJs: 8_330_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
