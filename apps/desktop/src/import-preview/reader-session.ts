@@ -17,7 +17,8 @@ type State =
   | { readonly reader: 'text' | 'rtf'; readonly bytes: Uint8Array }
   | { readonly reader: 'rtfd'; readonly archive: ImportArchive }
   | { readonly reader: 'html'; readonly bytes: Uint8Array; readonly fileName: string }
-  | { readonly reader: 'html-archive'; readonly archive: ImportArchive };
+  | { readonly reader: 'html-archive'; readonly archive: ImportArchive }
+  | { readonly reader: 'epub'; readonly archive: ImportArchive };
 
 /** Flattens an RTF or archive refusal to a code and a message, so it survives the structured clone (an Error's own `code` does not). */
 function serialiseRtf(result: RtfReadResult | RtfdReadResult): SerializableRtfResult {
@@ -39,11 +40,16 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
     }
     const { openFolder, openZip } = await import('@caotang/import-read/zip');
     const archive =
-      req.reader === 'rtfd-zip' || req.reader === 'html-zip'
+      req.reader === 'rtfd-zip' || req.reader === 'html-zip' || req.reader === 'epub'
         ? await openZip(req.bytes)
         : openFolder(req.files.map((file) => ({ path: file.path, size: file.size, read: async () => file.bytes })));
     if (!archive.ok) throw new Error(archive.error.message);
-    state = req.reader === 'html-zip' ? { reader: 'html-archive', archive: archive.value } : { reader: 'rtfd', archive: archive.value };
+    state =
+      req.reader === 'html-zip'
+        ? { reader: 'html-archive', archive: archive.value }
+        : req.reader === 'epub'
+          ? { reader: 'epub', archive: archive.value }
+          : { reader: 'rtfd', archive: archive.value };
   };
 
   const read = async (req: ReaderRead): Promise<ReaderResult> => {
@@ -67,6 +73,11 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
       if (state.reader === 'html') return { kind: 'html', result: readHtmlFile(state.bytes, state.fileName) };
       if (state.reader === 'html-archive') return { kind: 'html', result: await readHtmlArchive(state.archive) };
       throw new Error('The import reader is not an HTML reader.');
+    }
+    if (req.reader === 'epub') {
+      if (state.reader !== 'epub') throw new Error('The import reader is not an EPUB reader.');
+      const { readEpubArchive } = await import('@caotang/import-epub');
+      return { kind: 'epub', result: await readEpubArchive(state.archive) };
     }
     const { readRtf, readRtfd } = await import('@caotang/import-rtf');
     const options = {

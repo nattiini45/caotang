@@ -288,6 +288,9 @@ importers:
       '@caotang/import-core':
         specifier: workspace:*
         version: link:../../packages/import-core
+      '@caotang/import-epub':
+        specifier: workspace:*
+        version: link:../../packages/import-epub
       '@caotang/import-html':
         specifier: workspace:*
         version: link:../../packages/import-html
