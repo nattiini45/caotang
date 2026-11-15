@@ -101,3 +101,17 @@ export async function deriveSubkey(project: SecretKey, purpose: SubkeyPurpose, c
   const bits = await globalThis.crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: buf(info) }, base, KEY_BYTES * 8);
   return new Uint8Array(bits);
 }
+
+/** The label for the provider-key vault key (P9). The vault sync is its own slice; this is the seam it derives from. */
+export const VAULT_INFO_LABEL = 'caotang/v1/vault-key';
+
+/**
+ * HKDF-SHA-256 over the master key for the sealed provider-key vault (hosted.md, plan §4.5). Distinct from
+ * every project subkey label, so the vault key can never collide with a file, path or manifest key.
+ */
+export async function deriveVaultKey(master: SecretKey): Promise<Uint8Array> {
+  requireRole(master, 'master');
+  const base = await globalThis.crypto.subtle.importKey('raw', buf(master.export()), 'HKDF', false, ['deriveBits']);
+  const bits = await globalThis.crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: buf(utf8(VAULT_INFO_LABEL)) }, base, KEY_BYTES * 8);
+  return new Uint8Array(bits);
+}

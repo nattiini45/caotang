@@ -1,7 +1,7 @@
 /**
- * The passphrase-to-key step, as a port. hosted.md §2 specifies Argon2id here; the adapter is a Phase 1
- * decision (a WASM dependency whose bundle size is measured first), so this package ships none. A test passes
- * a fast stand-in, and the port is the only place a slow hash enters.
+ * The passphrase-to-key step, as a port. hosted.md §2 specifies Argon2id here; the adapter in `argon2id.ts`
+ * loads hash-wasm lazily, so the WASM enters only on setup, unlock and recovery and never the first-load
+ * bundle. The port is the only place a slow hash enters, and a test passes a fast stand-in.
  */
 export interface Kdf {
   /** Names the algorithm and its parameters, for the record kept beside the wrapped master key. */
@@ -14,3 +14,12 @@ export interface Kdf {
 export const ARGON2ID_PROVISIONAL = { memoryKiB: 64 * 1024, iterations: 3, parallelism: 1 } as const;
 
 export const MIN_SALT_BYTES = 16;
+
+/**
+ * What is stored beside the wrapped master key so a later unlock uses the same algorithm and parameters.
+ * The parameters travel with the data, so raising the cost later never strands an existing account.
+ */
+export interface KdfDescriptor {
+  readonly id: string;
+  readonly params: Readonly<Record<string, number>>;
+}
