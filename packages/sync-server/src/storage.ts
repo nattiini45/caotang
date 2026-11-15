@@ -238,8 +238,23 @@ export async function sweepQuota(env: SyncServerBindings): Promise<void> {
   try {
     const db = env.ACCOUNT_DB!;
     await reconcileQuota(db, createR2Settlement(env.STORAGE_COORDINATOR!), { now: () => Date.now(), batchSize: SWEEP_BATCH });
-    await db.prepare('DELETE FROM quota_operations WHERE state = ? AND swept_at <= ?')
-      .bind('released', Date.now() - PRUNE_AFTER_MS).run();
+    const cutoff = Date.now() - PRUNE_AFTER_MS;
+    const candidates = await db.prepare('SELECT account_id AS accountId, operation_id AS operationId FROM quota_operations WHERE state = ? AND swept_at <= ?')
+      .bind('released', cutoff).all<{ accountId: string; operationId: string }>();
+    const byAccount = new Map<string, string[]>();
+    for (const row of candidates.results) {
+      const ids = byAccount.get(row.accountId) ?? [];
+      ids.push(row.operationId);
+      byAccount.set(row.accountId, ids);
+    }
+    for (const [accountId, operationIds] of byAccount) {
+      const response = await env.STORAGE_COORDINATOR!.getByName(accountId).fetch('https://storage-coordinator/reclaim', {
+        method: 'POST',
+        body: JSON.stringify({ accountId, operationIds }),
+      });
+      if (!response.ok) throw new Error('Fence reclaim refused');
+    }
+    await db.prepare('DELETE FROM quota_operations WHERE state = ? AND swept_at <= ?').bind('released', cutoff).run();
   } catch {
     console.warn({ message: 'The quota sweep could not run.' });
   }
@@ -263,6 +278,16 @@ export class StorageCoordinator extends DurableObject<SyncServerBindings> {
         const bytes = new Uint8Array(await request.arrayBuffer());
         const result = await this.serialize(() => this.publish(meta, bytes));
         return Response.json(result);
+      }
+      if (url.pathname === '/reclaim') {
+        const body = await request.json() as { accountId?: unknown; operationIds?: unknown };
+        if (typeof body.accountId !== 'string' || !Array.isArray(body.operationIds)) return Response.json({ status: 400 }, { status: 400 });
+        const accountId = body.accountId;
+        const ids = body.operationIds.filter((id): id is string => typeof id === 'string' && OPERATION_ID.test(id));
+        await this.serialize(async () => {
+          for (const id of ids) await this.env.PROJECT_STORE!.delete(fenceKey(accountId, id));
+        });
+        return Response.json({ ok: true });
       }
       if (url.pathname === '/settle') {
         const accountId = request.headers.get('X-Account-Id') ?? '';

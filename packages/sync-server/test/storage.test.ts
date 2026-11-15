@@ -378,6 +378,23 @@ describe('the Worker’s encrypted object storage', () => {
       refused = true;
     }
     expect(refused).toBe(true);
+
+    await quota.reserve('fenced-op', 'fenced-op', 10);
+    await quota.beginWrite('fenced-op');
+    await h.bucket!.put(`${account}/o/fenced-op`, new Uint8Array(10), { customMetadata: { project: PROJECT, name: 'manifest' } });
+    await h.sweep();
+    expect(await h.bucket!.head(`${account}/fences/fenced-op`)).not.toBeNull();
+    expect(await h.bucket!.head(`${account}/o/fenced-op`)).toBeNull();
+    expect((await h.put(session, 'manifest', new Uint8Array(10), { 'If-None-Match': '*' }, 'fenced-op')).status).toBe(409);
+    await h.db.prepare('UPDATE quota_operations SET swept_at = ? WHERE account_id = ? AND operation_id = ?')
+      .bind(Date.now() - 8 * 24 * 60 * 60 * 1000, account, 'fenced-op').run();
+    await h.sweep();
+    expect(await h.bucket!.head(`${account}/fences/fenced-op`)).toBeNull();
+    expect(await h.bucket!.head(`${account}/fences/recent-op`)).not.toBeNull();
+    expect(await h.db.prepare('SELECT operation_id FROM quota_operations WHERE account_id = ? AND operation_id = ?').bind(account, 'fenced-op').first()).toBeNull();
+    const reused = await h.put(session, 'manifest', new Uint8Array(10), { 'If-None-Match': '*' }, 'fenced-op');
+    expect(reused.status).toBe(201);
+    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 285, reservedBytes: 0 });
   });
 
   it('round-trips the HTTP blob client through the real Worker and surfaces its typed errors', async () => {
