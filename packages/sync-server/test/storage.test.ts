@@ -67,8 +67,15 @@ async function runtime(bindings: Record<string, string> = {}, options: { store?:
     });
   const usage = async (session: string) => (await (await dispatch('/v1/account', { headers: { Cookie: session } })).json() as { usage: { limitBytes: number; usedBytes: number; reservedBytes: number } }).usage;
   const sweep = () => dispatch('/cdn-cgi/handler/scheduled');
+  const settleAll = async (session: string) => {
+    await sweep();
+    const account = await accountId(session);
+    const fences = await bucket!.list({ prefix: `${account}/fences/` });
+    for (const fence of fences.objects) await bucket!.put(fence.key, '1', { customMetadata: { at: String(Date.now() - 120_000) } });
+    await sweep();
+  };
   const accountId = async (session: string) => (await (await dispatch('/v1/account', { headers: { Cookie: session } })).json() as { id: string }).id;
-  return { instance, address, db, bucket, invite, dispatch, signIn, call, put, usage, sweep, accountId };
+  return { instance, address, db, bucket, invite, dispatch, signIn, call, put, usage, sweep, settleAll, accountId };
 }
 
 afterEach(async () => { await Promise.all(open.splice(0).map((instance) => instance.dispose())); });
@@ -103,7 +110,7 @@ describe('the Worker’s encrypted object storage', () => {
     expect(await h.call(session, `/v1/projects/${PROJECT}/blobs/manifest`)).toMatchObject({ status: 404 });
     expect(await (await h.call(session, `/v1/projects/${PROJECT}/blobs`)).json()).toEqual([]);
     expect((await h.call(session, `/v1/projects/${PROJECT}/blobs/manifest`, { method: 'DELETE' })).status).toBe(204);
-    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 5, reservedBytes: 0 });
+    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 570, reservedBytes: 0 });
 
     const objects = await h.bucket!.list({ prefix: `${account}/` });
     const keys = objects.objects.map((object) => object.key);
@@ -120,7 +127,7 @@ describe('the Worker’s encrypted object storage', () => {
 
   it('refuses missing, malformed and stale preconditions without writing or keeping a charge', async () => {
     const h = await runtime();
-    await h.invite('reader-one');
+    await h.invite('reader-one', 10_000);
     const session = await h.signIn('reader-one');
     const bytes = new Uint8Array([1]);
     expect((await h.put(session, 'blob-one', bytes, {})).status).toBe(400);
@@ -133,9 +140,9 @@ describe('the Worker’s encrypted object storage', () => {
     expect((await h.put(session, 'blob-one', new Uint8Array([2]), { 'If-Match': '"stale"' })).status).toBe(412);
     expect((await h.put(session, 'blob-two', bytes, { 'If-Match': etag })).status).toBe(412);
     expect(new Uint8Array(await (await h.call(session, `/v1/projects/${PROJECT}/blobs/blob-one`)).arrayBuffer())).toEqual(bytes);
-    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 1, reservedBytes: 3 });
-    await h.sweep();
-    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 1, reservedBytes: 0 });
+    expect(await h.usage(session)).toEqual({ limitBytes: 10_000, usedBytes: 285, reservedBytes: 855 });
+    await h.settleAll(session);
+    expect(await h.usage(session)).toEqual({ limitBytes: 10_000, usedBytes: 285, reservedBytes: 0 });
     const account = await h.accountId(session);
     expect((await h.bucket!.list({ prefix: `${account}/o/` })).objects).toHaveLength(1);
   });
@@ -170,19 +177,35 @@ describe('the Worker’s encrypted object storage', () => {
     expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 0 });
   }, 15_000);
 
-  it('charges the exact payload once and refuses one byte over the allowance', async () => {
+  it('charges the minimum sealed size once and refuses one byte over the allowance', async () => {
     const h = await runtime();
-    await h.invite('reader-one', 64);
+    await h.invite('reader-one', 1_000);
     const session = await h.signIn('reader-one');
-    expect((await h.put(session, 'blob-one', new Uint8Array(60), { 'If-None-Match': '*' })).status).toBe(201);
-    expect(await h.usage(session)).toEqual({ limitBytes: 64, usedBytes: 60, reservedBytes: 0 });
-    const refused = await h.put(session, 'blob-two', new Uint8Array(5), { 'If-None-Match': '*' });
+    expect((await h.put(session, 'blob-one', new Uint8Array(285), { 'If-None-Match': '*' })).status).toBe(201);
+    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 285, reservedBytes: 0 });
+    const refused = await h.put(session, 'blob-two', new Uint8Array(716), { 'If-None-Match': '*' });
     expect(refused.status).toBe(507);
     expect(await h.call(session, `/v1/projects/${PROJECT}/blobs/blob-two`)).toMatchObject({ status: 404 });
-    expect((await h.put(session, 'blob-two', new Uint8Array(4), { 'If-None-Match': '*' })).status).toBe(201);
-    expect(await h.usage(session)).toEqual({ limitBytes: 64, usedBytes: 64, reservedBytes: 0 });
+    expect((await h.put(session, 'blob-two', new Uint8Array(715), { 'If-None-Match': '*' })).status).toBe(201);
+    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 1_000, reservedBytes: 0 });
     const account = await h.accountId(session);
     expect((await h.bucket!.list({ prefix: `${account}/o/` })).objects).toHaveLength(2);
+    expect((await h.put(session, 'blob-three', new Uint8Array(0), { 'If-None-Match': '*' })).status).toBe(400);
+    expect((await h.put(session, 'blob-three', new Uint8Array(1), { 'If-None-Match': '*' })).status).toBe(507);
+  });
+
+  it('replays a committed upload at the cap instead of refusing it, and refuses a fresh one', async () => {
+    const h = await runtime();
+    await h.invite('reader-one', 285);
+    const session = await h.signIn('reader-one');
+    const bytes = new Uint8Array(285).fill(7);
+    const first = await h.put(session, 'manifest', bytes, { 'If-None-Match': '*' }, 'cap-replay');
+    expect(first.status).toBe(201);
+    const replay = await h.put(session, 'manifest', bytes, { 'If-None-Match': '*' }, 'cap-replay');
+    expect(replay.status).toBe(200);
+    expect(replay.headers.get('ETag')).toBe(first.headers.get('ETag'));
+    expect((await h.put(session, 'manifest', bytes, { 'If-None-Match': '*' }, 'cap-fresh')).status).toBe(507);
+    expect(await h.usage(session)).toEqual({ limitBytes: 285, usedBytes: 285, reservedBytes: 0 });
   });
 
   it('replays an idempotent upload without a second charge and refuses a repurposed or superseded key', async () => {
@@ -195,8 +218,9 @@ describe('the Worker’s encrypted object storage', () => {
     const replay = await h.put(session, 'manifest', bytes, { 'If-None-Match': '*' }, 'upload-key-one');
     expect(replay.status).toBe(200);
     expect(replay.headers.get('ETag')).toBe(first.headers.get('ETag'));
-    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 3, reservedBytes: 0 });
+    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 285, reservedBytes: 0 });
     expect((await h.put(session, 'manifest', new Uint8Array([1]), { 'If-None-Match': '*' }, 'upload-key-one')).status).toBe(409);
+    expect((await h.put(session, 'manifest', new Uint8Array([5, 5, 5]), { 'If-None-Match': '*' }, 'upload-key-one')).status).toBe(409);
     expect((await h.put(session, 'other-name', bytes, { 'If-None-Match': '*' }, 'upload-key-one')).status).toBe(409);
     const replaced = await h.put(session, 'manifest', new Uint8Array([5]), { 'If-Match': first.headers.get('ETag')! });
     expect(replaced.status).toBe(200);
@@ -256,9 +280,13 @@ describe('the Worker’s encrypted object storage', () => {
     await h.bucket!.put(`${account}/o/orphan-op`, new Uint8Array(10), { customMetadata: { project: PROJECT, name: 'manifest' } });
     expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 10 });
     await h.sweep();
+    expect(await h.bucket!.head(`${account}/fences/orphan-op`)).not.toBeNull();
+    expect(await h.bucket!.head(`${account}/o/orphan-op`)).not.toBeNull();
+    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 10 });
+    await h.bucket!.put(`${account}/fences/orphan-op`, '1', { customMetadata: { at: String(Date.now() - 120_000) } });
+    await h.sweep();
     expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 0 });
     expect(await h.bucket!.head(`${account}/o/orphan-op`)).toBeNull();
-    expect(await h.bucket!.head(`${account}/fences/orphan-op`)).not.toBeNull();
     expect((await h.put(session, 'manifest', new Uint8Array(10), { 'If-None-Match': '*' }, 'orphan-op')).status).toBe(409);
     expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 0 });
   });
@@ -274,6 +302,8 @@ describe('the Worker’s encrypted object storage', () => {
     await h.bucket!.put(`${account}/o/stuck-op`, new Uint8Array(10), { customMetadata: { project: PROJECT, name: 'manifest' } });
     await h.bucket!.put(`${account}/live/${PROJECT}/manifest`, JSON.stringify({ operationId: 'stuck-op', size: 10, uploaded: 1_000 }), { customMetadata: { operation: 'stuck-op', size: '10' } });
     await h.sweep();
+    await h.bucket!.put(`${account}/fences/stuck-op`, '1', { customMetadata: { at: String(Date.now() - 120_000) } });
+    await h.sweep();
     expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 10 });
     const read = await h.call(session, `/v1/projects/${PROJECT}/blobs/manifest`);
     expect(read.status).toBe(200);
@@ -286,7 +316,7 @@ describe('the Worker’s encrypted object storage', () => {
 
   it('round-trips the HTTP blob client through the real Worker and surfaces its typed errors', async () => {
     const h = await runtime();
-    await h.invite('reader-one', 32);
+    await h.invite('reader-one', 2_048);
     const session = await h.signIn('reader-one');
     const store = createHttpBlobStore({
       origin: ORIGIN,
@@ -307,11 +337,11 @@ describe('the Worker’s encrypted object storage', () => {
     const replaced = await store.put('manifest', new Uint8Array([9]), { ifMatch: created.etag });
     expect(await store.list()).toEqual([{ name: 'manifest', etag: replaced.etag }]);
     await expect(store.put('manifest', new Uint8Array([10]), { ifMatch: created.etag })).rejects.toBeInstanceOf(BlobPreconditionFailedError);
-    await expect(store.put('blob-big', new Uint8Array(30), { ifNoneMatch: '*' })).rejects.toBeInstanceOf(RemoteQuotaExceededError);
+    await expect(store.put('blob-big', new Uint8Array(1_500), { ifNoneMatch: '*' })).rejects.toBeInstanceOf(RemoteQuotaExceededError);
     await store.delete('manifest');
     expect(await store.get('manifest')).toBeNull();
     expect(await store.list()).toEqual([]);
-    await h.sweep();
-    expect(await h.usage(session)).toEqual({ limitBytes: 32, usedBytes: 4, reservedBytes: 0 });
+    await h.settleAll(session);
+    expect(await h.usage(session)).toEqual({ limitBytes: 2_048, usedBytes: 570, reservedBytes: 0 });
   });
 });

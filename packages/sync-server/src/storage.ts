@@ -8,7 +8,9 @@ import type { DurableAccount } from './accounts.js';
 import { QuotaStore, reconcileQuota, type QuotaResult, type QuotaSettlementAdapter } from './quota.js';
 
 export const MAX_OBJECT_BYTES = 64 * 1024 * 1024;
+export const MIN_CHARGED_BYTES = 285;
 const WRITE_LEASE_MS = 60_000;
+const SETTLE_GRACE_MS = 60_000;
 const SWEEP_BATCH = 100;
 const PROJECT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const BLOB_NAME = /^[a-z0-9-]{1,64}$/;
@@ -57,6 +59,42 @@ async function retain(bucket: R2Bucket, accountId: string, projectId: string, na
   await bucket.put(historyKey(accountId, pointer.operationId), JSON.stringify({
     projectId, name, etag: pointer.etag, size: pointer.size, uploaded: pointer.uploaded, reason,
   }));
+}
+
+async function fingerprint(projectId: string, name: string, bytes: Uint8Array): Promise<string> {
+  const prefix = new TextEncoder().encode(`${projectId}\0${name}\0`);
+  const input = new Uint8Array(prefix.byteLength + bytes.byteLength);
+  input.set(prefix);
+  input.set(bytes, prefix.byteLength);
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', input));
+  return [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function readDeclaredBody(request: Request, declared: number): Promise<Uint8Array | null> {
+  if (!request.body) return null;
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (total < declared) {
+      const { value, done } = await reader.read();
+      if (done) return null;
+      if (total + value.byteLength > declared) return null;
+      chunks.push(value);
+      total += value.byteLength;
+    }
+  } catch {
+    return null;
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
 }
 
 async function getBlob(bucket: R2Bucket, accountId: string, projectId: string, name: string): Promise<Response> {
@@ -113,38 +151,55 @@ async function putBlob(request: Request, bucket: R2Bucket, db: D1Database, accou
   const declaredHeader = request.headers.get('Content-Length');
   if (declaredHeader === null || !/^\d{1,16}$/.test(declaredHeader)) return reply(411, 'Send the object with a Content-Length.');
   const declared = Number(declaredHeader);
+  if (declared === 0) return reply(400, 'Upload a non-empty object.');
   if (declared > MAX_OBJECT_BYTES) return reply(413, 'The object is larger than the 64 MiB upload limit.');
-  if (declared > account.usage.limitBytes - account.usage.usedBytes - account.usage.reservedBytes) {
-    return reply(507, 'The account’s storage allowance is exhausted.');
-  }
-  const bytes = new Uint8Array(await request.arrayBuffer());
-  if (bytes.byteLength !== declared) return reply(400, 'The upload did not match its Content-Length.');
   const operationId = request.headers.get('Idempotency-Key') ?? crypto.randomUUID();
   if (!OPERATION_ID.test(operationId)) return reply(400, 'Use an Idempotency-Key of at most 120 letters, digits, - and _.');
 
   const quota = new QuotaStore(db, { accountId: account.id, revision: account.revision }, { leaseMs: WRITE_LEASE_MS });
-  const reserved = await quota.reserve(operationId, operationId, bytes.byteLength);
+  const charged = Math.max(declared, MIN_CHARGED_BYTES);
+  const reserved = await quota.reserve(operationId, operationId, charged);
   if (!reserved.ok) return quotaFailure(reserved.reason);
   const live = liveKey(account.id, projectId, name);
+  const version = versionKey(account.id, operationId);
   if (reserved.operation.state === 'committed') {
     const pointer = await readPointer(bucket, live);
-    return pointer && !pointer.deleted && pointer.operationId === operationId
-      ? objectResponse(200, pointer.etag)
-      : reply(409, 'This upload was superseded by a later write. Read the object again.');
+    if (!pointer || pointer.deleted || pointer.operationId !== operationId) {
+      return reply(409, 'This upload was superseded by a later write. Read the object again.');
+    }
+    const stored = await bucket.head(version);
+    const bytes = await readDeclaredBody(request, declared);
+    if (bytes === null || stored?.customMetadata?.fingerprint !== await fingerprint(projectId, name, bytes)) {
+      return reply(409, 'This Idempotency-Key was used for a different upload.');
+    }
+    return objectResponse(200, pointer.etag);
   }
   if (reserved.operation.state !== 'reserved' && reserved.operation.state !== 'writing') {
     return reply(409, 'This upload was settled. Retry with a new Idempotency-Key.');
   }
+
+  const bytes = await readDeclaredBody(request, declared);
+  if (bytes === null) {
+    await quota.cancel(operationId);
+    return reply(400, 'The upload did not match its Content-Length.');
+  }
+  const print = await fingerprint(projectId, name, bytes);
   const begun = await quota.beginWrite(operationId);
   if (!begun.ok) return quotaFailure(begun.reason);
 
-  const version = versionKey(account.id, operationId);
   const fence = fenceKey(account.id, operationId);
   if (await bucket.head(fence)) {
     await quota.cancel(operationId);
     return reply(409, 'This upload was settled. Retry with a new Idempotency-Key.');
   }
-  await bucket.put(version, bytes, { customMetadata: { project: projectId, name } });
+  const writtenVersion = await bucket.put(version, bytes, { customMetadata: { project: projectId, name, fingerprint: print }, onlyIf: { etagDoesNotMatch: '*' } });
+  if (!writtenVersion) {
+    const stored = await bucket.head(version);
+    if (stored?.customMetadata?.fingerprint !== print) {
+      await quota.cancel(operationId);
+      return reply(409, 'This Idempotency-Key was used for a different upload.');
+    }
+  }
   if (await bucket.head(fence)) {
     await bucket.delete(version);
     await quota.cancel(operationId);
@@ -161,6 +216,10 @@ async function putBlob(request: Request, bucket: R2Bucket, db: D1Database, accou
     return reply(412, 'The object changed since it was read. Nothing was written.');
   }
   if (current && !current.deleted) await retain(bucket, account.id, projectId, name, current, 'replaced');
+  if (Date.now() >= reserved.operation.deadline) {
+    await quota.cancel(operationId);
+    return reply(409, 'The upload lease expired. Read the object and try again.');
+  }
   const pointer = pointerBody({ operationId, size: bytes.byteLength, uploaded: Date.now() });
   const condition = create
     ? (current ? { etagMatches: current.etag } : { etagDoesNotMatch: '*' })
@@ -204,9 +263,17 @@ export async function storageRoute(request: Request, url: URL, account: DurableA
 export function createR2Settlement(bucket: R2Bucket): QuotaSettlementAdapter {
   return {
     async settle({ accountId, operationId }) {
+      const fence = fenceKey(accountId, operationId);
+      const marker = await bucket.head(fence);
+      const now = Date.now();
+      if (!marker) {
+        await bucket.put(fence, '1', { customMetadata: { at: String(now) } });
+        return false;
+      }
+      const fencedAt = Number(marker.customMetadata?.at);
+      if (!Number.isSafeInteger(fencedAt) || now - fencedAt < SETTLE_GRACE_MS) return false;
       const version = versionKey(accountId, operationId);
       const history = historyKey(accountId, operationId);
-      await bucket.put(fenceKey(accountId, operationId), '1');
       const object = await bucket.head(version);
       if (object) {
         const projectId = object.customMetadata?.project;
