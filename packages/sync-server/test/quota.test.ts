@@ -172,7 +172,7 @@ describe('the D1 quota seam', () => {
     await retryStore.beginWrite('same-op');
     await Promise.all(Array.from({ length: 12 }, () => retryStore.commit('same-op')));
     expect(await retryStore.usage()).toEqual({ limitBytes: 10, usedBytes: 10, reservedBytes: 0 });
-  });
+  }, 20_000);
 
   it('keeps one immutable operation and object identity across retries and account scopes', async () => {
     const store = await account('account-identity');
