@@ -686,7 +686,7 @@ describe('the import preview (#267)', () => {
     expect(read('apps/desktop/src/components/TweeImportDialog.tsx')).toContain('tweePreviewSource(');
     expect(guide).toContain('- **The import preview.** An import that brings in a whole book shows it first as a proposed binder beside its text');
     expect(guide).toContain('one **Undo** takes all of it back, pictures and codex entries included');
-    expect(guide).toContain('**Import Twee**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import HTML…** and **Import EPUB…** open it.');
+    expect(guide).toContain('**Import Twee**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import HTML…**, **Import EPUB…** and **Import AO3…** open it.');
     expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
     expect(guide).toContain('**Import HTML…** reads a saved HTML page');
     expect(guide).toContain('in the background, so a long file does not hold the page while it is read');
@@ -698,7 +698,7 @@ describe('the import preview (#267)', () => {
     expect(manuscript).toContain('htmlZipPreviewSource');
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<ManuscriptImportActions />');
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, HTML and EPUB imports open the preview');
+    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, HTML, EPUB and AO3 imports open the preview');
     expect(notYet).not.toContain('There is no **Import RTF** command yet');
     expect(changelog).toContain('**One import preview for every structured import.**');
     expect(read('docs/architecture/import-preview.md')).toContain('## 5. The commit: `binder.importTree`');
@@ -725,5 +725,24 @@ describe('the import preview (#267)', () => {
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
     expect(notYet).not.toContain('an EPUB or a folder of Markdown files is not in this build');
     expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **EPUB importieren…** liest ein EPUB-Buch');
+  });
+
+  it('the AO3 import: the guide’s claims match the adapter, the button and the spec', () => {
+    expect(guide).toContain('- **Import AO3…** reads a work downloaded from Archive of Our Own');
+    expect(guide).toContain('past 32 the rest are listed in the report rather than dropped');
+    expect(guide).toContain('Caotang never fetches a work from its address');
+    const manuscript = read('apps/desktop/src/components/ManuscriptImport.tsx');
+    expect(manuscript).toContain("await import('../import-preview/ao3-source.js')");
+    expect(manuscript).toContain('ao3PreviewSource(file.name, bytes)');
+    const source = read('apps/desktop/src/import-preview/ao3-source.ts');
+    expect(source).toContain('const KEYWORD_LIMIT = 32;');
+    expect(source).toContain("type: 'character'");
+    expect(source).toContain('scanExtra:');
+    const adapter = read('packages/import-ao3/src/reader.ts');
+    expect(adapter).toContain("kind: 'not-ao3'");
+    expect(adapter).toContain('readAo3Epub');
+    expect(read('docs/architecture/import-ao3.md')).toContain('## 2. The preface');
+    expect(changelog).toContain('**Import AO3.**');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **AO3 importieren…** liest ein von Archive of Our Own heruntergeladenes Werk');
   });
 });
