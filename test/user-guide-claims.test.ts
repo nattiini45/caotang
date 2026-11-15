@@ -686,7 +686,7 @@ describe('the import preview (#267)', () => {
     expect(read('apps/desktop/src/components/TweeImportDialog.tsx')).toContain('tweePreviewSource(');
     expect(guide).toContain('- **The import preview.** An import that brings in a whole book shows it first as a proposed binder beside its text');
     expect(guide).toContain('one **Undo** takes all of it back, pictures and codex entries included');
-    expect(guide).toContain('**Import Twee**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import HTML…**, **Import EPUB…** and **Import AO3…** open it.');
+    expect(guide).toContain('**Import Twee**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import HTML…**, **Import EPUB…**, **Import AO3…** and **Import Kanka…** open it.');
     expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
     expect(guide).toContain('**Import HTML…** reads a saved HTML page');
     expect(guide).toContain('in the background, so a long file does not hold the page while it is read');
@@ -698,7 +698,7 @@ describe('the import preview (#267)', () => {
     expect(manuscript).toContain('htmlZipPreviewSource');
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<ManuscriptImportActions />');
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, HTML, EPUB and AO3 imports open the preview');
+    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, HTML, EPUB, AO3 and Kanka imports open the preview');
     expect(notYet).not.toContain('There is no **Import RTF** command yet');
     expect(changelog).toContain('**One import preview for every structured import.**');
     expect(read('docs/architecture/import-preview.md')).toContain('## 5. The commit: `binder.importTree`');
@@ -744,5 +744,26 @@ describe('the import preview (#267)', () => {
     expect(read('docs/architecture/import-ao3.md')).toContain('## 2. The preface');
     expect(changelog).toContain('**Import AO3.**');
     expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **AO3 importieren…** liest ein von Archive of Our Own heruntergeladenes Werk');
+  });
+
+  it('the Kanka import: the guide’s claims match the reader, the button and the spec', () => {
+    expect(guide).toContain('- **Import Kanka…** reads a **JSON** campaign export from Kanka');
+    expect(guide).toContain('A private entity is kept **manual**');
+    expect(guide).toContain('An export from Kanka older than 2.1 is refused');
+    expect(guide).toContain("Caotang never calls Kanka's API");
+    const manuscript = read('apps/desktop/src/components/ManuscriptImport.tsx');
+    expect(manuscript).toContain("await import('../import-preview/kanka-source.js')");
+    expect(manuscript).toContain('kankaPreviewSource(file.name, bytes)');
+    const source = read('apps/desktop/src/import-preview/kanka-source.ts');
+    expect(source).toContain("includePolicy: 'manual'");
+    expect(source).toContain('preferPage: true');
+    expect(source).toContain('scanExtra:');
+    const reader = read('packages/import-kanka/src/reader.ts');
+    expect(reader).toContain("versionAtLeast(info.kankaVersion, 2, 1)");
+    expect(reader).toContain("kind: 'not-kanka'");
+    expect(read('packages/import-kanka/src/entity.ts')).toContain("quests: 'subplot'");
+    expect(read('docs/architecture/import-kanka.md')).toContain('## 2. Entities to codex entries');
+    expect(changelog).toContain('**Import Kanka.**');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **Kanka importieren…** liest einen **JSON**-Kampagnen-Export');
   });
 });

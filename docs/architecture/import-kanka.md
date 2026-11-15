@@ -71,8 +71,8 @@ Events (the `events` module) are lore entries like any other entity, and are als
 with their `date` and their name, in export order. Calendar reminders that are not a birth or a death (`type_id` 4 and 5) are listed
 there under their entity's name (decision 9: one lore entry per event plus the index).
 
-Gallery pictures no entity uses go to one **Campaign gallery** Research document, each with its name. Both documents are Research,
-never the manuscript: a campaign export is worldbuilding, not a draft.
+Gallery pictures no entity uses go to one **Campaign gallery** Research document, each with its name. Both documents are offered as
+matter placed in Research, so the writer can move them; a campaign export is worldbuilding, not a draft.
 
 ## 5. Pictures, safety and limits
 

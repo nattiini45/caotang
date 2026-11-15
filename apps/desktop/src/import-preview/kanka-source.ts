@@ -119,7 +119,8 @@ export function kankaPreviewSource(fileName: string, bytes: Uint8Array): ImportP
       }
       tree.push({
         id: `kanka-doc-${index}`,
-        role: 'text',
+        // Matter, so the preview offers where it goes; a campaign export's indexes belong in Research.
+        role: 'back',
         title: doc.title,
         startBlock: start,
         endBlock: Math.max(start, blocks.length - 1),
