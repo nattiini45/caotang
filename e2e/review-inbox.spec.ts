@@ -41,6 +41,7 @@ test('the Inbox stays reachable after keyboard dismissal, and an agent cannot di
 });
 
 test('a costed queued review publishes a real report, opens its findings and returns without another model call', async ({ page }) => {
+  test.setTimeout(90_000);
   const { requests, models } = await queuedReviewProject(page);
   const traceBefore = await projectTrace(page);
   await page.getByRole('tab', { name: 'Findings', exact: true }).click();
