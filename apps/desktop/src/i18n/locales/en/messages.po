@@ -2789,6 +2789,10 @@ msgstr "A rule refuses this review: {reason}"
 msgid "A scan is already running. Wait for it to finish, or cancel it."
 msgstr "A scan is already running. Wait for it to finish, or cancel it."
 
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "A scan is recorded"
+msgstr "A scan is recorded"
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "A scan is running. Wait for it to finish, or cancel it, before starting a review."
@@ -12764,6 +12768,10 @@ msgstr "Plan only mode does not run reviews. Switch to Ask, then queue the revie
 msgid "Plan only mode does not run reviews. Switch to Ask, then queue the review."
 msgstr "Plan only mode does not run reviews. Switch to Ask, then queue the review."
 
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Plan steps"
+msgstr "Plan steps"
+
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Plan, not run"
@@ -14577,6 +14585,10 @@ msgstr "RTF file"
 msgid "Run /context again to retry. No request was sent."
 msgstr "Run /context again to retry. No request was sent."
 
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Run a plan"
+msgstr "Run a plan"
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
@@ -14847,6 +14859,10 @@ msgstr "Save summary"
 msgid "Save target"
 msgstr "Save target"
 
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Save task"
+msgstr "Save task"
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Save task roles"
@@ -15103,6 +15119,7 @@ msgstr "Saving writes this tab’s version over them. The folder’s version is 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/app/integrity-model.ts
 #: apps/desktop/src/components/EditorPane.tsx
+#: apps/desktop/src/components/RecurringTasks.tsx
 #: apps/desktop/src/media/screenplay-model.ts
 msgid "Saving…"
 msgstr "Saving…"
@@ -16248,6 +16265,10 @@ msgstr "Start the review"
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Start the scene. Your words are saved in this browser as you go."
 msgstr "Start the scene. Your words are saved in this browser as you go."
+
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "Starting a plan by itself is not built yet, so this one is offered when it is due."
+msgstr "Starting a plan by itself is not built yet, so this one is offered when it is due."
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -21239,6 +21260,10 @@ msgstr "Write the script"
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Write the script from the pages…"
 msgstr "Write the script from the pages…"
+
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Write the steps as a list in JSON, each with a tool, its params and what to expect. They are checked as the agent’s own plans are when you save, and the task’s permission limits what the plan may do."
+msgstr "Write the steps as a list in JSON, each with a tool, its params and what to expect. They are checked as the agent’s own plans are when you save, and the task’s permission limits what the plan may do."
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail

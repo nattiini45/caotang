@@ -1,0 +1,6 @@
+.recurring-form textarea.recurring-steps {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: var(--text-md);
+  white-space: pre;
+  overflow-x: auto;
+}

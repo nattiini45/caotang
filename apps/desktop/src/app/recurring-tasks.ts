@@ -25,6 +25,7 @@
 
 import { t } from '@lingui/core/macro';
 import { DETERMINISTIC_CHECK_IDS, type DeterministicCheckId } from '@caotang/coherence';
+import type { PlanStep } from '@caotang/harness';
 import { recurringRunTable, stepRecurringRun, type RecurringRunState, type RecurringRunEvent } from './recurring-state.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
 import {
@@ -34,6 +35,8 @@ import {
   effectiveMode,
   effectiveWhenDue,
   newTaskId,
+  planText,
+  readPlanText,
   scheduleWords,
   usesModel,
   type AgentTask,
@@ -57,12 +60,24 @@ export const EVALUATE_EVERY_MS = 60_000;
 /** The sentence a task saved as `run` with a model gets in the panel. */
 export const SELF_START_NOTE = 'Starting by itself is not built for tasks that use the model yet, so this one is offered when it is due.';
 
+/** A valid first plan for the editor: a scan step, so a writer who chooses Run a plan starts from steps that parse and can edit them. */
+export function planStarter(): string {
+  return planText([{ tool: 'coherence.scan', params: { scope: { mode: 'changed' } }, expect: t`A scan is recorded` }]);
+}
+
+/** The same, for a plan, which can change the project whether or not a step calls a model. */
+export function planSelfStartNote(): string {
+  return t`Starting a plan by itself is not built yet, so this one is offered when it is due.`;
+}
+
 /** What the writer fills in to make or change a task. Every field is the text of a control. */
 export interface TaskDraft {
   readonly name: string;
   readonly body: TaskBody['kind'];
   /** The instruction of an `intent` task. */
   readonly text: string;
+  /** The steps of a `plan` task, as the JSON the writer edits (`planText`). */
+  readonly steps: string;
   /** What a `scan` task looks at. */
   readonly scope: 'full' | 'changed';
   readonly schedule: TaskSchedule['kind'];
@@ -78,6 +93,7 @@ export const EMPTY_DRAFT: TaskDraft = {
   name: '',
   body: 'intent',
   text: '',
+  steps: '',
   scope: 'changed',
   schedule: 'daily',
   at: '09:00',
@@ -92,6 +108,7 @@ export function draftOf(task: AgentTask): TaskDraft {
     name: task.name,
     body: task.body.kind,
     text: task.body.kind === 'intent' ? task.body.text : '',
+    steps: task.body.kind === 'plan' ? planText(task.body.steps) : '',
     scope: task.body.kind === 'scan' ? task.body.scope : 'changed',
     schedule: task.schedule.kind,
     at: task.schedule.kind === 'daily' || task.schedule.kind === 'weekly' ? task.schedule.at : '09:00',
@@ -102,14 +119,14 @@ export function draftOf(task: AgentTask): TaskDraft {
   };
 }
 
-/** The task a draft describes. `existing` supplies the body a draft cannot write itself (a plan) and the id. */
-export function taskOf(draft: TaskDraft, id: string, existing?: AgentTask): AgentTask {
+/** The task a draft describes. `steps` are the plan's, already read from `draft.steps` by `readPlanText`; `existing` supplies the enabled switch and a scan's checks. */
+export function taskOf(draft: TaskDraft, id: string, existing?: AgentTask, steps: readonly PlanStep[] = []): AgentTask {
   const body: TaskBody =
     draft.body === 'intent'
       ? { kind: 'intent', text: draft.text.trim() }
       : draft.body === 'scan'
         ? { kind: 'scan', scope: draft.scope, ...(existing?.body.kind === 'scan' && existing.body.checks !== undefined ? { checks: existing.body.checks } : {}) }
-        : (existing?.body ?? { kind: 'plan', steps: [] });
+        : { kind: 'plan', steps };
   const schedule: TaskSchedule =
     draft.schedule === 'daily'
       ? { kind: 'daily', at: draft.at }
@@ -127,7 +144,6 @@ export function taskOf(draft: TaskDraft, id: string, existing?: AgentTask): Agen
     body,
     permission: draft.permission,
     ...(cap === undefined ? {} : { maxModelCalls: cap }),
-    ...(existing?.problem !== undefined && draft.body === 'plan' ? { problem: existing.problem } : {}),
   };
 }
 
@@ -154,8 +170,6 @@ export interface TaskRowView {
   readonly running: boolean;
   readonly history: readonly RunView[];
   readonly draft: TaskDraft;
-  /** A plan's steps are not edited here. */
-  readonly bodyEditable: boolean;
 }
 
 export interface OfferView {
@@ -505,7 +519,9 @@ export class RecurringTasks {
     const existing = id === undefined ? undefined : file.tasks.find((task) => task.id === id);
     if (id !== undefined && existing === undefined) return 'That task is gone.';
     if (existing === undefined && file.tasks.length >= TASKS_LIMIT) return `A project keeps at most ${TASKS_LIMIT} tasks.`;
-    const task = taskOf(draft, existing?.id ?? newTaskId(new Set(file.tasks.map((entry) => entry.id))), existing);
+    const plan = draft.body === 'plan' ? readPlanText(draft.steps) : undefined;
+    if (plan?.ok === false) return plan.message;
+    const task = taskOf(draft, existing?.id ?? newTaskId(new Set(file.tasks.map((entry) => entry.id))), existing, plan?.steps);
     if (draft.maxModelCalls.trim() !== '' && !/^\d+$/.test(draft.maxModelCalls.trim())) return 'Limit model calls to a whole number from 1 to 100.';
     const refusal = checkTask(task);
     if (refusal !== undefined) return refusal;
@@ -585,13 +601,12 @@ export class RecurringTasks {
         schedule: scheduleWords(task.schedule),
         usesModel: model,
         problem: task.problem ?? checkTask(task) ?? null,
-        note: task.whenDue === 'run' && effectiveWhenDue(task) === 'offer' && model ? SELF_START_NOTE : null,
+        note: task.whenDue === 'run' && effectiveWhenDue(task) === 'offer' ? (task.body.kind === 'plan' ? planSelfStartNote() : model ? SELF_START_NOTE : null) : null,
         permission: task.permission,
         maxModelCalls: task.maxModelCalls ?? null,
         running: this.running === task.id,
         history,
         draft: draftOf(task),
-        bodyEditable: task.body.kind !== 'plan',
       };
     });
     const byId = new Map(tasks.map((task) => [task.id, task] as const));
