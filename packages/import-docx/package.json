@@ -1,0 +1,20 @@
+{
+  "name": "@caotang/import-docx",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "The Word reader for the DOCX import (#279): an own reader on the shared zip and XML layer — styles and their basedOn chains, outline levels, lists, quotes, tracked changes in accept/reject/keep, footnotes and endnotes inline, comments as notes, pictures through the relationships, tables as paragraphs and a TOC that never becomes chapters. No DOM, no third-party dependency; runs on the main thread, in a 'self' Worker and in Node.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@caotang/import-core": "workspace:*",
+    "@caotang/import-read": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

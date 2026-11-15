@@ -894,6 +894,15 @@ importers:
 
   packages/import-core: {}
 
+  packages/import-docx:
+    dependencies:
+      '@caotang/import-core':
+        specifier: workspace:*
+        version: link:../import-core
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../import-read
+
   packages/import-epub:
     dependencies:
       '@caotang/import-core':
