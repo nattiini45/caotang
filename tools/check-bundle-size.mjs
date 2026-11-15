@@ -175,7 +175,10 @@ export const BUDGET = {
   // The EPUB import (#296): 8,324,326 bytes measured on #299 (+18,280: the OPF, navigation and spine reader, the EPUB preview source
   // and the reader session's EPUB branch, in lazy chunks; the first load did not move). The ceiling is the measured size plus about
   // 6 kB. #649 (the walker and readers shared between the main thread and the Worker) is what brings this back down.
-  totalJs: 8_330_000,
+  // The AO3 import (#297): 8,341,767 bytes measured on #296 (+17,441: the preface reader over the same XHTML walker, the AO3
+  // preview source and the reader session's AO3 branch, in lazy chunks; the first load did not move). The ceiling is the measured
+  // size plus about 8 kB.
+  totalJs: 8_350_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
