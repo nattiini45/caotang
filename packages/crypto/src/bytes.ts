@@ -92,11 +92,14 @@ export function encodeBase64(bytes: Uint8Array): string {
   return out;
 }
 
-/** The inverse of {@link encodeBase64}; refuses a non-canonical character or length. */
+/** The inverse of {@link encodeBase64}; refuses a non-canonical character, length or padding. */
 export function decodeBase64(text: string): Uint8Array {
   let end = text.length;
   while (end > 0 && text[end - 1] === '=') end--;
   const clean = text.slice(0, end);
+  const padding = text.length - end;
+  const rem = clean.length % 4;
+  if (padding > 2 || rem === 1 || (padding > 0 && rem + padding !== 4)) throw new CryptoError('bad-format', 'the base64 text has a malformed length or padding');
   if (/[^A-Za-z0-9+/]/.test(clean)) throw new CryptoError('bad-format', 'the base64 text holds a non-base64 character');
   const out: number[] = [];
   let acc = 0;

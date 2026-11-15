@@ -36,8 +36,18 @@ describe('base64', () => {
   });
 
   it('handles a long run of padding without polynomial backtracking', () => {
-    expect(decodeBase64('='.repeat(100000))).toEqual(new Uint8Array(0));
+    expect(() => decodeBase64('='.repeat(100000))).toThrow(/malformed/);
     // Many '=' followed by a non-'=' is the shape that backtracks a /=+$/ regex; it must stay linear.
     expect(() => decodeBase64('='.repeat(200000) + 'A')).toThrow(CryptoError);
+  });
+
+  it('refuses malformed lengths and padding but accepts canonical unpadded encodings', () => {
+    expect(() => decodeBase64('A')).toThrow(/malformed/);
+    expect(() => decodeBase64('AA=')).toThrow(/malformed/);
+    expect(() => decodeBase64('AAA==')).toThrow(/malformed/);
+    expect(() => decodeBase64('AA====')).toThrow(/malformed/);
+    expect(() => decodeBase64('=')).toThrow(/malformed/);
+    expect(decodeBase64('AA')).toEqual(new Uint8Array([0]));
+    expect(decodeBase64('AAA')).toEqual(new Uint8Array([0, 0]));
   });
 });
