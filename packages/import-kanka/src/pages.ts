@@ -93,15 +93,48 @@ function plainOf(blocks: readonly ImportBlock[]): string {
 }
 
 /** A reminder as a calendar date, as the export wrote it: `year 1204, month 3, day 2`. */
-export function reminderDate(reminder: KankaReminder): string {
+export function reminderDate(reminder: KankaReminder, labels: KankaLabels = DEFAULT_KANKA_LABELS): string {
   const parts: string[] = [];
-  if (reminder.year !== null) parts.push(`year ${reminder.year}`);
-  if (reminder.month !== null) parts.push(`month ${reminder.month}`);
-  if (reminder.day !== null) parts.push(`day ${reminder.day}`);
+  if (reminder.year !== null) parts.push(`${labels.year} ${reminder.year}`);
+  if (reminder.month !== null) parts.push(`${labels.month} ${reminder.month}`);
+  if (reminder.day !== null) parts.push(`${labels.day} ${reminder.day}`);
   return parts.join(', ');
 }
 
-const LIFE: Readonly<Record<number, string>> = { 2: 'Born', 3: 'Died' };
+const LIFE: Readonly<Record<number, 'born' | 'died'>> = { 2: 'born', 3: 'died' };
+
+/** The words the page's own structure uses. The app passes them in the writer's language, as the splitter takes its labels. */
+export interface KankaLabels {
+  details: string;
+  connections: string;
+  posts: string;
+  post: string;
+  life: string;
+  born: string;
+  died: string;
+  noDate: string;
+  attitude: string;
+  twoWay: string;
+  year: string;
+  month: string;
+  day: string;
+}
+
+export const DEFAULT_KANKA_LABELS: KankaLabels = {
+  details: 'Details',
+  connections: 'Connections',
+  posts: 'Posts',
+  post: 'Post',
+  life: 'Life',
+  born: 'Born',
+  died: 'Died',
+  noDate: 'a date the export did not carry',
+  attitude: 'attitude',
+  twoWay: 'two-way',
+  year: 'year',
+  month: 'month',
+  day: 'day',
+};
 
 export interface PageOptions {
   /** The campaign's word for the module, else the folder's own name. */
@@ -111,10 +144,13 @@ export interface PageOptions {
   picture?: { ref: string; name: string; data: Uint8Array };
   /** The ref namespace for pictures found inside the entry. */
   refPrefix: string;
+  /** The page's own headings, in the writer's language. */
+  labels?: KankaLabels;
 }
 
 /** Build one entity's page. */
 export function entityPage(entity: KankaEntity, options: PageOptions): PageParts {
+  const labels = options.labels ?? DEFAULT_KANKA_LABELS;
   const dropped: HtmlDropped = { ...EMPTY_DROPPED };
   const losses: LossWarning[] = [];
   const remoteImages: string[] = [];
@@ -161,34 +197,35 @@ export function entityPage(entity: KankaEntity, options: PageOptions): PageParts
       const name = rewriteMentions(attribute.name, options.names).text;
       return value.text === '' ? `### ${name}` : `- ${name}: ${value.text}`;
     });
-    sections.push(['## Details', ...lines].join('\n'));
+    sections.push([`## ${labels.details}`, ...lines].join('\n'));
   }
 
   if (entity.relations.length > 0) {
     const lines = entity.relations.map((relation) => {
-      const target = options.names.get(relation.targetId) ?? `entity ${relation.targetId}`;
+      const target = options.names.get(relation.targetId) ?? `#${relation.targetId}`;
       const label = rewriteMentions(relation.relation, options.names).text;
-      const extras = [relation.attitude === 0 ? '' : `attitude ${relation.attitude}`, relation.mirrored ? 'two-way' : ''].filter((part) => part !== '');
+      const extras = [relation.attitude === 0 ? '' : `${labels.attitude} ${relation.attitude}`, relation.mirrored ? labels.twoWay : ''].filter((part) => part !== '');
       const suffix = extras.length === 0 ? '' : ` (${extras.join(', ')})`;
       return `- ${target}${label === '' ? '' : ` — ${label}`}${suffix}`;
     });
-    sections.push(['## Connections', ...lines].join('\n'));
+    sections.push([`## ${labels.connections}`, ...lines].join('\n'));
   }
 
   for (const [index, post] of entity.posts.entries()) {
     const body = walk(post.entry);
-    const title = post.name === '' ? 'Post' : post.name;
+    const title = post.name === '' ? labels.post : post.name;
     const section = [`### ${title}`, body.md].filter((part) => part !== '').join('\n\n');
-    sections.push(index === 0 ? `## Posts\n\n${section}` : section);
+    sections.push(index === 0 ? `## ${labels.posts}\n\n${section}` : section);
   }
 
   const life = entity.reminders.filter((reminder) => LIFE[reminder.typeId] !== undefined);
   if (life.length > 0) {
     const lines = life.map((reminder) => {
-      const date = reminderDate(reminder);
-      return `- ${LIFE[reminder.typeId]}: ${date === '' ? 'a date the export did not carry' : date}${reminder.comment === '' ? '' : ` (${reminder.comment})`}`;
+      const date = reminderDate(reminder, labels);
+      const word = LIFE[reminder.typeId] === 'born' ? labels.born : labels.died;
+      return `- ${word}: ${date === '' ? labels.noDate : date}${reminder.comment === '' ? '' : ` (${reminder.comment})`}`;
     });
-    sections.push(['## Life', ...lines].join('\n'));
+    sections.push([`## ${labels.life}`, ...lines].join('\n'));
   }
 
   const description = entry.plain.slice(0, 300);

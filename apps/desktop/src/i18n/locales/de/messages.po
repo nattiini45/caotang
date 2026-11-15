@@ -526,6 +526,11 @@ msgstr "{already, plural, one {# Bild war bereits vorhanden.} other {# Bilder wa
 msgid "{applied} of {total} {total, plural, one {step} other {steps}} applied"
 msgstr "{applied} von {total} {total, plural, one {Schritt angewendet} other {Schritten angewendet}}"
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "{attributes, plural, one {# property is written as text on its page, not as a field} other {# properties are written as text on their pages, not as fields}}"
+msgstr "{attributes, plural, one {# Eigenschaft steht als Text auf ihrer Seite, nicht als Feld} other {# Eigenschaften stehen als Text auf ihren Seiten, nicht als Felder}}"
+
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "{badge, plural, one {# open} other {# open}}"
@@ -585,6 +590,11 @@ msgstr "{characters, plural, one {# Figur wird als Kodex-Eintrag angeboten} othe
 #: apps/desktop/src/media/ShotCoverage.tsx
 msgid "{characters, plural, one {# character selected.} other {# characters selected.}}"
 msgstr "{characters, plural, one {# Figur ausgewählt.} other {# Figuren ausgewählt.}}"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "{characters, plural, one {# of them is a character} other {# of them are characters}}"
+msgstr "{characters, plural, one {# davon ist eine Figur} other {# davon sind Figuren}}"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -820,10 +830,12 @@ msgstr "{count, plural, one {Ein Bild wurde beim Öffnen des Projekts verworfen,
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
+#: apps/desktop/src/import-preview/kanka-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "{count, plural, one {Import # picture} other {Import # pictures}}"
 msgstr "{count, plural, one {# Bild importieren} other {# Bilder importieren}}"
@@ -1130,6 +1142,11 @@ msgstr "{durationDays, plural, one {# Handlungstag} other {# Handlungstage}}"
 msgid "{encoding} — the best reading"
 msgstr "{encoding} — die beste Lesart"
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "{entities, plural, one {# entity is offered as a codex entry with its own Research page} other {# entities are offered as codex entries with their own Research pages}}"
+msgstr "{entities, plural, one {# Entität wird als Kodex-Eintrag mit eigener Recherche-Seite angeboten} other {# Entitäten werden als Kodex-Einträge mit eigenen Recherche-Seiten angeboten}}"
+
 #. Interpolated values: error
 #: apps/desktop/src/app/coherence-io.ts
 msgid "{error} Findings are kept in this browser."
@@ -1361,10 +1378,17 @@ msgstr "{matter, plural, one {# Abschnitt, den das Buch als Vorspann oder Anhang
 
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
+#: apps/desktop/src/import-preview/kanka-source.ts
 msgid "{media, plural, one {# audio or video player was removed} other {# audio or video players were removed}}"
 msgstr "{media, plural, one {# Audio- oder Video-Player wurde entfernt} other {# Audio- oder Video-Player wurden entfernt}}"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "{mentions, plural, one {# mention names an entity the export does not carry} other {# mentions name entities the export does not carry}}"
+msgstr "{mentions, plural, one {# Verweis nennt eine Entität, die der Export nicht enthält} other {# Verweise nennen Entitäten, die der Export nicht enthält}}"
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -1390,6 +1414,11 @@ msgstr "{minutes} min {seconds} s"
 #: apps/desktop/src/media/picture-storage-model.ts
 msgid "{missing, plural, one {# has no file to copy.} other {# have no file to copy.}}"
 msgstr "{missing, plural, one {# hat keine Datei zu kopieren.} other {# haben keine Datei zu kopieren.}}"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "{missing, plural, one {# picture the export names is not in the zip} other {# pictures the export names are not in the zip}}"
+msgstr "{missing, plural, one {# Bild, das der Export nennt, liegt nicht im Zip} other {# Bilder, die der Export nennt, liegen nicht im Zip}}"
 
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #: apps/desktop/src/media/DialogueView.tsx
@@ -1627,6 +1656,11 @@ msgstr "{part}: {title}"
 msgid "{parts, plural, one {# part has no folder: each of its chapters keeps it in its keywords.} other {# parts have no folder: each chapter keeps its part in its keywords.}}"
 msgstr "{parts, plural, one {# Teil hat keinen Ordner: Jedes seiner Kapitel behält ihn in seinen Stichwörtern.} other {# Teile haben keinen Ordner: Jedes Kapitel behält seinen Teil in seinen Stichwörtern.}}"
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "{pictureCount, plural, one {# picture is in its page’s text, not attached to the codex entry} other {# pictures are in their pages’ text, not attached to the codex entries}}"
+msgstr "{pictureCount, plural, one {# Bild steht im Text seiner Seite, nicht am Kodex-Eintrag} other {# Bilder stehen im Text ihrer Seiten, nicht an den Kodex-Einträgen}}"
+
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "{placed, plural, one {Placed # picture.} other {Placed # pictures.}}"
@@ -1641,6 +1675,16 @@ msgstr "{placedCount, plural, one {# Seite platziert} other {# Seiten platziert}
 #: apps/desktop/src/components/McpCatalog.tsx
 msgid "{plainCount, plural, one {# resource listed by this server.} other {# resources listed by this server.}}"
 msgstr "{plainCount, plural, one {# von diesem Server aufgeführte Ressource.} other {# von diesem Server aufgeführte Ressourcen.}}"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "{posts, plural, one {# post became a section of its page} other {# posts became sections of their pages}}"
+msgstr "{posts, plural, one {# Beitrag wurde zu einem Abschnitt seiner Seite} other {# Beiträge wurden zu Abschnitten ihrer Seiten}}"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "{privateCount, plural, one {# private entity is kept manual, so it is never pulled into a prompt by detection} other {# private entities are kept manual, so they are never pulled into a prompt by detection}}"
+msgstr "{privateCount, plural, one {# private Entität bleibt manuell und wird nie durch Erkennung in einen Prompt gezogen} other {# private Entitäten bleiben manuell und werden nie durch Erkennung in einen Prompt gezogen}}"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -1717,12 +1761,19 @@ msgstr "{reading}."
 msgid "{refusal} Select a chapter first, or make one with New folder."
 msgstr "{refusal} Wählen Sie zuerst ein Kapitel aus oder legen Sie mit „Neuer Ordner“ eines an."
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "{relations, plural, one {# connection is written as text on its page, not as a typed relation} other {# connections are written as text on their pages, not as typed relations}}"
+msgstr "{relations, plural, one {# Verbindung steht als Text auf ihrer Seite, nicht als typisierte Relation} other {# Verbindungen stehen als Text auf ihren Seiten, nicht als typisierte Relationen}}"
+
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
+#: apps/desktop/src/import-preview/kanka-source.ts
 msgid "{remote, plural, one {# picture on the internet was not downloaded} other {# pictures on the internet were not downloaded}}"
 msgstr "{remote, plural, one {# Bild im Internet wurde nicht heruntergeladen} other {# Bilder im Internet wurden nicht heruntergeladen}}"
 
@@ -1778,6 +1829,11 @@ msgstr "{root}: {reason}"
 msgid "{rowCount} of {total, plural, one {# shot} other {# shots}} have a prompt for {vendor}."
 msgstr "{rowCount} von {total, plural, one {# Einstellung} other {# Einstellungen}} haben einen Prompt für {vendor}."
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "{rows, plural, one {Import # entry} other {Import # entries}}"
+msgstr "{rows, plural, one {# Eintrag importieren} other {# Einträge importieren}}"
+
 #. Interpolated values: reason is a local storage error; count and days are configured upper bounds; size is a formatted byte estimate.
 #: apps/desktop/src/components/AgentSessionData.tsx
 msgid "{runCount, plural, one {# run log} other {# run logs}}"
@@ -1801,9 +1857,11 @@ msgstr "{scenes} {sceneCount, plural, one {Szene} other {Szenen}} in {sections} 
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
+#: apps/desktop/src/import-preview/kanka-source.ts
 msgid "{scripts, plural, one {# script was removed} other {# scripts were removed}}"
 msgstr "{scripts, plural, one {# Skript wurde entfernt} other {# Skripte wurden entfernt}}"
 
@@ -1983,9 +2041,11 @@ msgstr "{style} (unbekannt, wird als Normal exportiert)"
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
+#: apps/desktop/src/import-preview/kanka-source.ts
 msgid "{styles, plural, one {# stylesheet was removed} other {# stylesheets were removed}}"
 msgstr "{styles, plural, one {# Stylesheet wurde entfernt} other {# Stylesheets wurden entfernt}}"
 
@@ -2003,6 +2063,11 @@ msgstr "{subject} konnte immer noch nicht geladen werden"
 #: apps/desktop/src/app/mcp-model.ts
 msgid "{summary} {catalog}"
 msgstr "{summary} {catalog}"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "{svg, plural, one {# SVG picture was refused, because it can carry script} other {# SVG pictures were refused, because they can carry script}}"
+msgstr "{svg, plural, one {# SVG-Bild wurde abgelehnt, weil es Skripte enthalten kann} other {# SVG-Bilder wurden abgelehnt, weil sie Skripte enthalten können}}"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -2174,9 +2239,11 @@ msgstr "{unread, plural, one {Ein gespeicherter Datensatz konnte nicht gelesen w
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
+#: apps/desktop/src/import-preview/kanka-source.ts
 msgid "{unsafeLinks, plural, one {# unsafe link kept its text only} other {# unsafe links kept their text only}}"
 msgstr "{unsafeLinks, plural, one {# unsicherer Link behielt nur seinen Text} other {# unsichere Links behielten nur ihren Text}}"
 
@@ -2549,6 +2616,11 @@ msgstr "Ein Coverbild ist gesetzt. Es wird im Projektordner aufbewahrt und flie�
 #: apps/desktop/src/components/ProjectPanel.tsx
 msgid "A cover is set, but its image is not in this browser any more, so EPUB files have no cover. Choose it again."
 msgstr "Ein Cover ist gesetzt, aber sein Bild ist nicht mehr in diesem Browser, daher haben EPUB-Dateien kein Cover. Wählen Sie es erneut."
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "a date the export did not carry"
+msgstr "ein Datum, das der Export nicht enthält"
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
@@ -3025,10 +3097,12 @@ msgstr "etwa {size}"
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
+#: apps/desktop/src/import-preview/kanka-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "About {size} MB."
 msgstr "Etwa {size} MB."
@@ -4090,6 +4164,11 @@ msgstr "Anhänge"
 msgid "Attempt"
 msgstr "Versuch"
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "attitude"
+msgstr "Haltung"
+
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
 #: apps/desktop/src/media/PromptPackPanel.tsx
 msgid "Audio cues"
@@ -4426,6 +4505,11 @@ msgstr "Fett"
 msgid "Border"
 msgstr "Rand"
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "Born"
+msgstr "Geboren"
+
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
 msgid "Both"
@@ -4594,6 +4678,11 @@ msgstr "Kamerawinkel"
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "Camera movement"
 msgstr "Kamerabewegung"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "Campaign gallery"
+msgstr "Kampagnen-Galerie"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
@@ -5009,9 +5098,11 @@ msgstr "Kapitel enthalten Szenen. Beginnen Sie mit einem und fügen Sie ihm von 
 #. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
 #. Screenplay element chords. Interpolated values: label is a modifier key combination; last is the number of the last element.
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #: apps/desktop/src/components/CommandComposer.tsx
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
 #: apps/desktop/src/import-preview/ao3-source.ts
+#: apps/desktop/src/import-preview/kanka-source.ts
 #: apps/desktop/src/media/element-menu.ts
 msgid "Character"
 msgstr "Figur"
@@ -5514,6 +5605,11 @@ msgstr "Kodexeintrag gespeichert"
 msgid "Codex included"
 msgstr "Kodex einbezogen"
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "Codex pages"
+msgstr "Kodex-Seiten"
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: MAX_FINDINGS_CAP, max
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
@@ -5839,6 +5935,11 @@ msgstr "Die Verbindung zum Server wird hergestellt und seine Werkzeugliste gepr�
 #: apps/desktop/src/components/provider-probe-message.ts
 msgid "Connection guidance:"
 msgstr "Verbindungshinweise:"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "Connections"
+msgstr "Verbindungen"
 
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
 #: apps/desktop/src/media/PromptPackPanel.tsx
@@ -6200,6 +6301,11 @@ msgstr "Datiert {date}."
 msgid "dated inside the main story"
 msgstr "innerhalb der Haupthandlung datiert"
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "day"
+msgstr "Tag"
+
 #. Columns and cells of the timeline's Agenda table. Interpolated values: count is a number of scenes or findings; title, name and part are writer or part words.
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
 #. Interpolated values: cost, prompt, completion, requestsTotal
@@ -6519,6 +6625,11 @@ msgstr "Von {title} lösen"
 msgid "Detach from a removed item"
 msgstr "Von einem entfernten Element lösen"
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "Details"
+msgstr "Details"
+
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #: apps/desktop/src/media/PictureBoard.tsx
 #: apps/desktop/src/media/PictureDetails.tsx
@@ -6582,6 +6693,11 @@ msgstr "Dialog, den dieser Schritt in „<0/>“ schreibt, vor der Genehmigung a
 #: apps/desktop/src/media/DialogueView.tsx
 msgid "Dialogue: {title}"
 msgstr "Dialog: {title}"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "Died"
+msgstr "Gestorben"
 
 #. The transcription review dialog. Interpolated values: file is a stored file name; current and total are the page position; second is the second read's word.
 #: apps/desktop/src/media/TranscriptionReviewDialog.tsx
@@ -8571,11 +8687,15 @@ msgid "Images added to shots"
 msgstr "Bilder zu Einstellungen hinzugefügt"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #: apps/desktop/src/components/McpSection.tsx
+#: apps/desktop/src/import-preview/kanka-source.ts
 msgid "Import"
 msgstr "Import"
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/kanka-source.ts
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Import “{file}”"
 msgstr "„{file}“ importieren"
@@ -8655,6 +8775,11 @@ msgstr "HTML importieren…"
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Import Ink"
 msgstr "Ink importieren"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import Kanka…"
+msgstr "Kanka importieren…"
 
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #: apps/desktop/src/components/InspectorPictures.tsx
@@ -9098,6 +9223,11 @@ msgstr "Es ist größer, als ein HTML-Import liest."
 msgid "It is larger than an RTF import reads."
 msgstr "Sie ist größer, als ein RTF-Import liest."
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "It is not a Kanka import."
+msgstr "Es ist kein Kanka-Import."
+
 #. Picture drops on a storyboard. Interpolated values: name and title are a file name and a shot title; number is a shot number; reason is a sentence ending or a failure message; where is a shot position; shotId is an id; counts are numbers.
 #: apps/desktop/src/media/shot-image-model.ts
 msgid "it is not a PNG, JPEG or WebP picture"
@@ -9257,6 +9387,22 @@ msgstr "Antworten als JSON-Objekt"
 msgid "JSON-schema replies"
 msgstr "Antworten als JSON-Schema"
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "Kanka"
+msgstr "Kanka"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Kanka export"
+msgstr "Kanka-Export"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "Kanka safety"
+msgstr "Kanka-Sicherheit"
+
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "Keep a take from my own generation"
@@ -9371,10 +9517,12 @@ msgstr "Stichwort-Kriterien"
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 #: apps/desktop/src/components/Inspector.tsx
 #: apps/desktop/src/import-preview/ao3-source.ts
+#: apps/desktop/src/import-preview/kanka-source.ts
 msgid "Keywords"
 msgstr "Stichwörter"
 
@@ -9660,6 +9808,11 @@ msgstr "Von einem anderen Drehbuch lettert"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.comicLetter.active"
 msgstr "Die Comic-Seite wird lettert"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "Life"
+msgstr "Leben"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
@@ -10370,6 +10523,11 @@ msgstr "Moderne Oberfläche"
 #: apps/desktop/src/app/footer-model.ts
 msgid "Monday"
 msgstr "Montag"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "month"
+msgstr "Monat"
 
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
@@ -12777,6 +12935,16 @@ msgstr "Erzählperspektive für {title}"
 msgid "Point of view not named"
 msgstr "Erzählperspektive nicht benannt"
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "Post"
+msgstr "Beitrag"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "Posts"
+msgstr "Beiträge"
+
 #. Interpolated values: entry, sceneTitle
 #. js-lingui-explicit-id
 #: packages/coherence/src/checks/presence.ts
@@ -13412,11 +13580,13 @@ msgstr "“{doc}” wird gelesen"
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
+#: apps/desktop/src/import-preview/kanka-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 #: apps/desktop/src/import-preview/text-source.ts
 msgid "Reading {file}…"
@@ -13755,9 +13925,11 @@ msgstr "Nächsten Monat erinnern"
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
+#: apps/desktop/src/import-preview/kanka-source.ts
 msgid "Remote pictures"
 msgstr "Entfernte Bilder"
 
@@ -17416,6 +17588,11 @@ msgstr "Der Eintrag wird manuell einbezogen und ist nicht mit dem Fokus verknüp
 msgid "The entry's include policy is Never."
 msgstr "Die Einbeziehen-Regel des Eintrags ist „Nie“."
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "The events and calendar dates became one World history page."
+msgstr "Die Ereignisse und Kalenderdaten wurden zu einer Seite „Weltgeschichte“."
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "The export could not be made: {reason}"
@@ -17600,6 +17777,11 @@ msgstr "Der Vorausblick ist ausgeschaltet."
 #: apps/desktop/src/media/ScreenplayView.tsx
 msgid "The Fountain source, edited as text"
 msgstr "Die Fountain-Quelle, als Text bearbeitet"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "The gallery pictures no entity uses became one Campaign gallery page."
+msgstr "Die Galeriebilder, die keine Entität nutzt, wurden zu einer Seite „Kampagnen-Galerie“."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -19064,6 +19246,21 @@ msgstr "Dieser Endpunkt nimmt kein JSON-Antwortformat an, daher bittet der Agent
 msgid "This event happens after the action. A hook can report a problem, but cannot undo or block it."
 msgstr "Dieses Ereignis tritt nach der Aktion ein. Ein Hook kann ein Problem melden, die Aktion aber nicht rückgängig machen oder blockieren."
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "This export carries no entities."
+msgstr "Dieser Export enthält keine Entitäten."
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "This export does not say which Kanka made it, so Caotang cannot read it. Export the campaign again from Kanka 2.1 or newer."
+msgstr "Dieser Export sagt nicht, welche Kanka-Version ihn erstellt hat, daher kann Caotang ihn nicht lesen. Exportieren Sie die Kampagne erneut mit Kanka 2.1 oder neuer."
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "This export was made by Kanka {version}. Caotang reads exports from Kanka 2.1 or newer; export the campaign again."
+msgstr "Dieser Export wurde mit Kanka {version} erstellt. Caotang liest Exporte ab Kanka 2.1; exportieren Sie die Kampagne erneut."
+
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "This file is not text. It is kept with the skill and is part of what you approve."
@@ -19112,6 +19309,11 @@ msgstr "Das ist alles aus dem Skill, genau so, wie es ist, als reiner Text. Der 
 #: apps/desktop/src/app/picture-transcoder.ts
 msgid "This is not a HEIC photo."
 msgstr "Das ist kein HEIC-Foto."
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "This is not a Kanka export. In Kanka, open Settings, choose Export, and download the JSON zip."
+msgstr "Das ist kein Kanka-Export. Öffnen Sie in Kanka die Einstellungen, wählen Sie „Export“ und laden Sie das JSON-Zip herunter."
 
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #: apps/desktop/src/import-preview/ao3-source.ts
@@ -19917,6 +20119,11 @@ msgstr "Zwei über einer Ebene"
 msgid "Two tiers"
 msgstr "Zwei Ebenen"
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "two-way"
+msgstr "gegenseitig"
+
 #. Interpolated values: parent, title, amount
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/app/plan-preview.ts
@@ -20569,12 +20776,19 @@ msgstr "Was der Agent dem Modell in einer Anfrage senden darf, in Tokens. Ein le
 msgid "What the book named"
 msgstr "Was das Buch benannt hat"
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "What the campaign carried"
+msgstr "Was die Kampagne mitbrachte"
+
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
+#: apps/desktop/src/import-preview/kanka-source.ts
 msgid "What the import removed"
 msgstr "Was der Import entfernt hat"
 
@@ -20634,12 +20848,19 @@ msgstr "Was dieser Schritt in den Kodex schreibt"
 msgid "What to export"
 msgstr "Was exportiert werden soll"
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "What was approximated"
+msgstr "Was angenähert wurde"
+
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
+#: apps/desktop/src/import-preview/kanka-source.ts
 msgid "What was not downloaded"
 msgstr "Was nicht heruntergeladen wurde"
 
@@ -20815,6 +21036,11 @@ msgstr "Arbeitskopie"
 msgid "Working…"
 msgstr "Wird gearbeitet…"
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "World history"
+msgstr "Weltgeschichte"
+
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/new-menu.ts
@@ -20982,6 +21208,11 @@ msgstr "x-my-header"
 #: apps/desktop/src/components/InspectorDialogue.tsx
 msgid "Yarn string table (CSV)"
 msgstr "Fadentafel (CSV)"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "year"
+msgstr "Jahr"
 
 #. Words on the story timeline's axis and in a scene's accessible name. Interpolated values: days, count, n, text, span, anchor, lower, rest, dayLabel, endLabel, durationDays, openFindings, title, part, name, names, folder.
 #: apps/desktop/src/components/timeline/timeline-labels.ts

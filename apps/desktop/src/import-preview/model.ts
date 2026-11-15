@@ -146,6 +146,17 @@ export interface PreviewCodexRow {
   readonly cite?: { readonly nodeId?: string; readonly quote: string };
   /** The row's full text as a Research page, when the source has one. */
   readonly page?: { readonly title: string; readonly body: string };
+  /** The source's own words for it (a Kanka module, a tag), offered as the entry's keywords. */
+  readonly keywords?: readonly string[];
+  /** Other names the source used for the same thing. */
+  readonly aliases?: readonly string[];
+  /** The include policy the source asks for: a private entity is `'manual'`, never detected into a prompt. */
+  readonly includePolicy?: string;
+  /**
+   * The row's page is its own text and is created even when the name also appears in the imported documents (a Kanka entity,
+   * whose name is in the world-history index). Without it, a name found in the tree is cited there and no page is made.
+   */
+  readonly preferPage?: boolean;
 }
 
 export interface PreviewPicture {
@@ -700,8 +711,15 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
     }
     const name = answer.action === 'rename' ? answer.name.trim() : row.name;
     if (name === '') continue;
-    const base = { name, type: row.type, ...(row.description === undefined || row.description === '' ? {} : { description: [...row.description].slice(0, 2000).join('') }) };
-    const cite = citeOf(row, nodes, indexOf);
+    const base = {
+      name,
+      type: row.type,
+      ...(row.description === undefined || row.description === '' ? {} : { description: [...row.description].slice(0, 2000).join('') }),
+      ...(row.keywords === undefined || row.keywords.length === 0 ? {} : { keywords: [...row.keywords] }),
+      ...(row.aliases === undefined || row.aliases.length === 0 ? {} : { aliases: [...row.aliases] }),
+      ...(row.includePolicy === undefined ? {} : { includePolicy: row.includePolicy }),
+    };
+    const cite = row.preferPage === true ? undefined : citeOf(row, nodes, indexOf);
     if (cite !== undefined) {
       entries.push({ ...base, node: cite.node, cite: { from: cite.from, to: cite.to, quote: cite.quote } });
       continue;

@@ -11,7 +11,7 @@ import { openZip, type ImportArchive } from '@caotang/import-read/zip';
 
 import { campaignName, moduleLabels, parseInfo, versionAtLeast, type KankaInfo } from './campaign.js';
 import { codexTypeOf, moduleOfPath, parseEntityFile, type KankaEntity } from './entity.js';
-import { entityPage, reminderDate, type KankaPage } from './pages.js';
+import { entityPage, reminderDate, DEFAULT_KANKA_LABELS, type KankaLabels, type KankaPage } from './pages.js';
 
 export interface KankaImport {
   campaign: string;
@@ -22,9 +22,9 @@ export interface KankaImport {
   pages: KankaPage[];
   /** The keywords each entity offers: the campaign's word for its module, its own type and its tags. */
   keywords: Map<number, string[]>;
-  /** The world-history index: events and the calendar reminders that are not a birth or a death. */
+  /** The world-history index: events and the calendar reminders that are not a birth or a death. `body` is the list; the caller writes the heading in the writer's language. */
   history: { title: string; body: string } | null;
-  /** The gallery pictures no entity uses. */
+  /** The gallery pictures no entity uses, as a list of pictures and names. */
   gallery: { title: string; body: string } | null;
   assets: ImportAsset[];
   assetData: Map<string, Uint8Array>;
@@ -44,6 +44,11 @@ export type KankaError =
   | { kind: 'empty' };
 
 export type KankaResult = { ok: true; value: KankaImport } | { ok: false; error: KankaError };
+
+/** The page's own headings, in the writer's language; the app passes them, as it passes the splitter's labels. */
+export interface KankaReadOptions {
+  labels?: KankaLabels;
+}
 
 const EMPTY_DROPPED: HtmlDropped = { scripts: 0, styles: 0, iframes: 0, eventAttrs: 0, unsafeLinks: 0, media: 0 };
 
@@ -74,14 +79,15 @@ const isSvg = (path: string): boolean => /\.svgz?$/i.test(path);
 const fileName = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
 
 /** Read a Kanka export's bytes. */
-export async function readKanka(bytes: Uint8Array): Promise<KankaResult> {
+export async function readKanka(bytes: Uint8Array, options: KankaReadOptions = {}): Promise<KankaResult> {
   const archive = await openZip(bytes);
   if (!archive.ok) return { ok: false, error: { kind: 'archive', message: archive.error.message } };
-  return readKankaArchive(archive.value);
+  return readKankaArchive(archive.value, options);
 }
 
 /** Read an opened Kanka export. */
-export async function readKankaArchive(archive: ImportArchive): Promise<KankaResult> {
+export async function readKankaArchive(archive: ImportArchive, options: KankaReadOptions = {}): Promise<KankaResult> {
+  const pageLabels = options.labels ?? DEFAULT_KANKA_LABELS;
   const paths = archive.entries.map((entry) => entry.path);
   const entityPaths = paths.filter((path) => moduleOfPath(path) !== null);
   const infoEntry = archive.entry('info.json');
@@ -177,6 +183,7 @@ export async function readKankaArchive(archive: ImportArchive): Promise<KankaRes
       moduleLabel: labels.get(entity.module) ?? entity.module,
       names,
       refPrefix: `import:kanka-entry-${entity.id}-`,
+      labels: pageLabels,
       ...(picture === undefined ? {} : { picture }),
     });
     addDropped(dropped, parts.dropped);
@@ -212,11 +219,11 @@ export async function readKankaArchive(archive: ImportArchive): Promise<KankaRes
     if (entity.module === 'events') historyLines.push(`- ${entity.date === '' ? '' : `${entity.date} — `}${entity.name}`);
     for (const reminder of entity.reminders) {
       if (reminder.typeId === 2 || reminder.typeId === 3) continue;
-      const date = reminderDate(reminder);
+      const date = reminderDate(reminder, pageLabels);
       historyLines.push(`- ${date === '' ? '' : `${date} — `}${entity.name}${reminder.comment === '' ? '' : ` (${reminder.comment})`}`);
     }
   }
-  const history = historyLines.length === 0 ? null : { title: 'World history', body: ['# World history', ...historyLines].join('\n') };
+  const history = historyLines.length === 0 ? null : { title: 'World history', body: historyLines.join('\n') };
 
   // The gallery pictures no entity used.
   const galleryLines: string[] = [];
@@ -237,7 +244,7 @@ export async function readKankaArchive(archive: ImportArchive): Promise<KankaRes
     assetData.set(ref, bytes.value);
     galleryLines.push(`![${name}](${ref})`, name);
   }
-  const gallery = galleryLines.length === 0 ? null : { title: 'Campaign gallery', body: ['# Campaign gallery', ...galleryLines].join('\n\n') };
+  const gallery = galleryLines.length === 0 ? null : { title: 'Campaign gallery', body: galleryLines.join('\n\n') };
 
   return {
     ok: true,

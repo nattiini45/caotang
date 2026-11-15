@@ -19,7 +19,8 @@ type State =
   | { readonly reader: 'html'; readonly bytes: Uint8Array; readonly fileName: string }
   | { readonly reader: 'html-archive'; readonly archive: ImportArchive }
   | { readonly reader: 'epub'; readonly archive: ImportArchive }
-  | { readonly reader: 'ao3'; readonly bytes: Uint8Array; readonly fileName: string };
+  | { readonly reader: 'ao3'; readonly bytes: Uint8Array; readonly fileName: string }
+  | { readonly reader: 'kanka'; readonly archive: ImportArchive };
 
 /** Flattens an RTF or archive refusal to a code and a message, so it survives the structured clone (an Error's own `code` does not). */
 function serialiseRtf(result: RtfReadResult | RtfdReadResult): SerializableRtfResult {
@@ -45,7 +46,7 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
     }
     const { openFolder, openZip } = await import('@caotang/import-read/zip');
     const archive =
-      req.reader === 'rtfd-zip' || req.reader === 'html-zip' || req.reader === 'epub'
+      req.reader === 'rtfd-zip' || req.reader === 'html-zip' || req.reader === 'epub' || req.reader === 'kanka'
         ? await openZip(req.bytes)
         : openFolder(req.files.map((file) => ({ path: file.path, size: file.size, read: async () => file.bytes })));
     if (!archive.ok) throw new Error(archive.error.message);
@@ -54,7 +55,9 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
         ? { reader: 'html-archive', archive: archive.value }
         : req.reader === 'epub'
           ? { reader: 'epub', archive: archive.value }
-          : { reader: 'rtfd', archive: archive.value };
+          : req.reader === 'kanka'
+            ? { reader: 'kanka', archive: archive.value }
+            : { reader: 'rtfd', archive: archive.value };
   };
 
   const read = async (req: ReaderRead): Promise<ReaderResult> => {
@@ -90,6 +93,11 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
       // An AO3 download is a page or a zip; the bytes say which, whatever the file was named.
       const zipped = state.bytes[0] === 0x50 && state.bytes[1] === 0x4b;
       return { kind: 'ao3', result: zipped ? await readAo3Epub(state.bytes) : readAo3Html(state.bytes, state.fileName) };
+    }
+    if (req.reader === 'kanka') {
+      if (state.reader !== 'kanka') throw new Error('The import reader is not a Kanka reader.');
+      const { readKankaArchive } = await import('@caotang/import-kanka');
+      return { kind: 'kanka', result: await readKankaArchive(state.archive, req.labels === undefined ? {} : { labels: req.labels }) };
     }
     const { readRtf, readRtfd } = await import('@caotang/import-rtf');
     const options = {

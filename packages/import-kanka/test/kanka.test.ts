@@ -222,6 +222,6 @@ describe('the Kanka entities (#293)', () => {
     const names = new Map([[12, 'Mara']]);
     expect(rewriteMentions('with [entity:12]', names)).toEqual({ text: 'with Mara', unresolved: 0, targets: [12] });
     expect(rewriteMentions('with [entity:99|the stranger]', names)).toEqual({ text: 'with the stranger', unresolved: 1, targets: [] });
-    expect(rewriteMentions('with [entity:99]', names)).toEqual({ text: 'with entity 99', unresolved: 1, targets: [] });
+    expect(rewriteMentions('with [entity:99]', names)).toEqual({ text: 'with #99', unresolved: 1, targets: [] });
   });
 });

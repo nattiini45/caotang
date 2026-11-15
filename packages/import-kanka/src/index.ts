@@ -5,8 +5,8 @@
  * index, and the gallery kept. Over the shared zip reader and XHTML walker; no DOM, no dependency.
  */
 
-export { readKanka, readKankaArchive, type KankaImport, type KankaError, type KankaResult } from './reader.js';
+export { readKanka, readKankaArchive, type KankaImport, type KankaError, type KankaResult, type KankaReadOptions } from './reader.js';
 export { codexTypeOf, moduleOfPath, parseEntityFile, type KankaEntity, type KankaAttribute, type KankaRelation, type KankaPost, type KankaReminder, type KankaCodexType } from './entity.js';
 export { campaignName, moduleLabels, parseInfo, versionAtLeast, type KankaInfo } from './campaign.js';
 export { rewriteMentions, type MentionResult } from './mentions.js';
-export { entityPage, blocksToMarkdown, reminderDate, type KankaPage, type PageParts, type PageOptions } from './pages.js';
+export { entityPage, blocksToMarkdown, reminderDate, DEFAULT_KANKA_LABELS, type KankaPage, type KankaLabels, type PageParts, type PageOptions } from './pages.js';

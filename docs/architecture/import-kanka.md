@@ -56,7 +56,10 @@ The page body is the entity's own text, in this order:
 6. **Life** — birth and death reminders (`type_id` 2 and 3) as calendar dates.
 
 `[entity:123]` and `[entity:123|Label]` mentions become the entity's plain name (the label when the export does not carry the
-target), never a link to Kanka. A mention whose target is missing is counted.
+target, else `#123`), never a link to Kanka. A mention whose target is missing is counted.
+
+The headings above are the app's own words, not the export's: the reader takes them as `labels` (as the splitter takes its labels),
+so a German writer gets **Details**, **Verbindungen** and the rest in German. The two index documents are titled the same way.
 
 **Approximations, reported and never silent.** The codex has no typed detail fields (#221) and no relations graph (#223) in this
 build, so attributes and relationships are text on the page rather than fields and typed edges. A codex entry cannot carry visual

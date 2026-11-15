@@ -27,7 +27,7 @@ export function rewriteMentions(text: string, names: ReadonlyMap<number, string>
     }
     unresolved += 1;
     const fallback = (label ?? '').trim();
-    return fallback === '' ? `entity ${rawId}` : fallback;
+    return fallback === '' ? `#${rawId}` : fallback;
   });
   return { text: rewritten, unresolved, targets };
 }

@@ -24,6 +24,7 @@ export function ManuscriptImportActions(): ReactNode {
   const htmlFile = useRef<HTMLInputElement>(null);
   const epubFile = useRef<HTMLInputElement>(null);
   const ao3File = useRef<HTMLInputElement>(null);
+  const kankaFile = useRef<HTMLInputElement>(null);
 
   const failed = (file: File, failure: unknown): void => {
     const problem = failure instanceof Error ? failure.message : String(failure);
@@ -124,6 +125,16 @@ export function ManuscriptImportActions(): ReactNode {
     }
   };
 
+  const openKanka = async (file: File): Promise<void> => {
+    try {
+      const { kankaPreviewSource } = await import('../import-preview/kanka-source.js');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      openImportPreview({ source: kankaPreviewSource(file.name, bytes) });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
   return (
     <div className="script-import" role="group" aria-label={t`Import a manuscript`}>
       <button type="button" className="button is-quiet" onClick={() => textFile.current?.click()}>
@@ -143,6 +154,9 @@ export function ManuscriptImportActions(): ReactNode {
       </button>
       <button type="button" className="button is-quiet" onClick={() => ao3File.current?.click()}>
         <Trans>Import AO3…</Trans>
+      </button>
+      <button type="button" className="button is-quiet" onClick={() => kankaFile.current?.click()}>
+        <Trans>Import Kanka…</Trans>
       </button>
       <input
         ref={textFile}
@@ -218,6 +232,18 @@ export function ManuscriptImportActions(): ReactNode {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
           if (file !== undefined) void openAo3(file);
+        }}
+      />
+      <input
+        ref={kankaFile}
+        type="file"
+        hidden
+        accept=".zip"
+        aria-label={t`Kanka export`}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file !== undefined) void openKanka(file);
         }}
       />
     </div>

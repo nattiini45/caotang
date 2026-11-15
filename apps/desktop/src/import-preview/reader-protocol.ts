@@ -15,6 +15,7 @@ import type { RtfImport } from '@caotang/import-rtf';
 import type { HtmlResult } from '@caotang/import-html';
 import type { EpubResult } from '@caotang/import-epub';
 import type { Ao3Result } from '@caotang/import-ao3';
+import type { KankaLabels, KankaResult } from '@caotang/import-kanka';
 import type { DecodableEncoding } from '@caotang/store/encoding';
 
 /** Opens a reader with its input. The bytes (or folder files) are transferred to the Worker and cached there. */
@@ -26,7 +27,8 @@ export type ReaderOpen =
   | { readonly kind: 'open'; readonly reader: 'html'; readonly bytes: Uint8Array; readonly fileName: string }
   | { readonly kind: 'open'; readonly reader: 'html-zip'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'epub'; readonly bytes: Uint8Array }
-  | { readonly kind: 'open'; readonly reader: 'ao3'; readonly bytes: Uint8Array; readonly fileName: string };
+  | { readonly kind: 'open'; readonly reader: 'ao3'; readonly bytes: Uint8Array; readonly fileName: string }
+  | { readonly kind: 'open'; readonly reader: 'kanka'; readonly bytes: Uint8Array };
 
 /** Reads the cached input again with these options. A text read decodes and builds blocks; an RTF read parses. */
 export type ReaderRead =
@@ -34,7 +36,8 @@ export type ReaderRead =
   | { readonly kind: 'read'; readonly reader: 'rtf' | 'rtfd'; readonly underlineAs?: 'italic' | 'none'; readonly assetPrefix?: string }
   | { readonly kind: 'read'; readonly reader: 'html' }
   | { readonly kind: 'read'; readonly reader: 'epub' }
-  | { readonly kind: 'read'; readonly reader: 'ao3' };
+  | { readonly kind: 'read'; readonly reader: 'ao3' }
+  | { readonly kind: 'read'; readonly reader: 'kanka'; readonly labels?: KankaLabels };
 
 /** An RTF or `.rtfd` read's result, with its error flattened to a code and a message so it survives the clone. */
 export type SerializableRtfResult =
@@ -47,7 +50,8 @@ export type ReaderResult =
   | { readonly kind: 'rtf'; readonly result: SerializableRtfResult }
   | { readonly kind: 'html'; readonly result: HtmlResult }
   | { readonly kind: 'epub'; readonly result: EpubResult }
-  | { readonly kind: 'ao3'; readonly result: Ao3Result };
+  | { readonly kind: 'ao3'; readonly result: Ao3Result }
+  | { readonly kind: 'kanka'; readonly result: KankaResult };
 
 /** The envelope the Worker posts back: the request's id, and its result or a failure message. */
 export interface ReaderReply {
@@ -74,6 +78,7 @@ export function resultTransferList(result: ReaderResult): Transferable[] {
   else if (result.kind === 'html' && result.result.ok) assetData = result.result.value.assetData;
   else if (result.kind === 'epub' && result.result.ok) assetData = result.result.value.assetData;
   else if (result.kind === 'ao3' && result.result.ok) assetData = result.result.value.assetData;
+  else if (result.kind === 'kanka' && result.result.ok) assetData = result.result.value.assetData;
   if (assetData === null) return [];
   const seen = new Set<ArrayBuffer>();
   const buffers: Transferable[] = [];
