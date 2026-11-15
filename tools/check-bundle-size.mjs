@@ -180,7 +180,10 @@ export const BUDGET = {
   // size plus about 8 kB.
   // The Kanka import (#293): 8,366,004 bytes measured on #297 (+24,237: the campaign reader, its page builder and the Kanka preview
   // source, in lazy chunks; the first load did not move). The ceiling is the measured size plus about 4 kB.
-  totalJs: 8_370_000,
+  // The Word import (#279): 8,393,566 bytes measured on #293 (+27,562: the own DOCX reader, its parts and the Word preview source,
+  // in lazy chunks; the first load did not move). The ceiling is the measured size plus about 6 kB. mammoth would have been
+  // 92 kB gzip on top of this, which is why decision 1 chose an own reader.
+  totalJs: 8_400_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
