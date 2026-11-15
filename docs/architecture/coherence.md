@@ -274,6 +274,10 @@ interface SceneMeta {
 
 ### 5.3 LLM-judged checks — the ConStory 4-stage pipeline (as a harness tool)
 
+A writer may queue an approved review rather than hold the foreground turn. This is the explicit-queue exception in decisions.md, not an automatic check while typing. Before queueing, the writer sees the readable documents, the first prompt and the bounded estimate at the Background route's prices. An agent-authored review and a review queued from Findings use the same queue, read-boundary checks and persisted task lifecycle. Background execution does not inherit the writer-only authority of an unrestricted manual scan.
+
+Queued reviews retain validated extraction/verification checkpoints for an unchanged approved input. Their provider transport, usage attribution, approval validation and final publication stay on the page. Read-rule changes, obsolete input, cancellation and project close prevent further requests and publication; a new or changed input needs a new approval. A provider failure may yield the existing explicit partial outcome, but a cancellation is not a successfully completed review. When publication is allowed, only newly computed findings/run data joins the current held file, preserving intervening findings changes. The stable run identity makes publication idempotent across a reload. Seeing a completed report in the agent's Review Inbox requires no model call and does not apply manuscript text.
+
 Implemented as `coherence.review` (§7 tool 2). Four stages, mapped to **N+1 model calls** (Stage 3 is folded into Stage 2's output schema; Stage 4 is deterministic code, no model call):
 
 | Stage | What runs | Model calls | Output contract |
