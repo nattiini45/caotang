@@ -1431,6 +1431,9 @@ export const EXPORT_FORMATS = [
   // The comic's raster formats (comics.md §5), appended as the twenty-second and twenty-third. Only the app makes them; a Node host refuses.
   'cbz',
   'comic-epub',
+  // The AV script's VO script (av-script.md §5), as CSV and as a spreadsheet. Appended as the twenty-fourth and twenty-fifth.
+  'vo-script-csv',
+  'vo-script-xlsx',
 ] as const;
 
 function exportFormatRefusal(format: string): Result<never, CommandError> | undefined {

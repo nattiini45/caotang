@@ -53,6 +53,9 @@ export const EXPORT_FORMATS = [
   // Appended after the timeline's, so the order above holds.
   'cbz',
   'comic-epub',
+  // The AV script's VO script (av-script.md §5), as CSV and as a spreadsheet. Appended after the comic's, so the order above holds.
+  'vo-script-csv',
+  'vo-script-xlsx',
 ] as const;
 
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
@@ -82,12 +85,14 @@ export const MEDIA_FORMATS = [
   'timeline-pdf',
   'cbz',
   'comic-epub',
+  'vo-script-csv',
+  'vo-script-xlsx',
 ] as const satisfies readonly ExportFormat[];
 
 export type MediaFormat = (typeof MEDIA_FORMATS)[number];
 
 /** Formats whose artifact is a binary container, which `ArtifactFs` (string-only) cannot hold. The SVG is text, so it is not here. */
-export const BINARY_FORMATS: readonly ExportFormat[] = ['docx', 'epub', 'dialogue-xlsx', 'shot-list-xlsx', 'pdf', 'contact-sheet-pdf', 'comic-pdf', 'timeline-xlsx', 'timeline-pdf', 'cbz', 'comic-epub'];
+export const BINARY_FORMATS: readonly ExportFormat[] = ['docx', 'epub', 'dialogue-xlsx', 'shot-list-xlsx', 'pdf', 'contact-sheet-pdf', 'comic-pdf', 'timeline-xlsx', 'timeline-pdf', 'cbz', 'comic-epub', 'vo-script-xlsx'];
 
 export function isExportFormat(value: string): value is ExportFormat {
   return (EXPORT_FORMATS as readonly string[]).includes(value);
@@ -346,6 +351,7 @@ export const TEXT_PROOF_FORMATS = [
   // Merge: the timeline's two text formats (timeline.md §8) render as text, so they have a Proof too.
   'timeline-csv',
   'timeline-svg',
+  'vo-script-csv',
 ] as const satisfies readonly ExportFormat[];
 
 /** Whether a format has a Proof: it is listed in {@link TEXT_PROOF_FORMATS}. A format added without being listed has none. */

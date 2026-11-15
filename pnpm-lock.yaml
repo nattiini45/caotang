@@ -727,6 +727,9 @@ importers:
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../screenplay
+      '@caotang/script':
+        specifier: workspace:*
+        version: link:../script
       '@caotang/store':
         specifier: workspace:*
         version: link:../store

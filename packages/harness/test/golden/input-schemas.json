@@ -527,7 +527,9 @@
           "timeline-svg",
           "timeline-pdf",
           "cbz",
-          "comic-epub"
+          "comic-epub",
+          "vo-script-csv",
+          "vo-script-xlsx"
         ],
         "description": "The output format."
       },

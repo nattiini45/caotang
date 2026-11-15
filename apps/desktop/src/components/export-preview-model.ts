@@ -112,6 +112,9 @@ export function holdsOf(counts: CompileCounts, comicPanels?: number): string {
     case 'dialogue-csv':
     case 'dialogue-xlsx':
       return t`${lines} ${plural(lineCount, { one: 'line', other: 'lines' })} in ${scenes} ${plural(sceneCount, { one: 'container', other: 'containers' })}, ${words} ${plural(wordCount, { one: 'word', other: 'words' })}`;
+    case 'vo-script-csv':
+    case 'vo-script-xlsx':
+      return t`${lines} ${plural(lineCount, { one: 'line', other: 'lines' })} in ${scenes} ${plural(sceneCount, { one: 'episode', other: 'episodes' })}, ${words} ${plural(wordCount, { one: 'word', other: 'words' })}`;
     case 'shot-list-csv':
     case 'shot-list-xlsx':
     case 'promptpack':

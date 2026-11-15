@@ -258,6 +258,8 @@ const EXTENSION: Record<ExportFormat, string> = {
   'timeline-pdf': 'pdf',
   cbz: 'cbz',
   'comic-epub': 'epub',
+  'vo-script-csv': 'csv',
+  'vo-script-xlsx': 'xlsx',
 };
 
 /**
@@ -288,6 +290,8 @@ export const EXPORT_MIME: Readonly<Record<ExportFormat, string>> = {
   'timeline-pdf': PDF_MIME,
   cbz: CBZ_MIME,
   'comic-epub': EPUB_MIME,
+  'vo-script-csv': 'text/csv;charset=utf-8',
+  'vo-script-xlsx': XLSX_MIME,
 };
 
 const NO_ASSETS: ReadonlyMap<string, AssetRecord> = new Map();

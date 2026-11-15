@@ -25,6 +25,7 @@ import {
   TABLE_COLUMNS,
   exportCsv,
   exportInkJson,
+  csvField,
   isDialogueNodeType,
   readDialogueMeta,
   toCsv,
@@ -34,6 +35,7 @@ import {
   type TableRow,
 } from '@caotang/dialogue';
 import type { ProcessPicture } from '@caotang/pictures';
+import { isEpisodeDocument, parseEpisode, readShowMeta, showFolderOf, type ParsedEpisode } from '@caotang/script';
 import { countBody, getBody, identifierUrn, nodeById, type ProjectState, type TreeNode } from '@caotang/store';
 import {
   exportNumbers,
@@ -249,6 +251,10 @@ export function renderMedia(request: MediaRequest): MediaOutput {
       return timelineSvgOutput(request);
     case 'timeline-pdf':
       return timelinePdfOutput(request);
+    case 'vo-script-csv':
+      return voScriptCsvOutput(request);
+    case 'vo-script-xlsx':
+      return voScriptXlsxOutput(request);
   }
 }
 
@@ -797,6 +803,119 @@ function shotListXlsxOutput(request: MediaRequest): MediaOutput {
     wordCount: 0,
     skippedDocs: [],
     notes: [...listed.notes, ...prepared.notes, ...bareShotNotes(request)],
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * The AV script's VO script (av-script.md §5)
+ * ------------------------------------------------------------------ */
+
+/** The VO script's columns, in the order the spec's table names them (av-script.md §5). */
+const VO_SCRIPT_COLUMNS = ['lineId', 'segment', 'speaker', 'text', 'durationSec', 'declared'] as const;
+
+/** One row of the VO script: one speakable line, in the order the episode reads it. */
+interface VoScriptRow {
+  readonly lineId: string;
+  readonly segment: string;
+  readonly speaker: string;
+  readonly text: string;
+  /** The line's seconds, or empty when it is untimed (av-script.md §4). */
+  readonly durationSec: number | null;
+  /** `true` when the duration was declared in the script, `false` when it is an estimate, empty when untimed. */
+  readonly declared: boolean | null;
+}
+
+/** The episode documents a selection covers, in binder order (the `av-script` kind, av-script.md §2). */
+function episodesOf(request: MediaRequest): TreeNode[] {
+  return selectedNodes(request.state, request.includeRootIds).filter((node) => isEpisodeDocument(node));
+}
+
+/**
+ * One episode's rows. A text line is not speakable and takes no row; a speech line's speaker is who the parser resolved,
+ * a narration line's the show's default speaker or the `narration` word, and an empty speaker cell means neither resolved.
+ * Untimed segments still write their lines: their `durationSec` and `declared` cells are empty (av-script.md §4).
+ */
+function voRowsOf(parsed: ParsedEpisode): VoScriptRow[] {
+  const rows: VoScriptRow[] = [];
+  for (const segment of parsed.segments) {
+    for (const line of segment.lines) {
+      if (line.kind === 'text') continue;
+      rows.push({
+        lineId: line.id,
+        segment: segment.title,
+        speaker: line.speaker ?? (line.kind === 'narration' ? 'NARRATION' : ''),
+        text: line.text,
+        durationSec: line.durationSec ?? null,
+        declared: line.durationSec === undefined ? null : line.declared,
+      });
+    }
+  }
+  return rows;
+}
+
+/** The episodes' rows and the notices the parses kept, with the refusing for an empty table. */
+function voScriptTable(request: MediaRequest, format: 'vo-script-csv' | 'vo-script-xlsx'): { rows: readonly VoScriptRow[]; notes: readonly string[]; words: number } {
+  const episodes = episodesOf(request);
+  if (episodes.length === 0) {
+    throw new MediaRefusedError(format, ['the selection holds no episode, so there is no VO script to write']);
+  }
+  const rows: VoScriptRow[] = [];
+  const notes: string[] = [];
+  for (const node of episodes) {
+    const show = showFolderOf(request.state, node.id);
+    const parsed = parseEpisode(getBody(request.state, node.id), {
+      ...(show === undefined ? {} : { show: readShowMeta(show.showMeta).meta }),
+      codex: request.state.manifest.codex ?? [],
+    });
+    rows.push(...voRowsOf(parsed));
+    notes.push(...parsed.notices.map((notice) => `"${node.title}" line ${notice.line}: ${notice.message}`));
+  }
+  if (rows.length === 0) {
+    throw new MediaRefusedError(format, ['the selection holds no speakable line, so there is no VO script to write']);
+  }
+  return { rows, notes, words: rows.reduce((sum, row) => sum + countBody(row.text).words, 0) };
+}
+
+/** The VO script as RFC 4180 CSV (av-script.md §5): the spec's columns, one record per speakable line. */
+function voScriptCsv(rows: readonly VoScriptRow[]): string {
+  const record = (cells: readonly (string | number | boolean | null)[]): string =>
+    cells.map((cell) => (cell === null ? '' : csvField(guardFormula(String(cell))))).join(',') + '\r\n';
+  return record(VO_SCRIPT_COLUMNS) + rows.map((row) => record([row.lineId, row.segment, row.speaker, row.text, row.durationSec, row.declared])).join('');
+}
+
+function voScriptCsvOutput(request: MediaRequest): MediaOutput {
+  const table = voScriptTable(request, 'vo-script-csv');
+  return {
+    files: [{ name: `${request.base} (VO script).csv`, mimeType: CSV_MIME, text: voScriptCsv(table.rows) }],
+    blockCount: table.rows.length,
+    chapterCount: 0,
+    sceneCount: episodesOf(request).length,
+    wordCount: table.words,
+    skippedDocs: [],
+    notes: table.notes,
+  };
+}
+
+/** The VO script as a spreadsheet: the CSV's columns and rows, in one sheet (av-script.md §5, the spreadsheet gate). */
+function voScriptXlsxOutput(request: MediaRequest): MediaOutput {
+  const table = voScriptTable(request, 'vo-script-xlsx');
+  const rows: XlsxCell[][] = table.rows.map((row) => [
+    row.lineId,
+    row.segment,
+    row.speaker,
+    row.text,
+    row.durationSec,
+    row.declared === null ? null : row.declared ? 'true' : 'false',
+  ]);
+  const prepared = prepareSheet({ name: 'VO script', title: `${request.title} (VO script)`, columns: [...VO_SCRIPT_COLUMNS], rows });
+  return {
+    files: [xlsxFile(`${request.base} (VO script).xlsx`, prepared.sheet)],
+    blockCount: table.rows.length,
+    chapterCount: 0,
+    sceneCount: episodesOf(request).length,
+    wordCount: table.words,
+    skippedDocs: [],
+    notes: [...table.notes, ...prepared.notes],
   };
 }
 
