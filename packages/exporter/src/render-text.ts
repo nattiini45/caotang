@@ -16,12 +16,15 @@
  *   figure is the `[Picture: caption]` line unless the recipe drops pictures.
  *   Chapters are uppercase lines, `CHAPTER 1. THE LANDING`, a part is its label in
  *   capitals (`PART ONE`), and there is no contents list (§3: "TXT = none").
+ *   A footnote marker prints `[1]` in the text, numbered by the chapter it sits in,
+ *   and the notes print under a NOTES heading at the chapter's end — the recipe's
+ *   `endnote` holds them to the book's end, numbered through it instead (§3).
  */
 
 import { anchorOf } from './template.js';
 import { generatedChapterHeading } from './boilerplate.js';
 import { boilerplateOf, chapterHeadings, contentsHeading, hasTitlePage, headingsByBlock, sectionTitle, type RenderInput } from './render-input.js';
-import { parseProse, plainProse } from './prose.js';
+import { parseProse, plainProse, type ParsedProse, type ProseBlock } from './prose.js';
 import { rewriteMarkdownImages, type MarkdownPicturesMode } from './markdown-pictures.js';
 
 /**
@@ -103,6 +106,39 @@ export function renderText(input: RenderInput): string {
   const separator = input.template.separator.plain;
   const byBlock = headingsByBlock(input);
   const words = boilerplateOf(input);
+  const endnotes = input.notes === 'endnote';
+  // The notes pending their section: footnotes flush before the next chapter (or at the end), endnotes at the end.
+  // `numbered` keys each body's `notes` map, so two scenes may both write `[^1]`.
+  const numbered = new Map<ParsedProse['notes'], Map<string, number>>();
+  const pending: { num: number; blocks: readonly ProseBlock[]; defs: ParsedProse['notes'] }[] = [];
+  const pictures = input.pictures === 'drop' ? 'drop' : 'placeholder';
+  const mark = (defs: ParsedProse['notes'], noteId: string): string => {
+    let scoped = numbered.get(defs);
+    if (scoped === undefined) numbered.set(defs, (scoped = new Map()));
+    let num = scoped.get(noteId);
+    if (num === undefined) {
+      const blocks = defs.get(noteId);
+      if (blocks === undefined) return `[^${noteId}]`;
+      num = pending.length + 1;
+      scoped.set(noteId, num);
+      pending.push({ num, blocks, defs });
+    }
+    return `[${num}]`;
+  };
+  const flushNotes = (): void => {
+    // A marker inside a note queues its own note; the list drains until nothing new was named.
+    if (pending.length === 0) return;
+    lines.push('', words.notes.toUpperCase(), '');
+    for (let i = 0; i < pending.length; i++) {
+      const note = pending[i];
+      if (note === undefined) continue;
+      const text = plainProse(note.blocks, separator, pictures, (noteId) => mark(note.defs, noteId));
+      text.split('\n').forEach((line, row) => lines.push(`${row === 0 ? `[${note.num}] ` : '    '}${line}`));
+    }
+    pending.length = 0;
+    numbered.clear();
+    lines.push('');
+  };
 
   input.blocks.forEach((block, index) => {
     switch (block.kind) {
@@ -116,6 +152,7 @@ export function renderText(input: RenderInput): string {
       case 'chapter': {
         // The house style is capitals, and the chapter word is the project language's (i18n.md §7.1): "KAPITEL 1", "1章".
         // A title the writer typed is only uppercased; a title left blank leaves the generated heading alone.
+        if (!endnotes) flushNotes();
         if (block.part === true) {
           lines.push((byBlock.get(index)?.label ?? block.title).toUpperCase(), '');
           break;
@@ -129,8 +166,8 @@ export function renderText(input: RenderInput): string {
         const section = sectionTitle(block, words.untitled);
         if (section !== undefined) lines.push(section.toUpperCase(), '');
         // A figure is the `[Picture: caption]` line unless the recipe drops pictures (pictures.md §4).
-        const pictures = input.pictures === 'drop' ? 'drop' : 'placeholder';
-        const text = plainProse(parseProse(block.body), separator, pictures).trim();
+        const parsed = parseProse(block.body);
+        const text = plainProse(parsed.blocks, separator, pictures, (noteId) => mark(parsed.notes, noteId)).trim();
         if (text !== '') lines.push(text, '');
         break;
       }
@@ -141,5 +178,6 @@ export function renderText(input: RenderInput): string {
         break;
     }
   });
+  flushNotes();
   return `${lines.join('\n').trimEnd()}\n`;
 }

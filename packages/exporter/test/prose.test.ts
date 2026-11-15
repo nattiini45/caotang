@@ -11,7 +11,7 @@ import { parseProse, plainProse, safeHref, type ProseBlock } from '../src/prose.
 
 describe('parseProse', () => {
   it('reads paragraphs with emphasis, strong and inline code as runs', () => {
-    const [block] = parseProse('She *waited* in **silence** with `x`.');
+    const [block] = parseProse('She *waited* in **silence** with `x`.').blocks;
     expect(block).toEqual({
       kind: 'paragraph',
       runs: [
@@ -27,11 +27,11 @@ describe('parseProse', () => {
   });
 
   it('reads a thematic break, the *** separator, as a break block', () => {
-    expect(parseProse('one\n\n***\n\ntwo').map((block) => block.kind)).toEqual(['paragraph', 'break', 'paragraph']);
+    expect(parseProse('one\n\n***\n\ntwo').blocks.map((block) => block.kind)).toEqual(['paragraph', 'break', 'paragraph']);
   });
 
   it('reads headings, quotes, lists and code blocks', () => {
-    const blocks = parseProse(['# Title', '', '> quoted', '', '- a', '- b', '', '1. first', '', '```', 'code()', '```'].join('\n'));
+    const blocks = parseProse(['# Title', '', '> quoted', '', '- a', '- b', '', '1. first', '', '```', 'code()', '```'].join('\n')).blocks;
     expect(blocks.map((block) => block.kind)).toEqual(['heading', 'quote', 'list', 'list', 'code']);
     expect(blocks[2]).toMatchObject({ kind: 'list', ordered: false, items: [[{ kind: 'paragraph' }], [{ kind: 'paragraph' }]] });
     expect(blocks[3]).toMatchObject({ kind: 'list', ordered: true });
@@ -39,7 +39,7 @@ describe('parseProse', () => {
   });
 
   it('keeps raw HTML as literal text, so markup in a manuscript is shown and never run', () => {
-    const [block] = parseProse('<script>alert(1)</script> and <em>this</em>');
+    const [block] = parseProse('<script>alert(1)</script> and <em>this</em>').blocks;
     expect(block?.kind).toBe('paragraph');
     const text = block?.kind === 'paragraph' ? block.runs.map((run) => run.text).join('') : '';
     expect(text).toContain('<script>alert(1)</script>');
@@ -47,7 +47,7 @@ describe('parseProse', () => {
   });
 
   it('keeps the target of a web or mail link and drops the target of anything else', () => {
-    const [block] = parseProse('[a](https://example.com) [b](javascript:alert(1)) [c](chapter-2.md)');
+    const [block] = parseProse('[a](https://example.com) [b](javascript:alert(1)) [c](chapter-2.md)').blocks;
     const links = block?.kind === 'paragraph' ? block.runs.filter((run) => run.text !== ' ') : [];
     expect(links.map((run) => [run.text, run.href])).toEqual([
       ['a', 'https://example.com'],
@@ -57,7 +57,7 @@ describe('parseProse', () => {
   });
 
   it('reads a hard line break as a run with br set', () => {
-    const [block] = parseProse('line one  \nline two');
+    const [block] = parseProse('line one  \nline two').blocks;
     expect(block?.kind === 'paragraph' && block.runs.some((run) => run.br === true)).toBe(true);
   });
 });
@@ -80,25 +80,44 @@ describe('safeHref', () => {
 
 describe('plainProse', () => {
   it('joins paragraphs with a blank line and writes a break as the separator', () => {
-    const blocks: ProseBlock[] = parseProse('one *two*\n\n***\n\nthree');
+    const blocks: readonly ProseBlock[] = parseProse('one *two*\n\n***\n\nthree').blocks;
     expect(plainProse(blocks, '* * *')).toBe('one two\n\n* * *\n\nthree');
   });
 
   it('writes list items with a marker that matches the list kind', () => {
-    expect(plainProse(parseProse('- a\n- b'), '* * *')).toBe('- a\n- b');
-    expect(plainProse(parseProse('1. a\n2. b'), '* * *')).toBe('1. a\n2. b');
+    expect(plainProse(parseProse('- a\n- b').blocks, '* * *')).toBe('- a\n- b');
+    expect(plainProse(parseProse('1. a\n2. b').blocks, '* * *')).toBe('1. a\n2. b');
   });
 });
 
-describe('footnotes, until the exporter renders them (#271)', () => {
-  it('a body with GFM footnotes exports every marker and every note as the text it is', () => {
-    // The editor keeps footnotes as `[^n]` markers and notes since #270 (editor-engine §3.4). The
-    // exporter's parse has no footnote extension, so it reads both as text: nothing a writer typed
-    // is dropped, and the marker shows where the note belongs.
-    const body = 'The ferry was late[^1], on the second bell[^note].\n\n[^1]: The Marta.\n\n[^note]: Named.\n\n    Second paragraph.\n';
-    const text = plainProse(parseProse(body), '* * *');
-    for (const piece of ['late[^1]', 'bell[^note]', '[^1]: The Marta.', '[^note]: Named.', 'Second paragraph.']) {
-      expect(text).toContain(piece);
-    }
+describe('footnotes (#271)', () => {
+  it('keeps a referred marker as a note run and the note text in `notes`', () => {
+    const parsed = parseProse('The ferry was late[^1].\n\n[^1]: The Marta.');
+    const [block] = parsed.blocks;
+    expect(block?.kind).toBe('paragraph');
+    const marker = block?.kind === 'paragraph' ? block.runs.find((run) => run.noteId !== undefined) : undefined;
+    expect(marker).toMatchObject({ noteId: '1' });
+    expect(parsed.notes.get('1')?.[0]).toMatchObject({ kind: 'paragraph' });
+    // Nothing the writer typed is dropped: the note text survives in `notes`, not the body.
+    expect(plainProse(parsed.blocks, '* * *')).toBe('The ferry was late.');
+    expect(plainProse(parsed.notes.get('1') ?? [], '* * *')).toBe('The Marta.');
+  });
+
+  it('a definition nothing refers to stays in the body as the text it is', () => {
+    const parsed = parseProse('Plain body.\n\n[^loose]: A stray note.');
+    expect(parsed.notes.size).toBe(0);
+    expect(plainProse(parsed.blocks, '* * *')).toBe('Plain body.\n\n[^loose]: A stray note.');
+  });
+
+  it('a marker naming no note stays the marker text it is', () => {
+    const parsed = parseProse('A gap[^nowhere].');
+    expect(parsed.notes.size).toBe(0);
+    expect(plainProse(parsed.blocks, '* * *')).toBe('A gap[^nowhere].');
+  });
+
+  it('the marker callback numbers the note run in plain text', () => {
+    const parsed = parseProse('Late[^1] and later[^2].\n\n[^1]: One.\n\n[^2]: Two.');
+    const text = plainProse(parsed.blocks, '* * *', 'placeholder', (noteId) => `[${noteId}]`);
+    expect(text).toBe('Late[1] and later[2].');
   });
 });

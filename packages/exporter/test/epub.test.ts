@@ -232,3 +232,37 @@ describe('the EPUB renderer — loaded lazily, from the browser build', () => {
     expect(source).not.toMatch(/^import (?!type )[^;]*from 'fflate[^']*';/m);
   });
 });
+
+describe('the EPUB notes — noteref and chapter-end footnotes or book-end endnotes (exporter.md §3a, #271)', () => {
+  const noted: readonly FlatBlock[] = [
+    { kind: 'chapter', title: 'Chapter One', level: 1, number: 1 },
+    { kind: 'scene', docId: IDS.landing, title: 'The Landing', body: 'The ferry was late[^1].\n\n[^1]: The Marta.', number: 1 },
+  ];
+
+  it('writes the marker as an epub:type="noteref" link and the note as a footnote aside at the chapter end', async () => {
+    const { text } = await pack(epubInput({}, noted));
+    const chapter = text['OEBPS/chapter-001.xhtml'] ?? '';
+    expect(chapter).toContain('<a epub:type="noteref" id="fn-1-r1" href="#fn-1"><sup>1</sup></a>');
+    expect(chapter).toContain('<aside epub:type="footnote" id="fn-1">');
+    expect(chapter).toContain('epub:type="backlink"');
+    expect(chapter).toContain('The Marta.');
+    // The note sits after the scene text, inside the chapter file.
+    expect(chapter.indexOf('epub:type="footnote"')).toBeGreaterThan(chapter.indexOf('epub:type="noteref"'));
+    expect(text['OEBPS/endnotes.xhtml']).toBeUndefined();
+    expect(text['OEBPS/content.opf'] ?? '').not.toContain('endnotes');
+  });
+
+  it('the recipe\u2019s endnotes collect every note into one endnotes.xhtml in the spine', async () => {
+    const { text } = await pack(epubInput({ notes: 'endnote' }, noted));
+    const chapter = text['OEBPS/chapter-001.xhtml'] ?? '';
+    expect(chapter).toContain('epub:type="noteref"');
+    expect(chapter).toContain('href="endnotes.xhtml#en-1"');
+    expect(chapter).not.toContain('epub:type="footnote"');
+    const notes = text['OEBPS/endnotes.xhtml'] ?? '';
+    expect(notes).toContain('<aside epub:type="rearnote" id="en-1">');
+    expect(notes).toContain('The Marta.');
+    const opf = text['OEBPS/content.opf'] ?? '';
+    expect(opf).toContain('href="endnotes.xhtml"');
+    expect(opf).toContain('<itemref idref="endnotes"/>');
+  });
+});

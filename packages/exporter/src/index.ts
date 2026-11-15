@@ -152,7 +152,7 @@ export { DOCX_MIME, renderDocx } from './render-docx.js';
 export { EPUB_MIME, escapeXml, renderEpub, type EpubCover, type EpubInput } from './render-epub.js';
 export { renderMarkdown, renderText } from './render-text.js';
 export { XLSX_CELL_MAX, XLSX_MIME, prepareSheet, renderXlsx, sheetName, xlsxParts, xlsxText, type XlsxCell, type XlsxSheet } from './render-xlsx.js';
-export { parseProse, plainProse, safeHref, type ImageRef, type ProseBlock, type Run } from './prose.js';
+export { parseProse, plainProse, safeHref, type ImageRef, type NoteMarker, type ParsedProse, type ProseBlock, type Run } from './prose.js';
 export {
   ComicRasterUnavailableError,
   ExportNotReadyError,

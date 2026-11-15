@@ -79,7 +79,7 @@ export const METADATA_PATCH_KEYS = ['author', 'language', 'isbn', 'coverAssetId'
  * `pictures`, `epubImageMaxPx`, `epubKeepWebp` and `keepPictureMetadata` are the prose exports' picture options, pictures.md §4;
  * `timelinePictures` is the timeline PDF's thumbnails, timeline.md §9.1).
  */
-const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued', 'pageSize', 'scriptFont', 'paperFrames', 'colourEmoji', 'bleed', 'cropMarks', 'contentsLabel', 'pictures', 'epubImageMaxPx', 'epubKeepWebp', 'keepPictureMetadata', 'timelinePictures'] as const;
+const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued', 'pageSize', 'scriptFont', 'paperFrames', 'colourEmoji', 'bleed', 'cropMarks', 'contentsLabel', 'pictures', 'epubImageMaxPx', 'epubKeepWebp', 'keepPictureMetadata', 'timelinePictures', 'notes'] as const;
 
 /** Where the screenplay PDF may print scene numbers (screenplay.md §5.3). */
 export const SCENE_NUMBER_OPTIONS = ['off', 'left', 'right', 'both'] as const;
@@ -186,6 +186,17 @@ function recipeOptionsOf(value: unknown): Result<RecipeOptionsParams | undefined
       );
     }
     typed.pictures = pictures as (typeof PICTURE_MODES)[number];
+  }
+  const notes = value['notes'];
+  if (notes !== undefined) {
+    if (notes !== 'footnote' && notes !== 'endnote') {
+      return invalid(
+        `params.options.notes must be 'footnote' or 'endnote', got ${showValue(notes)}`,
+        "pass 'footnote' for page-foot / chapter-end notes, or 'endnote' for document-end / book-end notes",
+        'options.notes',
+      );
+    }
+    typed.notes = notes;
   }
   const epubImageMaxPx = value['epubImageMaxPx'];
   if (epubImageMaxPx !== undefined) {

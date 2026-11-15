@@ -1189,6 +1189,8 @@ export type RecipeOptionsParams = {
   timelinePictures?: boolean;
   /** Emoji print in colour in the screenplay PDF and the contact sheet (screenplay.md §5.3, storyboard.md §6). Absent: the format's default. */
   colourEmoji?: boolean;
+  /** Where the prose formats put a footnote's text (exporter.md §3). Absent: footnote — page foot in DOCX, chapter end in EPUB and plain text; endnote: document end, book end. */
+  notes?: 'footnote' | 'endnote';
 };
 
 /**
