@@ -495,7 +495,7 @@ export interface RoleResolver {
 
 export interface ProviderGateway {
   complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncIterable<ChatChunk>;
-  completeOnce(req: ChatRequest, signal?: AbortSignal): Promise<ChatMessage>;
+  completeOnce(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): Promise<ChatMessage>;
   listModels(profileId: string): Promise<ModelInfo[]>;
   /**
    * §3's internal accounting hook. Gateway-originated requests are accounted by the

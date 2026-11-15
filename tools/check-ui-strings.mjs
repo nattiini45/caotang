@@ -78,6 +78,7 @@ const DEVELOPER_CALLEES = [
   /^sessionStorage\./,
   /^CSS\.supports$/,
   /\.matches$/,
+  /(?:^|\.)(?:querySelector|querySelectorAll|getElementById|getElementsByClassName)$/,
   /^(fetch|require|RegExp|JSON\.parse|JSON\.stringify|Symbol|querySelector|querySelectorAll|getElementById|getElementsByClassName|addEventListener|removeEventListener|dispatchEvent)$/,
 ];
 

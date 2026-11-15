@@ -21,8 +21,20 @@ import { asFindingsProposal, asSceneProposal, asSynopsisProposal } from './draft
 /** A plan that needs at least this many model calls is offered the background before it is staged. */
 export const BACKGROUND_OFFER_MIN_CALLS = 5;
 
-/** The model calls one step makes when it is staged. A step that drafts nothing makes none. */
-export function estimatedStepCalls(step: PlanStep): number {
+export interface ReviewCallBound {
+  readonly extractCalls: number;
+  readonly verifyCallsAtMost: number;
+}
+
+export function reviewCallBoundOk(value: unknown): value is ReviewCallBound {
+  if (typeof value !== 'object' || value === null) return false;
+  const bound = value as Record<string, unknown>;
+  const extract = bound['extractCalls'];
+  const verify = bound['verifyCallsAtMost'];
+  return typeof extract === 'number' && Number.isInteger(extract) && extract >= 1 && typeof verify === 'number' && Number.isInteger(verify) && verify >= 0;
+}
+
+export function estimatedStepCalls(step: PlanStep, review?: ReviewCallBound): number {
   switch (step.tool) {
     case 'scene.draft':
     case 'shots.derive':
@@ -34,29 +46,32 @@ export function estimatedStepCalls(step: PlanStep): number {
       return Array.isArray(step.params['shots']) ? step.params['shots'].length : 0;
     case 'synopsis.fill':
       return Array.isArray(step.params['docs']) ? step.params['docs'].length : 0;
+    case 'coherence.review':
+      return reviewCallBoundOk(review) ? review.extractCalls + review.verifyCallsAtMost : 0;
     default:
       return 0;
   }
 }
 
-/** The model calls staging a plan makes: what the offer shows, and the cap a background task runs under. */
-export function estimatedModelCalls(steps: readonly PlanStep[]): number {
-  return steps.reduce((sum, step) => sum + estimatedStepCalls(step), 0);
+export function estimatedModelCalls(steps: readonly PlanStep[], reviews?: readonly (ReviewCallBound | undefined)[]): number {
+  return steps.reduce((sum, step, index) => sum + estimatedStepCalls(step, reviews?.[index]), 0);
 }
 
 /** Whether a plan may run in the background; `reason` says why not, in words for the writer. */
 export type BackgroundEligibility = { readonly eligible: true } | { readonly eligible: false; readonly reason: string };
 
 /**
- * A plan may run in the background when every step is a native tool, none is a coherence review, and at least one step drafts with a
- * model. The run executes nothing but staging, so a step that drafts nothing is fine: it runs at review, under the normal card. An
- * external tool is refused because it could write while nobody watches.
+ * A plan may run in the background when every step is a native tool and at least one step drafts with a model or is a coherence review
+ * the host has bounded and costed. The run executes nothing but staging and the approved review, so a step that drafts nothing is fine:
+ * it runs at review, under the normal card. An external tool is refused because it could write while nobody watches.
  */
-export function backgroundEligibility(steps: readonly PlanStep[]): BackgroundEligibility {
+export function backgroundEligibility(steps: readonly PlanStep[], reviews?: readonly (ReviewCallBound | undefined)[], options?: { readonly allowNoModelStep?: boolean }): BackgroundEligibility {
   const external = steps.find((step) => !isToolName(step.tool));
   if (external !== undefined) return { eligible: false, reason: `${external.tool} is an external tool, and external tools do not run unattended.` };
-  if (steps.some((step) => step.tool === 'coherence.review')) {
-    return { eligible: false, reason: 'A coherence review cannot be queued yet, so this plan runs now.' };
+  for (const [index, step] of steps.entries()) {
+    if (step.tool === 'coherence.review' && !reviewCallBoundOk(reviews?.[index])) {
+      return { eligible: false, reason: 'A coherence review cannot be queued yet, so this plan runs now.' };
+    }
   }
   if (steps.some((step) => step.tool === 'skill.load' || step.tool === 'skill.read')) {
     return { eligible: false, reason: 'Skills belong to this turn and cannot move to a background task. Send this request again to run it in the foreground.' };
@@ -64,7 +79,7 @@ export function backgroundEligibility(steps: readonly PlanStep[]): BackgroundEli
   if (steps.some((step) => step.tool === 'timeline.edit')) {
     return { eligible: false, reason: 'A timeline edit is checked against the days and parts as they are when the card is shown, so this plan runs now.' };
   }
-  if (!steps.some((step) => MODEL_BACKED_TOOLS.has(step.tool))) return { eligible: false, reason: 'No step of this plan drafts with a model.' };
+  if (options?.allowNoModelStep !== true && !steps.some((step) => MODEL_BACKED_TOOLS.has(step.tool))) return { eligible: false, reason: 'No step of this plan drafts with a model.' };
   return { eligible: true };
 }
 

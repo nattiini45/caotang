@@ -770,7 +770,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     ledger,
     requestLog,
     complete: (req, signal, beforeSend) => complete(req, signal, beforeSend),
-    completeOnce: (req, signal) => collectOnce(complete(req, signal), signal),
+    completeOnce: (req, signal, beforeSend) => collectOnce(complete(req, signal, beforeSend), signal),
     listModels,
     modelLimits,
     modelCaps,

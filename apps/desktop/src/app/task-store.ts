@@ -11,42 +11,65 @@
  */
 
 import { MODEL_BACKED_TOOLS, contextOverridesOk, estimatedStepCalls, mergePreviews, stagedOf, type ContextOverrides, type PlanStep, type PromptPreview, type StepRevisions } from '@caotang/harness';
+import { LLM_CATEGORIES, type ReviewCheckpoint } from '@caotang/coherence';
 import { newId } from '@caotang/ids';
 import type { MachineTable } from '@caotang/machine';
 
 import { activeAppDb, type AppDb } from './app-db.js';
+import type { QueuedReviewApproval } from './queued-review.js';
 
 /**
  * `queued` waits for the runner, `running` is being staged, `ready` holds drafts to review, `failed` staged nothing, `cancelled` was
  * stopped by the writer, `interrupted` was cut short by a closed tab or project and can be resumed, and `applied` was reviewed and
  * approved.
  */
-export type TaskStatus = 'queued' | 'running' | 'ready' | 'failed' | 'cancelled' | 'interrupted' | 'applied';
+export type TaskStatus = 'queued' | 'running' | 'ready' | 'failed' | 'cancelled' | 'interrupted' | 'applied' | 'completed';
 
 export type TaskQueueStatus = TaskStatus | 'starting' | 'cancelling';
-export type TaskStatusEvent = 'pump' | 'agent-ready' | 'cancel' | 'close' | 'reload' | 'resume' | 'ready' | 'fail' | 'settle' | 'apply';
+export type TaskStatusEvent = 'pump' | 'agent-ready' | 'cancel' | 'close' | 'reload' | 'resume' | 'ready' | 'fail' | 'settle' | 'apply' | 'complete';
 
 export const taskStatusTable: MachineTable<{ kind: TaskQueueStatus }, { type: TaskStatusEvent }> = {
   id: 'task.status',
   initial: 'queued',
-  final: ['failed', 'cancelled', 'applied'],
+  final: ['failed', 'cancelled', 'applied', 'completed'],
   on: {
     queued: { pump: ['starting'], cancel: ['cancelled'], close: ['interrupted'], reload: ['interrupted'] },
-    starting: { 'agent-ready': ['running'], cancel: ['cancelling'], close: ['interrupted'], ready: ['ready'], fail: ['failed'] },
-    running: { cancel: ['cancelling'], close: ['interrupted'], reload: ['interrupted'], ready: ['ready'], fail: ['failed'] },
-    cancelling: { settle: ['cancelled'] },
+    starting: { 'agent-ready': ['running'], cancel: ['cancelling'], close: ['interrupted'], ready: ['ready'], fail: ['failed'], complete: ['completed'] },
+    running: { cancel: ['cancelling'], close: ['interrupted'], reload: ['interrupted'], ready: ['ready'], fail: ['failed'], complete: ['completed'] },
+    cancelling: { settle: ['cancelled'], complete: ['completed'], ready: ['ready'] },
     interrupted: { cancel: ['cancelling'], settle: ['interrupted'], resume: ['queued'] },
     ready: { apply: ['applied'] },
     failed: {},
     cancelled: {},
     applied: {},
+    completed: {},
   },
 };
 
 /** The statuses of a task that is over. A finished task is kept for a while, then pruned. */
-export const FINISHED_STATUSES: ReadonlySet<TaskStatus> = new Set<TaskStatus>(['failed', 'cancelled', 'applied']);
+export const FINISHED_STATUSES: ReadonlySet<TaskStatus> = new Set<TaskStatus>(['failed', 'cancelled', 'applied', 'completed']);
 
-const STATUSES: ReadonlySet<string> = new Set<TaskStatus>(['queued', 'running', 'ready', 'failed', 'cancelled', 'interrupted', 'applied']);
+const STATUSES: ReadonlySet<string> = new Set<TaskStatus>(['queued', 'running', 'ready', 'failed', 'cancelled', 'interrupted', 'applied', 'completed']);
+
+export type TaskKind = 'draft' | 'review' | 'mixed';
+
+export type TaskReviewPhase = 'extracting' | 'verifying' | 'publishing';
+
+export type TaskUsageSource = 'reported' | 'estimated' | 'unknown';
+
+export interface TaskReviewReport {
+  readonly runId: string;
+  readonly outcome: 'complete' | 'partial';
+  readonly findingsCount: number;
+  readonly scopeTitles: readonly string[];
+  readonly routeLabel: string;
+  readonly usage: {
+    readonly modelCalls: number;
+    readonly promptTokens: number;
+    readonly completionTokens: number;
+    readonly source: TaskUsageSource;
+  };
+}
 
 /** One unit of staging: a model-backed step, or one document of a synopsis step. `pending` is the only state a resume runs. */
 export interface TaskItem {
@@ -80,6 +103,14 @@ export interface TaskRecord {
   readonly runs: number;
   readonly createdAt: number;
   readonly updatedAt: number;
+  readonly kind?: TaskKind;
+  readonly review?: QueuedReviewApproval;
+  readonly reviewCheckpoint?: ReviewCheckpoint;
+  readonly reviewPhase?: TaskReviewPhase;
+  readonly reviewProgress?: { readonly done: number; readonly total: number };
+  readonly report?: TaskReviewReport;
+  readonly reviewRunId?: string;
+  readonly acknowledged?: boolean;
 }
 
 /** Finished tasks kept for a project, newest first; the rest are pruned when the project opens. */
@@ -94,7 +125,89 @@ export const taskKey = (projectId: string, id: string): string => `${taskPrefix(
 export const newTaskId = (): string => newId('task');
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
-const isCount = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+const isCount = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0;
+const isStrings = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string');
+const isCategory = (value: unknown): boolean => typeof value === 'string' && (LLM_CATEGORIES as readonly string[]).includes(value);
+const categoriesOk = (value: unknown): boolean => isStrings(value) && value.length > 0 && value.every(isCategory);
+const sameStrings = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((item, index) => item === b[index]);
+const isVerdict = (value: unknown): boolean => value === 'contradictory' || value === 'consistent' || value === 'unclear';
+
+function plannedDocumentOk(value: unknown): boolean {
+  return isObject(value) && typeof value['docId'] === 'string' && typeof value['title'] === 'string' && isCount(value['estimatedTokens']) && typeof value['truncated'] === 'boolean' && isStrings(value['codexDropped']) && isStrings(value['storyDropped']);
+}
+
+function spanOk(value: unknown): boolean {
+  return isObject(value) && typeof value['docId'] === 'string' && isCount(value['from']) && isCount(value['to']) && value['from'] <= value['to'] && typeof value['quote'] === 'string' && isCategory(value['category']) && typeof value['note'] === 'string';
+}
+
+function evidenceOk(value: unknown): boolean {
+  return isObject(value) && typeof value['docId'] === 'string' && typeof value['quote'] === 'string' && isCount(value['from']) && isCount(value['to']) && value['from'] <= value['to'] && (value['paraHash'] === undefined || typeof value['paraHash'] === 'string');
+}
+
+function verdictOk(value: unknown): boolean {
+  if (!isObject(value) || typeof value['pairId'] !== 'string' || !isVerdict(value['verdict']) || typeof value['reasoning'] !== 'string' || typeof value['entity'] !== 'string' || typeof value['attribute'] !== 'string') return false;
+  return value['evidence'] === undefined || (Array.isArray(value['evidence']) && value['evidence'].every(evidenceOk));
+}
+
+function reviewApprovalOk(value: unknown): boolean {
+  if (!isObject(value)) return false;
+  const plan = value['plan'];
+  if (!isObject(plan) || !isStrings(plan['scopeDocIds']) || !Array.isArray(plan['documents']) || !isStrings(plan['categories']) || !isCount(plan['maxFindings']) || (plan['promptPreview'] !== undefined && typeof plan['promptPreview'] !== 'string') || typeof plan['overGuard'] !== 'boolean' || !isObject(plan['estimate'])) return false;
+  if (!categoriesOk(plan['categories']) || plan['maxFindings'] < 1 || !plan['documents'].every(plannedDocumentOk)) return false;
+  const estimate = plan['estimate'];
+  if (!['extractCalls', 'extractTokens', 'verifyCallsAtMost', 'verifyTokensAtMost', 'totalTokensAtMost'].every((key) => isCount(estimate[key]))) return false;
+  const route = value['route'];
+  if (!isObject(route) || typeof route['profileId'] !== 'string' || typeof route['model'] !== 'string' || typeof route['label'] !== 'string') return false;
+  if (route['thinking'] !== undefined && typeof route['thinking'] !== 'string') return false;
+  const bound = value['callBound'];
+  if (!isObject(bound) || !isCount(bound['extractCalls']) || !isCount(bound['verifyCallsAtMost'])) return false;
+  if (bound['extractCalls'] !== estimate['extractCalls'] || bound['verifyCallsAtMost'] !== estimate['verifyCallsAtMost']) return false;
+  if (!isStrings(value['scopeDocIds']) || !isStrings(value['categories']) || !isCount(value['maxFindings']) || typeof value['fingerprint'] !== 'string' || value['fingerprint'] === '') return false;
+  if (!categoriesOk(value['categories']) || value['maxFindings'] < 1) return false;
+  if (!sameStrings(value['scopeDocIds'], plan['scopeDocIds']) || !sameStrings(value['categories'], plan['categories']) || value['maxFindings'] !== plan['maxFindings']) return false;
+  if (value['contextOverrides'] !== undefined && !contextOverridesOk(value['contextOverrides'])) return false;
+  return true;
+}
+
+function reviewCheckpointOk(value: unknown): boolean {
+  if (!isObject(value)) return false;
+  if (!isStrings(value['extractedDocIds']) || !isCount(value['verifiedBatches']) || !isCount(value['promptTokens']) || !isCount(value['completionTokens']) || !isStrings(value['notes']) || !isStrings(value['evaluated'])) return false;
+  if (value['status'] !== 'complete' && value['status'] !== 'partial') return false;
+  if (!Array.isArray(value['spans']) || !value['spans'].every(spanOk)) return false;
+  if (!Array.isArray(value['verdicts']) || !value['verdicts'].every(verdictOk)) return false;
+  const usage = value['usageByPair'];
+  if (!isObject(usage) || !Object.values(usage).every((entry) => isObject(entry) && isCount(entry['promptTokens']) && isCount(entry['completionTokens']))) return false;
+  const hasCalls = value['modelCalls'] !== undefined;
+  const hasSource = value['usageSource'] !== undefined;
+  if (hasCalls !== hasSource) return false;
+  if (hasCalls && !isCount(value['modelCalls'])) return false;
+  if (hasSource && value['usageSource'] !== 'reported' && value['usageSource'] !== 'estimated' && value['usageSource'] !== 'unknown') return false;
+  return true;
+}
+
+function reviewReportOk(value: unknown): boolean {
+  if (!isObject(value)) return false;
+  if (typeof value['runId'] !== 'string' || (value['outcome'] !== 'complete' && value['outcome'] !== 'partial') || !isCount(value['findingsCount']) || !isStrings(value['scopeTitles']) || typeof value['routeLabel'] !== 'string') return false;
+  const usage = value['usage'];
+  if (!isObject(usage) || !isCount(usage['modelCalls']) || !isCount(usage['promptTokens']) || !isCount(usage['completionTokens'])) return false;
+  return usage['source'] === 'reported' || usage['source'] === 'estimated' || usage['source'] === 'unknown';
+}
+
+function reviewMetadataOk(value: Record<string, unknown>): boolean {
+  const kind = value['kind'];
+  if (kind !== undefined && kind !== 'draft' && kind !== 'review' && kind !== 'mixed') return false;
+  if (value['review'] !== undefined && !reviewApprovalOk(value['review'])) return false;
+  if (value['reviewCheckpoint'] !== undefined && !reviewCheckpointOk(value['reviewCheckpoint'])) return false;
+  if (value['report'] !== undefined && !reviewReportOk(value['report'])) return false;
+  if (value['reviewPhase'] !== undefined && value['reviewPhase'] !== 'extracting' && value['reviewPhase'] !== 'verifying' && value['reviewPhase'] !== 'publishing') return false;
+  if (value['reviewProgress'] !== undefined && (!isObject(value['reviewProgress']) || !isCount(value['reviewProgress']['done']) || !isCount(value['reviewProgress']['total']))) return false;
+  if (value['reviewRunId'] !== undefined && typeof value['reviewRunId'] !== 'string') return false;
+  if (value['acknowledged'] !== undefined && typeof value['acknowledged'] !== 'boolean') return false;
+  if ((kind === 'review' || kind === 'mixed') && !reviewApprovalOk(value['review'])) return false;
+  const carriesReview = value['review'] !== undefined || value['reviewCheckpoint'] !== undefined || value['report'] !== undefined || value['reviewPhase'] !== undefined || value['reviewProgress'] !== undefined || value['reviewRunId'] !== undefined;
+  if (carriesReview && kind !== 'review' && kind !== 'mixed') return false;
+  return true;
+}
 
 /** A stored value as a task record, or `undefined` when it is not shaped like one. */
 export function asTaskRecord(value: unknown, projectId: string): TaskRecord | undefined {
@@ -114,7 +227,7 @@ export function asTaskRecord(value: unknown, projectId: string): TaskRecord | un
       isCount(item['step']) &&
       (item['state'] === 'pending' || item['state'] === 'staged' || item['state'] === 'failed'),
   );
-  return stepsOk && itemsOk ? (value as unknown as TaskRecord) : undefined;
+  return stepsOk && itemsOk && reviewMetadataOk(value) ? (value as unknown as TaskRecord) : undefined;
 }
 
 /**
@@ -164,6 +277,7 @@ export function reviewOf(task: TaskRecord): TaskReview {
   const steps: PlanStep[] = [];
   let omitted = 0;
   for (const [index, step] of task.steps.entries()) {
+    if (step.tool === 'coherence.review') continue;
     const own = task.items.filter((item) => item.step === index);
     const staged = own.filter((item) => item.state === 'staged');
     if (own.length === 0 || staged.length === 0) {

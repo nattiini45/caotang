@@ -28,6 +28,8 @@ test('Fix with agent on a finding proposes a rewrite of its passage, and the tex
   await expect(intent).toBeEnabled();
   await intent.fill('Review the manuscript for contradictions.');
   await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.getByTestId('plan-offer').getByTestId('queued-review-details')).toBeVisible();
+  await page.getByTestId('plan-offer').getByRole('button', { name: 'Run now', exact: true }).click();
   await page.getByTestId('plan-card').getByRole('button', { name: 'Approve', exact: true }).click();
 
   await page.getByRole('tab', { name: 'Findings' }).click();

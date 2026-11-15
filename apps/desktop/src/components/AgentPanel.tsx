@@ -114,6 +114,9 @@ export interface AgentPanelProps {
   /** Opens Settings › Providers. Only the window gets it, and offers it under the demo's refusal (#363). */
   readonly onAddProvider?: () => void;
   readonly onOpenProviders?: () => void;
+  readonly onOpenTaskFindings?: (taskId: string, runId: string) => void | Promise<void>;
+  readonly inboxFocus?: { readonly taskId: string; readonly serial: number } | null;
+  readonly onInboxFocused?: () => void;
 }
 
 /**
@@ -162,6 +165,9 @@ export function AgentPanel({
   onClose,
   onAddProvider,
   onOpenProviders,
+  onOpenTaskFindings,
+  inboxFocus = null,
+  onInboxFocused,
 }: AgentPanelProps): ReactNode {
   const inWindow = placement === 'window';
   const sectionHeading = inWindow ? 3 : 4;
@@ -606,12 +612,12 @@ export function AgentPanel({
             headingLevel={sectionHeading}
           />
 
-          <BackgroundTasks agent={agent} tasks={agent.taskViews()} headingLevel={sectionHeading} />
+          <BackgroundTasks agent={agent} tasks={agent.taskViews()} headingLevel={sectionHeading} onOpenFindings={onOpenTaskFindings} focusTask={inboxFocus} onTaskFocused={onInboxFocused} />
 
           {/* In the window it is one line under the turns, its explanation shown with a task's form (#363, companion.css). */}
           <RecurringTasksPanel recurring={recurring} headingLevel={sectionHeading} />
 
-          {snapshot.offer !== null ? <PlanOfferCard agent={agent} view={snapshot.offer} /> : null}
+          {snapshot.offer !== null ? <PlanOfferCard agent={agent} view={snapshot.offer} onReturnFocus={() => intentRef.current?.focus()} /> : null}
 
           {sample && snapshot.turns.length === 0 ? (
             <div className="agent-demos" role="group" aria-label={t`Demo intents`}>
