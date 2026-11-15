@@ -104,7 +104,7 @@ describe('a costed review is offered below the draft threshold, including from s
 });
 
 describe('a review reads the request’s one-request choices in its preview and its run', () => {
-  async function runWith(overrides: { exclude: { kind: 'codex'; id: string }[] } | undefined, answer: 'now' | 'background') {
+  async function runWith(overrides: { exclude: { kind: 'codex'; id: string }[] } | undefined, answer: 'now' | 'background', turnOverrides?: { exclude: { kind: 'codex'; id: string }[] }) {
     const state = makeState();
     const elena = state.manifest.codex!.find((entry) => entry.name === 'Elena')!;
     elena.includePolicy = 'always';
@@ -149,7 +149,7 @@ describe('a review reads the request’s one-request choices in its preview and 
       maxModelCalls: 12,
     });
     const step: PlanStep = { tool: 'coherence.review', params: { scope: { mode: 'full' } }, expect: 'A coherence review', ...(overrides === undefined ? {} : { contextOverrides: overrides }) };
-    const report = await session.submitPlan('Review the manuscript.', { steps: [step] });
+    const report = await session.submitPlan('Review the manuscript.', { steps: [step] }, turnOverrides === undefined ? {} : { contextOverrides: turnOverrides });
     return { requests, offers, report };
   }
 
@@ -176,5 +176,17 @@ describe('a review reads the request’s one-request choices in its preview and 
     expect(included.offers[0]?.reviews?.[0]?.plan.promptPreview).toContain(elena.description);
     const excluded = await runWith({ exclude: [{ kind: 'codex', id: elena.id }] }, 'background');
     expect(excluded.offers[0]?.reviews?.[0]?.plan.promptPreview).not.toContain(elena.description);
+  });
+
+  it('a turn-level leave-out reaches the offer preview and the foreground run when the step carries none', async () => {
+    const state = makeState();
+    const elena = state.manifest.codex!.find((entry) => entry.name === 'Elena')!;
+    const turnOnly = await runWith(undefined, 'now', { exclude: [{ kind: 'codex', id: elena.id }] });
+    expect(turnOnly.requests.length).toBeGreaterThan(0);
+    for (const text of turnOnly.requests) expect(text).not.toContain(elena.description);
+
+    const offered = await runWith(undefined, 'background', { exclude: [{ kind: 'codex', id: elena.id }] });
+    expect(offered.offers[0]?.reviews?.[0]?.plan.promptPreview).not.toContain(elena.description);
+    expect(offered.offers[0]?.reviews?.[0]?.contextOverrides).toEqual({ exclude: [{ kind: 'codex', id: elena.id }] });
   });
 });

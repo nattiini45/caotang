@@ -31,7 +31,7 @@ import { recurredAfterFixedNote, upsertFindings, type UpsertDraft } from '../ups
 
 import { assembleFindings } from './assemble.js';
 import type { CoherenceModel, ModelReply, ModelUsage } from './port.js';
-import { blockFor, batchPairs, pairCount, pairSequence, type PairRef } from './pairs.js';
+import { blockFor, pairCount, pairSequence, type PairRef } from './pairs.js';
 import { pairLabelOf, parseExtraction, parseVerification, type ExtractedSpan, type ParsedVerdict } from './parse.js';
 import { PAIRS_PER_CALL, SPANS_PER_DOCUMENT, extractionPrompt, verificationPrompt, type PairBlock } from './prompts.js';
 
@@ -341,8 +341,11 @@ export function emptyReviewCheckpoint(): ReviewCheckpoint {
  * the spans still form, and its passages overlap that pair's own spans as at parse time. The store's shape check says a record is
  * shaped like a checkpoint; this says its evidence is still the approved work. A checkpoint that fails is not resumed: its progress
  * is dropped and the review starts again within the remaining call bound, keeping the checkpoint's token totals and notes.
+ *
+ * The pair walk streams with the host's yield hook, as the verification preparation does, so a large resumed review stays
+ * cancellable while its evidence is checked; only the pairs a verdict names are kept.
  */
-export function reviewCheckpointEvidenceOk(plan: ReviewExecutionPlan, bodies: ReadonlyMap<string, string>, checkpoint: ReviewCheckpoint): boolean {
+export async function reviewCheckpointEvidenceOk(plan: ReviewExecutionPlan, bodies: ReadonlyMap<string, string>, checkpoint: ReviewCheckpoint, yieldToHost?: () => Promise<void>): Promise<boolean> {
   const scope = new Set(plan.scopeDocIds);
   const categories = new Set<string>(plan.categories);
   if (!checkpoint.extractedDocIds.every((id) => scope.has(id)) || !checkpoint.evaluated.every((id) => scope.has(id))) return false;
@@ -350,15 +353,31 @@ export function reviewCheckpointEvidenceOk(plan: ReviewExecutionPlan, bodies: Re
     const body = bodies.get(docId);
     return body !== undefined && quote !== '' && body.slice(from, to) === quote;
   };
+  const spanCount = new Map<string, number>();
   for (const span of checkpoint.spans) {
     if (!scope.has(span.docId) || !categories.has(span.category) || !verbatim(span.docId, span.quote, span.from, span.to)) return false;
+    const count = (spanCount.get(span.docId) ?? 0) + 1;
+    if (count > SPANS_PER_DOCUMENT) return false;
+    spanCount.set(span.docId, count);
   }
-  const pairs = new Map([...pairSequence(checkpoint.spans, plan.categories)].map((pair) => [pair.pairId, pair] as const));
-  if (checkpoint.verifiedBatches > batchPairs([...pairs.values()]).length) return false;
+  const named = new Set(checkpoint.verdicts.map((verdict) => verdict.pairId));
+  const captured = new Map<string, PairRef>();
+  let pairs = 0;
+  let sinceYield = 0;
+  for (const pair of pairSequence(checkpoint.spans, plan.categories)) {
+    pairs += 1;
+    if (named.has(pair.pairId)) captured.set(pair.pairId, pair);
+    sinceYield += 1;
+    if (yieldToHost !== undefined && sinceYield >= REVIEW_YIELD_EVERY) {
+      sinceYield = 0;
+      await yieldToHost();
+    }
+  }
+  if (checkpoint.verifiedBatches > Math.ceil(pairs / PAIRS_PER_CALL)) return false;
   const overlaps = (passage: { docId: string; from: number; to: number }, span: ExtractedSpan): boolean =>
     passage.docId === span.docId && passage.from < span.to && span.from < passage.to;
   for (const verdict of checkpoint.verdicts) {
-    const pair = pairs.get(verdict.pairId);
+    const pair = captured.get(verdict.pairId);
     if (pair === undefined) return false;
     if (verdict.evidence === undefined) continue;
     if (verdict.evidence.length !== 2) return false;
@@ -392,7 +411,7 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
     } else scenes.push(scene);
   }
   const bodies = new Map<string, string>(scenes.map((scene) => [scene.docId, focusBody(scene.body).text] as const));
-  const usable = resume !== undefined && reviewCheckpointEvidenceOk(plan, bodies, resume) ? resume : undefined;
+  const usable = resume !== undefined && (await reviewCheckpointEvidenceOk(plan, bodies, resume, options.yieldToHost)) ? resume : undefined;
   if (resume !== undefined && usable === undefined) notes.push('the saved checkpoint did not match the approved documents; the review started again within its remaining limit');
 
   let status: 'complete' | 'partial' = usable?.status ?? 'complete';

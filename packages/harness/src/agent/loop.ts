@@ -2340,7 +2340,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // The review's plan, staged with no model call (coherence.md §7 tool 16): the card shows its documents, its cost estimate
       // and its first prompt, and the review runs only after the writer approves that card (`runAwaited`). The cost is the
       // active model's price applied to the plan (cards.ts `reviewCostAt`, which the Findings tab reads too); an unpriced model adds nothing to the proposal.
-      const planned = harness.reviewPlan(step.params, step.contextOverrides);
+      const planned = harness.reviewPlan(step.params, step.contextOverrides ?? turn.contextOverrides);
       if (!planned.ok) return refusedDraft(planned.error.message);
       const cost = reviewCostAt(planned.value, gateway, turn.pins.profileId, turn.pins.model, turn.pins.thinking);
       return { ok: true, proposal: cost === undefined ? planned.value : { ...planned.value, cost } };
@@ -3635,10 +3635,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (ask === undefined || turn.tainted || harness.loadedSkills(turn.id).length > 0) return undefined;
     const reviews = plan.steps.map((step, index): PlanOfferReview | undefined => {
       if (step.tool !== 'coherence.review' || options.reviewOffer === undefined) return undefined;
-      const planned = harness.reviewPlan(step.params, step.contextOverrides);
+      const overrides = step.contextOverrides ?? turn.contextOverrides;
+      const planned = harness.reviewPlan(step.params, overrides);
       if (!planned.ok) return undefined;
-      const preview = options.reviewOffer(step, planned.value);
-      return preview === undefined ? undefined : { ...preview, stepIndex: index, ...(step.contextOverrides === undefined ? {} : { contextOverrides: structuredClone(step.contextOverrides) }) };
+      const preview = options.reviewOffer({ ...step, ...(overrides === undefined ? {} : { contextOverrides: overrides }) }, planned.value);
+      return preview === undefined ? undefined : { ...preview, stepIndex: index, ...(overrides === undefined ? {} : { contextOverrides: structuredClone(overrides) }) };
     });
     const bounds = reviews.map((review) => review?.callBound);
     if (!backgroundEligibility(plan.steps, bounds).eligible) return undefined;

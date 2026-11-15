@@ -118,7 +118,7 @@ import {
   type TurnReport,
   type SubmitOptions as SessionSubmitOptions,
 } from '@caotang/harness';
-import { computeReview, emptyCoherenceFile, emptyReviewCheckpoint, planReview, publishReview, reviewExecutionPlanOf, type ReviewCheckpoint, type ReviewComputed, type ReviewExecutionPlan, type ReviewPlan } from '@caotang/coherence';
+import { computeReview, emptyCoherenceFile, emptyReviewCheckpoint, planReview, publishReview, reviewExecutionPlanOf, type CoherenceRun, type ReviewCheckpoint, type ReviewComputed, type ReviewExecutionPlan, type ReviewPlan } from '@caotang/coherence';
 import { createMcpTransport } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
 import { createRunLogPort, getRevision, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot, readAgentSessions, saveAgentSession, settleAgentSessionTurn, removeAgentSession, pruneAgentSessions, agentSessionReferences, type AgentSessionRow, type AgentSessionTurnRef, type SessionSummary } from '@caotang/store';
@@ -143,6 +143,7 @@ import { freezeDeep, reviewCallCap, type QueuedReviewApproval, type QueuedReview
 import type { ReviewChoice } from './coherence-review.js';
 import type * as LazyHarness from './lazy-harness.js';
 import { uiLocale } from '../i18n/format-locale.js';
+import { isolate } from '@caotang/i18n';
 import { contextNote, helpNote, restoreTarget, type CommandNote, type LineOutcome } from './slash-model.js';
 import { commandArguments, expandSkillCommand, projectCommands, type ProjectCommand } from './project-commands.js';
 import { currentEditorCaret } from './editor-selection.js';
@@ -2579,11 +2580,11 @@ export class AgentController {
     const lines: string[] = [];
     for (const id of withheld) {
       const node = tree.find((candidate) => candidate.id === id);
-      if (node !== undefined) lines.push(t`Withheld by a read rule: ${{ title: node.title }}`);
+      if (node !== undefined) lines.push(t`Withheld by a read rule: ${{ title: isolate(node.title) }}`);
     }
     for (const doc of plan.documents) {
-      for (const key of doc.codexDropped) lines.push(t`Left out of ${{ title: doc.title }} to fit the budget: ${{ key }}`);
-      for (const key of doc.storyDropped) lines.push(t`Left out of ${{ title: doc.title }} to fit the budget: ${{ key }}`);
+      for (const key of doc.codexDropped) lines.push(t`Left out of ${{ title: isolate(doc.title) }} to fit the budget: ${{ key: isolate(key) }}`);
+      for (const key of doc.storyDropped) lines.push(t`Left out of ${{ title: isolate(doc.title) }} to fit the budget: ${{ key: isolate(key) }}`);
     }
     return [...new Set(lines)];
   }
@@ -2682,7 +2683,7 @@ export class AgentController {
       params: { scope: { mode: 'doc', docIds: [...approval.scopeDocIds] }, categories: [...approval.categories], maxFindings: approval.maxFindings },
       expect: t`A coherence review`,
     };
-    const scope = approval.plan.documents.map((doc) => doc.title).join(', ');
+    const scope = approval.plan.documents.map((doc) => isolate(doc.title)).join(', ');
     return this.tasks.enqueue(t`Coherence review: ${{ scope }}`, [step], approval.contextOverrides, approval, signal);
   }
 
@@ -2739,6 +2740,17 @@ export class AgentController {
     });
   }
 
+  private reviewReportOf(run: CoherenceRun, plan: ReviewExecutionPlan, approval: QueuedReviewApproval, usage: TaskReviewReport['usage']): TaskReviewReport {
+    return {
+      runId: run.id,
+      outcome: run.status === 'partial' ? 'partial' : 'complete',
+      findingsCount: run.findingsUpserted.length,
+      scopeTitles: plan.documents.map((doc) => doc.title),
+      routeLabel: approval.route.label,
+      usage,
+    };
+  }
+
   private async reviewRunnerFor(task: TaskRecord, sessionId: string): Promise<TaskReviewRunner | string> {
     const approval = task.review;
     if (approval === undefined) return t`This task has no review approval.`;
@@ -2757,14 +2769,7 @@ export class AgentController {
         const usage = checkpoint !== undefined && typeof checkpoint.modelCalls === 'number' && checkpoint.usageSource !== undefined
           ? { modelCalls: checkpoint.modelCalls, source: checkpoint.usageSource }
           : { modelCalls: 0, source: 'unknown' as const };
-        const report: TaskReviewReport = {
-          runId: existingRun.id,
-          outcome: existingRun.status === 'partial' ? 'partial' : 'complete',
-          findingsCount: existingRun.findingsUpserted.length,
-          scopeTitles: plan.documents.map((doc) => doc.title),
-          routeLabel: approval.route.label,
-          usage: { modelCalls: usage.modelCalls, promptTokens: existingRun.tokens?.promptTokens ?? 0, completionTokens: existingRun.tokens?.completionTokens ?? 0, source: usage.source },
-        };
+        const report = this.reviewReportOf(existingRun, plan, approval, { modelCalls: usage.modelCalls, promptTokens: existingRun.tokens?.promptTokens ?? 0, completionTokens: existingRun.tokens?.completionTokens ?? 0, source: usage.source });
         return { status: report.outcome, report };
       }
       const total = reviewCallCap(approval.callBound);
@@ -2836,14 +2841,7 @@ export class AgentController {
       this.session.applyCoherenceFile(result.file);
       await this.session.saved();
       const usage = accounting();
-      const report: TaskReviewReport = {
-        runId: result.run.id,
-        outcome: result.status,
-        findingsCount: result.run.findingsUpserted.length,
-        scopeTitles: plan.documents.map((doc) => doc.title),
-        routeLabel: approval.route.label,
-        usage: { modelCalls: usage.modelCalls, promptTokens: computed.promptTokens, completionTokens: computed.completionTokens, source: usage.source },
-      };
+      const report = this.reviewReportOf(result.run, plan, approval, { modelCalls: usage.modelCalls, promptTokens: computed.promptTokens, completionTokens: computed.completionTokens, source: usage.source });
       return { status: result.status, report };
     };
   }

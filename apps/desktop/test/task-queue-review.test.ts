@@ -245,6 +245,58 @@ describe('a queued coherence review', () => {
     expect(held.file.runs).toHaveLength(1);
   });
 
+  it('a mixed plan keeps its drafting tokens beside the review checkpoint totals', async () => {
+    const state = twoDocs();
+    const model = reviewing();
+    const held = { file: emptyCoherenceFile() };
+    const { queue, rows } = setup(state, model, held);
+    await queue.open();
+    const queued = await queue.enqueue('Draft and review.', [draftStep, reviewStep], undefined, approvalFor(state));
+    expect(queued.ok).toBe(true);
+    await queue.idle();
+    const task = queue.snapshot()[0];
+    expect(task?.status).toBe('ready');
+    expect(task?.promptTokens).toBe(310);
+    expect(task?.completionTokens).toBe(65);
+    const stored = rows.get(`task:${PROJECT}:task_TEST000001`) as TaskRecord;
+    expect(stored.promptTokens).toBe(310);
+    expect(stored.completionTokens).toBe(65);
+    expect(stored.reviewCheckpoint?.promptTokens).toBe(300);
+    expect(stored.reviewCheckpoint?.completionTokens).toBe(60);
+  });
+
+  it('a mixed plan resume keeps the drafting baseline once', async () => {
+    const state = twoDocs();
+    const held = { file: emptyCoherenceFile() };
+    const { queue, rows, reopen } = setup(state, reviewing(), held);
+    await queue.open();
+    await queue.enqueue('Draft and review.', [draftStep, reviewStep], undefined, approvalFor(state));
+    await queue.idle();
+    const key = `task:${PROJECT}:task_TEST000001`;
+    const stored = rows.get(key) as TaskRecord;
+    const cp = stored.reviewCheckpoint!;
+    const firstDoc = cp.extractedDocIds[0]!;
+    rows.set(key, {
+      ...stored,
+      status: 'interrupted',
+      items: stored.items.map((item) => (item.step === 1 ? { ...item, state: 'pending' as const } : item)),
+      used: 2,
+      report: undefined,
+      promptTokens: 110,
+      completionTokens: 25,
+      reviewCheckpoint: { ...cp, extractedDocIds: [firstDoc], spans: cp.spans.filter((span) => span.docId === firstDoc), verifiedBatches: 0, verdicts: [], usageByPair: {}, evaluated: [firstDoc], promptTokens: 100, completionTokens: 20 },
+    });
+    const queue2 = reopen(reviewing());
+    await queue2.open();
+    await queue2.resume('task_TEST000001');
+    await queue2.idle();
+    const task = queue2.snapshot()[0];
+    expect(task?.status).toBe('ready');
+    expect(task?.promptTokens).toBe(310);
+    expect(task?.completionTokens).toBe(65);
+    expect(task?.used).toBe(4);
+  });
+
   it('a failed provider call yields an explicit partial report, not a completion', async () => {
     const state = twoDocs();
     const model = fakeModel((request) => {

@@ -443,6 +443,10 @@ export class TaskQueue {
       await this.updateItem(id, key, { state: 'failed', error: runner });
       return true;
     }
+    // The checkpoint's tokens cover the review alone; the task's totals also hold any drafting staged before it.
+    // On resume the stored totals already include the checkpoint's earlier review tokens, so subtract them once.
+    const basePrompt = Math.max(0, task.promptTokens - (task.reviewCheckpoint?.promptTokens ?? 0));
+    const baseCompletion = Math.max(0, task.completionTokens - (task.reviewCheckpoint?.completionTokens ?? 0));
     const host: TaskReviewHost = {
       signal,
       reserve: async () => {
@@ -456,7 +460,7 @@ export class TaskQueue {
         if (signal.aborted || this.closed) throw new Error(t`The project closed before the review could continue.`);
       },
       checkpoint: async (checkpoint) => {
-        await this.updateStrict(id, { reviewCheckpoint: checkpoint, promptTokens: checkpoint.promptTokens, completionTokens: checkpoint.completionTokens });
+        await this.updateStrict(id, { reviewCheckpoint: checkpoint, promptTokens: basePrompt + checkpoint.promptTokens, completionTokens: baseCompletion + checkpoint.completionTokens });
       },
       phase: async (phase, done, totalCalls) => {
         await this.updateStrict(id, { reviewPhase: phase, reviewProgress: { done, total: totalCalls } });

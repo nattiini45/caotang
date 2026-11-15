@@ -147,8 +147,8 @@ describe('resume revalidates the checkpoint evidence', () => {
   it('accepts the evidence a run produced', async () => {
     const { plan, checkpoints } = await firstExtraction();
     const bodies = new Map([['sA', 'Elena is thirty-four.'], ['sB', 'Elena is forty-one.']]);
-    for (const checkpoint of checkpoints) expect(reviewCheckpointEvidenceOk(plan, bodies, checkpoint)).toBe(true);
-    expect(reviewCheckpointEvidenceOk(plan, bodies, emptyReviewCheckpoint())).toBe(true);
+    for (const checkpoint of checkpoints) expect(await reviewCheckpointEvidenceOk(plan, bodies, checkpoint)).toBe(true);
+    expect(await reviewCheckpointEvidenceOk(plan, bodies, emptyReviewCheckpoint())).toBe(true);
   });
 
   it('a span quote that no longer matches restarts the review, keeping the accounted tokens and notes', async () => {
@@ -169,12 +169,12 @@ describe('resume revalidates the checkpoint evidence', () => {
     const final = checkpoints[2]!;
     const unknownPair = { ...final, verdicts: final.verdicts.map((verdict) => ({ ...verdict, pairId: 'p999' })) };
     const bodies = new Map([['sA', 'Elena is thirty-four.'], ['sB', 'Elena is forty-one.']]);
-    expect(reviewCheckpointEvidenceOk(plan, bodies, unknownPair)).toBe(false);
+    expect(await reviewCheckpointEvidenceOk(plan, bodies, unknownPair)).toBe(false);
     const forgedEvidence = {
       ...final,
       verdicts: final.verdicts.map((verdict) => ({ ...verdict, evidence: [{ docId: 'sA', quote: 'a forged passage', from: 0, to: 16 }] })),
     };
-    expect(reviewCheckpointEvidenceOk(plan, bodies, forgedEvidence)).toBe(false);
+    expect(await reviewCheckpointEvidenceOk(plan, bodies, forgedEvidence)).toBe(false);
     const model = reviewing();
     const again = await computeReview(state, emptyCoherenceFile(), plan, { model, approved: true, resumeFrom: unknownPair });
     expect(model.calls).toHaveLength(3);
@@ -186,14 +186,54 @@ describe('resume revalidates the checkpoint evidence', () => {
     const bodies = new Map([['sA', 'Elena is thirty-four.'], ['sB', 'Elena is forty-one.']]);
     const final = checkpoints[2]!;
     const outsider = { ...final, spans: [...final.spans, { docId: 'sX', from: 0, to: 1, quote: 'E', category: 'characterization' as const, note: '' }] };
-    expect(reviewCheckpointEvidenceOk(plan, bodies, outsider)).toBe(false);
+    expect(await reviewCheckpointEvidenceOk(plan, bodies, outsider)).toBe(false);
     const narrow = { ...plan, categories: ['characterization'] as const };
     const wrongCategory = { ...final, spans: final.spans.map((span) => ({ ...span, category: 'factual' as const })) };
-    expect(reviewCheckpointEvidenceOk(narrow, bodies, wrongCategory)).toBe(false);
+    expect(await reviewCheckpointEvidenceOk(narrow, bodies, wrongCategory)).toBe(false);
     const overCounted = { ...final, verifiedBatches: final.verifiedBatches + 1 };
-    expect(reviewCheckpointEvidenceOk(plan, bodies, overCounted)).toBe(false);
+    expect(await reviewCheckpointEvidenceOk(plan, bodies, overCounted)).toBe(false);
     const outOfScope = { ...final, extractedDocIds: [...final.extractedDocIds, 'sX'] };
-    expect(reviewCheckpointEvidenceOk(plan, bodies, outOfScope)).toBe(false);
+    expect(await reviewCheckpointEvidenceOk(plan, bodies, outOfScope)).toBe(false);
+  });
+
+  it('a large checkpoint validation yields to the host and a cancel there stops the resume before any model call', async () => {
+    const scenes = [0, 1, 2, 3].map((d) => {
+      const quotes = Array.from({ length: 17 }, (_, i) => `Fact ${d}-${i}.`);
+      let at = 0;
+      const spans = quotes.map((quote) => {
+        const from = at;
+        at += quote.length + 1;
+        return { docId: `s${d}`, from, to: from + quote.length, quote, category: 'characterization' as const, note: '' };
+      });
+      return { id: `s${d}`, title: `Doc ${d}`, body: quotes.join(' '), spans };
+    });
+    const state = buildState({ scenes: scenes.map(({ id, title, body }) => ({ id, title, body })), entries: [] });
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const checkpoint: ReviewCheckpoint = {
+      extractedDocIds: scenes.map((scene) => scene.id),
+      spans: scenes.flatMap((scene) => scene.spans),
+      verifiedBatches: 0,
+      verdicts: [],
+      usageByPair: {},
+      promptTokens: 400,
+      completionTokens: 80,
+      notes: [],
+      status: 'partial',
+      evaluated: scenes.map((scene) => scene.id),
+    };
+    const bodies = new Map(scenes.map((scene) => [scene.id, scene.body] as const));
+    let yields = 0;
+    expect(await reviewCheckpointEvidenceOk(plan, bodies, checkpoint, async () => { yields += 1; })).toBe(true);
+    expect(yields).toBeGreaterThan(0);
+
+    const model = reviewing();
+    await expect(computeReview(state, emptyCoherenceFile(), plan, {
+      model,
+      approved: true,
+      resumeFrom: checkpoint,
+      yieldToHost: async () => { throw new Error('cancelled while the checkpoint was checked'); },
+    })).rejects.toThrow('cancelled while the checkpoint was checked');
+    expect(model.calls).toHaveLength(0);
   });
 });
 
