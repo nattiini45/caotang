@@ -290,3 +290,177 @@ describe('publishReview merges into the current file', () => {
     expect(partialPublished.file.reviewState).toEqual({});
   });
 });
+
+describe('a resume recomposes the pairs the new spans form', () => {
+  const threeDocs = () =>
+    buildState({
+      scenes: [
+        { id: 'sA', title: 'First', body: 'Elena is thirty-four.' },
+        { id: 'sB', title: 'Second', body: 'Elena is forty-one.' },
+        { id: 'sC', title: 'Third', body: 'Elena is thirty-four.' },
+      ],
+      entries: [entry(ELENA, 'Elena')],
+    });
+
+  function extractingExcept(failDocId: string, reasoning: string): CoherenceModel & { calls: ModelRequest[] } {
+    return fake((request) => {
+      if (request.system.includes('continuity extractor')) {
+        const docId = docIdOf(request.user);
+        if (docId === failDocId) return new Error('provider down');
+        const body = bodyOf(request.user);
+        return extraction(body, docId, [{ quote: body, category: 'characterization' }]);
+      }
+      const pairIds = [...request.user.matchAll(/\[pair (p\d+)\]/g)].map((m) => m[1]);
+      return JSON.stringify({
+        verdicts: pairIds.map((pairId) => ({ pairId, verdict: 'contradictory', reasoning, factGroup: { entity: 'Elena', attribute: 'age' } })),
+      });
+    });
+  }
+
+  async function stoppedBefore(failDocId: string, state: ReturnType<typeof threeDocs>) {
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const checkpoints: ReviewCheckpoint[] = [];
+    const model = extractingExcept(failDocId, 'first pass age differs');
+    const computed = await computeReview(state, emptyCoherenceFile(), plan, {
+      model,
+      approved: true,
+      onCheckpoint: (checkpoint) => { checkpoints.push(structuredClone(checkpoint)); },
+    });
+    expect(computed.status).toBe('partial');
+    return { plan, checkpoint: checkpoints.at(-1)! };
+  }
+
+  it('verifies the pairs the resumed extraction adds, even when they fill a batch the checkpoint already counted', async () => {
+    const state = threeDocs();
+    const { plan, checkpoint } = await stoppedBefore('sC', state);
+    expect(checkpoint.verifiedBatches).toBe(1);
+    expect(checkpoint.extractedDocIds).toEqual(['sA', 'sB']);
+
+    const resumed = extractingExcept('none', 'second pass age differs');
+    const again = await computeReview(state, emptyCoherenceFile(), plan, { model: resumed, approved: true, resumeFrom: checkpoint });
+    expect(resumed.calls).toHaveLength(2);
+    expect(resumed.calls[1]?.user).toContain('[pair p2]');
+    expect(resumed.calls[1]?.user).toContain('[pair p3]');
+    expect(again.status).toBe('complete');
+    expect(again.drafts).toHaveLength(3);
+  });
+
+  it('carries a verdict to the pair its spans still form after the renumbering', async () => {
+    const state = buildState({
+      scenes: [
+        { id: 'sB', title: 'Second', body: 'Elena is forty-one.' },
+        { id: 'sC', title: 'Third', body: 'Elena is thirty-four.' },
+        { id: 'sA', title: 'First', body: 'Elena is twenty-two.' },
+      ],
+      entries: [entry(ELENA, 'Elena')],
+    });
+    const { plan, checkpoint } = await stoppedBefore('sA', state);
+    expect(checkpoint.verdicts.map((verdict) => verdict.pairId)).toEqual(['p1']);
+
+    const resumed = extractingExcept('none', 'second pass age differs');
+    const again = await computeReview(state, emptyCoherenceFile(), plan, { model: resumed, approved: true, resumeFrom: checkpoint });
+    const carried = again.drafts.find((draft) => draft.reasoning === 'first pass age differs');
+    expect(carried?.evidence.map((passage) => passage.docId)).toEqual(['sB', 'sC']);
+    expect(again.drafts).toHaveLength(3);
+    expect(again.status).toBe('complete');
+  });
+
+  it('a checkpoint taken mid-resume names its verdicts in the composition it carries', async () => {
+    const state = buildState({
+      scenes: [
+        { id: 'sB', title: 'Second', body: 'Elena is forty-one.' },
+        { id: 'sC', title: 'Third', body: 'Elena is thirty-four.' },
+        { id: 'sA', title: 'First', body: 'Elena is twenty-two.' },
+      ],
+      entries: [entry(ELENA, 'Elena')],
+    });
+    const { plan, checkpoint } = await stoppedBefore('sA', state);
+    const checkpoints: ReviewCheckpoint[] = [];
+    const resumed = extractingExcept('none', 'second pass age differs');
+    await computeReview(state, emptyCoherenceFile(), plan, {
+      model: resumed,
+      approved: true,
+      resumeFrom: checkpoint,
+      onCheckpoint: (next) => { checkpoints.push(structuredClone(next)); },
+    });
+    const bodies = new Map([['sA', 'Elena is twenty-two.'], ['sB', 'Elena is forty-one.'], ['sC', 'Elena is thirty-four.']]);
+    for (const next of checkpoints) expect(await reviewCheckpointEvidenceOk(plan, bodies, next)).toBe(true);
+  });
+});
+
+describe('a resume that finishes the missing work completes', () => {
+  it('a provider stop no longer holds the recovered run partial', async () => {
+    const state = twoDocs();
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const checkpoints: ReviewCheckpoint[] = [];
+    const malformed = fake((request) => {
+      if (request.system.includes('continuity extractor')) {
+        const docId = docIdOf(request.user);
+        if (docId === 'sB') return 'not json at all';
+        const body = bodyOf(request.user);
+        return extraction(body, docId, [{ quote: body, category: 'characterization' }]);
+      }
+      return JSON.stringify({ verdicts: [] });
+    });
+    const stopped = await computeReview(state, emptyCoherenceFile(), plan, {
+      model: malformed,
+      approved: true,
+      onCheckpoint: (checkpoint) => { checkpoints.push(structuredClone(checkpoint)); },
+    });
+    expect(stopped.status).toBe('partial');
+    expect(checkpoints.at(-1)?.status).toBe('partial');
+
+    const resumed = reviewing();
+    const again = await computeReview(state, emptyCoherenceFile(), plan, { model: resumed, approved: true, resumeFrom: checkpoints.at(-1)! });
+    expect(resumed.calls[0]?.user).toContain('docId: sB');
+    expect(again.status).toBe('complete');
+    expect(again.drafts).toHaveLength(1);
+    const published = publishReview(emptyCoherenceFile(), again, { now: NOW, runId: 'r_RECOVER001' });
+    expect(published.status).toBe('complete');
+    expect(Object.keys(published.file.reviewState)).toEqual(['sA', 'sB']);
+  });
+
+  it('an unusable verification batch is retried by the resume, not counted as verified', async () => {
+    const scenes = [0, 1].map((d) => {
+      const quotes = Array.from({ length: 5 }, (_, i) => `Fact ${d}-${i}.`);
+      let at = 0;
+      const spans = quotes.map((quote) => {
+        const from = at;
+        at += quote.length + 1;
+        return { docId: `s${d}`, from, to: from + quote.length, quote, category: 'characterization' as const, note: '' };
+      });
+      return { id: `s${d}`, title: `Doc ${d}`, body: quotes.join(' '), spans };
+    });
+    const state = buildState({ scenes: scenes.map(({ id, title, body }) => ({ id, title, body })), entries: [] });
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const checkpoints: ReviewCheckpoint[] = [];
+    let verificationCalls = 0;
+    const malformed = fake((request) => {
+      if (request.system.includes('continuity extractor')) {
+        const docId = docIdOf(request.user);
+        const scene = scenes.find((candidate) => candidate.id === docId)!;
+        return JSON.stringify({ spans: scene.spans });
+      }
+      verificationCalls += 1;
+      return verificationCalls === 1 ? 'not json at all' : JSON.stringify({ verdicts: [] });
+    });
+    const stopped = await computeReview(state, emptyCoherenceFile(), plan, {
+      model: malformed,
+      approved: true,
+      onCheckpoint: (checkpoint) => { checkpoints.push(structuredClone(checkpoint)); },
+    });
+    expect(stopped.status).toBe('partial');
+    expect(stopped.notes.some((note) => note.includes('a verification batch was unusable'))).toBe(true);
+    expect(checkpoints.at(-1)?.verifiedBatches).toBe(0);
+
+    const resumed = fake((request) => {
+      if (request.system.includes('continuity extractor')) throw new Error('extraction must not run again');
+      const pairIds = [...request.user.matchAll(/\[pair (p\d+)\]/g)].map((m) => m[1]);
+      return JSON.stringify({ verdicts: pairIds.map((pairId) => ({ pairId, verdict: 'consistent', reasoning: 'no conflict', factGroup: { entity: 'Elena', attribute: 'age' } })) });
+    });
+    const again = await computeReview(state, emptyCoherenceFile(), plan, { model: resumed, approved: true, resumeFrom: checkpoints.at(-1)! });
+    expect(resumed.calls).toHaveLength(5);
+    expect(resumed.calls[0]?.user).toContain('[pair p1]');
+    expect(again.status).toBe('complete');
+  });
+});
