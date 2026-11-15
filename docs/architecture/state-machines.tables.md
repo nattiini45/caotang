@@ -699,13 +699,14 @@ Initial: `running`. Final: none.
 
 ## task.status
 
-Initial: `queued`. Final: `applied`, `cancelled`, `failed`.
+Initial: `queued`. Final: `applied`, `cancelled`, `completed`, `failed`.
 
 | State | Event | Targets |
 | --- | --- | --- |
 | `applied` | — | — |
 | `cancelled` | — | — |
 | `cancelling` | `settle` | `cancelled` |
+| `completed` | — | — |
 | `failed` | — | — |
 | `interrupted` | `cancel` | `cancelling` |
 | `interrupted` | `resume` | `queued` |
@@ -717,12 +718,14 @@ Initial: `queued`. Final: `applied`, `cancelled`, `failed`.
 | `ready` | `apply` | `applied` |
 | `running` | `cancel` | `cancelling` |
 | `running` | `close` | `interrupted` |
+| `running` | `complete` | `completed` |
 | `running` | `fail` | `failed` |
 | `running` | `ready` | `ready` |
 | `running` | `reload` | `interrupted` |
 | `starting` | `agent-ready` | `running` |
 | `starting` | `cancel` | `cancelling` |
 | `starting` | `close` | `interrupted` |
+| `starting` | `complete` | `completed` |
 | `starting` | `fail` | `failed` |
 | `starting` | `ready` | `ready` |
 
