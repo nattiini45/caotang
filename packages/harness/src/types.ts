@@ -32,7 +32,7 @@ import type {
 } from '@caotang/bus';
 import type { WireProgress } from '@caotang/mcp-client';
 import type { ProjectState } from '@caotang/store';
-import type { RecentTurn } from '@caotang/context';
+import type { ContextOverrides, RecentTurn } from '@caotang/context';
 
 import type { ToolMetadata } from './metadata.js';
 import type { JsonSchema, ObjectSpec } from './schema.js';
@@ -164,6 +164,8 @@ export interface PortContext {
   readonly signal?: AbortSignal;
   /** The binder nodes a read-deny keeps from this tool, as `PrepareContext.withheld`. */
   readonly withheld?: ReadonlySet<string>;
+  /** The step's one-request context choices, as `TurnContext.contextOverrides`. A port that reads its own context layers applies them. */
+  readonly contextOverrides?: ContextOverrides;
   /**
    * Records that the port changed held state outside the bus (an appender side-effect, coherence.md §7). A
    * port that did so reports it, and the runtime then caches its answer by callId, so a replay of the same
@@ -289,6 +291,8 @@ export interface TurnContext {
    * read while it is present, behind the runner's own filter. Display and attribution otherwise; it grants nothing.
    */
   readonly agentPath?: string;
+  /** The step's one-request context choices (context-assembly §"One-request choices"), as the plan carries them. A port that reads its own context layers applies them; they grant no read a rule withholds. */
+  readonly contextOverrides?: ContextOverrides;
 }
 
 /** One tool call. `callId` is required: it is the idempotency key for a replay (command-bus §6). */

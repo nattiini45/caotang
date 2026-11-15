@@ -102,3 +102,79 @@ describe('a costed review is offered below the draft threshold, including from s
     expect(draftOnly.offers).toHaveLength(0);
   });
 });
+
+describe('a review reads the request’s one-request choices in its preview and its run', () => {
+  async function runWith(overrides: { exclude: { kind: 'codex'; id: string }[] } | undefined, answer: 'now' | 'background') {
+    const state = makeState();
+    const elena = state.manifest.codex!.find((entry) => entry.name === 'Elena')!;
+    elena.includePolicy = 'always';
+    const requests: string[] = [];
+    const harness = createHarness({
+      state,
+      ports: createAgentPorts(),
+      coherence: {
+        model: () => ({
+          model: 'fake',
+          complete: async (request) => {
+            requests.push(request.system + request.user);
+            return { content: '{"spans":[]}', usage: { promptTokens: 1, completionTokens: 1 } };
+          },
+        }),
+        review: reviewContextOf,
+      },
+    });
+    const gateway = await mockGateway([]);
+    const offers: PlanOffer[] = [];
+    const reviewOffer = (_step: PlanStep, plan: ReviewPlan): PlanOfferReview => ({
+      stepIndex: 0,
+      plan,
+      callBound: { extractCalls: plan.estimate.extractCalls, verifyCallsAtMost: plan.estimate.verifyCallsAtMost },
+      route: { profileId: 'p_MOCK000001', model: 'fake', label: 'Mock, fake' },
+      scopeDocIds: plan.scopeDocIds,
+      categories: plan.categories,
+      maxFindings: plan.maxFindings,
+      fingerprint: 'fp',
+      cost: undefined,
+      costUnknownReason: 'no price',
+      scopeTitles: plan.documents.map((doc) => doc.title),
+      exclusions: [],
+    });
+    const session = createAgentSession({
+      harness,
+      gateway,
+      context: createContextPort({ state: harness.state }),
+      decide: async () => ({ action: 'approve' }),
+      beforeStage: async (value) => { offers.push(value); return answer; },
+      reviewOffer,
+      maxModelCalls: 12,
+    });
+    const step: PlanStep = { tool: 'coherence.review', params: { scope: { mode: 'full' } }, expect: 'A coherence review', ...(overrides === undefined ? {} : { contextOverrides: overrides }) };
+    const report = await session.submitPlan('Review the manuscript.', { steps: [step] });
+    return { requests, offers, report };
+  }
+
+  it('a request-excluded codex entry is absent from the offer preview and from the foreground run', async () => {
+    const state = makeState();
+    const elena = state.manifest.codex!.find((entry) => entry.name === 'Elena')!;
+    const description = elena.description;
+    expect(description.length).toBeGreaterThan(0);
+
+    const included = await runWith(undefined, 'now');
+    expect(included.requests.length).toBeGreaterThan(0);
+    expect(included.requests.some((text) => text.includes(description))).toBe(true);
+
+    const excluded = await runWith({ exclude: [{ kind: 'codex', id: elena.id }] }, 'now');
+    expect(excluded.requests.length).toBeGreaterThan(0);
+    for (const text of excluded.requests) expect(text).not.toContain(description);
+    expect(excluded.report.status).not.toBe('failed');
+  });
+
+  it('the offer preview reads the same effective context as the queued run', async () => {
+    const state = makeState();
+    const elena = state.manifest.codex!.find((entry) => entry.name === 'Elena')!;
+    const included = await runWith(undefined, 'background');
+    expect(included.offers[0]?.reviews?.[0]?.plan.promptPreview).toContain(elena.description);
+    const excluded = await runWith({ exclude: [{ kind: 'codex', id: elena.id }] }, 'background');
+    expect(excluded.offers[0]?.reviews?.[0]?.plan.promptPreview).not.toContain(elena.description);
+  });
+});

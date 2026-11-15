@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore, type ChatChunk } from '@caotang/gateway';
 import { COMPACTION_PREFIX, createMockProvider, isDraftCall, isPlannerCall, userTextOf, type MockScript } from '@caotang/gateway/mock';
-import { RUN_LOG_VERSION, type PlanStep } from '@caotang/harness';
+import { RUN_LOG_VERSION, type PlanOffer, type PlanStep } from '@caotang/harness';
 import { addDocument, createRunLogPort, MemoryIndexedDb, openRuntimeStore, readAgentSessions, type RunEventInput, type RunRow } from '@caotang/store';
 
 import { AgentController, queuePausedText, type AgentSnapshot } from '../src/app/agent.js';
@@ -9,7 +9,7 @@ import type { AppDb } from '../src/app/app-db.js';
 import { sampleProjectState } from '../src/app/demo.js';
 import type { ProviderService } from '../src/app/providers.js';
 import { ProjectSession } from '../src/app/session.js';
-import { TaskStore } from '../src/app/task-store.js';
+import { TaskStore, type TaskRecord } from '../src/app/task-store.js';
 
 const sessions: { session: ProjectSession; controller: AgentController }[] = [];
 const releases: (() => void)[] = [];
@@ -377,6 +377,28 @@ it('keeps an unavailable background offer parked, then cancels or stops it witho
     expect(f.controller.snapshot()).toMatchObject({ offer: null, pending: null, tasks: [] });
   }
   expect(f.drafts()).toBe(0);
+});
+
+it('queues the held draft offer steps, not a caller-mutated steps array', async () => {
+  const f = await backgroundFixture();
+  const running = f.controller.submit(SYNOPSES);
+  await when(f.controller, (snapshot) => snapshot.offer !== null);
+  const offer = f.controller.snapshot().offer!.offer;
+  const canonicalSteps = structuredClone(offer.steps);
+  const saved: TaskRecord[] = [];
+  const save = TaskStore.prototype.save;
+  vi.spyOn(TaskStore.prototype, 'save').mockImplementation(async function (this: TaskStore, task: TaskRecord) {
+    saved.push(structuredClone(task));
+    return save.call(this, task);
+  });
+  const mutated: PlanOffer = { ...offer, steps: [{ tool: 'synopsis.fill', params: { docs: ['The Landing'], source: 'text', max_words: 20 }, expect: 'One synopsis' }] };
+  const queued = await f.controller.queuePlanOffer(mutated);
+  expect(queued.ok).toBe(true);
+  expect(saved[0]?.steps).toEqual(canonicalSteps);
+  expect(saved[0]?.cap).toBe(5);
+  await f.controller.answerOffer('cancel');
+  await running;
+  await f.controller.tasksIdle();
 });
 
 it('aborts a background offer cancelled during its initial save, and refuses competing answers', async () => {

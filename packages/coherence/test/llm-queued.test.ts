@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   computeReview,
   emptyCoherenceFile,
+  emptyReviewCheckpoint,
   planReview,
   publishReview,
+  reviewCheckpointEvidenceOk,
   type CoherenceModel,
   type ModelReply,
   type ModelRequest,
@@ -125,6 +127,73 @@ describe('computeReview checkpoints', () => {
     expect(computed.status).toBe('partial');
     expect(model.calls).toHaveLength(1);
     expect(computed.notes.some((note) => note.includes('the read rules changed'))).toBe(true);
+  });
+});
+
+describe('resume revalidates the checkpoint evidence', () => {
+  async function firstExtraction() {
+    const state = twoDocs();
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const checkpoints: ReviewCheckpoint[] = [];
+    const model = reviewing();
+    await computeReview(state, emptyCoherenceFile(), plan, {
+      model,
+      approved: true,
+      onCheckpoint: (checkpoint) => { checkpoints.push(structuredClone(checkpoint)); },
+    });
+    return { state, plan, checkpoints };
+  }
+
+  it('accepts the evidence a run produced', async () => {
+    const { plan, checkpoints } = await firstExtraction();
+    const bodies = new Map([['sA', 'Elena is thirty-four.'], ['sB', 'Elena is forty-one.']]);
+    for (const checkpoint of checkpoints) expect(reviewCheckpointEvidenceOk(plan, bodies, checkpoint)).toBe(true);
+    expect(reviewCheckpointEvidenceOk(plan, bodies, emptyReviewCheckpoint())).toBe(true);
+  });
+
+  it('a span quote that no longer matches restarts the review, keeping the accounted tokens and notes', async () => {
+    const { state, plan, checkpoints } = await firstExtraction();
+    const base = checkpoints[0]!;
+    const tampered = { ...base, spans: base.spans.map((span, index) => (index === 0 ? { ...span, quote: 'not in the document' } : span)) };
+    const model = reviewing();
+    const again = await computeReview(state, emptyCoherenceFile(), plan, { model, approved: true, resumeFrom: tampered });
+    expect(model.calls).toHaveLength(3);
+    expect(model.calls[0]?.user).toContain('docId: sA');
+    expect(again.status).toBe('complete');
+    expect(again.promptTokens).toBe(tampered.promptTokens + 300);
+    expect(again.notes.some((note) => note.includes('did not match the approved documents'))).toBe(true);
+  });
+
+  it('a verdict naming a pair the spans no longer form, or evidence that is not verbatim, is not resumed', async () => {
+    const { state, plan, checkpoints } = await firstExtraction();
+    const final = checkpoints[2]!;
+    const unknownPair = { ...final, verdicts: final.verdicts.map((verdict) => ({ ...verdict, pairId: 'p999' })) };
+    const bodies = new Map([['sA', 'Elena is thirty-four.'], ['sB', 'Elena is forty-one.']]);
+    expect(reviewCheckpointEvidenceOk(plan, bodies, unknownPair)).toBe(false);
+    const forgedEvidence = {
+      ...final,
+      verdicts: final.verdicts.map((verdict) => ({ ...verdict, evidence: [{ docId: 'sA', quote: 'a forged passage', from: 0, to: 16 }] })),
+    };
+    expect(reviewCheckpointEvidenceOk(plan, bodies, forgedEvidence)).toBe(false);
+    const model = reviewing();
+    const again = await computeReview(state, emptyCoherenceFile(), plan, { model, approved: true, resumeFrom: unknownPair });
+    expect(model.calls).toHaveLength(3);
+    expect(again.status).toBe('complete');
+  });
+
+  it('a span outside the approved scope or categories, or an over-counted batch, is not resumed', async () => {
+    const { plan, checkpoints } = await firstExtraction();
+    const bodies = new Map([['sA', 'Elena is thirty-four.'], ['sB', 'Elena is forty-one.']]);
+    const final = checkpoints[2]!;
+    const outsider = { ...final, spans: [...final.spans, { docId: 'sX', from: 0, to: 1, quote: 'E', category: 'characterization' as const, note: '' }] };
+    expect(reviewCheckpointEvidenceOk(plan, bodies, outsider)).toBe(false);
+    const narrow = { ...plan, categories: ['characterization'] as const };
+    const wrongCategory = { ...final, spans: final.spans.map((span) => ({ ...span, category: 'factual' as const })) };
+    expect(reviewCheckpointEvidenceOk(narrow, bodies, wrongCategory)).toBe(false);
+    const overCounted = { ...final, verifiedBatches: final.verifiedBatches + 1 };
+    expect(reviewCheckpointEvidenceOk(plan, bodies, overCounted)).toBe(false);
+    const outOfScope = { ...final, extractedDocIds: [...final.extractedDocIds, 'sX'] };
+    expect(reviewCheckpointEvidenceOk(plan, bodies, outOfScope)).toBe(false);
   });
 });
 

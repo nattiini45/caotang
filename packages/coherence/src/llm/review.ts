@@ -31,7 +31,7 @@ import { recurredAfterFixedNote, upsertFindings, type UpsertDraft } from '../ups
 
 import { assembleFindings } from './assemble.js';
 import type { CoherenceModel, ModelReply, ModelUsage } from './port.js';
-import { blockFor, pairCount, pairSequence, type PairRef } from './pairs.js';
+import { blockFor, batchPairs, pairCount, pairSequence, type PairRef } from './pairs.js';
 import { pairLabelOf, parseExtraction, parseVerification, type ExtractedSpan, type ParsedVerdict } from './parse.js';
 import { PAIRS_PER_CALL, SPANS_PER_DOCUMENT, extractionPrompt, verificationPrompt, type PairBlock } from './prompts.js';
 
@@ -335,6 +335,41 @@ export function emptyReviewCheckpoint(): ReviewCheckpoint {
   return { extractedDocIds: [], spans: [], verifiedBatches: 0, verdicts: [], usageByPair: {}, promptTokens: 0, completionTokens: 0, notes: [], status: 'complete', evaluated: [] };
 }
 
+/**
+ * A resumed checkpoint's evidence, checked again against the approved plan and the bodies as they stand: every span and verdict
+ * passage is a verbatim slice of a scope document at its own offsets, every span's category is approved, every verdict names a pair
+ * the spans still form, and its passages overlap that pair's own spans as at parse time. The store's shape check says a record is
+ * shaped like a checkpoint; this says its evidence is still the approved work. A checkpoint that fails is not resumed: its progress
+ * is dropped and the review starts again within the remaining call bound, keeping the checkpoint's token totals and notes.
+ */
+export function reviewCheckpointEvidenceOk(plan: ReviewExecutionPlan, bodies: ReadonlyMap<string, string>, checkpoint: ReviewCheckpoint): boolean {
+  const scope = new Set(plan.scopeDocIds);
+  const categories = new Set<string>(plan.categories);
+  if (!checkpoint.extractedDocIds.every((id) => scope.has(id)) || !checkpoint.evaluated.every((id) => scope.has(id))) return false;
+  const verbatim = (docId: string, quote: string, from: number, to: number): boolean => {
+    const body = bodies.get(docId);
+    return body !== undefined && quote !== '' && body.slice(from, to) === quote;
+  };
+  for (const span of checkpoint.spans) {
+    if (!scope.has(span.docId) || !categories.has(span.category) || !verbatim(span.docId, span.quote, span.from, span.to)) return false;
+  }
+  const pairs = new Map([...pairSequence(checkpoint.spans, plan.categories)].map((pair) => [pair.pairId, pair] as const));
+  if (checkpoint.verifiedBatches > batchPairs([...pairs.values()]).length) return false;
+  const overlaps = (passage: { docId: string; from: number; to: number }, span: ExtractedSpan): boolean =>
+    passage.docId === span.docId && passage.from < span.to && span.from < passage.to;
+  for (const verdict of checkpoint.verdicts) {
+    const pair = pairs.get(verdict.pairId);
+    if (pair === undefined) return false;
+    if (verdict.evidence === undefined) continue;
+    if (verdict.evidence.length !== 2) return false;
+    const [first, second] = verdict.evidence;
+    if (first === undefined || second === undefined) return false;
+    if (!verbatim(first.docId, first.quote, first.from, first.to) || !verbatim(second.docId, second.quote, second.from, second.to)) return false;
+    if (!((overlaps(first, pair.a) && overlaps(second, pair.b)) || (overlaps(second, pair.a) && overlaps(first, pair.b)))) return false;
+  }
+  return true;
+}
+
 export async function computeReview(state: ProjectState, file: CoherenceFile, plan: ReviewExecutionPlan, options: ReviewComputeOptions): Promise<ReviewComputed> {
   if (options.approved !== true) throw new ReviewNotApprovedError();
   const model = options.model;
@@ -356,8 +391,11 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
       if (resume === undefined || !notes.includes(note)) notes.push(note);
     } else scenes.push(scene);
   }
+  const bodies = new Map<string, string>(scenes.map((scene) => [scene.docId, focusBody(scene.body).text] as const));
+  const usable = resume !== undefined && reviewCheckpointEvidenceOk(plan, bodies, resume) ? resume : undefined;
+  if (resume !== undefined && usable === undefined) notes.push('the saved checkpoint did not match the approved documents; the review started again within its remaining limit');
 
-  let status: 'complete' | 'partial' = resume?.status ?? 'complete';
+  let status: 'complete' | 'partial' = usable?.status ?? 'complete';
   let promptTokens = resume?.promptTokens ?? 0;
   let completionTokens = resume?.completionTokens ?? 0;
   const addUsage = (usage: ModelUsage | undefined): void => {
@@ -365,13 +403,12 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
     completionTokens += usage?.completionTokens ?? 0;
   };
   const context = options.context ?? {};
-  const extractedDocIds = new Set(resume?.extractedDocIds ?? []);
-  const spans: ExtractedSpan[] = resume === undefined ? [] : [...resume.spans];
-  const evaluated: string[] = resume === undefined ? [] : [...resume.evaluated];
-  const usageByPair = new Map<string, ModelUsage | undefined>(Object.entries(resume?.usageByPair ?? {}));
-  const bodies = new Map<string, string>();
-  const verdicts: ParsedVerdict[] = resume === undefined ? [] : [...resume.verdicts];
-  let verifiedBatches = resume?.verifiedBatches ?? 0;
+  const extractedDocIds = new Set(usable?.extractedDocIds ?? []);
+  const spans: ExtractedSpan[] = usable === undefined ? [] : [...usable.spans];
+  const evaluated: string[] = usable === undefined ? [] : [...usable.evaluated];
+  const usageByPair = new Map<string, ModelUsage | undefined>(Object.entries(usable?.usageByPair ?? {}));
+  const verdicts: ParsedVerdict[] = usable === undefined ? [] : [...usable.verdicts];
+  let verifiedBatches = usable?.verifiedBatches ?? 0;
 
   const checkpoint = (): ReviewCheckpoint => ({
     extractedDocIds: [...extractedDocIds],
@@ -389,7 +426,6 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
   // Stage 1: one call per document, in binder order.
   for (const scene of scenes) {
     const prompt = promptFor(scene, plan.categories, context);
-    bodies.set(scene.docId, prompt.body);
     if (extractedDocIds.has(scene.docId)) continue;
     if (options.signal?.aborted === true) {
       status = 'partial';
@@ -398,7 +434,7 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
     }
     let reply: ModelReply;
     try {
-      await options.beforeCall?.();
+      if (options.beforeCall !== undefined) await options.beforeCall();
       reply = await model.complete({
         system: prompt.system,
         user: prompt.user,
@@ -463,7 +499,7 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
     const prompt = verificationPrompt(blocks);
     let reply: ModelReply;
     try {
-      await options.beforeCall?.();
+      if (options.beforeCall !== undefined) await options.beforeCall();
       reply = await model.complete({
         system: prompt.system,
         user: prompt.user,

@@ -1093,6 +1093,11 @@ msgstr ""
 msgid "{done} / {total} drafted · {used} of {cap} model calls · {tokens} tokens"
 msgstr ""
 
+#. Background task and Inbox status. Counts describe drafts, calls, tokens or findings; titles and model labels are supplied text.
+#: apps/desktop/src/components/BackgroundTasks.tsx
+msgid "{done} / {total} drafted · Call allowance: {used} of {cap} reserved or used."
+msgstr ""
+
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "{dropped, plural, one {# context item left out} other {# context items left out}}"
@@ -2106,16 +2111,6 @@ msgstr ""
 msgid "{useCount, plural, one {Used in # place} other {Used in # places}}"
 msgstr ""
 
-#. Background task and Inbox status. Counts describe drafts, calls, tokens or findings; titles and model labels are supplied text.
-#: apps/desktop/src/components/BackgroundTasks.tsx
-msgid "{used} of {cap} model calls"
-msgstr ""
-
-#. Background task and Inbox status. Counts describe drafts, calls, tokens or findings; titles and model labels are supplied text.
-#: apps/desktop/src/components/BackgroundTasks.tsx
-msgid "{used} of {cap} model calls · {tokens} recorded tokens"
-msgstr ""
-
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "{used} of {limit} characters"
@@ -2447,6 +2442,11 @@ msgstr ""
 msgid "A codex entry is never named in the manuscript"
 msgstr ""
 
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "A coherence review"
+msgstr ""
+
 #. Interpolated values: calls, cap, error
 #: apps/desktop/src/app/task-queue.ts
 msgid "A coherence review needs its approved estimate before it can be queued. Run it here, or approve the queue preview."
@@ -2776,6 +2776,11 @@ msgstr ""
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "A rule now refuses this review: {reason} Approve the queue preview again."
+msgstr ""
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "A rule refuses this review: {reason}"
 msgstr ""
 
 #. Interpolated values: error, reason, title
@@ -4212,6 +4217,11 @@ msgstr ""
 msgid "Background review"
 msgstr ""
 
+#. Background review approval. Counts are documents, findings, calls or estimated tokens; titles and model labels are supplied text; money uses the interface locale.
+#: apps/desktop/src/components/QueuedReviewDetails.tsx
+msgid "Background review: step {step}"
+msgstr ""
+
 #. Background task and Inbox status. Counts describe drafts, calls, tokens or findings; titles and model labels are supplied text.
 #. Background task and Inbox status. Counts describe drafts, calls, tokens or findings; titles and model labels are supplied text.
 #: apps/desktop/src/components/BackgroundTasks.tsx
@@ -4579,6 +4589,11 @@ msgstr ""
 msgid "Calendar definition"
 msgstr ""
 
+#. Background task and Inbox status. Counts describe drafts, calls, tokens or findings; titles and model labels are supplied text.
+#: apps/desktop/src/components/BackgroundTasks.tsx
+msgid "Call allowance: {used} of {cap} reserved or used."
+msgstr ""
+
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "Camera angle"
@@ -4638,6 +4653,11 @@ msgstr ""
 
 #: apps/desktop/src/media/picture-hooks.tsx
 msgid "Cancel imports nothing."
+msgstr ""
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Cancel queue request"
 msgstr ""
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
@@ -5587,7 +5607,7 @@ msgstr ""
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
-msgid "Coherence review"
+msgid "Coherence review: {scope}"
 msgstr ""
 
 #. Interpolated values: error
@@ -7977,6 +7997,16 @@ msgstr ""
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
 #: apps/desktop/src/components/AgentSessions.tsx
 msgid "Finish or stop the current turn and clear the queue before changing sessions."
+msgstr ""
+
+#. Background review approval. Counts are documents, findings, calls or estimated tokens; titles and model labels are supplied text; money uses the interface locale.
+#: apps/desktop/src/components/QueuedReviewDetails.tsx
+msgid "First prompt for background review step {step}"
+msgstr ""
+
+#. Background review approval. Counts are documents, findings, calls or estimated tokens; titles and model labels are supplied text; money uses the interface locale.
+#: apps/desktop/src/components/QueuedReviewDetails.tsx
+msgid "First prompt for background review step {step}: {titles}."
 msgstr ""
 
 #. Background review approval. Counts are documents, findings, calls or estimated tokens; titles and model labels are supplied text; money uses the interface locale.
@@ -13227,10 +13257,12 @@ msgstr ""
 msgid "Queue as next turn"
 msgstr ""
 
+#. Interpolated values: calls, cap
 #. Interpolated values: calls, cap, error
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 #: apps/desktop/src/app/task-queue.ts
+#: apps/desktop/src/components/PlanOfferCard.tsx
 msgid "Queue one coherence review at a time. Split this plan into one review per task."
 msgstr ""
 
@@ -16964,6 +16996,12 @@ msgstr ""
 msgid "That placement is no longer in the project, so nothing was changed."
 msgstr ""
 
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "That plan offer is no longer held. Ask for the plan again."
+msgstr ""
+
 #. Interpolated values: error
 #: apps/desktop/src/App.tsx
 msgid "That project is already in this browser, so the file opened as a separate copy."
@@ -18203,6 +18241,11 @@ msgstr ""
 msgid "The project closed before the review could continue."
 msgstr ""
 
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "The project closed before the review could start."
+msgstr ""
+
 #. Interpolated values: error, reason, title
 #. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts
@@ -18332,12 +18375,6 @@ msgid "The pseudo catalogue \"{tag}\" is available only in development and tests
 msgstr ""
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
-#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
-#: apps/desktop/src/components/FindingsPanel.tsx
-msgid "The queue request was cancelled."
-msgstr ""
-
-#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The queued model review plan"
 msgstr ""
@@ -18427,6 +18464,11 @@ msgstr ""
 msgid "The review could not be started: {error}"
 msgstr ""
 
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
+msgid "The review did not publish. Its other steps are ready for review."
+msgstr ""
+
 #. Interpolated values: calls, cap, error
 #: apps/desktop/src/app/task-queue.ts
 msgid "The review failed."
@@ -18445,6 +18487,16 @@ msgstr ""
 #. Interpolated values: calls, cap, error
 #: apps/desktop/src/app/task-queue.ts
 msgid "The review reached its approved limit of {cap} model calls."
+msgstr ""
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The review was cancelled."
+msgstr ""
+
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "The review will not run here, but this browser could not keep that record. Check Tasks after reopening the project."
 msgstr ""
 
 #. Interpolated values: calls, cap, error
@@ -18824,6 +18876,11 @@ msgstr ""
 #. Shot prompt record refusals. Interpolated values: shotId is a shot's id; number is a line number; first and last bound a whole number.
 #: apps/desktop/src/media/prompt-edit-model.ts
 msgid "the take's seed is a whole number from {first} to {last}"
+msgstr ""
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "The task has been asked to stop. Check Background tasks for its final status."
 msgstr ""
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number

@@ -456,6 +456,8 @@ export class AgentController {
   private readonly tasks: TaskQueue;
   private preparedReview: { readonly id: string; readonly approval: QueuedReviewApproval } | null = null;
   private preparedOfferApproval: QueuedReviewApproval | null = null;
+  /** The parked offer's own steps and choices, owned by the controller: what is queued is what was offered, never a caller's copy. */
+  private preparedOffer: { readonly steps: readonly PlanStep[]; readonly contextOverrides?: ContextOverrides } | null = null;
   private offerAnswer: { readonly held: ParkedOffer; readonly abort: AbortController } | null = null;
   /** The status each task had when the panel last heard of it, so only a change is announced. */
   private readonly taskStatus = new Map<string, TaskRecord['status']>();
@@ -2424,6 +2426,10 @@ export class AgentController {
         return;
       }
       this.dropOffer();
+      this.preparedOffer = freezeDeep({
+        steps: structuredClone(offer.steps),
+        ...(offer.contextOverrides === undefined ? {} : { contextOverrides: copyContext(offer.contextOverrides) }),
+      });
       this.move({ type: 'offer', offer: { view: { offer, unavailable: this.tasks.unavailable(), error: null }, resolve } });
       const calls = offer.estimatedCalls;
       this.announcement = t`This plan needs ${{ calls }} ${plural(calls, { one: 'model call', other: 'model calls' })}. Choose how it runs.`;
@@ -2448,6 +2454,7 @@ export class AgentController {
     if (held === null) return;
     if (choice === 'cancel') {
       this.preparedOfferApproval = null;
+      this.preparedOffer = null;
       this.offerAnswer?.abort.abort();
       this.move({ type: 'offer-answered' });
       this.bump();
@@ -2475,6 +2482,7 @@ export class AgentController {
       }
     }
     this.preparedOfferApproval = null;
+    this.preparedOffer = null;
     this.move({ type: 'offer-answered' });
     this.bump();
     held.resolve(choice);
@@ -2547,8 +2555,9 @@ export class AgentController {
     const withheld = harness.withheld('coherence.review');
     const view = withheldState(this.session.state, withheld);
     const context = reviewContextOf(view, contextOverrides);
+    const tree = this.session.state.manifest.tree;
     const effective = scopeDocIds.map((id) => ({
-      doc: [id, getRevision(this.session.state, id)],
+      doc: [id, getRevision(this.session.state, id), tree.find((node) => node.id === id)?.title ?? ''],
       codex: (context.codex?.(id) ?? []).map((block) => [block.key, block.text]),
       story: (context.storySoFar?.(id) ?? []).map((block) => [block.key, block.text]),
     }));
@@ -2684,14 +2693,20 @@ export class AgentController {
   async queuePlanOffer(offer: PlanOffer, signal?: AbortSignal): Promise<EnqueueResult> {
     const reviews = offer.reviews ?? [];
     if (reviews.length > 1) return { ok: false, reason: t`Queue one coherence review at a time. Split this plan into one review per task.` };
+    const canonical = this.preparedOffer;
     const review = reviews[0];
-    if (review === undefined) return this.tasks.enqueue(this.intentForNextTurn ?? '', offer.steps, offer.contextOverrides, undefined, signal);
+    if (review === undefined) {
+      if (canonical === null) return { ok: false, reason: t`That plan offer is no longer held. Ask for the plan again.` };
+      this.preparedOffer = null;
+      return this.tasks.enqueue(this.intentForNextTurn ?? '', canonical.steps, canonical.contextOverrides, undefined, signal);
+    }
     const approval = this.preparedOfferApproval;
-    if (approval === null || approval.fingerprint !== review.fingerprint) return { ok: false, reason: t`That plan offer is no longer held. Ask for the plan again.` };
+    if (canonical === null || approval === null || approval.fingerprint !== review.fingerprint) return { ok: false, reason: t`That plan offer is no longer held. Ask for the plan again.` };
     this.preparedOfferApproval = null;
+    this.preparedOffer = null;
     const problem = this.reviewBoundaryProblem(approval);
     if (problem !== null) return { ok: false, reason: problem };
-    return this.tasks.enqueue(this.intentForNextTurn ?? '', offer.steps, offer.contextOverrides, approval, signal);
+    return this.tasks.enqueue(this.intentForNextTurn ?? '', canonical.steps, canonical.contextOverrides, approval, signal);
   }
 
   async acknowledgeReviewTask(id: string): Promise<void> {
@@ -3064,6 +3079,7 @@ export class AgentController {
     this.dropOffer();
     this.preparedReview = null;
     this.preparedOfferApproval = null;
+    this.preparedOffer = null;
     this.move({ type: 'detach' });
     this.clearGhosts();
     resolve?.({ action: 'cancel' });

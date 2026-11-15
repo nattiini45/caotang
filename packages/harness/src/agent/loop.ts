@@ -2340,7 +2340,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // The review's plan, staged with no model call (coherence.md §7 tool 16): the card shows its documents, its cost estimate
       // and its first prompt, and the review runs only after the writer approves that card (`runAwaited`). The cost is the
       // active model's price applied to the plan (cards.ts `reviewCostAt`, which the Findings tab reads too); an unpriced model adds nothing to the proposal.
-      const planned = harness.reviewPlan(step.params);
+      const planned = harness.reviewPlan(step.params, step.contextOverrides);
       if (!planned.ok) return refusedDraft(planned.error.message);
       const cost = reviewCostAt(planned.value, gateway, turn.pins.profileId, turn.pins.model, turn.pins.thinking);
       return { ok: true, proposal: cost === undefined ? planned.value : { ...planned.value, cost } };
@@ -3063,16 +3063,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // A native async tool runs under the approval its card gave: the plan's, or the one-step confirmation. Transcription generates above
     // through the same budgeted model-call site as every other draft, then its port reviews and publishes. An external tool is called
     // through its own entry, under the confirmation its card gave (extensibility §4 rule 2).
+    const stepOverrides = step.contextOverrides ?? turn.contextOverrides;
+    const asyncContext = { turnId: turn.id, sessionId: usageSessionId, ...signalOf(turn), ...(stepOverrides === undefined ? {} : { contextOverrides: stepOverrides }) };
     const outcome =
       generationFailure ??
       (loadedExternal(step.tool) === undefined
         ? await harness.callAsync(
             call,
             grant === 'plan'
-              ? { turnId: turn.id, sessionId: usageSessionId, permission: { approvedPlan: true }, ...signalOf(turn) }
+              ? { ...asyncContext, permission: { approvedPlan: true } }
               : grant === 'confirmed'
-                ? { turnId: turn.id, sessionId: usageSessionId, permission: { confirmed: true }, ...signalOf(turn) }
-                : { turnId: turn.id, sessionId: usageSessionId, ...signalOf(turn) },
+                ? { ...asyncContext, permission: { confirmed: true } }
+                : asyncContext,
           )
         : await harness.callExternal(
             call,
@@ -3633,7 +3635,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (ask === undefined || turn.tainted || harness.loadedSkills(turn.id).length > 0) return undefined;
     const reviews = plan.steps.map((step, index): PlanOfferReview | undefined => {
       if (step.tool !== 'coherence.review' || options.reviewOffer === undefined) return undefined;
-      const planned = harness.reviewPlan(step.params);
+      const planned = harness.reviewPlan(step.params, step.contextOverrides);
       if (!planned.ok) return undefined;
       const preview = options.reviewOffer(step, planned.value);
       return preview === undefined ? undefined : { ...preview, stepIndex: index, ...(step.contextOverrides === undefined ? {} : { contextOverrides: structuredClone(step.contextOverrides) }) };
@@ -4583,7 +4585,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     },
 
     submitPlan(intent: string, plan: unknown, turnOptions: TurnOptions = {}): Promise<TurnReport> {
-      const parsed = parsePlan(plan);
+      const parsed = parseStagingPlan(plan);
       return runTurn(
         intent,
         turnOptions,

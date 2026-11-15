@@ -481,3 +481,87 @@ it('resume keeps an estimated source estimated even when later requests report u
   expect(task?.status).toBe('completed');
   expect(task?.report?.usage.source).toBe('estimated');
 });
+
+it('invalidates an approval when the focus document is renamed, but not for a document outside the scope', async () => {
+  const f = await fixture();
+  const documents = f.state.manifest.tree.filter((node) => node.type === 'document');
+  const focus = documents[0]!;
+  const outsider = documents[documents.length - 1]!;
+  expect(outsider.id).not.toBe(focus.id);
+  const prepared = await f.controller.prepareQueuedReview({ scope: { mode: 'doc', docIds: [focus.id] }, maxFindings: 50 });
+  expect(prepared.ok).toBe(true);
+  if (!prepared.ok) return;
+  outsider.title = 'A renamed later chapter';
+  const stillQueued = await f.controller.queuePreparedReview(prepared.preview);
+  expect(stillQueued.ok).toBe(true);
+  await idle(f.controller);
+
+  const second = await f.controller.prepareQueuedReview({ scope: { mode: 'doc', docIds: [focus.id] }, maxFindings: 50 });
+  expect(second.ok).toBe(true);
+  if (!second.ok) return;
+  focus.title = 'A renamed focus';
+  const refused = await f.controller.queuePreparedReview(second.preview);
+  expect(refused.ok).toBe(false);
+  if (!refused.ok) expect(refused.reason).toContain('changed since it was approved');
+});
+
+it('queues the held offer steps, not a caller-mutated steps array', async () => {
+  const step: PlanStep = { tool: 'coherence.review', params: { scope: { mode: 'full' } }, expect: 'A coherence review' };
+  const plannerScript: MockScript = { match: () => true, respond: () => ({ content: JSON.stringify({ steps: [step] }) }) };
+  const f = await fixture(undefined, [plannerScript]);
+  const running = f.controller.submit('Review the manuscript.');
+  await vi.waitFor(() => { expect(f.controller.snapshot().offer).not.toBeNull(); });
+  const offer = f.controller.snapshot().offer!.offer;
+  const canonicalSteps = structuredClone(offer.steps);
+  const mutated: PlanOffer = {
+    ...offer,
+    steps: [{ tool: 'coherence.review', params: { scope: { mode: 'doc', docIds: ['n_FAKE000001'] }, maxFindings: 1 }, expect: 'A mutated review' }],
+  };
+  const queued = await f.controller.queuePlanOffer(mutated);
+  expect(queued.ok).toBe(true);
+  if (queued.ok) {
+    const stored = f.db.rows.get(`task:${f.state.manifest.project.id}:${queued.task.id}`) as TaskRecord;
+    expect(stored.steps).toEqual(canonicalSteps);
+    expect(stored.review?.scopeDocIds).toEqual(offer.reviews![0]!.scopeDocIds);
+    expect(stored.review?.maxFindings).toBe(offer.reviews![0]!.maxFindings);
+  }
+  await f.controller.answerOffer('cancel');
+  await running;
+  await idle(f.controller);
+});
+
+it('refuses a draft-only offer that is no longer held', async () => {
+  const f = await fixture();
+  const offer: PlanOffer = { turnId: 't_GONE000001', steps: [{ tool: 'scene.draft', params: { doc: 'The Landing', instruction: 'Open.', mode: 'draft' }, expect: 'A draft' }], estimatedCalls: 1, turnCap: 8 };
+  const result = await f.controller.queuePlanOffer(offer);
+  expect(result.ok).toBe(false);
+  expect(f.controller.taskViews()).toHaveLength(0);
+});
+
+it('a tampered checkpoint is not resumed: the review restarts within the remaining bound, keeping its accounted usage', async () => {
+  const f = await fixture();
+  const { key, id, stored } = await completedReview(f);
+  const total = stored.reviewCheckpoint!.modelCalls!;
+  expect(total).toBeGreaterThan(1);
+  const truncated = interruptedAfterFirstExtraction(stored, true);
+  const firstDoc = truncated.reviewCheckpoint!.extractedDocIds[0]!;
+  const tampered = {
+    ...truncated,
+    reviewCheckpoint: {
+      ...truncated.reviewCheckpoint!,
+      spans: [{ docId: firstDoc, from: 0, to: 24, quote: 'a forged span quote', category: 'factual' as const, note: '' }],
+    },
+  };
+  f.db.rows.set(key, tampered);
+  const again = await f.reopen(true);
+  await vi.waitFor(() => { expect(again.controller.taskViews().some((view) => view.id === id)).toBe(true); });
+  await again.controller.resumeTask(id);
+  await again.controller.tasksIdle();
+  const task = again.controller.taskViews().find((view) => view.id === id);
+  expect(task?.status).toBe('completed');
+  expect(task?.report?.usage.modelCalls).toBe(total + 1);
+  expect(again.gateway.ledger.turnTotals(`${id}.review`).requests).toBe(total);
+  expect(task!.used).toBeLessThanOrEqual(stored.cap);
+  const run = again.session.coherenceFile()?.runs.find((entry) => entry.id === task?.report?.runId);
+  expect(run?.notes.some((note) => note.includes('did not match the approved documents'))).toBe(true);
+});
