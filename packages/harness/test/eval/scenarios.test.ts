@@ -121,7 +121,8 @@ const scenarios: Scenario[] = [
       // outside-text rule that system prompt v2 adds. Measured at 10126 on main, so the ceiling was 10150 (it was 16300 when
       // every wired tool was listed). Merge: the comic and timeline formats joined export.compile's enum (on each of the two planner
       // calls), measured at 10178, so the ceiling was 10200. Merge: the AV script's show and VO formats joined the same
-      // enum, measured at 10218, so the ceiling is 10250.
+      // enum, measured at 10218, so the ceiling was 10250. Merge: the AV script's captions and chapters formats joined the
+      // same enum, measured at 10212, so the ceiling is 10250.
       maxTokens: 10250,
       maxModelCalls: 3,
       state: (state) => {
