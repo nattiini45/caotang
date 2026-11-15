@@ -7,10 +7,10 @@ export type Delimiter = ',' | ';' | '\t' | '|';
 
 export const DELIMITERS: readonly Delimiter[] = [',', ';', '\t', '|'];
 
-/** The grid a file gave: its rows of cells, and the delimiter it was read with. */
+/** The grid a file gave: its rows of cells, and the delimiter it was read with (`none` when the cells came from a worksheet, #289). */
 export interface CsvGrid {
   rows: string[][];
-  delimiter: Delimiter;
+  delimiter: Delimiter | 'none';
   /** Rows whose cell count differs from the first row's: kept, and reported. */
   ragged: number[];
 }

@@ -41,6 +41,7 @@
     "@caotang/import-odt": "workspace:*",
     "@caotang/import-read": "workspace:*",
     "@caotang/import-rtf": "workspace:*",
+    "@caotang/import-xlsx": "workspace:*",
     "@caotang/machine": "workspace:*",
     "@caotang/mcp-client": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",

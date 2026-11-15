@@ -20,4 +20,4 @@ export {
   type DateFormat,
   type DayReading,
 } from './roles.js';
-export { readCsv, type CsvImport, type CsvOptions, type CsvError, type CsvResult, type CsvCodexRow, type CsvTimelineRow } from './reader.js';
+export { readCsv, readGrid, type CsvImport, type CsvOptions, type GridOptions, type CsvError, type CsvResult, type CsvCodexRow, type CsvTimelineRow } from './reader.js';

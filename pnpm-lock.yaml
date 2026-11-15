@@ -315,6 +315,9 @@ importers:
       '@caotang/import-rtf':
         specifier: workspace:*
         version: link:../../packages/import-rtf
+      '@caotang/import-xlsx':
+        specifier: workspace:*
+        version: link:../../packages/import-xlsx
       '@caotang/machine':
         specifier: workspace:*
         version: link:../../packages/machine
@@ -980,6 +983,18 @@ importers:
       '@caotang/import-core':
         specifier: workspace:*
         version: link:../import-core
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../import-read
+
+  packages/import-xlsx:
+    dependencies:
+      '@caotang/import-core':
+        specifier: workspace:*
+        version: link:../import-core
+      '@caotang/import-csv':
+        specifier: workspace:*
+        version: link:../import-csv
       '@caotang/import-read':
         specifier: workspace:*
         version: link:../import-read
