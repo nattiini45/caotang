@@ -4,7 +4,9 @@ Status: **built**. Own reader `@caotang/import-csv` over the shared plain-text r
 is [import-preview.md](import-preview.md), the codex write is [codex.md](codex.md) §7.1.
 
 One importer for every spreadsheet story bible: Aeon, Notion, Miro, Sudowrite, a shot list, and Caotang's own timeline CSV.
-A hand-written RFC 4180 reader, as the issue prefers: no papaparse, no dependency, a lazy chunk, nothing executed.
+A hand-written RFC 4180 reader, as the issue prefers: no papaparse, no dependency, a lazy chunk, nothing executed. An `.xlsx`
+workbook reaches the same mapping through its own reader ([import-xlsx.md](import-xlsx.md), #289): the grid is read by
+`readGrid` in both, so a workbook and its CSV twin give the same rows.
 
 ## 1. The grid
 

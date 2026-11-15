@@ -160,9 +160,13 @@ export function ManuscriptImportActions(): ReactNode {
 
   const openCsv = async (file: File): Promise<void> => {
     try {
-      const { csvPreviewSource } = await import('../import-preview/csv-source.js');
       const bytes = new Uint8Array(await file.arrayBuffer());
-      openImportPreview({ source: csvPreviewSource(file.name, bytes) });
+      // A workbook is a zip; a separated text file never is. The name only decides when the bytes cannot.
+      const workbook = bytes[0] === 0x50 && bytes[1] === 0x4b ? true : /\.xlsx$/i.test(file.name);
+      const source = workbook
+        ? await import('../import-preview/spreadsheet-source.js').then((module) => module.xlsxPreviewSource(file.name, bytes))
+        : await import('../import-preview/spreadsheet-source.js').then((module) => module.csvPreviewSource(file.name, bytes));
+      openImportPreview({ source });
     } catch (failure) {
       failed(file, failure);
     }
@@ -316,7 +320,7 @@ export function ManuscriptImportActions(): ReactNode {
         ref={csvFile}
         type="file"
         hidden
-        accept=".csv,.tsv,.txt"
+        accept=".csv,.tsv,.txt,.xlsx"
         aria-label={t`Spreadsheet file`}
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];

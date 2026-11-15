@@ -1,19 +1,21 @@
 /**
- * **Import spreadsheet…** through the shared preview (import-csv.md, issue #288): the CSV reader (`@caotang/import-csv`) turns a
- * `.csv`, `.tsv` or `.txt` grid into codex rows or timeline scenes. The mode, the delimiter, the header, the date format and every
- * column's role are chips, so the writer chooses them and the file is read again. Nothing is written until Import, which commits
- * one `binder.importTree`.
+ * **Import spreadsheet…** through the shared preview (import-csv.md, issue #288; import-xlsx.md, issue #289): the CSV reader
+ * (`@caotang/import-csv`) turns a `.csv`, `.tsv` or `.txt` grid into codex rows or timeline scenes, and the workbook reader
+ * (`@caotang/import-xlsx`) does the same for one worksheet of an `.xlsx`. The mode, the delimiter or the sheet, the header, the
+ * date format and every column's role are chips, so the writer chooses them and the file is read again. Nothing is written until
+ * Import, which commits one `binder.importTree`.
  */
-/* lingui-set comment="The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)" */
+/* lingui-set comment="The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)" */
 
 import { plural, t } from '@lingui/core/macro';
 import { CODEX_ROLES, TIMELINE_ROLES, type CsvError, type CsvImport, type CsvOptions, type CsvRole, type DateFormat, type Delimiter } from '@caotang/import-csv';
+import type { XlsxError, XlsxImport } from '@caotang/import-xlsx';
 
 import type { ImportPreviewSource, PreviewBlock, PreviewChip, PreviewCodexRow, PreviewNode, PreviewPlan, PreviewReportList, PreviewSettings, ScanExtra } from './model.js';
 import { ReaderHost } from './reader-host.js';
 import type { ReaderOpen } from './reader-protocol.js';
 
-export const CSV_CHIPS = { mode: 'csv-mode', delimiter: 'csv-delimiter', header: 'csv-header', dates: 'csv-dates', column: 'csv-column-' } as const;
+export const CSV_CHIPS = { mode: 'csv-mode', delimiter: 'csv-delimiter', sheet: 'csv-sheet', header: 'csv-header', dates: 'csv-dates', column: 'csv-column-' } as const;
 
 /** What a codex description holds; the rest goes to the row's own page. */
 const DESCRIPTION_LIMIT = 2000;
@@ -26,6 +28,27 @@ export function csvErrorText(error: CsvError): string {
       return t`This spreadsheet has no rows.`;
     case 'no-columns':
       return t`This spreadsheet has no columns.`;
+  }
+}
+
+/** Why a workbook could not be read, in the writer's words. */
+export function xlsxErrorText(error: XlsxError): string {
+  switch (error.kind) {
+    case 'not-xlsx':
+      return t`This file is not an Excel workbook. Save it as .xlsx, or export it as CSV and import that.`;
+    case 'no-sheets':
+      return t`This workbook has no worksheets.`;
+    case 'unknown-sheet':
+      return t`This workbook has no worksheet of that name. Choose one of its sheets.`;
+    case 'too-many-rows':
+      return t`This worksheet has more rows than the import reads. Split it and import the parts.`;
+    case 'too-many-cells':
+      return t`This worksheet has more cells than the import reads. Split it and import the parts.`;
+    case 'archive':
+    case 'not-xml':
+      return t`This workbook could not be opened: ${{ reason: error.message }}`;
+    default:
+      return csvErrorText(error);
   }
 }
 
@@ -91,12 +114,13 @@ function anyRoleChosen(settings: PreviewSettings, headers: readonly string[], mo
   });
 }
 
-function optionsOf(settings: PreviewSettings, current: CsvImport | null): CsvOptions {
+function optionsOf(settings: PreviewSettings, current: CsvImport | null, kind: 'csv' | 'xlsx'): CsvOptions & { sheet?: string } {
   const mode = modeOf(settings);
   const headers = current?.headers ?? [];
   const chosen = anyRoleChosen(settings, headers, mode);
+  const sheet = settings.chips[CSV_CHIPS.sheet];
   return {
-    delimiter: delimiterOf(settings),
+    ...(kind === 'csv' ? { delimiter: delimiterOf(settings) } : sheet === undefined ? {} : { sheet }),
     header: headerOf(settings),
     mode,
     dateFormat: datesOf(settings),
@@ -104,8 +128,8 @@ function optionsOf(settings: PreviewSettings, current: CsvImport | null): CsvOpt
   };
 }
 
-const keyOf = (settings: PreviewSettings, current: CsvImport | null): string =>
-  [modeOf(settings), delimiterOf(settings), headerOf(settings) ? 'header' : 'plain', datesOf(settings), ...(current?.headers ?? []).map((_, index) => settings.chips[columnKey(modeOf(settings), index)] ?? '')].join('|');
+const keyOf = (settings: PreviewSettings, current: CsvImport | null, kind: 'csv' | 'xlsx'): string =>
+  [modeOf(settings), kind === 'csv' ? delimiterOf(settings) : (settings.chips[CSV_CHIPS.sheet] ?? ''), headerOf(settings) ? 'header' : 'plain', datesOf(settings), ...(current?.headers ?? []).map((_, index) => settings.chips[columnKey(modeOf(settings), index)] ?? '')].join('|');
 
 function wordsIn(text: string): number {
   return text.split(/\s+/).filter((word) => word !== '').length;
@@ -122,21 +146,33 @@ function codexTypeOf(type: string): string {
   return 'other';
 }
 
-/** A spreadsheet in the preview, read in the Worker. */
-export function csvPreviewSource(fileName: string, bytes: Uint8Array): ImportPreviewSource {
+/** A spreadsheet in the preview, read in the Worker: a separated text file, or one worksheet of a workbook. */
+function spreadsheetSource(fileName: string, bytes: Uint8Array, kind: 'csv' | 'xlsx'): ImportPreviewSource {
   const host = new ReaderHost();
-  const openReq: ReaderOpen = { kind: 'open', reader: 'csv', bytes };
+  const openReq: ReaderOpen = { kind: 'open', reader: kind, bytes };
   const reads = new Map<string, CsvImport>();
   let current: CsvImport | null = null;
+  let book: Omit<XlsxImport, 'rows'> | null = null;
 
   const readAs = async (settings: PreviewSettings, signal: AbortSignal): Promise<CsvImport> => {
-    const key = keyOf(settings, current);
+    const key = keyOf(settings, current, kind);
     const held = reads.get(key);
     if (held !== undefined) {
       current = held;
       return held;
     }
-    const reply = await host.read({ kind: 'read', reader: 'csv', options: optionsOf(settings, current) }, signal);
+    const options = optionsOf(settings, current, kind);
+    const reply = kind === 'csv'
+      ? await host.read({ kind: 'read', reader: 'csv', options }, signal)
+      : await host.read({ kind: 'read', reader: 'xlsx', options }, signal);
+    if (reply.kind === 'xlsx') {
+      if (!reply.result.ok) throw new Error(xlsxErrorText(reply.result.error));
+      const { rows, ...rest } = reply.result.value;
+      book = rest;
+      reads.set(key, rows);
+      current = rows;
+      return rows;
+    }
     if (reply.kind !== 'csv') throw new Error(t`It is not a spreadsheet import.`);
     if (!reply.result.ok) throw new Error(csvErrorText(reply.result.error));
     reads.set(key, reply.result.value);
@@ -158,6 +194,17 @@ export function csvPreviewSource(fileName: string, bytes: Uint8Array): ImportPre
         ],
       },
       {
+        id: CSV_CHIPS.header,
+        label: t`First row`,
+        value: 'yes',
+        options: [
+          { value: 'yes', label: t`Column names` },
+          { value: 'no', label: t`Already data` },
+        ],
+      },
+    ];
+    if (kind === 'csv') {
+      base.splice(1, 0, {
         id: CSV_CHIPS.delimiter,
         label: t`Columns separated by`,
         value: 'auto',
@@ -168,17 +215,15 @@ export function csvPreviewSource(fileName: string, bytes: Uint8Array): ImportPre
           { value: 'tab', label: t`Tab` },
           { value: '|', label: t`Vertical bar` },
         ],
-      },
-      {
-        id: CSV_CHIPS.header,
-        label: t`First row`,
-        value: 'yes',
-        options: [
-          { value: 'yes', label: t`Column names` },
-          { value: 'no', label: t`Already data` },
-        ],
-      },
-    ];
+      });
+    } else if (book !== null && book.sheets.length > 1) {
+      base.splice(1, 0, {
+        id: CSV_CHIPS.sheet,
+        label: t`Worksheet`,
+        value: book.sheet,
+        options: book.sheets.map((name) => ({ value: name, label: name })),
+      });
+    }
     if (mode === 'timeline') {
       base.push({
         id: CSV_CHIPS.dates,
@@ -306,6 +351,12 @@ export function csvPreviewSource(fileName: string, bytes: Uint8Array): ImportPre
       const anchor = read.anchor;
       carried.push(t`Days are counted from ${anchor}, the first date in the file.`);
     }
+    if (book !== null) {
+      const sheet = book.sheet;
+      const sheets = book.sheets.length;
+      carried.push(t`Read from the worksheet “${sheet}”.`);
+      if (sheets > 1) carried.push(plural(sheets, { one: '# worksheet in this workbook; the others are left out', other: '# worksheets in this workbook; the others are left out' }));
+    }
     lists.push({ heading: t`Spreadsheet`, label: t`What the file carried`, lines: carried });
 
     const approximated: string[] = [];
@@ -321,6 +372,14 @@ export function csvPreviewSource(fileName: string, bytes: Uint8Array): ImportPre
       const arcs = read.timeline.filter((row) => row.arc !== '').length;
       if (dated > 0) approximated.push(plural(dated, { one: '# row’s days are kept as a note on its scene, not as a timeline date', other: '# rows’ days are kept as notes on their scenes, not as timeline dates' }));
       if (arcs > 0) approximated.push(plural(arcs, { one: '# arc became a keyword, not a plotline', other: '# arcs became keywords, not plotlines' }));
+    }
+    if (book !== null) {
+      const formulas = book.formulas;
+      const times = book.times;
+      const errors = book.errors;
+      if (formulas > 0) approximated.push(plural(formulas, { one: '# formula was read as the value the workbook saved, not calculated again', other: '# formulas were read as the values the workbook saved, not calculated again' }));
+      if (times > 0) approximated.push(plural(times, { one: '# date cell’s time of day is not kept; the day is', other: '# date cells’ times of day are not kept; the days are' }));
+      if (errors > 0) approximated.push(plural(errors, { one: '# cell holds an error value, kept as its text', other: '# cells hold error values, kept as their text' }));
     }
     if (approximated.length > 0) lists.push({ heading: t`Spreadsheet`, label: t`What was approximated`, lines: approximated });
     return lists;
@@ -346,7 +405,7 @@ export function csvPreviewSource(fileName: string, bytes: Uint8Array): ImportPre
     prepare: async (settings, signal) => {
       await readAs(settings, signal);
     },
-    prepared: (settings) => reads.has(keyOf(settings, current)),
+    prepared: (settings) => reads.has(keyOf(settings, current, kind)),
     dispose: () => host.dispose(),
     chips,
     options: () => [],
@@ -361,4 +420,14 @@ export function csvPreviewSource(fileName: string, bytes: Uint8Array): ImportPre
       return read?.mode === 'codex' ? plural(rows, { one: 'Import # entry', other: 'Import # entries' }) : plural(rows, { one: 'Import # scene', other: 'Import # scenes' });
     },
   };
+}
+
+/** A `.csv`, `.tsv` or `.txt` grid in the preview (#288). */
+export function csvPreviewSource(fileName: string, bytes: Uint8Array): ImportPreviewSource {
+  return spreadsheetSource(fileName, bytes, 'csv');
+}
+
+/** One worksheet of an `.xlsx` workbook in the preview (#289). */
+export function xlsxPreviewSource(fileName: string, bytes: Uint8Array): ImportPreviewSource {
+  return spreadsheetSource(fileName, bytes, 'xlsx');
 }

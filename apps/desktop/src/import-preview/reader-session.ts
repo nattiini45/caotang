@@ -23,7 +23,8 @@ type State =
   | { readonly reader: 'kanka'; readonly archive: ImportArchive }
   | { readonly reader: 'docx'; readonly bytes: Uint8Array; readonly archive: ImportArchive }
   | { readonly reader: 'odt'; readonly bytes: Uint8Array }
-  | { readonly reader: 'csv'; readonly bytes: Uint8Array };
+  | { readonly reader: 'csv'; readonly bytes: Uint8Array }
+  | { readonly reader: 'xlsx'; readonly bytes: Uint8Array };
 
 /** Flattens an RTF or archive refusal to a code and a message, so it survives the structured clone (an Error's own `code` does not). */
 function serialiseRtf(result: RtfReadResult | RtfdReadResult): SerializableRtfResult {
@@ -51,8 +52,8 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
       state = { reader: 'odt', bytes: req.bytes };
       return;
     }
-    if (req.reader === 'csv') {
-      state = { reader: 'csv', bytes: req.bytes };
+    if (req.reader === 'csv' || req.reader === 'xlsx') {
+      state = { reader: req.reader, bytes: req.bytes };
       return;
     }
     const { openFolder, openZip } = await import('@caotang/import-read/zip');
@@ -116,6 +117,11 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
       if (state.reader !== 'csv') throw new Error('The import reader is not a spreadsheet reader.');
       const { readCsv } = await import('@caotang/import-csv');
       return { kind: 'csv', result: readCsv(state.bytes, req.options ?? {}) };
+    }
+    if (req.reader === 'xlsx') {
+      if (state.reader !== 'xlsx') throw new Error('The import reader is not a workbook reader.');
+      const { readXlsx } = await import('@caotang/import-xlsx');
+      return { kind: 'xlsx', result: await readXlsx(state.bytes, req.options ?? {}) };
     }
     if (req.reader === 'odt') {
       if (state.reader !== 'odt') throw new Error('The import reader is not an OpenDocument reader.');

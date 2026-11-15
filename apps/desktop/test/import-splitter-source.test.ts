@@ -21,7 +21,7 @@ import { ao3PreviewSource } from '../src/import-preview/ao3-source.js';
 import { kankaPreviewSource } from '../src/import-preview/kanka-source.js';
 import { docxPreviewSource } from '../src/import-preview/docx-source.js';
 import { odtPreviewSource } from '../src/import-preview/odt-source.js';
-import { csvPreviewSource } from '../src/import-preview/csv-source.js';
+import { csvPreviewSource, xlsxPreviewSource } from '../src/import-preview/spreadsheet-source.js';
 import { rawZip } from '../../../packages/import-read/test/zip-fixtures.js';
 import {
   SPLIT_CHIPS,
@@ -588,6 +588,51 @@ describe('the sources', () => {
     expect(again.tree[0]?.keywords).toEqual(['Elena', 'The Pier', 'Mara', 'Kai']);
     expect(again.tree[0]?.synopsis).toBe('The ferry came at noon.');
     scenes.dispose?.();
+    source.dispose?.();
+  });
+
+  it('a workbook offers its worksheets, reads one of them, and reports what a spreadsheet cannot keep', async () => {
+    const cell = (reference: string, value: string, type?: string, style?: number): string =>
+      `<c r="${reference}"${type === undefined ? '' : ` t="${type}"`}${style === undefined ? '' : ` s="${style}"`}>${type === 'inlineStr' ? `<is><t>${value}</t></is>` : `<v>${value}</v>`}</c>`;
+    const sheet = (rows: string[][]): string =>
+      `<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rows
+        .map((cells, index) => `<row r="${index + 1}">${cells.join('')}</row>`)
+        .join('')}</sheetData></worksheet>`;
+    const bible = sheet([
+      [cell('A1', 'Name', 'inlineStr'), cell('B1', 'Description', 'inlineStr')],
+      [cell('A2', 'Elena', 'inlineStr'), cell('B2', 'A cartographer', 'inlineStr')],
+    ]);
+    const timeline = sheet([
+      [cell('A1', 'Title', 'inlineStr'), cell('B1', 'Start', 'inlineStr')],
+      [cell('A2', 'The Landing', 'inlineStr'), cell('B2', '46026.5', undefined, 1)],
+    ]);
+    const book = rawZip([
+      { name: 'xl/workbook.xml', data: enc('<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Bible" sheetId="1" r:id="rId1"/><sheet name="Timeline" sheetId="2" r:id="rId2"/></sheets></workbook>') },
+      { name: 'xl/_rels/workbook.xml.rels', data: enc('<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Target="worksheets/sheet2.xml"/></Relationships>') },
+      { name: 'xl/styles.xml', data: enc('<?xml version="1.0"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cellXfs count="2"><xf numFmtId="0"/><xf numFmtId="14"/></cellXfs></styleSheet>') },
+      { name: 'xl/worksheets/sheet1.xml', data: enc(bible) },
+      { name: 'xl/worksheets/sheet2.xml', data: enc(timeline) },
+    ]);
+
+    const source = xlsxPreviewSource('bible.xlsx', book);
+    await source.load?.(() => {}, new AbortController().signal);
+    const settings = initialSettings(source.chips(), source.options());
+    expect(source.chips().map((chip) => chip.label)).toContain('Worksheet');
+    expect(source.chips().map((chip) => chip.label)).not.toContain('Columns separated by');
+    expect((source.codexRows?.() ?? []).map((row) => row.name)).toEqual(['Elena']);
+    const carried = source.report?.(source.plan(settings, NO_OVERRIDES))[0]?.lines ?? [];
+    expect(carried).toContain('Read from the worksheet “Bible”.');
+    expect(carried).toContain('2 worksheets in this workbook; the others are left out');
+
+    // The other worksheet, as timeline scenes: its date cell keeps the day and reports the time it does not keep.
+    const asScenes = { ...settings, chips: { ...settings.chips, 'csv-sheet': 'Timeline', 'csv-mode': 'timeline' } };
+    await source.prepare?.(asScenes, new AbortController().signal);
+    const plan = source.plan(asScenes, NO_OVERRIDES);
+    expect(plan.tree.map((node) => node.title)).toEqual(['The Landing']);
+    expect(plan.tree[0]?.notes).toContain('day 0');
+    const lists = source.report?.(plan) ?? [];
+    expect(lists[0]?.lines).toContain('Read from the worksheet “Timeline”.');
+    expect(lists[1]?.lines).toContain('1 date cell’s time of day is not kept; the day is');
     source.dispose?.();
   });
 
