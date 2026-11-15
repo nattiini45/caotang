@@ -4,13 +4,14 @@ import type { Request as RuntimeRequest } from 'miniflare';
 import { afterEach, describe, expect, it } from 'vitest';
 import { accountOperatorSql } from '../account-policy.mjs';
 import { QuotaStore } from '../src/quota.js';
-import { MAX_OBJECT_BYTES } from '../src/storage.js';
+import { payloadFingerprint } from '../src/fingerprint.js';
 import { BlobPreconditionFailedError } from '../../remote-store/src/blob-store.js';
 import { RemoteQuotaExceededError } from '../../remote-store/src/errors.js';
 import { createHttpBlobStore } from '../../remote-store/src/http-blob-store.js';
 import { applyMigrations } from './d1-fixture.js';
 import { workerModules } from './worker-modules.js';
 
+const MAX_OBJECT_BYTES = 64 * 1024 * 1024;
 const ORIGIN = 'https://studio.example.invalid';
 const SECRET = 'test-only-storage-secret-not-a-real-credential';
 const IDS: Record<string, number> = { 'reader-one': 101, 'reader-two': 202 };
@@ -29,7 +30,7 @@ async function runtime(bindings: Record<string, string> = {}, options: { store?:
     },
     d1Databases: { ACCOUNT_DB: `accounts-${crypto.randomUUID()}` },
     ...(options.store === false ? {} : { r2Buckets: { PROJECT_STORE: `projects-${crypto.randomUUID()}` } }),
-    durableObjects: { ACCOUNT_HUBS: { className: 'AccountHub', useSQLite: true } },
+    durableObjects: { ACCOUNT_HUBS: { className: 'AccountHub', useSQLite: true }, STORAGE_COORDINATOR: { className: 'StorageCoordinator', useSQLite: true } },
     serviceBindings: { ASSETS: () => new Response('static shell') },
     outboundService: async (request: RuntimeRequest) => {
       const url = new URL(request.url);
@@ -44,7 +45,7 @@ async function runtime(bindings: Record<string, string> = {}, options: { store?:
   open.push(instance);
   const address = String(await instance.ready);
   const db = await instance.getD1Database('ACCOUNT_DB');
-  await applyMigrations(db, ['0001_accounts.sql', '0002_quota.sql']);
+  await applyMigrations(db, ['0001_accounts.sql', '0002_quota.sql', '0003_quota_prune.sql']);
   const bucket = options.store === false ? undefined : await instance.getR2Bucket('PROJECT_STORE');
   const invite = (login: string, limitBytes = 1_000) => db.prepare(accountOperatorSql({ type: 'invite', identity: { id: `github:${IDS[login]}`, login }, limitBytes })).run();
   const dispatch = (path: string, init: { method?: string; headers?: Record<string, string>; body?: Uint8Array | ReadableStream | string; duplex?: 'half' } = {}) =>
@@ -67,13 +68,7 @@ async function runtime(bindings: Record<string, string> = {}, options: { store?:
     });
   const usage = async (session: string) => (await (await dispatch('/v1/account', { headers: { Cookie: session } })).json() as { usage: { limitBytes: number; usedBytes: number; reservedBytes: number } }).usage;
   const sweep = () => dispatch('/cdn-cgi/handler/scheduled');
-  const settleAll = async (session: string) => {
-    await sweep();
-    const account = await accountId(session);
-    const fences = await bucket!.list({ prefix: `${account}/fences/` });
-    for (const fence of fences.objects) await bucket!.put(fence.key, '1', { customMetadata: { at: String(Date.now() - 120_000) } });
-    await sweep();
-  };
+  const settleAll = async () => { await sweep(); };
   const accountId = async (session: string) => (await (await dispatch('/v1/account', { headers: { Cookie: session } })).json() as { id: string }).id;
   return { instance, address, db, bucket, invite, dispatch, signIn, call, put, usage, sweep, settleAll, accountId };
 }
@@ -141,7 +136,7 @@ describe('the Worker’s encrypted object storage', () => {
     expect((await h.put(session, 'blob-two', bytes, { 'If-Match': etag })).status).toBe(412);
     expect(new Uint8Array(await (await h.call(session, `/v1/projects/${PROJECT}/blobs/blob-one`)).arrayBuffer())).toEqual(bytes);
     expect(await h.usage(session)).toEqual({ limitBytes: 10_000, usedBytes: 285, reservedBytes: 855 });
-    await h.settleAll(session);
+    await h.settleAll();
     expect(await h.usage(session)).toEqual({ limitBytes: 10_000, usedBytes: 285, reservedBytes: 0 });
     const account = await h.accountId(session);
     expect((await h.bucket!.list({ prefix: `${account}/o/` })).objects).toHaveLength(1);
@@ -281,10 +276,6 @@ describe('the Worker’s encrypted object storage', () => {
     expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 10 });
     await h.sweep();
     expect(await h.bucket!.head(`${account}/fences/orphan-op`)).not.toBeNull();
-    expect(await h.bucket!.head(`${account}/o/orphan-op`)).not.toBeNull();
-    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 10 });
-    await h.bucket!.put(`${account}/fences/orphan-op`, '1', { customMetadata: { at: String(Date.now() - 120_000) } });
-    await h.sweep();
     expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 0 });
     expect(await h.bucket!.head(`${account}/o/orphan-op`)).toBeNull();
     expect((await h.put(session, 'manifest', new Uint8Array(10), { 'If-None-Match': '*' }, 'orphan-op')).status).toBe(409);
@@ -302,8 +293,6 @@ describe('the Worker’s encrypted object storage', () => {
     await h.bucket!.put(`${account}/o/stuck-op`, new Uint8Array(10), { customMetadata: { project: PROJECT, name: 'manifest' } });
     await h.bucket!.put(`${account}/live/${PROJECT}/manifest`, JSON.stringify({ operationId: 'stuck-op', size: 10, uploaded: 1_000 }), { customMetadata: { operation: 'stuck-op', size: '10' } });
     await h.sweep();
-    await h.bucket!.put(`${account}/fences/stuck-op`, '1', { customMetadata: { at: String(Date.now() - 120_000) } });
-    await h.sweep();
     expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 10 });
     const read = await h.call(session, `/v1/projects/${PROJECT}/blobs/manifest`);
     expect(read.status).toBe(200);
@@ -312,6 +301,83 @@ describe('the Worker’s encrypted object storage', () => {
     await h.sweep();
     expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 10 });
     expect(await h.bucket!.head(`${account}/o/stuck-op`)).not.toBeNull();
+  });
+
+  it('defers settlement while the version is retained history and keeps its charge', async () => {
+    const h = await runtime();
+    await h.invite('reader-one');
+    const session = await h.signIn('reader-one');
+    const account = await h.accountId(session);
+    const quota = new QuotaStore(h.db, { accountId: account, revision: 1 }, { leaseMs: 100, now: () => 1_000 });
+    await quota.reserve('retained-op', 'retained-op', 285);
+    await quota.beginWrite('retained-op');
+    await h.bucket!.put(`${account}/o/retained-op`, new Uint8Array(285), { customMetadata: { project: PROJECT, name: 'manifest', fingerprint: 'retained' } });
+    await h.bucket!.put(`${account}/history/retained-op`, JSON.stringify({ projectId: PROJECT, name: 'manifest', reason: 'replaced' }));
+    await h.bucket!.put(`${account}/live/${PROJECT}/manifest`, JSON.stringify({ operationId: 'later-op', size: 285, uploaded: 2_000 }), { customMetadata: { operation: 'later-op', size: '285' } });
+    await h.sweep();
+    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 285 });
+    expect(await h.bucket!.head(`${account}/o/retained-op`)).not.toBeNull();
+    expect(await h.bucket!.head(`${account}/history/retained-op`)).not.toBeNull();
+    await h.sweep();
+    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 285 });
+  });
+
+  it('refuses a mismatched in-flight retry without aborting the shared lease', async () => {
+    const h = await runtime();
+    await h.invite('reader-one');
+    const session = await h.signIn('reader-one');
+    const account = await h.accountId(session);
+    const quota = new QuotaStore(h.db, { accountId: account, revision: 1 }, { leaseMs: 60_000 });
+    await quota.reserve('shared-op', 'shared-op', 285);
+    await quota.beginWrite('shared-op');
+    const original = new Uint8Array(285).fill(1);
+    await h.bucket!.put(`${account}/o/shared-op`, original, { customMetadata: { project: PROJECT, name: 'manifest', fingerprint: await payloadFingerprint(PROJECT, 'manifest', original) } });
+    const mismatched = await h.put(session, 'manifest', new Uint8Array(285).fill(2), { 'If-None-Match': '*' }, 'shared-op');
+    expect(mismatched.status).toBe(409);
+    const row = await h.db.prepare('SELECT state FROM quota_operations WHERE account_id = ? AND operation_id = ?').bind(account, 'shared-op').first<{ state: string }>();
+    expect(row?.state).toBe('writing');
+    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 285 });
+    expect(await quota.commit('shared-op')).toMatchObject({ ok: true, operation: { state: 'committed' } });
+  });
+
+  it('lets concurrent same-key uploads both succeed with one charge', async () => {
+    const h = await runtime();
+    await h.invite('reader-one');
+    const session = await h.signIn('reader-one');
+    const bytes = new Uint8Array(285).fill(3);
+    const [one, two] = await Promise.all([
+      h.put(session, 'manifest', bytes, { 'If-None-Match': '*' }, 'twin-key'),
+      h.put(session, 'manifest', bytes, { 'If-None-Match': '*' }, 'twin-key'),
+    ]);
+    expect([one.status, two.status].every((status) => status === 200 || status === 201)).toBe(true);
+    expect(one.headers.get('ETag')).toBe(two.headers.get('ETag'));
+    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 285, reservedBytes: 0 });
+    expect(new Uint8Array(await (await h.call(session, `/v1/projects/${PROJECT}/blobs/manifest`)).arrayBuffer())).toEqual(bytes);
+  });
+
+  it('prunes settled idempotency records past the retention window and allows key reuse', async () => {
+    const h = await runtime();
+    await h.invite('reader-one');
+    const session = await h.signIn('reader-one');
+    const account = await h.accountId(session);
+    const quota = new QuotaStore(h.db, { accountId: account, revision: 1 }, { leaseMs: 100, now: () => 1_000 });
+    await quota.reserve('old-released', 'old-released', 10);
+    await quota.cancel('old-released');
+    await quota.reserve('recent-op', 'recent-op', 10);
+    await h.sweep();
+    const rows = await h.db.prepare('SELECT operation_id AS id FROM quota_operations WHERE account_id = ?').bind(account).all<{ id: string }>();
+    const ids = rows.results.map((row) => row.id);
+    expect(ids).not.toContain('old-released');
+    expect(ids).toContain('recent-op');
+    expect(await quota.reserve('old-released', 'old-released', 10)).toMatchObject({ ok: true, operation: { state: 'reserved' } });
+    let refused = false;
+    try {
+      const blocked = await h.db.prepare('DELETE FROM quota_operations WHERE account_id = ? AND operation_id = ?').bind(account, 'recent-op').run();
+      refused = !blocked.success;
+    } catch {
+      refused = true;
+    }
+    expect(refused).toBe(true);
   });
 
   it('round-trips the HTTP blob client through the real Worker and surfaces its typed errors', async () => {
@@ -341,7 +407,7 @@ describe('the Worker’s encrypted object storage', () => {
     await store.delete('manifest');
     expect(await store.get('manifest')).toBeNull();
     expect(await store.list()).toEqual([]);
-    await h.settleAll(session);
+    await h.settleAll();
     expect(await h.usage(session)).toEqual({ limitBytes: 2_048, usedBytes: 570, reservedBytes: 0 });
   });
 });
