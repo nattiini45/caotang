@@ -28,3 +28,20 @@ it('announces completed cancellation without calling it a resumable interruption
   expect(announcementFor({ ...task, status: 'cancelled' })).toContain('A background task was cancelled:');
   expect(viewOf({ ...task, status: 'cancelled' }, state)).toMatchObject({ canResume: false, canCancel: false, canDismiss: true });
 });
+
+it('counts only drafts in total/done for review and mixed tasks, never the coherence item', () => {
+  const reviewItem = { key: '0', step: 0, state: 'staged' as const };
+  const nativeOnly: TaskRecord = {
+    ...task, id: 'task_MIXNATIVE', kind: 'mixed', status: 'running',
+    steps: [{ tool: 'coherence.review', params: { scope: { mode: 'full' } }, expect: 'A coherence review' }, { tool: 'project.overview', params: {}, expect: 'An overview' }],
+    items: [reviewItem],
+  };
+  expect(viewOf(nativeOnly, state)).toMatchObject({ total: 0, done: 0 });
+  const oneDraft: TaskRecord = {
+    ...nativeOnly, id: 'task_MIXDRAFT',
+    steps: [...nativeOnly.steps, { tool: 'scene.draft', params: { doc: 'Scene', instruction: 'Open.', mode: 'draft' }, expect: 'A draft' }],
+    items: [reviewItem, { key: '2', step: 2, state: 'staged' }],
+  };
+  expect(viewOf(oneDraft, state)).toMatchObject({ total: 1, done: 1 });
+  expect(viewOf({ ...task, kind: 'draft' }, state)).toMatchObject({ total: 1, done: 0 });
+});

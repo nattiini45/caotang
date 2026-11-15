@@ -32,7 +32,7 @@
  */
 
 import { err, ok, type CommandError, type Result } from '@caotang/bus';
-import { withheldState } from '@caotang/context';
+import { withheldState, type ContextOverrides } from '@caotang/context';
 import { countIn } from '../coherence-facts.js';
 import { projectScanInput } from '../scan-worker.js';
 import {
@@ -74,8 +74,8 @@ export interface CoherenceSource {
    * active, and then the review is refused with the sentence that names the provider. Absent, `coherence.review` is not wired.
    */
   readonly model?: () => CoherenceModel | undefined;
-  /** The review's context, the codex and the story so far (coherence.md §5.3), for the state it is planned against. */
-  readonly review?: (state: ProjectState) => ReviewContext;
+  /** The review's context, the codex and the story so far (coherence.md §5.3), for the state it is planned against and the request's one-request choices. */
+  readonly review?: (state: ProjectState, overrides?: ContextOverrides) => ReviewContext;
 }
 
 /**
@@ -287,6 +287,7 @@ export function stageReviewPlan(
   clock: () => number,
   source: CoherenceSource,
   withheld?: ReadonlySet<string>,
+  overrides?: ContextOverrides,
 ): Result<ReviewPlan, CommandError> {
   const model = source.model?.();
   const excluded = excludedBy(withheld);
@@ -295,7 +296,7 @@ export function stageReviewPlan(
     file: heldFile(state),
     now: new Date(clock()),
     ...(model === undefined ? {} : { model }),
-    ...(source.review === undefined ? {} : { review: source.review(withheld === undefined ? state : withheldState(state, withheld)) }),
+    ...(source.review === undefined ? {} : { review: source.review(withheld === undefined ? state : withheldState(state, withheld), overrides) }),
     ...(excluded === undefined ? {} : { isExcluded: excluded }),
   });
   if (!outcome.ok) return err(refusalOf(outcome, 'coherence.review'));
@@ -330,7 +331,7 @@ export function coherenceAsyncPorts(clock: () => number, source: CoherenceSource
       file: heldFile(context.state),
       now: new Date(clock()),
       model: { model: model.model, complete: (request) => model.complete({ ...request, turnId: context.turnId, ...(context.sessionId === undefined ? {} : { sessionId: context.sessionId }) }) },
-      ...(source.review === undefined ? {} : { review: source.review(context.withheld === undefined ? context.state : withheldState(context.state, context.withheld)) }),
+      ...(source.review === undefined ? {} : { review: source.review(context.withheld === undefined ? context.state : withheldState(context.state, context.withheld), context.contextOverrides) }),
       ...(excludedBy(context.withheld) === undefined ? {} : { isExcluded: excludedBy(context.withheld) }),
       currentFile: () => heldFile(context.state),
       ...(context.signal === undefined ? {} : { signal: context.signal }),

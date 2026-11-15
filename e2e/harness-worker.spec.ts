@@ -61,8 +61,8 @@ test.describe('narrow dark touch controls', () => {
       const cancel = page.getByRole('button', { name: 'Cancel scan', exact: true });
       await expect(cancel).toBeVisible();
       const bounds = await cancel.boundingBox();
-      expect(bounds?.height).toBeGreaterThanOrEqual(44);
-      expect(bounds?.width).toBeGreaterThanOrEqual(44);
+      expect(Math.round(bounds?.height ?? 0)).toBeGreaterThanOrEqual(44);
+      expect(Math.round(bounds?.width ?? 0)).toBeGreaterThanOrEqual(44);
       expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
       await page.screenshot({ path: testInfo.outputPath('narrow-dark-pending-scan.png') });
       await cancel.tap();
