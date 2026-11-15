@@ -74,6 +74,20 @@ export interface HtmlDropped {
   iframes: number;
   eventAttrs: number;
   unsafeLinks: number;
+  /** `<audio>` and `<video>` players, which an import cannot keep. */
+  media: number;
+}
+
+/** A footnote reference in the text, and the note it points at, joined by their fragment. */
+export interface HtmlNoteRef {
+  fragment: string;
+  label: string;
+  blockIndex: number;
+}
+
+export interface HtmlNote {
+  fragment: string;
+  md: string;
 }
 
 export interface HtmlWalkResult {
@@ -84,6 +98,12 @@ export interface HtmlWalkResult {
   /** Remote http(s) image targets, listed as not downloaded unless the writer opts in. */
   remoteImages: string[];
   dropped: HtmlDropped;
+  /** Each element `id` to the first block it produced, so a reader can address a block by fragment (an EPUB nav entry). */
+  anchors: Map<string, number>;
+  /** `epub:type="noteref"` links, written as `[^n]` in the text. */
+  noterefs: HtmlNoteRef[];
+  /** `epub:type="footnote"` asides, kept out of the text and returned as their Markdown. */
+  notes: HtmlNote[];
 }
 
 export type HtmlWalkError = { kind: 'not-xml'; message: string };
@@ -97,7 +117,7 @@ export interface HtmlWalkOptions {
 }
 
 const BLOCK_TAGS = new Set(['p', 'div', 'section', 'article', 'header', 'footer', 'main', 'aside', 'blockquote', 'ul', 'ol', 'li', 'pre', 'table', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'figure', 'figcaption']);
-const DROP_TAGS = new Set(['script', 'style', 'iframe', 'noscript', 'template', 'head', 'object', 'embed', 'form', 'input', 'button', 'select', 'textarea', 'link', 'meta']);
+const DROP_TAGS = new Set(['script', 'style', 'iframe', 'noscript', 'template', 'head', 'object', 'embed', 'form', 'input', 'button', 'select', 'textarea', 'link', 'meta', 'audio', 'video']);
 
 /** Walk an XHTML page into the import block list. */
 export function htmlToBlocks(html: string, options: HtmlWalkOptions = {}): HtmlWalkOutput {
@@ -112,13 +132,30 @@ export function htmlToBlocks(html: string, options: HtmlWalkOptions = {}): HtmlW
     losses: [],
     images: new Map(),
     remoteImages: [],
-    dropped: { scripts: 0, styles: 0, iframes: 0, eventAttrs: 0, unsafeLinks: 0 },
+    dropped: { scripts: 0, styles: 0, iframes: 0, eventAttrs: 0, unsafeLinks: 0, media: 0 },
     styles,
     unit: options.unit ?? '',
     refPrefix: options.refPrefix ?? 'import:html-image-',
+    anchors: new Map(),
+    pendingAnchors: [],
+    noterefs: [],
+    notes: [],
+    noteLabels: new Map(),
   };
   walkChildren(body, state, {});
-  return { ok: true, value: { blocks: state.blocks, losses: state.losses, images: state.images, remoteImages: state.remoteImages, dropped: state.dropped } };
+  return {
+    ok: true,
+    value: {
+      blocks: state.blocks,
+      losses: state.losses,
+      images: state.images,
+      remoteImages: state.remoteImages,
+      dropped: state.dropped,
+      anchors: state.anchors,
+      noterefs: state.noterefs,
+      notes: state.notes,
+    },
+  };
 }
 
 interface WalkState {
@@ -130,6 +167,28 @@ interface WalkState {
   styles: Map<string, ClassStyle>;
   unit: string;
   refPrefix: string;
+  anchors: Map<string, number>;
+  /** The ids of the elements entered since the last block, all naming the next block. */
+  pendingAnchors: string[];
+  noterefs: HtmlNoteRef[];
+  notes: HtmlNote[];
+  noteLabels: Map<string, string>;
+}
+
+/** Add a block, giving it the ids of the elements it came from. */
+function pushBlock(state: WalkState, block: ImportBlock): void {
+  for (const id of state.pendingAnchors) if (!state.anchors.has(id)) state.anchors.set(id, state.blocks.length);
+  state.pendingAnchors.length = 0;
+  state.blocks.push(block);
+}
+
+/** An element's EPUB semantic type (`epub:type`, or the equivalent ARIA `role`). */
+function semanticType(element: XmlElement): string {
+  const typed =
+    attr(element, 'type', 'http://www.idpf.org/2007/ops') ??
+    element.attributes.find((a) => a.local === 'type' && a.prefix === 'epub')?.value ??
+    attr(element, 'role');
+  return (typed ?? '').trim();
 }
 
 /** The inherited inline context: whether we are inside bold/italic/a link, and the current list marker. */
@@ -185,6 +244,7 @@ function dropElement(element: XmlElement, state: WalkState): void {
   if (tag === 'script') state.dropped.scripts += 1;
   else if (tag === 'style') state.dropped.styles += 1;
   else if (tag === 'iframe') state.dropped.iframes += 1;
+  else if (tag === 'audio' || tag === 'video') state.dropped.media += 1;
   for (const attribute of element.attributes) {
     if (/^on/i.test(attribute.local)) state.dropped.eventAttrs += 1;
   }
@@ -209,14 +269,27 @@ function walkNode(node: XmlNode, state: WalkState, context: InlineContext): void
   // Count event attributes on any kept element too.
   for (const attribute of node.attributes) if (/^on/i.test(attribute.local)) state.dropped.eventAttrs += 1;
 
+  const id = attr(node, 'id');
+  if (id !== undefined && id !== '') state.pendingAnchors.push(id);
+
+  // A footnote aside is kept as a note, not as text: its reference in the prose points at it by fragment.
+  const semantic = semanticType(node);
+  if (semantic.split(/\s+/).includes('footnote') || semantic.split(/\s+/).includes('doc-footnote')) {
+    const md = inlineText(node, state, { ...context }).replace(/\s+/g, ' ').trim();
+    if (id !== undefined && md !== '') state.notes.push({ fragment: id, md });
+    state.pendingAnchors.length = 0;
+    return;
+  }
+
   if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6') {
     const level = Number(tag.slice(1));
     const text = inlineText(node, state, { ...context }).trim();
-    if (text !== '') state.blocks.push({ kind: 'heading', level, text, md: `${'#'.repeat(level)} ${text}`, ...(signalsOf(blockStyle(node, state), state.unit) === undefined ? {} : { src: signalsOf(blockStyle(node, state), state.unit) }) });
+    const signals = signalsOf(blockStyle(node, state), state.unit);
+    if (text !== '') pushBlock(state, { kind: 'heading', level, text, md: `${'#'.repeat(level)} ${text}`, ...(signals === undefined ? {} : { src: signals }) });
     return;
   }
   if (tag === 'hr') {
-    state.blocks.push({ kind: 'break', marker: '***' });
+    pushBlock(state, { kind: 'break', marker: '***' });
     return;
   }
   if (tag === 'img') {
@@ -277,7 +350,7 @@ function hasBlockChild(element: XmlElement): boolean {
 function emitPara(md: string, state: WalkState, style: { align?: Align; bold?: boolean; pageBreak?: boolean }): void {
   const text = md.replace(/[*_`>#[\]()!-]/g, '').replace(/\s+/g, ' ').trim();
   const signals = signalsOf(style, state.unit);
-  state.blocks.push({ kind: 'para', md, text, ...(signals === undefined ? {} : { src: signals }) });
+  pushBlock(state, { kind: 'para', md, text, ...(signals === undefined ? {} : { src: signals }) });
 }
 
 /** Render an element's inline content as Caotang-dialect Markdown. */
@@ -320,6 +393,19 @@ function inlineText(element: XmlElement, state: WalkState, context: InlineContex
     if (tag === 'a') {
       const href = attr(child, 'href') ?? '';
       const inner = inlineText(child, state, context);
+      const kind = semanticType(child).split(/\s+/);
+      if (href.startsWith('#') && (kind.includes('noteref') || kind.includes('doc-noteref'))) {
+        // An EPUB footnote reference becomes an inline [^n], the note itself kept apart (decision 3).
+        const fragment = href.slice(1);
+        let label = state.noteLabels.get(fragment);
+        if (label === undefined) {
+          label = String(state.noteLabels.size + 1);
+          state.noteLabels.set(fragment, label);
+        }
+        state.noterefs.push({ fragment, label, blockIndex: state.blocks.length });
+        out += `[^${label}]`;
+        continue;
+      }
       if (href === '' || !isSafeLinkTarget(href)) {
         if (href !== '') state.dropped.unsafeLinks += 1;
         out += inner;
@@ -369,5 +455,5 @@ function emitImage(element: XmlElement, state: WalkState): void {
   }
   const ref = `${state.refPrefix}${state.images.size}`;
   state.images.set(ref, src);
-  state.blocks.push({ kind: 'image', assetRef: ref, alt });
+  pushBlock(state, { kind: 'image', assetRef: ref, alt });
 }
