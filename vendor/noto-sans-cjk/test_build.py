@@ -126,6 +126,17 @@ class CommonFont(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get("CAOTANG_NOTO_CJK_SOURCE"), "CAOTANG_NOTO_CJK_SOURCE names the upstream OTF")
 class FromTheSource(unittest.TestCase):
+    def test_the_full_build_fails_over_its_budget(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            work = Path(scratch)
+            shutil.copy(HERE / "SHA256SUMS", work / "SHA256SUMS")
+            original_here, original_budget = build.HERE, build.FULL_BUDGET
+            build.HERE, build.FULL_BUDGET = work, 1
+            try:
+                self.assertEqual(build.build_full(Path(os.environ["CAOTANG_NOTO_CJK_SOURCE"])), 1)
+            finally:
+                build.HERE, build.FULL_BUDGET = original_here, original_budget
+
     def test_the_full_build_gives_the_pinned_files(self):
         original_argv = sys.argv
         sources = [os.environ["CAOTANG_NOTO_CJK_SOURCE"]]
