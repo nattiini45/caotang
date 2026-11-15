@@ -3,6 +3,7 @@ import { t } from '@lingui/core/macro';
 import { codexSearchable, searchCandidates, type SearchState, type UnitField } from '@caotang/retrieval';
 import type { AsyncToolPort } from '@caotang/harness';
 import type { TextSearchReply, TextSearchRequest } from './text-search-protocol.js';
+import { textSearchWorkerUrl } from './text-search-worker-url.js';
 
 export function createTextSearchWorker(): { readonly port: AsyncToolPort; dispose(): void } {
   let worker: Worker | undefined;
@@ -26,7 +27,7 @@ export function createTextSearchWorker(): { readonly port: AsyncToolPort; dispos
     if (closed || context.signal?.aborted) return Promise.resolve(unavailable());
     try {
       if (worker === undefined) {
-        worker = new Worker(new URL('./text-search.worker.ts', import.meta.url), { type: 'module' });
+        worker = new Worker(new URL(textSearchWorkerUrl, import.meta.url), { type: 'module' });
         worker.onmessage = ({ data }: MessageEvent<TextSearchReply>) => {
           if (data.result === null) { fail(); return; }
           pending.get(data.id)?.(data.result);

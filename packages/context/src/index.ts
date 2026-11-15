@@ -36,7 +36,14 @@ export {
   type UntrustedSource,
 } from './untrusted.js';
 
-export { entryWithheld, withhold, withheldState, type WithheldView } from './withheld.js';
+export { entryWithheld, withhold, withheldState, scrubbed, scrubMemory, withheldReadPolicy, type WithheldView } from './withheld.js';
+export {
+  deserializeContextConfig,
+  projectContextInput,
+  serializeContextConfig,
+  type ProjectedContextInput,
+  type SerializedContextConfig,
+} from './projection.js';
 export { ContextError, type ContextErrorCode } from './errors.js';
 
 export {

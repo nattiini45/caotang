@@ -10,9 +10,12 @@
  * §5.1). A container with no body yields no findings, because there is no Ink for the compiler to report on.
  */
 
-import type { DialogueFacts } from '@caotang/coherence';
+import { compileCodex, countMentions } from '@caotang/codex';
+import type { DialogueFacts, MentionDetector } from '@caotang/coherence';
 import { speakersOf, validateContainer } from '@caotang/dialogue';
 import { getBody, type ProjectState, type TreeNode } from '@caotang/store';
+
+export const countIn: MentionDetector = (body, entries, terms) => countMentions(body, compileCodex(entries), terms);
 
 /** The binder node type a dialogue container carries (dialogue-narrative.md §2.1). */
 export const DIALOGUE_CONTAINER_TYPE = 'dialogue';

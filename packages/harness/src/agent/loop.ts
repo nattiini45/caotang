@@ -206,7 +206,7 @@ import { modelResult, outsideSources, readsOutsideText, scanForInjection, source
 import { CacheWatch, stableToolOrder, watched, type TurnCacheUse } from './cache-watch.js';
 import { requestCapFor, transmittedOutputCap } from './output-cap.js';
 import { fitToWindow } from './window.js';
-import { appendLanguageLine, contextOverridesOk, createContextPort, dropLinesOf, mergePreviews, type ContextPort, type LanguagePolicy } from './context.js';
+import { appendLanguageLine, contextOverridesOk, createContextPort, dropLinesOf, mergePreviews, type AssembledCall, type ContextPort, type ContextRequest, type LanguagePolicy } from './context.js';
 import { createSubagentRunner, framedResult, resultLine, SUBAGENT_SPECS, type ParentTurnHandle } from './subagent.js';
 import {
   BACKGROUND_OFFER_MIN_CALLS,
@@ -2157,6 +2157,20 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return { ...task, ...(overrides === undefined ? {} : { overrides }), ...(loaded.length === 0 ? {} : { instruction: [skillBlock(loaded), '---', task.instruction].join('\n\n') }) };
   }
 
+  async function assembleForDraft(turn: Turn, request: ContextRequest): Promise<AssembledCall> {
+    if (context.assembleAsync === undefined) return context.assemble(request);
+    let call: AssembledCall;
+    try {
+      call = await context.assembleAsync(request, turn.signal);
+    } catch (error) {
+      checkStop(turn);
+      throw error;
+    }
+    checkStop(turn);
+    guardReadBoundary(turn);
+    return call;
+  }
+
   /**
    * One step's draft. The revision is read before the model is asked, so the draft is staged against the
    * text the model was given, and a document the user changes while it is being written is a conflict.
@@ -2184,7 +2198,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const revision = getRevision(state, node.value.id);
       const instruction = String(step.params['instruction'] ?? '');
       const targetWords = typeof step.params['target_words'] === 'number' ? step.params['target_words'] : undefined;
-      const call = context.assemble({
+      const call = await assembleForDraft(turn, {
       nonce: turn.nonce,
         ...history,
         task: withSkills(turn, sceneTask(node.value.title, node.value.id, mode, instruction, selection, targetWords, step.params['include_forward_outline'] === true), step.contextOverrides),
@@ -2260,7 +2274,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const docs: SynopsisDoc[] = [];
       const previews: PromptPreview[] = [];
       for (const node of nodes) {
-        const call = context.assemble({
+        const call = await assembleForDraft(turn, {
       nonce: turn.nonce,
           ...history,
           state: sourceView(state, node.id, source),
@@ -2321,7 +2335,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const revision = getRevision(state, container.node.id);
       // The container is the focus (dialogue-narrative §7): its Ink is L5, its prior beats are L4 and the codex of its speakers is L2,
       // so the prompt is the standard stack. The task carries the brief only, because the Ink is already in the focus.
-      const call = context.assemble({
+      const call = await assembleForDraft(turn, {
       nonce: turn.nonce,
         ...history,
         task: withSkills(turn, { tool: 'dialogue.draft', instruction: `Brief: ${instruction}`, focus: container.node.id }, step.contextOverrides),
@@ -2360,7 +2374,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     }
     if (callsLeft(turn) < 1) return refusedDraft(tooCostly(step.tool, 1, 0, maxModelCalls));
     const aspects = Array.isArray(step.params['aspects']) ? (step.params['aspects'] as readonly string[]) : [];
-    const call = context.assemble({
+    const call = await assembleForDraft(turn, {
       nonce: turn.nonce,
       ...history,
       task: { ...continuityTask(scope.map((node) => node.id), aspects), ...((step.contextOverrides ?? turn.contextOverrides) === undefined ? {} : { overrides: step.contextOverrides ?? turn.contextOverrides }) },

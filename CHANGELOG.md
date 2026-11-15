@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **CPU-only background preparation.** Quick scans and context assembly for queued drafts run in a lazy, same-origin browser worker, with read restrictions applied before transfer. Findings shows scan progress and **Cancel scan**; cancelled, stale or failed scans keep the findings and history unchanged. Draft preparation remains cancellable before its provider request. Provider transport, approvals and publication stay on the page; foreground and Node callers keep their synchronous path. A browser without worker support gets a retryable failure rather than a synchronous fallback.
+
 - **Per-profile request limits.** Settings › Providers has **Requests at once**, from 1 to 8, defaulting to 3 for endpoints and 8 for the demo. Streaming and collected calls share a foreground-first queue without interrupting running calls. A rate-limit response pauses new calls on that profile, and cancelling queued work makes no request or usage entry. Limits stay with browser-local profiles; this does not start parallel work or grant permissions.
 
 - **Optional server presence.** The standalone server can count other live browser profiles on an account, deduplicate tabs and send content-free join, departure and activity notices. Heartbeat leases and session deadlines remove stale connections, and peers never receive profile identifiers. Existing clients keep their original ping protocol; the local browser app is unchanged.
@@ -42,6 +44,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Hook lifecycle checks.** Pure checks now run before and after turns and exports, and before explicit folder and bundle saves. A submit check can stop a turn before any provider request; end and save checks only warn. A writer's blocked export offers **Compile anyway** for that export only, while the agent cannot override it. Export warnings enter the compile log, and opening a project announces its hooks. Settings › Hooks lists existing hooks with an enable switch and undoable deletion.
 
 ### Fixed
+
+- Explicit codex leave-outs are reported before reading their descriptions, even when an entry is empty or unmentioned. Never keeps its own suppression reason; kept prompt text is unchanged.
+
+- Unknown shot metadata names remain data: a field named `__proto__` cannot replace the reader's metadata dictionary prototype. Unknown fields are still reported and dropped on the next save.
 
 - Builds with a custom output directory include `THIRD-PARTY-NOTICES.md` beside their assets instead of writing into the default output directory.
 

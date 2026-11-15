@@ -10,6 +10,21 @@ const layer = (prompt: AssembledPrompt, id: LayerId) => prompt.layers.find((item
 const text = (prompt: AssembledPrompt, id: LayerId) => prompt.parts.find((part) => part.layer === id)?.text ?? '';
 
 describe('request-local context choices', () => {
+  it('reports explicit codex exclusions before description lookup while Never keeps its suppression', () => {
+    const app = buildApp();
+    const unmentioned = entry('Unmentioned Fictional Rule', { includePolicy: 'detected', description: '' });
+    const empty = entry('Empty Fictional Rule', { includePolicy: 'always', description: '' });
+    const never = entry('Forbidden Fictional Rule', { includePolicy: 'never', description: '' });
+    app.state.manifest.codex = [...(app.state.manifest.codex ?? []), unmentioned, empty, never];
+    const baseline = assemble({ ...task, overrides: { include: [codex(never.id)] } }, app);
+    for (const candidate of [unmentioned, empty, never]) Object.defineProperty(candidate, 'description', { get: () => { throw new Error('Excluded description was read.'); } });
+    const prompt = assemble({ ...task, overrides: { include: [codex(never.id)], exclude: [codex(unmentioned.id), codex(empty.id), codex(never.id)] } }, app);
+    const drops = layer(prompt, 'L2').drops;
+    for (const candidate of [unmentioned, empty]) expect(drops).toContainEqual(expect.objectContaining({ ref: codex(candidate.id), reason: { kind: 'writer-excluded' } }));
+    expect(drops).toContainEqual(expect.objectContaining({ ref: codex(never.id), reason: { kind: 'never' } }));
+    expect(prompt.messages).toEqual(baseline.messages);
+  });
+
   it('leaves an excluded prior-document synopsis out of both optional structure and story layers', () => {
     const app = buildApp();
     nodeById(app.state, IDS.ch2)!.synopsis = 'PRIVATE EXCLUDED SYNOPSIS';

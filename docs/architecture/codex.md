@@ -49,7 +49,7 @@ Field contracts (mirrors project-format §2 discipline — every field has a dom
 |---|---|
 | `name` | Required, non-empty after trim. Load-time duplicate (case-insensitive) → keep both, surface "duplicate codex name" warning chip; writer never silently renames. |
 | `aliases` | Deduped, case-insensitive vs `name` and each other; alias equal to another entry's name → load warning, detection resolves to the entry owning it as `name`. |
-| `description` | Empty description = entry is **dropped from assembly** even when matched ("filter out empty entries") and flagged in prompt preview as `empty description`. |
+| `description` | Empty description = entry is **dropped from assembly** even when matched ("filter out empty entries") and flagged in prompt preview as `empty description`. A request-local exclusion is reported before looking up the description, so an explicitly excluded entry instead reports the writer's exclusion; Never retains its own suppression. |
 | `includePolicy` | Unknown value on load → coerce to `'detected'` + warning (policy enum is closed). |
 | `attachments` | Referential integrity at load: dangling ids dropped with warning (never blocks load). |
 | `keywords` | Max 32 × 64 chars, same limits as node keywords; **never leaves the machine's assembly layer** — the anti-"eye color 20 times" lane. |
