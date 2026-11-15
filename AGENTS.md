@@ -69,7 +69,7 @@ packages/bus/            the command bus — every change goes through it
 packages/codex/          codex entries (characters, places, lore, subplots)
 packages/coherence/      findings and coherence checks
 packages/context/        context assembly for agent requests
-packages/crypto/         key hierarchy, file sealing and rollback marks for the hosted instance (specified, not built; nothing imports it)
+packages/crypto/         key hierarchy, sealing, account keys, Argon2id and remember-device for the hosted instance (built; the app does not import it yet)
 packages/dialogue/       branching dialogue (Ink)
 packages/editor/         the scene editor
 packages/editor-audit/   editor audit trail
