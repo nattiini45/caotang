@@ -424,11 +424,7 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
   const previousKeys = new Map<string, string>();
   const verifiedKeys = new Set<string>();
   if (usable !== undefined) {
-    let ordinal = 0;
-    for (const pair of pairSequence(usable.spans, plan.categories)) {
-      previousKeys.set(pair.pairId, pairKey(pair));
-      ordinal += 1;
-    }
+    for (const pair of pairSequence(usable.spans, plan.categories)) previousKeys.set(pair.pairId, pairKey(pair));
     // A checkpoint written before the keys existed carries a count over a composition that may since have grown; its pairs are verified again and its kept verdicts fold as duplicates.
     if (usable.verifiedPairs !== undefined) for (const key of usable.verifiedPairs) verifiedKeys.add(key);
   }
