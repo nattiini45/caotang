@@ -87,7 +87,7 @@ packages/mcp-client/     MCP client (Streamable HTTP)
 packages/mcp-server/     Caotang as an MCP server (@caotang/mcp-server)
 packages/pdf-fonts/      what both PDFs share for their fallback fonts (byte checks, fontkit, CID writer, emoji)
 packages/pictures/       the picture registry's pure parts: the record, usesOf, assets/ file names, the import pipeline (GPS strip, hash)
-packages/remote-store/   ArtifactFs over an encrypted remote blob store for the hosted instance (specified, not built; nothing imports it)
+packages/remote-store/   ArtifactFs over an encrypted remote blob store for the hosted instance, with the HTTP blob client (built; the app does not import it yet)
 packages/screenplay/     Fountain screenplay model
 packages/script/         the AV script: the linear timed script model, its parser, line ids and runtime totals (pure)
 packages/scan/           the deterministic continuity scan as a library, for a writer's own CI (@caotang/scan); the `caotang scan` command is in packages/cli
