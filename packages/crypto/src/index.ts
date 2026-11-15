@@ -1,16 +1,27 @@
 /**
- * Hosted-instance cryptography — [hosted.md §2–§4, §7](docs/architecture/hosted.md). Specified, not built: nothing in the
- * app imports this package. WebCrypto only (AES-256-GCM, HKDF-SHA-256, HMAC-SHA-256, SHA-256); the passphrase hash is
- * the injected {@link Kdf}.
+ * Hosted-instance cryptography — [hosted.md §2–§4, §7](docs/architecture/hosted.md). WebCrypto (AES-256-GCM,
+ * HKDF-SHA-256, HMAC-SHA-256, SHA-256) with a lazily loaded Argon2id adapter for the passphrase hash. The
+ * account-key orchestration and remember-device are pure over an injectable KDF and device-store port; the
+ * browser binds them. Nothing in the local app imports this package.
  */
 export { CryptoError, RollbackError, type CryptoErrorCode } from './errors.js';
-export { systemRandom, type RandomBytes } from './bytes.js';
-export { ARGON2ID_PROVISIONAL, MIN_SALT_BYTES, type Kdf } from './kdf.js';
+export { systemRandom, encodeBase64, decodeBase64, type RandomBytes } from './bytes.js';
+export { ARGON2ID_PROVISIONAL, MIN_SALT_BYTES, type Kdf, type KdfDescriptor } from './kdf.js';
+export {
+  ARGON2ID_ID,
+  ARGON2ID_DEFAULT,
+  argon2idDescriptor,
+  createArgon2idKdf,
+  resolveArgon2idKdf,
+  type Argon2idParams,
+} from './argon2id.js';
 export {
   INFO_LABELS,
+  VAULT_INFO_LABEL,
   SecretKey,
   deriveKek,
   deriveSubkey,
+  deriveVaultKey,
   generateMasterKey,
   generateProjectKey,
   generateSalt,
@@ -21,6 +32,26 @@ export {
   type KeyRole,
   type SubkeyPurpose,
 } from './keys.js';
+export {
+  ACCOUNT_RECORD_FORMAT,
+  setupAccountKeys,
+  unlockAccountKeys,
+  unlockWithRecoveryKey,
+  changeAccountPassphrase,
+  createProjectKey,
+  type AccountKeyRecord,
+  type ResolveKdf,
+  type SetupAccountOptions,
+  type SetupAccountResult,
+  type ChangePassphraseOptions,
+} from './account.js';
+export {
+  rememberDevice,
+  unlockRememberedDevice,
+  forgetDevice,
+  type DeviceWrapRecord,
+  type DeviceWrapStore,
+} from './device.js';
 export {
   PAD_MIN,
   PAD_STEP,
