@@ -89,11 +89,18 @@ export interface HtmlWalkResult {
 export type HtmlWalkError = { kind: 'not-xml'; message: string };
 export type HtmlWalkOutput = { ok: true; value: HtmlWalkResult } | { ok: false; error: HtmlWalkError };
 
+export interface HtmlWalkOptions {
+  /** `Signals.sourceUnit` for the blocks, when the reader knows the page or spine item they came from. */
+  unit?: string;
+  /** The image refs' namespace, so two pages' pictures never share a ref. `import:html-image-` by default. */
+  refPrefix?: string;
+}
+
 const BLOCK_TAGS = new Set(['p', 'div', 'section', 'article', 'header', 'footer', 'main', 'aside', 'blockquote', 'ul', 'ol', 'li', 'pre', 'table', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'figure', 'figcaption']);
 const DROP_TAGS = new Set(['script', 'style', 'iframe', 'noscript', 'template', 'head', 'object', 'embed', 'form', 'input', 'button', 'select', 'textarea', 'link', 'meta']);
 
 /** Walk an XHTML page into the import block list. */
-export function htmlToBlocks(html: string): HtmlWalkOutput {
+export function htmlToBlocks(html: string, options: HtmlWalkOptions = {}): HtmlWalkOutput {
   const styles = classStyles(html);
   const parsed = readXml(normaliseHtml(html));
   if (!parsed.ok) return { ok: false, error: { kind: 'not-xml', message: parsed.error.message } };
@@ -107,7 +114,8 @@ export function htmlToBlocks(html: string): HtmlWalkOutput {
     remoteImages: [],
     dropped: { scripts: 0, styles: 0, iframes: 0, eventAttrs: 0, unsafeLinks: 0 },
     styles,
-    unit: '',
+    unit: options.unit ?? '',
+    refPrefix: options.refPrefix ?? 'import:html-image-',
   };
   walkChildren(body, state, {});
   return { ok: true, value: { blocks: state.blocks, losses: state.losses, images: state.images, remoteImages: state.remoteImages, dropped: state.dropped } };
@@ -121,6 +129,7 @@ interface WalkState {
   dropped: HtmlDropped;
   styles: Map<string, ClassStyle>;
   unit: string;
+  refPrefix: string;
 }
 
 /** The inherited inline context: whether we are inside bold/italic/a link, and the current list marker. */
@@ -345,7 +354,7 @@ function imageMarkdown(element: XmlElement, state: WalkState): string {
     state.remoteImages.push(src);
     return '';
   }
-  const ref = `import:html-image-${state.images.size}`;
+  const ref = `${state.refPrefix}${state.images.size}`;
   state.images.set(ref, src);
   return `![${alt}](${ref})`;
 }
@@ -358,7 +367,7 @@ function emitImage(element: XmlElement, state: WalkState): void {
     state.remoteImages.push(src);
     return;
   }
-  const ref = `import:html-image-${state.images.size}`;
+  const ref = `${state.refPrefix}${state.images.size}`;
   state.images.set(ref, src);
   state.blocks.push({ kind: 'image', assetRef: ref, alt });
 }

@@ -100,7 +100,7 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
   const dropped: HtmlDropped = { ...EMPTY_DROPPED };
   let title: string | undefined;
 
-  for (const path of paths) {
+  for (const [pageIndex, path] of paths.entries()) {
     const read = await archive.read(path);
     if (!read.ok) return { ok: false, error: { kind: 'archive', message: read.error.message } };
     const decoded = decodePlainText(read.value);
@@ -108,14 +108,13 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
     if (decoded.status === 'too-large') return { ok: false, error: { kind: 'too-large' } };
     if (decoded.status === 'too-many-lines') return { ok: false, error: { kind: 'too-many-lines' } };
 
-    const walked = htmlToBlocks(decoded.text);
+    // Each page has its own image-ref namespace: two pages' pictures must never share a ref.
+    const walked = htmlToBlocks(decoded.text, { unit: path, refPrefix: `import:html-image-${pageIndex}-` });
     if (!walked.ok) return { ok: false, error: { kind: 'not-xml', message: walked.error.message } };
     if (title === undefined) title = titleOf(decoded.text, path);
 
     const offset = blocks.length;
-    for (const block of walked.value.blocks) {
-      blocks.push('src' in block ? { ...block, src: { ...block.src, sourceUnit: path } } : block);
-    }
+    blocks.push(...walked.value.blocks);
     losses.push(...walked.value.losses.map((loss) => ({ ...loss, blockIndex: loss.blockIndex === undefined ? undefined : loss.blockIndex + offset })));
     remoteImages.push(...walked.value.remoteImages);
     dropped.scripts += walked.value.dropped.scripts;
