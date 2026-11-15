@@ -117,7 +117,11 @@ export const BUDGET = {
   // 1,030.3 kB (1,030,261 bytes) measured with #488's request-parameter enforcement in the gateway, which loads at start: the deny map that
   // takes a denied thinking field off the wire, the one output settlement the body and `modelLimits` share, and the pinned-preset rows. The
   // ceiling is that plus about 1%, rounded up to the thousand. [owner 2026-11-08]
-  initialGzip: 1_069_000,
+  // 1,070.0 kB (1,069,960 bytes) measured with the spreadsheet import (#288) on #298's 1,068,780: +975 bytes gzip in the compiled
+  // English catalogue (the column roles, the two modes and the report's words, which must be in the entry before the first paint,
+  // i18n.md §3.3) and +123 in the entry itself (the codex-only import's guard and sentence). The readers stay lazy. The ceiling is
+  // the measured size plus about 1 kB, rounded up to the thousand.
+  initialGzip: 1_071_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -185,7 +189,9 @@ export const BUDGET = {
   // 92 kB gzip on top of this, which is why decision 1 chose an own reader.
   // The OpenDocument import (#298): 8,411,701 bytes measured on #279 (+18,135: the ODF reader and its preview source, in lazy
   // chunks; the first load did not move). The ceiling is the measured size plus about 8 kB.
-  totalJs: 8_420_000,
+  // The spreadsheet import (#288): 8,433,618 bytes measured on #298 (+21,917: the RFC 4180 reader, its role tables and the
+  // spreadsheet preview source, in lazy chunks; the first load did not move). The ceiling is the measured size plus about 6 kB.
+  totalJs: 8_440_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
