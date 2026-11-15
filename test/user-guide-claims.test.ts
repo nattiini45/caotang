@@ -686,7 +686,7 @@ describe('the import preview (#267)', () => {
     expect(read('apps/desktop/src/components/TweeImportDialog.tsx')).toContain('tweePreviewSource(');
     expect(guide).toContain('- **The import preview.** An import that brings in a whole book shows it first as a proposed binder beside its text');
     expect(guide).toContain('one **Undo** takes all of it back, pictures and codex entries included');
-    expect(guide).toContain('**Import Twee**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import Word…**, **Import OpenDocument…**, **Import HTML…**, **Import EPUB…**, **Import AO3…** and **Import Kanka…** open it.');
+    expect(guide).toContain('**Import Twee**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import Word…**, **Import OpenDocument…**, **Import HTML…**, **Import EPUB…**, **Import AO3…**, **Import Kanka…** and **Import spreadsheet…** open it.');
     expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
     expect(guide).toContain('**Import HTML…** reads a saved HTML page');
     expect(guide).toContain('in the background, so a long file does not hold the page while it is read');
@@ -698,7 +698,7 @@ describe('the import preview (#267)', () => {
     expect(manuscript).toContain('htmlZipPreviewSource');
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<ManuscriptImportActions />');
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, Word, OpenDocument, HTML, EPUB, AO3 and Kanka imports open the preview');
+    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, Word, OpenDocument, HTML, EPUB, AO3, Kanka and spreadsheet imports open the preview');
     expect(notYet).not.toContain('There is no **Import RTF** command yet');
     expect(changelog).toContain('**One import preview for every structured import.**');
     expect(read('docs/architecture/import-preview.md')).toContain('## 5. The commit: `binder.importTree`');
@@ -800,5 +800,39 @@ describe('the import preview (#267)', () => {
     expect(read('docs/architecture/import-odt.md')).toContain('## 4. Tracked changes');
     expect(changelog).toContain('**Import OpenDocument.**');
     expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **OpenDocument importieren…** liest eine LibreOffice-');
+  });
+
+  it('the spreadsheet import: the guide’s claims match the reader, the button and the spec', () => {
+    expect(guide).toContain('- **Import spreadsheet…** reads a `.csv`, `.tsv` or `.txt` grid');
+    expect(guide).toContain('**Dates are never guessed**');
+    expect(guide).toContain('day 0 is the first date in the file');
+    const manuscript = read('apps/desktop/src/components/ManuscriptImport.tsx');
+    expect(manuscript).toContain("await import('../import-preview/csv-source.js')");
+    expect(manuscript).toContain('csvPreviewSource(file.name, bytes)');
+    const source = read('apps/desktop/src/import-preview/csv-source.ts');
+    expect(source).toContain("mode: 'csv-mode'");
+    expect(source).toContain('CSV_CHIPS.column');
+    const reader = read('packages/import-csv/src/reader.ts');
+    expect(reader).toContain('sniffDelimiter(text)');
+    expect(reader).toContain('the first date in the file');
+    expect(read('packages/import-csv/src/roles.ts')).toContain('is not a date in the chosen format');
+    expect(read('docs/architecture/import-csv.md')).toContain('## 4. Dates');
+    expect(changelog).toContain('**Import spreadsheet.**');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **Tabelle importieren…** liest ein `.csv`-');
+  });
+
+  it('a codex-only import: the guide’s claim matches the preview, the command and the spec', () => {
+    expect(guide).toContain('A bible with no prose column imports as codex entries alone: no chapter or scene is added');
+    expect(guide).toContain('Switching between the two modes guesses the columns again');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('Eine Bible ohne Textspalte wird allein als Kodex-Einträge importiert');
+    const dialog = read('apps/desktop/src/import-preview/ImportPreviewDialog.tsx');
+    expect(dialog).toContain('built.params.nodes.length === 0 && built.params.codex === undefined');
+    expect(dialog).toContain('codex entries from ${file}');
+    expect(read('packages/bus/src/descriptors-import.ts')).toContain('nodes.length === 0 && (codex === undefined');
+    expect(read('apps/desktop/src/import-preview/csv-source.ts')).toContain('const columnKey =');
+    const preview = read('docs/architecture/import-preview.md');
+    expect(preview).toContain('`nodes` may be empty when `codex` carries entries or pages');
+    expect(read('docs/architecture/import-csv.md')).toContain('Each mode keeps its own column choices');
+    expect(read('docs/decisions.md')).toContain('`binder.importTree` takes an empty `nodes` when `codex` carries entries or pages');
   });
 });

@@ -28,7 +28,8 @@ The first row is a header unless the writer says otherwise; without one the colu
 Each column's role is guessed from a synonym table (Name ← name / title / character …; Aliases ← aka / also known as / nickname …;
 Start ← start / date / day …; POV ← viewpoint / narrator …), and a role is used once, so two "name" columns do not both become the
 name. **Every column has its own dropdown in the preview's rules**, so the writer can change any of them; changing one re-reads
-the file.
+the file. Each mode keeps its own column choices, so switching from codex to timeline guesses the columns again instead of
+carrying the other mode's choices over.
 
 - **Codex roles**: Name (required), Aliases (split on `;`, `,` or a newline), Type, Description, Long text → a Research page,
   Tags → keywords, Include policy, Image file, Relation to… , Detail field, Ignore.
@@ -48,7 +49,9 @@ A duration reads `3`, `3 days`, `2d` or `1 week`, as whole days.
 ## 5. What the import writes, and what it approximates
 
 Codex mode writes what `codex.importBatch` carries: name, aliases, type, description, keywords and include policy, with the long
-text as the row's own Research page. An image file name, a relation and a detail field are **kept as text on that page** and
+text as the row's own Research page. A bible with no prose column writes **no chapter or scene at all**: the import is codex entries
+and their pages, which `binder.importTree` takes with an empty tree (import-preview.md §5). An image file name, a relation and a
+detail field are **kept as text on that page** and
 reported: the codex has no typed detail fields (#221) and no relations graph (#223) in this build, and `binder.importTree` carries
 no visual references.
 
@@ -68,3 +71,5 @@ takes back. There is no `eval`, `new Function` or WebAssembly in the chain.
 `packages/import-csv/test` reads synthetic files: comma, semicolon, tab and pipe; quoted commas, quotes and newlines; UTF-16 and a
 BOM; a story bible with aliases, types and long text; a timeline with ISO dates, `Day N`, durations, POV, participants and arcs; a
 ragged row, a nameless row and a date in the wrong format; and the writer's own delimiter, header and column choices.
+`apps/desktop/test/import-splitter-source.test.ts` reads the same files through the preview source, and `e2e/import-csv.spec.ts`
+imports a bible as codex entries and the same shape as timeline scenes in the app.

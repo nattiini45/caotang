@@ -178,6 +178,42 @@ describe('binder.importTree — the apply', () => {
     expect(h.state.manifest.codex ?? []).toEqual([]);
   });
 
+  it('writes a codex-only import (#288): the entries and their Research pages, no chapter or scene, and Undo takes them back', async () => {
+    const h = harness();
+    const before = snapshotOf(h.state);
+    const body = 'Elena\n\nA cartographer, back from sea.';
+    const from = body.indexOf('Elena');
+    const result = await executeAsync(
+      command({
+        nodes: [],
+        codex: {
+          entries: [{ name: 'Elena', type: 'character', page: 0, keywords: ['harbour'], cite: { from, to: from + 5, quote: 'Elena' } }],
+          pages: [{ title: 'Elena', body }],
+        },
+      }),
+      h.bus,
+      h.registry,
+    );
+    expect(result.ok, result.ok ? '' : result.error.message).toBe(true);
+    if (!result.ok) return;
+    const value = result.value.result as { nodeIds: string[]; documents: number; folders: number; codexEntries: string[]; codexPages: string[] };
+    expect(value.nodeIds).toEqual([]);
+    expect(value.documents).toBe(0);
+    expect(value.folders).toBe(0);
+    expect(value.codexPages).toHaveLength(1);
+    const pageId = value.codexPages[0] ?? '';
+    expect(h.state.manifest.tree.find((node) => node.id === pageId)?.parentId).toBe('research');
+    expect(h.state.documents.get(pageId)?.body).toBe(body);
+    const entry = h.state.manifest.codex?.find((candidate) => candidate.name === 'Elena');
+    expect(entry?.attachments).toEqual([pageId]);
+    expect(entry?.keywords).toEqual(['harbour']);
+    expect(h.undo.groups()).toHaveLength(1);
+
+    undoLast(h);
+    expect(snapshotOf(h.state)).toEqual(before);
+    expect(h.state.manifest.codex ?? []).toEqual([]);
+  });
+
   it('writes nothing when the batch is refused: a codex row that collides refuses the whole import', async () => {
     const h = harness();
     const first = await executeAsync(command({ nodes: [{ type: 'folder', title: 'C' }, { type: 'document', title: 'S', parent: 0, body: 'Mara.' }], codex: { entries: [{ name: 'Mara', node: 1, cite: { from: 0, to: 4, quote: 'Mara' } }] } }), h.bus, h.registry);

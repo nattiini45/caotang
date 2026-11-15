@@ -13,7 +13,9 @@
  * A document's `status` and `label` name a vocabulary id the project holds or a name `vocabulary` adds. `codex.entries` are
  * `codex.importBatch` entries, with one more way to name the document they attach to: `node`, the index of an imported document.
  * `pictures` are staged bytes, each with the `ref` a body uses as an image target (`![alt](ref)`); the apply stores them through
- * the picture pipeline and writes their `../assets/` path in place of the ref (pictures.md D5).
+ * the picture pipeline and writes their `../assets/` path in place of the ref (pictures.md D5). `nodes` may be empty when
+ * `codex` carries entries or pages: a story-bible spreadsheet (#288) imports as codex entries with their own Research pages and
+ * adds no chapter or scene. An import that would write nothing at all is refused.
  *
  * **Validation is whole-batch.** Every node, term, picture and codex row is checked before anything is written, against a
  * projection in which a placeholder stands for each new document, so the codex rows are checked by `codex.importBatch`'s own
@@ -131,8 +133,8 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
     if (!destination.ok) return destination;
 
     const list = p.value['nodes'];
-    if (!Array.isArray(list) || list.length === 0) {
-      return invalid(`params.nodes must be a non-empty array of nodes, got ${showValue(list)}`, 'pass the proposed tree, one node per folder and document', 'nodes');
+    if (!Array.isArray(list)) {
+      return invalid(`params.nodes must be an array of nodes, got ${showValue(list)}`, 'pass the proposed tree, one node per folder and document', 'nodes');
     }
     if (list.length > IMPORT_TREE_NODES_MAX) {
       return limitExceeded(`params.nodes has ${list.length} nodes, limit ${IMPORT_TREE_NODES_MAX}`, `import at most ${IMPORT_TREE_NODES_MAX} nodes at once`, 'nodes');
@@ -316,6 +318,10 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
     }
 
     if (failures.length > 0) return batchRefusal(failures, 'fix every listed node in the preview and import again — nothing was written');
+    // A codex-only import writes entries and their Research pages and no binder node (a story-bible spreadsheet, #288).
+    if (nodes.length === 0 && (codex === undefined || codex.entries.length + (codex.pages?.length ?? 0) === 0)) {
+      return invalid('params.nodes holds no node and params.codex no entry or page, so the import would write nothing', 'pass the proposed tree, or the codex rows a codex-only import writes', 'nodes');
+    }
     const vocabularyOut = newStatuses.value.length + newLabels.value.length === 0
       ? undefined
       : { ...(newStatuses.value.length === 0 ? {} : { statuses: newStatuses.value }), ...(newLabels.value.length === 0 ? {} : { labels: newLabels.value }) };

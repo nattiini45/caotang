@@ -579,6 +579,14 @@ describe('the sources', () => {
     expect(plan.tree[0]?.keywords).toEqual(['Elena', 'The Pier', 'Mara', 'Kai']);
     expect(plan.tree[0]?.notes).toContain('day 0');
     expect(scenes.codexRows?.() ?? []).toEqual([]);
+
+    // Switching modes guesses the columns again: the codex mode's choices are not carried over as this mode's choices.
+    const seeded = initialSettings(scenes.chips(), scenes.options());
+    const switched = { ...seeded, chips: { ...seeded.chips, 'csv-mode': 'timeline' } };
+    await scenes.prepare?.(switched, new AbortController().signal);
+    const again = scenes.plan(switched, NO_OVERRIDES);
+    expect(again.tree[0]?.keywords).toEqual(['Elena', 'The Pier', 'Mara', 'Kai']);
+    expect(again.tree[0]?.synopsis).toBe('The ferry came at noon.');
     scenes.dispose?.();
     source.dispose?.();
   });

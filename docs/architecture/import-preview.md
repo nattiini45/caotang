@@ -31,7 +31,7 @@ proposed tree?* A source gives:
 | `prepare(settings, signal)` | Ensures the document for these settings is read, off the main thread where the reader runs in the Worker host (#390). The dialog calls it before planning whenever a reader chip or option changes; a source that caches by its own read key returns at once when the settings are already read. `plan` then reads the cached document synchronously. Optional. |
 | `prepared(settings)` | Whether `prepare` would return at once (the document is already read), so the dialog shows no reading flash for the default settings. Optional. |
 | `dispose()` | Releases the source's reader (its Worker) when the preview closes or a newer import replaces it. Optional. |
-| `chips()` | The rule chips, each a choice: chapters at (Heading n / style "X" / "Chapter N" lines / page breaks / none), scenes at, Parts nest or flatten, front matter to manuscript / Research / skip. The splitter source (`splitter-source.ts`) makes these from #266's `Detected`. |
+| `chips()` | The rule chips, each a choice: chapters at (Heading n / style "X" / "Chapter N" lines / page breaks / none), scenes at, Parts nest or flatten, front matter to manuscript / Research / skip. The splitter source (`splitter-source.ts`) makes these from #266's `Detected`. Each chip's select carries its label as its accessible name, so a reader (and a test) asks for the chip by its own words rather than by the whole list of options. A source may add a chip per column (the spreadsheet import, #288). |
 | `options()` | Reader toggles: tracked changes, comments → notes, underline → italics, images, snapshots, codex auto-detect (decisions 5 and 6, on by default). An option with `network` (host, count, size) is a network step (decision 10): it starts **off** whatever the source says, and its label names the host, the count and the size. |
 | `plan(settings, overrides)` | The proposed tree (`PreviewNode`: part, chapter, scene, text, front, back), the text pane's blocks, the ✂ markers with the reason for each, the counts, the losses (`LossWarning`s) and the sanity flags, a flag with a one-click fix as overrides. Pure and fast: it is run again on every chip change. |
 | `fields()`, `codexRows()`, `pictures()`, `metadata()` | What there is to map: front-matter keys or columns, codex rows (name, type, the passage that names it, a page of its own text, and the source's own `keywords`, `aliases` and `includePolicy`), pictures (staged bytes behind an `import:` ref the bodies use). A row with `preferPage` always gets its page, even when its name also appears in the tree (a Kanka entity, whose name is in the world-history index); without it a name found in the tree is cited there and no page is made. |
@@ -80,7 +80,9 @@ The preview's in-memory `import.preview` phase is `loading`, `failed` (reading f
 imports stage theirs. Its params: `parentId` (the manuscript, or a folder of the manuscript: folders are appended, never merged),
 `nodes` (the tree in reading order, each naming its parent folder by index; a top-level node goes under `parentId`, or under
 research with `place: 'research'`), `vocabulary` (the terms to add), `codex` (`codex.importBatch` entries, which may name an
-imported document by index as `node`), and `pictures`.
+imported document by index as `node`), and `pictures`. `nodes` may be empty when `codex` carries entries or pages: a story-bible
+spreadsheet (#288) imports as codex entries with their own Research pages and adds no chapter or scene. An import that would write
+nothing at all — no node, no entry, no page — is refused before the command, and by the command itself.
 
 - **What the preview decides before the command.** A node left out is not sent, nor anything under it, nor a picture only its text
   used (the status line says so). A scene or front matter at the top of an import into the manuscript gets a folder of its own name,
@@ -99,6 +101,8 @@ imported document by index as `node`), and `pictures`.
   registered only with the asset port (its apply awaits), as `asset.importBatch` is: a host without the port (Node, the MCP server)
   leaves it descriptor-only.
 - The `imported` mark (decisions.md, issue #54) is set here when that mark is built.
+- **The sentence afterwards** names what was made: documents and folders, or, when the import made neither, the codex entries it
+  wrote (`Imported 12 codex entries from bible.csv.`), then what was left out and what the continuity scan found.
 
 ## 6. Loading
 

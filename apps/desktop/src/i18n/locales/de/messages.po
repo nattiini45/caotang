@@ -7837,6 +7837,11 @@ msgstr "Jede Schnellprüfung ist in den Einstellungen ausgeschaltet, daher würd
 msgid "every reference names a codex entry or a project image, or is taken out"
 msgstr "jede Referenz nennt einen Kodex-Eintrag oder ein Projektbild, oder sie wird entfernt"
 
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "Everything is left out, so there is nothing to import. Tick at least one chapter, scene or codex entry."
+msgstr "Alles ist ausgenommen, es gibt also nichts zu importieren. Wählen Sie mindestens ein Kapitel, eine Szene oder einen Kodex-Eintrag."
+
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "Exclude phrases"
@@ -9159,6 +9164,11 @@ msgstr "{containers, plural, one {# Dialog-Container} other {# Dialog-Container}
 msgid "Imported {count, plural, one {# skill} other {# skills}}. Read each one and approve it before the agent can use it."
 msgstr "{count, plural, one {# Skill} other {# Skills}} importiert. Lesen Sie jeden einzelnen und genehmigen Sie ihn, bevor der Agent ihn verwenden kann."
 
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "Imported {entryCount} codex entries from {file}."
+msgstr "{entryCount} Kodex-Einträge aus {file} importiert."
+
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Imported {file} as one dialogue container: {passages, plural, one {# knot} other {# knots}}, {choices, plural, one {# choice} other {# choices}}, {stripped, plural, one {# logic block} other {# logic blocks}} stripped."
@@ -9189,6 +9199,11 @@ msgstr "ein {format}-Drehbuch importiert: {scenes, plural, one {# Szene} other {
 #: apps/desktop/src/app/activity-model.ts
 msgid "Imported into the binder"
 msgstr "In den Binder importiert"
+
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "Imported one codex entry from {file}."
+msgstr "Ein Kodex-Eintrag aus {file} importiert."
 
 #. Interpolated values: bytes, folder, max, name, path, problem, size, taken
 #: apps/desktop/src/app/skills-model.ts

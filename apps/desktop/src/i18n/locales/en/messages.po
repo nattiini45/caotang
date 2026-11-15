@@ -7836,6 +7836,11 @@ msgstr "Every quick check is off in Settings, so this tab’s scan runs nothing.
 msgid "every reference names a codex entry or a project image, or is taken out"
 msgstr "every reference names a codex entry or a project image, or is taken out"
 
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "Everything is left out, so there is nothing to import. Tick at least one chapter, scene or codex entry."
+msgstr "Everything is left out, so there is nothing to import. Tick at least one chapter, scene or codex entry."
+
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "Exclude phrases"
@@ -9158,6 +9163,11 @@ msgstr "Imported {containers, plural, one {# dialogue container} other {# dialog
 msgid "Imported {count, plural, one {# skill} other {# skills}}. Read each one and approve it before the agent can use it."
 msgstr "Imported {count, plural, one {# skill} other {# skills}}. Read each one and approve it before the agent can use it."
 
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "Imported {entryCount} codex entries from {file}."
+msgstr "Imported {entryCount} codex entries from {file}."
+
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Imported {file} as one dialogue container: {passages, plural, one {# knot} other {# knots}}, {choices, plural, one {# choice} other {# choices}}, {stripped, plural, one {# logic block} other {# logic blocks}} stripped."
@@ -9188,6 +9198,11 @@ msgstr "imported a {format} script: {scenes, plural, one {# scene} other {# scen
 #: apps/desktop/src/app/activity-model.ts
 msgid "Imported into the binder"
 msgstr "Imported into the binder"
+
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "Imported one codex entry from {file}."
+msgstr "Imported one codex entry from {file}."
 
 #. Interpolated values: bytes, folder, max, name, path, problem, size, taken
 #: apps/desktop/src/app/skills-model.ts

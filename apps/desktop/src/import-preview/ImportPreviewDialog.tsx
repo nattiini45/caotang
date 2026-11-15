@@ -246,8 +246,9 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
         codexHeld: held,
         pictures,
       }, helpers);
-      if (built.params.nodes.length === 0) {
-        send({ type: 'commit-failed', message: 'Everything is left out, so there is nothing to import. Tick at least one chapter or scene.' });
+      // A codex-only import (a story-bible spreadsheet, #288) writes entries and their pages and no chapter or scene.
+      if (built.params.nodes.length === 0 && built.params.codex === undefined) {
+        send({ type: 'commit-failed', message: t`Everything is left out, so there is nothing to import. Tick at least one chapter, scene or codex entry.` });
         return;
       }
       if (built.unkept.length > 0) {
@@ -260,7 +261,14 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
         return;
       }
       const scanned = scan.sentence(source.fileName);
-      report({ text: [importedSentence(source.fileName, built), ...(scanned === undefined ? [] : [scanned])].join(' '), tone: 'info' });
+      // A codex-only import made no chapter or scene, so the sentence names the entries instead (#288).
+      const entries = built.params.codex?.entries.length ?? 0;
+      const entryCount = formatCount(entries);
+      const file = isolate(source.fileName);
+      const made = built.documents + built.folders > 0
+        ? importedSentence(source.fileName, built)
+        : [entries === 1 ? t`Imported one codex entry from ${file}.` : t`Imported ${entryCount} codex entries from ${file}.`, ...built.notices].join(' ');
+      report({ text: [made, ...(scanned === undefined ? [] : [scanned])].join(' '), tone: 'info' });
       if (currentImportPreview()?.id === request.id) close(true);
     } catch (failure: unknown) {
       failCommit(failure instanceof Error ? failure.message : String(failure));
@@ -625,7 +633,7 @@ function RuleChips({
       {chips.map((chip) => (
         <label key={chip.id}>
           <span>{chip.label}</span>
-          <select value={settings.chips[chip.id] ?? chip.value} onChange={(event) => onChange(chip.id, event.currentTarget.value)}>
+          <select aria-label={chip.label} value={settings.chips[chip.id] ?? chip.value} onChange={(event) => onChange(chip.id, event.currentTarget.value)}>
             {chip.options.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}

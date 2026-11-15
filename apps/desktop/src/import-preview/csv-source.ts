@@ -71,23 +71,30 @@ function datesOf(settings: PreviewSettings): DateFormat {
   return value === 'dmy' || value === 'mdy' || value === 'ymd' || value === 'day' ? value : 'iso';
 }
 
-function rolesOf(settings: PreviewSettings, headers: readonly string[], mode: 'codex' | 'timeline'): CsvRole[] {
+/** Each mode keeps its own column choices, so switching modes guesses the columns again. */
+const columnKey = (mode: 'codex' | 'timeline', index: number): string => `${CSV_CHIPS.column}${mode}-${index}`;
+
+function rolesOf(settings: PreviewSettings, headers: readonly string[], mode: 'codex' | 'timeline'): (CsvRole | undefined)[] {
   const allowed: readonly CsvRole[] = mode === 'codex' ? CODEX_ROLES : TIMELINE_ROLES;
   return headers.map((_, index) => {
-    const chosen = settings.chips[`${CSV_CHIPS.column}${index}`];
-    return chosen !== undefined && (allowed as readonly string[]).includes(chosen) ? (chosen as CsvRole) : 'ignore';
+    const chosen = settings.chips[columnKey(mode, index)];
+    return chosen !== undefined && (allowed as readonly string[]).includes(chosen) ? (chosen as CsvRole) : undefined;
   });
 }
 
-/** Whether the writer chose any column, so the reader's own guess is left alone when they did not. */
-function anyRoleChosen(settings: PreviewSettings, headers: readonly string[]): boolean {
-  return headers.some((_, index) => settings.chips[`${CSV_CHIPS.column}${index}`] !== undefined);
+/** Whether the writer chose a column in this mode, so the reader's own guess is left alone when they did not. */
+function anyRoleChosen(settings: PreviewSettings, headers: readonly string[], mode: 'codex' | 'timeline'): boolean {
+  const allowed: readonly string[] = mode === 'codex' ? CODEX_ROLES : TIMELINE_ROLES;
+  return headers.some((_, index) => {
+    const chosen = settings.chips[columnKey(mode, index)];
+    return chosen !== undefined && allowed.includes(chosen);
+  });
 }
 
 function optionsOf(settings: PreviewSettings, current: CsvImport | null): CsvOptions {
   const mode = modeOf(settings);
   const headers = current?.headers ?? [];
-  const chosen = anyRoleChosen(settings, headers);
+  const chosen = anyRoleChosen(settings, headers, mode);
   return {
     delimiter: delimiterOf(settings),
     header: headerOf(settings),
@@ -98,7 +105,7 @@ function optionsOf(settings: PreviewSettings, current: CsvImport | null): CsvOpt
 }
 
 const keyOf = (settings: PreviewSettings, current: CsvImport | null): string =>
-  [modeOf(settings), delimiterOf(settings), headerOf(settings) ? 'header' : 'plain', datesOf(settings), ...(current?.headers ?? []).map((_, index) => settings.chips[`${CSV_CHIPS.column}${index}`] ?? '')].join('|');
+  [modeOf(settings), delimiterOf(settings), headerOf(settings) ? 'header' : 'plain', datesOf(settings), ...(current?.headers ?? []).map((_, index) => settings.chips[columnKey(modeOf(settings), index)] ?? '')].join('|');
 
 function wordsIn(text: string): number {
   return text.split(/\s+/).filter((word) => word !== '').length;
@@ -189,7 +196,7 @@ export function csvPreviewSource(fileName: string, bytes: Uint8Array): ImportPre
     const roles: readonly CsvRole[] = mode === 'codex' ? CODEX_ROLES : TIMELINE_ROLES;
     for (const [index, header] of (read?.headers ?? []).entries()) {
       base.push({
-        id: `${CSV_CHIPS.column}${index}`,
+        id: columnKey(mode, index),
         label: header,
         value: read?.roles[index] ?? 'ignore',
         options: roles.map((role) => ({ value: role, label: roleLabel(role) })),

@@ -16,7 +16,7 @@ export interface CsvOptions {
   header?: boolean;
   mode?: CsvMode;
   /** A role per column, as the writer chose; the guess fills the rest. */
-  roles?: readonly CsvRole[];
+  roles?: readonly (CsvRole | undefined)[];
   dateFormat?: DateFormat;
   /** The date day 0 stands for. */
   anchor?: Date;

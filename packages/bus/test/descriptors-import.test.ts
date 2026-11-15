@@ -116,14 +116,31 @@ describe('binder.importTree — the descriptor', () => {
     expect(failures.map((failure) => failure.target)).toEqual(['pictures[0].ref', 'pictures[2].ref', 'pictures[3].stagingId']);
   });
 
-  it('refuses an empty tree, a tree over the cap, and a media folder as the destination', () => {
+  it('refuses an import that would write nothing, a tree over the cap, and a media folder as the destination', () => {
     expect(binderImportTree.validate({ nodes: [] }, makeSnapshot()).ok).toBe(false);
+    expect(binderImportTree.validate({ nodes: [], codex: { entries: [] } }, makeSnapshot()).ok).toBe(false);
     const many = Array.from({ length: IMPORT_TREE_NODES_MAX + 1 }, (_, i) => ({ type: 'folder', title: `F${i}` }));
     const over = binderImportTree.validate({ nodes: many }, makeSnapshot());
     expect(over.ok).toBe(false);
     if (!over.ok) expect(over.error.code).toBe('limit-exceeded');
     const board = makeSnapshot({ extraNodes: [{ id: 'n_BOARD00000', parentId: CHAPTER_ONE, type: 'folder', kind: 'storyboard', title: 'Board' }] });
     expect(binderImportTree.validate({ parentId: 'n_BOARD00000', nodes: [{ type: 'folder', title: 'C' }] }, board).ok).toBe(false);
+  });
+
+  it('takes a codex-only import: no binder node, the entries on their own Research pages (#288)', () => {
+    const page = { title: 'Kai', body: 'Kai\n\nA cartographer, back from sea.' };
+    const from = page.body.indexOf('Kai');
+    const rows = { entries: [{ name: 'Kai', type: 'character', page: 0, cite: { from, to: from + 3, quote: 'Kai' } }], pages: [page] };
+    const result = binderImportTree.validate({ nodes: [], codex: rows }, makeSnapshot());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.nodes).toEqual([]);
+    expect(result.value.codex?.entries[0]).toMatchObject({ name: 'Kai', page: 0 });
+    expect(result.value.codex?.pages).toEqual([page]);
+
+    // A row that names a node the empty tree does not hold is still refused by its own field.
+    const orphan = binderImportTree.validate({ nodes: [], codex: { entries: [{ name: 'Kai', node: 0, cite: { from, to: from + 3, quote: 'Kai' } }], pages: [page] } }, makeSnapshot());
+    expect(failuresOf(orphan)[0]?.target).toBe('codex.entries[0].node');
   });
 
   it('refuses a key a node does not carry', () => {
