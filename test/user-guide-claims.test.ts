@@ -686,7 +686,7 @@ describe('the import preview (#267)', () => {
     expect(read('apps/desktop/src/components/TweeImportDialog.tsx')).toContain('tweePreviewSource(');
     expect(guide).toContain('- **The import preview.** An import that brings in a whole book shows it first as a proposed binder beside its text');
     expect(guide).toContain('one **Undo** takes all of it back, pictures and codex entries included');
-    expect(guide).toContain('**Import Twee**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import Word…**, **Import HTML…**, **Import EPUB…**, **Import AO3…** and **Import Kanka…** open it.');
+    expect(guide).toContain('**Import Twee**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import Word…**, **Import OpenDocument…**, **Import HTML…**, **Import EPUB…**, **Import AO3…** and **Import Kanka…** open it.');
     expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
     expect(guide).toContain('**Import HTML…** reads a saved HTML page');
     expect(guide).toContain('in the background, so a long file does not hold the page while it is read');
@@ -698,7 +698,7 @@ describe('the import preview (#267)', () => {
     expect(manuscript).toContain('htmlZipPreviewSource');
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<ManuscriptImportActions />');
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, Word, HTML, EPUB, AO3 and Kanka imports open the preview');
+    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, Word, OpenDocument, HTML, EPUB, AO3 and Kanka imports open the preview');
     expect(notYet).not.toContain('There is no **Import RTF** command yet');
     expect(changelog).toContain('**One import preview for every structured import.**');
     expect(read('docs/architecture/import-preview.md')).toContain('## 5. The commit: `binder.importTree`');
@@ -784,5 +784,21 @@ describe('the import preview (#267)', () => {
     expect(read('docs/architecture/import-docx.md')).toContain('## 4. Tracked changes, notes and comments');
     expect(changelog).toContain('**Import Word.**');
     expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **Word importieren…** liest ein Word-`.docx`-Manuskript');
+  });
+
+  it('the OpenDocument import: the guide’s claims match the reader, the button and the spec', () => {
+    expect(guide).toContain('- **Import OpenDocument…** reads a LibreOffice or OpenOffice `.odt` text file, or a flat `.fodt`');
+    expect(guide).toContain('The outline levels the document itself carries become chapters');
+    const manuscript = read('apps/desktop/src/components/ManuscriptImport.tsx');
+    expect(manuscript).toContain("await import('../import-preview/odt-source.js')");
+    expect(manuscript).toContain('odtPreviewSource(file.name, bytes)');
+    const source = read('apps/desktop/src/import-preview/odt-source.ts');
+    expect(source).toContain("tracked: 'odt-tracked'");
+    const reader = read('packages/import-odt/src/reader.ts');
+    expect(reader).toContain("tracked: options.tracked ?? 'accept'");
+    expect(reader).toContain("root.local !== 'document'");
+    expect(read('docs/architecture/import-odt.md')).toContain('## 4. Tracked changes');
+    expect(changelog).toContain('**Import OpenDocument.**');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **OpenDocument importieren…** liest eine LibreOffice-');
   });
 });
