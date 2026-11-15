@@ -4,7 +4,7 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "A self-hostable Worker authentication and live-push skeleton; not imported by the browser app",
+  "description": "A self-hostable Worker authentication, live-push and encrypted object storage server; not imported by the browser app",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": { ".": "./src/index.ts" },

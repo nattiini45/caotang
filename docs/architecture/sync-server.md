@@ -1,10 +1,10 @@
-# Self-hostable sync server — authentication and live-push skeleton
+# Self-hostable sync server — authentication, live push and encrypted object storage
 
-Status: the server package is standalone. Optional D1 accounts and quota accounting extend the authentication/live-push skeleton; encrypted object storage, project sync and a sign-in interface are not implemented. The local browser app does not import it or make server requests.
+Status: the server package is standalone. Optional D1 accounts and quota accounting extend the authentication/live-push skeleton, and account mode with an R2 binding serves the encrypted blob and manifest API. Client sync, merge/history and a sign-in interface are not implemented. The local browser app does not import it or make server requests.
 
 ## Boundary
 
-`@caotang/sync-server` exports a module Worker and an `AccountHub` Durable Object class. The deployment supplies an `ASSETS` fetch binding, an `ACCOUNT_HUBS` namespace, `PUBLIC_ORIGIN`, `ALLOWED_GITHUB_LOGINS`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` and `SESSION_SECRET`. No deployment name, account, domain or credential is embedded in the package. `PUBLIC_ORIGIN` is an HTTPS origin without a path. `SESSION_SECRET` must contain at least 32 UTF-8 bytes of random secret material. Empty or malformed authentication configuration fails closed; health and static assets do not depend on it.
+`@caotang/sync-server` exports a module Worker and an `AccountHub` Durable Object class. The deployment supplies an `ASSETS` fetch binding, an `ACCOUNT_HUBS` namespace, `PUBLIC_ORIGIN`, `ALLOWED_GITHUB_LOGINS`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` and `SESSION_SECRET`. Account mode adds the `ACCOUNT_DB` D1 binding; encrypted object storage adds the `PROJECT_STORE` R2 bucket binding. No deployment name, account, domain or credential is embedded in the package. `PUBLIC_ORIGIN` is an HTTPS origin without a path. `SESSION_SECRET` must contain at least 32 UTF-8 bytes of random secret material. Empty or malformed authentication configuration fails closed; health and static assets do not depend on it.
 
 Serve static assets without authentication. Run the Worker first only for `/v1/*` and `/healthz`; the API does not redirect unauthenticated requests. Keep the app's CSP and direct provider/MCP egress unchanged. The server adds no provider relay and performs no key derivation, decryption or project mutation. A deployer is responsible for HTTPS, asset response headers and configuration; a Worker binding is not an authorization mechanism for public requests.
 
@@ -19,6 +19,10 @@ Serve static assets without authentication. Run the Worker first only for `/v1/*
 | `POST /v1/auth/logout` | Requires the configured `Origin`, expires the browser session cookie and returns `204`. Revocation of other devices is future account work. |
 | `GET /v1/live` | Requires a valid session, the configured `Origin` and a WebSocket upgrade. Routes to a hub keyed by verified GitHub id, never a client-supplied id. |
 | `POST /v1/live/ping` | Requires a valid session and the configured `Origin`. Sends the content-free `{"type":"ping"}` notification to live sockets in that identity's hub. This is a connectivity proof, not a manifest commit. |
+| `GET /v1/projects/{id}/blobs` | Account mode with `PROJECT_STORE`: the live object names, ETags and sizes. See [Encrypted object storage](#encrypted-object-storage). |
+| `GET /v1/projects/{id}/blobs/{name}` | Account mode with `PROJECT_STORE`: the object's bytes and ETag, or `404`. |
+| `PUT /v1/projects/{id}/blobs/{name}` | Account mode with `PROJECT_STORE`: create or replace under an ETag precondition, quota-charged. |
+| `DELETE /v1/projects/{id}/blobs/{name}` | Account mode with `PROJECT_STORE`: soft delete, `204`. |
 
 All API responses are `Cache-Control: no-store`, including errors and redirects. Cookies use the `__Host-` prefix, `Path=/`, `HttpOnly`, `Secure`, `SameSite=Lax` and an explicit lifetime; no Domain is set. HMAC verification binds the cookie purpose and origin and rejects malformed, expired or tampered tokens. Session requests recheck the login allowlist, so removing a login refuses subsequent API calls. OAuth tokens are used only to fetch identity and are never returned to the client or retained. No route logs a code, token, cookie, secret, identity response or raw request URL.
 
@@ -42,7 +46,7 @@ Deploy the class as a SQLite-backed Durable Object. A local runtime test must ex
 
 ## Optional durable accounts
 
-**Status.** The Worker implements this section: it reads `AUTHENTICATION_MODE` and the `ACCOUNT_DB` binding, claims invitations at the callback, revalidates every protected call, serves `GET /v1/account` and `POST /v1/auth/logout-all`, and checks revocation in the hub. The operator side is the validated SQL planner. D1 provisioning, migration application and the quota writer are outside this package.
+**Status.** The Worker implements this section: it reads `AUTHENTICATION_MODE` and the `ACCOUNT_DB` binding, claims invitations at the callback, revalidates every protected call, serves `GET /v1/account` and `POST /v1/auth/logout-all`, and checks revocation in the hub. The operator side is the validated SQL planner. D1 provisioning and migration application are outside this package; the quota writer is the object storage section below.
 
 `AUTHENTICATION_MODE=accounts` selects the authoritative `ACCOUNT_DB` D1 binding. The default remains the existing allowlist mode. Missing D1 configuration, a database error, an uninvited identity or a disabled account never falls back to `ALLOWED_GITHUB_LOGINS`. Health and static assets remain independent. Deployers apply the package's ordered D1 migrations before selecting account mode.
 
@@ -58,7 +62,7 @@ Account-mode live hubs are named only from the verified persisted account id. Ev
 
 ## Quota accounting seam
 
-`QuotaStore` is an exported server-only D1 module, not a public upload route. Deployers select the byte allowance when granting an invitation; the generic package embeds no instance limit. The account's encoded payload bytes, including padding and retained versions, count; D1's registry/index overhead is not payload usage. Reservations count against the allowance before an upload begins. Current read-only account routes consume the usage view; the following encrypted-storage implementation must consume the mutation interface before it can claim end-to-end enforcement.
+`QuotaStore` is an exported server-only D1 module, not a public upload route. Deployers select the byte allowance when granting an invitation; the generic package embeds no instance limit. The account's encoded payload bytes, including padding and retained versions, count; D1's registry/index overhead is not payload usage. Reservations count against the allowance before an upload begins. The read-only account routes consume the usage view; the object storage routes consume the mutation interface.
 
 The lifecycle is `reserved → writing → committed`, with cancellation/reconciliation to terminal `released` only after an uncommitted write is safely settled. The `(account id, operation id)` idempotency key binds the immutable object key, size, session revision and lease deadline. Retrying cannot charge twice or repurpose a key; object keys and operation ids are bounded opaque identifiers. One atomic SQL operation admits a reservation only for an active account/revision with sufficient capacity. Concurrent reservations cannot oversubscribe and counters cannot become negative.
 
@@ -66,10 +70,43 @@ Before any object side effect, the writer changes the lease to writing and reche
 
 The caller configures a finite write lease and bounded sweep interval. Each due, failed or revoked uncommitted operation is reconciled through a trusted writer adapter that settles/aborts that operation, confirms the object is not committed/reachable, removes any unreferenced result, and confirms absence before releasing its charge. An old writer cannot resume after that settlement. This is a storage-adapter obligation: D1 does not make an external object write atomic. Without that proof, retain the charge and retry every sweep. Each attempt records its sweep time, and the next sweep orders by it before the deadline, so a settlement that stays unconfirmed waits behind operations that have not been tried and cannot starve them or another account's. The adapter keys its writer fences and stored objects by account id as well as operation id and object key, because two accounts may reuse the same operation and object names. Log only the opaque account id and deferred object count, never object names, bodies, URLs or raw adapter errors. Test release within the configured healthy-storage bound and on the first sweep after an unavailable adapter recovers.
 
-The current package has no R2 writer or production reconciliation schedule. Its local D1 tests use a deterministic fake uploader through the same settlement seam. The storage slice must wire the actual writer and scheduled sweep, prove the cross-system crash/race behavior, and document the outage exception before accepting real payloads. Neither a successful sign-in nor these accounting tests claim that objects or history are already stored or that a service is launch-ready.
+The R2 writer and the scheduled sweep are wired by the encrypted object storage section below. The local D1 tests use a deterministic fake uploader through the same settlement seam; the storage tests exercise the real R2 adapter through workerd, including the crash/race paths and the outage exception. Neither a successful sign-in nor these accounting tests claim that a service is launch-ready.
 
-The agreed test seams are verified OAuth/HTTP through actual workerd and local D1, the exported account/operator interface, and `QuotaStore` with real local D1 and a fake uploader. Cover identity rename/reuse, concurrent claims/reservations, session cutover/revocation including existing sockets, quota boundaries, idempotency, retained charges and failed/recovered reconciliation. The browser dependency boundary remains a repository guard.
+The agreed test seams are verified OAuth/HTTP through actual workerd with local D1 and R2, the exported account/operator interface, and `QuotaStore` with real local D1 and a fake uploader. Cover identity rename/reuse, concurrent claims/reservations, session cutover/revocation including existing sockets, quota boundaries, idempotency, retained charges and failed/recovered reconciliation. The browser dependency boundary remains a repository guard.
+
+## Encrypted object storage
+
+**Status.** In account mode with the `PROJECT_STORE` R2 binding, the Worker implements the blob service of [hosted.md §6](hosted.md): opaque bytes under opaque names, one account at a time. The server never parses, decrypts or inspects a payload. Without the binding the storage routes answer `503`; in allowlist mode they do not exist (`404`). The local browser app imports none of this; `@caotang/remote-store` ships the matching HTTP client.
+
+### Routes and validation
+
+| Route | Contract |
+|---|---|
+| `GET /v1/projects/{projectId}/blobs` | `200` JSON `[{name, etag, size}]` of the live objects, ordered by name. |
+| `GET /v1/projects/{projectId}/blobs/{name}` | `200` bytes with `ETag` and `Content-Type: application/octet-stream`; `404` when absent or soft-deleted. |
+| `PUT /v1/projects/{projectId}/blobs/{name}` | `If-None-Match: *` creates (`201`); `If-Match: "<etag>"` replaces exactly that version (`200`). Both answer with the new `ETag`. `412` when the precondition fails, `400` when it is missing or malformed, `409` for a refused or settled idempotent upload, `411` without `Content-Length`, `413` over the object cap, `507` over the account allowance, `503` when D1 or R2 is unavailable. Nothing is written on any refusal. |
+| `DELETE /v1/projects/{projectId}/blobs/{name}` | Soft delete, `204`; a no-op for an absent or already deleted name. |
+
+A project id is at most 64 letters, digits, `-` and `_`; an object name is at most 64 lower-case letters, digits and `-` (`manifest` is the index name). The body is `application/octet-stream` with a truthful `Content-Length`, at most 64 MiB (`413` above). Every storage call revalidates the account like every other protected route; the account id comes from the session only, and every R2 key begins with it, so one account can never address another's objects. Mutating routes keep the exact-Origin CSRF guard.
+
+### Layout and commit
+
+Each write stores its payload once, under `{accountId}/o/{operationId}`, and never replaces it. The live pointer `{accountId}/live/{projectId}/{name}` carries the current operation id and payload size in its metadata; the pointer's R2 ETag is the object's ETag on the wire. The pointer swap is the commit: R2's conditional put (create-only for `If-None-Match: *`, exact-ETag for `If-Match`) serialises concurrent writers, and a losing swap answers `412` with nothing committed. A soft delete swaps the pointer for a tombstone under the same precondition; the payload stays. A replaced or deleted version keeps a small history record under `{accountId}/history/{operationId}` so an operator can recover an older index by hand. Pointers, tombstones, history records and fences are index overhead, not payload usage.
+
+### Quota charging
+
+Every PUT runs the D1 lease lifecycle around the object writes: `reserve` admits the exact payload length against the account's remaining allowance (one byte over is `507`), `beginWrite` rechecks identity, revision and deadline before any R2 side effect, and `commit` charges the reserved bytes once, after the pointer swap. The `(accountId, operationId)` idempotency key comes from the optional `Idempotency-Key` header (at most 120 letters, digits, `-` and `_`); without it the server draws a random one. A retry with the same key and payload replays the committed ETag without a second charge; a different payload or name under the same key, or an operation the sweep already settled, is `409`. A failed precondition cancels the lease; the sweep releases its reservation and removes its unreferenced version.
+
+### Sweep and settlement
+
+The Worker's `scheduled` handler runs the quota reconciliation sweep over due, failed and revoked uncommitted operations, in batches of 100, ordered by last sweep time. The deployer schedules it with a cron trigger; without account mode or the bucket it is a no-op. The R2 settlement adapter fences the operation (`{accountId}/fences/{operationId}`), proves the version object is not the live pointer's current version, deletes the unreferenced version and its history record, and confirms both absent before the charge is released. A writer checks the fence before its version write, before the pointer swap and after it, and undoes a fenced swap, so a settled writer cannot resurrect an object or strand a pointer.
+
+**Outage exception.** D1 does not make the R2 pointer swap atomic with the quota commit. If the pointer swap lands and the commit is then lost (a crash or a D1 outage in that window), the object is live and readable, the operation stays uncommitted, and every sweep defers it: the reservation keeps counting against the allowance, because releasing it would undercount live bytes and deleting the object would destroy committed data. A client retry under the same key completes the commit while the lease lives; after the lease lapses the retry is `409` and the data remains readable. This is the documented price of the two-system write; it costs capacity, never data.
+
+### Retention
+
+Replaced and soft-deleted versions are retained and remain charged; nothing in this slice frees committed bytes. The agreed thinning (every version for 24 hours, then one per day to 30 days) and the purge of expired versions need a collection pass with its own reachability proof and a committed-bytes release, and land in a later slice. Until then an account at its cap is refused with `507`.
 
 ## Not yet built
 
-This package stores no manuscripts and is not a complete sync service. Encrypted blob and manifest APIs, the real quota writer/reconciler, client sync, merge/history, encryption setup and public-service hardening need their own contracts and tests. Its exports do not select a deployment or alter the browser app.
+This package is not a complete sync service. Retention collection, client sync, merge/history, encryption setup and public-service hardening need their own contracts and tests. Its exports do not select a deployment or alter the browser app.

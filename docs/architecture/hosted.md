@@ -1,6 +1,6 @@
 # Hosted instance — end-to-end encrypted projects
 
-> Status: **specified, not built.** Nothing here runs in the app. `caotang.app` stays local-only and unchanged: no accounts, no server calls, the same CSP. Two private packages build the storage core against an in-memory fake server and are imported by nothing: [`packages/crypto`](../../packages/crypto) (§2–§4, §7) and [`packages/remote-store`](../../packages/remote-store) (§5–§7). The backend, accounts, relay, domain and UI are not built, and none of them is until the owner funds the instance (§10). The epic is #17.
+> Status: **the storage core is built; the app does not use it yet.** `caotang.app` stays local-only and unchanged: no accounts, no server calls, the same CSP. The key hierarchy and sealing ([`packages/crypto`](../../packages/crypto), §2–§4, §7), the encrypted adapter and the HTTP blob client ([`packages/remote-store`](../../packages/remote-store), §5–§7) are built and tested, and the standalone server implements the blob service on R2 ([sync-server.md](sync-server.md#encrypted-object-storage)); nothing in the app imports them. The sign-in interface, device unlock, continuous sync and the relay are not built. The epic is #17.
 
 ## 1. Scope
 
@@ -63,12 +63,12 @@ There is **no escrow**. If the passphrase and the recovery key are both lost, th
 
 - **Each file is a blob written once**, under a random name, and never replaced. A write creates a new blob; the old one is soft-deleted after the commit.
 - **One `manifest` blob** is the index. On the wire it is an 8-byte big-endian counter ‖ the sealed JSON. The counter is read first because it is part of the associated data, and it rises by one on every commit. The JSON lists, for every path, `[path, pathHash, version, blobName, deleted]`, and the explicit directories. A removed file stays as a tombstone with its version raised, so its mark still means something. `listFiles`, `listDirs` and `exists` answer from the index; a directory that holds a file exists without `ensureDir`, as it does on a folder.
-- **A write** (a) seals the content at `version + 1`, (b) puts the blob with `If-None-Match: *`, then (c) puts the new manifest with `If-Match` of the manifest it read. (c) is the commit. A write that fails before (c) leaves an unreferenced blob that is never read and that the server's retention clears.
+- **A write** (a) seals the content at `version + 1`, (b) puts the blob with `If-None-Match: *`, then (c) puts the new manifest with `If-Match` of the manifest it read. (c) is the commit. A write that fails before (c) leaves an unreferenced blob that is never read and that the server's quota sweep clears.
 - **Reads** serve the index as of the last open, refresh or commit. They do not poll. A read whose blob is gone asks the server for the index: if it moved on, another device replaced the file and the read raises the conflict error; if not, the server lost the file and the read raises an integrity error.
 - **One writer at a time per device**: mutations run in a queue, each one reading, changing and swapping the index.
 - **Paths** are checked as `MemoryArtifactFs` checks them (project-relative, no `..`). The same contract suite runs against both bindings.
 
-What this slice does not do, and Phase 3 owns: batching several writes into one index commit (a project save is one commit per file today), an offline queue, and clearing unreferenced blobs.
+What this slice does not do, and Phase 3 owns: batching several writes into one index commit (a project save is one commit per file today), an offline queue, and the server's collection of retained versions.
 
 ## 6. The blob service
 
@@ -78,15 +78,16 @@ The server is backend-neutral: a small HTTP service that stores opaque bytes und
 |---|---|---|
 | `GET /v1/projects/{id}/blobs/{name}` | the live object | `200` bytes and `ETag`; `404` when absent or soft-deleted |
 | `PUT /v1/projects/{id}/blobs/{name}` | `If-None-Match: *` creates; `If-Match: "<etag>"` replaces that version only | `200`/`201` and `ETag`; `412` when the precondition fails (nothing written); `507` over the account's storage cap |
-| `DELETE /v1/projects/{id}/blobs/{name}` | soft delete | `204`; the server keeps the bytes 30 days, then purges |
+| `DELETE /v1/projects/{id}/blobs/{name}` | soft delete | `204`; the bytes are retained and stay charged until retention collection lands |
 | `GET /v1/projects/{id}/blobs` | live names | `200` JSON `[{name, etag, size}]` |
 
-- A name is lower-case letters, digits and `-`, at most 64 characters. The index is always `manifest`. The body is `application/octet-stream` and is never parsed.
-- The server keeps a replaced version of any object for the same 30 days, which is how an older index can be recovered by hand.
+- A name is lower-case letters, digits and `-`, at most 64 characters. The index is always `manifest`. The body is `application/octet-stream` with a truthful `Content-Length`, at most 64 MiB, and is never parsed.
+- A write may carry an `Idempotency-Key` (at most 120 letters, digits, `-` and `_`); a retry under the same key replays the committed ETag without a second charge, and a repurposed or settled key is refused with `409`. Missing or malformed preconditions are `400`, a missing `Content-Length` is `411`, an oversized body is `413`, and an unavailable store is `503`.
+- The server keeps every replaced and soft-deleted version, and keeps charging for it, so an older index can be recovered by hand. Thinning and purging retained versions (every version for 24 hours, then one per day to 30 days) need a collection pass with a reachability proof and a committed-bytes release; that is a later slice, and until it lands an account at its cap is refused with `507`.
 - It logs only what operation and abuse prevention strictly need: no content, no names beyond the request line, short retention. No telemetry, no analytics.
 - Authentication (email link, Google, GitHub; `HttpOnly`, `Secure`, `SameSite=Lax` cookies, CSRF protection on mutating routes) decides who may call these routes. It never derives a key.
 
-In code, `RemoteBlobStore` (`get`, `put` with a precondition, `delete`, `list`) is this contract. Its test double, a `FakeBlobServer` with ETags, 412, soft delete, an offline switch and a `dump()` of every version ever kept, lives in the package's tests. There is no HTTP client yet.
+In code, `RemoteBlobStore` (`get`, `put` with a precondition, `delete`, `list`) is this contract, and `createHttpBlobStore` in [`packages/remote-store`](../../packages/remote-store/src/http-blob-store.ts) is its HTTP client: same-origin session cookies, one idempotency key per logical write across bounded retries, and typed errors for a lost race (`BlobPreconditionFailedError`), an exhausted allowance (`RemoteQuotaExceededError`) and an unreachable server (`RemoteUnavailableError`). The contract's test double, a `FakeBlobServer` with ETags, 412, soft delete, an offline switch and a `dump()` of every version ever kept, lives in the package's tests. The R2-backed service itself is specified and built in [sync-server.md](sync-server.md#encrypted-object-storage).
 
 ## 7. Sync, conflicts and rollback
 
