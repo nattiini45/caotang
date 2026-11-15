@@ -47,6 +47,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - Explicit codex leave-outs are reported before reading their descriptions, even when an entry is empty or unmentioned. Never keeps its own suppression reason; kept prompt text is unchanged.
 
+- Unknown shot metadata names remain data: a field named `__proto__` cannot replace the reader's metadata dictionary prototype. Unknown fields are still reported and dropped on the next save.
+
 - Builds with a custom output directory include `THIRD-PARTY-NOTICES.md` beside their assets instead of writing into the default output directory.
 
 - **Editor focus and replacement races.** Ctrl+Home no longer jumps back to the old caret immediately after focusing a scene (#569). Superseded editor loads report cancellation instead of successful replacement, while keeping the existing agent-edit API and saved formats.
