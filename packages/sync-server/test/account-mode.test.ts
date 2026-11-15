@@ -125,6 +125,12 @@ describe('the Worker in account mode', () => {
     const protectedCall = await h.dispatch('/v1/session', { headers: { Cookie: signed({ purpose: 'session', origin: ORIGIN, expires: Date.now() + 60_000, mode: 'accounts', identity: { id: 'github:101', login: 'reader-one' }, account: { id: 'any', revision: 1 } }) } });
     expect(protectedCall.status).toBe(503);
     expect(await protectedCall.text()).not.toMatch(/no such table|SQL|D1_ERROR/i);
+    const cookie = signed({ purpose: 'session', origin: ORIGIN, expires: Date.now() + 60_000, mode: 'accounts', identity: { id: 'github:101', login: 'reader-one' }, account: { id: 'any', revision: 1 } });
+    const signOut = await h.dispatch('/v1/auth/logout', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } });
+    expect(signOut.status).toBe(204);
+    expect(signOut.headers.getSetCookie()[0]).toContain('Max-Age=0');
+    expect((await h.dispatch('/v1/auth/logout', { headers: { Cookie: cookie } })).status).toBe(405);
+    expect((await h.dispatch('/v1/auth/logout', { method: 'POST', headers: { Cookie: cookie } })).status).toBe(403);
   });
 
   it('revalidates on every call, so revocation stops old sessions and regranting never revives them', async () => {
