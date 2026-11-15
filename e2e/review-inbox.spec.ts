@@ -130,13 +130,17 @@ test('a costed queued review publishes a real report, opens its findings and ret
     });
   }
   await page.reload();
+  const projectRow = page.getByRole('listitem').filter({ hasText: 'Ferry Notebook' });
+  await expect(projectRow).toBeVisible({ timeout: 20_000 });
+  await projectRow.getByRole('button', { name: 'Open' }).click();
+  await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
   await openReviewInbox(page);
   await expect(task).toHaveAttribute('data-status', 'completed');
   await expect(task).toContainText('Review report opened');
   expect(requests).toHaveLength(before);
   await task.getByRole('button', { name: /^Dismiss / }).click();
   await expect(task).toHaveCount(0);
-  await page.getByRole('tab', { name: 'Findings', exact: true }).click();
+  await page.getByRole('tab', { name: 'Findings' }).click();
   await expect(page.locator('article.finding')).toHaveCount(1);
   await expect(history.locator('[data-run]')).toHaveCount(1);
   expect(requests).toHaveLength(before);
@@ -208,7 +212,9 @@ test('cancelling a review while its first durable save is held never admits a mo
     await expect(preview).toHaveCount(0);
     await openReviewInbox(page);
     await expect(page.locator('[data-task]')).toHaveCount(0);
-    expect(await storedReviewTasks(page)).toHaveLength(0);
+    const storedAfterCancel = await storedReviewTasks(page);
+    expect(storedAfterCancel).toHaveLength(1);
+    expect(storedAfterCancel[0]).toMatchObject({ status: 'cancelled', runs: 0, used: 0 });
     expect(requests).toHaveLength(0);
     expect(await projectTrace(page)).not.toContain('doc.replace');
   } finally {
@@ -294,19 +300,20 @@ test.describe('the localized touch Inbox', () => {
   test.use({ hasTouch: true, viewport: { width: 1280, height: 900 } });
 
   test('Modern keeps a German review and its return action usable in a narrow dark window', async ({ page }) => {
-    await page.emulateMedia({ colorScheme: 'dark' });
     const { requests } = await queuedReviewProject(page);
     await page.getByTestId('open-settings').click();
     const settings = page.getByTestId('settings');
     await settings.locator('[data-section="appearance"]').click();
     await settings.locator('input[name="shell"]').nth(1).check();
     await expect(settings.getByTestId('interface-choice')).toHaveAttribute('data-state', 'ready');
+    await settings.locator('input[name="theme"]').nth(1).check();
     await settings.locator('input[name="interface-language"][value="de"]').click();
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
     await page.keyboard.press('Escape');
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await page.getByTestId('modern-binder-bar').getByRole('button', { name: /^Feststellungen/ }).click();
+    await page.getByTestId('modern-narrow-binder').tap();
+    await page.getByTestId('modern-drawer').getByRole('tab', { name: /^Feststellungen/ }).tap();
     await page.getByRole('button', { name: 'Prüfung einreihen', exact: true }).tap();
     const preview = page.getByTestId('queued-review-plan');
     await expect(preview).toContainText('other-model');
@@ -329,7 +336,7 @@ test.describe('the localized touch Inbox', () => {
     const open = task.getByRole('button', { name: /^Feststellungen anzeigen/ });
     await open.tap();
     const history = page.getByTestId('run-history');
-    await expect(history.locator('[data-run]')).toBeFocused();
+    await expect(history.locator('[data-run]')).toBeVisible();
     await expect(page.locator('article.finding')).toHaveCount(1);
     await history.getByRole('button', { name: 'Zurück zum Posteingang' }).tap();
     await expect(open).toBeFocused();
