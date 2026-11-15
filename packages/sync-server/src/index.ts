@@ -257,7 +257,9 @@ export default {
       if (request.method !== 'POST') return reply(405, 'Use POST to send a ping.');
       const profile = presenceProfile(url);
       if (profile === false) return reply(400, 'Use one random browser-profile UUID for presence.');
-      await hub.ping(profile ?? undefined, hubAccount);
+      const admission = await hub.ping(profile ?? undefined, hubAccount);
+      if (admission === 'unavailable') return unavailable();
+      if (admission === 'revoked') return reply(401, 'Sign in to continue.');
       return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
     }
     return reply(404, 'This API route does not exist.');
@@ -284,7 +286,7 @@ export class AccountHub extends DurableObject<SyncServerBindings> {
       if (admission === 'revoked') return reply(401, 'Sign in to continue.');
     }
     const removed = new Set<string>();
-    const before = await this.live(removed);
+    const before = await this.live(removed) ?? [];
     const joined = profile && !before.some((socket) => this.attachment(socket)?.profile === profile);
     const pair = new WebSocketPair();
     pair[1].serializeAttachment({ expires, connectedAt: Date.now(), ...(profile ? { profile } : {}), ...(account ? { account } : {}) });
@@ -313,7 +315,7 @@ export class AccountHub extends DurableObject<SyncServerBindings> {
     await this.schedule([]);
   }
 
-  private async live(removed: Set<string>, exclude?: WebSocket): Promise<WebSocket[]> {
+  private async live(removed: Set<string>, exclude?: WebSocket): Promise<WebSocket[] | null> {
     const sockets = this.active(removed, exclude);
     const verdicts = new Map<string, Admission>();
     const keyOf = (account: HubAccount): string => JSON.stringify([account.id, account.githubId, account.revision]);
@@ -323,7 +325,7 @@ export class AccountHub extends DurableObject<SyncServerBindings> {
     }
     if ([...verdicts.values()].includes('unavailable')) {
       await this.failClosed();
-      return [];
+      return null;
     }
     return sockets.filter((socket) => {
       const account = this.attachment(socket)?.account;
@@ -397,18 +399,19 @@ export class AccountHub extends DurableObject<SyncServerBindings> {
 
   override async alarm(): Promise<void> {
     const removed = new Set<string>();
-    const sockets = await this.live(removed);
+    const sockets = await this.live(removed) ?? [];
     await this.schedule(this.publish(sockets, 'snapshot', new Set(), removed));
   }
 
-  async ping(profile?: string, account?: HubAccount): Promise<void> {
+  async ping(profile?: string, account?: HubAccount): Promise<Admission> {
     if (accountMode(this.env)) {
       const admission = account ? await admit(this.env, account) : 'revoked';
       if (admission === 'unavailable') await this.failClosed();
-      if (admission !== 'ok') return;
+      if (admission !== 'ok') return admission;
     }
     const removed = new Set<string>();
     const sockets = await this.live(removed);
+    if (sockets === null) return 'unavailable';
     for (const socket of sockets) {
       try { socket.send(JSON.stringify({ type: 'ping' })); }
       catch { this.retire(socket, 1011, 'Reconnect to continue.', removed); }
@@ -417,6 +420,7 @@ export class AccountHub extends DurableObject<SyncServerBindings> {
     const hasProfile = profile && active.some((socket) => this.attachment(socket)?.profile === profile);
     const published = this.publish(active, hasProfile ? 'activity' : 'snapshot', new Set(hasProfile ? [profile] : []), removed);
     await this.schedule(published);
+    return 'ok';
   }
 
   override async webSocketMessage(socket: WebSocket, message: string | ArrayBuffer): Promise<void> {
@@ -441,7 +445,7 @@ export class AccountHub extends DurableObject<SyncServerBindings> {
     const removed = new Set<string>();
     this.retire(socket, code, reason, removed);
     if (!attachment) return;
-    const sockets = this.publish(await this.live(removed, socket), 'snapshot', new Set(), removed);
+    const sockets = this.publish(await this.live(removed, socket) ?? [], 'snapshot', new Set(), removed);
     await this.schedule(sockets);
   }
 

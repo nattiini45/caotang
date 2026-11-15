@@ -276,4 +276,19 @@ describe('the Worker in account mode', () => {
     expect(current.closeCode).toBeUndefined();
     current.socket.terminate();
   });
+  it('reports to the Worker when the hub cannot confirm the caller, instead of acknowledging the notification', async () => {
+    const h = await runtime();
+    await h.invite('reader-one');
+    const session = (await h.signIn('reader-one')).session!;
+    const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session } })).json() as { id: string };
+    const namespace = await h.instance.getDurableObjectNamespace('ACCOUNT_HUBS');
+    const hub = namespace.get(namespace.idFromName(account.id)) as unknown as { ping(profile?: string, account?: { id: string; githubId: string; revision: number }): Promise<string> };
+    expect(await hub.ping(undefined, { id: account.id, githubId: 'github:101', revision: 1 })).toBe('ok');
+    expect(await hub.ping(undefined, { id: account.id, githubId: 'github:101', revision: 99 })).toBe('revoked');
+    expect(await hub.ping(undefined, undefined)).toBe('revoked');
+    const broken = await runtime({}, { migrate: false });
+    const brokenNamespace = await broken.instance.getDurableObjectNamespace('ACCOUNT_HUBS');
+    const brokenHub = brokenNamespace.get(brokenNamespace.idFromName('any')) as unknown as { ping(profile?: string, account?: { id: string; githubId: string; revision: number }): Promise<string> };
+    expect(await brokenHub.ping(undefined, { id: 'any', githubId: 'github:101', revision: 1 })).toBe('unavailable');
+  });
 });
