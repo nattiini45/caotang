@@ -21045,6 +21045,11 @@ msgstr "Ganzes Manuskript"
 msgid "Whole prompt"
 msgstr "Ganzer Prompt"
 
+#. Background task and Inbox status. Counts describe drafts, calls, tokens or findings; titles and model labels are supplied text.
+#: apps/desktop/src/components/BackgroundTasks.tsx
+msgid "Why drafting failed"
+msgstr "Warum das Entwerfen fehlgeschlagen ist"
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Why is this not a problem?"

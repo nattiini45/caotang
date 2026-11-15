@@ -67,7 +67,7 @@ function TaskList({ agent, tasks, onAction, onOpenFindings }: TaskSectionProps &
             </p>
           ) : null}
           {task.errors.length > 0 ? (
-            <ul className="agent-task-errors" aria-label={t`Why the task stopped`}>
+            <ul className="agent-task-errors" aria-label={task.kind === 'draft' ? t`Why drafting failed` : t`Why the task stopped`}>
               {task.errors.map((error) => <li key={error}><UserText value={error} /></li>)}
             </ul>
           ) : null}
@@ -158,7 +158,7 @@ export function BackgroundTasks({ agent, tasks, headingLevel = 4, onOpenFindings
   const Heading = headingLevel === 3 ? 'h3' : 'h4';
   const GroupHeading = headingLevel === 3 ? 'h4' : 'h5';
   return (
-    <div ref={panelsRef} className="agent-task-panels" data-testid={tasks.length === 0 ? undefined : 'background-tasks'}>
+    <div ref={panelsRef} className="agent-task-panels" data-testid={tasks.length === 0 ? undefined : 'background-tasks'} data-empty={ready.length + reports.length === 0 && active.length === 0 ? '' : undefined}>
       <section className="agent-tasks agent-review-inbox" aria-label={t`Review Inbox`} data-testid="review-inbox">
         <Heading ref={headingRef} tabIndex={-1}><Trans>Review Inbox</Trans></Heading>
         <p className="agent-tasks-note muted">{ready.length + reports.length === 0

@@ -359,6 +359,15 @@
   display: none;
 }
 
+/* An empty Inbox folds to a heading under the turns, like Recurring tasks, so the conversation keeps the body; a waiting draft or report keeps the Inbox above the turns. */
+:root[data-shell='modern'] .modern-companion .agent-task-panels[data-empty] {
+  order: 1;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-task-panels[data-empty] .agent-tasks-note {
+  display: none;
+}
+
 /* A settled plan card has nothing left to decide. While its draft is on the page the card keeps Approve: approving writes the draft
    marked for review, which the ghost bar's Apply does not. */
 :root[data-shell='modern'] .modern-companion .plan-card:not(.is-live) .plan-actions {
