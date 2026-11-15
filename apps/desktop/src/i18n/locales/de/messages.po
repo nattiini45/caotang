@@ -5142,6 +5142,18 @@ msgstr "Wählen Sie eine Anbieter-Vorlage, um eine Vorschau des Prompt-Packs zu 
 msgid "Choose a vendor template to see the Proof of the prompt pack."
 msgstr "Wählen Sie eine Anbieter-Vorlage, um den Abzug des Prompt-Packs zu sehen."
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Choose a whole number from 1 to 8."
+msgstr "Wählen Sie eine ganze Zahl von 1 bis 8."
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Choose a whole number from 1 to 8. Foreground requests go before queued Background requests; requests already running are not interrupted."
+msgstr "Wählen Sie eine ganze Zahl von 1 bis 8. Anfragen im Vordergrund werden vor eingereihten Hintergrundanfragen bearbeitet; laufende Anfragen werden nicht unterbrochen."
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Choose an entry…"
@@ -5176,6 +5188,11 @@ msgstr "Einen anderen Ordner wählen…"
 msgid "Choose another status to see the findings in it."
 msgstr "Einen anderen Status wählen, um die Feststellungen darin zu sehen."
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Choose at least 1 request at once."
+msgstr "Wählen Sie mindestens eine gleichzeitige Anfrage."
+
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
 msgid "Choose cover…"
@@ -5185,6 +5202,11 @@ msgstr "Titelbild wählen…"
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
 msgid "Choose how the timeline names the days of your story. The days you set on scenes stay as they are, whichever you choose."
 msgstr "Wählen Sie, wie die Zeitachse die Tage Ihrer Geschichte benennt. Die Tage, die Sie für Szenen festlegen, bleiben so, wie sie sind, egal wofür Sie sich entscheiden."
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Choose no more than 8 requests at once."
+msgstr "Wählen Sie höchstens acht gleichzeitige Anfragen."
 
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
@@ -13805,6 +13827,11 @@ msgstr "Anfrageprotokoll"
 #: apps/desktop/src/components/UsagePanel.tsx
 msgid "Requests"
 msgstr "Anfragen"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Requests at once"
+msgstr "Gleichzeitige Anfragen"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx

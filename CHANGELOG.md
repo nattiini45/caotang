@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Per-profile request limits.** Settings › Providers has **Requests at once**, from 1 to 8, defaulting to 3 for endpoints and 8 for the demo. Streaming and collected calls share a foreground-first queue without interrupting running calls. A rate-limit response pauses new calls on that profile, and cancelling queued work makes no request or usage entry. Limits stay with browser-local profiles; this does not start parallel work or grant permissions.
+
 - **Optional server presence.** The standalone server can count other live browser profiles on an account, deduplicate tabs and send content-free join, departure and activity notices. Heartbeat leases and session deadlines remove stale connections, and peers never receive profile identifiers. Existing clients keep their original ping protocol; the local browser app is unchanged.
 
 - **Local passage search.** The agent's read-only `text.search` tool finds ranked passages in manuscript text, synopses, notes and eligible codex, with exact source offsets and bounded snippets. It supports multilingual words, quoted phrases, scope and forward-scene filtering. Never entries and read-denied text are excluded before scoring. Codex-only searches do not read or transfer binder text. The in-memory incremental BM25 index makes no model call, network request or persistent write; keyed prompt assembly stays unchanged. Browser indexing and scoring run in a lazily created same-origin worker so the writer can keep typing; Node tools use the same synchronous search.
