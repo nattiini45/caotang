@@ -122,19 +122,6 @@ async function listBlobs(bucket: R2Bucket, accountId: string, projectId: string)
   return Response.json(objects, { headers: { 'Cache-Control': 'no-store' } });
 }
 
-async function deleteBlob(bucket: R2Bucket, accountId: string, projectId: string, name: string): Promise<Response> {
-  const key = liveKey(accountId, projectId, name);
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const pointer = await readPointer(bucket, key);
-    if (!pointer || pointer.deleted) return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
-    await retain(bucket, accountId, projectId, name, pointer, 'deleted');
-    const tombstone = pointerBody({ ...pointer, deleted: true });
-    const written = await bucket.put(key, tombstone.body, { customMetadata: tombstone.customMetadata, onlyIf: { etagMatches: pointer.etag } });
-    if (written) return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
-  }
-  return reply(409, 'The object kept changing. Try again.');
-}
-
 type PublishMeta = { accountId: string; revision: number; operationId: string; projectId: string; name: string; create: boolean; ifMatch: string; deadline: number; fingerprint: string };
 type PublishResult = { status: number; etag?: string; message?: string };
 
@@ -179,10 +166,7 @@ async function putBlob(request: Request, env: SyncServerBindings, account: Durab
   }
 
   const bytes = await readDeclaredBody(request, declared);
-  if (bytes === null) {
-    await quota.cancel(operationId);
-    return reply(400, 'The upload did not match its Content-Length.');
-  }
+  if (bytes === null) return reply(400, 'The upload did not match its Content-Length.');
   const print = await payloadFingerprint(projectId, name, bytes);
   const begun = await quota.beginWrite(operationId);
   if (!begun.ok) return quotaFailure(begun.reason);
@@ -213,7 +197,16 @@ export async function storageRoute(request: Request, url: URL, account: DurableA
     if (!BLOB_NAME.test(name)) return reply(400, 'Use an object name of at most 64 lower-case letters, digits and -.');
     if (request.method === 'GET') return await getBlob(env.PROJECT_STORE!, account.id, projectId, name);
     if (request.method === 'PUT') return await putBlob(request, env, account, projectId, name);
-    if (request.method === 'DELETE') return await deleteBlob(env.PROJECT_STORE!, account.id, projectId, name);
+    if (request.method === 'DELETE') {
+      const response = await env.STORAGE_COORDINATOR!.getByName(account.id).fetch('https://storage-coordinator/delete', {
+        method: 'POST',
+        headers: { 'X-Delete-Meta': JSON.stringify({ accountId: account.id, projectId, name }) },
+      });
+      if (!response.ok) return reply(503, 'Storage is unavailable. Try again shortly.');
+      const result = await response.json() as { status: number; message?: string };
+      if (result.status === 204) return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
+      return reply(result.status, result.message ?? 'The object could not be deleted. Try again.');
+    }
     return reply(405, 'Use GET, PUT or DELETE for an object.');
   } catch {
     return reply(503, 'Storage is unavailable. Try again shortly.');
@@ -289,6 +282,12 @@ export class StorageCoordinator extends DurableObject<SyncServerBindings> {
         });
         return Response.json({ ok: true });
       }
+      if (url.pathname === '/delete') {
+        const meta = JSON.parse(request.headers.get('X-Delete-Meta') ?? 'null') as { accountId?: unknown; projectId?: unknown; name?: unknown } | null;
+        if (!meta || typeof meta.accountId !== 'string' || typeof meta.projectId !== 'string' || typeof meta.name !== 'string') return Response.json({ status: 400 }, { status: 400 });
+        const result = await this.serialize(() => this.deleteObject(meta.accountId as string, meta.projectId as string, meta.name as string));
+        return Response.json(result);
+      }
       if (url.pathname === '/settle') {
         const accountId = request.headers.get('X-Account-Id') ?? '';
         const operationId = request.headers.get('X-Operation-Id') ?? '';
@@ -348,6 +347,20 @@ export class StorageCoordinator extends DurableObject<SyncServerBindings> {
     const committed = await quota.commit(operationId);
     if (!committed.ok) return { status: committed.reason === 'unavailable' ? 503 : 409, message: 'The upload was refused. Read the object and try again.' };
     return { status: meta.create ? 201 : 200, etag: written.etag };
+  }
+
+  private async deleteObject(accountId: string, projectId: string, name: string): Promise<{ status: number; message?: string }> {
+    const bucket = this.env.PROJECT_STORE!;
+    const key = liveKey(accountId, projectId, name);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const pointer = await readPointer(bucket, key);
+      if (!pointer || pointer.deleted) return { status: 204 };
+      await retain(bucket, accountId, projectId, name, pointer, 'deleted');
+      const tombstone = pointerBody({ ...pointer, deleted: true });
+      const written = await bucket.put(key, tombstone.body, { customMetadata: tombstone.customMetadata, onlyIf: { etagMatches: pointer.etag } });
+      if (written) return { status: 204 };
+    }
+    return { status: 409, message: 'The object kept changing. Try again.' };
   }
 
   private async settle(accountId: string, operationId: string): Promise<boolean> {

@@ -303,6 +303,24 @@ describe('the Worker’s encrypted object storage', () => {
     expect(await h.bucket!.head(`${account}/o/stuck-op`)).not.toBeNull();
   });
 
+  it('retains the history and charge when a soft-deleted uncommitted version is swept', async () => {
+    const h = await runtime();
+    await h.invite('reader-one');
+    const session = await h.signIn('reader-one');
+    const account = await h.accountId(session);
+    const quota = new QuotaStore(h.db, { accountId: account, revision: 1 }, { leaseMs: 100, now: () => 1_000 });
+    await quota.reserve('deleted-op', 'deleted-op', 285);
+    await quota.beginWrite('deleted-op');
+    await h.bucket!.put(`${account}/o/deleted-op`, new Uint8Array(285), { customMetadata: { project: PROJECT, name: 'manifest', fingerprint: 'deleted' } });
+    await h.bucket!.put(`${account}/live/${PROJECT}/manifest`, JSON.stringify({ operationId: 'deleted-op', size: 285, uploaded: 1_000 }), { customMetadata: { operation: 'deleted-op', size: '285' } });
+    expect((await h.call(session, `/v1/projects/${PROJECT}/blobs/manifest`, { method: 'DELETE' })).status).toBe(204);
+    expect(await h.bucket!.head(`${account}/history/deleted-op`)).not.toBeNull();
+    await h.sweep();
+    expect(await h.bucket!.head(`${account}/o/deleted-op`)).not.toBeNull();
+    expect(await h.bucket!.head(`${account}/history/deleted-op`)).not.toBeNull();
+    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 285 });
+  });
+
   it('defers settlement while the version is retained history and keeps its charge', async () => {
     const h = await runtime();
     await h.invite('reader-one');
@@ -339,6 +357,35 @@ describe('the Worker’s encrypted object storage', () => {
     expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 285 });
     expect(await quota.commit('shared-op')).toMatchObject({ ok: true, operation: { state: 'committed' } });
   });
+
+  it('does not abort the shared lease when a same-key retry has a malformed body', async () => {
+    const h = await runtime();
+    await h.invite('reader-one');
+    const session = await h.signIn('reader-one');
+    const account = await h.accountId(session);
+    const quota = new QuotaStore(h.db, { accountId: account, revision: 1 }, { leaseMs: 60_000 });
+    await quota.reserve('shared-body', 'shared-body', 285);
+    await quota.beginWrite('shared-body');
+    await new Promise<void>((resolve) => {
+      const req = httpRequest(`${h.address}/v1/projects/${PROJECT}/blobs/manifest`, {
+        method: 'PUT',
+        headers: {
+          'MF-Original-URL': `${ORIGIN}/v1/projects/${PROJECT}/blobs/manifest`,
+          Cookie: session, Origin: ORIGIN,
+          'Content-Type': 'application/octet-stream', 'Content-Length': '285', 'If-None-Match': '*', 'Idempotency-Key': 'shared-body',
+        },
+      }, (res) => { res.resume(); res.on('end', () => resolve()); });
+      req.on('error', () => resolve());
+      req.on('close', () => resolve());
+      req.write(Buffer.from(new Uint8Array(10)));
+      setTimeout(() => req.destroy(), 100);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const row = await h.db.prepare('SELECT state FROM quota_operations WHERE account_id = ? AND operation_id = ?').bind(account, 'shared-body').first<{ state: string }>();
+    expect(row?.state).toBe('writing');
+    expect(await h.usage(session)).toEqual({ limitBytes: 1_000, usedBytes: 0, reservedBytes: 285 });
+    expect(await quota.commit('shared-body')).toMatchObject({ ok: true, operation: { state: 'committed' } });
+  }, 15_000);
 
   it('lets concurrent same-key uploads both succeed with one charge', async () => {
     const h = await runtime();
