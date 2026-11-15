@@ -11,10 +11,10 @@
 
 import type { CommandError, Result, UndoOutcome } from '@caotang/bus';
 import { DETERMINISTIC_CHECK_IDS, runDeterministic, type DeterministicCheckId, type ScopeSpec } from '@caotang/coherence';
-import { withheldState } from '@caotang/context';
 import type { ProjectState, TreeNode } from '@caotang/store';
 
 import { metadataFor } from '../metadata.js';
+import { projectScanInput } from '../scan-worker.js';
 import type { AskBack } from '../plan.js';
 import { NO_RULES, type RulesProvider, type SourcedRule } from '../rules.js';
 import { TOOL_TARGETS } from '../targets.js';
@@ -400,10 +400,14 @@ export function createGoalRunner(): GoalRunner {
           try {
             // As the scan port runs it: the dialogue facts from the project as the agent may read it, the withheld documents excluded.
             const hidden = options.withheld();
-            const dialogue = options.checks?.dialogue?.(hidden.size === 0 ? state : withheldState(state, hidden));
+            const held = heldFile(state);
+            const projected = hidden.size === 0 ? undefined : projectScanInput(state, held, hidden, plan.scope);
+            const view = projected?.state ?? state;
+            const dialogue = options.checks?.dialogue?.(view);
             const excluded = excludedBy(hidden);
-            scanned = runDeterministic(state, heldFile(state), {
+            scanned = runDeterministic(view, held, {
               scope: plan.scope,
+              excludedDocIds: projected?.excludedDocIds,
               checks: plan.checks,
               now: now(),
               detector: countIn,

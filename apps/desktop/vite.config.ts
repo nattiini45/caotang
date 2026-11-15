@@ -121,14 +121,12 @@ export default defineConfig(({ command }) => ({
     lingui({ macroTransform: true, failOnCompileError: true }), react(), thirdPartyNotices(),
     retryChunkUrl('src/i18n/de-catalogue-url.ts', 'src/i18n/locales/de/messages.po', 'deCatalogueUrl', 'messages'),
     retryChunkUrl('src/app/run-recovery-url.ts', 'src/app/run-recovery.ts', 'runRecoveryUrl', 'run-recovery'),
+    retryChunkUrl('src/workers/harness-worker-url.ts', 'src/workers/harness-worker.ts', 'harnessWorkerUrl', 'harness-worker'),
+    retryChunkUrl('src/app/text-search-worker-url.ts', 'src/app/text-search.worker.ts', 'textSearchWorkerUrl', 'text-search.worker'),
     devCsp(),
   ],
   ...(command === 'serve' ? { html: { cspNonce: DEV_NONCE } } : {}),
   optimizeDeps: { include: ['@ui-sdk/react/agent'] },
-  worker: {
-    format: 'es',
-    rolldownOptions: { treeshake: { moduleSideEffects: [{ test: PURE_PACKAGE_SOURCE, sideEffects: false }] } },
-  },
   server: {
     // Bind the IPv4 loopback explicitly. Vite otherwise binds ::1 (IPv6) only on
     // Windows, and the e2e suite's baseURL probes http://127.0.0.1:5173 (IPv4),

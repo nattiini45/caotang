@@ -25,13 +25,13 @@ import {
   type FindingSeverity,
   type ScopeSpec,
 } from '@caotang/coherence';
-import { withheldState } from '@caotang/context';
 import { compileInk } from '@caotang/dialogue';
 import type { ChatRequest } from '@caotang/gateway';
 import { parseFountain } from '@caotang/screenplay';
 import { countBody, getRevision, type ProjectState, type TreeNode } from '@caotang/store';
 
 import { descendantsOf } from '../resolve.js';
+import { projectScanInput } from '../scan-worker.js';
 import { countIn, excludedBy, heldFile } from '../tools/coherence.js';
 import type { TurnReport } from './events.js';
 
@@ -288,13 +288,17 @@ function coherenceClean(spec: Extract<CheckSpec, { kind: 'coherence.clean' }>, s
   // As the scan port reads the project (tools/coherence.ts): the dialogue facts from the project as the agent may read it, and the
   // withheld documents excluded like archived ones, so no finding quotes them.
   const hidden = options.withheld;
-  const dialogue = options.dialogue?.(hidden === undefined ? state : withheldState(state, hidden));
+  const held = heldFile(state);
+  const projected = hidden === undefined ? undefined : projectScanInput(state, held, hidden, spec.scope);
+  const view = projected?.state ?? state;
+  const dialogue = options.dialogue?.(view);
   const excluded = excludedBy(hidden);
   let outcome: ReturnType<typeof runDeterministic>;
   try {
     // The copy is discarded: nothing joins the held file, and the review state of the documents stays as the writer left it.
-    outcome = runDeterministic(state, heldFile(state), {
+    outcome = runDeterministic(view, held, {
       scope: spec.scope,
+      excludedDocIds: projected?.excludedDocIds,
       checks,
       now: options.now,
       detector: countIn,

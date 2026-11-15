@@ -102,6 +102,75 @@ async function rig(
 
 const requestsMade = (r: Rig): number => r.providers.requests.entries().length + r.providers.gateway.ledger.dayRows().length;
 
+test('a due scan keeps its offer and records no failure while another scan owns the session', async () => {
+  const task = seedTask(1);
+  const r = await rig([task]);
+  await r.recurring.attach();
+  const original = r.session.scanInFlight.bind(r.session);
+  r.session.scanInFlight = () => true;
+  try {
+    await r.recurring.runNow(task.id);
+    expect(r.runs.history(task.id)).toEqual([]);
+    expect(r.recurring.snapshot().offers.map((offer) => offer.id)).toEqual([task.id]);
+    expect(r.recurring.snapshot().running).toBeNull();
+    expect(r.recurring.snapshot().message).toContain('A scan is already running');
+    r.session.scanInFlight = original;
+    await r.recurring.runNow(task.id);
+    expect(r.runs.history(task.id)[0]?.status).toBe('done');
+    expect(requestsMade(r)).toBe(0);
+  } finally {
+    r.session.scanInFlight = original;
+    await r.session.close();
+  }
+});
+
+test('a scan that becomes busy while the harness loads restores its due offer without a history row', async () => {
+  const task = seedTask(1);
+  const r = await rig([task]);
+  await r.recurring.attach();
+  const originalReady = r.session.harnessReady.bind(r.session);
+  const originalBusy = r.session.scanInFlight.bind(r.session);
+  let release = (): void => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  r.session.harnessReady = async () => { await gate; return originalReady(); };
+  try {
+    const pending = r.recurring.runNow(task.id);
+    expect(r.recurring.snapshot().running).toBe(task.id);
+    r.session.scanInFlight = () => true;
+    release();
+    await pending;
+    expect(r.runs.history(task.id)).toEqual([]);
+    expect(r.recurring.snapshot().offers.map((offer) => offer.id)).toEqual([task.id]);
+    expect(r.recurring.snapshot().running).toBeNull();
+    expect(requestsMade(r)).toBe(0);
+  } finally {
+    release();
+    r.session.harnessReady = originalReady;
+    r.session.scanInFlight = originalBusy;
+    await r.session.close();
+  }
+});
+
+for (const code of ['cancelled', 'closed'] as const) {
+  test(`a ${code} browser scan is recorded as stopped, never as a failed model call`, async () => {
+    const task = seedTask(1, { schedule: { kind: 'manual' } });
+    const r = await rig([task]);
+    const document = globals['document'] as EventTarget & { createElement?: () => unknown };
+    const original = r.session.scanCoherenceAsync.bind(r.session);
+    Object.defineProperty(document, 'createElement', { configurable: true, value: () => null });
+    r.session.scanCoherenceAsync = async () => ({ ok: false, code, message: 'The scan was stopped.' });
+    try {
+      await r.recurring.runNow(task.id);
+      expect(r.runs.history(task.id)[0]).toMatchObject({ status: 'stopped', requests: 0, promptTokens: 0, completionTokens: 0 });
+      expect(requestsMade(r)).toBe(0);
+    } finally {
+      delete document.createElement;
+      r.session.scanCoherenceAsync = original;
+      await r.session.close();
+    }
+  });
+}
+
 test.describe('what is due is offered', () => {
   test('a daily task is announced and offered with Run now and Skip, and nothing runs until the writer chooses', async () => {
     const task = seedTask(1, { name: 'Read the new scenes', body: { kind: 'intent', text: DEMO_INTENTS.fillSynopses } });

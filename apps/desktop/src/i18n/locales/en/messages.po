@@ -2351,6 +2351,11 @@ msgstr "A background task is ready to review: {intent}"
 
 #. Interpolated values: done, intent, outdated, staged, total
 #: apps/desktop/src/app/task-model.ts
+msgid "A background task was cancelled: {intent}"
+msgstr "A background task was cancelled: {intent}"
+
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
 msgid "A background task was stopped: {intent}"
 msgstr "A background task was stopped: {intent}"
 
@@ -2716,6 +2721,23 @@ msgstr "A removed item"
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "A request’s temperature goes out, even on a model that takes none."
 msgstr "A request’s temperature goes out, even on a model that takes none."
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/recurring-tasks.ts
+#: apps/desktop/src/app/session.ts
+msgid "A review is running. Wait for it to finish before scanning."
+msgstr "A review is running. Wait for it to finish before scanning."
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/recurring-tasks.ts
+#: apps/desktop/src/app/session.ts
+msgid "A scan is already running. Wait for it to finish, or cancel it."
+msgstr "A scan is already running. Wait for it to finish, or cancel it."
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "A scan is running. Wait for it to finish, or cancel it, before starting a review."
+msgstr "A scan is running. Wait for it to finish, or cancel it, before starting a review."
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
@@ -4108,6 +4130,10 @@ msgstr "Back to the editor"
 msgid "Background"
 msgstr "Background"
 
+#: apps/desktop/src/workers/harness-worker-port.ts
+msgid "Background preparation is unavailable. Nothing was written. Try again, or reopen the project in a browser with worker support."
+msgstr "Background preparation is unavailable. Nothing was written. Try again, or reopen the project in a browser with worker support."
+
 #. Interpolated values: cap, done, omitted, tokens, total, used
 #. Interpolated values: cap, done, omitted, tokens, total, used
 #: apps/desktop/src/components/BackgroundTasks.tsx
@@ -4530,6 +4556,11 @@ msgstr "Cancel"
 #: apps/desktop/src/media/picture-hooks.tsx
 msgid "Cancel imports nothing."
 msgstr "Cancel imports nothing."
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Cancel scan"
+msgstr "Cancel scan"
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
@@ -10723,6 +10754,7 @@ msgid "No findings file is open for this project, so there is nothing to review 
 msgstr "No findings file is open for this project, so there is nothing to review into."
 
 #. Interpolated values: error, reason, title
+#. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts
 msgid "No findings file is open for this project."
 msgstr "No findings file is open for this project."
@@ -12577,6 +12609,11 @@ msgstr "POV \"{pov}\" is not a codex entry, so its coverage cannot be checked; c
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "POV {povName}"
 msgstr "POV {povName}"
+
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
+msgid "Preparing the next draft."
+msgstr "Preparing the next draft."
 
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
@@ -14731,6 +14768,11 @@ msgstr "Scan for continuity problems"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Scan in progress"
+msgstr "Scan in progress"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Scan it anyway"
 msgstr "Scan it anyway"
 
@@ -14753,6 +14795,11 @@ msgstr "Scanning for coherence problems"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.continuityScan.active"
 msgstr "Scanning for continuity problems"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Scanning the manuscript in the background. You can keep writing; the findings appear here when it is done."
+msgstr "Scanning the manuscript in the background. You can keep writing; the findings appear here when it is done."
 
 #. Columns and cells of the timeline's Agenda table. Interpolated values: count is a number of scenes or findings; title, name and part are writer or part words.
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
@@ -16816,6 +16863,12 @@ msgstr "the aspect ratio is one of the ratios in the list"
 msgid "The attached project folder changed. Enable copying for the new folder explicitly."
 msgstr "The attached project folder changed. Enable copying for the new folder explicitly."
 
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+#: apps/desktop/src/workers/harness-worker-port.ts
+msgid "The background preparation was cancelled."
+msgstr "The background preparation was cancelled."
+
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #: apps/desktop/src/app/mcp-model.ts
 msgid "The bearer token is missing. Enter it on this card, save it, then choose Connect again."
@@ -17232,6 +17285,11 @@ msgstr "The findings and runs as the findings file holds them."
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "The findings by fact, with their quotes and verdicts, and the run history."
 msgstr "The findings by fact, with their quotes and verdicts, and the run history."
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The findings changed while this scan ran. Run the scan again to see the current result."
+msgstr "The findings changed while this scan ran. Run the scan again to see the current result."
 
 #. Interpolated values: error
 #: apps/desktop/src/app/coherence-io.ts
@@ -17741,9 +17799,20 @@ msgstr "The project changed while its restore point was being saved. Try the req
 msgid "The project changed while restoring. Your newer changes were kept. Review the restore again."
 msgstr "The project changed while restoring. Your newer changes were kept. Review the restore again."
 
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The project changed while this scan ran. Run the scan again to see the current result."
+msgstr "The project changed while this scan ran. Run the scan again to see the current result."
+
 #: apps/desktop/src/app/run-recovery.ts
 msgid "The project changed. Review the restore again."
 msgstr "The project changed. Review the restore again."
+
+#. Interpolated values: error, reason, title
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The project closed before the scan finished. Your findings are unchanged."
+msgstr "The project closed before the scan finished. Your findings are unchanged."
 
 #. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts
@@ -17861,6 +17930,11 @@ msgstr "The proposed change to this scene is removed."
 #: apps/desktop/src/i18n/runtime.ts
 msgid "The pseudo catalogue \"{tag}\" is available only in development and tests."
 msgstr "The pseudo catalogue \"{tag}\" is available only in development and tests."
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The read rules changed while this scan ran. Run the scan again to see the current result."
+msgstr "The read rules changed while this scan ran. Run the scan again to see the current result."
 
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
 #: apps/desktop/src/media/ScreenplayView.tsx
@@ -18001,6 +18075,30 @@ msgstr "The saved filters and goals were added to the project, but the project h
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "The saved prompt for {vendor} changed, so the text you had typed for it was replaced by the saved prompt."
 msgstr "The saved prompt for {vendor} changed, so the text you had typed for it was replaced by the saved prompt."
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The scan could not run in the background. Nothing was written. Try again, or reopen the project in a browser with worker support."
+msgstr "The scan could not run in the background. Nothing was written. Try again, or reopen the project in a browser with worker support."
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "The scan could not run. Nothing was written. Try again."
+msgstr "The scan could not run. Nothing was written. Try again."
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "The scan in progress"
+msgstr "The scan in progress"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Interpolated values: error, reason, title
+#. Interpolated values: error, reason, title
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "The scan was cancelled. Your findings are unchanged."
+msgstr "The scan was cancelled. Your findings are unchanged."
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts

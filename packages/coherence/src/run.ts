@@ -17,6 +17,7 @@ import {
   BRANCH_CHECK_IDS,
   DETERMINISTIC_CHECK_IDS,
   RUN_HISTORY_LIMIT,
+  emptyCoherenceFile,
   type CoherenceFile,
   type CoherenceRun,
   type DeterministicCheckId,
@@ -26,6 +27,7 @@ import { recurredAfterFixedNote, upsertFindings, type UpsertDraft } from './upse
 
 export interface DeterministicOptions extends AssembleOptions {
   readonly scope: ScopeSpec;
+  readonly excludedDocIds?: readonly string[];
   /** Defaults to all eight checks (§7 tool 15). */
   readonly checks?: readonly DeterministicCheckId[];
   readonly now: Date;
@@ -55,19 +57,33 @@ function toUpsertDraft(draft: DraftFinding): UpsertDraft {
   };
 }
 
-/**
- * Runs the selected checks over the scope, upserts what they found, records the
- * run, and advances the review state of every document the run evaluated.
- *
- * A document whose mention count is unavailable is not evaluated, so it does not
- * advance the review state. The run is then `partial`, and the next `changed`
- * scope still includes that document.
- */
-export function runDeterministic(state: ProjectState, file: CoherenceFile, options: DeterministicOptions): DeterministicResult {
+export type CoherenceCheckFile = Pick<CoherenceFile, 'sceneMeta' | 'reviewState' | 'knowledge'>;
+
+export type DeterministicComputeOptions = Omit<DeterministicOptions, 'now' | 'randomBytes'>;
+
+export interface DeterministicComputeResult {
+  readonly drafts: readonly DraftFinding[];
+  readonly ranIds: readonly DeterministicCheckId[];
+  readonly scopeDocIds: readonly string[];
+  readonly unavailable: readonly string[];
+  readonly reviewed: readonly { readonly docId: string; readonly revision: number }[];
+  readonly emptyDocIds: readonly string[];
+  readonly excludedDocIds: readonly string[];
+  readonly checkNotes: readonly string[];
+  readonly scopeCount: number;
+  readonly scopeMode: ScopeSpec['mode'];
+  readonly branchIds: readonly DeterministicCheckId[];
+  readonly branchReads: boolean;
+  readonly parityRequested: boolean;
+  readonly parityReads: boolean;
+}
+
+export function computeDeterministic(state: ProjectState, file: CoherenceCheckFile, options: DeterministicComputeOptions): DeterministicComputeResult {
+  const checkFile: CoherenceFile = { ...emptyCoherenceFile(), sceneMeta: file.sceneMeta, reviewState: file.reviewState, knowledge: file.knowledge };
   const requested = [...new Set(options.checks ?? DETERMINISTIC_CHECK_IDS)];
   const includeDocIds = options.scope.mode === 'doc' ? new Set(options.scope.docIds) : undefined;
-  const assembled = assembleInput(state, file, { ...options, includeDocIds });
-  const scope = resolveScope(assembled.snapshot, file, options.scope);
+  const assembled = assembleInput(state, checkFile, { ...options, includeDocIds });
+  const scope = resolveScope(assembled.snapshot, checkFile, options.scope);
   const scopeDocIds = new Set(scope.map((scene) => scene.docId));
   const unavailable = new Set(assembled.unavailable);
 
@@ -98,18 +114,44 @@ export function runDeterministic(state: ProjectState, file: CoherenceFile, optio
       !(id === SPEAKER_PARITY && !parityReads),
   );
 
+  return {
+    drafts,
+    ranIds,
+    scopeDocIds: [...scopeDocIds],
+    unavailable: [...unavailable],
+    reviewed: scope.map((scene) => ({ docId: scene.docId, revision: scene.revision })),
+    emptyDocIds: assembled.snapshot.emptyDocIds,
+    excludedDocIds: [...new Set([...assembled.snapshot.excludedDocIds, ...(options.excludedDocIds ?? [])])],
+    checkNotes: output.notes,
+    scopeCount: scope.length,
+    scopeMode: options.scope.mode,
+    branchIds,
+    branchReads,
+    parityRequested,
+    parityReads,
+  };
+}
+
+export function publishDeterministic(
+  state: ProjectState,
+  file: CoherenceFile,
+  compute: DeterministicComputeResult,
+  options: { readonly now: Date; readonly randomBytes?: RandomBytes },
+): DeterministicResult {
+  const scopeDocIds = new Set(compute.scopeDocIds);
+  const unavailable = new Set(compute.unavailable);
   const next = structuredClone(file);
   const runId = mintCoherenceId('r', new Set(next.runs.map((run) => run.id)), options.randomBytes);
   const at = options.now.toISOString();
   const report = upsertFindings(
     next,
-    drafts.map(toUpsertDraft),
+    compute.drafts.map(toUpsertDraft),
     {
       runId,
       now: at,
       randomBytes: options.randomBytes,
       clear: {
-        checkIds: new Set(ranIds),
+        checkIds: new Set(compute.ranIds),
         scopeDocIds,
         unevaluatedDocIds: unavailable,
       },
@@ -121,23 +163,23 @@ export function runDeterministic(state: ProjectState, file: CoherenceFile, optio
     return named.join(', ') + (ids.length > EMPTY_DOC_NAMING ? `, and ${ids.length - EMPTY_DOC_NAMING} more` : '');
   };
 
-  const notes: string[] = [...output.notes];
-  if (branchIds.length > 0 && !branchReads) {
+  const notes: string[] = [...compute.checkNotes];
+  if (compute.branchIds.length > 0 && !compute.branchReads) {
     const reason =
-      options.scope.mode !== 'full'
+      compute.scopeMode !== 'full'
         ? 'they run on a full scan'
         : 'the dialogue containers were not read for this run';
     notes.push(`dialogue checks not run: ${reason}`);
   }
-  if (parityRequested && !parityReads) {
-    notes.push(`speaker parity not run: ${options.scope.mode !== 'full' ? 'it runs on a full scan' : 'the dialogue speakers were not read for this run'}`);
+  if (compute.parityRequested && !compute.parityReads) {
+    notes.push(`speaker parity not run: ${compute.scopeMode !== 'full' ? 'it runs on a full scan' : 'the dialogue speakers were not read for this run'}`);
   }
-  if (scope.length === 0) notes.push('no documents in scope');
-  if (assembled.snapshot.emptyDocIds.length > 0) {
-    notes.push(`${assembled.snapshot.emptyDocIds.length} empty document(s) skipped: ${titles(assembled.snapshot.emptyDocIds)}`);
+  if (compute.scopeCount === 0) notes.push('no documents in scope');
+  if (compute.emptyDocIds.length > 0) {
+    notes.push(`${compute.emptyDocIds.length} empty document(s) skipped: ${titles(compute.emptyDocIds)}`);
   }
-  if (assembled.snapshot.excludedDocIds.length > 0) {
-    notes.push(`${assembled.snapshot.excludedDocIds.length} archived or excluded document(s) not scanned`);
+  if (compute.excludedDocIds.length > 0) {
+    notes.push(`${compute.excludedDocIds.length} archived or excluded document(s) not scanned`);
   }
   if (unavailable.size > 0) {
     notes.push(`mention counts unavailable for ${unavailable.size} document(s); presence and coverage checks skipped for them`);
@@ -150,8 +192,8 @@ export function runDeterministic(state: ProjectState, file: CoherenceFile, optio
     id: runId,
     at,
     kind: 'deterministic',
-    checkIds: ranIds,
-    scope: { docIds: [...scopeDocIds].sort(), mode: options.scope.mode },
+    checkIds: [...compute.ranIds],
+    scope: { docIds: [...scopeDocIds].sort(), mode: compute.scopeMode },
     findingsUpserted: report.upserted,
     status: unavailable.size > 0 ? 'partial' : 'complete',
     notes,
@@ -159,9 +201,14 @@ export function runDeterministic(state: ProjectState, file: CoherenceFile, optio
   next.runs.push(run);
   if (next.runs.length > RUN_HISTORY_LIMIT) next.runs.splice(0, next.runs.length - RUN_HISTORY_LIMIT);
 
-  for (const scene of scope) {
+  for (const scene of compute.reviewed) {
     if (unavailable.has(scene.docId)) continue;
     next.reviewState[scene.docId] = { lastReviewedRevision: scene.revision, lastReviewedAt: at };
   }
   return { file: next, run };
+}
+
+export function runDeterministic(state: ProjectState, file: CoherenceFile, options: DeterministicOptions): DeterministicResult {
+  const compute = computeDeterministic(state, file, options);
+  return publishDeterministic(state, file, compute, { now: options.now, randomBytes: options.randomBytes });
 }

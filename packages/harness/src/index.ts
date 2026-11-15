@@ -55,6 +55,7 @@ export { createProductHarness, type ProductHarnessOptions } from './product.js';
 export { textSearchPort } from './tools/text-search.js';
 // The coherence module's two ports the agent's scan and review read through, and the gateway as the review's model.
 export { DIALOGUE_CONTAINER_TYPE, containersOf, dialogueFactsOf } from './coherence-facts.js';
+export { computeScanWorker, projectScanInput, type ScanWorkerInput } from './scan-worker.js';
 // The Ink compiler loads on demand (dialogue ink-loader.ts); a Node host awaits this before it opens a project, so every dialogue tool and check can compile.
 export { loadInkCompiler } from '@caotang/dialogue';
 export { gatewayCoherenceModel, reviewContextOf, withReviewLanguages } from './coherence-review-context.js';
@@ -363,6 +364,7 @@ export {
 } from './tools/transcription-model.js';
 export {
   appendLanguageLine,
+  assembleProjected,
   contextOverridesOk,
   createContextPort,
   dropLinesOf,
@@ -372,11 +374,13 @@ export {
   withLanguages,
   withRole,
   type AssembledCall,
+  type ContextComputeAsync,
   type ContextPort,
   type ContextPortOptions,
   type ContextRequest,
   type LanguagePolicy,
 } from './agent/context.js';
+export type { ProjectedContextInput, SerializedContextConfig } from '@caotang/context';
 // What a turn read from the provider's prompt cache, and the planner calls that missed it (agent-harness §5, "Prompt cache").
 export { CACHE_MISS_CAUSES, CacheWatch, missCause, stableToolOrder, type CacheMiss, type TurnCacheUse } from './agent/cache-watch.js';
 // The Context section's preview: the prompt a scene draft would send, assembled as the loop assembles it (context-assembly §5).
@@ -384,7 +388,7 @@ export { instructionsReport, scenePromptPreview, type InstructionsReport, type S
 // The plan card renders a step's prompt preview; the app reads its shape from here, not from @caotang/context.
 export { summaryPrefix, withheldState } from '@caotang/context';
 export type { ContextConfig, ContextMeter, ContextOverrides, ContextRef, PreviewLayer, PromptPreview } from '@caotang/context';
-export { DEFAULT_INSTRUCTIONS_BUDGET, REQUEST_PIN_REASON } from '@caotang/context';
+export { DEFAULT_INSTRUCTIONS_BUDGET, LAYER_IDS, REQUEST_PIN_REASON } from '@caotang/context';
 export {
   MODEL_BACKED_TOOLS,
   RESOLVE_BADGE,
@@ -574,7 +578,7 @@ export {
 } from './types.js';
 export { CHARS_PER_TOKEN, estimateTokens, fitsCap } from './tokens.js';
 export { refusal, notWired } from './errors.js';
-export { coherenceAsyncPorts, coherencePorts, excludedBy, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
+export { coherenceAsyncPorts, coherencePorts, countIn, excludedBy, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
 export { codexImportParams, prepareCodexImport } from './tools/codex-import.js';
 // The writer's codex import from the app (codex.md §7.1): the pure plan of rows into one `codex.importBatch`, never an agent tool.
 export {

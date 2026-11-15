@@ -58,11 +58,12 @@ h3 {
   white-space: nowrap;
 }
 
-.button:hover:not(:disabled) {
+.button:hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--panel);
 }
 
-.button:disabled {
+.button:disabled,
+.button[aria-disabled="true"] {
   opacity: 0.45;
   cursor: default;
 }
@@ -73,7 +74,7 @@ h3 {
   color: var(--accent-ink);
 }
 
-.button.is-primary:hover:not(:disabled) {
+.button.is-primary:hover:not(:disabled, [aria-disabled="true"]) {
   filter: brightness(1.06);
   background: var(--accent);
 }
