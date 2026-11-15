@@ -939,6 +939,15 @@ importers:
         specifier: workspace:*
         version: link:../import-read
 
+  packages/import-odt:
+    dependencies:
+      '@caotang/import-core':
+        specifier: workspace:*
+        version: link:../import-core
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../import-read
+
   packages/import-read:
     dependencies:
       '@caotang/import-core':
