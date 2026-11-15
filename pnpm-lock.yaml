@@ -870,6 +870,18 @@ importers:
 
   packages/import-core: {}
 
+  packages/import-epub:
+    dependencies:
+      '@caotang/import-core':
+        specifier: workspace:*
+        version: link:../import-core
+      '@caotang/import-html':
+        specifier: workspace:*
+        version: link:../import-html
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../import-read
+
   packages/import-html:
     dependencies:
       '@caotang/import-core':
