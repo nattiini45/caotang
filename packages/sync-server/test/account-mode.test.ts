@@ -157,6 +157,11 @@ describe('the Worker in account mode', () => {
     const allowlist = await runtime({ AUTHENTICATION_MODE: 'allowlist', ALLOWED_GITHUB_LOGINS: 'reader-one' });
     expect((await allowlist.dispatch('/v1/session', { headers: { Cookie: account } })).status).toBe(401);
     expect((await allowlist.dispatch('/v1/account', { headers: { Cookie: legacy } })).status).toBe(404);
+    for (const [runtimeUnderTest, cookie] of [[allowlist, account], [h, legacy]] as const) {
+      const cleared = await runtimeUnderTest.dispatch('/v1/auth/logout', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } });
+      expect(cleared.status).toBe(204);
+      expect(cleared.headers.getSetCookie()[0]).toContain('Max-Age=0');
+    }
   });
 
   it('signs out everywhere with a same-origin POST that advances the revision', async () => {

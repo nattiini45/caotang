@@ -213,7 +213,7 @@ export default {
     if (url.pathname === '/v1/auth/github/callback') return request.method === 'GET' ? finishLogin(request, env) : reply(405, 'Use GET to finish sign-in.');
     const ticket = await verify(readCookie(request, SESSION_COOKIE), 'session', env);
     if (!ticket) return reply(401, 'Sign in to continue.');
-    if (accountMode(env) && ticket.mode === 'accounts' && url.pathname === '/v1/auth/logout') {
+    if (url.pathname === '/v1/auth/logout' && (accountMode(env) || ticket.mode === 'accounts')) {
       return request.method === 'POST' ? new Response(null, { status: 204, headers: { 'Set-Cookie': cookie(SESSION_COOKIE, '', 0), 'Cache-Control': 'no-store' } }) : reply(405, 'Use POST to sign out.');
     }
     let account: DurableAccount | null = null;
