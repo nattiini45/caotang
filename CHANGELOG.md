@@ -47,6 +47,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Word export uses docx 9.15.4.** Every `.docx` now carries the built-in `toc 1`–`toc 9` and `Heading 3`–`6` styles, so LibreOffice indents each level of the contents table it regenerates, and Word offers **Update Table** on the contents field. The bump also drops the `jszip` subtree from the dependency tree.
+
 - Explicit codex leave-outs are reported before reading their descriptions, even when an entry is empty or unmentioned. Never keeps its own suppression reason; kept prompt text is unchanged.
 
 - Unknown shot metadata names remain data: a field named `__proto__` cannot replace the reader's metadata dictionary prototype. Unknown fields are still reported and dropped on the next save.
