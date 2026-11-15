@@ -83,6 +83,11 @@ import {
   summarizeRun,
   parseRunEvents,
   withheldAnywhere,
+  backgroundCoherenceModel,
+  reviewContextOf,
+  reviewCostAt,
+  excludedBy,
+  withheldState,
   DEFAULT_ACTIVE_MS,
   PERMISSION_MODES,
   TRACE_REVIEWS,
@@ -102,6 +107,7 @@ import {
   type PlanStep,
   type PlanCardView,
   type PlanOffer,
+  type PlanOfferReview,
   type RunLimits,
   type RunLogPort,
   type RunRecord,
@@ -112,9 +118,10 @@ import {
   type TurnReport,
   type SubmitOptions as SessionSubmitOptions,
 } from '@caotang/harness';
+import { computeReview, emptyCoherenceFile, emptyReviewCheckpoint, planReview, publishReview, reviewExecutionPlanOf, type CoherenceRun, type ReviewCheckpoint, type ReviewComputed, type ReviewExecutionPlan, type ReviewPlan } from '@caotang/coherence';
 import { createMcpTransport } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
-import { createRunLogPort, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot, readAgentSessions, saveAgentSession, settleAgentSessionTurn, removeAgentSession, pruneAgentSessions, agentSessionReferences, type AgentSessionRow, type AgentSessionTurnRef, type SessionSummary } from '@caotang/store';
+import { createRunLogPort, getRevision, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot, readAgentSessions, saveAgentSession, settleAgentSessionTurn, removeAgentSession, pruneAgentSessions, agentSessionReferences, type AgentSessionRow, type AgentSessionTurnRef, type SessionSummary } from '@caotang/store';
 import { captureTextAnchor } from '@caotang/storyboard';
 
 import { registerAgent } from './agent-registry.js';
@@ -128,16 +135,19 @@ import { DEFAULT_AGENT_SETTINGS, type AgentSettings } from './settings.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
 import type { ProviderService } from './providers.js';
 import type { ProjectSession, RestoreResult } from './session.js';
-import type { RestorePlan } from '@caotang/bus';
-import { TaskQueue, type TaskAgent } from './task-queue.js';
+import { textDigest, type RestorePlan } from '@caotang/bus';
+import { TaskQueue, type TaskAgent, type TaskReviewRunner, type EnqueueResult } from './task-queue.js';
 import { announcementFor, viewOf, type TaskView } from './task-model.js';
-import { TaskStore, type TaskRecord } from './task-store.js';
+import { TaskStore, type TaskRecord, type TaskReviewReport } from './task-store.js';
+import { freezeDeep, reviewCallCap, type QueuedReviewApproval, type QueuedReviewPrepared, type QueuedReviewPreview, type QueuedReviewRoute } from './queued-review.js';
+import type { ReviewChoice } from './coherence-review.js';
 import type * as LazyHarness from './lazy-harness.js';
 import { uiLocale } from '../i18n/format-locale.js';
+import { isolate } from '@caotang/i18n';
 import { contextNote, helpNote, restoreTarget, type CommandNote, type LineOutcome } from './slash-model.js';
 import { commandArguments, expandSkillCommand, projectCommands, type ProjectCommand } from './project-commands.js';
 import { currentEditorCaret } from './editor-selection.js';
-import { initialAgentState, controllerTurn, stepAgentState, agentControllerTable, type AgentStateEvent } from './agent-state.js';
+import { initialAgentState, controllerTurn, stepAgentState, agentControllerTable, type AgentStateEvent, type ParkedOffer } from './agent-state.js';
 import { groupUsage, type UsageGroup } from './usage-model.js';
 import { contextChoices, copyContext } from './context-choices.js';
 import { formatCount } from '../i18n/locale.js';
@@ -445,6 +455,11 @@ export class AgentController {
   private loadSeq = 0;
   private runHistoryLoad: AgentSnapshot['runHistoryLoad'] = { kind: 'loading' };
   private readonly tasks: TaskQueue;
+  private preparedReview: { readonly id: string; readonly approval: QueuedReviewApproval } | null = null;
+  private preparedOfferApproval: QueuedReviewApproval | null = null;
+  /** The parked offer's own steps and choices, owned by the controller: what is queued is what was offered, never a caller's copy. */
+  private preparedOffer: { readonly steps: readonly PlanStep[]; readonly contextOverrides?: ContextOverrides } | null = null;
+  private offerAnswer: { readonly held: ParkedOffer; readonly abort: AbortController } | null = null;
   /** The status each task had when the panel last heard of it, so only a change is announced. */
   private readonly taskStatus = new Map<string, TaskRecord['status']>();
   /** Opening and closing the queue run one after the other, so a panel that attaches twice reads the tasks once at a time. */
@@ -516,6 +531,7 @@ export class AgentController {
       projectId: session.projectId,
       store: background.store ?? new TaskStore(),
       agentFor: (_task, sessionId, maxModelCalls) => this.agentForTask(sessionId, maxModelCalls),
+      reviewFor: (task, sessionId) => this.reviewRunnerFor(task, sessionId),
       foregroundBusy: () => this.busy,
       ...(background.locksAvailable === undefined ? {} : { locksAvailable: background.locksAvailable }),
       ...(background.sleep === undefined ? {} : { sleep: background.sleep }),
@@ -2411,6 +2427,10 @@ export class AgentController {
         return;
       }
       this.dropOffer();
+      this.preparedOffer = freezeDeep({
+        steps: structuredClone(offer.steps),
+        ...(offer.contextOverrides === undefined ? {} : { contextOverrides: copyContext(offer.contextOverrides) }),
+      });
       this.move({ type: 'offer', offer: { view: { offer, unavailable: this.tasks.unavailable(), error: null }, resolve } });
       const calls = offer.estimatedCalls;
       this.announcement = t`This plan needs ${{ calls }} ${plural(calls, { one: 'model call', other: 'model calls' })}. Choose how it runs.`;
@@ -2421,6 +2441,7 @@ export class AgentController {
   /** Cancels an offer that waits, so no answer is left parked. */
   private dropOffer(): void {
     const held = this.offer;
+    this.offerAnswer?.abort.abort();
     this.move({ type: 'offer-answered' });
     held?.resolve('cancel');
   }
@@ -2432,16 +2453,37 @@ export class AgentController {
   async answerOffer(choice: OfferAnswer): Promise<void> {
     const held = this.offer;
     if (held === null) return;
+    if (choice === 'cancel') {
+      this.preparedOfferApproval = null;
+      this.preparedOffer = null;
+      this.offerAnswer?.abort.abort();
+      this.move({ type: 'offer-answered' });
+      this.bump();
+      held.resolve('cancel');
+      return;
+    }
+    if (this.offerAnswer?.held === held) return;
     if (choice === 'background') {
       if (held.view.unavailable !== null) return;
-      const queued = await this.tasks.enqueue(this.intentForNextTurn ?? '', held.view.offer.steps, held.view.offer.contextOverrides);
-      if (this.offer !== held) return;
+      const abort = new AbortController();
+      this.offerAnswer = { held, abort };
+      const queued = await this.queuePlanOffer(held.view.offer, abort.signal);
+      if (this.offerAnswer?.held === held) this.offerAnswer = null;
+      if (this.offer !== held || abort.signal.aborted) {
+        if (!queued.ok && queued.cancelled !== true) {
+          this.message = queued.reason;
+          this.bump();
+        }
+        return;
+      }
       if (!queued.ok) {
         this.move({ type: 'offer-error', held, error: queued.reason });
         this.bump();
         return;
       }
     }
+    this.preparedOfferApproval = null;
+    this.preparedOffer = null;
     this.move({ type: 'offer-answered' });
     this.bump();
     held.resolve(choice);
@@ -2467,7 +2509,9 @@ export class AgentController {
     const report = await this.turnWith(task.intent, task.contextOverrides === undefined ? {} : { contextOverrides: task.contextOverrides }, (agent, turn) =>
       agent.submitStaged(task.intent, { steps: review.steps }, review.proposals, review.revisions, turn),
     );
-    if (report?.status === 'applied') await this.tasks.markApplied(id);
+    const hasDraftToApply = review.proposals.some((proposal) => proposal !== undefined);
+    const readsSucceeded = report !== null && report !== undefined && report.steps.length > 0 && report.steps.every((step) => step.status === 'done');
+    if (report?.status === 'applied' || (report?.status === 'replied' && !hasDraftToApply && readsSucceeded)) await this.tasks.markApplied(id);
     return report;
   }
 
@@ -2476,16 +2520,16 @@ export class AgentController {
     return this.tasks.snapshot().map((task) => viewOf(task, this.session.state));
   }
 
-  cancelTask(id: string): void {
-    void this.tasks.cancel(id);
+  cancelTask(id: string): Promise<void> {
+    return this.tasks.cancel(id);
   }
 
-  resumeTask(id: string): void {
-    void this.tasks.resume(id);
+  resumeTask(id: string): Promise<void> {
+    return this.tasks.resume(id);
   }
 
-  dismissTask(id: string): void {
-    void this.tasks.dismiss(id);
+  dismissTask(id: string): Promise<void> {
+    return this.tasks.dismiss(id);
   }
 
   /** Whether a task is being drafted or waits to be: the leave prompt warns about it. */
@@ -2496,6 +2540,313 @@ export class AgentController {
   /** Resolves when the queue has nothing left to run. A test waits on it. */
   tasksIdle(): Promise<void> {
     return this.tasks.idle();
+  }
+
+
+  private reviewRoute(): QueuedReviewRoute | undefined {
+    const resolved = this.providers.resolveForRole?.('background');
+    const profile = resolved?.profile ?? this.providers.active();
+    if (profile === undefined) return undefined;
+    const model = resolved?.model ?? profile.defaultModel;
+    return { profileId: profile.id, model, ...(resolved?.thinking === undefined ? {} : { thinking: resolved.thinking }), label: `${profile.name}, ${model}` };
+  }
+
+  private reviewFingerprint(scopeDocIds: readonly string[], categories: readonly string[], maxFindings: number, route: QueuedReviewRoute, contextOverrides?: ContextOverrides): string {
+    const harness = this.session.harness;
+    const withheld = harness.withheld('coherence.review');
+    const view = withheldState(this.session.state, withheld);
+    const context = reviewContextOf(view, contextOverrides);
+    const tree = this.session.state.manifest.tree;
+    const effective = scopeDocIds.map((id) => {
+      const node = tree.find((candidate) => candidate.id === id);
+      return {
+        doc: [id, getRevision(this.session.state, id), node?.title ?? '', node?.status === 'archived'],
+        codex: (context.codex?.(id) ?? []).map((block) => [block.key, block.text]),
+        story: (context.storySoFar?.(id) ?? []).map((block) => [block.key, block.text]),
+      };
+    });
+    const endpoint = this.providers.get(route.profileId)?.baseUrl ?? null;
+    const languages = this.languagePolicy();
+    return textDigest(JSON.stringify({
+      effective,
+      categories: [...categories].sort(),
+      maxFindings,
+      route: [route.profileId, route.model, route.thinking ?? null, endpoint],
+      readPolicy: harness.readPolicy() ?? null,
+      withheld: [...withheld].sort(),
+      language: [languages.ui, languages.project],
+    }));
+  }
+
+  private reviewExclusions(plan: ReviewExecutionPlan, withheld: ReadonlySet<string>): readonly string[] {
+    const tree = this.session.state.manifest.tree;
+    const lines: string[] = [];
+    for (const id of withheld) {
+      const node = tree.find((candidate) => candidate.id === id);
+      if (node !== undefined) lines.push(t`Withheld by a read rule: ${{ title: isolate(node.title) }}`);
+    }
+    for (const doc of plan.documents) {
+      for (const key of doc.codexDropped) lines.push(t`Left out of ${{ title: isolate(doc.title) }} to fit the budget: ${{ key: isolate(key) }}`);
+      for (const key of doc.storyDropped) lines.push(t`Left out of ${{ title: isolate(doc.title) }} to fit the budget: ${{ key: isolate(key) }}`);
+    }
+    return [...new Set(lines)];
+  }
+
+  private reviewApprovalFor(plan: ReviewPlan, route: QueuedReviewRoute, contextOverrides?: ContextOverrides): QueuedReviewApproval {
+    return freezeDeep({
+      plan: structuredClone(reviewExecutionPlanOf(plan)),
+      route: structuredClone(route),
+      callBound: { extractCalls: plan.estimate.extractCalls, verifyCallsAtMost: plan.estimate.verifyCallsAtMost },
+      scopeDocIds: [...plan.scopeDocIds],
+      categories: [...plan.categories],
+      maxFindings: plan.maxFindings,
+      fingerprint: this.reviewFingerprint(plan.scopeDocIds, plan.categories, plan.maxFindings, route, contextOverrides),
+      ...(contextOverrides === undefined ? {} : { contextOverrides: copyContext(contextOverrides) }),
+    });
+  }
+
+  private reviewBoundaryProblem(approval: QueuedReviewApproval): string | null {
+    if (this.mode() === 'plan-only') return t`Plan only mode does not run reviews. Switch to Ask, then queue the review again.`;
+    const status = this.session.coherenceStatus();
+    if (!status.attached) return t`No findings file is open for this project, so the review cannot publish.`;
+    if (!status.writable) return t`The findings file is read-only, so the review cannot publish to it.`;
+    const route = this.reviewRoute();
+    if (route === undefined) return noProviderText();
+    if (route.profileId !== approval.route.profileId || route.model !== approval.route.model || (route.thinking ?? null) !== (approval.route.thinking ?? null)) {
+      return t`The Background route changed since this review was approved. Approve the queue preview again.`;
+    }
+    const withheld = this.session.harness.withheld('coherence.review');
+    if (approval.scopeDocIds.some((id) => withheld.has(id))) {
+      return t`A read rule now keeps a document this review approved. Approve the queue preview again.`;
+    }
+    const denied = this.session.harness.ruleCheck('coherence.review', { scope: { mode: 'doc', docIds: [...approval.scopeDocIds] }, categories: [...approval.categories], maxFindings: approval.maxFindings }).denied;
+    if (denied !== undefined) {
+      return t`A rule now refuses this review: ${{ reason: denied.message }} Approve the queue preview again.`;
+    }
+    if (this.reviewFingerprint(approval.scopeDocIds, approval.categories, approval.maxFindings, approval.route, approval.contextOverrides) !== approval.fingerprint) {
+      return t`The review's documents or read rules changed since it was approved. Approve the queue preview again.`;
+    }
+    return null;
+  }
+
+  async prepareQueuedReview(choice: ReviewChoice): Promise<QueuedReviewPrepared> {
+    if (this.mode() === 'plan-only') return { ok: false, reason: t`Plan only mode does not run reviews. Switch to Ask, then queue the review.` };
+    const status = this.session.coherenceStatus();
+    if (!status.attached) return { ok: false, reason: t`No findings file is open for this project.` };
+    if (!status.writable) return { ok: false, reason: t`The findings file is read-only, so a review cannot publish to it.` };
+    const route = this.reviewRoute();
+    if (route === undefined) return { ok: false, reason: noProviderText() };
+    await this.harnessLoop();
+    const denial = this.session.harness.ruleCheck('coherence.review', { scope: choice.scope, ...(choice.categories === undefined ? {} : { categories: choice.categories }), maxFindings: choice.maxFindings }).denied;
+    if (denial !== undefined) return { ok: false, reason: t`A rule refuses this review: ${{ reason: denial.message }}` };
+    const withheld = this.session.harness.withheld('coherence.review');
+    const excluded = excludedBy(withheld);
+    const file = this.session.coherenceFile() ?? emptyCoherenceFile();
+    let plan: ReviewPlan;
+    try {
+      plan = planReview(this.session.state, file, {
+        scope: choice.scope,
+        ...(choice.categories === undefined ? {} : { categories: choice.categories }),
+        maxFindings: choice.maxFindings,
+        ...(excluded === undefined ? {} : { isExcluded: excluded }),
+      }, reviewContextOf(withheldState(this.session.state, withheld)));
+    } catch (error) {
+      return { ok: false, reason: error instanceof Error ? error.message : String(error) };
+    }
+    if (plan.scopeDocIds.length === 0) return { ok: false, reason: t`No readable documents are in this review's scope. Widen the scope, or check the read rules.` };
+    const approval = this.reviewApprovalFor(plan, route);
+    const cost = reviewCostAt(plan, this.providers.gateway, route.profileId, route.model, route.thinking);
+    const id = newId('cmd');
+    this.preparedReview = { id, approval };
+    return {
+      ok: true,
+      preview: {
+        id,
+        plan: structuredClone(plan),
+        route: structuredClone(approval.route),
+        callBound: structuredClone(approval.callBound),
+        cost,
+        costUnknownReason: cost === undefined ? t`This model has no price, so the estimate is unknown, not zero.` : null,
+        scopeTitles: approval.plan.documents.map((doc) => doc.title),
+        exclusions: this.reviewExclusions(approval.plan, withheld),
+      },
+    };
+  }
+
+  async queuePreparedReview(preview: QueuedReviewPreview, signal?: AbortSignal): Promise<EnqueueResult> {
+    const held = this.preparedReview;
+    if (held === null || held.id !== preview.id) return { ok: false, reason: t`That review preview is no longer held. Approve the queue preview again.` };
+    this.preparedReview = null;
+    if (signal?.aborted === true) return { ok: false, reason: t`Cancelled before it started.`, cancelled: true };
+    const problem = this.reviewBoundaryProblem(held.approval);
+    if (problem !== null) return { ok: false, reason: problem };
+    const { approval } = held;
+    const step: PlanStep = {
+      tool: 'coherence.review',
+      params: { scope: { mode: 'doc', docIds: [...approval.scopeDocIds] }, categories: [...approval.categories], maxFindings: approval.maxFindings },
+      expect: t`A coherence review`,
+    };
+    const scope = approval.plan.documents.map((doc) => isolate(doc.title)).join(', ');
+    return this.tasks.enqueue(t`Coherence review: ${{ scope }}`, [step], approval.contextOverrides, approval, signal);
+  }
+
+  discardQueuedReview(preview: QueuedReviewPreview): void {
+    if (this.preparedReview?.id === preview.id) this.preparedReview = null;
+  }
+
+  async queuePlanOffer(offer: PlanOffer, signal?: AbortSignal): Promise<EnqueueResult> {
+    const reviews = offer.reviews ?? [];
+    if (reviews.length > 1) return { ok: false, reason: t`Queue one coherence review at a time. Split this plan into one review per task.` };
+    const canonical = this.preparedOffer;
+    const review = reviews[0];
+    if (review === undefined) {
+      if (canonical === null) return { ok: false, reason: t`That plan offer is no longer held. Ask for the plan again.` };
+      this.preparedOffer = null;
+      return this.tasks.enqueue(this.intentForNextTurn ?? '', canonical.steps, canonical.contextOverrides, undefined, signal);
+    }
+    const approval = this.preparedOfferApproval;
+    if (canonical === null || approval === null || approval.fingerprint !== review.fingerprint) return { ok: false, reason: t`That plan offer is no longer held. Ask for the plan again.` };
+    this.preparedOfferApproval = null;
+    this.preparedOffer = null;
+    const problem = this.reviewBoundaryProblem(approval);
+    if (problem !== null) return { ok: false, reason: problem };
+    return this.tasks.enqueue(this.intentForNextTurn ?? '', canonical.steps, canonical.contextOverrides, approval, signal);
+  }
+
+  async acknowledgeReviewTask(id: string): Promise<void> {
+    await this.tasks.acknowledge(id);
+  }
+
+  private reviewOfferFor(step: PlanStep, plan: ReviewPlan): PlanOfferReview | undefined {
+    if (this.mode() === 'plan-only' || plan.scopeDocIds.length === 0) return undefined;
+    const status = this.session.coherenceStatus();
+    if (!status.attached || !status.writable) return undefined;
+    const route = this.reviewRoute();
+    if (route === undefined) return undefined;
+    const approval = this.reviewApprovalFor(plan, route, step.contextOverrides);
+    this.preparedOfferApproval = approval;
+    const cost = reviewCostAt(plan, this.providers.gateway, route.profileId, route.model, route.thinking);
+    return freezeDeep({
+      stepIndex: 0,
+      plan: structuredClone(plan),
+      callBound: approval.callBound,
+      route: structuredClone(route),
+      scopeDocIds: approval.scopeDocIds,
+      categories: approval.categories,
+      maxFindings: approval.maxFindings,
+      fingerprint: approval.fingerprint,
+      cost,
+      costUnknownReason: cost === undefined ? t`This model has no price, so the estimate is unknown, not zero.` : null,
+      scopeTitles: plan.documents.map((doc) => doc.title),
+      exclusions: this.reviewExclusions(plan, this.session.harness.withheld('coherence.review')),
+      ...(step.contextOverrides === undefined ? {} : { contextOverrides: copyContext(step.contextOverrides) }),
+    });
+  }
+
+  private reviewReportOf(run: CoherenceRun, plan: ReviewExecutionPlan, approval: QueuedReviewApproval, usage: TaskReviewReport['usage']): TaskReviewReport {
+    return {
+      runId: run.id,
+      outcome: run.status === 'partial' ? 'partial' : 'complete',
+      findingsCount: run.findingsUpserted.length,
+      scopeTitles: plan.documents.map((doc) => doc.title),
+      routeLabel: approval.route.label,
+      usage,
+    };
+  }
+
+  private async reviewRunnerFor(task: TaskRecord, sessionId: string): Promise<TaskReviewRunner | string> {
+    const approval = task.review;
+    if (approval === undefined) return t`This task has no review approval.`;
+    const profile = this.providers.get(approval.route.profileId);
+    if (profile === undefined) return t`The review's provider is no longer available. Add it again in Settings › Providers.`;
+    const [, harness] = await Promise.all([loadHarnessModule(), this.session.harnessReady()]);
+    const gateway = this.providers.gateway;
+    const turnId = `${task.id}.review`;
+    const languages = this.languagePolicy();
+    return async (current, host) => {
+      const plan = approval.plan;
+      const existingRun = current.reviewRunId === undefined ? undefined : this.session.coherenceFile()?.runs.find((run) => run.id === current.reviewRunId);
+      if (existingRun !== undefined) {
+        await this.session.saved();
+        const checkpoint = current.reviewCheckpoint;
+        const usage = checkpoint !== undefined && typeof checkpoint.modelCalls === 'number' && checkpoint.usageSource !== undefined
+          ? { modelCalls: checkpoint.modelCalls, source: checkpoint.usageSource }
+          : { modelCalls: 0, source: 'unknown' as const };
+        const report = this.reviewReportOf(existingRun, plan, approval, { modelCalls: usage.modelCalls, promptTokens: existingRun.tokens?.promptTokens ?? 0, completionTokens: existingRun.tokens?.completionTokens ?? 0, source: usage.source });
+        return { status: report.outcome, report };
+      }
+      const total = reviewCallCap(approval.callBound);
+      const revalidate = (): void => {
+        const problem = this.reviewBoundaryProblem(approval);
+        if (problem !== null) throw new Error(problem);
+      };
+      const withheld = harness.withheld('coherence.review');
+      const excluded = excludedBy(withheld);
+      const model = backgroundCoherenceModel(gateway, profile, { turnId, sessionId, model: approval.route.model, ...(approval.route.thinking === undefined ? {} : { thinking: approval.route.thinking }), languages }, () => { revalidate(); host.fence(); });
+      const resume = current.reviewCheckpoint;
+      const baseline = gateway.ledger.turnTotals(turnId);
+      const prior = resume === undefined
+        ? { calls: 0, source: 'reported' as const, known: true }
+        : typeof resume.modelCalls === 'number' && resume.usageSource !== undefined
+          ? { calls: resume.modelCalls, source: resume.usageSource, known: true }
+          : { calls: 0, source: 'unknown' as const, known: false };
+      const accounting = (): { modelCalls: number; source: 'reported' | 'estimated' | 'unknown' } => {
+        if (!prior.known) return { modelCalls: 0, source: 'unknown' };
+        const totals = gateway.ledger.turnTotals(turnId);
+        const modelCalls = prior.calls + Math.max(0, totals.requests - baseline.requests);
+        if (modelCalls === 0) return { modelCalls: 0, source: 'unknown' };
+        const newEstimated = Math.max(0, totals.estimatedRequests - baseline.estimatedRequests);
+        const source = prior.source === 'unknown' ? 'unknown' : prior.source === 'estimated' || newEstimated > 0 ? 'estimated' : 'reported';
+        return { modelCalls, source };
+      };
+      let lastCheckpoint: ReviewCheckpoint | undefined;
+      const persistAccounting = async (checkpoint: ReviewCheckpoint): Promise<void> => {
+        if (!prior.known) {
+          await host.checkpoint(checkpoint);
+          return;
+        }
+        const usage = accounting();
+        await host.checkpoint({ ...checkpoint, modelCalls: usage.modelCalls, usageSource: usage.source });
+      };
+      await host.phase('extracting', (resume?.extractedDocIds.length ?? 0) + (resume?.verifiedBatches ?? 0), total);
+      let computed: ReviewComputed;
+      try {
+        computed = await computeReview(this.session.state, this.session.coherenceFile() ?? emptyCoherenceFile(), plan, {
+          model,
+          approved: true,
+          context: reviewContextOf(withheldState(this.session.state, withheld), approval.contextOverrides),
+          signal: host.signal,
+          ...(excluded === undefined ? {} : { isExcluded: excluded }),
+          ...(resume === undefined ? {} : { resumeFrom: resume }),
+          beforeCall: async () => { revalidate(); await host.reserve(); },
+          yieldToHost: async () => {
+            await new Promise<void>((resolve) => { setTimeout(resolve, 0); });
+            if (host.signal.aborted) throw new Error(t`The review was cancelled.`);
+          },
+          onCheckpoint: async (checkpoint) => {
+            lastCheckpoint = checkpoint;
+            await persistAccounting(checkpoint);
+            const done = checkpoint.extractedDocIds.length + checkpoint.verifiedBatches;
+            await host.phase(checkpoint.extractedDocIds.length < plan.scopeDocIds.length ? 'extracting' : 'verifying', done, total);
+          },
+        });
+      } finally {
+        await persistAccounting(lastCheckpoint ?? resume ?? emptyReviewCheckpoint()).catch(() => undefined);
+      }
+      if (host.signal.aborted) return { status: 'cancelled' };
+      await host.phase('publishing', total, total);
+      revalidate();
+      const currentFile = this.session.coherenceFile();
+      if (currentFile === undefined) return { status: 'failed', error: t`No findings file is open for this project, so the review cannot publish.` };
+      if (host.signal.aborted) return { status: 'cancelled' };
+      const result = publishReview(currentFile, computed, { now: new Date(this.clock()), ...(current.reviewRunId === undefined ? {} : { runId: current.reviewRunId }) });
+      if (host.signal.aborted) return { status: 'cancelled' };
+      this.session.applyCoherenceFile(result.file);
+      await this.session.saved();
+      const usage = accounting();
+      const report = this.reviewReportOf(result.run, plan, approval, { modelCalls: usage.modelCalls, promptTokens: computed.promptTokens, completionTokens: computed.completionTokens, source: usage.source });
+      return { status: result.status, report };
+    };
   }
 
   /** The configured routes a writer may explicitly choose for a transcription's second read. */
@@ -2604,6 +2955,7 @@ export class AgentController {
       },
       loadEveryTool: this.loadEveryTool,
       beforeStage: (offer) => this.askOffer(offer),
+      reviewOffer: (step, plan) => this.reviewOfferFor(step, plan),
       mode: () => this.mode(),
       lockAuto: () => this.agentSettings().lockAuto,
       budget: () => {
@@ -2726,6 +3078,9 @@ export class AgentController {
     const resolve = this.resolveDecision;
     this.retireApproval(this.approving?.token ?? null);
     this.dropOffer();
+    this.preparedReview = null;
+    this.preparedOfferApproval = null;
+    this.preparedOffer = null;
     this.move({ type: 'detach' });
     this.clearGhosts();
     resolve?.({ action: 'cancel' });

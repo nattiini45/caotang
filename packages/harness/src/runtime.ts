@@ -95,6 +95,7 @@ import {
   type UntrustedCallResult,
 } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
+import type { ContextOverrides } from '@caotang/context';
 import { createProjectCommandRegistry, type McpInvokeCommandPort, type McpReadResourceCommandPort, type ProjectState } from '@caotang/store';
 import { isOffered, skillCatalog as skillCatalogOf, type SkillCatalog, type SkillState } from '@caotang/skills';
 import { shotCommandPort } from '@caotang/storyboard';
@@ -312,7 +313,7 @@ export interface Harness {
    * The plan of a `coherence.review` step, staged before its card is shown (coherence.md §7 tool 16). Pure: no model is called,
    * so the card shows the documents, the cost estimate and the first prompt before the writer approves.
    */
-  reviewPlan(params: CallParams): Result<ReviewPlan, CommandError>;
+  reviewPlan(params: CallParams, contextOverrides?: ContextOverrides): Result<ReviewPlan, CommandError>;
   /** The no-model plan of a `pictures.transcribe` step, staged before its card (pictures.md §8.4). */
   transcriptionPlan(params: CallParams): Result<PictureTranscriptionPlan, CommandError>;
   /**
@@ -1102,6 +1103,7 @@ export function createHarness(options: HarnessOptions): Harness {
       ...(permission === undefined ? {} : { permission }),
       ...(turn.signal === undefined ? {} : { signal: turn.signal }),
       withheld: withheldFor(call.name),
+      ...(turn.contextOverrides === undefined ? {} : { contextOverrides: turn.contextOverrides }),
       // A change to held state outside the bus counts as an effect, so the answer is cached by callId and a
       // replay is not run again (command-bus §6). The port says so; the runtime cannot see the change.
       recordEffect: () => {
@@ -1571,7 +1573,7 @@ export function createHarness(options: HarnessOptions): Harness {
     endTurn: clearTurn,
     callExternal,
     callAsync,
-    reviewPlan: (params) => stageReviewPlan(params, state, clock, options.coherence ?? {}, withheldFor('coherence.review')),
+    reviewPlan: (params, contextOverrides) => stageReviewPlan(params, state, clock, options.coherence ?? {}, withheldFor('coherence.review'), contextOverrides),
     transcriptionPlan: (params) =>
       options.transcription === undefined
         ? failure(notWired('pictures.transcribe'))

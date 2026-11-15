@@ -27,11 +27,11 @@ import {
   type LlmCategory,
 } from '../model.js';
 import { entriesOf, resolveScope, snapshotManuscript, type ScannedScene, type ScopeSpec, type SnapshotOptions } from '../scope.js';
-import { recurredAfterFixedNote, upsertFindings } from '../upsert.js';
+import { recurredAfterFixedNote, upsertFindings, type UpsertDraft } from '../upsert.js';
 
 import { assembleFindings } from './assemble.js';
 import type { CoherenceModel, ModelReply, ModelUsage } from './port.js';
-import { batchPairs, blockFor, candidatePairs, pairCount, type PairRef } from './pairs.js';
+import { blockFor, pairCount, pairSequence, type PairRef } from './pairs.js';
 import { pairLabelOf, parseExtraction, parseVerification, type ExtractedSpan, type ParsedVerdict } from './parse.js';
 import { PAIRS_PER_CALL, SPANS_PER_DOCUMENT, extractionPrompt, verificationPrompt, type PairBlock } from './prompts.js';
 
@@ -109,6 +109,14 @@ export interface ReviewPlan {
   readonly overGuard: boolean;
   /** The first extraction prompt, shown so the writer sees what the model will read. */
   readonly promptPreview: string;
+}
+
+/** The plan as an approval persists and a run executes it: everything but the first prompt, which only the ephemeral preview shows. */
+export type ReviewExecutionPlan = Omit<ReviewPlan, 'promptPreview'>;
+
+export function reviewExecutionPlanOf(plan: ReviewPlan): ReviewExecutionPlan {
+  const { promptPreview: _promptPreview, ...execution } = plan;
+  return execution;
 }
 
 function validateCategories(categories: readonly LlmCategory[] | undefined): readonly LlmCategory[] {
@@ -282,12 +290,106 @@ function reasonOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+export interface ReviewCheckpoint {
+  readonly extractedDocIds: readonly string[];
+  readonly spans: readonly ExtractedSpan[];
+  readonly verifiedBatches: number;
+  readonly verdicts: readonly ParsedVerdict[];
+  readonly usageByPair: Readonly<Record<string, ModelUsage>>;
+  readonly promptTokens: number;
+  readonly completionTokens: number;
+  readonly notes: readonly string[];
+  readonly status: 'complete' | 'partial';
+  readonly evaluated: readonly string[];
+  readonly modelCalls?: number;
+  readonly usageSource?: 'reported' | 'estimated' | 'unknown';
+}
+
+export interface ReviewComputed {
+  readonly drafts: readonly UpsertDraft[];
+  readonly evaluated: readonly string[];
+  readonly scenes: readonly { readonly docId: string; readonly revision: number }[];
+  readonly status: 'complete' | 'partial';
+  readonly notes: readonly string[];
+  readonly promptTokens: number;
+  readonly completionTokens: number;
+  readonly model: string;
+  readonly categories: readonly LlmCategory[];
+}
+
+export interface ReviewComputeOptions {
+  readonly model: CoherenceModel | undefined;
+  readonly approved: boolean;
+  readonly context?: ReviewContext;
+  readonly signal?: AbortSignal;
+  readonly isExcluded?: SnapshotOptions['isExcluded'];
+  readonly resumeFrom?: ReviewCheckpoint;
+  readonly onCheckpoint?: (checkpoint: ReviewCheckpoint) => void | Promise<void>;
+  readonly beforeCall?: () => void | Promise<void>;
+  readonly yieldToHost?: () => Promise<void>;
+}
+
+export const REVIEW_YIELD_EVERY = 2000;
+
+export function emptyReviewCheckpoint(): ReviewCheckpoint {
+  return { extractedDocIds: [], spans: [], verifiedBatches: 0, verdicts: [], usageByPair: {}, promptTokens: 0, completionTokens: 0, notes: [], status: 'complete', evaluated: [] };
+}
+
 /**
- * Runs an approved plan. Stage 1 extracts per document; Stage 2 verifies the
- * candidate pairs in batches; Stage 4 assembles and upserts. A provider error
- * stops the run at that point and keeps what was already gathered.
+ * A resumed checkpoint's evidence, checked again against the approved plan and the bodies as they stand: every span and verdict
+ * passage is a verbatim slice of a scope document at its own offsets, every span's category is approved, every verdict names a pair
+ * the spans still form, and its passages overlap that pair's own spans as at parse time. The store's shape check says a record is
+ * shaped like a checkpoint; this says its evidence is still the approved work. A checkpoint that fails is not resumed: its progress
+ * is dropped and the review starts again within the remaining call bound, keeping the checkpoint's token totals and notes.
+ *
+ * The pair walk streams with the host's yield hook, as the verification preparation does, so a large resumed review stays
+ * cancellable while its evidence is checked; only the pairs a verdict names are kept.
  */
-export async function runReview(state: ProjectState, file: CoherenceFile, plan: ReviewPlan, options: ReviewRunOptions): Promise<ReviewRunResult> {
+export async function reviewCheckpointEvidenceOk(plan: ReviewExecutionPlan, bodies: ReadonlyMap<string, string>, checkpoint: ReviewCheckpoint, yieldToHost?: () => Promise<void>): Promise<boolean> {
+  const scope = new Set(plan.scopeDocIds);
+  const categories = new Set<string>(plan.categories);
+  if (!checkpoint.extractedDocIds.every((id) => scope.has(id)) || !checkpoint.evaluated.every((id) => scope.has(id))) return false;
+  const verbatim = (docId: string, quote: string, from: number, to: number): boolean => {
+    const body = bodies.get(docId);
+    return body !== undefined && quote !== '' && body.slice(from, to) === quote;
+  };
+  const spanCount = new Map<string, number>();
+  for (const span of checkpoint.spans) {
+    if (!scope.has(span.docId) || !categories.has(span.category) || !verbatim(span.docId, span.quote, span.from, span.to)) return false;
+    const count = (spanCount.get(span.docId) ?? 0) + 1;
+    if (count > SPANS_PER_DOCUMENT) return false;
+    spanCount.set(span.docId, count);
+  }
+  const named = new Set(checkpoint.verdicts.map((verdict) => verdict.pairId));
+  const captured = new Map<string, PairRef>();
+  let pairs = 0;
+  let sinceYield = 0;
+  for (const pair of pairSequence(checkpoint.spans, plan.categories)) {
+    pairs += 1;
+    if (named.has(pair.pairId)) captured.set(pair.pairId, pair);
+    sinceYield += 1;
+    if (yieldToHost !== undefined && sinceYield >= REVIEW_YIELD_EVERY) {
+      sinceYield = 0;
+      await yieldToHost();
+    }
+  }
+  if (checkpoint.verifiedBatches > Math.ceil(pairs / PAIRS_PER_CALL)) return false;
+  const overlaps = (passage: { docId: string; from: number; to: number }, span: ExtractedSpan): boolean =>
+    passage.docId === span.docId && passage.from < span.to && span.from < passage.to;
+  for (const verdict of checkpoint.verdicts) {
+    const pair = captured.get(verdict.pairId);
+    if (pair === undefined) return false;
+    if (verdict.evidence === undefined) continue;
+    if (verdict.evidence.length !== 2) return false;
+    const [first, second] = verdict.evidence;
+    if (first === undefined || second === undefined) return false;
+    if (!verbatim(first.docId, first.quote, first.from, first.to) || !verbatim(second.docId, second.quote, second.from, second.to)) return false;
+    if (!((overlaps(first, pair.a) && overlaps(second, pair.b)) || (overlaps(second, pair.a) && overlaps(first, pair.b)))) return false;
+  }
+  return true;
+}
+
+export async function computeReview(state: ProjectState, file: CoherenceFile, plan: ReviewExecutionPlan, options: ReviewComputeOptions): Promise<ReviewComputed> {
   if (options.approved !== true) throw new ReviewNotApprovedError();
   const model = options.model;
   if (model === undefined) throw new NoProviderError();
@@ -298,39 +400,60 @@ export async function runReview(state: ProjectState, file: CoherenceFile, plan: 
   });
   const byId = new Map(snapshot.scanned.map((scene) => [scene.docId, scene] as const));
   const scenes: ScannedScene[] = [];
-  const notes: string[] = [];
+  const resume = options.resumeFrom;
+  const notes: string[] = resume === undefined ? [] : [...resume.notes];
   for (const docId of plan.scopeDocIds) {
     const scene = byId.get(docId);
     if (scene === undefined) {
       const planned = plan.documents.find((doc) => doc.docId === docId);
-      notes.push(`${planned === undefined ? 'a scene' : `"${planned.title}"`} is no longer readable and was skipped`);
-    }
-    else scenes.push(scene);
+      const note = `${planned === undefined ? 'a scene' : `"${planned.title}"`} is no longer readable and was skipped`;
+      if (resume === undefined || !notes.includes(note)) notes.push(note);
+    } else scenes.push(scene);
   }
+  const bodies = new Map<string, string>(scenes.map((scene) => [scene.docId, focusBody(scene.body).text] as const));
+  const usable = resume !== undefined && (await reviewCheckpointEvidenceOk(plan, bodies, resume, options.yieldToHost)) ? resume : undefined;
+  if (resume !== undefined && usable === undefined) notes.push('the saved checkpoint did not match the approved documents; the review started again within its remaining limit');
 
-  let status: 'complete' | 'partial' = 'complete';
-  let promptTokens = 0;
-  let completionTokens = 0;
+  let status: 'complete' | 'partial' = usable?.status ?? 'complete';
+  let promptTokens = resume?.promptTokens ?? 0;
+  let completionTokens = resume?.completionTokens ?? 0;
   const addUsage = (usage: ModelUsage | undefined): void => {
     promptTokens += usage?.promptTokens ?? 0;
     completionTokens += usage?.completionTokens ?? 0;
   };
   const context = options.context ?? {};
+  const extractedDocIds = new Set(usable?.extractedDocIds ?? []);
+  const spans: ExtractedSpan[] = usable === undefined ? [] : [...usable.spans];
+  const evaluated: string[] = usable === undefined ? [] : [...usable.evaluated];
+  const usageByPair = new Map<string, ModelUsage | undefined>(Object.entries(usable?.usageByPair ?? {}));
+  const verdicts: ParsedVerdict[] = usable === undefined ? [] : [...usable.verdicts];
+  let verifiedBatches = usable?.verifiedBatches ?? 0;
+
+  const checkpoint = (): ReviewCheckpoint => ({
+    extractedDocIds: [...extractedDocIds],
+    spans: [...spans],
+    verifiedBatches,
+    verdicts: [...verdicts],
+    usageByPair: Object.fromEntries([...usageByPair].filter((entry): entry is [string, ModelUsage] => entry[1] !== undefined)),
+    promptTokens,
+    completionTokens,
+    notes: [...notes],
+    status,
+    evaluated: [...evaluated],
+  });
 
   // Stage 1: one call per document, in binder order.
-  const bodies = new Map<string, string>();
-  const spans: ExtractedSpan[] = [];
-  const evaluated: string[] = [];
   for (const scene of scenes) {
+    const prompt = promptFor(scene, plan.categories, context);
+    if (extractedDocIds.has(scene.docId)) continue;
     if (options.signal?.aborted === true) {
       status = 'partial';
       notes.push('extraction stopped: the run was cancelled');
       break;
     }
-    const prompt = promptFor(scene, plan.categories, context);
-    bodies.set(scene.docId, prompt.body);
     let reply: ModelReply;
     try {
+      if (options.beforeCall !== undefined) await options.beforeCall();
       reply = await model.complete({
         system: prompt.system,
         user: prompt.user,
@@ -348,19 +471,38 @@ export async function runReview(state: ProjectState, file: CoherenceFile, plan: 
       spans.push(...parsed.spans);
       notes.push(...parsed.notes);
       evaluated.push(scene.docId);
+      extractedDocIds.add(scene.docId);
     } catch (error) {
       if (!(error instanceof MalformedReplyError)) throw error;
       status = 'partial';
       notes.push(`extraction for "${scene.title}" was unusable: ${error.message}`);
+      extractedDocIds.add(scene.docId);
     }
+    await options.onCheckpoint?.(checkpoint());
   }
 
   // Stage 2: pairwise verification, in batches of at most ten pairs.
-  const pairs = candidatePairs(spans, plan.categories);
-  const pairById = new Map<string, PairRef>(pairs.map((pair) => [pair.pairId, pair] as const));
-  const usageByPair = new Map<string, ModelUsage | undefined>();
-  const verdicts: ParsedVerdict[] = [];
-  for (const batch of batchPairs(pairs)) {
+  const pairById = new Map<string, PairRef>();
+  const batches: PairRef[][] = [];
+  let filling: PairRef[] = [];
+  let sinceYield = 0;
+  for (const pair of pairSequence(spans, plan.categories)) {
+    pairById.set(pair.pairId, pair);
+    filling.push(pair);
+    if (filling.length === PAIRS_PER_CALL) {
+      batches.push(filling);
+      filling = [];
+    }
+    sinceYield += 1;
+    if (options.yieldToHost !== undefined && sinceYield >= REVIEW_YIELD_EVERY) {
+      sinceYield = 0;
+      await options.yieldToHost();
+    }
+  }
+  if (filling.length > 0) batches.push(filling);
+  if (options.yieldToHost !== undefined) await options.yieldToHost();
+  for (const [index, batch] of batches.entries()) {
+    if (index < verifiedBatches) continue;
     if (options.signal?.aborted === true) {
       status = 'partial';
       notes.push('verification stopped: the run was cancelled');
@@ -369,10 +511,14 @@ export async function runReview(state: ProjectState, file: CoherenceFile, plan: 
     const blocks = batch
       .map((pair) => blockFor(pair, bodies))
       .filter((block): block is PairBlock => block !== undefined);
-    if (blocks.length === 0) continue;
+    if (blocks.length === 0) {
+      verifiedBatches = index + 1;
+      continue;
+    }
     const prompt = verificationPrompt(blocks);
     let reply: ModelReply;
     try {
+      if (options.beforeCall !== undefined) await options.beforeCall();
       reply = await model.complete({
         system: prompt.system,
         user: prompt.user,
@@ -398,9 +544,12 @@ export async function runReview(state: ProjectState, file: CoherenceFile, plan: 
       status = 'partial';
       notes.push(`a verification batch was unusable: ${error.message}`);
     }
+    verifiedBatches = index + 1;
+    await options.onCheckpoint?.(checkpoint());
   }
 
   // Stage 4: deterministic assembly, then the shared upsert. An llm run never clears findings.
+  if (options.yieldToHost !== undefined) await options.yieldToHost();
   const docOrder = new Map(snapshot.scanned.map((scene) => [scene.docId, scene.binderIndex] as const));
   const assembled = assembleFindings(verdicts, {
     pairs: pairById,
@@ -412,15 +561,35 @@ export async function runReview(state: ProjectState, file: CoherenceFile, plan: 
   });
   notes.push(...assembled.notes);
 
-  // The copy is taken from the file as it stands now, after the awaits above: a scan or a fix made while the model worked is in it.
-  const next = structuredClone(options.currentFile?.() ?? file);
-  const runId = mintCoherenceId('r', new Set(next.runs.map((run) => run.id)), options.randomBytes);
+  return {
+    drafts: assembled.drafts,
+    evaluated,
+    scenes: scenes.map((scene) => ({ docId: scene.docId, revision: scene.revision })),
+    status,
+    notes,
+    promptTokens,
+    completionTokens,
+    model: model.model,
+    categories: plan.categories,
+  };
+}
+
+export interface ReviewPublishOptions {
+  readonly now: Date;
+  readonly randomBytes?: RandomBytes;
+  readonly runId?: string;
+}
+
+export function publishReview(currentFile: CoherenceFile, computed: ReviewComputed, options: ReviewPublishOptions): ReviewRunResult {
+  const existing = options.runId === undefined ? undefined : currentFile.runs.find((run) => run.id === options.runId);
+  if (existing !== undefined) {
+    return { file: currentFile, run: existing, status: existing.status === 'partial' ? 'partial' : 'complete', notes: existing.notes ?? [] };
+  }
+  const next = structuredClone(currentFile);
+  const runId = options.runId ?? mintCoherenceId('r', new Set(next.runs.map((run) => run.id)), options.randomBytes);
   const at = options.now.toISOString();
-  const report = upsertFindings(next, assembled.drafts, {
-    runId,
-    now: at,
-    randomBytes: options.randomBytes,
-  });
+  const notes = [...computed.notes];
+  const report = upsertFindings(next, computed.drafts, { runId, now: at, randomBytes: options.randomBytes });
   if (report.redetectedFixed.length > 0) notes.push(recurredAfterFixedNote(next, report.redetectedFixed));
   if (report.redetectedDismissed > 0) notes.push(`${report.redetectedDismissed} previously dismissed finding(s) still present`);
 
@@ -428,20 +597,36 @@ export async function runReview(state: ProjectState, file: CoherenceFile, plan: 
     id: runId,
     at,
     kind: 'llm',
-    checkIds: plan.categories.map((category) => `llm:${category}`),
-    scope: { docIds: [...evaluated].sort() },
+    checkIds: computed.categories.map((category) => `llm:${category}`),
+    scope: { docIds: [...computed.evaluated].sort() },
     findingsUpserted: report.upserted,
-    tokens: { promptTokens, completionTokens },
-    model: model.model,
-    status,
+    tokens: { promptTokens: computed.promptTokens, completionTokens: computed.completionTokens },
+    model: computed.model,
+    status: computed.status,
     notes,
   };
   next.runs.push(run);
   if (next.runs.length > RUN_HISTORY_LIMIT) next.runs.splice(0, next.runs.length - RUN_HISTORY_LIMIT);
 
-  // Review state advances only for a complete run. A partial run leaves every document due again.
-  if (status === 'complete') {
-    for (const scene of scenes) next.reviewState[scene.docId] = { lastReviewedRevision: scene.revision, lastReviewedAt: at };
+  if (computed.status === 'complete') {
+    for (const scene of computed.scenes) next.reviewState[scene.docId] = { lastReviewedRevision: scene.revision, lastReviewedAt: at };
   }
-  return { file: next, run, status, notes };
+  return { file: next, run, status: computed.status, notes };
+}
+
+/**
+ * Runs an approved plan. Stage 1 extracts per document; Stage 2 verifies the
+ * candidate pairs in batches; Stage 4 assembles and upserts. A provider error
+ * stops the run at that point and keeps what was already gathered.
+ */
+export async function runReview(state: ProjectState, file: CoherenceFile, plan: ReviewPlan, options: ReviewRunOptions): Promise<ReviewRunResult> {
+  const computed = await computeReview(state, file, plan, {
+    model: options.model,
+    approved: options.approved,
+    ...(options.context === undefined ? {} : { context: options.context }),
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
+    ...(options.isExcluded === undefined ? {} : { isExcluded: options.isExcluded }),
+  });
+  // The copy is taken from the file as it stands now, after the awaits above: a scan or a fix made while the model worked is in it.
+  return publishReview(options.currentFile?.() ?? file, computed, { now: options.now, ...(options.randomBytes === undefined ? {} : { randomBytes: options.randomBytes }) });
 }
