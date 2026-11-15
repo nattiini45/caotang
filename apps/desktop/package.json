@@ -31,6 +31,7 @@
     "@caotang/harness": "workspace:*",
     "@caotang/i18n": "workspace:*",
     "@caotang/ids": "workspace:*",
+    "@caotang/import-ao3": "workspace:*",
     "@caotang/import-core": "workspace:*",
     "@caotang/import-epub": "workspace:*",
     "@caotang/import-html": "workspace:*",

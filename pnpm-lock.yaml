@@ -285,6 +285,9 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../../packages/ids
+      '@caotang/import-ao3':
+        specifier: workspace:*
+        version: link:../../packages/import-ao3
       '@caotang/import-core':
         specifier: workspace:*
         version: link:../../packages/import-core
