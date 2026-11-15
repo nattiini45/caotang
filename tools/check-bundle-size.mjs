@@ -168,7 +168,11 @@ export const BUDGET = {
   // Effort levels per provider, DeepSeek as a full preset and the request-parameters form (#488): 7,782,495 bytes measured (entry
   // 1,206,897). PawCommit Studio raised both ceilings on 2026-11-07 to leave headroom instead of approving each small raise: all JS 8,000,000,
   // entry 1,250,000. With #489 merged in: 7,790.4 kB measured (entry 1,207.9 kB, first load 1,030.3 kB gzip), under all three.
-  totalJs: 8_290_000,
+  // The HTML import (#299): 8,306,046 bytes measured on #597's worker host (+26,981: the own XHTML walker and its reader, the HTML
+  // preview source and the reader session's HTML branch, in lazy chunks; the first load did not move). The walker is reached from
+  // both the main thread and the reader Worker, so it is in the build twice until #649 shares that code. The ceiling is the measured
+  // size plus about 4 kB.
+  totalJs: 8_310_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
