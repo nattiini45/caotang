@@ -62,6 +62,8 @@ export async function queuedReviewProject(page: Page, plan?: unknown): Promise<{
 
 export async function openReviewInbox(page: Page, buttonName?: string): Promise<void> {
   if (await page.getByTestId('review-inbox').isVisible()) return;
+  const queued = page.getByRole('status').filter({ hasText: 'The review is queued.' });
+  if (await queued.isVisible()) await queued.getByRole('button', { name: 'Dismiss' }).click();
   const modern = await page.getByTestId('modern-binder-bar').isVisible();
   await page.getByRole('button', { name: buttonName ?? (modern ? 'Ask' : 'Agent'), exact: true }).click();
   await expect(page.getByTestId('review-inbox')).toBeVisible();
