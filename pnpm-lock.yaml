@@ -291,6 +291,9 @@ importers:
       '@caotang/import-core':
         specifier: workspace:*
         version: link:../../packages/import-core
+      '@caotang/import-csv':
+        specifier: workspace:*
+        version: link:../../packages/import-csv
       '@caotang/import-docx':
         specifier: workspace:*
         version: link:../../packages/import-docx

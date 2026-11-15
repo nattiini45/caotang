@@ -106,6 +106,16 @@ describe('the two modes (#288)', () => {
       ['Salt', 9, 1, 'Mara', ['Elena'], 'The Pier'],
     ]);
     expect(read.value.problems).toEqual([]);
+    expect(read.value.anchor).toBe('2026-01-01');
+  });
+
+  it('counts days from the first date in the file when the writer gave no anchor', () => {
+    const csv = 'Title,Start\nThe Landing,2026-01-04\nSalt,2026-01-09\n';
+    const read = readCsv(enc(csv), { mode: 'timeline' });
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.anchor).toBe('2026-01-04');
+    expect(read.value.timeline.map((row) => row.startDay)).toEqual([0, 5]);
   });
 
   it('reports a row with no name, a bad date and a ragged row rather than dropping them silently', () => {

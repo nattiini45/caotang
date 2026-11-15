@@ -21,6 +21,7 @@ import { ao3PreviewSource } from '../src/import-preview/ao3-source.js';
 import { kankaPreviewSource } from '../src/import-preview/kanka-source.js';
 import { docxPreviewSource } from '../src/import-preview/docx-source.js';
 import { odtPreviewSource } from '../src/import-preview/odt-source.js';
+import { csvPreviewSource } from '../src/import-preview/csv-source.js';
 import { rawZip } from '../../../packages/import-read/test/zip-fixtures.js';
 import {
   SPLIT_CHIPS,
@@ -550,6 +551,35 @@ describe('the sources', () => {
     const rejected = source.plan(rejecting, NO_OVERRIDES);
     expect(JSON.stringify(rejected.blocks)).toContain('left at dawn');
     expect(JSON.stringify(rejected.blocks)).not.toContain('came at noon');
+    source.dispose?.();
+  });
+
+  it('a spreadsheet offers its columns as chips and imports as codex entries or as scenes', async () => {
+    const bible = 'Name,Also known as,Type,Description,Tags\nElena,Lena;El,Character,"A cartographer, back from sea",harbour;returning\n';
+    const source = csvPreviewSource('bible.csv', enc(bible));
+    await source.load?.(() => {}, new AbortController().signal);
+    const settings = initialSettings(source.chips(), source.options());
+    expect(source.chips().map((chip) => chip.label)).toContain('Also known as');
+    const rows = source.codexRows?.() ?? [];
+    expect(rows.map((row) => [row.name, row.type, row.aliases, row.keywords])).toEqual([
+      ['Elena', 'character', ['Lena', 'El'], ['Character', 'harbour', 'returning']],
+    ]);
+    expect(rows[0]?.page?.body.startsWith('# Elena')).toBe(true);
+    expect(source.report?.(source.plan(settings, NO_OVERRIDES))[0]?.lines[0]).toBe('1 row is offered as a codex entry with its own Research page');
+
+    // Timeline mode: the same file read as scenes, with the days kept as a note.
+    const timeline = 'Title,Start,Duration,POV,Characters,Plotline,Summary\nThe Landing,2026-01-04,2 days,Elena,"Mara;Kai",The Pier,"The ferry came at noon."\n';
+    const scenes = csvPreviewSource('timeline.csv', enc(timeline));
+    await scenes.load?.(() => {}, new AbortController().signal);
+    const asScenes = { ...initialSettings(scenes.chips(), scenes.options()), chips: { 'csv-mode': 'timeline' } };
+    await scenes.prepare?.(asScenes, new AbortController().signal);
+    const plan = scenes.plan(asScenes, NO_OVERRIDES);
+    expect(plan.tree.map((node) => node.title)).toEqual(['The Landing']);
+    expect(plan.tree[0]?.synopsis).toBe('The ferry came at noon.');
+    expect(plan.tree[0]?.keywords).toEqual(['Elena', 'The Pier', 'Mara', 'Kai']);
+    expect(plan.tree[0]?.notes).toContain('day 0');
+    expect(scenes.codexRows?.() ?? []).toEqual([]);
+    scenes.dispose?.();
     source.dispose?.();
   });
 

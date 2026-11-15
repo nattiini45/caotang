@@ -64,6 +64,8 @@ export interface CsvImport {
   problems: string[];
   /** The encoding the bytes were read as, for the report. */
   encoding: string;
+  /** The date day 0 stands for: the writer's anchor, or the first date in the file. */
+  anchor: string;
 }
 
 export type CsvError = { kind: 'ask-encoding' } | { kind: 'empty' } | { kind: 'no-columns' };
@@ -159,5 +161,19 @@ export function readCsv(bytes: Uint8Array, options: CsvOptions = {}): CsvResult 
   }
   for (const index of grid.ragged) problems.push(`Row ${index + 1} has ${(grid.rows[index] ?? []).length} cells where the first row has ${width}.`);
 
-  return { ok: true, value: { grid, headers, roles, mode, codex, timeline, problems, encoding: decoded.encoding } };
+  // Without an anchor of the writer's own, day 0 is the first date in the file, so the offsets mean something.
+  let anchorUsed = anchor;
+  if (options.anchor === undefined && mode === 'timeline') {
+    const days = timeline.flatMap((row) => [row.startDay, row.endDay]).filter((day): day is number => day !== null);
+    const first = days.length === 0 ? null : Math.min(...days);
+    if (first !== null && first !== 0) {
+      anchorUsed = new Date(anchor.getTime() + first * 86_400_000);
+      for (const row of timeline) {
+        if (row.startDay !== null) row.startDay -= first;
+        if (row.endDay !== null) row.endDay -= first;
+      }
+    }
+  }
+
+  return { ok: true, value: { grid, headers, roles, mode, codex, timeline, problems, encoding: decoded.encoding, anchor: anchorUsed.toISOString().slice(0, 10) } };
 }

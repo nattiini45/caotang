@@ -27,6 +27,7 @@ export function ManuscriptImportActions(): ReactNode {
   const kankaFile = useRef<HTMLInputElement>(null);
   const docxFile = useRef<HTMLInputElement>(null);
   const odtFile = useRef<HTMLInputElement>(null);
+  const csvFile = useRef<HTMLInputElement>(null);
 
   const failed = (file: File, failure: unknown): void => {
     const problem = failure instanceof Error ? failure.message : String(failure);
@@ -157,6 +158,16 @@ export function ManuscriptImportActions(): ReactNode {
     }
   };
 
+  const openCsv = async (file: File): Promise<void> => {
+    try {
+      const { csvPreviewSource } = await import('../import-preview/csv-source.js');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      openImportPreview({ source: csvPreviewSource(file.name, bytes) });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
   return (
     <div className="script-import" role="group" aria-label={t`Import a manuscript`}>
       <button type="button" className="button is-quiet" onClick={() => textFile.current?.click()}>
@@ -182,6 +193,9 @@ export function ManuscriptImportActions(): ReactNode {
       </button>
       <button type="button" className="button is-quiet" onClick={() => odtFile.current?.click()}>
         <Trans>Import OpenDocument…</Trans>
+      </button>
+      <button type="button" className="button is-quiet" onClick={() => csvFile.current?.click()}>
+        <Trans>Import spreadsheet…</Trans>
       </button>
       <button type="button" className="button is-quiet" onClick={() => kankaFile.current?.click()}>
         <Trans>Import Kanka…</Trans>
@@ -296,6 +310,18 @@ export function ManuscriptImportActions(): ReactNode {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
           if (file !== undefined) void openOdt(file);
+        }}
+      />
+      <input
+        ref={csvFile}
+        type="file"
+        hidden
+        accept=".csv,.tsv,.txt"
+        aria-label={t`Spreadsheet file`}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file !== undefined) void openCsv(file);
         }}
       />
     </div>

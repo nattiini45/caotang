@@ -18,6 +18,7 @@ import type { Ao3Result } from '@caotang/import-ao3';
 import type { KankaLabels, KankaResult } from '@caotang/import-kanka';
 import type { DocxOptions, DocxResult } from '@caotang/import-docx';
 import type { OdtOptions, OdtResult } from '@caotang/import-odt';
+import type { CsvOptions, CsvResult } from '@caotang/import-csv';
 import type { DecodableEncoding } from '@caotang/store/encoding';
 
 /** Opens a reader with its input. The bytes (or folder files) are transferred to the Worker and cached there. */
@@ -32,7 +33,8 @@ export type ReaderOpen =
   | { readonly kind: 'open'; readonly reader: 'ao3'; readonly bytes: Uint8Array; readonly fileName: string }
   | { readonly kind: 'open'; readonly reader: 'kanka'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'docx'; readonly bytes: Uint8Array }
-  | { readonly kind: 'open'; readonly reader: 'odt'; readonly bytes: Uint8Array };
+  | { readonly kind: 'open'; readonly reader: 'odt'; readonly bytes: Uint8Array }
+  | { readonly kind: 'open'; readonly reader: 'csv'; readonly bytes: Uint8Array };
 
 /** Reads the cached input again with these options. A text read decodes and builds blocks; an RTF read parses. */
 export type ReaderRead =
@@ -43,7 +45,8 @@ export type ReaderRead =
   | { readonly kind: 'read'; readonly reader: 'ao3' }
   | { readonly kind: 'read'; readonly reader: 'kanka'; readonly labels?: KankaLabels }
   | { readonly kind: 'read'; readonly reader: 'docx'; readonly options?: DocxOptions }
-  | { readonly kind: 'read'; readonly reader: 'odt'; readonly options?: OdtOptions };
+  | { readonly kind: 'read'; readonly reader: 'odt'; readonly options?: OdtOptions }
+  | { readonly kind: 'read'; readonly reader: 'csv'; readonly options?: CsvOptions };
 
 /** An RTF or `.rtfd` read's result, with its error flattened to a code and a message so it survives the clone. */
 export type SerializableRtfResult =
@@ -59,7 +62,8 @@ export type ReaderResult =
   | { readonly kind: 'ao3'; readonly result: Ao3Result }
   | { readonly kind: 'kanka'; readonly result: KankaResult }
   | { readonly kind: 'docx'; readonly result: DocxResult }
-  | { readonly kind: 'odt'; readonly result: OdtResult };
+  | { readonly kind: 'odt'; readonly result: OdtResult }
+  | { readonly kind: 'csv'; readonly result: CsvResult };
 
 /** The envelope the Worker posts back: the request's id, and its result or a failure message. */
 export interface ReaderReply {

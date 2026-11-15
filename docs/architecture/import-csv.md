@@ -41,7 +41,8 @@ the whole text goes to the row's Research page.
 
 A date is **never guessed silently**. The writer picks the format — ISO (`2026-01-04`), day-first (`04.01.2026`), month-first
 (`01/04/2026`), year-first, or day numbers — and a value that does not fit it is reported, not read as something else. `Day N`
-and a plain integer are day offsets in every format, and negative offsets are allowed. The anchor is the date day 0 stands for.
+and a plain integer are day offsets in every format, and negative offsets are allowed. The anchor is the date day 0 stands for:
+the writer's own when one is given, else **the first date in the file**, which the report names, so the offsets mean something.
 A duration reads `3`, `3 days`, `2d` or `1 week`, as whole days.
 
 ## 5. What the import writes, and what it approximates
