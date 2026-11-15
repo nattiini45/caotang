@@ -63,6 +63,25 @@ describe('the HTML reader (#299)', () => {
     expect(read.value.document.assets?.[0]?.name).toBe('cover.png');
   });
 
+  it('keeps two pages’ pictures apart, each with its own bytes', async () => {
+    const read = await readHtmlArchive(archiveOf({
+      'one.html': '<html><body><p><img src="a.png" alt="a"/></p></body></html>',
+      'two.html': '<html><body><p><img src="b.png" alt="b"/></p></body></html>',
+      'a.png': new Uint8Array([1]),
+      'b.png': new Uint8Array([2]),
+    }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const refs = read.value.document.blocks.flatMap((block) => (block.kind === 'para' ? [block.md] : []));
+    expect(refs).toHaveLength(2);
+    expect(refs[0]).not.toBe(refs[1]);
+    expect(read.value.assetData.size).toBe(2);
+    expect(read.value.document.assets?.map((asset) => asset.name)).toEqual(['a.png', 'b.png']);
+    const bytes = [...read.value.assetData.values()];
+    expect(bytes[0]).toEqual(new Uint8Array([1]));
+    expect(bytes[1]).toEqual(new Uint8Array([2]));
+  });
+
   it('refuses an archive with no HTML page', async () => {
     const read = await readHtmlArchive(archiveOf({ 'readme.txt': 'nothing' }));
     expect(read.ok).toBe(false);

@@ -26,10 +26,14 @@ The walker turns the page into the import block list (`import-core`) with the si
 - Images: a `data:` URI is decoded and a relative path resolved from the zip; both become picture refs. A remote http(s) image is
   listed as not downloaded unless the writer opts in (decision 10).
 
+`htmlToBlocks(html, options?)` takes the page's `unit` (written as every block's `sourceUnit`) and its `refPrefix`, the namespace of
+its picture refs (`import:html-image-` by default). A reader of several pages gives each its own prefix, so two pages' pictures never
+share a ref.
+
 ## 3. The reader
 
 `readHtmlFile` reads one page; `readHtmlZip` / `readHtmlArchive` read a Google Docs web-page zip (one `.html` plus its images), each
-page a `sourceUnit`. The title is the page's `<title>`, else the file name. The zip is opened by `@caotang/import-read/zip`
+page a `sourceUnit` with its own picture refs (`import:html-image-<page>-<n>`). The title is the page's `<title>`, else the file name. The zip is opened by `@caotang/import-read/zip`
 (`unzipSync` inside our own `'self'` Worker) with its size and entry-count caps and its zip-bomb guard.
 
 ## 4. Safety and limits
