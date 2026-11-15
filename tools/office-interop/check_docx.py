@@ -325,7 +325,10 @@ def check_page_numbers(book: dict[str, Any], path: Path) -> None:
         while at < len(region):
             if region[at].startswith(title):
                 found = True
-                if re.search(r"\d+\s*$", region[at]) is None:
+                # The page number is what follows the title: leaders and whitespace, then digits. Checking the tail of the
+                # row alone would let a title that itself ends in digits ("Chapter 1984") satisfy the check with no number.
+                rest = region[at][len(title):]
+                if re.fullmatch(r"[\s.\u2026]+\d+\s*", rest) is None:
                     fail(name, "libreoffice-uno", f"the regenerated entry {title!r} shows no page number: {region[at][:80]!r}")
                 at += 1
                 break

@@ -132,11 +132,12 @@ Owner-pending. Until a row is filled in, the docs say the field has not been tes
 LibreOffice never updates fields on open; its handling is covered by the scripted check below, so this checklist is for
 Word and the read-only importers.
 
-## In CI: the contents field in LibreOffice
+## Headless: the contents field in LibreOffice
 
 `packages/exporter/test/docx-write-corpus.test.ts` writes the five corpus files through the renderer to
 `$CAOTANG_DOCX_OUT`, with `expected.json` beside them (per file: whether a contents field is expected and its entry
-titles in order). `tools/office-interop/check_docx.py` then checks each file:
+titles in order). `tools/office-interop/check_docx.py` then checks each file, run locally for now — wiring it into
+the `office-interop` CI job is a follow-up:
 
 - **the package:** a sound ZIP whose document holds a complex `w:fldChar` field (begin, `instrText`, separate, cached
   entries, end) with no `w:sdt` wrapper — the packed single-run `w:sdt` shape is the one LibreOffice flattens —
