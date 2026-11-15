@@ -21,7 +21,8 @@ type State =
   | { readonly reader: 'epub'; readonly archive: ImportArchive }
   | { readonly reader: 'ao3'; readonly bytes: Uint8Array; readonly fileName: string }
   | { readonly reader: 'kanka'; readonly archive: ImportArchive }
-  | { readonly reader: 'docx'; readonly bytes: Uint8Array; readonly archive: ImportArchive };
+  | { readonly reader: 'docx'; readonly bytes: Uint8Array; readonly archive: ImportArchive }
+  | { readonly reader: 'odt'; readonly bytes: Uint8Array };
 
 /** Flattens an RTF or archive refusal to a code and a message, so it survives the structured clone (an Error's own `code` does not). */
 function serialiseRtf(result: RtfReadResult | RtfdReadResult): SerializableRtfResult {
@@ -43,6 +44,10 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
     }
     if (req.reader === 'ao3') {
       state = { reader: 'ao3', bytes: req.bytes, fileName: req.fileName };
+      return;
+    }
+    if (req.reader === 'odt') {
+      state = { reader: 'odt', bytes: req.bytes };
       return;
     }
     const { openFolder, openZip } = await import('@caotang/import-read/zip');
@@ -101,6 +106,11 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
       if (state.reader !== 'kanka') throw new Error('The import reader is not a Kanka reader.');
       const { readKankaArchive } = await import('@caotang/import-kanka');
       return { kind: 'kanka', result: await readKankaArchive(state.archive, req.labels === undefined ? {} : { labels: req.labels }) };
+    }
+    if (req.reader === 'odt') {
+      if (state.reader !== 'odt') throw new Error('The import reader is not an OpenDocument reader.');
+      const { readOdt } = await import('@caotang/import-odt');
+      return { kind: 'odt', result: await readOdt(state.bytes, req.options ?? {}) };
     }
     if (req.reader === 'docx') {
       if (state.reader !== 'docx') throw new Error('The import reader is not a Word reader.');

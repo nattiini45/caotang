@@ -303,6 +303,9 @@ importers:
       '@caotang/import-kanka':
         specifier: workspace:*
         version: link:../../packages/import-kanka
+      '@caotang/import-odt':
+        specifier: workspace:*
+        version: link:../../packages/import-odt
       '@caotang/import-read':
         specifier: workspace:*
         version: link:../../packages/import-read

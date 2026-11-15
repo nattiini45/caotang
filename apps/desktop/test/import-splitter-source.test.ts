@@ -20,6 +20,7 @@ import { epubPreviewSource } from '../src/import-preview/epub-source.js';
 import { ao3PreviewSource } from '../src/import-preview/ao3-source.js';
 import { kankaPreviewSource } from '../src/import-preview/kanka-source.js';
 import { docxPreviewSource } from '../src/import-preview/docx-source.js';
+import { odtPreviewSource } from '../src/import-preview/odt-source.js';
 import { rawZip } from '../../../packages/import-read/test/zip-fixtures.js';
 import {
   SPLIT_CHIPS,
@@ -517,6 +518,34 @@ describe('the sources', () => {
     expect(source.report?.(accepted)[0]?.lines).toContain('1 insertion was read');
 
     const rejecting = { ...settings, chips: { ...settings.chips, 'docx-tracked': 'reject' } };
+    await source.prepare?.(rejecting, new AbortController().signal);
+    const rejected = source.plan(rejecting, NO_OVERRIDES);
+    expect(JSON.stringify(rejected.blocks)).toContain('left at dawn');
+    expect(JSON.stringify(rejected.blocks)).not.toContain('came at noon');
+    source.dispose?.();
+  });
+
+  it('an OpenDocument file offers its tracked changes as a chip, and rejecting them re-reads the text', async () => {
+    const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:dc="http://purl.org/dc/elements/1.1/"';
+    const regions = '<text:tracked-changes><text:changed-region text:id="i1"><text:insertion/></text:changed-region><text:changed-region text:id="d1"><text:deletion><text:p>left at dawn</text:p></text:deletion></text:changed-region></text:tracked-changes>';
+    const body =
+      '<text:h text:outline-level="1">The Landing</text:h>' +
+      regions +
+      '<text:p>The ferry <text:change-start text:change-id="i1"/>came at noon<text:change-end text:change-id="i1"/><text:change text:change-id="d1"/></text:p>' +
+      '<text:h text:outline-level="1">Salt</text:h><text:p>The letter arrived.</text:p>';
+    const zip = rawZip([
+      { name: 'content.xml', data: enc(`<?xml version="1.0"?><office:document-content ${NS}><office:body><office:text>${body}</office:text></office:body></office:document-content>`) },
+    ]);
+    const source = odtPreviewSource('manuscript.odt', zip);
+    await source.load?.(() => {}, new AbortController().signal);
+    const settings = initialSettings(source.chips(), source.options());
+    expect(source.chips().some((chip) => chip.id === 'odt-tracked')).toBe(true);
+    const accepted = source.plan(settings, NO_OVERRIDES);
+    expect(accepted.tree.map((node) => node.title)).toEqual(['The Landing', 'Salt']);
+    expect(JSON.stringify(accepted.blocks)).toContain('came at noon');
+    expect(source.report?.(accepted)[0]?.lines).toContain('1 insertion was read');
+
+    const rejecting = { ...settings, chips: { ...settings.chips, 'odt-tracked': 'reject' } };
     await source.prepare?.(rejecting, new AbortController().signal);
     const rejected = source.plan(rejecting, NO_OVERRIDES);
     expect(JSON.stringify(rejected.blocks)).toContain('left at dawn');

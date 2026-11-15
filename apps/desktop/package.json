@@ -37,6 +37,7 @@
     "@caotang/import-epub": "workspace:*",
     "@caotang/import-html": "workspace:*",
     "@caotang/import-kanka": "workspace:*",
+    "@caotang/import-odt": "workspace:*",
     "@caotang/import-read": "workspace:*",
     "@caotang/import-rtf": "workspace:*",
     "@caotang/machine": "workspace:*",

@@ -26,6 +26,7 @@ export function ManuscriptImportActions(): ReactNode {
   const ao3File = useRef<HTMLInputElement>(null);
   const kankaFile = useRef<HTMLInputElement>(null);
   const docxFile = useRef<HTMLInputElement>(null);
+  const odtFile = useRef<HTMLInputElement>(null);
 
   const failed = (file: File, failure: unknown): void => {
     const problem = failure instanceof Error ? failure.message : String(failure);
@@ -146,6 +147,16 @@ export function ManuscriptImportActions(): ReactNode {
     }
   };
 
+  const openOdt = async (file: File): Promise<void> => {
+    try {
+      const { odtPreviewSource } = await import('../import-preview/odt-source.js');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      openImportPreview({ source: odtPreviewSource(file.name, bytes) });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
   return (
     <div className="script-import" role="group" aria-label={t`Import a manuscript`}>
       <button type="button" className="button is-quiet" onClick={() => textFile.current?.click()}>
@@ -168,6 +179,9 @@ export function ManuscriptImportActions(): ReactNode {
       </button>
       <button type="button" className="button is-quiet" onClick={() => docxFile.current?.click()}>
         <Trans>Import Word…</Trans>
+      </button>
+      <button type="button" className="button is-quiet" onClick={() => odtFile.current?.click()}>
+        <Trans>Import OpenDocument…</Trans>
       </button>
       <button type="button" className="button is-quiet" onClick={() => kankaFile.current?.click()}>
         <Trans>Import Kanka…</Trans>
@@ -270,6 +284,18 @@ export function ManuscriptImportActions(): ReactNode {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
           if (file !== undefined) void openDocx(file);
+        }}
+      />
+      <input
+        ref={odtFile}
+        type="file"
+        hidden
+        accept=".odt,.fodt"
+        aria-label={t`OpenDocument file`}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file !== undefined) void openOdt(file);
         }}
       />
     </div>
