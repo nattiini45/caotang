@@ -75,26 +75,34 @@ const reviewScripts: MockScript[] = [
 
 async function fixture(seed?: (db: ReturnType<typeof memoryDb>, state: ProjectState, profileId: string) => void, extraScripts?: readonly MockScript[]) {
   const state = sampleProjectState();
-  const store = await openRuntimeStore(new MemoryIndexedDb());
   const keys = createKeyStore(createMemoryVaultPort());
   const profiles = createProfileStore({ keys });
   const profile = await profiles.create({ name: 'Mock', kind: 'mock', isActive: true });
-  const gateway = createGateway({ profiles, keys, clock: createManualClock(0), mock: createMockProvider({ scripts: [...reviewScripts, ...(extraScripts ?? [])] }) });
-  const session = new ProjectSession({ store, projectId: state.manifest.project.id, state, shadow: null, coherence: { checks: () => [], providers: { active: () => profile, gateway, resolveForRole: () => ({ profile, model: profile.defaultModel }) } } });
-  session.attachCoherence({ file: emptyCoherenceFile(), writable: true, notices: [] }, { save: async () => undefined, attachFolder: async () => undefined });
-  const providers = {
-    gateway,
-    active: () => profile,
-    get: (id: string) => profiles.get(id),
-    resolveForRole: () => ({ profile, model: profile.defaultModel }),
-    persist: async () => undefined,
-  } as unknown as ProviderService;
+  const scripts = [...reviewScripts, ...(extraScripts ?? [])];
+  const makeGateway = () => createGateway({ profiles, keys, clock: createManualClock(0), mock: createMockProvider({ scripts }) });
   const db = memoryDb();
   seed?.(db, state, profile.id);
-  const controller = new AgentController(session, providers, () => ({}), () => false, { store: new TaskStore(db), locksAvailable: () => true });
-  controller.attach();
-  sessions.push({ session, controller });
-  return { state, session, controller, db };
+  const build = async (gateway: ReturnType<typeof makeGateway>) => {
+    const store = await openRuntimeStore(new MemoryIndexedDb());
+    const session = new ProjectSession({ store, projectId: state.manifest.project.id, state, shadow: null, coherence: { checks: () => [], providers: { active: () => profile, gateway, resolveForRole: () => ({ profile, model: profile.defaultModel }) } } });
+    session.attachCoherence({ file: emptyCoherenceFile(), writable: true, notices: [] }, { save: async () => undefined, attachFolder: async () => undefined });
+    const providers = {
+      gateway,
+      active: () => profile,
+      get: (id: string) => profiles.get(id),
+      resolveForRole: () => ({ profile, model: profile.defaultModel }),
+      persist: async () => undefined,
+    } as unknown as ProviderService;
+    const controller = new AgentController(session, providers, () => ({}), () => false, { store: new TaskStore(db), locksAvailable: () => true });
+    controller.attach();
+    sessions.push({ session, controller });
+    return { session, controller, gateway };
+  };
+  const first = await build(makeGateway());
+  return {
+    state, db, profile, ...first,
+    reopen: async (freshLedger: boolean) => build(freshLedger ? makeGateway() : first.gateway),
+  };
 }
 
 async function idle(controller: AgentController): Promise<void> {
@@ -372,4 +380,104 @@ it('queues the canonical offer approval, not a mutated offer snapshot', async ()
   await f.controller.answerOffer('cancel');
   await running;
   await idle(f.controller);
+});
+
+async function completedReview(f: Awaited<ReturnType<typeof fixture>>) {
+  const prepared = await f.controller.prepareQueuedReview({ scope: { mode: 'full' }, maxFindings: 50 });
+  if (!prepared.ok) throw new Error(prepared.reason);
+  const queued = await f.controller.queuePreparedReview(prepared.preview);
+  if (!queued.ok) throw new Error(queued.reason);
+  await idle(f.controller);
+  const key = `task:${f.state.manifest.project.id}:${queued.task.id}`;
+  return { key, id: queued.task.id, stored: f.db.rows.get(key) as TaskRecord };
+}
+
+function interruptedAfterFirstExtraction(stored: TaskRecord, withAccounting: boolean): TaskRecord {
+  const cp = stored.reviewCheckpoint!;
+  const firstDoc = cp.extractedDocIds[0]!;
+  const base = {
+    extractedDocIds: [firstDoc],
+    spans: cp.spans.filter((span) => span.docId === firstDoc),
+    verifiedBatches: 0,
+    verdicts: [],
+    usageByPair: {},
+    promptTokens: 0,
+    completionTokens: 0,
+    notes: [],
+    status: 'partial' as const,
+    evaluated: [firstDoc],
+  };
+  const checkpoint = withAccounting ? { ...base, modelCalls: 1, usageSource: 'reported' as const } : base;
+  return { ...stored, status: 'interrupted', items: stored.items.map((item) => ({ ...item, state: 'pending' as const })), reviewCheckpoint: checkpoint, used: 1, report: undefined };
+}
+
+it('reports the provider’s actual request count and persists it at the checkpoint', async () => {
+  const f = await fixture();
+  const { id, stored } = await completedReview(f);
+  const task = f.controller.taskViews().find((view) => view.id === id);
+  expect(task?.status).toBe('completed');
+  const requests = f.gateway.ledger.turnTotals(`${id}.review`).requests;
+  expect(requests).toBeGreaterThan(0);
+  expect(task?.report?.usage.source).toBe('reported');
+  expect(task?.report?.usage.modelCalls).toBe(requests);
+  expect(stored.reviewCheckpoint?.modelCalls).toBe(requests);
+  expect(stored.reviewCheckpoint?.usageSource).toBe('reported');
+});
+
+it('resume carries persisted request accounting on an empty ledger without double counting', async () => {
+  const f = await fixture();
+  const { key, id, stored } = await completedReview(f);
+  const total = stored.reviewCheckpoint!.modelCalls!;
+  expect(total).toBeGreaterThan(1);
+  f.db.rows.set(key, interruptedAfterFirstExtraction(stored, true));
+  const again = await f.reopen(true);
+  await vi.waitFor(() => { expect(again.controller.taskViews().some((view) => view.id === id)).toBe(true); });
+  await again.controller.resumeTask(id);
+  await again.controller.tasksIdle();
+  const task = again.controller.taskViews().find((view) => view.id === id);
+  expect(task?.status).toBe('completed');
+  expect(task?.report?.usage.modelCalls).toBe(total);
+  expect(task?.report?.usage.source).toBe('reported');
+});
+
+it('resume does not double count when the ledger still holds the earlier requests', async () => {
+  const f = await fixture();
+  const { key, id, stored } = await completedReview(f);
+  const total = stored.reviewCheckpoint!.modelCalls!;
+  f.db.rows.set(key, interruptedAfterFirstExtraction(stored, true));
+  const again = await f.reopen(false);
+  expect(again.gateway.ledger.turnTotals(`${id}.review`).requests).toBe(total);
+  await vi.waitFor(() => { expect(again.controller.taskViews().some((view) => view.id === id)).toBe(true); });
+  await again.controller.resumeTask(id);
+  await again.controller.tasksIdle();
+  const task = again.controller.taskViews().find((view) => view.id === id);
+  expect(task?.status).toBe('completed');
+  expect(task?.report?.usage.modelCalls).toBe(total);
+});
+
+it('a resumed checkpoint without accounting stays unknown rather than inventing reported usage', async () => {
+  const f = await fixture();
+  const { key, id, stored } = await completedReview(f);
+  f.db.rows.set(key, interruptedAfterFirstExtraction(stored, false));
+  const again = await f.reopen(true);
+  await vi.waitFor(() => { expect(again.controller.taskViews().some((view) => view.id === id)).toBe(true); });
+  await again.controller.resumeTask(id);
+  await again.controller.tasksIdle();
+  const task = again.controller.taskViews().find((view) => view.id === id);
+  expect(task?.status).toBe('completed');
+  expect(task?.report?.usage.source).toBe('unknown');
+});
+
+it('resume keeps an estimated source estimated even when later requests report usage', async () => {
+  const f = await fixture();
+  const { key, id, stored } = await completedReview(f);
+  const truncated = interruptedAfterFirstExtraction(stored, true);
+  f.db.rows.set(key, { ...truncated, reviewCheckpoint: { ...truncated.reviewCheckpoint!, usageSource: 'estimated' } });
+  const again = await f.reopen(true);
+  await vi.waitFor(() => { expect(again.controller.taskViews().some((view) => view.id === id)).toBe(true); });
+  await again.controller.resumeTask(id);
+  await again.controller.tasksIdle();
+  const task = again.controller.taskViews().find((view) => view.id === id);
+  expect(task?.status).toBe('completed');
+  expect(task?.report?.usage.source).toBe('estimated');
 });

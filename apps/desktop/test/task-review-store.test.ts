@@ -94,6 +94,20 @@ describe('a stored review record is validated, and a legacy draft record keeps i
     expect(asTaskRecord(record({ kind: 'draft', report }), PROJECT)).toBeUndefined();
     expect(asTaskRecord(record({ report }), PROJECT)).toBeUndefined();
   });
+
+  it('validates the checkpoint request-accounting pair and keeps older checkpoints without it', () => {
+    const good = record({ kind: 'review', review: approval() });
+    const checkpoint = { extractedDocIds: ['sA'], spans: [], verifiedBatches: 0, verdicts: [], usageByPair: {}, promptTokens: 0, completionTokens: 0, notes: [], status: 'complete', evaluated: ['sA'] };
+    expect(asTaskRecord({ ...good, reviewCheckpoint: checkpoint }, PROJECT)).toBeDefined();
+    expect(asTaskRecord({ ...good, reviewCheckpoint: { ...checkpoint, modelCalls: 2, usageSource: 'reported' } }, PROJECT)).toBeDefined();
+    expect(asTaskRecord({ ...good, reviewCheckpoint: { ...checkpoint, modelCalls: 2, usageSource: 'estimated' } }, PROJECT)).toBeDefined();
+    expect(asTaskRecord({ ...good, reviewCheckpoint: { ...checkpoint, modelCalls: 0, usageSource: 'unknown' } }, PROJECT)).toBeDefined();
+    expect(asTaskRecord({ ...good, reviewCheckpoint: { ...checkpoint, modelCalls: 2 } }, PROJECT)).toBeUndefined();
+    expect(asTaskRecord({ ...good, reviewCheckpoint: { ...checkpoint, usageSource: 'reported' } }, PROJECT)).toBeUndefined();
+    expect(asTaskRecord({ ...good, reviewCheckpoint: { ...checkpoint, modelCalls: 1.5, usageSource: 'reported' } }, PROJECT)).toBeUndefined();
+    expect(asTaskRecord({ ...good, reviewCheckpoint: { ...checkpoint, modelCalls: -1, usageSource: 'reported' } }, PROJECT)).toBeUndefined();
+    expect(asTaskRecord({ ...good, reviewCheckpoint: { ...checkpoint, modelCalls: 2, usageSource: 'free' } }, PROJECT)).toBeUndefined();
+  });
 });
 
 describe('reviewOf filters the published review out of the draft review', () => {
