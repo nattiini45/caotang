@@ -16,7 +16,7 @@ import { textDigest, type ActivityEntry } from '@caotang/bus';
 import type { CodexEntry, ProjectState } from '@caotang/store';
 
 import { dropRecord } from './drops.js';
-import type { AgentTask, AppSnapshot, DropRecord } from './types.js';
+import type { AgentTask, AppSnapshot, DropRecord, RecentTurn } from './types.js';
 import { ContextError } from './errors.js';
 import { MEMORY_WITHHELD_OUTCOME, memoryReadable } from './session-summary.js';
 
@@ -47,9 +47,64 @@ export function withheldState(state: ProjectState, hidden: ReadonlySet<string>):
  * An activity row that changed a withheld node reads as a change to a withheld part of the project, since its digest names the node
  * by title and L6 sends the digests of the last two turns. The writer’s own words in an earlier request are not edited.
  */
-function scrubbed(row: ActivityEntry, hidden: ReadonlySet<string>): ActivityEntry {
+export function scrubbed(row: ActivityEntry, hidden: ReadonlySet<string>): ActivityEntry {
   if (!row.affected.some((node) => hidden.has(node.nodeId))) return row;
-  return { ...row, summary: 'changed a part of the project that a rule now withholds', affected: row.affected.filter((node) => !hidden.has(node.nodeId)) };
+  return {
+    ...scrubbedRow(row),
+    summary: 'changed a part of the project that a rule now withholds',
+    affected: row.affected.filter((node) => !hidden.has(node.nodeId)).map((node) => ({ nodeId: node.nodeId, title: node.title })),
+  };
+}
+
+export function withheldReadPolicy(app: AppSnapshot): string | undefined {
+  return app.readPolicy ?? (app.withheld === undefined || app.withheld.size === 0 ? undefined : `unrecorded:${textDigest(JSON.stringify([...app.withheld].sort()))}`);
+}
+
+export function scrubbedTurn(turn: RecentTurn): RecentTurn {
+  return {
+    turnId: turn.turnId,
+    intent: turn.intent,
+    ...(turn.undoGroupId === undefined ? {} : { undoGroupId: turn.undoGroupId }),
+    ...(turn.restoredAt === undefined ? {} : { restoredAt: turn.restoredAt }),
+    ...(turn.restoredFromStep === undefined ? {} : { restoredFromStep: turn.restoredFromStep }),
+    ...(turn.rewound === undefined ? {} : { rewound: turn.rewound }),
+    ...(turn.hidden === undefined ? {} : { hidden: turn.hidden }),
+    ...(turn.external === undefined ? {} : { external: turn.external }),
+    ...(turn.readPolicy === undefined ? {} : { readPolicy: turn.readPolicy }),
+    outcome: MEMORY_WITHHELD_OUTCOME,
+  };
+}
+
+export function scrubbedRow(row: ActivityEntry): ActivityEntry {
+  return {
+    at: row.at,
+    command: row.command,
+    issuedBy: row.issuedBy,
+    source: row.source,
+    ...(row.turnId === undefined ? {} : { turnId: row.turnId }),
+    ...(row.callId === undefined ? {} : { callId: row.callId }),
+    ...(row.undoGroupId === undefined ? {} : { undoGroupId: row.undoGroupId }),
+    affected: [],
+    summary: MEMORY_WITHHELD_OUTCOME,
+  };
+}
+
+export function scrubMemory(app: AppSnapshot, readPolicy: string): { readonly app: AppSnapshot; readonly drops: readonly DropRecord[] } {
+  const drops: DropRecord[] = [];
+  const blocked = new Set((app.turns ?? []).filter((turn) => turn.hidden !== true && turn.rewound !== true && !memoryReadable(turn, readPolicy)).map((turn) => turn.turnId));
+  const { sessionSummary, ...rest } = app;
+  const summaryBlocked = sessionSummary !== undefined && !memoryReadable(sessionSummary, readPolicy);
+  if (summaryBlocked) drops.push(dropRecord('session summary', { kind: 'withheld' }, 'summary'));
+  drops.push(...[...blocked].map((id) => dropRecord(`outcome of turn ${id}`, { kind: 'withheld' }, 'turn-outcome')));
+  return {
+    app: {
+      ...rest,
+      ...(sessionSummary === undefined || summaryBlocked ? {} : { sessionSummary }),
+      ...(app.turns === undefined ? {} : { turns: app.turns.map((turn) => blocked.has(turn.turnId) ? scrubbedTurn(turn) : turn) }),
+      ...(app.activity === undefined ? {} : { activity: app.activity.map((row) => row.turnId !== undefined && blocked.has(row.turnId) ? scrubbedRow(row) : row) }),
+    },
+    drops,
+  };
 }
 
 export interface WithheldView {
@@ -64,23 +119,15 @@ export interface WithheldView {
  * the harness refuses such a call first (a read-deny implies a write-deny), so reaching here means that check was skipped.
  */
 export function withhold(task: AgentTask, app: AppSnapshot): WithheldView {
-  const readPolicy = app.readPolicy ?? (app.withheld === undefined || app.withheld.size === 0 ? undefined : `unrecorded:${textDigest(JSON.stringify([...app.withheld].sort()))}`);
-  const memoryDrops: DropRecord[] = [];
+  const readPolicy = withheldReadPolicy(app);
+  let memoryDrops: readonly DropRecord[] = [];
   if (readPolicy !== undefined) {
-    const blocked = new Set((app.turns ?? []).filter((turn) => turn.hidden !== true && turn.rewound !== true && !memoryReadable(turn, readPolicy)).map((turn) => turn.turnId));
-    const { sessionSummary, ...rest } = app;
-    const summaryBlocked = sessionSummary !== undefined && !memoryReadable(sessionSummary, readPolicy);
-    if (summaryBlocked) memoryDrops.push(dropRecord('session summary', { kind: 'withheld' }, 'summary'));
-    memoryDrops.push(...[...blocked].map((id) => dropRecord(`outcome of turn ${id}`, { kind: 'withheld' }, 'turn-outcome')));
-    app = {
-      ...rest,
-      ...(sessionSummary === undefined || summaryBlocked ? {} : { sessionSummary }),
-      ...(app.turns === undefined ? {} : { turns: app.turns.map((turn) => blocked.has(turn.turnId) ? { ...turn, outcome: MEMORY_WITHHELD_OUTCOME } : turn) }),
-      ...(app.activity === undefined ? {} : { activity: app.activity.map((row) => row.turnId !== undefined && blocked.has(row.turnId) ? { ...row, summary: MEMORY_WITHHELD_OUTCOME, affected: [] } : row) }),
-    };
+    const scrubbedMemory = scrubMemory(app, readPolicy);
+    app = scrubbedMemory.app;
+    memoryDrops = scrubbedMemory.drops;
   }
   const hidden = app.withheld;
-  if (hidden === undefined || hidden.size === 0) return { app, task, drops: memoryDrops };
+  if (hidden === undefined || hidden.size === 0) return { app, task, drops: [...memoryDrops] };
   if (task.focus !== undefined && hidden.has(task.focus)) {
     throw new ContextError('withheld', `the focus of ${task.tool} is withheld by a rule, so no prompt was assembled`);
   }

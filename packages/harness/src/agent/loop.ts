@@ -206,7 +206,7 @@ import { modelResult, outsideSources, readsOutsideText, scanForInjection, source
 import { CacheWatch, stableToolOrder, watched, type TurnCacheUse } from './cache-watch.js';
 import { requestCapFor, transmittedOutputCap } from './output-cap.js';
 import { fitToWindow } from './window.js';
-import { appendLanguageLine, createContextPort, dropLinesOf, mergePreviews, type ContextPort, type LanguagePolicy } from './context.js';
+import { appendLanguageLine, contextOverridesOk, createContextPort, dropLinesOf, mergePreviews, type AssembledCall, type ContextPort, type ContextRequest, type LanguagePolicy } from './context.js';
 import { createSubagentRunner, framedResult, resultLine, SUBAGENT_SPECS, type ParentTurnHandle } from './subagent.js';
 import {
   BACKGROUND_OFFER_MIN_CALLS,
@@ -364,6 +364,7 @@ export interface AgentSessionOptions {
 export interface PlanOffer {
   readonly turnId: string;
   readonly steps: readonly PlanStep[];
+  readonly contextOverrides?: ContextOverrides;
   /** The model calls staging the plan makes (`estimatedModelCalls`). A background run is capped at this many. */
   readonly estimatedCalls: number;
   /** The most model calls a turn may make here: staging now stops at this many. */
@@ -2156,6 +2157,20 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return { ...task, ...(overrides === undefined ? {} : { overrides }), ...(loaded.length === 0 ? {} : { instruction: [skillBlock(loaded), '---', task.instruction].join('\n\n') }) };
   }
 
+  async function assembleForDraft(turn: Turn, request: ContextRequest): Promise<AssembledCall> {
+    if (context.assembleAsync === undefined) return context.assemble(request);
+    let call: AssembledCall;
+    try {
+      call = await context.assembleAsync(request, turn.signal);
+    } catch (error) {
+      checkStop(turn);
+      throw error;
+    }
+    checkStop(turn);
+    guardReadBoundary(turn);
+    return call;
+  }
+
   /**
    * One step's draft. The revision is read before the model is asked, so the draft is staged against the
    * text the model was given, and a document the user changes while it is being written is a conflict.
@@ -2183,7 +2198,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const revision = getRevision(state, node.value.id);
       const instruction = String(step.params['instruction'] ?? '');
       const targetWords = typeof step.params['target_words'] === 'number' ? step.params['target_words'] : undefined;
-      const call = context.assemble({
+      const call = await assembleForDraft(turn, {
       nonce: turn.nonce,
         ...history,
         task: withSkills(turn, sceneTask(node.value.title, node.value.id, mode, instruction, selection, targetWords, step.params['include_forward_outline'] === true), step.contextOverrides),
@@ -2259,7 +2274,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const docs: SynopsisDoc[] = [];
       const previews: PromptPreview[] = [];
       for (const node of nodes) {
-        const call = context.assemble({
+        const call = await assembleForDraft(turn, {
       nonce: turn.nonce,
           ...history,
           state: sourceView(state, node.id, source),
@@ -2320,7 +2335,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const revision = getRevision(state, container.node.id);
       // The container is the focus (dialogue-narrative §7): its Ink is L5, its prior beats are L4 and the codex of its speakers is L2,
       // so the prompt is the standard stack. The task carries the brief only, because the Ink is already in the focus.
-      const call = context.assemble({
+      const call = await assembleForDraft(turn, {
       nonce: turn.nonce,
         ...history,
         task: withSkills(turn, { tool: 'dialogue.draft', instruction: `Brief: ${instruction}`, focus: container.node.id }, step.contextOverrides),
@@ -2359,7 +2374,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     }
     if (callsLeft(turn) < 1) return refusedDraft(tooCostly(step.tool, 1, 0, maxModelCalls));
     const aspects = Array.isArray(step.params['aspects']) ? (step.params['aspects'] as readonly string[]) : [];
-    const call = context.assemble({
+    const call = await assembleForDraft(turn, {
       nonce: turn.nonce,
       ...history,
       task: { ...continuityTask(scope.map((node) => node.id), aspects), ...((step.contextOverrides ?? turn.contextOverrides) === undefined ? {} : { overrides: step.contextOverrides ?? turn.contextOverrides }) },
@@ -3596,7 +3611,6 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const ask = options.beforeStage;
     const calls = estimatedModelCalls(plan.steps);
     if (ask === undefined || turn.tainted || harness.loadedSkills(turn.id).length > 0 || calls < BACKGROUND_OFFER_MIN_CALLS || !backgroundEligibility(plan.steps).eligible) return undefined;
-    if ((turn.contextOverrides?.include?.length ?? 0) + (turn.contextOverrides?.exclude?.length ?? 0) > 0) return undefined;
     checkStop(turn);
     phase(turn, 'awaiting-approval');
     const { signal } = turn;
@@ -3604,7 +3618,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     turn.meter?.pauseClock();
     let release = (): void => {};
     try {
-      const asked = ask({ turnId: turn.id, steps: plan.steps, estimatedCalls: calls, turnCap: maxModelCalls });
+      const asked = ask({ turnId: turn.id, steps: plan.steps, ...(turn.contextOverrides === undefined ? {} : { contextOverrides: structuredClone(turn.contextOverrides) }), estimatedCalls: calls, turnCap: maxModelCalls });
       const stopped = new Promise<OfferAnswer>((resolve) => {
         if (signal === undefined) return;
         const onAbort = (): void => resolve('cancel');
@@ -4001,12 +4015,28 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return written;
   }
 
+  function parseStagingPlan(input: unknown): Result<Plan, CommandError> {
+    if (!isRecord(input) || !Array.isArray(input['steps'])) return parsePlan(input);
+    const overrides: (ContextOverrides | undefined)[] = [];
+    const steps: unknown[] = [];
+    for (const step of input['steps'] as unknown[]) {
+      if (!isRecord(step)) return parsePlan(input);
+      const { contextOverrides, ...call } = step;
+      if (contextOverrides !== undefined && !contextOverridesOk(contextOverrides)) return err(refusal('invalid-params', 'the stored step has invalid context choices'));
+      overrides.push(contextOverrides);
+      steps.push(call);
+    }
+    const parsed = parsePlan({ ...input, steps });
+    if (!parsed.ok) return parsed;
+    return ok({ ...parsed.value, steps: parsed.value.steps.map((step, index) => overrides[index] === undefined ? step : { ...step, contextOverrides: structuredClone(overrides[index]) }) });
+  }
+
   /**
    * Stages steps with no card (`stageOnly`). Each step is staged on its own, so one refused or failed step costs the others nothing.
    * Its turn is not recorded as a conversation turn: the session's record and the planner's history stay as they were.
    */
   async function stageSteps(stepsIn: readonly PlanStep[], turnOptions: TurnOptions): Promise<StageOnlyResult> {
-    const parsed = parsePlan({ steps: stepsIn });
+    const parsed = parseStagingPlan({ steps: stepsIn });
     const turn = newTurn(turnOptions, []);
     const steps = parsed.ok ? parsed.value.steps : [];
     const proposals: unknown[] = stepsIn.map(() => undefined);
@@ -4535,7 +4565,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       revisions: readonly (StepRevisions | undefined)[],
       turnOptions: TurnOptions = {},
     ): Promise<TurnReport> {
-      const parsed = parsePlan(plan);
+      const parsed = parseStagingPlan(plan);
       return runTurn(
         intent,
         turnOptions,

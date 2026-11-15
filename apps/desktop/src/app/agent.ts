@@ -88,6 +88,7 @@ import {
   TRACE_REVIEWS,
   turnMarkerFields,
   type ContextConfig,
+  type ContextComputeAsync,
   type ContextOverrides,
   type RequestContextPreview,
   type LanguagePolicy,
@@ -2433,7 +2434,7 @@ export class AgentController {
     if (held === null) return;
     if (choice === 'background') {
       if (held.view.unavailable !== null) return;
-      const queued = await this.tasks.enqueue(this.intentForNextTurn ?? '', held.view.offer.steps);
+      const queued = await this.tasks.enqueue(this.intentForNextTurn ?? '', held.view.offer.steps, held.view.offer.contextOverrides);
       if (this.offer !== held) return;
       if (!queued.ok) {
         this.move({ type: 'offer-error', held, error: queued.reason });
@@ -2463,7 +2464,7 @@ export class AgentController {
       return null;
     }
     const { task, review } = found;
-    const report = await this.turnWith(task.intent, {}, (agent, turn) =>
+    const report = await this.turnWith(task.intent, task.contextOverrides === undefined ? {} : { contextOverrides: task.contextOverrides }, (agent, turn) =>
       agent.submitStaged(task.intent, { steps: review.steps }, review.proposals, review.revisions, turn),
     );
     if (report?.status === 'applied') await this.tasks.markApplied(id);
@@ -2562,6 +2563,11 @@ export class AgentController {
     }, Number.isSafeInteger(seed) && seed > 0 ? seed : 1);
   }
 
+  private contextCompute(): ContextComputeAsync | undefined {
+    if (typeof document === 'undefined' || typeof document.createElement !== 'function') return undefined;
+    return (input, role, languages, signal) => this.session.harnessWorker().assemble(input, role, languages, signal);
+  }
+
   /** The session of a task role, made on its first use (see `sessions`). The harness has loaded (`harnessLoop`) before this runs. */
   private sessionFor(role: TaskRole, loop: HarnessModule): AgentSession {
     const kept = this.sessions.get(role);
@@ -2638,7 +2644,7 @@ export class AgentController {
       pictureOutbox: this.session.pictureOutbox,
       transcribe: (input) => this.session.transcribePictures(input),
       transcriptionRoute: (profileId, model) => this.transcriptionRoute(profileId, model),
-      context: loop.createContextPort({ state: this.session.state, config: this.contextConfigFor(() => pinsOf(resolved) ?? { profileId: profile.id }), withheld: (tool) => harness.withheld(tool) }),
+      context: loop.createContextPort({ state: this.session.state, config: this.contextConfigFor(() => pinsOf(resolved) ?? { profileId: profile.id }), withheld: (tool) => harness.withheld(tool), computeAsync: this.contextCompute() }),
       // Staging shows no card. A card that did arrive would be cancelled, so nothing here waits on a writer who is not looking.
       decide: async () => ({ action: 'cancel' }),
       languages: () => this.languagePolicy(),

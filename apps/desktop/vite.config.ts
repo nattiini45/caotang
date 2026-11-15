@@ -121,6 +121,8 @@ export default defineConfig(({ command }) => ({
     lingui({ macroTransform: true, failOnCompileError: true }), react(), thirdPartyNotices(),
     retryChunkUrl('src/i18n/de-catalogue-url.ts', 'src/i18n/locales/de/messages.po', 'deCatalogueUrl', 'messages'),
     retryChunkUrl('src/app/run-recovery-url.ts', 'src/app/run-recovery.ts', 'runRecoveryUrl', 'run-recovery'),
+    retryChunkUrl('src/workers/harness-worker-url.ts', 'src/workers/harness-worker.ts', 'harnessWorkerUrl', 'harness-worker'),
+    retryChunkUrl('src/app/text-search-worker-url.ts', 'src/app/text-search.worker.ts', 'textSearchWorkerUrl', 'text-search.worker'),
     devCsp(),
   ],
   ...(command === 'serve' ? { html: { cspNonce: DEV_NONCE } } : {}),

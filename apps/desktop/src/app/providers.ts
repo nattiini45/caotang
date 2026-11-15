@@ -77,7 +77,10 @@ const REQUEST_LOG_KEEP = 50;
  * before presets, whose kind is `openai-compatible` and whose `preset` is absent.
  * The key is never on it — the vault holds the sealed payload.
  */
-type PersistedProfile = Omit<ProfileView, 'kind'> & { kind: ProfileView['kind'] | 'openai-compatible' };
+type PersistedProfile = Omit<ProfileView, 'kind' | 'maxConcurrentRequests'> & {
+  kind: ProfileView['kind'] | 'openai-compatible';
+  maxConcurrentRequests?: number;
+};
 
 /** A profile's id as the ten random bytes that generate it. The generator maps a byte with `% 32`, so an index is its own byte. */
 function bytesForId(id: string): Uint8Array<ArrayBuffer> | null {
@@ -343,6 +346,7 @@ export class ProviderService {
             ...(payload?.customHeaders === undefined ? {} : { customHeaders: payload.customHeaders }),
             ...(record.temperature === undefined ? {} : { temperature: record.temperature }),
             ...(record.maxOutputTokens === undefined ? {} : { maxOutputTokens: record.maxOutputTokens }),
+            ...(record.maxConcurrentRequests === undefined ? {} : { maxConcurrentRequests: record.maxConcurrentRequests }),
             ...(record.params === undefined ? {} : { params: record.params }),
             ...(record.pricePer1k === undefined ? {} : { pricePer1k: record.pricePer1k }),
             ...(record.promptCache === undefined ? {} : { promptCache: record.promptCache }),

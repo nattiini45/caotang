@@ -6,7 +6,8 @@
 
 import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { Button } from '@ui-sdk/react/button';
 
 import type { AgentController } from '../app/agent.js';
 import type { TaskView } from '../app/task-model.js';
@@ -28,6 +29,16 @@ export function BackgroundTasks({
   /** The section heading's level: 4 in Classic's drawer, 3 in Modern's window, whose title is the h2 (modern-interface.md §9.1). */
   headingLevel?: 3 | 4;
 }): ReactNode {
+  const listRef = useRef<HTMLUListElement | null>(null);
+  const cancelFocusRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = cancelFocusRef.current;
+    if (id === null) return;
+    cancelFocusRef.current = null;
+    if (!document.hasFocus() || (document.activeElement !== document.body && document.activeElement !== null)) return;
+    const row = [...(listRef.current?.querySelectorAll<HTMLElement>('[data-task]') ?? [])].find((element) => element.dataset.task === id);
+    (row?.querySelector<HTMLElement>('button') ?? row?.querySelector<HTMLElement>('[data-testid="task-status"]'))?.focus();
+  }, [tasks]);
   if (tasks.length === 0) return null;
   const Heading = headingLevel === 3 ? 'h3' : 'h4';
   return (
@@ -36,11 +47,11 @@ export function BackgroundTasks({
       <p className="agent-tasks-note muted">
         <Trans>A task is drafted only while this project is open in this tab. Nothing is applied until you review it.</Trans>
       </p>
-      <ul className="agent-task-list">
+      <ul ref={listRef} className="agent-task-list">
         {inboxFirst(tasks).map((task) => (
           <li key={task.id} className="agent-task" data-task={task.id} data-status={task.status} data-state={task.status}>
             <q className="agent-task-intent">{task.intent}</q>
-            <p className="agent-task-status" data-testid="task-status">
+            <p className="agent-task-status" data-testid="task-status" tabIndex={-1}>
               {task.statusText}
             </p>
             <p className="agent-task-meta muted">
@@ -74,10 +85,13 @@ export function BackgroundTasks({
                 </button>
               ) : null}
               {task.canCancel ? (
-                <button type="button" className="button" onClick={() => agent.cancelTask(task.id)}>
+                <Button className="button" onClick={(event) => {
+                  if (document.activeElement === event.currentTarget) cancelFocusRef.current = task.id;
+                  agent.cancelTask(task.id);
+                }}>
                   <Trans>Cancel</Trans>
                   <span className="visually-hidden"> {task.intent}</span>
-                </button>
+                </Button>
               ) : null}
               {task.canDismiss ? (
                 <button type="button" className="button is-quiet" onClick={() => agent.dismissTask(task.id)}>

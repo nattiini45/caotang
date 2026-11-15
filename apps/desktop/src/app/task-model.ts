@@ -45,7 +45,7 @@ function statusText(task: TaskRecord, phase: TaskQueueStatus, done: number, tota
     case 'cancelling':
       return t`Cancelling…`;
     case 'running':
-      return t`Drafting: ${{ done }} of ${{ total }} done`;
+      return task.used === 0 ? t`Preparing the next draft.` : t`Drafting: ${{ done }} of ${{ total }} done`;
     case 'ready': {
       const staged = task.items.filter((item) => item.state === 'staged').length;
       return outdated > 0
@@ -106,6 +106,8 @@ export function announcementFor(task: TaskRecord): string {
       return t`A background task failed: ${{ intent: isolate(task.intent) }}`;
     case 'interrupted':
       return t`A background task was stopped: ${{ intent: isolate(task.intent) }}`;
+    case 'cancelled':
+      return t`A background task was cancelled: ${{ intent: isolate(task.intent) }}`;
     default:
       return '';
   }

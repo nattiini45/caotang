@@ -5,6 +5,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { NO_PIN } from './classic-pin.js';
 import { searchWhileTyping } from './text-search-flow.js';
+import { scanStartupCancellation } from './harness-worker-flow.js';
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
 import { binderTitle, createProject, firstChapter, waitForSaved, writerText } from './support.js';
 
@@ -23,6 +24,10 @@ const POLICY =
 
 test('cold local passage search leaves typing responsive under the production CSP', async ({ page, context }) => {
   await searchWhileTyping(page, context);
+});
+
+test('a CPU scan stays cancellable without blocking typing under the production CSP', async ({ page, context }) => {
+  await scanStartupCancellation(page, context, 'classic');
 });
 
 /** A 1×1 PNG, so the cover goes through the image paths (an object URL for the preview, the bytes into the EPUB). */

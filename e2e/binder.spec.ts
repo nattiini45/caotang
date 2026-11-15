@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { binderRow, binderTitle, createProject, projectTrace, rejected, trace, traceNames, waitForSaved } from './support.js';
+import { binderRow, binderTitle, createProject, dragVisibleElement, projectTrace, rejected, trace, traceNames, waitForSaved } from './support.js';
 
 /**
  * ui-modules §2: the binder's gestures, the keyboard map, the delete confirmation and the
@@ -232,7 +232,7 @@ test('a document dropped on the upper edge of another moves there, and the trace
   await chapterWithScenes(page);
   expect(await binderTitles(page)).toEqual(['Chapter 1', 'Scene A', 'Scene B']);
 
-  await binderRow(page, 'Scene B').dragTo(binderRow(page, 'Scene A'), { targetPosition: { x: 20, y: 2 } });
+  await dragVisibleElement(page, binderRow(page, 'Scene B'), binderRow(page, 'Scene A'), /is-drop-before/, { x: 20, y: 2 });
 
   await expect.poll(() => binderTitles(page)).toEqual(['Chapter 1', 'Scene B', 'Scene A']);
   const move = (await trace(page)).find((row) => row.command === 'binder.move');

@@ -9,6 +9,8 @@ One in-process bus. UI gestures and agent tools both emit commands onto it; **no
 
 Non-goals: no network in the bus (the gateway owns transport); no cross-worker bus in v0.1 (a background task stages drafts on the main thread and never issues a command, agent-harness §2; a delegated agent never issues one either: it reads, and a write it wants is a proposed step that reaches the bus only as a step of the parent turn's approved plan, agent-harness §2, "Delegate"); **no event-sourcing** — undo is compensation-based (§5), rejected alternative: full event log (weight without v0.1 benefit).
 
+The app's CPU worker is not a second bus or a project writer. It receives a narrow readable snapshot and returns context preparation or deterministic-check data. Model transport, permission checks, staged proposals and approved command execution stay on the main thread. A deterministic scan's derived findings are published and saved only by the owning main-thread session after its stale-result checks; the worker cannot mutate even that held file.
+
 ## 2. Command envelope & descriptors
 
 ```ts

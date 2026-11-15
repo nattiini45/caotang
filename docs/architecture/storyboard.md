@@ -47,6 +47,8 @@ interface DialogueCoverage { kind: 'fountain-element'; docId: string; anchor: Te
 - **Asset storage:** `assets/` joins the project-folder layout (sibling of `docs/`; flat, opaque-id filenames `a_XXXXXXXXXX.<ext>`, PNG/JPEG/WebP v1, PSD-later per Storyboarder's precedent). Manifest-referenced only (§2 `image`); loaders ignore unknown files so the directory is additive with no manifest schema change; zip deliverable includes it; `ToC.md`-style human map not needed (images carry alt text). Images are content files (severity tier: content), snapshotted by the artifact write path; **images never leave the project folder** (no media storage beyond the project).
 - **shotNumber is derived, not stored** (Boords' auto frame numbers): rendered from sibling `order` at display/export time; renumbering is free on reorder. A user-facing "lock numbers" option is rejected — derivation is the point (Storyboarder renumbers on reorder).
 
+Unknown shot metadata fields are held as own properties in a prototype-free dictionary. A name such as `__proto__`, `constructor` or `toString` is data, not an inherited operation; it is still reported and dropped on the next save under the same unknown-field rule.
+
 ## 3. Editor & panel integration
 
 ### 3.1 Corkboard variant (the storyboard view)

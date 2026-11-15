@@ -77,13 +77,17 @@ export async function dragShotCard(page: Page, source: Locator, target: Locator)
   await dragVisibleElement(page, source, target, /is-drop-target/);
 }
 
-async function visibleDragPoint(locator: Locator, purpose: 'source' | 'target'): Promise<{ x: number; y: number }> {
-  const point = await locator.evaluate((element, purpose) => {
+async function visibleDragPoint(locator: Locator, purpose: 'source' | 'target', position?: { x: number; y: number }): Promise<{ x: number; y: number }> {
+  const point = await locator.evaluate((element, { purpose, position }) => {
     const box = element.getBoundingClientRect();
     const receives = (x: number, y: number) => {
       const hit = document.elementFromPoint(x, y);
       return element.contains(hit) && (purpose !== 'source' || hit?.closest('button, input, textarea, select, a, [contenteditable="true"]') === null);
     };
+    if (position !== undefined) {
+      const requested = { x: box.x + position.x, y: box.y + position.y };
+      return receives(requested.x, requested.y) ? requested : null;
+    }
     const preferred = { x: box.x + box.width / 2, y: purpose === 'source' ? Math.min(box.y + 32, box.bottom - 4) : box.y + box.height * 0.75 };
     if (receives(preferred.x, preferred.y)) return preferred;
     for (let y = Math.min(box.bottom, innerHeight) - 4; y > Math.max(box.top, 0); y -= 8) {
@@ -92,12 +96,12 @@ async function visibleDragPoint(locator: Locator, purpose: 'source' | 'target'):
       }
     }
     return null;
-  }, purpose);
+  }, { purpose, position });
   if (point === null) throw new Error(`${purpose} element has no visible, unobscured native drag point`);
   return point;
 }
 
-export async function dragVisibleElement(page: Page, source: Locator, target: Locator, dropTargetClass?: RegExp): Promise<void> {
+export async function dragVisibleElement(page: Page, source: Locator, target: Locator, dropTargetClass?: RegExp, targetPosition?: { x: number; y: number }): Promise<void> {
   await source.scrollIntoViewIfNeeded();
   const start = await visibleDragPoint(source, 'source');
   const started = await source.evaluateHandle((element) => {
@@ -111,7 +115,7 @@ export async function dragVisibleElement(page: Page, source: Locator, target: Lo
     await page.mouse.move(start.x + 10, start.y, { steps: 4 });
     await expect.poll(() => started.evaluate((state) => state.started)).toBe(true);
     await target.evaluate((element) => element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }));
-    const end = await visibleDragPoint(target, 'target');
+    const end = await visibleDragPoint(target, 'target', targetPosition);
     await page.mouse.move(end.x, end.y, { steps: 12 });
     await page.mouse.move(end.x, end.y);
     if (dropTargetClass !== undefined) await expect(target).toHaveClass(dropTargetClass);

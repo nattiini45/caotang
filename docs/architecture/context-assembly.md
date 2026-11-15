@@ -11,6 +11,18 @@ This module owns the **read half of every model call**: given a task (tool call)
 
 Competitive evidence settled the strategy question: **synopsis-tree + mention-keyed codex assembly, zero embeddings in v0.1.** This spec turns that verdict into budgets, ordering, and failure behavior.
 
+### CPU-only background preparation
+
+The browser's queued drafting calls use an additive asynchronous context port. The existing synchronous `assemble` and context-port method remain the contract for previews, briefs and headless callers. Both paths run the same pure assembly, role and language rendering, token estimates and preview construction: moving the computation changes neither the messages nor the preview's account of them. A local restore-time formatter stays on the host; only the relevant formatted timestamps cross to the worker.
+
+Before structured clone, the host projects the task's readable inputs, not the whole project or provider configuration. It checks read-denied subtrees and codex attachments, Never descriptions, request exclusions and document eligibility before accessing their content. Only the necessary bodies, synopses, notes, instructions, memory index and readable recent-turn data are copied. Metadata needed to identify an item or preserve a drop explanation is distinct from its content. Unused document bodies, codex provenance, memory-topic files, declined file contents, provider credentials and routes never enter the worker input. Hidden or rewound turns and withheld summaries/outcomes are filtered or scrubbed before transfer, not after it.
+
+The host's codex projection checks policy eligibility, not lexical matches. Readable candidate descriptions may cross before selection; Never, read-denied and request-excluded descriptions do not. Codex matching, speaker detection, ranking and budget selection run in the worker, rather than repeating a text scan on the host to decide which candidates to copy. Crossing into this local worker does not include an entry in a provider prompt: the ordinary assembly policies still choose what is sent.
+
+Both assembly paths report explicit codex exclusions before description lookup, even when an entry is unmentioned or empty. This common pre-access correction changes those exclusion explanations, not kept prompt content; it avoids reading excluded text merely to choose its drop reason. Never remains authoritative and keeps its own suppression reason.
+
+The worker has no provider transport, permission authority, persistence or command bus. After awaiting it, the host checks cancellation and the live read boundary again before using the result; normal gateway admission revalidation still applies. A stopped or closed project cannot send a prepared request. Failures settle the pending operation and report a retryable failure rather than silently doing expensive work on the main thread. Snapshots and results are memory-only and end with their project lifecycle.
+
 ## 2. Layer stack (fixed order)
 
 ```

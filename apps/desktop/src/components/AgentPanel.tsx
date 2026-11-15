@@ -416,8 +416,8 @@ export function AgentPanel({
     ? droppedContextPins(request.preview.layers, contextOverrides.include).map((drop) => contextKey(drop.ref!)) : []);
   const contextControls = <div className="composer-context">
     {included.size === 0 && (contextOverrides.exclude?.length ?? 0) === 0 ? null : <details className="context-scope">
-      <summary><Trans>Foreground only</Trans></summary>
-      <p className="muted context-hint"><Trans>Requests with pins or leave-outs run here, not as background tasks. Remove these choices before requesting a background task.</Trans></p>
+      <summary><Trans>Context choices</Trans></summary>
+      <p className="muted context-hint"><Trans>Pins and leave-outs stay with this request when it runs in the background.</Trans></p>
       <p className="muted context-hint"><Trans>Pins and leave-outs affect optional context only. Required tool input, conversation history and read permissions do not change.</Trans></p>
     </details>}
     {(contextOverrides.include?.length ?? 0) + (contextOverrides.exclude?.length ?? 0) === 0 ? null : <ul className="context-chips" aria-label={t`Context choices for the next request`}>

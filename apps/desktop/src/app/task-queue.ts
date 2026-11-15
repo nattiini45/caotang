@@ -20,8 +20,9 @@
 
 import { i18n, type MessageDescriptor } from '@lingui/core';
 import { msg, plural, t } from '@lingui/core/macro';
-import { backgroundEligibility, estimatedModelCalls, type AgentSession, type PlanStep, type StageOnlyResult } from '@caotang/harness';
+import { backgroundEligibility, contextOverridesOk, estimatedModelCalls, type AgentSession, type ContextOverrides, type PlanStep, type StageOnlyResult } from '@caotang/harness';
 import { canMove } from '@caotang/machine';
+import { copyContext } from './context-choices.js';
 
 import {
   callsOfItem,
@@ -148,10 +149,13 @@ export class TaskQueue {
   }
 
   /** Queues a plan. It is refused, with the reason in words, when it cannot run unattended or the browser cannot guarantee one runner. */
-  async enqueue(intent: string, steps: readonly PlanStep[]): Promise<EnqueueResult> {
+  async enqueue(intent: string, steps: readonly PlanStep[], contextOverrides?: ContextOverrides): Promise<EnqueueResult> {
     const unavailable = this.unavailable();
     if (unavailable !== null) return { ok: false, reason: unavailable };
     if (this.closed) return { ok: false, reason: t`The project is not open here, so the plan can only run now.` };
+    if ((contextOverrides !== undefined && !contextOverridesOk(contextOverrides)) || steps.some((step) => step.contextOverrides !== undefined && !contextOverridesOk(step.contextOverrides))) {
+      return { ok: false, reason: t`The context choices could not be kept. Run this plan here, or send the request again.` };
+    }
     const eligible = backgroundEligibility(steps);
     if (!eligible.eligible) return { ok: false, reason: eligible.reason };
     const cap = estimatedModelCalls(steps);
@@ -161,7 +165,8 @@ export class TaskQueue {
       id: (this.options.newId ?? newTaskId)(),
       projectId: this.options.projectId,
       intent,
-      steps,
+      steps: structuredClone(steps),
+      ...(contextOverrides === undefined ? {} : { contextOverrides: copyContext(contextOverrides) }),
       status: 'queued',
       items: itemsOf(steps),
       cap,
@@ -357,7 +362,7 @@ export class TaskQueue {
     }
     let result: StageOnlyResult;
     try {
-      result = await agent.stageOnly([stepOfItem(task, item)], { signal });
+      result = await agent.stageOnly([stepOfItem(task, item)], { signal, ...(task.contextOverrides === undefined ? {} : { contextOverrides: copyContext(task.contextOverrides) }) });
     } catch (error) {
       const errorText = error instanceof Error ? error.message : String(error);
       await this.updateItem(id, key, { state: 'failed', error: t`The model call failed: ${{ error: errorText }}` });

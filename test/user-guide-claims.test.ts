@@ -21,6 +21,26 @@ function read(path: string): string {
 const guide = read('docs/USER-GUIDE.md');
 const changelog = read('CHANGELOG.md');
 
+describe('provider request-limit guidance', () => {
+  it('limits calls that generate a response without promising to serialize model lists or save-time checks', () => {
+    const guidance = guide.split('\n').find((line) => line.startsWith('In **Providers**, **Requests at once**'));
+    expect(guidance).toContain('calls that generate a response');
+    expect(guidance).toContain('Model lists and the checks run when saving a profile are outside this limit');
+    const overview = read('README.md').split('\n').find((line) => line.startsWith('**Requests at once**'));
+    expect(overview).toContain('limits overlapping completion calls per profile');
+    const translated = read('docs/i18n/de/USER-GUIDE.md').split('\n').find((line) => line.startsWith('Unter **Anbieter** legt **Gleichzeitige Anfragen**'));
+    expect(translated).toContain('Aufrufe, die eine Modellantwort erzeugen');
+    expect(translated).toContain('Modelllisten und die Prüfungen beim Speichern eines Profils liegen außerhalb dieser Grenze');
+    const gateway = read('packages/gateway/src/gateway.ts');
+    const listing = gateway.slice(gateway.indexOf('async function listModels('), gateway.indexOf('function modelLimits('));
+    const probe = gateway.slice(gateway.indexOf('async function probeResponseFormat('), gateway.indexOf('function modelCaps('));
+    expect(listing).toContain('await requestJson(');
+    expect(probe).toContain('await probeJsonObject(');
+    expect(listing).not.toContain('limiter.acquire(');
+    expect(probe).not.toContain('limiter.acquire(');
+  });
+});
+
 describe('the user guide matches what the app does', () => {
   it('says a folder this browser does not keep saves back to the folder, and only a different version is an unsaveable copy', () => {
     // lifecycle.ts: adopt() keeps the folder's id unless this browser already holds it, and saveFolder refuses only a copy in the folder of

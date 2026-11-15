@@ -23,8 +23,10 @@
  * The tasks themselves are definitions in `tasks.json` and are changed here, by the writer. The agent has no tool for them.
  */
 
+import { t } from '@lingui/core/macro';
 import { DETERMINISTIC_CHECK_IDS, type DeterministicCheckId } from '@caotang/coherence';
 import { recurringRunTable, stepRecurringRun, type RecurringRunState, type RecurringRunEvent } from './recurring-state.js';
+import { requestInkCompilerFor } from './ink-compiler.js';
 import {
   TASKS_LIMIT,
   checkTask,
@@ -45,7 +47,6 @@ import {
 } from '@caotang/tasks';
 
 import type { AgentController } from './agent.js';
-import { requestInkCompilerFor } from './ink-compiler.js';
 import type { ProjectSession } from './session.js';
 import { TaskRuns } from './task-runs.js';
 import type { TasksStatus } from './tasks-io.js';
@@ -378,6 +379,12 @@ export class RecurringTasks {
       this.bump();
       return;
     }
+    const blocked = task.body.kind === 'scan' ? this.scanBlockReason() : null;
+    if (blocked !== null) {
+      this.message = blocked;
+      this.bump();
+      return;
+    }
     this.moveRun({ type: 'start', taskId: id });
     let record: TaskRunRecord;
     try {
@@ -388,9 +395,17 @@ export class RecurringTasks {
         this.bump();
         return;
       }
+      const wasOffered = this.offered.has(id);
       this.offered.delete(id);
       this.bump();
-      record = await execution;
+      const completed = await execution;
+      if (completed === null) {
+        if (wasOffered) this.offered.add(id);
+        this.moveRun({ type: 'finish', taskId: id });
+        this.bump();
+        return;
+      }
+      record = completed;
     } catch (error) {
       record = this.recordOf(task, trigger, 'failed', `The run stopped unexpectedly: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -418,7 +433,7 @@ export class RecurringTasks {
     };
   }
 
-  private execute(task: AgentTask, trigger: TaskRunRecord['trigger']): Promise<TaskRunRecord> | null {
+  private execute(task: AgentTask, trigger: TaskRunRecord['trigger']): Promise<TaskRunRecord | null> | null {
     const { agent } = this.options;
     if (task.body.kind === 'scan') return this.scan(task, task.body, trigger);
     // The file can only lower what a run may do: the lowest of its permission, the app's setting and the panel's mode.
@@ -440,9 +455,14 @@ export class RecurringTasks {
   }
 
   /** A scan: the deterministic checks over the project as the agent may read it. It calls no model, so it sends nothing anywhere. */
-  private async scan(task: AgentTask, body: Extract<TaskBody, { kind: 'scan' }>, trigger: TaskRunRecord['trigger']): Promise<TaskRunRecord> {
+  private scanBlockReason(): string | null {
+    if (this.options.session.scanInFlight()) return t`A scan is already running. Wait for it to finish, or cancel it.`;
+    if (this.options.session.coherenceReview.snapshot().kind === 'running') return t`A review is running. Wait for it to finish before scanning.`;
+    return null;
+  }
+
+  private async scan(task: AgentTask, body: Extract<TaskBody, { kind: 'scan' }>, trigger: TaskRunRecord['trigger']): Promise<TaskRunRecord | null> {
     const { session } = this.options;
-    await requestInkCompilerFor(session.state);
     const on = (this.options.enabledChecks ?? (() => DETERMINISTIC_CHECK_IDS))();
     const asked = body.checks ?? DETERMINISTIC_CHECK_IDS;
     const checks = asked.filter((id) => on.includes(id));
@@ -450,13 +470,18 @@ export class RecurringTasks {
     // A document a read rule keeps from the agent is left out of this scan, as it is of the agent's own.
     // The harness is loaded on first use (lazy-harness.ts); a scan that starts as the project opens may come before any turn.
     const withheld = (await session.harnessReady()).withheld('coherence.scan');
-    const result = session.scanCoherence({
+    const browser = typeof document !== 'undefined' && typeof document.createElement === 'function';
+    if (!browser) await requestInkCompilerFor(session.state);
+    const blocked = this.scanBlockReason();
+    if (blocked !== null) { this.message = blocked; return null; }
+    const options = {
       approvedLargeScope: false,
-      scope: body.scope === 'full' ? { mode: 'full' } : { mode: 'changed' },
+      scope: body.scope === 'full' ? { mode: 'full' as const } : { mode: 'changed' as const },
       checks,
       withheld,
-    });
-    if (!result.ok) return this.recordOf(task, trigger, 'failed', result.message);
+    };
+    const result = browser ? await session.scanCoherenceAsync(options) : session.scanCoherence(options);
+    if (!result.ok) return this.recordOf(task, trigger, result.code === 'cancelled' || result.code === 'closed' ? 'stopped' : 'failed', result.message);
     // A whole-project scan that had no document to read found nothing because it looked at nothing, which is not a clean result.
     if (body.scope === 'full' && result.data.documents === 0) {
       const why = withheld.size > 0 ? ' A rule in this project may be keeping the manuscript from the agent.' : '';

@@ -152,7 +152,7 @@ export function PlanCard({ card, live, drafts, project, session, transcriptionRo
 
       {caution === undefined ? null : <CautionNotes caution={caution} />}
       {card.steps.some((step) => (step.contextOverrides?.include?.length ?? 0) + (step.contextOverrides?.exclude?.length ?? 0) > 0)
-        ? <p className="plan-notice"><Trans>Requests with pins or leave-outs run here, not as background tasks. Remove these choices before requesting a background task.</Trans></p>
+        ? <p className="plan-notice"><Trans>Pins and leave-outs stay with this request when it runs in the background.</Trans></p>
         : null}
       {card.notice !== undefined ? (
         <p className="plan-notice" role="status">

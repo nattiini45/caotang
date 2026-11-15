@@ -134,6 +134,21 @@ describe('the required pull-request CI gate', () => {
     expect(read('playwright.config.ts')).toContain("const visual = process.env['CAOTANG_VISUAL'] === '1';");
   });
 
+  it('splits Firefox into three shards without changing WebKit coverage or hiding interrupted progress', () => {
+    const e2e = jobBlock(browsers, 'e2e');
+    expect(e2e).toContain('shard: [1, 2, 3, modern]');
+    expect(e2e).toContain('exclude:\n          - browser: webkit\n            shard: 3');
+    expect(e2e).toContain("format('{0}/{1}', matrix.shard, matrix.browser == 'firefox' && 3 || 2)");
+    expect(e2e).toContain("--shard=${{ matrix.shard }}/${{ matrix.browser == 'firefox' && 3 || 2 }}");
+    expect(e2e.match(/--workers=2 --reporter=blob,list/g)).toHaveLength(2);
+    expect(e2e).toContain('timeout-minutes: 40');
+    expect(e2e).toContain('fail-fast: false');
+    expect(e2e).toContain('CAOTANG_E2E_MODERN_GATE: skip');
+    expect(e2e).not.toContain('--timeout');
+    expect(e2e).not.toContain('--retries');
+    expect(e2e).not.toContain('continue-on-error');
+  });
+
   it('gives Firefox a HOME owned by root in the Playwright container', () => {
     const e2e = jobBlock(browsers, 'e2e');
     expect(e2e).toContain('image: mcr.microsoft.com/playwright:v1.63.0-noble');

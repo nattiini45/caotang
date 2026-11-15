@@ -6,9 +6,17 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **CPU-only background preparation.** Quick scans and context assembly for queued drafts run in a lazy, same-origin browser worker, with read restrictions applied before transfer. Findings shows scan progress and **Cancel scan**; cancelled, stale or failed scans keep the findings and history unchanged. Draft preparation remains cancellable before its provider request. Provider transport, approvals and publication stay on the page; foreground and Node callers keep their synchronous path. A browser without worker support gets a retryable failure rather than a synchronous fallback.
+
+- **Per-profile request limits.** Settings › Providers has **Requests at once**, from 1 to 8, defaulting to 3 for endpoints and 8 for the demo. Streaming and collected calls share a foreground-first queue without interrupting running calls. A rate-limit response pauses new calls on that profile, and cancelling queued work makes no request or usage entry. Limits stay with browser-local profiles; this does not start parallel work or grant permissions.
+
+- **Optional server presence.** The standalone server can count other live browser profiles on an account, deduplicate tabs and send content-free join, departure and activity notices. Heartbeat leases and session deadlines remove stale connections, and peers never receive profile identifiers. Existing clients keep their original ping protocol; the local browser app is unchanged.
+
 - **Local passage search.** The agent's read-only `text.search` tool finds ranked passages in manuscript text, synopses, notes and eligible codex, with exact source offsets and bounded snippets. It supports multilingual words, quoted phrases, scope and forward-scene filtering. Never entries and read-denied text are excluded before scoring. Codex-only searches do not read or transfer binder text. The in-memory incremental BM25 index makes no model call, network request or persistent write; keyed prompt assembly stays unchanged. Browser indexing and scoring run in a lazily created same-origin worker so the writer can keep typing; Node tools use the same synchronous search.
 
 - **Long conversation memory.** Each role keeps a durable summary beside its recent turns, with exact earlier outcomes available through the read-only `session.history` tool. Automatic and focused manual compaction use one bounded Background-provider call; local summary edits make none. Failed summaries preserve the earlier memory, changed read boundaries withhold derived text and stop prepared requests before sending, and rewind/restore/discard invalidation stays visible. Reports retain the actual compaction profile/model spend without adding it to totals twice. Known model-window overflow clears eligible old tool results before refusing an unsendable request with explicit recovery controls; no automatic resend or spend increase occurs.
+
+- **Optional durable accounts for the server.** With `AUTHENTICATION_MODE=accounts` and a D1 binding, the standalone server signs in only invited numeric GitHub identities, revalidates the account and session revision on every call, closes revoked sockets, and offers `GET /v1/account` and sign-out everywhere. The default allowlist mode is unchanged and nothing in the local app changes.
 
 - **Self-hostable server skeleton.** A standalone Worker module provides GitHub sign-in with state, PKCE and secure signed cookies, plus per-identity hibernating WebSocket connectivity. It is not imported by the browser app, stores no projects and does not enable sync in the local app. Runtime tests mock GitHub and exercise real WebSocket upgrades.
 
@@ -17,7 +25,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Imports read in the background.** **Import plain text…** and **Import RTF…** read in a same-origin Worker with a hard timeout and the preview's Cancel, so a long file no longer holds the page while it parses; the splitter still re-runs as you change the rules, and a reader option re-reads without sending the file again. **Import RTFD…** reads an `.rtfd` package folder (TextEdit, Scrivener 2) through the same preview, its pictures included, and lists the files the text does not show. The English and German guides describe the new import (#283, #274, #390).
 
 - **Request-local context controls.** The agent composer estimates prompt capacity as you type, previews the planner request without a provider call and shows actual planner meters while running. `@` pins codex entries or up to three bounded document excerpts; shared previews can leave optional items out, with fresh approval after a plan-step context edit. Queued requests retain their own choices. Saved inclusion policies, Never and read-deny rules remain unchanged.
-- Plans with pins or leave-outs stay in the foreground; background choice persistence is deferred to [#592](https://github.com/nattiini45/caotang/issues/592). Existing run logs still contain sent messages and staged proposals, while the new recovery choice metadata contains stable IDs only.
+- Background tasks retain request pins and leave-outs through their offer, local storage, reload, Resume, staging and Review. Per-step choices still take precedence, and malformed saved choices cannot start unrestricted work. Existing run logs still contain sent messages and staged proposals, while recovery choice metadata contains stable IDs only; Never and current read-deny rules still apply.
 
 - **Run recovery and retained logs.** Activity keeps finished, failed and stopped agent-run cards, with JSONL and Markdown exports. Before its first writing step, a run retains a local restore point independent of the checkpoint cap. **Restore to before this run** confirms that later edits will be taken back, works after a reload and is undoable in the open tab. Retrying a failed restore save keeps later findings edits; a checkpoint restore reports any changes already taken back when saving fails and stops before a new edit made while it saves. Legacy findings do not cause a false conflict, and a failed recovery download can be retried without reopening the project. Optional device-local folder copies stay derived; they are never read for resume or restore.
 
@@ -38,6 +46,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Hook lifecycle checks.** Pure checks now run before and after turns and exports, and before explicit folder and bundle saves. A submit check can stop a turn before any provider request; end and save checks only warn. A writer's blocked export offers **Compile anyway** for that export only, while the agent cannot override it. Export warnings enter the compile log, and opening a project announces its hooks. Settings › Hooks lists existing hooks with an enable switch and undoable deletion.
 
 ### Fixed
+
+- Explicit codex leave-outs are reported before reading their descriptions, even when an entry is empty or unmentioned. Never keeps its own suppression reason; kept prompt text is unchanged.
+
+- Unknown shot metadata names remain data: a field named `__proto__` cannot replace the reader's metadata dictionary prototype. Unknown fields are still reported and dropped on the next save.
 
 - Builds with a custom output directory include `THIRD-PARTY-NOTICES.md` beside their assets instead of writing into the default output directory.
 

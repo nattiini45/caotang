@@ -2352,6 +2352,11 @@ msgstr "Eine Hintergrundaufgabe ist prüfbereit: {intent}"
 
 #. Interpolated values: done, intent, outdated, staged, total
 #: apps/desktop/src/app/task-model.ts
+msgid "A background task was cancelled: {intent}"
+msgstr "Eine Hintergrundaufgabe wurde abgebrochen: {intent}"
+
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
 msgid "A background task was stopped: {intent}"
 msgstr "Eine Hintergrundaufgabe wurde gestoppt: {intent}"
 
@@ -2717,6 +2722,23 @@ msgstr "Ein entfernter Eintrag"
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "A request’s temperature goes out, even on a model that takes none."
 msgstr "Die Temperatur einer Anfrage wird gesendet, auch bei einem Modell, das keine annimmt."
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/recurring-tasks.ts
+#: apps/desktop/src/app/session.ts
+msgid "A review is running. Wait for it to finish before scanning."
+msgstr "Eine Prüfung läuft. Warte, bis sie fertig ist, bevor du scannst."
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/recurring-tasks.ts
+#: apps/desktop/src/app/session.ts
+msgid "A scan is already running. Wait for it to finish, or cancel it."
+msgstr "Ein Scan läuft bereits. Warte, bis er fertig ist, oder brich ihn ab."
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "A scan is running. Wait for it to finish, or cancel it, before starting a review."
+msgstr "Ein Scan läuft. Warte, bis er fertig ist, oder brich ihn ab, bevor du eine Prüfung startest."
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
@@ -4109,6 +4131,10 @@ msgstr "Zurück zum Editor"
 msgid "Background"
 msgstr "Hintergrund"
 
+#: apps/desktop/src/workers/harness-worker-port.ts
+msgid "Background preparation is unavailable. Nothing was written. Try again, or reopen the project in a browser with worker support."
+msgstr "Die Vorbereitung im Hintergrund ist nicht verfügbar. Es wurde nichts geschrieben. Versuche es erneut oder öffne das Projekt in einem Browser mit Worker-Unterstützung."
+
 #. Interpolated values: cap, done, omitted, tokens, total, used
 #. Interpolated values: cap, done, omitted, tokens, total, used
 #: apps/desktop/src/components/BackgroundTasks.tsx
@@ -4531,6 +4557,11 @@ msgstr "Abbrechen"
 #: apps/desktop/src/media/picture-hooks.tsx
 msgid "Cancel imports nothing."
 msgstr "Abbrechen importiert nichts."
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Cancel scan"
+msgstr "Scan abbrechen"
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
@@ -5142,6 +5173,18 @@ msgstr "Wählen Sie eine Anbieter-Vorlage, um eine Vorschau des Prompt-Packs zu 
 msgid "Choose a vendor template to see the Proof of the prompt pack."
 msgstr "Wählen Sie eine Anbieter-Vorlage, um den Abzug des Prompt-Packs zu sehen."
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Choose a whole number from 1 to 8."
+msgstr "Wählen Sie eine ganze Zahl von 1 bis 8."
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Choose a whole number from 1 to 8. Foreground requests go before queued Background requests; requests already running are not interrupted."
+msgstr "Wählen Sie eine ganze Zahl von 1 bis 8. Anfragen im Vordergrund werden vor eingereihten Hintergrundanfragen bearbeitet; laufende Anfragen werden nicht unterbrochen."
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Choose an entry…"
@@ -5176,6 +5219,11 @@ msgstr "Einen anderen Ordner wählen…"
 msgid "Choose another status to see the findings in it."
 msgstr "Einen anderen Status wählen, um die Feststellungen darin zu sehen."
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Choose at least 1 request at once."
+msgstr "Wählen Sie mindestens eine gleichzeitige Anfrage."
+
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
 msgid "Choose cover…"
@@ -5185,6 +5233,11 @@ msgstr "Titelbild wählen…"
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
 msgid "Choose how the timeline names the days of your story. The days you set on scenes stay as they are, whichever you choose."
 msgstr "Wählen Sie, wie die Zeitachse die Tage Ihrer Geschichte benennt. Die Tage, die Sie für Szenen festlegen, bleiben so, wie sie sind, egal wofür Sie sich entscheiden."
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Choose no more than 8 requests at once."
+msgstr "Wählen Sie höchstens acht gleichzeitige Anfragen."
 
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
@@ -5756,6 +5809,11 @@ msgstr "Kontext"
 #: apps/desktop/src/components/ContextSection.tsx
 msgid "Context budgets"
 msgstr "Kontext-Budgets"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Context choices"
+msgstr "Kontextauswahl"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -7974,11 +8032,6 @@ msgstr "Für die nächste Anfrage"
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "For you. Never sent to the model."
 msgstr "Für Sie. Wird nie an das Modell gesendet."
-
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-#: apps/desktop/src/components/AgentPanel.tsx
-msgid "Foreground only"
-msgstr "Nur im Vordergrund"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -10708,6 +10761,7 @@ msgid "No findings file is open for this project, so there is nothing to review 
 msgstr "Für dieses Projekt ist keine Feststellungsdatei geöffnet, daher gibt es nichts, worin geprüft werden könnte."
 
 #. Interpolated values: error, reason, title
+#. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts
 msgid "No findings file is open for this project."
 msgstr "Für dieses Projekt ist keine Feststellungsdatei geöffnet."
@@ -12363,6 +12417,13 @@ msgstr "Für diese Anfrage angeheftet"
 msgid "Pins and leave-outs affect optional context only. Required tool input, conversation history and read permissions do not change."
 msgstr "Anheften und Weglassen betreffen nur optionalen Kontext. Erforderliche Eingaben für Werkzeuge, der Gesprächsverlauf und Leseberechtigungen bleiben unverändert."
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/AgentPanel.tsx
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "Pins and leave-outs stay with this request when it runs in the background."
+msgstr "Angeheftete und ausgelassene Inhalte bleiben mit dieser Anfrage verknüpft, auch wenn sie im Hintergrund ausgeführt wird."
+
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Pixels"
 msgstr "Pixel"
@@ -12555,6 +12616,11 @@ msgstr "POV \"{pov}\" ist kein Kodex-Eintrag, daher kann seine Abdeckung nicht g
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "POV {povName}"
 msgstr "POV {povName}"
+
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
+msgid "Preparing the next draft."
+msgstr "Der nächste Entwurf wird vorbereitet."
 
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
@@ -13816,12 +13882,10 @@ msgstr "Anfrageprotokoll"
 msgid "Requests"
 msgstr "Anfragen"
 
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
-#: apps/desktop/src/components/AgentPanel.tsx
-#: apps/desktop/src/components/PlanCard.tsx
-msgid "Requests with pins or leave-outs run here, not as background tasks. Remove these choices before requesting a background task."
-msgstr "Anfragen mit angeheftetem oder ausgelassenem Kontext laufen hier, nicht als Hintergrundaufgaben. Entfernen Sie diese Auswahl, bevor Sie eine Hintergrundaufgabe anfordern."
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Requests at once"
+msgstr "Gleichzeitige Anfragen"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -14732,6 +14796,11 @@ msgstr "Auf Kontinuitätsprobleme scannen"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Scan in progress"
+msgstr "Scan läuft"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Scan it anyway"
 msgstr "Trotzdem scannen"
 
@@ -14754,6 +14823,11 @@ msgstr "Scan auf Kohärenzprobleme läuft"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.continuityScan.active"
 msgstr "Scan auf Kontinuitätsprobleme läuft"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Scanning the manuscript in the background. You can keep writing; the findings appear here when it is done."
+msgstr "Das Manuskript wird im Hintergrund gescannt. Du kannst weiterschreiben; die Befunde erscheinen hier, sobald der Scan fertig ist."
 
 #. Columns and cells of the timeline's Agenda table. Interpolated values: count is a number of scenes or findings; title, name and part are writer or part words.
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
@@ -16817,6 +16891,12 @@ msgstr "das Seitenverhältnis ist eines der Verhältnisse in der Liste"
 msgid "The attached project folder changed. Enable copying for the new folder explicitly."
 msgstr "Der verbundene Projektordner hat sich geändert. Aktivieren Sie Kopien für den neuen Ordner ausdrücklich."
 
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+#: apps/desktop/src/workers/harness-worker-port.ts
+msgid "The background preparation was cancelled."
+msgstr "Die Vorbereitung im Hintergrund wurde abgebrochen."
+
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #: apps/desktop/src/app/mcp-model.ts
 msgid "The bearer token is missing. Enter it on this card, save it, then choose Connect again."
@@ -16991,6 +17071,11 @@ msgstr "Das vollständige Skript, das aus „<0/>“ geschrieben wurde, vor der 
 #: apps/desktop/src/app/mcp-model.ts
 msgid "The connection was cancelled. Choose Connect to try again."
 msgstr "Die Verbindung wurde abgebrochen. Wählen Sie Verbinden, um es erneut zu versuchen."
+
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "The context choices could not be kept. Run this plan here, or send the request again."
+msgstr "Die Kontextauswahl konnte nicht beibehalten werden. Führen Sie diesen Plan hier aus oder senden Sie die Anfrage erneut."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -17234,6 +17319,11 @@ msgstr "Die Feststellungen und Scans, so wie die Feststellungsdatei sie enthält
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "The findings by fact, with their quotes and verdicts, and the run history."
 msgstr "Die Feststellungen nach Fakt mit ihren Zitaten und Bewertungen sowie der Scan-Verlauf."
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The findings changed while this scan ran. Run the scan again to see the current result."
+msgstr "Die Befunde haben sich während dieses Scans geändert. Starte den Scan erneut, um das aktuelle Ergebnis zu sehen."
 
 #. Interpolated values: error
 #: apps/desktop/src/app/coherence-io.ts
@@ -17755,9 +17845,20 @@ msgstr "Das Projekt wurde während des Speicherns seines Wiederherstellungspunkt
 msgid "The project changed while restoring. Your newer changes were kept. Review the restore again."
 msgstr "Das Projekt wurde während der Wiederherstellung geändert. Ihre neueren Änderungen bleiben erhalten. Prüfen Sie die Wiederherstellung erneut."
 
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The project changed while this scan ran. Run the scan again to see the current result."
+msgstr "Das Projekt hat sich während dieses Scans geändert. Starte den Scan erneut, um das aktuelle Ergebnis zu sehen."
+
 #: apps/desktop/src/app/run-recovery.ts
 msgid "The project changed. Review the restore again."
 msgstr "Das Projekt wurde geändert. Prüfen Sie die Wiederherstellung erneut."
+
+#. Interpolated values: error, reason, title
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The project closed before the scan finished. Your findings are unchanged."
+msgstr "Das Projekt wurde geschlossen, bevor der Scan fertig war. Deine Befunde sind unverändert."
 
 #. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts
@@ -17875,6 +17976,11 @@ msgstr "Die vorgeschlagene Änderung an dieser Szene wird entfernt."
 #: apps/desktop/src/i18n/runtime.ts
 msgid "The pseudo catalogue \"{tag}\" is available only in development and tests."
 msgstr "Der Pseudo-Katalog „{tag}“ ist nur in Entwicklung und Tests verfügbar."
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The read rules changed while this scan ran. Run the scan again to see the current result."
+msgstr "Die Leseregeln haben sich während dieses Scans geändert. Starte den Scan erneut, um das aktuelle Ergebnis zu sehen."
 
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
 #: apps/desktop/src/media/ScreenplayView.tsx
@@ -18025,6 +18131,30 @@ msgstr "Die gespeicherten Filter und Ziele wurden zum Projekt hinzugefügt, aber
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "The saved prompt for {vendor} changed, so the text you had typed for it was replaced by the saved prompt."
 msgstr "Der gespeicherte Prompt für {vendor} hat sich geändert, daher wurde der von Ihnen eingegebene Text durch den gespeicherten Prompt ersetzt."
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The scan could not run in the background. Nothing was written. Try again, or reopen the project in a browser with worker support."
+msgstr "Der Scan konnte nicht im Hintergrund laufen. Es wurde nichts geschrieben. Versuche es erneut oder öffne das Projekt in einem Browser mit Worker-Unterstützung."
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "The scan could not run. Nothing was written. Try again."
+msgstr "Der Scan konnte nicht ausgeführt werden. Es wurde nichts geschrieben. Versuche es erneut."
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "The scan in progress"
+msgstr "Der laufende Scan"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Interpolated values: error, reason, title
+#. Interpolated values: error, reason, title
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "The scan was cancelled. Your findings are unchanged."
+msgstr "Der Scan wurde abgebrochen. Deine Befunde sind unverändert."
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts

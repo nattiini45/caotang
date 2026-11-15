@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import type * as UiAgentModule from '../apps/desktop/test/ui-agent-fixture.js';
 import { sumUsage, type DayUsageRow } from '../packages/gateway/src/index.js';
 
 import { endpointRoute, FAKE_ENDPOINT, fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
@@ -14,6 +16,8 @@ import { bodyOf, createProject, idOf, savedMessage } from './support.js';
  */
 
 const FRIEND_PROSE = 'The ferry came in on the evening tide, low in the water and slow to answer the rope.';
+const uiAgentUrl = `/@fs/${fileURLToPath(new URL('../apps/desktop/test/ui-agent-fixture.ts', import.meta.url)).replaceAll('\\', '/').replace(/^\/+/, '')}`;
+type UiAgent = typeof UiAgentModule;
 
 async function openSettings(page: Page): Promise<ReturnType<Page['getByTestId']>> {
   await page.goto('/');
@@ -350,6 +354,115 @@ test('advanced request parameters save and reload, and a denied thinking field r
   await expect(editing.getByLabel('Thinking levels')).toHaveValue('custom');
   await expect(editing.getByLabel('High', { exact: true })).toHaveValue('deep');
   await expect(editing.getByLabel('Leave out these request fields')).toHaveValue('output_config');
+});
+
+test('profile request limits default by kind, clamp with keyboard input, and persist', async ({ page }) => {
+  await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Got it', exact: true }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByTestId('settings');
+  await expect(settings).toBeVisible();
+
+  await settings.locator('[data-profile="Demo (no key)"]').getByRole('button', { name: 'Edit' }).click();
+  let form = settings.getByRole('form', { name: 'Edit provider' });
+  const demoRequestsAtOnce = form.getByLabel('Requests at once');
+  await expect(demoRequestsAtOnce).toHaveValue('8');
+  await demoRequestsAtOnce.fill('7');
+  await demoRequestsAtOnce.press('Tab');
+  await form.getByRole('button', { name: 'Save profile' }).click();
+  await expect(settings.getByText(savedMessage('Demo (no key)'))).toBeVisible();
+  expect((await storedProfiles(page)).find((profile) => profile['kind'] === 'mock')?.['maxConcurrentRequests']).toBe(7);
+
+  await settings.getByRole('button', { name: 'Add a provider' }).click();
+  form = settings.getByRole('form', { name: 'New provider' });
+  await form.getByRole('combobox', { name: 'Provider' }).selectOption('generic');
+  await form.getByLabel('Name').fill('Concurrency');
+  await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
+  await form.getByLabel('Model', { exact: true }).fill('test-model');
+
+  const requestsAtOnce = form.getByLabel('Requests at once');
+  const helpText = form.getByText('Choose a whole number from 1 to 8. Foreground requests go before queued Background requests; requests already running are not interrupted.');
+  const helpId = await helpText.getAttribute('id');
+  expect(helpId).toBeTruthy();
+  expect(await requestsAtOnce.getAttribute('aria-describedby')).toContain(helpId);
+  await expect(requestsAtOnce).toHaveValue('3');
+
+  await requestsAtOnce.fill('');
+  await form.getByRole('button', { name: 'Save profile' }).click();
+  const requiredError = form.getByText('Choose a whole number from 1 to 8.', { exact: true });
+  await expect(requiredError).toBeVisible();
+  const requiredErrorId = await requiredError.getAttribute('id');
+  expect(requiredErrorId).toBeTruthy();
+  expect(await requestsAtOnce.getAttribute('aria-describedby')).toContain(requiredErrorId);
+  expect((await storedProfiles(page)).some((profile) => profile['name'] === 'Concurrency')).toBe(false);
+
+  await requestsAtOnce.fill('2.5');
+  await expect(requestsAtOnce).toHaveValue('2.5');
+  await expect(requiredError).toBeVisible();
+  await form.getByRole('button', { name: 'Save profile' }).click();
+  await expect(requestsAtOnce).toHaveValue('2.5');
+  expect((await storedProfiles(page)).some((profile) => profile['name'] === 'Concurrency')).toBe(false);
+
+  await requestsAtOnce.fill('3');
+  await requestsAtOnce.press('Tab');
+  await expect(requestsAtOnce).toHaveValue('3');
+  await expect(requiredError).toBeHidden();
+  await requestsAtOnce.focus();
+  await requestsAtOnce.press('ArrowUp');
+  await expect(requestsAtOnce).toHaveValue('4');
+  await requestsAtOnce.fill('12');
+  await requestsAtOnce.press('Tab');
+  await expect(requestsAtOnce).toHaveValue('8');
+  await requestsAtOnce.fill('0');
+  await requestsAtOnce.press('Tab');
+  await expect(requestsAtOnce).toHaveValue('1');
+  await requestsAtOnce.fill('5');
+  await requestsAtOnce.press('Tab');
+  await expect(requestsAtOnce).toHaveValue('5');
+
+  await form.getByRole('button', { name: 'Save profile' }).click();
+  await expect(settings.getByText(savedMessage('Concurrency'))).toBeVisible();
+  expect((await storedProfiles(page)).find((profile) => profile['name'] === 'Concurrency')?.['maxConcurrentRequests']).toBe(5);
+
+  await expect(settings.locator('section[aria-labelledby="settings-providers"]')).toHaveAttribute('data-panel-state', 'idle');
+  await page.reload();
+  const again = await openSettings(page);
+  await again.locator('[data-profile="Demo (no key)"]').getByRole('button', { name: 'Edit' }).click();
+  form = again.getByRole('form', { name: 'Edit provider' });
+  await expect(form.getByLabel('Requests at once')).toHaveValue('7');
+  await form.getByRole('button', { name: 'Cancel' }).click();
+  await again.locator('[data-profile="Concurrency"]').getByRole('button', { name: 'Edit' }).click();
+  await expect(again.getByRole('form', { name: 'Edit provider' }).getByLabel('Requests at once')).toHaveValue('5');
+});
+
+test('the UI SDK can set Requests at once and the native save persists it through reload', async ({ page }) => {
+  await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
+  const settings = await openSettings(page);
+  await settings.getByRole('button', { name: 'Add a provider' }).click();
+  const form = settings.getByRole('form', { name: 'New provider' });
+  await form.getByRole('combobox', { name: 'Provider' }).selectOption('generic');
+  await form.getByLabel('Name').fill('UI SDK');
+  await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
+  await form.getByLabel('Model', { exact: true }).fill('test-model');
+
+  const entries = await page.evaluate(async (url) => (await import(/* @vite-ignore */ url) as UiAgent).agent.snapshot(), uiAgentUrl);
+  const requestsAtOnce = entries.find((entry) => entry.label === 'Requests at once');
+  expect(requestsAtOnce).toBeDefined();
+  const action = await page.evaluate(async ({ url, ref }) => {
+    const { agent } = await import(/* @vite-ignore */ url) as UiAgent;
+    return agent.act({ steps: [{ ref, action: 'setValue', args: ['6'] }] });
+  }, { url: uiAgentUrl, ref: requestsAtOnce!.ref });
+  expect(action.ok, JSON.stringify(action)).toBe(true);
+  await expect(form.getByLabel('Requests at once')).toHaveValue('6');
+
+  await form.getByRole('button', { name: 'Save profile' }).click();
+  await expect(settings.getByText(savedMessage('UI SDK'))).toBeVisible();
+  await expect(settings.locator('section[aria-labelledby="settings-providers"]')).toHaveAttribute('data-panel-state', 'idle');
+  await page.reload();
+  const again = await openSettings(page);
+  await again.locator('[data-profile="UI SDK"]').getByRole('button', { name: 'Edit' }).click();
+  await expect(again.getByRole('form', { name: 'Edit provider' }).getByLabel('Requests at once')).toHaveValue('6');
 });
 
 test('a flag-only temperature profile — the SDK shape — keeps its mode through an unrelated edit and a reload', async ({ page }) => {

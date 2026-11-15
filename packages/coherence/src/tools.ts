@@ -18,10 +18,10 @@ import type { RandomBytes } from '@caotang/ids';
 import type { ProjectState, TreeNode } from '@caotang/store';
 
 import { groupFindings, type FindingGroup } from './groups.js';
-import { runDeterministic } from './run.js';
+import { computeDeterministic, publishDeterministic, type CoherenceCheckFile, type DeterministicComputeResult } from './run.js';
 import { CoherenceError, NoProviderError } from './errors.js';
 import { setFindingStatusForAgent } from './lifecycle.js';
-import { FINDING_SEVERITIES, LLM_CATEGORIES, DETERMINISTIC_CHECK_IDS, NOTE_LIMIT, RUN_STATUSES, SCAN_DOC_GUARD, type CoherenceFile, type CoherenceRun, type DeterministicCheckId, type LlmCategory } from './model.js';
+import { FINDING_SEVERITIES, LLM_CATEGORIES, DETERMINISTIC_CHECK_IDS, NOTE_LIMIT, RUN_STATUSES, SCAN_DOC_GUARD, emptyCoherenceFile, type CoherenceFile, type CoherenceRun, type DeterministicCheckId, type LlmCategory } from './model.js';
 import type { MentionCacheSource, MentionDetector } from './mentions.js';
 import { planReview, runReview, type ReviewContext, type ReviewPlan } from './llm/review.js';
 import type { CoherenceModel } from './llm/port.js';
@@ -303,6 +303,7 @@ export const COHERENCE_TOOL_ENTRIES: readonly CoherenceToolEntry[] = [
  * ------------------------------------------------------------------ */
 
 export interface CoherenceToolContext {
+  readonly excludedDocIds?: readonly string[];
   readonly state: ProjectState;
   readonly file: CoherenceFile;
   readonly now: Date;
@@ -384,8 +385,20 @@ function checksOf(raw: unknown): ToolFailure | { readonly ok: true; readonly che
   return { ok: true, checks: raw as DeterministicCheckId[] };
 }
 
-/** §7 tool 15. A scope over the guard needs approval, and the refusal says how to proceed. */
-export function scanTool(params: Readonly<Record<string, unknown>>, context: CoherenceToolContext): ToolResult<ScanData> {
+export interface ScanComputeContext {
+  readonly excludedDocIds?: readonly string[];
+  readonly state: ProjectState;
+  readonly file: CoherenceCheckFile;
+  readonly approvedLargeScope?: boolean;
+  readonly mentions?: MentionCacheSource;
+  readonly detector?: MentionDetector;
+  readonly dialogue?: DialogueFacts;
+  readonly isExcluded?: (node: TreeNode) => boolean;
+}
+
+export type ScanComputeOutcome = ToolFailure | { readonly ok: true; readonly compute: DeterministicComputeResult; readonly count: number };
+
+export function scanCompute(params: Readonly<Record<string, unknown>>, context: ScanComputeContext): ScanComputeOutcome {
   const refusal = scopeRefine(params.scope);
   if (refusal !== undefined) return { ok: false, code: 'scope-invalid', message: refusal };
   const picked = checksOf(params.checks);
@@ -393,11 +406,12 @@ export function scanTool(params: Readonly<Record<string, unknown>>, context: Coh
   try {
     const scope = toScope(params.scope);
     const includeDocIds = scope.mode === 'doc' ? new Set(scope.docIds) : undefined;
-    const snapshot = snapshotManuscript(context.state, context.file, {
+    const checkFile: CoherenceFile = { ...emptyCoherenceFile(), sceneMeta: context.file.sceneMeta, reviewState: context.file.reviewState, knowledge: context.file.knowledge };
+    const snapshot = snapshotManuscript(context.state, checkFile, {
       ...(includeDocIds === undefined ? {} : { includeDocIds }),
       ...(context.isExcluded === undefined ? {} : { isExcluded: context.isExcluded }),
     });
-    const count = resolveScope(snapshot, context.file, scope).length;
+    const count = resolveScope(snapshot, checkFile, scope).length;
     if (count > SCAN_DOC_GUARD && context.approvedLargeScope !== true) {
       return {
         ok: false,
@@ -405,34 +419,46 @@ export function scanTool(params: Readonly<Record<string, unknown>>, context: Coh
         message: `This scope has ${count} documents, over the ${SCAN_DOC_GUARD}-document guard. Split the scope, or confirm it in the card.`,
       };
     }
-    const result = runDeterministic(context.state, context.file, {
+    const compute = computeDeterministic(context.state, context.file, {
       scope,
+      excludedDocIds: context.excludedDocIds,
       ...(context.isExcluded !== undefined ? { isExcluded: context.isExcluded } : {}),
       ...(picked.checks !== undefined ? { checks: picked.checks } : {}),
-      now: context.now,
       ...(context.mentions !== undefined ? { mentions: context.mentions } : {}),
       ...(context.detector !== undefined ? { detector: context.detector } : {}),
       ...(context.dialogue !== undefined ? { dialogue: context.dialogue } : {}),
-      randomBytes: context.randomBytes,
     });
-    const upserted = new Set(result.run.findingsUpserted);
-    const groups = groupFindings(result.file.findings.filter((finding) => upserted.has(finding.id)));
-    return {
-      ok: true,
-      file: result.file,
-      data: {
-        runId: result.run.id,
-        status: result.run.status,
-        findingsUpserted: result.run.findingsUpserted.length,
-        documents: count,
-        groups,
-        notes: result.run.notes ?? [],
-      },
-      summary: `Scan ${result.run.status}: ${result.run.findingsUpserted.length} finding(s) in ${groups.length} group(s) across ${count} document(s).`,
-    };
+    return { ok: true, compute, count };
   } catch (error) {
     return failureOf(error);
   }
+}
+
+/** §7 tool 15. A scope over the guard needs approval, and the refusal says how to proceed. */
+export function scanTool(params: Readonly<Record<string, unknown>>, context: CoherenceToolContext): ToolResult<ScanData> {
+  const computed = scanCompute(params, context);
+  if (!computed.ok) return computed;
+  return publishScan(computed, context);
+}
+
+export function publishScan(computed: Extract<ScanComputeOutcome, { readonly ok: true }>, context: Pick<CoherenceToolContext, 'state' | 'file' | 'now' | 'randomBytes'>): ToolResult<ScanData> {
+  const { compute, count } = computed;
+  const result = publishDeterministic(context.state, context.file, compute, { now: context.now, randomBytes: context.randomBytes });
+  const upserted = new Set(result.run.findingsUpserted);
+  const groups = groupFindings(result.file.findings.filter((finding) => upserted.has(finding.id)));
+  return {
+    ok: true,
+    file: result.file,
+    data: {
+      runId: result.run.id,
+      status: result.run.status,
+      findingsUpserted: result.run.findingsUpserted.length,
+      documents: count,
+      groups,
+      notes: result.run.notes ?? [],
+    },
+    summary: `Scan ${result.run.status}: ${result.run.findingsUpserted.length} finding(s) in ${groups.length} group(s) across ${count} document(s).`,
+  };
 }
 
 export interface ReviewPreviewData {

@@ -13,6 +13,7 @@
  */
 
 import { refusal, type CommandError } from '@caotang/bus';
+import { entryWithheld } from '@caotang/context';
 import { sha256HexOfText } from '@caotang/skills';
 import type { PermissionRule, ProjectState, RuleScope, TreeNode } from '@caotang/store';
 import { canonicalJson } from './util.js';
@@ -263,8 +264,10 @@ export function memoryReadPolicy(set: RuleSet, state: Pick<ProjectState, 'manife
     canonicalJson({ tool: rule.tool, scope: rule.scope, nodes: [...(scopeNodes(rule.scope!, state.manifest.tree) ?? [])].sort() }),
   ))].sort();
   const never = [...new Set((state.manifest.codex ?? []).filter((entry) => entry.includePolicy === 'never').map((entry) => entry.id))].sort();
+  const hidden = withheldAnywhere(set, state);
+  const attached = [...new Set((state.manifest.codex ?? []).filter((entry) => entry.includePolicy !== 'never' && entryWithheld(entry, hidden)).map((entry) => entry.id))].sort();
   if (denies.length === 0 && never.length === 0 && set.unreadable !== true) return undefined;
-  return sha256HexOfText(canonicalJson({ denies, ...(never.length === 0 ? {} : { never }), unreadable: set.unreadable === true }));
+  return sha256HexOfText(canonicalJson({ denies, ...(never.length === 0 ? {} : { never }), ...(attached.length === 0 ? {} : { attached }), unreadable: set.unreadable === true }));
 }
 
 const SOURCE_WORDS: Readonly<Record<RuleSource, string>> = { app: 'your app settings', project: 'this project’s file', session: 'this session' };

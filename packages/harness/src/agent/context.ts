@@ -21,6 +21,8 @@ import type { ActivityEntry } from '@caotang/bus';
 import {
   assemble,
   buildPreview,
+  deserializeContextConfig,
+  projectContextInput,
   tokensForChars,
   toChatMessages,
   UNTRUSTED_RULE,
@@ -30,6 +32,7 @@ import {
   type ContextConfig,
   type ContextOverrides,
   type PreviewLayer,
+  type ProjectedContextInput,
   type PromptPreview,
   type RecentTurn,
   type SessionSummary,
@@ -139,7 +142,10 @@ export interface AssembledCall {
 /** The seam the agent loop depends on. Pure: the same request and state give the same bytes. */
 export interface ContextPort {
   assemble(request: ContextRequest): AssembledCall;
+  assembleAsync?(request: ContextRequest, signal?: AbortSignal): Promise<AssembledCall>;
 }
+
+export type ContextComputeAsync = (input: ProjectedContextInput, role: string, languages: LanguagePolicy | undefined, signal?: AbortSignal) => Promise<AssembledCall>;
 
 export interface ContextPortOptions {
   /** The project to assemble from: a state, or a function that reads the current state at each call. */
@@ -154,6 +160,7 @@ export interface ContextPortOptions {
    * call. Absent, nothing is withheld.
    */
   readonly withheld?: (tool: string) => ReadonlySet<string>;
+  readonly computeAsync?: ContextComputeAsync;
 }
 
 /**
@@ -197,23 +204,42 @@ export function createContextPort(options: ContextPortOptions): ContextPort {
   const stateOf: () => ProjectState = typeof source === 'function' ? source : () => source;
   const given = options.config;
   const configOf: () => ContextConfig = typeof given === 'function' ? given : () => given ?? {};
-  return {
+  const snapshotOf = (request: ContextRequest): AppSnapshot => {
+    const withheld = options.withheld?.(request.task.tool);
+    return {
+      state: request.state ?? stateOf(),
+      ...(withheld === undefined || withheld.size === 0 ? {} : { withheld }),
+      ...(request.turns === undefined ? {} : { turns: request.turns }),
+      ...(request.sessionSummary === undefined ? {} : { sessionSummary: request.sessionSummary }),
+      ...(request.sessionKeepTurns === undefined ? {} : { sessionKeepTurns: request.sessionKeepTurns }),
+      ...(request.readPolicy === undefined ? {} : { readPolicy: request.readPolicy }),
+      ...(request.activity === undefined ? {} : { activity: request.activity }),
+      ...(request.nonce === undefined ? {} : { nonce: request.nonce }),
+    };
+  };
+  const render = (task: AgentTask, app: AppSnapshot, config: ContextConfig, request: ContextRequest): AssembledCall => {
+    const prompt = withLanguages(withRole(assemble(task, app, config), request.role), request.languages);
+    return { prompt, messages: toChatMessages(prompt), preview: buildPreview(prompt) };
+  };
+  const port: ContextPort = {
     assemble(request: ContextRequest): AssembledCall {
-      const withheld = options.withheld?.(request.task.tool);
-      const app: AppSnapshot = {
-        state: request.state ?? stateOf(),
-        ...(withheld === undefined || withheld.size === 0 ? {} : { withheld }),
-        ...(request.turns === undefined ? {} : { turns: request.turns }),
-        ...(request.sessionSummary === undefined ? {} : { sessionSummary: request.sessionSummary }),
-        ...(request.sessionKeepTurns === undefined ? {} : { sessionKeepTurns: request.sessionKeepTurns }),
-        ...(request.readPolicy === undefined ? {} : { readPolicy: request.readPolicy }),
-        ...(request.activity === undefined ? {} : { activity: request.activity }),
-        ...(request.nonce === undefined ? {} : { nonce: request.nonce }),
-      };
-      const prompt = withLanguages(withRole(assemble(request.task, app, configOf()), request.role), request.languages);
-      return { prompt, messages: toChatMessages(prompt), preview: buildPreview(prompt) };
+      return render(request.task, snapshotOf(request), configOf(), request);
     },
   };
+  const computeAsync = options.computeAsync;
+  if (computeAsync !== undefined) {
+    port.assembleAsync = async (request: ContextRequest, signal?: AbortSignal): Promise<AssembledCall> => {
+      signal?.throwIfAborted();
+      const input = projectContextInput(request.task, snapshotOf(request), configOf());
+      return computeAsync(input, request.role, request.languages, signal);
+    };
+  }
+  return port;
+}
+
+export function assembleProjected(input: ProjectedContextInput, role: string, languages: LanguagePolicy | undefined): AssembledCall {
+  const prompt = withLanguages(withRole(assemble(input.task, input.app, deserializeContextConfig(input.config)), role), languages);
+  return { prompt, messages: toChatMessages(prompt), preview: buildPreview(prompt) };
 }
 
 /**

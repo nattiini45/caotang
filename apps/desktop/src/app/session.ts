@@ -46,7 +46,7 @@
 
 import { plural, t } from '@lingui/core/macro';
 import { isolate } from '@caotang/i18n';
-import { scanTool, type CoherenceFile, type DeterministicCheckId, type ScanData, type ScopeSpec, type ToolResult } from '@caotang/coherence';
+import { publishScan, scanTool, type CoherenceFile, type DeterministicCheckId, type ScanComputeOutcome, type ScanData, type ScopeSpec, type ToolResult } from '@caotang/coherence';
 import { compileCodex, countMentions, type DocumentTerm } from '@caotang/codex';
 import {
   ApplyRefusal,
@@ -127,7 +127,7 @@ import { assetRecordsOf } from '@caotang/exporter/export-metadata';
 import type { EmitFailure, ExportJob, ExportPreview, ExportPreviewRequest, ExportProof, ExporterService } from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
 import { InkCompilerNotLoaded } from '@caotang/dialogue';
-import { blockOf, checkMacro, createHookRunner, dialogueFactsOf, excludedBy, exportHookNodes, hookMessages, withheldState, type Harness, type HookRun, type PictureOutbox, type SourcedRule, type TranscriptionGenerationInput } from '@caotang/harness';
+import { blockOf, checkMacro, createHookRunner, dialogueFactsOf, excludedBy, exportHookNodes, hookMessages, projectScanInput, type Harness, type HookRun, type PictureOutbox, type SourcedRule, type TranscriptionGenerationInput } from '@caotang/harness';
 import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
@@ -143,6 +143,7 @@ import { CoherenceReviewSession } from './coherence-review-state.js';
 import { SessionHandle } from './session-handle.js';
 import { forgetTray } from './timeline-tray.js';
 import type { HarnessRuntime } from './lazy-harness.js';
+import { createHarnessWorker, type HarnessWorkerHandle } from '../workers/harness-worker-port.js';
 import { TranscriptionReviewBroker } from './transcription-review.js';
 import { CodexMentions } from './codex-model.js';
 import { ExportStore } from './exports.js';
@@ -431,6 +432,8 @@ export class ProjectSession {
   private readonly rejections: RejectedDispatch[] = [];
   /** The coherence file's write port and what its load said, once the file is attached (coherence.md §3). */
   private coherencePort: CoherencePort | null = null;
+  private cpuWorker: HarnessWorkerHandle | null = null;
+  private scanController: AbortController | null = null;
   readonly coherenceReview = new CoherenceReviewSession(() => this.bump(), (result) => this.applyCoherenceFile(result.file));
   /** The project's recurring tasks and where they are saved (tasks-io.ts). Null until the lifecycle has loaded them. */
   private tasksHome_: TasksHome | null = null;
@@ -1818,18 +1821,20 @@ export class ProjectSession {
     if (options.checks !== undefined) params['checks'] = [...options.checks];
     // The branch checks compile Ink, which needs the compiler loaded. A scan that cannot compile says so and runs nothing, rather than
     // reporting a project with no branch findings.
+    const projected = options.withheld === undefined ? undefined : projectScanInput(this.state, file, options.withheld, options.scope);
+    const view = projected?.state ?? this.state;
     let dialogue: ReturnType<typeof dialogueFactsOf>;
     try {
-      const hidden = options.withheld;
-      dialogue = dialogueFactsOf(hidden === undefined ? this.state : withheldState(this.state, hidden));
+      dialogue = dialogueFactsOf(view);
     } catch (error) {
       if (!(error instanceof InkCompilerNotLoaded)) throw error;
       void requestInkCompiler();
       return { ok: false, code: 'ink-loading', message: t`The Ink compiler is still loading, so the dialogue checks cannot run yet. Run the scan again in a moment.` };
     }
     const result = scanTool(params, {
-      state: this.state,
+      state: view,
       file,
+      excludedDocIds: projected?.excludedDocIds,
       now: new Date(),
       detector: countInEntries,
       approvedLargeScope: options.approvedLargeScope,
@@ -1841,6 +1846,84 @@ export class ProjectSession {
       this.afterCommand();
     }
     return result;
+  }
+
+  scanInFlight(): boolean {
+    return this.scanController !== null;
+  }
+
+  cancelScan(): void {
+    this.scanController?.abort();
+  }
+
+  harnessWorker(): HarnessWorkerHandle {
+    if (this.persistence.isStopped()) throw new Error(t`The background preparation was cancelled.`);
+    this.cpuWorker ??= createHarnessWorker();
+    return this.cpuWorker;
+  }
+
+  async scanCoherenceAsync(options: ScanOptions, signal?: AbortSignal): Promise<ToolResult<ScanData>> {
+    if (this.persistence.isStopped()) return { ok: false, code: 'closed', message: t`The project closed before the scan finished. Your findings are unchanged.` };
+    const file = this.coherenceFile();
+    if (file === undefined) return { ok: false, code: 'no-file', message: t`No findings file is open for this project.` };
+    if (this.scanController !== null) return { ok: false, code: 'busy', message: t`A scan is already running. Wait for it to finish, or cancel it.` };
+    if (this.coherenceReview.snapshot().kind === 'running') return { ok: false, code: 'busy', message: t`A review is running. Wait for it to finish before scanning.` };
+
+    const controller = new AbortController();
+    this.scanController = controller;
+    this.bump();
+    const onExternalAbort = (): void => controller.abort();
+    signal?.addEventListener('abort', onExternalAbort, { once: true });
+    if (signal?.aborted === true) controller.abort();
+
+    const scope = options.scope;
+    const params: Record<string, unknown> = { scope: scope?.mode === 'doc' ? { mode: 'doc', docIds: [...scope.docIds] } : { mode: scope?.mode ?? 'full' } };
+    if (options.checks !== undefined) params['checks'] = [...options.checks];
+    const withheld = options.withheld === undefined ? undefined : new Set(options.withheld);
+    const readPolicy = withheld === undefined ? undefined : this.harnessRuntime?.harness.readPolicy();
+    try {
+      if (controller.signal.aborted) return { ok: false, code: 'cancelled', message: t`The scan was cancelled. Your findings are unchanged.` };
+      const signature = JSON.stringify(file);
+      const capturedScope = params['scope'] as ScopeSpec;
+      const projected = projectScanInput(this.state, file, withheld, capturedScope);
+      const inputVersion = (input: typeof projected): string => JSON.stringify({
+        manifest: input.state.manifest,
+        documents: [...input.state.documents].map(([id, document]) => [id, document.revision]),
+        excludedDocIds: input.excludedDocIds,
+      });
+      const version = inputVersion(projected);
+      let outcome: ScanComputeOutcome;
+      try {
+        outcome = await this.harnessWorker().scan(
+          { ...projected, params, ...(options.approvedLargeScope ? { approvedLargeScope: true } : {}) },
+          controller.signal,
+        );
+      } catch {
+        if (controller.signal.aborted) return { ok: false, code: 'cancelled', message: t`The scan was cancelled. Your findings are unchanged.` };
+        return { ok: false, code: 'worker-unavailable', message: t`The scan could not run in the background. Nothing was written. Try again, or reopen the project in a browser with worker support.` };
+      }
+      if (controller.signal.aborted) return { ok: false, code: 'cancelled', message: t`The scan was cancelled. Your findings are unchanged.` };
+      if (this.persistence.isStopped()) return { ok: false, code: 'closed', message: t`The project closed before the scan finished. Your findings are unchanged.` };
+      if (JSON.stringify(this.coherenceFile()) !== signature) return { ok: false, code: 'stale', message: t`The findings changed while this scan ran. Run the scan again to see the current result.` };
+      if (withheld !== undefined) {
+        const live = this.harnessRuntime?.harness.withheld('coherence.scan');
+        if (this.harnessRuntime?.harness.readPolicy() !== readPolicy || live === undefined || live.size !== withheld.size || [...withheld].some((id) => !live.has(id))) {
+          return { ok: false, code: 'stale', message: t`The read rules changed while this scan ran. Run the scan again to see the current result.` };
+        }
+      }
+      if (inputVersion(projectScanInput(this.state, file, withheld, capturedScope)) !== version) return { ok: false, code: 'stale', message: t`The project changed while this scan ran. Run the scan again to see the current result.` };
+      if (!outcome.ok) return outcome;
+      const result = publishScan(outcome, { state: this.state, file, now: new Date() });
+      if (result.ok && result.file !== undefined) {
+        this.state.coherence = result.file;
+        this.afterCommand();
+      }
+      return result;
+    } finally {
+      signal?.removeEventListener('abort', onExternalAbort);
+      this.scanController = null;
+      this.bump();
+    }
   }
 
   /**
@@ -2126,6 +2209,9 @@ export class ProjectSession {
       };
       try {
         this.detachCoherenceFlush();
+        this.scanController?.abort();
+        this.cpuWorker?.dispose();
+        this.cpuWorker = null;
         this.harnessRuntime?.dispose();
         this.detachPendingKeep();
         if (this.pendingTimer !== null) clearTimeout(this.pendingTimer);

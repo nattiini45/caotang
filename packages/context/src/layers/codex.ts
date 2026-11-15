@@ -145,19 +145,20 @@ function suppressionReason(reason: Suppressed['reason']): DropReason {
 }
 
 export function codexBlock(input: CodexPlanInput): CodexPlan {
+  const excluded: DropRecord[] = [];
+  const eligible = input.entries.filter((entry) => {
+    if (!input.exclude?.has(entry.id) || entry.includePolicy === 'never') return true;
+    excluded.push(dropRecord(entry.name, { kind: 'writer-excluded' }, 'codex', { kind: 'codex', id: entry.id }));
+    return false;
+  });
   const selected = selectAcrossScope({
     ...input,
-    entries: input.entries.map((entry) => input.include?.has(entry.id) && entry.includePolicy !== 'never'
+    entries: eligible.map((entry) => input.include?.has(entry.id) && entry.includePolicy !== 'never'
       ? { ...entry, includePolicy: 'always' as const }
       : entry),
   });
   const originals = new Map(input.entries.map((entry) => [entry.id, entry]));
-  const excluded: DropRecord[] = [];
-  const candidates = selected.candidates.filter(({ entry }) => {
-    if (!input.exclude?.has(entry.id)) return true;
-    excluded.push(dropRecord(entry.name, { kind: 'writer-excluded' }, 'codex', { kind: 'codex', id: entry.id }));
-    return false;
-  }).map((candidate) => ({ ...candidate, entry: originals.get(candidate.entry.id) ?? candidate.entry }));
+  const candidates = selected.candidates.map((candidate) => ({ ...candidate, entry: originals.get(candidate.entry.id) ?? candidate.entry }));
   const suppressed = [...selected.suppressed];
   for (const entry of input.entries) {
     if (input.include?.has(entry.id) && entry.includePolicy === 'never' && !suppressed.some((item) => item.entry.id === entry.id)) {

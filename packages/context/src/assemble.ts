@@ -86,7 +86,7 @@ function perLayer<T>(make: () => T): Record<LayerId, T> {
   return { L0: make(), LI: make(), L1: make(), L2: make(), L3: make(), L4: make(), L5: make(), L6: make(), L7: make() };
 }
 
-function resolveFocus(task: AgentTask, tree: TreeIndex): TreeNode | undefined {
+export function resolveFocus(task: AgentTask, tree: TreeIndex): TreeNode | undefined {
   const needed = task.tool === 'scene.draft' || task.tool === 'synopsis.fill' || task.tool === 'dialogue.draft';
   // dialogue.draft's focus is its dialogue container (dialogue-narrative §7); every other focus is a document.
   const wanted = task.tool === 'dialogue.draft' ? 'dialogue' : 'document';
@@ -125,7 +125,7 @@ function withSpeakers(task: AgentTask, entries: readonly CodexEntry[], detected:
 /** The tools whose L4 and L5 are built from a scope of documents rather than from one focus. */
 const scoped = (tool: AgentTask['tool']): boolean => tool === 'continuity.scan' || tool === 'delegate';
 
-function resolveScope(task: AgentTask, tree: TreeIndex): TreeNode[] {
+export function resolveScope(task: AgentTask, tree: TreeIndex): TreeNode[] {
   if (!scoped(task.tool)) return [];
   // A scan with no scope reads the whole manuscript; a delegated agent with none is sent no documents and reads by its tools.
   if (task.scope === undefined) return task.tool === 'delegate' ? [] : manuscriptDocuments(tree);
