@@ -1187,6 +1187,8 @@ export type RecipeOptionsParams = {
   keepPictureMetadata?: boolean;
   /** The timeline PDF draws each scene's pictures as thumbnails (timeline.md §9.1). Absent is off. Only `timeline-pdf` reads it. */
   timelinePictures?: boolean;
+  /** The teleprompter's wrap width in characters per line (av-script.md §5). Only `teleprompter` reads it. */
+  teleprompterWidth?: number;
   /** Emoji print in colour in the screenplay PDF and the contact sheet (screenplay.md §5.3, storyboard.md §6). Absent: the format's default. */
   colourEmoji?: boolean;
   /** Where the prose formats put a footnote's text (exporter.md §3). Absent: footnote — page foot in DOCX, chapter end in EPUB and plain text; endnote: document end, book end. */

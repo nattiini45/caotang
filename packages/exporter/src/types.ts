@@ -53,6 +53,10 @@ export const EXPORT_FORMATS = [
   // Appended after the timeline's, so the order above holds.
   'cbz',
   'comic-epub',
+  // The AV script's reading formats (av-script.md §5): show notes, a transcript and a teleprompter. Appended, so the order above holds.
+  'show-notes',
+  'transcript-md',
+  'teleprompter',
 ] as const;
 
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
@@ -82,6 +86,9 @@ export const MEDIA_FORMATS = [
   'timeline-pdf',
   'cbz',
   'comic-epub',
+  'show-notes',
+  'transcript-md',
+  'teleprompter',
 ] as const satisfies readonly ExportFormat[];
 
 export type MediaFormat = (typeof MEDIA_FORMATS)[number];
@@ -346,6 +353,9 @@ export const TEXT_PROOF_FORMATS = [
   // Merge: the timeline's two text formats (timeline.md §8) render as text, so they have a Proof too.
   'timeline-csv',
   'timeline-svg',
+  'show-notes',
+  'transcript-md',
+  'teleprompter',
 ] as const satisfies readonly ExportFormat[];
 
 /** Whether a format has a Proof: it is listed in {@link TEXT_PROOF_FORMATS}. A format added without being listed has none. */

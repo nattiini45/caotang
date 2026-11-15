@@ -57,6 +57,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **Hook lifecycle checks.** Pure checks now run before and after turns and exports, and before explicit folder and bundle saves. A submit check can stop a turn before any provider request; end and save checks only warn. A writer's blocked export offers **Compile anyway** for that export only, while the agent cannot override it. Export warnings enter the compile log, and opening a project announces its hooks. Settings › Hooks lists existing hooks with an enable switch and undoable deletion.
 
+- **Show notes, transcript and teleprompter exports (#212).** An episode compiles to three new formats in the Export dialog's Show group. **Show notes (.md)** carry the show's description and the episode's segments as a timestamped list, plus chapter lines in YouTube's shape when its three gates hold — when they do not, the compile log names the gate that failed. **Transcript (.md)** writes each speaker's display name and the text, segment by segment, with narration set apart and no cues or timings. **Teleprompter (.txt)** writes the spoken lines only, wrapped to a recipe's new line-width option.
+
 ### Fixed
 
 - **LibreOffice keeps the Word contents field.** A `.docx` contents field is now written the way Word writes it — the field instruction in its own run, one cached entry per paragraph, no `w:sdt` wrapper — and the Heading styles carry an outline level. Before, LibreOffice flattened the field to dead text, showed the instruction ahead of the first entry and could not regenerate the table; now it imports it as a real index, keeps it on re-save, and Tools → Update indexes fills in the page numbers and links (#26).

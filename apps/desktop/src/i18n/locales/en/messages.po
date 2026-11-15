@@ -1312,6 +1312,11 @@ msgstr "{lines, plural, one {Leave it out (# line)} other {Leave it out (# lines
 msgid "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {container} other {containers}}, {words} {wordCount, plural, one {word} other {words}}"
 msgstr "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {container} other {containers}}, {words} {wordCount, plural, one {word} other {words}}"
 
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#: apps/desktop/src/components/export-preview-model.ts
+msgid "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {episode} other {episodes}}, {words} {wordCount, plural, one {word} other {words}}"
+msgstr "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {episode} other {episodes}}, {words} {wordCount, plural, one {word} other {words}}"
+
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
 msgid "{matches, plural, one {# scene matches “{filterName}”. Clear the filter to see the whole binder.} other {# scenes match “{filterName}”. Clear the filter to see the whole binder.}}"
@@ -9876,6 +9881,11 @@ msgstr "Line {line}."
 msgid "line {number} of the take's settings is not \"key: value\""
 msgstr "line {number} of the take's settings is not \"key: value\""
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Line width in characters"
+msgstr "Line width in characters"
+
 #. Words on the story timeline's axis and in a scene's accessible name. Interpolated values: days, count, n, text, span, anchor, lower, rest, dayLabel, endLabel, durationDays, openFindings, title, part, name, names, folder.
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "linear"
@@ -16141,6 +16151,8 @@ msgstr "Shout"
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Interpolated values: model, name, provider, total
 #. Interpolated values: model, profile
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
 #: apps/desktop/src/components/FindingsPanel.tsx
 #: apps/desktop/src/components/ProfileEditor.tsx
 #: apps/desktop/src/components/ProviderSetup.tsx
@@ -16177,6 +16189,11 @@ msgstr "Show in Findings"
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Show in the codex: {name}, mentioned here {count, plural, one {# time} other {# times}}"
 msgstr "Show in the codex: {name}, mentioned here {count, plural, one {# time} other {# times}}"
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Show notes (.md)"
+msgstr "Show notes (.md)"
 
 #. Interpolated values: count
 #: apps/desktop/src/components/activity-window.ts
@@ -17115,6 +17132,11 @@ msgstr "Tasks"
 msgid "Tasks run only while this project is open in a visible tab. Scans may start by themselves. Plans need your allowance on this browser; their drafts wait in the Inbox for review. Instructions are offered when due."
 msgstr "Tasks run only while this project is open in a visible tab. Scans may start by themselves. Plans need your allowance on this browser; their drafts wait in the Inbox for review. Instructions are offered when due."
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Teleprompter (.txt)"
+msgstr "Teleprompter (.txt)"
+
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "Temperature"
@@ -17835,6 +17857,11 @@ msgstr "The cue \"{cue}\" in \"{sceneTitle}\" matches no codex entry"
 #: apps/desktop/src/components/Settings.tsx
 msgid "The daily target is a whole number of words from 0 to {max}; 0 means no target."
 msgstr "The daily target is a whole number of words from 0 to {max}; 0 means no target."
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "The default"
+msgstr "The default"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -19162,6 +19189,11 @@ msgstr "The shots as a video prompt pack"
 msgid "The shots as cards"
 msgstr "The shots as cards"
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "The show's description and the episode's segments with their timestamps — and the chapter lines for YouTube when its gates hold — to paste into an episode page."
+msgstr "The show's description and the episode's segments with their timestamps — and the chapter lines for YouTube when its gates hold — to paste into an episode page."
+
 #. Interpolated values: bytes, folder, max, name, path, problem, size, taken
 #. Interpolated values: folder, max, path, reason, size
 #: apps/desktop/src/app/skills-import.ts
@@ -19179,6 +19211,16 @@ msgstr "The skill “{folder}” was not taken: a file in it has an unsafe path 
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "The skill could not be read: {reason}"
 msgstr "The skill could not be read: {reason}"
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "The spoken lines only, wrapped to a set width with no labels or cues, to read off a teleprompter or a sheet."
+msgstr "The spoken lines only, wrapped to a set width with no labels or cues, to read off a teleprompter or a sheet."
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "The spoken lines with each speaker's display name, segment by segment — no cues or timings — for reading or publishing."
+msgstr "The spoken lines with each speaker's display name, segment by segment — no cues or timings — for reading or publishing."
 
 #. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
 #: apps/desktop/src/components/editor-labels.ts
@@ -20498,6 +20540,11 @@ msgstr "Transcribed text of {file}"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.picturesTranscribe.active"
 msgstr "Transcribing the handwritten pages"
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Transcript (.md)"
+msgstr "Transcript (.md)"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
