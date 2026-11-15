@@ -51,6 +51,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **LibreOffice keeps the Word contents field.** A `.docx` contents field is now written the way Word writes it — the field instruction in its own run, one cached entry per paragraph, no `w:sdt` wrapper — and the Heading styles carry an outline level. Before, LibreOffice flattened the field to dead text, showed the instruction ahead of the first entry and could not regenerate the table; now it imports it as a real index, keeps it on re-save, and Tools → Update indexes fills in the page numbers and links (#26).
+
 - Explicit codex leave-outs are reported before reading their descriptions, even when an entry is empty or unmentioned. Never keeps its own suppression reason; kept prompt text is unchanged.
 
 - Unknown shot metadata names remain data: a field named `__proto__` cannot replace the reader's metadata dictionary prototype. Unknown fields are still reported and dropped on the next save.
@@ -491,7 +493,7 @@ The first public version: a free, local-first writing studio for novels, scripts
 - A WebP picture on the contact sheet is drawn without its colour profile: the app draws the colours the browser converts to sRGB, and the MCP server and the command line draw the stored values. Characters that none of its fonts has (Helvetica, Noto Sans Mono CJK, Noto Emoji, Noto Sans Arabic, Noto Sans Hebrew, Noto Sans Devanagari), such as Tamil, print as `?`, and the compile log names them. The sheet has been checked by tests that read the PDF back, not yet by eye in a range of PDF readers.
 - Final Draft (`.fdx`) import and export have not been checked against files that Final Draft wrote or opened. The scene numbers and page headers Caotang writes are not yet confirmed in Final Draft.
 - The `.xlsx` files are checked by unit tests against the Office Open XML parts, and CI opens them in LibreOffice and openpyxl. They have not been opened in Excel or Numbers yet: the checklist for that is `docs/testing/office-interop.md`, and it records no result.
-- The Word contents field has not been tested in Word, LibreOffice, Pages or Google Docs; `docs/testing/office-interop.md` holds the checklist, with no result recorded yet. Word offers to update it when the file opens; a file without a contents list does not ask. The file's structure is tested, and its entries are plain text until Word updates the field.
+- The Word contents field is checked in LibreOffice in CI (it regenerates with page numbers and links); Word, Pages and Google Docs remain a manual check with the protocol in `docs/testing/office-interop.md`. Word offers to update the field when the file opens; a file without a contents list does not ask. The cached entries are plain text until the field is updated.
 - The `.mcpb` bundle is checked by its pinned MCPB CLI and run over stdio. It has not been run in a real MCPB host, and it is not signed.
 - Restore after a `caotang agent --write` run lasts only while the command runs: the undo history is not saved, so keep the folder under version control.
 - The SDK's restore lasts for the process: the undo history is not saved, so a turn written with `write: true` cannot be restored by a later run. Read `diff()` before you set `write: true`, and keep the project in git.

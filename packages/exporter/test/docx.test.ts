@@ -83,13 +83,17 @@ describe('the DOCX chapter break — pageBreakBefore on each Heading 1', () => {
 });
 
 describe('the DOCX contents field — the TOC recipe', () => {
-  it('writes a TOC field on Heading 1 with hyperlinks, inside a document-part content control', async () => {
+  it('writes a TOC field on Heading 1 with hyperlinks, in the multi-run shape LibreOffice keeps', async () => {
     const body = (await parts(await renderDocx(input())))['word/document.xml'] ?? '';
-    expect(body).toContain('<w:sdt>');
     // The recipe's range (exporter.md §2): headingStyleRange '1-2', which the instruction carries as `\o "1-2"`.
     expect(body).toContain('TOC \\h \\o &quot;1-2&quot;');
-    expect(body).toMatch(/<w:fldChar w:fldCharType="begin"[^>]*\/><w:instrText[^>]*>TOC/);
+    // Begin, instruction and separate each in their own run, and no `w:sdt` wrapper: the packed `w:sdt` shape `docx`'s
+    // TableOfContents writes is the one LibreOffice flattens (render-docx.ts).
+    expect(body).toMatch(
+      /<w:r><w:fldChar w:fldCharType="begin"[^>]*\/><\/w:r><w:r><w:instrText[^>]*> TOC \\h \\o &quot;1-2&quot; <\/w:instrText><\/w:r><w:r><w:fldChar w:fldCharType="separate"\/><\/w:r>/,
+    );
     expect(body).toContain('<w:fldChar w:fldCharType="end"/>');
+    expect(body).not.toContain('<w:sdt>');
   });
 
   it('leaves the field dirty, so Word refreshes it once on open (beginDirty is not false)', async () => {
@@ -108,13 +112,13 @@ describe('the DOCX contents field — the TOC recipe', () => {
     // Contents on but no chapter: no field is written either (render-docx.ts), so no prompt.
     const scene: FlatBlock[] = [{ kind: 'scene', docId: IDS.landing, title: 'The Landing', body: 'The ferry came.', number: 1 }];
     const empty = await parts(await renderDocx(input(scene, true)));
-    expect(empty['word/document.xml']).not.toContain('<w:sdt>');
+    expect(empty['word/document.xml']).not.toContain('fldChar');
     expect(empty['word/settings.xml'] ?? '').not.toContain('updateFields');
   });
 
   it('writes the cached entries as plain runs: no hyperlink and no _Toc bookmark, while \\h stays on the field', async () => {
     const body = (await parts(await renderDocx(input())))['word/document.xml'] ?? '';
-    const field = body.slice(body.indexOf('<w:sdt>'), body.indexOf('</w:sdt>'));
+    const field = body.slice(body.indexOf('<w:fldChar w:fldCharType="begin"'), body.indexOf('<w:fldChar w:fldCharType="end"'));
     expect(field).toContain('1. Chapter One');
     expect(field).not.toContain('<w:hyperlink');
     expect(body).not.toContain('_Toc');
@@ -128,26 +132,25 @@ describe('the DOCX contents field — the TOC recipe', () => {
     ];
     const xml = await parts(await renderDocx(input(blocks, true)));
     const body = xml['word/document.xml'] ?? '';
-    const field = body.slice(body.indexOf('<w:sdt>'), body.indexOf('</w:sdt>'));
-    for (const type of ['begin', 'separate', 'end']) expect(field).toContain(`<w:fldChar w:fldCharType="${type}"`);
-    expect(field).toContain('1. Only Chapter');
+    for (const type of ['begin', 'separate', 'end']) expect(body).toContain(`<w:fldChar w:fldCharType="${type}"`);
+    expect(body).toContain('1. Only Chapter');
     expect(xml['word/settings.xml']).toContain('<w:updateFields/>');
   });
 
   it('shows the cached entries inside the field, before the first chapter — visible in any viewer', async () => {
     const body = (await parts(await renderDocx(input())))['word/document.xml'] ?? '';
-    const sdtStart = body.indexOf('<w:sdt>');
-    const sdtEnd = body.indexOf('</w:sdt>');
-    expect(sdtStart).toBeGreaterThanOrEqual(0);
-    const field = body.slice(sdtStart, sdtEnd);
+    const fieldStart = body.indexOf('<w:fldChar w:fldCharType="begin"');
+    const fieldEnd = body.indexOf('<w:fldChar w:fldCharType="end"');
+    expect(fieldStart).toBeGreaterThanOrEqual(0);
+    const field = body.slice(fieldStart, fieldEnd);
     expect(field).toContain('1. Chapter One');
     expect(field).toContain('2. Chapter Two');
-    expect(sdtEnd).toBeLessThan(body.indexOf(HEADING_BREAK));
+    expect(fieldEnd).toBeLessThan(body.indexOf(HEADING_BREAK));
   });
 
   it('writes no contents field when the recipe turns it off', async () => {
     const body = (await parts(await renderDocx(input(undefined, false))))['word/document.xml'] ?? '';
-    expect(body).not.toContain('<w:sdt>');
+    expect(body).not.toContain('fldChar');
     expect(body).not.toContain('TOC \\h');
   });
 });
@@ -169,7 +172,7 @@ describe('a section scene — Heading 2 (exporter.md §2, Per-scene styling)', (
 
   it('puts the section in the cached contents at level 2, after its chapter, while the field still asks for 1-2', async () => {
     const body = (await parts(await renderDocx(styled())))['word/document.xml'] ?? '';
-    const field = body.slice(body.indexOf('<w:sdt>'), body.indexOf('</w:sdt>'));
+    const field = body.slice(body.indexOf('<w:fldChar w:fldCharType="begin"'), body.indexOf('<w:fldChar w:fldCharType="end"'));
     expect(body).toContain('TOC \\h \\o &quot;1-2&quot;');
     const chapterOne = field.indexOf('1. Chapter One');
     const section = field.indexOf('The Landing');
