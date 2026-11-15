@@ -238,4 +238,42 @@ describe('the Worker in account mode', () => {
     await expect.poll(() => events(phone).at(-1)).toEqual({ type: 'presence', peers: 0, change: 'left' });
     phone.socket.terminate();
   });
+  it('validates every socket revision before a broadcast, a sweep or a presence update', async () => {
+    const h = await runtime();
+    await h.invite('reader-one');
+    const first = (await h.signIn('reader-one')).session!;
+    const accountId = (await (await h.dispatch('/v1/account', { headers: { Cookie: first } })).json() as { id: string }).id;
+    const namespace = await h.instance.getDurableObjectNamespace('ACCOUNT_HUBS');
+    const hub = namespace.get(namespace.idFromName(accountId)) as unknown as { runAlarm(): Promise<void> };
+    const stale = await h.connect(first);
+    await h.dispatch('/v1/auth/logout-all', { method: 'POST', headers: { Cookie: first, Origin: ORIGIN } });
+    const second = (await h.signIn('reader-one')).session!;
+    expect((await h.dispatch('/v1/live/ping', { method: 'POST', headers: { Cookie: second, Origin: ORIGIN } })).status).toBe(204);
+    await expect.poll(() => stale.closeCode).toBe(1008);
+    expect(stale.messages).toEqual([]);
+    const current = await h.connect(second);
+    await hub.runAlarm();
+    expect(current.closeCode).toBeUndefined();
+    current.socket.send('ping');
+    await expect.poll(() => current.messages).toEqual(['pong']);
+    current.socket.terminate();
+  });
+
+  it('closes a stale-revision socket on the next sweep without disturbing the current one', async () => {
+    const h = await runtime();
+    await h.invite('reader-one');
+    const first = (await h.signIn('reader-one')).session!;
+    const accountId = (await (await h.dispatch('/v1/account', { headers: { Cookie: first } })).json() as { id: string }).id;
+    const namespace = await h.instance.getDurableObjectNamespace('ACCOUNT_HUBS');
+    const hub = namespace.get(namespace.idFromName(accountId)) as unknown as { runAlarm(): Promise<void> };
+    const stale = await h.connect(first);
+    await h.dispatch('/v1/auth/logout-all', { method: 'POST', headers: { Cookie: first, Origin: ORIGIN } });
+    await hub.runAlarm();
+    await expect.poll(() => stale.closeCode).toBe(1008);
+    const second = (await h.signIn('reader-one')).session!;
+    const current = await h.connect(second);
+    await hub.runAlarm();
+    expect(current.closeCode).toBeUndefined();
+    current.socket.terminate();
+  });
 });

@@ -284,7 +284,7 @@ export class AccountHub extends DurableObject<SyncServerBindings> {
       if (admission === 'revoked') return reply(401, 'Sign in to continue.');
     }
     const removed = new Set<string>();
-    const before = this.active(removed);
+    const before = await this.live(removed);
     const joined = profile && !before.some((socket) => this.attachment(socket)?.profile === profile);
     const pair = new WebSocketPair();
     pair[1].serializeAttachment({ expires, connectedAt: Date.now(), ...(profile ? { profile } : {}), ...(account ? { account } : {}) });
@@ -307,12 +307,30 @@ export class AccountHub extends DurableObject<SyncServerBindings> {
     }
   }
 
-  private async closeUnadmitted(admission: Admission): Promise<void> {
+  private async failClosed(): Promise<void> {
     const removed = new Set<string>();
-    for (const socket of this.ctx.getWebSockets()) {
-      this.retire(socket, admission === 'revoked' ? 1008 : 1011, admission === 'revoked' ? 'Sign in again.' : 'Reconnect to continue.', removed);
-    }
+    for (const socket of this.ctx.getWebSockets()) this.retire(socket, 1011, 'Reconnect to continue.', removed);
     await this.schedule([]);
+  }
+
+  private async live(removed: Set<string>, exclude?: WebSocket): Promise<WebSocket[]> {
+    const sockets = this.active(removed, exclude);
+    const verdicts = new Map<string, Admission>();
+    const keyOf = (account: HubAccount): string => JSON.stringify([account.id, account.githubId, account.revision]);
+    for (const socket of sockets) {
+      const account = this.attachment(socket)?.account;
+      if (account && !verdicts.has(keyOf(account))) verdicts.set(keyOf(account), await admit(this.env, account));
+    }
+    if ([...verdicts.values()].includes('unavailable')) {
+      await this.failClosed();
+      return [];
+    }
+    return sockets.filter((socket) => {
+      const account = this.attachment(socket)?.account;
+      if (!account || verdicts.get(keyOf(account)) === 'ok') return true;
+      this.retire(socket, 1008, 'Sign in again.', removed);
+      return false;
+    });
   }
 
   private retire(socket: WebSocket, code: number, reason: string, removed: Set<string>): void {
@@ -379,28 +397,18 @@ export class AccountHub extends DurableObject<SyncServerBindings> {
 
   override async alarm(): Promise<void> {
     const removed = new Set<string>();
-    const sockets = this.active(removed);
-    const account = sockets.map((socket) => this.attachment(socket)?.account).find((value) => value !== undefined);
-    if (account) {
-      const admission = await admit(this.env, account);
-      if (admission !== 'ok') {
-        await this.closeUnadmitted(admission);
-        return;
-      }
-    }
+    const sockets = await this.live(removed);
     await this.schedule(this.publish(sockets, 'snapshot', new Set(), removed));
   }
 
   async ping(profile?: string, account?: HubAccount): Promise<void> {
     if (accountMode(this.env)) {
       const admission = account ? await admit(this.env, account) : 'revoked';
-      if (admission !== 'ok') {
-        await this.closeUnadmitted(admission);
-        return;
-      }
+      if (admission === 'unavailable') await this.failClosed();
+      if (admission !== 'ok') return;
     }
     const removed = new Set<string>();
-    const sockets = this.active(removed);
+    const sockets = await this.live(removed);
     for (const socket of sockets) {
       try { socket.send(JSON.stringify({ type: 'ping' })); }
       catch { this.retire(socket, 1011, 'Reconnect to continue.', removed); }
@@ -433,7 +441,7 @@ export class AccountHub extends DurableObject<SyncServerBindings> {
     const removed = new Set<string>();
     this.retire(socket, code, reason, removed);
     if (!attachment) return;
-    const sockets = this.publish(this.active(removed, socket), 'snapshot', new Set(), removed);
+    const sockets = this.publish(await this.live(removed, socket), 'snapshot', new Set(), removed);
     await this.schedule(sockets);
   }
 
