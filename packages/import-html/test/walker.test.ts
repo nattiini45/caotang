@@ -158,4 +158,20 @@ describe('the XHTML walker (#299)', () => {
     expect([...out.value.images.keys()]).toEqual(['import:epub-image-2-0']);
     expect(out.value.blocks[0]?.kind === 'para' && out.value.blocks[0].src?.sourceUnit).toBe('OEBPS/ch1.xhtml');
   });
+
+  it('keeps the regions the reader names out of the text and returns them where they sat', () => {
+    const out = htmlToBlocks(
+      page('<dl class="work meta"><dd class="rating tags">Teen</dd></dl><p>First.</p><div class="notes module"><p>A note.</p></div><p>Second.</p><div id="work_endnotes"><p>End.</p></div>'),
+      { skip: ['.meta', '.notes', '#work_endnotes'] },
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.value.blocks.map((block) => (block.kind === 'para' ? block.text : ''))).toEqual(['First.', 'Second.']);
+    expect(out.value.skipped.map((region) => [region.selector, region.blockIndex])).toEqual([
+      ['.meta', 0],
+      ['.notes', 1],
+      ['#work_endnotes', 2],
+    ]);
+    expect(out.value.skipped[1]?.element.local).toBe('div');
+  });
 });

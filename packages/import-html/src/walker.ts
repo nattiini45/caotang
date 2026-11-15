@@ -104,6 +104,15 @@ export interface HtmlWalkResult {
   noterefs: HtmlNoteRef[];
   /** `epub:type="footnote"` asides, kept out of the text and returned as their Markdown. */
   notes: HtmlNote[];
+  /** The regions `options.skip` named, each with the block index it sat before, for the reader to keep apart. */
+  skipped: HtmlSkipped[];
+}
+
+/** A region the reader took out of the text: the selector that matched, where it sat, and the element itself. */
+export interface HtmlSkipped {
+  selector: string;
+  blockIndex: number;
+  element: XmlElement;
 }
 
 export type HtmlWalkError = { kind: 'not-xml'; message: string };
@@ -114,6 +123,11 @@ export interface HtmlWalkOptions {
   unit?: string;
   /** The image refs' namespace, so two pages' pictures never share a ref. `import:html-image-` by default. */
   refPrefix?: string;
+  /**
+   * Regions to keep out of the text, each `.class` or `#id`: a page's own metadata, summary or notes, which a reader keeps apart
+   * rather than importing twice. They come back in `skipped` with the block index they sat before.
+   */
+  skip?: readonly string[];
 }
 
 const BLOCK_TAGS = new Set(['p', 'div', 'section', 'article', 'header', 'footer', 'main', 'aside', 'blockquote', 'ul', 'ol', 'li', 'pre', 'table', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'figure', 'figcaption']);
@@ -141,6 +155,8 @@ export function htmlToBlocks(html: string, options: HtmlWalkOptions = {}): HtmlW
     noterefs: [],
     notes: [],
     noteLabels: new Map(),
+    skip: options.skip ?? [],
+    skipped: [],
   };
   walkChildren(body, state, {});
   return {
@@ -154,6 +170,7 @@ export function htmlToBlocks(html: string, options: HtmlWalkOptions = {}): HtmlW
       anchors: state.anchors,
       noterefs: state.noterefs,
       notes: state.notes,
+      skipped: state.skipped,
     },
   };
 }
@@ -173,6 +190,19 @@ interface WalkState {
   noterefs: HtmlNoteRef[];
   notes: HtmlNote[];
   noteLabels: Map<string, string>;
+  skip: readonly string[];
+  skipped: HtmlSkipped[];
+}
+
+/** Whether an element matches one of the reader's `.class` / `#id` skip selectors. */
+function skippedBy(element: XmlElement, selectors: readonly string[]): string | undefined {
+  if (selectors.length === 0) return undefined;
+  const classes = (attr(element, 'class') ?? '').split(/\s+/);
+  const id = attr(element, 'id') ?? '';
+  for (const selector of selectors) {
+    if (selector.startsWith('#') ? selector.slice(1) === id : classes.includes(selector.slice(1))) return selector;
+  }
+  return undefined;
 }
 
 /** Add a block, giving it the ids of the elements it came from. */
@@ -271,6 +301,14 @@ function walkNode(node: XmlNode, state: WalkState, context: InlineContext): void
 
   const id = attr(node, 'id');
   if (id !== undefined && id !== '') state.pendingAnchors.push(id);
+
+  // A region the reader keeps apart (a page's own metadata, summary or notes) is not text: it is returned where it sat.
+  const selector = skippedBy(node, state.skip);
+  if (selector !== undefined) {
+    state.skipped.push({ selector, blockIndex: state.blocks.length, element: node });
+    state.pendingAnchors.length = 0;
+    return;
+  }
 
   // A footnote aside is kept as a note, not as text: its reference in the prose points at it by fragment.
   const semantic = semanticType(node);

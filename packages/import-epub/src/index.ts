@@ -18,4 +18,4 @@ export {
   type OpfResult,
 } from './opf.js';
 export { parseNav, parseNcx, parseLandmarks, type EpubNavEntry } from './nav.js';
-export { readEpub, readEpubArchive, type EpubImport, type EpubChapter, type EpubMatter, type EpubError, type EpubResult } from './reader.js';
+export { readEpub, readEpubArchive, type EpubImport, type EpubChapter, type EpubMatter, type EpubError, type EpubResult, type EpubReadOptions } from './reader.js';

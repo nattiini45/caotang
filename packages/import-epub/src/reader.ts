@@ -10,6 +10,7 @@ import type { ImportAsset, ImportBlock, ImportDocument, ImportFootnote } from '@
 import { htmlToBlocks, type HtmlDropped } from '@caotang/import-html';
 import { decodePlainText } from '@caotang/import-read/text';
 import { openZip, type ImportArchive } from '@caotang/import-read/zip';
+import type { XmlElement } from '@caotang/import-read/xml';
 
 import { containerOpfPath, dirOf, encryptionIsDrm, parseOpf, resolveHref, type EpubLandmark, type EpubOpf } from './opf.js';
 import { parseLandmarks, parseNav, parseNcx, type EpubNavEntry } from './nav.js';
@@ -42,6 +43,8 @@ export interface EpubImport {
   fixedLayout: boolean;
   /** Spine items read, for the report. */
   spineItems: number;
+  /** The regions `options.skip` named, with the spine item and block index each sat before. */
+  skipped: { unit: string; selector: string; blockIndex: number; element: XmlElement }[];
 }
 
 export type EpubError =
@@ -104,15 +107,21 @@ function segmentsOf(href: string, blocks: ImportBlock[], anchors: Map<string, nu
   return out;
 }
 
+/** What a reader of a particular book asks the walker to keep out of the text (an AO3 download's own preface, #297). */
+export interface EpubReadOptions {
+  /** Regions to keep out of the text, each `.class` or `#id`, passed to the shared XHTML walker. */
+  skip?: readonly string[];
+}
+
 /** Read an EPUB's bytes: the zip is opened with the shared caps and zip-bomb guard. */
-export async function readEpub(bytes: Uint8Array): Promise<EpubResult> {
+export async function readEpub(bytes: Uint8Array, options: EpubReadOptions = {}): Promise<EpubResult> {
   const archive = await openZip(bytes);
   if (!archive.ok) return { ok: false, error: { kind: 'archive', message: archive.error.message } };
-  return readEpubArchive(archive.value);
+  return readEpubArchive(archive.value, options);
 }
 
 /** Read an opened EPUB archive. */
-export async function readEpubArchive(archive: ImportArchive): Promise<EpubResult> {
+export async function readEpubArchive(archive: ImportArchive, options: EpubReadOptions = {}): Promise<EpubResult> {
   // DRM first: a book we may not read is refused before any of it is parsed.
   if (archive.entry('META-INF/rights.xml') !== undefined) {
     return { ok: false, error: { kind: 'drm', message: 'META-INF/rights.xml' } };
@@ -155,6 +164,7 @@ export async function readEpubArchive(archive: ImportArchive): Promise<EpubResul
   const noterefs: { fragment: string; label: string; blockIndex: number }[] = [];
   let spineItems = 0;
   let seenLinear = false;
+  const skipped: EpubImport['skipped'] = [];
 
   for (const item of opf.spine) {
     const entry = opf.manifest.get(item.idref);
@@ -165,7 +175,11 @@ export async function readEpubArchive(archive: ImportArchive): Promise<EpubResul
     if (decoded.status === 'ask') return { ok: false, error: { kind: 'ask-encoding' } };
     if (decoded.status === 'too-large' || decoded.status === 'too-many-lines') return { ok: false, error: { kind: 'too-large' } };
 
-    const walked = htmlToBlocks(decoded.text, { unit: entry.href, refPrefix: `import:epub-image-${spineItems}-` });
+    const walked = htmlToBlocks(decoded.text, {
+      unit: entry.href,
+      refPrefix: `import:epub-image-${spineItems}-`,
+      ...(options.skip === undefined ? {} : { skip: options.skip }),
+    });
     if (!walked.ok) return { ok: false, error: { kind: 'not-xml', message: walked.error.message } };
     spineItems += 1;
 
@@ -193,6 +207,7 @@ export async function readEpubArchive(archive: ImportArchive): Promise<EpubResul
     dropped.media += walked.value.dropped.media;
 
     for (const ref of walked.value.noterefs) noterefs.push({ ...ref, blockIndex: ref.blockIndex + offset });
+    for (const region of walked.value.skipped) skipped.push({ unit: entry.href, selector: region.selector, blockIndex: region.blockIndex + offset, element: region.element });
     for (const note of walked.value.notes) {
       const anchor = walked.value.anchors.get(note.fragment);
       notesByFragment.set(note.fragment, { md: note.md, blockIndex: (anchor ?? 0) + offset });
@@ -238,7 +253,7 @@ export async function readEpubArchive(archive: ImportArchive): Promise<EpubResul
   };
   return {
     ok: true,
-    value: { document, title: opf.title, assetData, chapters, matter, cover, remoteImages, dropped, fixedLayout: opf.fixedLayout, spineItems },
+    value: { document, title: opf.title, assetData, chapters, matter, cover, remoteImages, dropped, fixedLayout: opf.fixedLayout, spineItems, skipped },
   };
 }
 
