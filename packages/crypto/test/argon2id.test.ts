@@ -100,9 +100,12 @@ describe('the Argon2id adapter', () => {
   });
 
   it('refuses a cost above the ceiling, so a tampered record cannot exhaust the client', () => {
-    expect(() => argon2idDescriptor({ memoryKiB: 1_048_577, iterations: 3, parallelism: 1 })).toThrow(/memory/);
+    expect(() => argon2idDescriptor({ memoryKiB: 262_145, iterations: 3, parallelism: 1 })).toThrow(/memory/);
     expect(() => argon2idDescriptor({ memoryKiB: 64, iterations: 11, parallelism: 1 })).toThrow(/iterations/);
-    expect(() => argon2idDescriptor({ memoryKiB: 64, iterations: 3, parallelism: 17 })).toThrow(/parallelism/);
+    expect(() => argon2idDescriptor({ memoryKiB: 64, iterations: 3, parallelism: 5 })).toThrow(/parallelism/);
+    expect(() => argon2idDescriptor({ memoryKiB: 8, iterations: 1, parallelism: 4 })).toThrow(/lane/);
+    expect(() => argon2idDescriptor({ memoryKiB: 32, iterations: 1, parallelism: 4 })).not.toThrow();
+    expect(() => resolveArgon2idKdf({ id: ARGON2ID_ID, params: { memoryKiB: 1_048_576, iterations: 3, parallelism: 1 } })).toThrow(/memory/);
     expect(() => resolveArgon2idKdf({ id: ARGON2ID_ID, params: { memoryKiB: 2_000_000_000, iterations: 3, parallelism: 1 } })).toThrow(/memory/);
     expect(() => resolveArgon2idKdf({ id: ARGON2ID_ID, params: { memoryKiB: 64, iterations: 1_000_000_000, parallelism: 1 } })).toThrow(/iterations/);
   });

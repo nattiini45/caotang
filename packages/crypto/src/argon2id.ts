@@ -24,16 +24,18 @@ export const ARGON2ID_DEFAULT: Argon2idParams = {
 /**
  * Upper bounds on the cost, so a descriptor read from an account record cannot exhaust the unlocking client.
  * The parameters in a record are plaintext the server can tamper with; far above any sane password hash, these
- * ceilings still refuse a catastrophic allocation or run time. The default sits well inside them.
+ * ceilings still refuse a catastrophic allocation or run time: four times the default memory, and a few lanes.
+ * The default sits well inside them, leaving room to raise the cost later.
  */
-const MAX_MEMORY_KIB = 1_048_576;
+const MAX_MEMORY_KIB = 262_144;
 const MAX_ITERATIONS = 10;
-const MAX_PARALLELISM = 16;
+const MAX_PARALLELISM = 4;
 
 function assertParams(params: Argon2idParams): void {
   if (!Number.isSafeInteger(params.memoryKiB) || params.memoryKiB < 8 || params.memoryKiB > MAX_MEMORY_KIB) throw new CryptoError('invalid-argument', `Argon2id memory is a whole number from 8 KiB to ${MAX_MEMORY_KIB} KiB`);
   if (!Number.isSafeInteger(params.iterations) || params.iterations < 1 || params.iterations > MAX_ITERATIONS) throw new CryptoError('invalid-argument', `Argon2id iterations are a whole number from 1 to ${MAX_ITERATIONS}`);
   if (!Number.isSafeInteger(params.parallelism) || params.parallelism < 1 || params.parallelism > MAX_PARALLELISM) throw new CryptoError('invalid-argument', `Argon2id parallelism is a whole number from 1 to ${MAX_PARALLELISM}`);
+  if (params.memoryKiB < 8 * params.parallelism) throw new CryptoError('invalid-argument', 'Argon2id memory is at least 8 KiB for each lane');
 }
 
 /** The descriptor stored beside the wrapped master key. */
