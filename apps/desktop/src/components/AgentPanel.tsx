@@ -559,7 +559,7 @@ export function AgentPanel({
       <InterruptedRuns agent={agent} runs={snapshot.interrupted} busy={snapshot.busy} onResume={() => (open ? undefined : onToggle())} />
 
       {/* A goal the project was left with waits for the same answer (agent-harness §7.2): it never resumes on its own. */}
-      <GoalRecovery agent={agent} goals={snapshot.goals} />
+      <GoalRecovery agent={agent} goals={snapshot.goals} unavailable={snapshot.goalUnavailable} />
 
       {/* A task that is due waits for the writer's answer, so its offer is shown with the drawer closed too. */}
       <TaskOffers recurring={recurring} />

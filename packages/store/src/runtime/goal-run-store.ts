@@ -64,13 +64,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
  * it is an object with a goal, an iteration list, a result list, a next iteration and a spend — enough that a resume would be about a
  * real run rather than a guess at a damaged row.
  */
-export function checkpointReadable(value: unknown): boolean {
+export function checkpointReadable(value: unknown, goalId?: string): boolean {
   if (!isRecord(value)) return false;
   const goal = value['goal'];
   const iterations = value['iterations'];
   const results = value['results'];
   const spend = value['spend'];
   if (!isRecord(goal) || !isId(goal['id']) || typeof goal['intent'] !== 'string' || !Array.isArray(goal['checks'])) return false;
+  if (goalId !== undefined && goal['id'] !== goalId) return false;
   const limits = goal['limits'];
   if (!isRecord(limits)) return false;
   const fields = ['maxModelCalls', 'maxTokens', 'maxCostUsd', 'maxSteps', 'maxActiveMs', 'deadline'];
@@ -123,7 +124,7 @@ export async function readOpenGoalRuns(store: RuntimeStore, projectId: string): 
 export async function openGoalRecovery(store: RuntimeStore, goalId: string): Promise<GoalRecovery> {
   const row = await readGoalRun(store, goalId);
   if (row === undefined) return { kind: 'none' };
-  if (!goalRowReadable(row) || !checkpointReadable(row.checkpoint)) return { kind: 'unreadable', row };
+  if (!goalRowReadable(row) || !checkpointReadable(row.checkpoint, row.goalId)) return { kind: 'unreadable', row };
   if (row.status === 'settled') return { kind: 'none' };
   return { kind: 'offer', row };
 }
@@ -172,7 +173,7 @@ export function appendGoalCheckpoint(
         fail(new Error(`goal "${goalId}" is settled and runs no further iteration`));
         return;
       }
-      if (!checkpointReadable(change.checkpoint)) {
+      if (!checkpointReadable(change.checkpoint, goalId)) {
         fail(new Error('the goal checkpoint cannot be read'));
         return;
       }

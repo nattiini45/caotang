@@ -6,7 +6,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
-- **Goal recovery.** Goals started through the app controller now leave a durable record. A reload offers an interrupted goal with **Resume the goal** and **Discard the goal record**; nothing continues automatically. Resume keeps shared spend and loop progress, and Stop ends the whole goal. A goal-start interface is still separate work.
+- **Goal recovery.** Goals started through the app controller now leave a durable record. A reload offers an interrupted goal with **Resume the goal** and **Discard the goal record**; nothing continues automatically. Resume keeps shared spend and loop progress, and Stop ends the whole goal. Goal controls require Web Locks while ordinary projects remain usable without it. Unrecorded model usage consumes affected limits conservatively, with an explanation on the card; a deleted owning conversation leaves Discard only. A goal-start interface is still separate work.
 
 - **Allowed automatic plan tasks.** A recurring plan can start when due after you allow that exact task on this browser, with a model-call cap. Drafts wait in the Inbox for review; no steps apply by themselves. Relevant edits invalidate the allowance, and revocation cancels pending work. History reconciles each queued occurrence once and shows its calls and tokens. Instructions still stay offered; their planning-only auto-start surface is tracked in #685.
 

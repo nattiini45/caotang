@@ -1,5 +1,8 @@
 # Decisions
 
+- Goal recovery counts unresolved model reservations as spent calls and conservatively consumes any token, cost and active-time limits before continuing; the recovery card explains the unrecorded usage. These are conservative meter charges, not fabricated provider usage reports. [delegated 2026-11-16]
+- Goal Start, Resume and abandoned-goal marking require Web Locks; unavailable controls show one reason while ordinary projects and Discard remain usable. Do not add a durable owner lease unless a no-Web-Locks host becomes a real requirement. [delegated 2026-11-16]
+
 - Goal-owned foreground sessions add live write-scope rules through an isolated harness view sharing the existing command bus history; background task policies are not changed. Scope rules apply before drafting/applying, not only after an iteration. Recovery validates the whole stored row, retries a failed interruption mark and releases all three goal actions through one queue-aware path. [delegated 2026-11-16]
 
 - Goal completion releases the controller's existing unpaused message queue, and goal-owned setup failures settle as failed instead of leaving an inactive running record. Ordinary paused-queue behavior and explicit recovery remain unchanged. [delegated 2026-11-16]

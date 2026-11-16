@@ -9,7 +9,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore } from '@caotang/gateway';
 import { createMockProvider } from '@caotang/gateway/mock';
-import { appendGoalCheckpoint, createGoalRun, createRunLogPort, deleteGoalRun, markGoalsInterrupted, openRuntimeStore, readGoalRun, readRun, recordGoalIteration, writeProjectState, MemoryIndexedDb, type GoalCheckpoint } from '@caotang/store';
+import { appendGoalCheckpoint, createGoalRun, createRunLogPort, deleteGoalRun, markGoalsInterrupted, openRuntimeStore, readGoalRun, readRun, recordGoalIteration, removeAgentSession, resumeGoalRun, writeProjectState, MemoryIndexedDb, type GoalCheckpoint } from '@caotang/store';
 
 import { AgentController, type AgentSnapshot } from '../src/app/agent.js';
 import type { AppDb } from '../src/app/app-db.js';
@@ -24,6 +24,7 @@ const sessions: { session: ProjectSession; controller: AgentController }[] = [];
 beforeEach(() => {
   vi.stubGlobal('document', new EventTarget());
   vi.stubGlobal('window', new EventTarget());
+  vi.stubGlobal('navigator', { locks: { request: vi.fn() } });
 });
 
 afterEach(async () => {
@@ -205,6 +206,149 @@ it('counts a crash-lost reserved call from the active iteration before resuming 
   expect(f.controller.snapshot().turns).toEqual([]);
 });
 
+it.each([
+  { limits: { maxTokens: 1_000_000 }, field: 'promptTokens', limit: 1_000_000 },
+  { limits: { maxCostUsd: 10 }, field: 'costUsd', limit: 10 },
+  { limits: { maxActiveMs: 1_000_000 }, field: 'activeMs', limit: 1_000_000 },
+] as const)('treats unresolved model usage as spent for $field before resuming', async ({ limits, field, limit }) => {
+  const f = await fixture(true);
+  const goal = { ...passedGoal(), checks: [{ kind: 'status.all' as const, status: 'final', scope: { mode: 'full' as const } }], limits };
+  const spend = { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 };
+  await appendGoalCheckpoint(f.store, GOAL, { checkpoint: { goal, iterations: [], results: [], nextIteration: 1, spend }, at: 200 });
+  const port = createRunLogPort(f.store);
+  await port.create({ schema: 3, runId: 'unresolved-model', projectId: f.session.projectId, kind: 'turn', intent: goal.intent, createdAt: 200, updatedAt: 200, status: 'interrupted' });
+  await port.append('unresolved-model', [
+    { t: 'turn.start', v: 3, turnId: 'unresolved-turn', intent: goal.intent, wire: 'planner', native: false, seq: 0, at: 200 },
+    { t: 'spend', turnId: 'unresolved-turn', spend, reservedCalls: 1, seq: 1, at: 201 },
+  ]);
+  await recordGoalIteration(f.store, GOAL, 'unresolved-model', 200);
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  const offered = f.controller.snapshot().goals[0];
+  await f.controller.resumeGoal(GOAL);
+  const saved = await readGoalRun(f.store, GOAL);
+  expect(saved?.result?.status).toBe('budget');
+  expect((saved?.checkpoint as GoalCheckpoint).spend[field]).toBeGreaterThanOrEqual(limit);
+  expect(f.controller.snapshot().turns).toEqual([]);
+  expect(f.providers.gateway.ledger.turnRows()).toEqual([]);
+  expect(offered).toMatchObject({ note: expect.stringContaining('treated as spent') });
+});
+
+it('does not mark running goals interrupted when Web Locks are missing', async () => {
+  const f = await fixture();
+  vi.stubGlobal('navigator', {});
+  await f.controller.loadGoals();
+  expect((await readGoalRun(f.store, GOAL))?.status).toBe('running');
+  expect(f.controller.snapshot()).toMatchObject({ goalUnavailable: expect.stringContaining('Web Locks') });
+});
+
+it('settles recovery as failed when conservative spend cannot be persisted', async () => {
+  const f = await fixture();
+  const checkpoint = (await readGoalRun(f.store, GOAL))!.checkpoint as GoalCheckpoint;
+  const port = createRunLogPort(f.store);
+  await port.create({ schema: 3, runId: 'pending-budget-save', projectId: f.session.projectId, kind: 'turn', intent: checkpoint.goal.intent, createdAt: 200, updatedAt: 200, status: 'interrupted' });
+  await port.append('pending-budget-save', [
+    { t: 'turn.start', v: 3, turnId: 'pending-turn', intent: checkpoint.goal.intent, wire: 'planner', native: false, seq: 0, at: 200 },
+    { t: 'spend', turnId: 'pending-turn', spend: checkpoint.spend, reservedCalls: 1, seq: 1, at: 201 },
+  ]);
+  await recordGoalIteration(f.store, GOAL, 'pending-budget-save', 200);
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  const transaction = f.store.db.transaction.bind(f.store.db);
+  vi.spyOn(f.store.db, 'transaction').mockImplementation((names, mode, options) => {
+    const stores = typeof names === 'string' ? [names] : [...names];
+    if (mode === 'readwrite' && stores.includes('goalRuns') && stores.includes('runs')) throw new Error('Conservative checkpoint refused.');
+    return transaction(names, mode, options);
+  });
+  await f.controller.resumeGoal(GOAL);
+  expect(await readGoalRun(f.store, GOAL)).toMatchObject({ status: 'settled', result: { status: 'failed', reason: 'Conservative checkpoint refused.' } });
+  expect(f.controller.snapshot().turns).toEqual([]);
+  expect(f.providers.gateway.ledger.turnRows()).toEqual([]);
+});
+
+it('keeps goals discardable when their conversations cannot be read', async () => {
+  const f = await fixture();
+  await f.controller.loadGoals();
+  const transaction = f.store.db.transaction.bind(f.store.db);
+  const failure = vi.spyOn(f.store.db, 'transaction').mockImplementation((names, mode, options) => {
+    const stores = typeof names === 'string' ? [names] : [...names];
+    if (mode === 'readonly' && stores.includes('agentSessions')) throw new Error('Conversation read refused.');
+    return transaction(names, mode, options);
+  });
+  await f.controller.loadGoals();
+  expect(f.controller.snapshot().goals).toHaveLength(1);
+  expect(f.controller.snapshot().goals[0]).toMatchObject({ resumable: false, note: expect.stringContaining('conversation') });
+  failure.mockRestore();
+  await f.controller.discardGoal(GOAL);
+  expect(await readGoalRun(f.store, GOAL)).toBeUndefined();
+});
+
+it('refuses goal Start and Resume without Web Locks while ordinary turns and Discard still work', async () => {
+  const f = await fixture(true);
+  await markGoalsInterrupted(f.store, f.session.projectId, 300);
+  vi.stubGlobal('navigator', {});
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  const id = 'g_7QK4M2N8RZ';
+  await f.controller.startGoal({ ...passedGoal(), id });
+  expect(await readGoalRun(f.store, id)).toBeUndefined();
+  await f.controller.resumeGoal(GOAL);
+  expect((await readGoalRun(f.store, GOAL))?.status).toBe('interrupted');
+  expect(f.controller.snapshot().message).toContain('Web Locks');
+  expect(f.controller.snapshot().turns).toEqual([]);
+  await f.controller.submit('Explain the next scene.');
+  expect(f.controller.snapshot().turns).toHaveLength(1);
+  await f.controller.discardGoal(GOAL);
+  expect(await readGoalRun(f.store, GOAL)).toBeUndefined();
+});
+
+it('makes a goal discard-only when its owning conversation is deleted', async () => {
+  const f = await fixture();
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  await f.controller.deleteSession(f.controller.snapshot().sessionId);
+  expect(f.controller.snapshot().goals[0]).toMatchObject({ resumable: false, note: expect.stringContaining('conversation') });
+  await f.controller.discardGoal(GOAL);
+  expect(await readGoalRun(f.store, GOAL)).toBeUndefined();
+});
+
+it('refuses Resume when the currently selected owning conversation is no longer stored', async () => {
+  const f = await fixture();
+  await markGoalsInterrupted(f.store, f.session.projectId, 300);
+  await removeAgentSession(f.store, f.session.projectId, f.controller.snapshot().sessionId);
+  await f.controller.loadGoals();
+  expect(f.controller.snapshot().goals[0]).toMatchObject({ resumable: false });
+  await f.controller.resumeGoal(GOAL);
+  expect((await readGoalRun(f.store, GOAL))?.status).toBe('interrupted');
+  expect(f.controller.snapshot().turns).toEqual([]);
+});
+
+it.each(['current', 'stale'] as const)('does not offer or resume a goal-owned iteration through a %s independent-turn view', async (view) => {
+  const f = await fixture(true);
+  const checkpoint = (await readGoalRun(f.store, GOAL))!.checkpoint as GoalCheckpoint;
+  await appendGoalCheckpoint(f.store, GOAL, { checkpoint: { ...checkpoint, goal: { ...checkpoint.goal, limits: { maxModelCalls: 0 } } }, at: 200 });
+  const port = createRunLogPort(f.store);
+  await port.create({ schema: 3, runId: 'goal-owned-turn', projectId: f.session.projectId, kind: 'turn', intent: 'An iteration of the goal.', createdAt: 200, updatedAt: 200, status: 'interrupted' });
+  await port.append('goal-owned-turn', [
+    { t: 'turn.start', v: 3, turnId: 'owned-turn', intent: 'An iteration of the goal.', wire: 'planner', native: false, seq: 0, at: 200 },
+    { t: 'skills.loaded', turnId: 'owned-turn', skills: [], seq: 1, at: 201 },
+    { t: 'messages', turnId: 'owned-turn', appended: [{ role: 'user', content: 'An iteration of the goal.' }], seq: 2, at: 202 },
+  ]);
+  if (view === 'current') await recordGoalIteration(f.store, GOAL, 'goal-owned-turn', 200);
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  if (view === 'stale') {
+    await resumeGoalRun(f.store, GOAL, 300);
+    await recordGoalIteration(f.store, GOAL, 'goal-owned-turn', 300);
+    await markGoalsInterrupted(f.store, f.session.projectId, 400);
+  }
+  expect(await f.controller.resumeRun('goal-owned-turn')).toBeNull();
+  await f.controller.loadInterrupted();
+  expect(f.controller.snapshot().interrupted.some((run) => run.runId === 'goal-owned-turn')).toBe(false);
+  expect(f.controller.snapshot().runHistory.find((run) => run.runId === 'goal-owned-turn')).toMatchObject({ resumable: false });
+  expect(f.providers.gateway.ledger.turnRows()).toEqual([]);
+});
+
 it('keeps a goal interrupted when its linked iteration may already have written to an MCP server', async () => {
   const f = await fixture();
   const port = createRunLogPort(f.store);
@@ -341,6 +485,7 @@ it('retries a transient interruption-mark failure on the next recovery load', as
   const failed = vi.spyOn(f.store.db, 'transaction').mockImplementationOnce(() => { throw new Error('Storage is temporarily unavailable.'); });
   await f.controller.loadGoals();
   expect((await readGoalRun(f.store, GOAL))?.status).toBe('running');
+  expect(f.controller.snapshot().goals[0]).toMatchObject({ resumable: false, note: expect.stringContaining('interruption could not be saved') });
   failed.mockImplementation(transaction);
   await f.controller.loadGoals();
   expect(f.controller.snapshot().goals[0]).toMatchObject({ status: 'interrupted', resumable: true });

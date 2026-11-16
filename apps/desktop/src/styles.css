@@ -2948,6 +2948,10 @@ label.settings-check {
   padding: 0 var(--space-6) var(--space-4);
 }
 
+.goal-recovery .button[aria-disabled="true"]:focus-visible {
+  opacity: 1;
+}
+
 .activity-runs .agent-interrupted {
   max-height: none;
   overflow: visible;

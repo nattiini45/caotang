@@ -72,6 +72,19 @@ const checkpoint = (nextIteration = 1) => ({
 });
 
 describe('checkpoint budget validation', () => {
+  it('refuses recovery and checkpoint appends when the checkpoint names another goal', async () => {
+    const store = await openRuntimeStore(new MemoryIndexedDb(), 'goal-wrong-owner');
+    const saved = checkpoint();
+    const invalid = { ...saved, goal: { ...saved.goal, id: 'g_7QK4M2N8RZ' } };
+    try {
+      await createGoalRun(store, { goalId: GOAL, projectId: PROJECT, sessionId: CONVERSATION, checkpoint: invalid, at: 100 });
+      await markGoalsInterrupted(store, PROJECT, 200);
+      expect(await openGoalRecovery(store, GOAL)).toMatchObject({ kind: 'unreadable' });
+      await expect(appendGoalCheckpoint(store, GOAL, { checkpoint: invalid, at: 300 })).rejects.toThrow('cannot be read');
+    } finally {
+      store.close();
+    }
+  });
   it.each(['maxModelCalls', 'maxTokens', 'maxCostUsd', 'maxSteps', 'maxActiveMs', 'deadline'])('rejects invalid %s limits', (field) => {
     const saved = checkpoint();
     for (const value of [NaN, Infinity, -Infinity, -1, '1', null]) {
