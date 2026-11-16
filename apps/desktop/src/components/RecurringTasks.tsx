@@ -96,7 +96,7 @@ export function RecurringTasksPanel({
       }
       const stepsInvalid = session.draft.body === 'plan' && !readPlanText(session.draft.steps).ok;
       setEditing((now) => (now === null ? now : { ...now, error: failure, stepsInvalid }));
-      if (stepsInvalid) stepsRef.current?.focus();
+      if (stepsInvalid) requestAnimationFrame(() => stepsRef.current?.focus());
     });
   };
 
@@ -253,7 +253,8 @@ function TaskForm({
   const timed = draft.schedule === 'daily' || draft.schedule === 'weekly';
   const model = draft.body === 'intent' || draft.body === 'plan';
   return (
-    <form className="recurring-form settings-form" noValidate aria-label={editing.id === null ? t`New task` : t`Edit task`} onSubmit={onSubmit}>
+    <form className="recurring-form settings-form" noValidate aria-busy={saving} aria-label={editing.id === null ? t`New task` : t`Edit task`} onSubmit={onSubmit}>
+      <fieldset className="recurring-form-fields" disabled={saving}>
       <label>
         <span>Task name</span>
         <input type="text" autoFocus value={draft.name} maxLength={80} onChange={(event) => set({ name: event.target.value })} />
@@ -356,6 +357,7 @@ function TaskForm({
           Cancel
         </button>
       </div>
+      </fieldset>
     </form>
   );
 }

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import type * as RecurringModule from '../apps/desktop/src/app/recurring-tasks.js';
 
 import { fakeEndpoint, useFakeEndpoint, type FakeReply } from './endpoint.js';
 import { binderTitle, createProject, waitForSaved } from './support.js';
@@ -204,6 +205,35 @@ test('tasks are the writer’s: they are kept in the project, switched off and d
   await page.getByRole('dialog').getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByTestId('recurring-tasks').locator('[data-task]')).toHaveCount(0);
   await expect(page.getByTestId('recurring-tasks')).toContainText('No tasks yet.');
+});
+
+test('a save in flight holds the form inert until the write settles', async ({ page }) => {
+  test.setTimeout(60_000);
+  await createProject(page, 'Held Save');
+  await openAgent(page);
+  await page.getByRole('button', { name: 'New task' }).click();
+  const form = page.getByRole('form', { name: 'New task' });
+  await form.getByLabel('Task name').fill('Held task');
+  await form.getByLabel('What it does').selectOption({ label: 'Scan for continuity problems' });
+  await page.evaluate(async () => {
+    const path = '/src/app/recurring-tasks.ts';
+    const mod = await import(path) as typeof RecurringModule;
+    const original = mod.RecurringTasks.prototype.save;
+    let release = (): void => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    mod.RecurringTasks.prototype.save = function (this: InstanceType<typeof mod.RecurringTasks>, ...args: Parameters<typeof original>) {
+      Object.assign(window, { __releaseTaskSave: () => { release(); mod.RecurringTasks.prototype.save = original; } });
+      return gate.then(() => original.apply(this, args));
+    };
+  });
+  await form.getByRole('button', { name: 'Save task' }).click();
+  await expect(form.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+  await expect(form.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  await expect(form.getByLabel('Task name')).toBeDisabled();
+  await expect(form).toHaveAttribute('aria-busy', 'true');
+  await page.evaluate(() => (window as unknown as { __releaseTaskSave: () => void }).__releaseTaskSave());
+  await expect(page.getByTestId('recurring-tasks').locator('[data-task]')).toHaveCount(1);
+  await expect(page.getByRole('form', { name: 'New task' })).toHaveCount(0);
 });
 
 for (const language of ['en', 'de'] as const) {
