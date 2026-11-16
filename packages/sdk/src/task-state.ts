@@ -10,10 +10,13 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { isIdWithPrefix } from '@caotang/ids';
 import { corruptStateFile, emptyTaskState, parseTaskState, serializeTaskState, type TaskStateFile } from '@caotang/tasks';
 
 /** The state file for a project, outside the project folder: one file per project id, under the user's home. */
 export function defaultTaskStatePath(projectId: string, home: string = homedir()): string {
+  // A project folder supplies this id, so it is checked against the generated format before it names a path: a traversal-shaped id must never reach a rename.
+  if (!isIdWithPrefix('p', projectId)) throw new Error(`not a Caotang project id: ${JSON.stringify(projectId)}`);
   return join(home, '.caotang', 'task-state', `${projectId}.json`);
 }
 

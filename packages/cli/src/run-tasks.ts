@@ -9,6 +9,8 @@
 
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 
+import { isIdWithPrefix } from '@caotang/ids';
+
 import { NodeArtifactFs, defaultTaskStatePath, loadTaskState, manifestOnDisk, saveTaskState } from '@caotang/sdk/folder';
 import { openProject, type CaotangProject, type FileChange, type ProviderConfig } from '@caotang/sdk';
 import { dueTasks, effectiveWhenDue, loadTasks, usesModel, withHandled, type AgentTask, type TaskStateFile, type TasksFile } from '@caotang/tasks';
@@ -102,7 +104,7 @@ async function projectIdOf(fs: NodeArtifactFs, root: string): Promise<string> {
   }
   const project = typeof raw === 'object' && raw !== null && 'project' in raw ? (raw as { project: unknown }).project : undefined;
   const id = typeof project === 'object' && project !== null && 'id' in project ? (project as { id: unknown }).id : undefined;
-  if (typeof id !== 'string' || id === '') throw new UsageError(`the caotang.json in ${root} has no project id`);
+  if (typeof id !== 'string' || !isIdWithPrefix('p', id)) throw new UsageError(`the caotang.json in ${root} has no project id this build can name a state file after: ${JSON.stringify(id)}`);
   return id;
 }
 
@@ -144,9 +146,12 @@ const providerConfig = (flags: NonNullable<TasksArgs['providerFlags']>, key: str
   };
 };
 
-/** The permission a task runs under: the file's ceiling over the flag's mode (agent-harness §12). */
+const MODE_RANK: Readonly<Record<'read-only' | 'auto' | 'approve-all', number>> = { 'read-only': 0, auto: 1, 'approve-all': 2 };
+
+/** The permission a task runs under: the least permissive of the file's ceiling and the flag (agent-harness §12). The file's `ask` is the headless `auto`: every card cancelled, nobody to ask. */
 export function modeFor(task: AgentTask, flag: 'read-only' | 'auto' | 'approve-all'): 'read-only' | 'auto' | 'approve-all' {
-  return task.permission === 'read-only' ? 'read-only' : flag;
+  const ceiling = task.permission === 'read-only' ? 'read-only' : 'auto';
+  return MODE_RANK[ceiling] <= MODE_RANK[flag] ? ceiling : flag;
 }
 
 /** The call cap a task runs under: the lowest of its own cap and the flag's. */
@@ -282,7 +287,7 @@ export async function runTasksCommand(argv: readonly string[], io: TasksIo): Pro
         root,
         provider: args.providerFlags === undefined ? 'mock' : providerConfig(args.providerFlags, key),
         // A scan body is the deterministic appender: it changes no text, so it runs as `caotang scan --write` does, under no card policy.
-        approval: task.body.kind === 'scan' ? 'auto' : policyFor(mode, args.approveTools),
+        approval: task.body.kind === 'scan' ? 'auto' : policyFor(mode, mode === 'approve-all' ? args.approveTools : undefined),
         write: args.write,
         maxModelCalls: cap,
         ...(io.fetch === undefined ? {} : { fetch: io.fetch }),

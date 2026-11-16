@@ -23,6 +23,7 @@
     "@caotang/font-noto-emoji": "workspace:*",
     "@caotang/font-noto-hebrew": "workspace:*",
     "@caotang/gateway": "workspace:*",
+    "@caotang/ids": "workspace:*",
     "@caotang/mcp-server": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",
     "@caotang/scan": "workspace:*",

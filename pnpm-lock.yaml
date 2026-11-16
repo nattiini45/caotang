@@ -409,6 +409,9 @@ importers:
       '@caotang/gateway':
         specifier: workspace:*
         version: link:../gateway
+      '@caotang/ids':
+        specifier: workspace:*
+        version: link:../ids
       '@caotang/mcp-server':
         specifier: workspace:*
         version: link:../mcp-server

@@ -186,10 +186,38 @@ describe('caotang tasks run', () => {
     const scan = TASKS.tasks[0] as never;
     const model = TASKS.tasks[1] as never;
     expect(modeFor(scan, 'approve-all')).toBe('read-only');
-    expect(modeFor(model, 'approve-all')).toBe('approve-all');
+    expect(modeFor(model, 'approve-all')).toBe('auto');
     expect(modeFor(model, 'read-only')).toBe('read-only');
     expect(capFor(model, 8)).toBe(2);
     expect(capFor(model, 1)).toBe(1);
     expect(capFor(scan, 8)).toBe(8);
+  });
+  it('an ask task cannot be promoted past auto, and a read-only task cannot be promoted at all', async () => {
+    const io = { ...capture({ cwd: root }), now: () => NOW };
+    expect(await runTasksCommand(['run', MODEL, '--state', state, '--mock', '--permission', 'approve-all'], io)).toBe(4);
+    const io2 = { ...capture({ cwd: root }), now: () => NOW };
+    expect(await runTasksCommand(['run', MODEL, '--state', state, '--mock', '--permission', 'approve-all', '--approve-tools', 'doc.write'], io2)).toBe(4);
+    const readOnly = { ...TASKS, tasks: TASKS.tasks.map((task) => (task.id === MODEL ? { ...task, permission: 'read-only' } : task)) };
+    writeFileSync(join(root, 'tasks.json'), JSON.stringify(readOnly));
+    const io3 = { ...capture({ cwd: root }), now: () => NOW };
+    expect(await runTasksCommand(['run', MODEL, '--state', state, '--mock', '--permission', 'approve-all', '--approve-tools', 'doc.write'], io3)).toBe(4);
+  });
+
+  it('a traversal-shaped project id cannot name a state file', async () => {
+    const manifest = JSON.parse(readFileSync(join(root, 'caotang.json'), 'utf8')) as { project: { id: string } };
+    manifest.project.id = '../../evil';
+    writeFileSync(join(root, 'caotang.json'), JSON.stringify(manifest));
+    const io = { ...capture({ cwd: root }), now: () => NOW };
+    expect(await runTasksCommand(['due'], io)).toBe(2);
+    expect(io.err.join('')).toContain('project id');
+  });
+
+  it('the permission ceiling maps ask to auto and keeps the least permissive mode', () => {
+    const ask = { ...TASKS.tasks[1], permission: 'ask' } as never;
+    const readOnly = { ...TASKS.tasks[1], permission: 'read-only' } as never;
+    expect(modeFor(ask, 'approve-all')).toBe('auto');
+    expect(modeFor(ask, 'auto')).toBe('auto');
+    expect(modeFor(ask, 'read-only')).toBe('read-only');
+    expect(modeFor(readOnly, 'approve-all')).toBe('read-only');
   });
 });
