@@ -97,7 +97,10 @@ describe('the Worker in account mode', () => {
     const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session! } })).json() as { id: string; usage: unknown };
     expect(account.id).toMatch(/^[a-f0-9-]{36}$/);
     expect(account.usage).toEqual({ limitBytes: 64, usedBytes: 0, reservedBytes: 0 });
-    expect(JSON.stringify(account)).not.toContain('101');
+    expect(account.id).not.toBe('101');
+    const record = JSON.stringify(account);
+    expect(record).not.toContain('github:101');
+    expect(record).not.toContain('reader-one');
     expect((await h.dispatch('/v1/account')).status).toBe(401);
     expect((await h.signIn('reader-one')).session).toBeDefined();
   });
