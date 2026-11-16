@@ -351,6 +351,8 @@ export async function reviewCheckpointEvidenceOk(plan: ReviewExecutionPlan, bodi
   const scope = new Set(plan.scopeDocIds);
   const categories = new Set<string>(plan.categories);
   if (!checkpoint.extractedDocIds.every((id) => scope.has(id)) || !checkpoint.evaluated.every((id) => scope.has(id))) return false;
+  const extracted = new Set(checkpoint.extractedDocIds);
+  if (!checkpoint.evaluated.every((id) => extracted.has(id))) return false;
   const verbatim = (docId: string, quote: string, from: number, to: number): boolean => {
     const body = bodies.get(docId);
     return body !== undefined && quote !== '' && body.slice(from, to) === quote;
@@ -365,11 +367,13 @@ export async function reviewCheckpointEvidenceOk(plan: ReviewExecutionPlan, bodi
   const named = new Set(checkpoint.verdicts.map((verdict) => verdict.pairId));
   const captured = new Map<string, PairRef>();
   const formed = new Set<string>();
+  const formedIds = new Set<string>();
   let pairs = 0;
   let sinceYield = 0;
   for (const pair of pairSequence(checkpoint.spans, plan.categories)) {
     pairs += 1;
     formed.add(pairKey(pair));
+    formedIds.add(pair.pairId);
     if (named.has(pair.pairId)) captured.set(pair.pairId, pair);
     sinceYield += 1;
     if (yieldToHost !== undefined && sinceYield >= REVIEW_YIELD_EVERY) {
@@ -379,6 +383,7 @@ export async function reviewCheckpointEvidenceOk(plan: ReviewExecutionPlan, bodi
   }
   if (checkpoint.verifiedBatches > Math.ceil(pairs / PAIRS_PER_CALL)) return false;
   if (checkpoint.verifiedPairs !== undefined && !checkpoint.verifiedPairs.every((key) => formed.has(key))) return false;
+  if (!Object.keys(checkpoint.usageByPair).every((pairId) => formedIds.has(pairId))) return false;
   const overlaps = (passage: { docId: string; from: number; to: number }, span: ExtractedSpan): boolean =>
     passage.docId === span.docId && passage.from < span.to && span.from < passage.to;
   for (const verdict of checkpoint.verdicts) {
@@ -426,7 +431,16 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
   if (usable !== undefined) {
     for (const pair of pairSequence(usable.spans, plan.categories)) previousKeys.set(pair.pairId, pairKey(pair));
     // A checkpoint written before the keys existed carries a count over a composition that may since have grown; its pairs are verified again and its kept verdicts fold as duplicates.
-    if (usable.verifiedPairs !== undefined) for (const key of usable.verifiedPairs) verifiedKeys.add(key);
+    if (usable.verifiedPairs !== undefined) {
+      const judged = new Set(usable.verdicts.map((verdict) => previousKeys.get(verdict.pairId)));
+      let unjudged = 0;
+      for (const key of usable.verifiedPairs) {
+        if (judged.has(key)) verifiedKeys.add(key);
+        else unjudged += 1;
+      }
+      // A checkpoint written before a batch needed every pair judged can claim pairs it never judged; those pairs are verified again.
+      if (unjudged > 0) notes.push(`${unjudged} pair(s) the saved checkpoint claimed verified without a verdict are verified again`);
+    }
   }
   let promptTokens = resume?.promptTokens ?? 0;
   let completionTokens = resume?.completionTokens ?? 0;
@@ -451,7 +465,7 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
     }
     for (const verdict of usable.verdicts) {
       const key = previousKeys.get(verdict.pairId);
-      if (key === undefined) continue;
+      if (key === undefined || verdictKeySet.has(key)) continue;
       verdicts.push(verdict);
       verdictKeys.push(key);
       verdictKeySet.add(key);
