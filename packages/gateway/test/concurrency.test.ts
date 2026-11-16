@@ -5,6 +5,8 @@ import { sumUsage } from '../src/ledger.js';
 import { createMockProvider } from '../src/mock/mock-provider.js';
 import { addEndpoint, collect, delta, finish, flush, harness, KEY, openSse, ScriptedFetch, sseResponse, userMessage } from './helpers.js';
 
+const limit = (n: number) => ({ policy: () => ({ start: n, max: n }) });
+
 function heldStreams(count: number) {
   const streams = Array.from({ length: count }, () => openSse());
   const ended = new Set<number>();
@@ -22,32 +24,50 @@ function heldStreams(count: number) {
 }
 
 describe('shared gateway completion admission', () => {
-  it('immediately schedules a raised limit, while lowering it never preempts active calls', async () => {
+  it('immediately schedules a limit raised by a successful call, foreground first', async () => {
     const held = heldStreams(3);
-    const h = harness({ net: held.net });
-    const profile = await addEndpoint(h, { maxConcurrentRequests: 1 });
+    const h = harness({ net: held.net, concurrency: { policy: () => ({ start: 1, max: 2 }), successesPerStep: 1 } });
+    await addEndpoint(h);
     const first = h.gateway.completeOnce(userMessage('first'));
     await flush();
     const background = h.gateway.completeOnce({ ...userMessage('background'), role: 'background' });
     const foreground = h.gateway.completeOnce(userMessage('foreground'));
     await flush();
     expect(h.net.calls).toHaveLength(1);
-    await h.profiles.update(profile.id, { maxConcurrentRequests: 2 });
-    await flush();
-    expect(h.net.calls).toHaveLength(2);
-    expect(h.net.bodyOf(1)['messages']).toEqual([{ role: 'user', content: 'foreground' }]);
-    await h.profiles.update(profile.id, { maxConcurrentRequests: 1 });
     held.end(0);
     await first;
     await flush();
-    expect(h.net.calls).toHaveLength(2);
-    held.end(1);
-    await foreground;
-    await flush();
     expect(h.net.calls).toHaveLength(3);
+    expect(h.net.bodyOf(1)['messages']).toEqual([{ role: 'user', content: 'foreground' }]);
+    expect(h.net.bodyOf(2)['messages']).toEqual([{ role: 'user', content: 'background' }]);
+    held.end(1);
     held.end(2);
-    await background;
+    await Promise.all([foreground, background]);
     expect(sumUsage(h.gateway.ledger.dayRows()).requests).toBe(3);
+    expect(h.clock.pending).toBe(0);
+  });
+
+  it('lowers the limit on a 429 without preempting the call that holds a slot', async () => {
+    const held = openSse();
+    const net = new ScriptedFetch().push(
+      () => held.response,
+      () => new Response('Slow down', { status: 429, headers: { 'retry-after': '2' } }),
+      () => sseResponse([finish('stop'), '[DONE]']),
+    );
+    const h = harness({ net, retry: { maxRetries: 0 }, concurrency: { policy: () => ({ start: 2, max: 2 }) } });
+    await addEndpoint(h);
+    const running = h.gateway.completeOnce(userMessage('running'));
+    await flush();
+    await expect(h.gateway.completeOnce(userMessage('limited'))).rejects.toMatchObject({ kind: 'rate_limit' });
+    const queued = h.gateway.completeOnce(userMessage('queued'));
+    h.clock.advance(2_000);
+    await flush();
+    expect(net.calls).toHaveLength(2);
+    held.event(finish('stop'));
+    held.close();
+    await running;
+    await queued;
+    expect(net.calls).toHaveLength(3);
     expect(h.clock.pending).toBe(0);
   });
 
@@ -100,8 +120,8 @@ describe('shared gateway completion admission', () => {
     const held = openSse();
     const net = new ScriptedFetch().push(() => held.response);
     net.push(...Array.from({ length: 4 }, () => () => sseResponse([finish('stop'), '[DONE]'])));
-    const h = harness({ net });
-    await addEndpoint(h, { maxConcurrentRequests: 1 });
+    const h = harness({ net, concurrency: limit(1) });
+    await addEndpoint(h);
     const active = h.gateway.completeOnce({ ...userMessage('active'), role: 'background' });
     await flush();
     const pending = [
@@ -123,8 +143,8 @@ describe('shared gateway completion admission', () => {
 
   it('cancels queued streams and completeOnce without a key reveal, send or accounting row', async () => {
     const held = openSse();
-    const h = harness({ net: new ScriptedFetch().push(() => held.response) });
-    await addEndpoint(h, { maxConcurrentRequests: 1 });
+    const h = harness({ net: new ScriptedFetch().push(() => held.response), concurrency: limit(1) });
+    await addEndpoint(h);
     const reveal = vi.spyOn(h.keys, 'revealPayload');
     const active = h.gateway.completeOnce({ ...userMessage('active'), turnId: 'active' });
     await flush();
@@ -149,8 +169,8 @@ describe('shared gateway completion admission', () => {
 
   it.each(['return', 'throw'] as const)('cancels queued iterator %s before a slot is released', async (method) => {
     const held = openSse();
-    const h = harness({ net: new ScriptedFetch().push(() => held.response, () => sseResponse([finish('stop'), '[DONE]'])) });
-    await addEndpoint(h, { maxConcurrentRequests: 1 });
+    const h = harness({ net: new ScriptedFetch().push(() => held.response, () => sseResponse([finish('stop'), '[DONE]'])), concurrency: limit(1) });
+    await addEndpoint(h);
     const reveal = vi.spyOn(h.keys, 'revealPayload');
     const active = h.gateway.completeOnce(userMessage('active'));
     await flush();
@@ -266,12 +286,11 @@ describe('shared gateway completion admission', () => {
       () => sseResponse([finish('stop'), '[DONE]']),
       () => sseResponse([finish('stop'), '[DONE]']),
     );
-    const h = harness({ net, retry: { maxRetries: 0 }, timeouts: { connectMs: 100, firstTokenMs: 100, idleMs: 100, totalMs: 100 } });
-    const first = await addEndpoint(h, { maxConcurrentRequests: 1 });
-    const second = await addEndpoint(h, { name: 'Another endpoint', maxConcurrentRequests: 1 });
+    const h = harness({ net, retry: { maxRetries: 0 }, timeouts: { connectMs: 100, firstTokenMs: 100, idleMs: 100, totalMs: 100 }, concurrency: limit(1) });
+    const first = await addEndpoint(h);
+    const second = await addEndpoint(h, { name: 'Another endpoint' });
     await expect(h.gateway.completeOnce({ ...userMessage('limited'), profileId: first.id })).rejects.toMatchObject({ kind: 'rate_limit' });
     const queued = h.gateway.completeOnce({ ...userMessage('queued'), profileId: first.id });
-    await h.profiles.update(first.id, { maxConcurrentRequests: 8 });
     await h.gateway.completeOnce({ ...userMessage('other'), profileId: second.id });
     expect(net.calls).toHaveLength(2);
     h.clock.advance(1_999);
@@ -290,8 +309,8 @@ describe('shared gateway completion admission', () => {
       () => sseResponse([finish('stop', { prompt_tokens: 5, completion_tokens: 2 }), '[DONE]']),
       () => sseResponse([finish('stop'), '[DONE]']),
     );
-    const h = harness({ net });
-    await addEndpoint(h, { maxConcurrentRequests: 1 });
+    const h = harness({ net, concurrency: limit(1) });
+    await addEndpoint(h);
     const active = h.gateway.completeOnce({ ...userMessage('background'), role: 'background', turnId: 'retry' });
     await flush();
     const queued = h.gateway.completeOnce({ ...userMessage('foreground'), role: 'chat', turnId: 'next' });
@@ -313,8 +332,8 @@ describe('shared gateway completion admission', () => {
       () => new Response(stalled.response.body, { status: 429, headers: { 'retry-after': '2' } }),
       () => sseResponse([finish('stop'), '[DONE]']),
     );
-    const h = harness({ net, retry: { maxRetries: 0 } });
-    await addEndpoint(h, { maxConcurrentRequests: 2 });
+    const h = harness({ net, retry: { maxRetries: 0 }, concurrency: limit(4) });
+    await addEndpoint(h);
     const abort = new AbortController();
     const active = collect(h.gateway.complete(userMessage('limited'), abort.signal));
     await flush();
@@ -342,8 +361,8 @@ describe('shared gateway completion admission', () => {
       () => new Response('Slow down', { status: 429 }),
       () => sseResponse([finish('stop'), '[DONE]']),
     );
-    const h = harness({ net, random, retry: { maxRetries: 1 } });
-    await addEndpoint(h, { maxConcurrentRequests: 1 });
+    const h = harness({ net, random, retry: { maxRetries: 1 }, concurrency: limit(1) });
+    await addEndpoint(h);
     const active = h.gateway.completeOnce(userMessage('retry'));
     await flush();
     h.clock.advance(799);
@@ -362,8 +381,8 @@ describe('shared gateway completion admission', () => {
       () => new Response(stalled.response.body, { status: 429, headers: { 'retry-after': new Date(h.clock.now() + 2_000).toUTCString() } }),
       () => sseResponse([finish('stop'), '[DONE]']),
     );
-    const h = harness({ net, retry: { maxRetries: 1 } });
-    await addEndpoint(h, { maxConcurrentRequests: 1 });
+    const h = harness({ net, retry: { maxRetries: 1 }, concurrency: limit(1) });
+    await addEndpoint(h);
     const active = h.gateway.completeOnce(userMessage('retry'));
     await flush();
     h.clock.advance(1_000);
@@ -408,8 +427,8 @@ describe('shared gateway completion admission', () => {
       () => new Promise<Response>((resolve) => { second = resolve; }),
       () => sseResponse([finish('stop'), '[DONE]']),
     );
-    const h = harness({ net, retry: { maxRetries: 0 } });
-    await addEndpoint(h, { maxConcurrentRequests: 2 });
+    const h = harness({ net, retry: { maxRetries: 0 }, concurrency: limit(2) });
+    await addEndpoint(h);
     const active = [collect(h.gateway.complete(userMessage('one'))), collect(h.gateway.complete(userMessage('two')))];
     await flush();
     expect(net.calls).toHaveLength(2);
@@ -430,8 +449,8 @@ describe('shared gateway completion admission', () => {
 
   it('refuses a profile removed while queued without another send', async () => {
     const held = openSse();
-    const h = harness({ net: new ScriptedFetch().push(() => held.response) });
-    const profile = await addEndpoint(h, { maxConcurrentRequests: 1 });
+    const h = harness({ net: new ScriptedFetch().push(() => held.response), concurrency: limit(1) });
+    const profile = await addEndpoint(h);
     const active = h.gateway.completeOnce(userMessage('active'));
     await flush();
     const queued = collect(h.gateway.complete(userMessage('queued')));
@@ -446,8 +465,8 @@ describe('shared gateway completion admission', () => {
 
   it('rechecks role permission after waiting, before credentials or dispatch', async () => {
     const held = openSse();
-    const h = harness({ net: new ScriptedFetch().push(() => held.response) });
-    const profile = await addEndpoint(h, { maxConcurrentRequests: 1 });
+    const h = harness({ net: new ScriptedFetch().push(() => held.response), concurrency: limit(1) });
+    const profile = await addEndpoint(h);
     let allowed = true;
     const gateway = createGateway({ profiles: h.profiles, keys: h.keys, clock: h.clock, fetch: h.net.fn, roles: {
       resolve: () => ({ profileId: profile.id }),
@@ -472,8 +491,8 @@ describe('shared gateway completion admission', () => {
 
   it('uses the admitted profile metadata rather than an old queued endpoint/model snapshot', async () => {
     const held = openSse();
-    const h = harness({ net: new ScriptedFetch().push(() => held.response, () => sseResponse([finish('stop'), '[DONE]'])) });
-    const profile = await addEndpoint(h, { maxConcurrentRequests: 1 });
+    const h = harness({ net: new ScriptedFetch().push(() => held.response, () => sseResponse([finish('stop'), '[DONE]'])), concurrency: limit(1) });
+    const profile = await addEndpoint(h);
     const active = h.gateway.completeOnce(userMessage('active'));
     await flush();
     const queued = h.gateway.completeOnce(userMessage('queued'));
@@ -488,8 +507,8 @@ describe('shared gateway completion admission', () => {
 
   it('releases an abandoned streaming slot and retains its partial accounting', async () => {
     const held = openSse();
-    const h = harness({ net: new ScriptedFetch().push(() => held.response, () => sseResponse([finish('stop'), '[DONE]'])) });
-    await addEndpoint(h, { maxConcurrentRequests: 1 });
+    const h = harness({ net: new ScriptedFetch().push(() => held.response, () => sseResponse([finish('stop'), '[DONE]'])), concurrency: limit(1) });
+    await addEndpoint(h);
     const iterator = h.gateway.complete({ ...userMessage('partial'), turnId: 'partial' })[Symbol.asyncIterator]();
     const first = iterator.next();
     await flush();
@@ -507,8 +526,8 @@ describe('shared gateway completion admission', () => {
 
   it.each(['abort', 'timeout'])('releases an active slot after %s so queued work can finish', async (reason) => {
     const held = openSse();
-    const h = harness({ net: new ScriptedFetch().push(() => held.response, () => sseResponse([finish('stop'), '[DONE]'])), timeouts: { firstTokenMs: 1_000 }, retry: { maxRetries: 0 } });
-    await addEndpoint(h, { maxConcurrentRequests: 1 });
+    const h = harness({ net: new ScriptedFetch().push(() => held.response, () => sseResponse([finish('stop'), '[DONE]'])), timeouts: { firstTokenMs: 1_000 }, retry: { maxRetries: 0 }, concurrency: limit(1) });
+    await addEndpoint(h);
     const abort = new AbortController();
     const active = collect(h.gateway.complete({ ...userMessage('active'), turnId: 'active' }, abort.signal));
     await flush();

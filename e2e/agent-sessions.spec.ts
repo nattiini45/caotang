@@ -188,8 +188,8 @@ for (const variant of [
     const settings = page.getByTestId('settings');
     await settings.locator('[data-section="providers"]').click();
     await settings.locator('[data-profile="Fake endpoint"]').getByRole('button', { name: variant.language === 'de' ? 'Bearbeiten' : 'Edit', exact: true }).click();
-    await settings.getByRole('form', { name: variant.language === 'de' ? 'Anbieter bearbeiten' : 'Edit provider' }).getByRole('button', { name: variant.language === 'de' ? 'Profil speichern' : 'Save profile', exact: true }).click();
-    await expect(settings.locator('.models')).toContainText('test-model');
+    await settings.getByRole('form', { name: variant.language === 'de' ? 'Anbieter bearbeiten' : 'Edit provider' }).getByRole('button', { name: variant.language === 'de' ? 'Änderungen speichern' : 'Save changes', exact: true }).click();
+    await expect(settings.locator('[data-profile="Fake endpoint"]')).toHaveAttribute('data-state', 'verified');
     await settings.getByRole('button', { name: variant.language === 'de' ? 'Schließen' : 'Close', exact: true }).click();
     const panel = page.getByTestId('agent-panel');
     if (variant.shell === 'modern') await page.getByTestId('modern-ask').click();

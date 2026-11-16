@@ -28,7 +28,7 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 
 Checking a provider in Settings never switches the active profile. **Not verified** stays beside profiles with an unknown or failed model-list check after a reload; edit and save the profile to check it again.
 
-**Requests at once**, in **Settings › Providers**, limits overlapping completion calls per profile from 1 to 8 (3 for an endpoint, 8 for the demo by default). Queued foreground requests go before Background requests without interrupting a running call. A rate-limit response pauses new calls on that profile; another profile can keep working. Model lists and save-time provider checks are outside this limit and can overlap a completion. This setting does not start parallel work or grant permissions.
+Adding a provider is a key and one press: paste an API key in **Settings › Providers**, Caotang recognises the provider, lists the models the key can use, and a press on one makes it the agent’s model. How many requests run at once and prompt caching are settled automatically, per provider and model; a rate-limit response pauses new calls on that profile for a moment while another profile keeps working. A server of your own is **Custom endpoint**, a second path with the same model list. Model lists and save-time provider checks are not part of the request limit and can overlap a completion. None of this starts parallel work or grants permissions.
 
 ## What works today
 

@@ -1,10 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import type * as UiAgentModule from '../apps/desktop/test/ui-agent-fixture.js';
 import { sumUsage, type DayUsageRow } from '../packages/gateway/src/index.js';
 
 import { endpointRoute, FAKE_ENDPOINT, fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
+import { addCustomEndpoint, addHostedProvider, openProviderSetup } from './provider-setup-support.js';
 import { bodyOf, createProject, idOf, savedMessage } from './support.js';
 
 /**
@@ -15,9 +14,10 @@ import { bodyOf, createProject, idOf, savedMessage } from './support.js';
  * no request leaves the page.
  */
 
+const ANTHROPIC_KEY = 'sk-ant-api03-' + 'A'.repeat(30);
+const CLAUDE_MODELS = ['claude-sonnet-5-5', 'claude-opus-5-5'];
+
 const FRIEND_PROSE = 'The ferry came in on the evening tide, low in the water and slow to answer the rope.';
-const uiAgentUrl = `/@fs/${fileURLToPath(new URL('../apps/desktop/test/ui-agent-fixture.ts', import.meta.url)).replaceAll('\\', '/').replace(/^\/+/, '')}`;
-type UiAgent = typeof UiAgentModule;
 
 async function openSettings(page: Page): Promise<ReturnType<Page['getByTestId']>> {
   await page.goto('/');
@@ -158,77 +158,7 @@ async function seedKey(page: Page, profileId: string, apiKey: string): Promise<v
   }, { profileId, apiKey });
 }
 
-test('the preset picker lists the registry, enables every preset the sweep found reachable, and fits the form to the pick', async ({
-  page,
-}) => {
-  const settings = await openSettings(page);
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  const form = settings.getByRole('form', { name: 'New provider' });
-
-  const picker = form.getByRole('combobox', { name: 'Provider' });
-  // The picker's own names. A preset whose chat route the sweep found a browser cannot reach is flagged 'blocked' and lists here
-  // greyed with "Desktop app or hosted only" (OpenCode answers the model list's preflight but refuses chat's); the rest are enabled, Z.ai among them since its chat route answered.
-  await expect(picker.getByRole('option', { name: 'OpenAI-compatible endpoint' })).toBeAttached();
-  await expect(picker.getByRole('option', { name: 'Anthropic (Claude)' })).toBeEnabled();
-  await expect(picker.getByRole('option', { name: 'Z.ai (GLM)' })).toBeEnabled();
-  await expect(picker.getByRole('option', { name: 'OpenCode — Desktop app or hosted only' })).toHaveAttribute('disabled', '');
-
-  // The generic pick: the endpoint is typed, the key is optional, the CORS answer is the endpoint's own, and sealed
-  // custom headers are offered.
-  await expect(picker).toHaveValue('generic');
-  await expect(form.getByLabel('Endpoint (the base URL, ending in /v1)')).toBeVisible();
-  await expect(form.getByLabel('API key (optional — this provider answers without one)')).toBeVisible();
-  await expect(form.getByText('Reachability depends on the endpoint’s own CORS policy.')).toBeVisible();
-  await expect(form.getByRole('group', { name: 'Extra request headers (optional)' })).toBeVisible();
-
-  // A named preset: no endpoint to type — the address is the preset's own, shown read-only — and the key is required.
-  await picker.selectOption('anthropic');
-  await expect(form.getByLabel('Endpoint (the base URL, ending in /v1)')).toHaveCount(0);
-  await expect(form.getByText('api.anthropic.com/v1')).toBeVisible();
-  await expect(form.getByLabel('API key (required)')).toBeVisible();
-  await expect(form.getByText(/adapter sends anthropic-dangerous-direct-browser-access/)).toBeVisible();
-  await expect(form.getByRole('group', { name: 'Extra request headers (optional)' })).toHaveCount(0);
-  // The default model's capability row is read aloud under the field: the published window, native tools, image input, and its thinking levels.
-  await expect(form.getByText('1,000,000-token window · native tools · image input · thinking: low / medium / high / xhigh / max')).toBeVisible();
-
-  // A workspace-templated preset: the fields it declares build the endpoint, shown as they are typed.
-  await picker.selectOption('alibaba');
-  await expect(form.getByLabel('Workspace ID')).toBeVisible();
-  await expect(form.getByLabel('Region')).toHaveValue('ap-southeast-1');
-  await form.getByLabel('Workspace ID').fill('myws');
-  await expect(form.getByText('https://myws.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1')).toBeVisible();
-
-  // A region-picker preset, and one with no models route whose catalogue is the table's own.
-  await picker.selectOption('tencent-hunyuan');
-  await expect(form.getByLabel('Site')).toBeVisible();
-  await picker.selectOption('cohere');
-  await expect(form.getByText('This provider documents no model list — its table below is the catalogue.')).toBeVisible();
-});
-
-test('a workspace-templated preset saves against the endpoint its fields built, and the probe asks that host', async ({
-  page,
-}) => {
-  await endpointRoute(page, 'https://myws.ap-southeast-1.maas.aliyuncs.com', planThenAnswer({ reply: 'unused' }));
-  const settings = await openSettings(page);
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  const form = settings.getByRole('form', { name: 'New provider' });
-
-  await form.getByRole('combobox', { name: 'Provider' }).selectOption('alibaba');
-  await form.getByLabel('Name').fill('Qwen studio');
-  await form.getByLabel('Workspace ID').fill('myws');
-  await form.getByLabel('API key (required)').fill('test-key');
-  await form.getByRole('button', { name: 'Save profile' }).click();
-
-  await expect(settings.getByText(savedMessage('Qwen studio'))).toBeVisible();
-  await expect(settings.getByRole('region', { name: 'Models listed by Qwen studio' })).toContainText('test-model');
-  await expect(settings.locator('[data-profile="Qwen studio"]')).toContainText('Alibaba Cloud Model Studio (Qwen)');
-  await expect(settings.locator('[data-profile="Qwen studio"]')).toContainText('maas.aliyuncs.com');
-  // The probe went to the host the fields built: the log names it, and the key is nowhere it can be read.
-  await expect(settings.getByTestId('request-log')).toContainText('myws.ap-southeast-1.maas.aliyuncs.com');
-  await expect(settings.getByText('test-key')).toHaveCount(0);
-});
-
-test('a generic endpoint keeps its custom headers sealed: sent on its calls, never shown again', async ({ page }) => {
+test('a custom endpoint keeps its extra headers sealed: sent on its calls, never shown again', async ({ page }) => {
   const seen: Record<string, string>[] = [];
   await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
   // A capture route on top of the fake, so the requests are asserted AND answered.
@@ -237,53 +167,44 @@ test('a generic endpoint keeps its custom headers sealed: sent on its calls, nev
     await route.fallback();
   });
   const settings = await openSettings(page);
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  const form = settings.getByRole('form', { name: 'New provider' });
-
-  await form.getByRole('combobox', { name: 'Provider' }).selectOption('generic');
-  await form.getByLabel('Name').fill('Headers');
+  const first = await openProviderSetup(settings);
+  await first.getByRole('button', { name: 'Custom endpoint' }).click();
+  const form = settings.getByRole('form', { name: 'Custom endpoint' });
   await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
-  await form.getByLabel('Model', { exact: true }).fill('test-model');
+  // Headers sit under the one closed Advanced, and only a custom endpoint has them.
+  await expect(form.getByRole('group', { name: 'Extra request headers (optional)' })).toBeHidden();
+  await form.getByRole('button', { name: 'Advanced' }).click();
+  await expect(form.getByRole('group', { name: 'Extra request headers (optional)' })).toBeVisible();
   await form.getByRole('button', { name: 'Add a header' }).click();
   await form.getByLabel('Header 1 name').fill('x-org');
   await form.getByLabel('Header 1 value').fill('secret-value');
-  await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(settings.getByText(savedMessage('Headers'))).toBeVisible();
+  await form.getByRole('button', { name: 'Connect and list models' }).click();
+  await settings.getByRole('listbox').getByRole('option', { name: 'test-model' }).click();
+  await settings.getByRole('button', { name: 'Done', exact: true }).click();
 
   // The probes carried it — and no render, list or log line ever repeats it.
   expect(seen.some((headers) => headers['x-org'] === 'secret-value')).toBe(true);
   await expect(settings.getByText('secret-value')).toHaveCount(0);
 
-  await settings.locator('[data-profile="Headers"]').getByRole('button', { name: 'Edit' }).click();
+  await settings.locator('[data-profile="OpenAI-compatible endpoint"]').getByRole('button', { name: 'Edit' }).click();
   const editing = settings.getByRole('form', { name: 'Edit provider' });
+  await editing.getByRole('button', { name: 'Advanced' }).click();
   await expect(editing.getByLabel('Header 1 value')).toHaveCount(0);
   await expect(editing.getByText(/Leave this list untouched to keep the stored set/)).toBeVisible();
-  await expect(editing.getByLabel('API key (optional — leave empty to keep the stored key)')).toBeVisible();
+  await expect(editing.getByLabel('Replace the API key')).toBeVisible();
 });
 
 test('task roles pin a profile, a model, and — only where the model documents it — a thinking level', async ({ page }) => {
   // Two profiles: the generic fake (its '*' row lists no thinking levels) and an Anthropic one (Claude's do).
-  await endpointRoute(page, 'https://api.anthropic.com', planThenAnswer({ reply: 'unused' }));
+  await endpointRoute(page, 'https://api.anthropic.com', planThenAnswer({ reply: 'unused' }), CLAUDE_MODELS);
   await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
   await page.goto('/');
   const settings = page.getByTestId('settings');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
 
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  let form = settings.getByRole('form', { name: 'New provider' });
-  await form.getByRole('combobox', { name: 'Provider' }).selectOption('generic');
-  await form.getByLabel('Name').fill('Local');
-  await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
-  await form.getByLabel('Model', { exact: true }).fill('test-model');
-  await form.getByRole('button', { name: 'Save profile' }).click();
+  await addCustomEndpoint(settings, { name: 'Local' });
   await expect(settings.getByText(savedMessage('Local'))).toBeVisible();
-
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  form = settings.getByRole('form', { name: 'New provider' });
-  await form.getByRole('combobox', { name: 'Provider' }).selectOption('anthropic');
-  await form.getByLabel('Name').fill('Claude');
-  await form.getByLabel('API key (required)').fill('test-key');
-  await form.getByRole('button', { name: 'Save profile' }).click();
+  await addHostedProvider(settings, { key: ANTHROPIC_KEY, model: 'claude-sonnet-5-5', name: 'Claude' });
   await expect(settings.getByText(savedMessage('Claude'))).toBeVisible();
 
   // Chat pinned to Claude: the model field is the profile's own; once it names a model with documented levels, the
@@ -315,13 +236,12 @@ test('task roles pin a profile, a model, and — only where the model documents 
 });
 
 test('advanced request parameters save and reload, and a denied thinking field removes the level control', async ({ page }) => {
-  await endpointRoute(page, 'https://api.anthropic.com', planThenAnswer({ reply: 'unused' }));
+  await endpointRoute(page, 'https://api.anthropic.com', planThenAnswer({ reply: 'unused' }), CLAUDE_MODELS);
   const settings = await openSettings(page);
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  const form = settings.getByRole('form', { name: 'New provider' });
-  await form.getByRole('combobox', { name: 'Provider' }).selectOption('anthropic');
-  await form.getByLabel('Name').fill('Claude');
-  await form.getByLabel('API key (required)').fill('test-key');
+  await addHostedProvider(settings, { key: ANTHROPIC_KEY, model: 'claude-sonnet-5-5', name: 'Claude' });
+  await settings.locator('[data-profile="Claude"]').getByRole('button', { name: 'Edit' }).click();
+  const form = settings.getByRole('form', { name: 'Edit provider' });
+  await form.getByRole('button', { name: 'Advanced' }).click();
 
   // The preset's default model is claude-sonnet-5-5; its row offers low…max, and the form says what each goes out as.
   await form.getByTestId('profile-params').locator('summary').click();
@@ -334,7 +254,7 @@ test('advanced request parameters save and reload, and a denied thinking field r
   // so — it does not go on claiming levels are sent.
   await form.getByLabel('Leave out these request fields').fill('output_config');
   await expect(form.getByText('The leave-out list below turns the thinking control off, so no level is sent.')).toBeVisible();
-  await form.getByRole('button', { name: 'Save profile' }).click();
+  await form.getByRole('button', { name: 'Save changes' }).click();
   await expect(settings.getByText(savedMessage('Claude'))).toBeVisible();
 
   // Task roles resolves the profile's effective caps: with the effort field denied, no thinking control is offered.
@@ -348,6 +268,7 @@ test('advanced request parameters save and reload, and a denied thinking field r
   const again = page.getByTestId('settings');
   await again.locator('[data-profile="Claude"]').getByRole('button', { name: 'Edit' }).click();
   const editing = again.getByRole('form', { name: 'Edit provider' });
+  await editing.getByRole('button', { name: 'Advanced' }).click();
   await editing.getByTestId('profile-params').locator('summary').click();
   await expect(editing.getByLabel('Temperature')).toHaveValue('never');
   await expect(editing.getByLabel('Strict tool schemas')).toHaveValue('off');
@@ -356,113 +277,43 @@ test('advanced request parameters save and reload, and a denied thinking field r
   await expect(editing.getByLabel('Leave out these request fields')).toHaveValue('output_config');
 });
 
-test('profile request limits default by kind, clamp with keyboard input, and persist', async ({ page }) => {
+test('no request-limit, prompt-cache or cache-lifetime control is offered, and a profile saved with them restores with its key and model and is written back without them', async ({ page }) => {
   await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
   await page.goto('/');
-  await page.getByRole('button', { name: 'Got it', exact: true }).click();
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  const settings = page.getByTestId('settings');
-  await expect(settings).toBeVisible();
-
-  await settings.locator('[data-profile="Demo (no key)"]').getByRole('button', { name: 'Edit' }).click();
-  let form = settings.getByRole('form', { name: 'Edit provider' });
-  const demoRequestsAtOnce = form.getByLabel('Requests at once');
-  await expect(demoRequestsAtOnce).toHaveValue('8');
-  await demoRequestsAtOnce.fill('7');
-  await demoRequestsAtOnce.press('Tab');
-  await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(settings.getByText(savedMessage('Demo (no key)'))).toBeVisible();
-  expect((await storedProfiles(page)).find((profile) => profile['kind'] === 'mock')?.['maxConcurrentRequests']).toBe(7);
-
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  form = settings.getByRole('form', { name: 'New provider' });
-  await form.getByRole('combobox', { name: 'Provider' }).selectOption('generic');
-  await form.getByLabel('Name').fill('Concurrency');
-  await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
-  await form.getByLabel('Model', { exact: true }).fill('test-model');
-
-  const requestsAtOnce = form.getByLabel('Requests at once');
-  const helpText = form.getByText('Choose a whole number from 1 to 8. Foreground requests go before queued Background requests; requests already running are not interrupted.');
-  const helpId = await helpText.getAttribute('id');
-  expect(helpId).toBeTruthy();
-  expect(await requestsAtOnce.getAttribute('aria-describedby')).toContain(helpId);
-  await expect(requestsAtOnce).toHaveValue('3');
-
-  await requestsAtOnce.fill('');
-  await form.getByRole('button', { name: 'Save profile' }).click();
-  const requiredError = form.getByText('Choose a whole number from 1 to 8.', { exact: true });
-  await expect(requiredError).toBeVisible();
-  const requiredErrorId = await requiredError.getAttribute('id');
-  expect(requiredErrorId).toBeTruthy();
-  expect(await requestsAtOnce.getAttribute('aria-describedby')).toContain(requiredErrorId);
-  expect((await storedProfiles(page)).some((profile) => profile['name'] === 'Concurrency')).toBe(false);
-
-  await requestsAtOnce.fill('2.5');
-  await expect(requestsAtOnce).toHaveValue('2.5');
-  await expect(requiredError).toBeVisible();
-  await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(requestsAtOnce).toHaveValue('2.5');
-  expect((await storedProfiles(page)).some((profile) => profile['name'] === 'Concurrency')).toBe(false);
-
-  await requestsAtOnce.fill('3');
-  await requestsAtOnce.press('Tab');
-  await expect(requestsAtOnce).toHaveValue('3');
-  await expect(requiredError).toBeHidden();
-  await requestsAtOnce.focus();
-  await requestsAtOnce.press('ArrowUp');
-  await expect(requestsAtOnce).toHaveValue('4');
-  await requestsAtOnce.fill('12');
-  await requestsAtOnce.press('Tab');
-  await expect(requestsAtOnce).toHaveValue('8');
-  await requestsAtOnce.fill('0');
-  await requestsAtOnce.press('Tab');
-  await expect(requestsAtOnce).toHaveValue('1');
-  await requestsAtOnce.fill('5');
-  await requestsAtOnce.press('Tab');
-  await expect(requestsAtOnce).toHaveValue('5');
-
-  await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(settings.getByText(savedMessage('Concurrency'))).toBeVisible();
-  expect((await storedProfiles(page)).find((profile) => profile['name'] === 'Concurrency')?.['maxConcurrentRequests']).toBe(5);
-
-  await expect(settings.locator('section[aria-labelledby="settings-providers"]')).toHaveAttribute('data-panel-state', 'idle');
+  await seedProfiles(page, [
+    {
+      id: 'prv_0000000005',
+      name: 'Older profile',
+      kind: 'endpoint',
+      preset: 'generic',
+      baseUrl: FAKE_ENDPOINT,
+      defaultModel: 'other-model',
+      maxConcurrentRequests: 6,
+      promptCache: { mode: 'off', ttl: '1h' },
+      hasKey: false,
+      isActive: true,
+    },
+  ]);
   await page.reload();
-  const again = await openSettings(page);
-  await again.locator('[data-profile="Demo (no key)"]').getByRole('button', { name: 'Edit' }).click();
-  form = again.getByRole('form', { name: 'Edit provider' });
-  await expect(form.getByLabel('Requests at once')).toHaveValue('7');
-  await form.getByRole('button', { name: 'Cancel' }).click();
-  await again.locator('[data-profile="Concurrency"]').getByRole('button', { name: 'Edit' }).click();
-  await expect(again.getByRole('form', { name: 'Edit provider' }).getByLabel('Requests at once')).toHaveValue('5');
-});
 
-test('the UI SDK can set Requests at once and the native save persists it through reload', async ({ page }) => {
-  await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
   const settings = await openSettings(page);
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  const form = settings.getByRole('form', { name: 'New provider' });
-  await form.getByRole('combobox', { name: 'Provider' }).selectOption('generic');
-  await form.getByLabel('Name').fill('UI SDK');
-  await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
-  await form.getByLabel('Model', { exact: true }).fill('test-model');
+  const row = settings.locator('[data-profile="Older profile"]');
+  await expect(row).toContainText('other-model');
+  await expect(row).toContainText('Active');
+  await row.getByRole('button', { name: 'Edit' }).click();
+  const editing = settings.getByRole('form', { name: 'Edit provider' });
+  await editing.getByRole('button', { name: 'Advanced' }).click();
+  for (const label of ['Requests at once', 'Prompt caching', 'Keep a cached prompt for']) {
+    await expect(settings.getByText(label)).toHaveCount(0);
+  }
+  await editing.getByLabel('Name').fill('Older profile renamed');
+  await editing.getByRole('button', { name: 'Save changes' }).click();
+  await expect(settings.getByText(savedMessage('Older profile renamed'))).toBeVisible();
 
-  const entries = await page.evaluate(async (url) => (await import(/* @vite-ignore */ url) as UiAgent).agent.snapshot(), uiAgentUrl);
-  const requestsAtOnce = entries.find((entry) => entry.label === 'Requests at once');
-  expect(requestsAtOnce).toBeDefined();
-  const action = await page.evaluate(async ({ url, ref }) => {
-    const { agent } = await import(/* @vite-ignore */ url) as UiAgent;
-    return agent.act({ steps: [{ ref, action: 'setValue', args: ['6'] }] });
-  }, { url: uiAgentUrl, ref: requestsAtOnce!.ref });
-  expect(action.ok, JSON.stringify(action)).toBe(true);
-  await expect(form.getByLabel('Requests at once')).toHaveValue('6');
-
-  await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(settings.getByText(savedMessage('UI SDK'))).toBeVisible();
-  await expect(settings.locator('section[aria-labelledby="settings-providers"]')).toHaveAttribute('data-panel-state', 'idle');
-  await page.reload();
-  const again = await openSettings(page);
-  await again.locator('[data-profile="UI SDK"]').getByRole('button', { name: 'Edit' }).click();
-  await expect(again.getByRole('form', { name: 'Edit provider' }).getByLabel('Requests at once')).toHaveValue('6');
+  const stored = (await storedProfiles(page)).find((profile) => profile['name'] === 'Older profile renamed');
+  expect(stored).toMatchObject({ defaultModel: 'other-model', isActive: true });
+  expect(stored?.['maxConcurrentRequests']).toBeUndefined();
+  expect(stored?.['promptCache']).toBeUndefined();
 });
 
 test('a flag-only temperature profile — the SDK shape — keeps its mode through an unrelated edit and a reload', async ({ page }) => {
@@ -488,12 +339,13 @@ test('a flag-only temperature profile — the SDK shape — keeps its mode throu
   const settings = await openSettings(page);
   await settings.locator('[data-profile="SDK flag"]').getByRole('button', { name: 'Edit' }).click();
   const editing = settings.getByRole('form', { name: 'Edit provider' });
+  await editing.getByRole('button', { name: 'Advanced' }).click();
   await editing.getByTestId('profile-params').locator('summary').click();
   // The flag alone is its own mode — a request's value — not 'send a value' with an empty field.
   await expect(editing.getByLabel('Temperature')).toHaveValue('request');
   await expect(editing.getByLabel('Value, from 0 to 2')).toHaveCount(0);
   await editing.getByLabel('Name').fill('SDK flag renamed');
-  await editing.getByRole('button', { name: 'Save profile' }).click();
+  await editing.getByRole('button', { name: 'Save changes' }).click();
   await expect(settings.getByText(savedMessage('SDK flag renamed'))).toBeVisible();
 
   // The save wrote the same shape back: the flag, never a number.
@@ -506,6 +358,7 @@ test('a flag-only temperature profile — the SDK shape — keeps its mode throu
   const again = page.getByTestId('settings');
   await again.locator('[data-profile="SDK flag renamed"]').getByRole('button', { name: 'Edit' }).click();
   const reopened = again.getByRole('form', { name: 'Edit provider' });
+  await reopened.getByRole('button', { name: 'Advanced' }).click();
   await reopened.getByTestId('profile-params').locator('summary').click();
   await expect(reopened.getByLabel('Temperature')).toHaveValue('request');
 });
@@ -557,24 +410,20 @@ test('a first-party host pin drives the capability line and the model-list capti
   await page.reload();
 
   const settings = await openSettings(page);
-  // The generic profile's edit form reads the pinned preset's row, not the generic table's fallback.
+  // The generic profile's edit form reads the pinned preset's table, not the generic fallback: only the OpenAI table can recommend a model.
   await settings.locator('[data-profile="Pinned generic"]').getByRole('button', { name: 'Edit' }).click();
   const genericForm = settings.getByRole('form', { name: 'Edit provider' });
-  await expect(genericForm.getByText('native tools · JSON-object replies · thinking: low / medium / high / xhigh / max')).toBeVisible();
-  await expect(genericForm.getByText(/Not a documented model/)).toHaveCount(0);
+  await expect(genericForm.getByRole('option', { name: 'gpt-6.1-sol' })).toContainText('Recommended');
   await genericForm.getByRole('button', { name: 'Cancel' }).click();
 
   // The cohere-named profile at the same host: its save lists models through OpenAI's route, so the caption
   // says "listed by" — never cohere's "documents no model list" — and its form reads OpenAI's row too.
   await settings.locator('[data-profile="Pinned cohere"]').getByRole('button', { name: 'Edit' }).click();
   const cohereForm = settings.getByRole('form', { name: 'Edit provider' });
-  await expect(cohereForm.getByText('native tools · JSON-object replies · thinking: low / medium / high / xhigh / max')).toBeVisible();
+  await expect(cohereForm.getByRole('option', { name: 'gpt-6.1-sol' })).toContainText('Recommended');
   await expect(cohereForm.getByText(/This provider documents no model list/)).toHaveCount(0);
-  await cohereForm.getByLabel('Model', { exact: true }).fill('gpt-6-sol');
-  await cohereForm.getByRole('button', { name: 'Save profile' }).click();
+  await cohereForm.getByRole('button', { name: 'Save changes' }).click();
   await expect(settings.getByText(savedMessage('Pinned cohere'))).toBeVisible();
-  await expect(settings.getByRole('region', { name: 'Models listed by Pinned cohere' })).toContainText('gpt-6.1-sol');
-  await expect(settings.getByRole('region', { name: 'Models documented for Pinned cohere' })).toHaveCount(0);
 });
 
 test('a profile saved before request parameters keeps its stored temperature through an unrelated edit', async ({ page }) => {
@@ -616,11 +465,12 @@ test('a profile saved before request parameters keeps its stored temperature thr
   // The stored value reads as sent, not "follow the model" — and an unrelated edit keeps it.
   await settings.locator('[data-profile="Legacy"]').getByRole('button', { name: 'Edit' }).click();
   const editing = settings.getByRole('form', { name: 'Edit provider' });
+  await editing.getByRole('button', { name: 'Advanced' }).click();
   await editing.getByTestId('profile-params').locator('summary').click();
   await expect(editing.getByLabel('Temperature')).toHaveValue('send');
   await expect(editing.getByLabel('Value, from 0 to 2')).toHaveValue('0.7');
   await editing.getByLabel('Name').fill('Legacy renamed');
-  await editing.getByRole('button', { name: 'Save profile' }).click();
+  await editing.getByRole('button', { name: 'Save changes' }).click();
   await expect(settings.getByText(savedMessage('Legacy renamed'))).toBeVisible();
 
   // The save wrote the stored shape back, not an override flag: the value stays send-where-allowed.
@@ -634,6 +484,7 @@ test('a profile saved before request parameters keeps its stored temperature thr
   const again = page.getByTestId('settings');
   await again.locator('[data-profile="Legacy renamed"]').getByRole('button', { name: 'Edit' }).click();
   const reopened = again.getByRole('form', { name: 'Edit provider' });
+  await reopened.getByRole('button', { name: 'Advanced' }).click();
   await reopened.getByTestId('profile-params').locator('summary').click();
   await expect(reopened.getByLabel('Temperature')).toHaveValue('send');
   await expect(reopened.getByLabel('Value, from 0 to 2')).toHaveValue('0.7');
@@ -715,11 +566,12 @@ test('a stored temperature on a model that takes none stays off the wire after a
   // The stored value reads as sent — and an unrelated edit must not turn that into an override.
   await settings.locator('[data-profile="Legacy OpenAI"]').getByRole('button', { name: 'Edit' }).click();
   const editing = settings.getByRole('form', { name: 'Edit provider' });
+  await editing.getByRole('button', { name: 'Advanced' }).click();
   await editing.getByTestId('profile-params').locator('summary').click();
   await expect(editing.getByLabel('Temperature')).toHaveValue('send');
   await expect(editing.getByLabel('Value, from 0 to 2')).toHaveValue('0.7');
   await editing.getByLabel('Name').fill('Legacy OpenAI renamed');
-  await editing.getByRole('button', { name: 'Save profile' }).click();
+  await editing.getByRole('button', { name: 'Save changes' }).click();
   await expect(settings.getByText(savedMessage('Legacy OpenAI renamed'))).toBeVisible();
 
   // The save wrote the stored shape back — the value, no override flag.
@@ -743,11 +595,12 @@ test('a stored temperature on a model that takes none stays off the wire after a
   const again = page.getByTestId('settings');
   await again.locator('[data-profile="Legacy OpenAI renamed"]').getByRole('button', { name: 'Edit' }).click();
   const reopened = again.getByRole('form', { name: 'Edit provider' });
+  await reopened.getByRole('button', { name: 'Advanced' }).click();
   await reopened.getByTestId('profile-params').locator('summary').click();
   await expect(reopened.getByText('gpt-6.1-sol takes no temperature, so none is sent.')).toBeVisible();
   await reopened.getByLabel('Value, from 0 to 2').fill('0.9');
   await expect(reopened.getByText('gpt-6.1-sol takes no temperature, so none is sent.')).toHaveCount(0);
-  await reopened.getByRole('button', { name: 'Save profile' }).click();
+  await reopened.getByRole('button', { name: 'Save changes' }).click();
   await expect(again.getByText(savedMessage('Legacy OpenAI renamed'))).toBeVisible();
   const forced = (await storedProfiles(page)).find((profile) => profile['name'] === 'Legacy OpenAI renamed');
   expect(forced?.['temperature']).toBe(0.9);
@@ -758,6 +611,7 @@ test('a stored temperature on a model that takes none stays off the wire after a
   const last = page.getByTestId('settings');
   await last.locator('[data-profile="Legacy OpenAI renamed"]').getByRole('button', { name: 'Edit' }).click();
   const deliberate = last.getByRole('form', { name: 'Edit provider' });
+  await deliberate.getByRole('button', { name: 'Advanced' }).click();
   await deliberate.getByTestId('profile-params').locator('summary').click();
   await expect(deliberate.getByLabel('Temperature')).toHaveValue('send');
   await expect(deliberate.getByLabel('Value, from 0 to 2')).toHaveValue('0.9');
@@ -809,7 +663,7 @@ test('the agent panel shows the model’s streamed thinking collapsed, apart fro
   await expect(row).toContainText('test-model');
 });
 
-test('the local model servers sit under "On this computer", save with no key, and say where the text stays', async ({ page }) => {
+test('the local model servers sit behind Custom endpoint, need no key, and say where the text stays', async ({ page }) => {
   const seen: Record<string, string>[] = [];
   await endpointRoute(page, 'http://127.0.0.1:11434', planThenAnswer({ reply: 'unused' }), ['llama3.2', 'qwen3']);
   await page.route('http://127.0.0.1:11434/**', async (route) => {
@@ -817,43 +671,41 @@ test('the local model servers sit under "On this computer", save with no key, an
     await route.fallback();
   });
   const settings = await openSettings(page);
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  const form = settings.getByRole('form', { name: 'New provider' });
+  const first = await openProviderSetup(settings);
+  await first.getByRole('button', { name: 'Custom endpoint' }).click();
+  const form = settings.getByRole('form', { name: 'Custom endpoint' });
 
-  // The group holds exactly the three local servers; the hosted presets stay outside it.
-  const picker = form.getByRole('combobox', { name: 'Provider' });
-  const group = picker.locator('optgroup[label="On this computer"] option');
-  await expect(group).toHaveText(['Ollama', 'LM Studio', 'llama.cpp (llama-server)']);
-  await expect(picker.locator('optgroup[label="On this computer"] option', { hasText: 'Anthropic' })).toHaveCount(0);
+  // The endpoint types are the custom URL and exactly the three local servers.
+  for (const name of ['Custom URL', 'Ollama', 'LM Studio', 'llama.cpp (llama-server)']) await expect(form.getByRole('radio', { name })).toBeVisible();
 
   // A local pick: the address is the preset's loopback default and editable, the key is optional, the setup is said in words, and so is
   // the permission prompt Chrome shows, before any request is made. The privacy line follows the address.
-  await picker.selectOption('ollama');
+  await form.getByRole('radio', { name: 'Ollama' }).click();
   const address = form.getByLabel('Server address (on this computer, ending in /v1)');
   await expect(address).toHaveValue('http://127.0.0.1:11434/v1');
-  await expect(form.getByLabel('API key (optional — only if you set one on the server)')).toBeVisible();
+  await expect(form.getByLabel('API key (optional — only if the endpoint needs one)')).toBeVisible();
   await expect(form.getByText(/OLLAMA_CONTEXT_LENGTH/)).toBeVisible();
   await expect(form.getByText(/Chrome and Edge ask whether this site may connect to apps on your device/)).toBeVisible();
   await expect(form.getByText(/Safari is unverified/)).toBeVisible();
   await expect(form.getByRole('link', { name: 'Ollama documentation' })).toHaveAttribute('href', 'https://docs.ollama.com/faq');
-  await expect(form.getByText('Until the server says more: 4,096-token window, no native tools, no image input.')).toBeVisible();
   await expect(form.getByText('Your text stays on this computer.')).toBeVisible();
   await expect(form.getByRole('group', { name: 'Extra request headers (optional)' })).toHaveCount(0);
 
   // An address that is not this computer is refused by the gateway with the reason, and nothing is saved.
-  await form.getByLabel('Name').fill('Ollama here');
   await address.fill('http://192.168.1.20:11434/v1');
   await expect(form.getByText('Your text stays on this computer.')).toHaveCount(0);
-  await form.getByRole('button', { name: 'Save profile' }).click();
+  await form.getByRole('button', { name: 'Connect and list models' }).click();
   await expect(settings.getByRole('alert')).toContainText('plain http is allowed only to this computer');
-  await expect(settings.locator('[data-profile="Ollama here"]')).toHaveCount(0);
+  await expect(settings.locator('[data-profile]')).toHaveCount(1);
 
-  // Back on loopback it saves with no key, lists the server's models, and the profile row carries the privacy line.
+  // Back on loopback it connects with no key, lists the server's models, and the profile row carries the privacy line.
   await address.fill('http://127.0.0.1:11434/v1');
-  await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(settings.getByText(savedMessage('Ollama here'))).toBeVisible();
-  await expect(settings.getByRole('region', { name: 'Models listed by Ollama here' })).toContainText('qwen3');
-  const row = settings.locator('[data-profile="Ollama here"]');
+  await form.getByRole('button', { name: 'Connect and list models' }).click();
+  const models = settings.getByRole('listbox', { name: 'Models you can use with Ollama' });
+  await expect(models).toContainText('qwen3');
+  await models.getByRole('option', { name: 'llama3.2' }).click();
+  await settings.getByRole('button', { name: 'Done', exact: true }).click();
+  const row = settings.locator('[data-profile="Ollama"]');
   await expect(row).toContainText('Ollama · http://127.0.0.1:11434/v1 · llama3.2');
   await expect(row).toContainText('Your text stays on this computer');
   // No key header went to the server, and the hosted demo row does not claim the privacy line.
@@ -862,51 +714,15 @@ test('the local model servers sit under "On this computer", save with no key, an
   await expect(settings.locator('[data-profile="Demo (no key)"]')).not.toContainText('stays on this computer');
 });
 
-test('a generic endpoint still refuses plain http to loopback: the exemption is for the three local presets only', async ({ page }) => {
+test('a custom URL still refuses plain http to loopback: the exemption is for the three local servers only', async ({ page }) => {
   const settings = await openSettings(page);
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  const form = settings.getByRole('form', { name: 'New provider' });
-  await form.getByLabel('Name').fill('Sneaky');
+  const first = await openProviderSetup(settings);
+  await first.getByRole('button', { name: 'Custom endpoint' }).click();
+  const form = settings.getByRole('form', { name: 'Custom endpoint' });
   await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill('http://127.0.0.1:11434/v1');
-  await form.getByLabel('Model', { exact: true }).fill('m');
-  await form.getByRole('button', { name: 'Save profile' }).click();
+  await form.getByRole('button', { name: 'Connect and list models' }).click();
   await expect(settings.getByRole('alert')).toContainText('must start with https://');
-  await expect(settings.locator('[data-profile="Sneaky"]')).toHaveCount(0);
-});
-
-test('prompt caching is a per-profile switch, on by default, with a lifetime choice for Anthropic only, and it survives a reload', async ({
-  page,
-}) => {
-  await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
-  const settings = await openSettings(page);
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  const form = settings.getByRole('form', { name: 'New provider' });
-  const caching = form.getByRole('group', { name: 'Prompt caching' });
-
-  // Anthropic offers the lifetime: five minutes by default, an hour at a dearer write.
-  await form.getByRole('combobox', { name: 'Provider' }).selectOption('anthropic');
-  await expect(caching.getByRole('checkbox')).toBeChecked();
-  await expect(caching.getByLabel('Keep a cached prompt for')).toHaveValue('5m');
-  await expect(caching.getByRole('option', { name: '1 hour (costs more to write)' })).toBeAttached();
-
-  // Any other provider has the switch alone.
-  await form.getByRole('combobox', { name: 'Provider' }).selectOption('generic');
-  await expect(caching.getByLabel('Keep a cached prompt for')).toHaveCount(0);
-  await form.getByLabel('Name').fill('No cache');
-  await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
-  await form.getByLabel('Model', { exact: true }).fill('test-model');
-  await caching.getByRole('checkbox').uncheck();
-  await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(settings.getByText(savedMessage('No cache'))).toBeVisible();
-
-  await settings.locator('[data-profile="No cache"]').getByRole('button', { name: 'Edit' }).click();
-  await expect(settings.getByRole('form', { name: 'Edit provider' }).getByRole('group', { name: 'Prompt caching' }).getByRole('checkbox')).not.toBeChecked();
-
-  // Saved with the profile record: a reload brings the choice back.
-  await page.reload();
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await page.getByTestId('settings').locator('[data-profile="No cache"]').getByRole('button', { name: 'Edit' }).click();
-  await expect(page.getByRole('form', { name: 'Edit provider' }).getByRole('group', { name: 'Prompt caching' }).getByRole('checkbox')).not.toBeChecked();
+  await expect(settings.locator('[data-profile]')).toHaveCount(1);
 });
 
 test('usage shows recorded costs and uncertainty, reveals token subsets and exports guarded daily CSV', async ({ page }) => {
