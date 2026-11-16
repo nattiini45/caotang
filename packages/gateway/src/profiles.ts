@@ -25,14 +25,12 @@
  */
 export const DEFAULT_MAX_OUTPUT_TOKENS = 4_096;
 
-export const DEFAULT_MAX_CONCURRENT_REQUESTS: Readonly<Record<ProfileKind, number>> = { endpoint: 3, mock: 8 };
-
 import { MOCK_BASE_URL, normalizeBaseUrl, normalizeLocalBaseUrl, originOf } from './base-url.js';
 import { ProfileError } from './errors.js';
 import type { KeyStore } from './keys/key-store.js';
 import { presetFor, type PresetDef } from './presets/index.js';
 import { providerVerificationMachine } from './verification.js';
-import type { CachePolicy, NewProfile, ProfileKind, ProfilePatch, ProfileVerification, ProfileView, RequestParams, ResponseFormatProbe, ThinkingLevel } from './types.js';
+import type { NewProfile, ProfileKind, ProfilePatch, ProfileVerification, ProfileView, RequestParams, ResponseFormatProbe, ThinkingLevel } from './types.js';
 
 export interface ProfileStore {
   create(input: NewProfile): Promise<ProfileView>;
@@ -50,7 +48,6 @@ export interface ProfileStore {
    */
   recordProbe(id: string, probe: ResponseFormatProbe, attempt?: number): void;
   recordVerification(id: string, verification: ProfileVerification): void;
-  subscribeLimits?(listener: (profileId: string) => void): () => void;
 }
 
 export interface ProfileStoreOptions {
@@ -92,10 +89,8 @@ interface StoredProfile {
   defaultModel: string;
   temperature?: number;
   maxOutputTokens?: number;
-  maxConcurrentRequests: number;
   params?: RequestParams;
   pricePer1k?: { prompt: number; completion: number };
-  promptCache?: CachePolicy;
   isActive: boolean;
   hasKey: boolean;
   responseFormat?: ResponseFormatProbe;
@@ -111,10 +106,8 @@ interface CheckedFields {
   customHeaders?: Record<string, string>;
   temperature?: number;
   maxOutputTokens?: number;
-  maxConcurrentRequests: number;
   params?: RequestParams;
   pricePer1k?: { prompt: number; completion: number };
-  promptCache?: CachePolicy;
 }
 
 interface RawFields {
@@ -126,10 +119,8 @@ interface RawFields {
   customHeaders?: Readonly<Record<string, string>> | null;
   temperature?: number;
   maxOutputTokens?: number;
-  maxConcurrentRequests?: number;
   params?: RequestParams;
   pricePer1k?: { prompt: number; completion: number };
-  promptCache?: CachePolicy;
 }
 
 /** RFC 9110 token — what a request header name may be. */
@@ -229,11 +220,7 @@ function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
     }
   }
 
-  const maxConcurrentRequests = raw.maxConcurrentRequests === undefined ? DEFAULT_MAX_CONCURRENT_REQUESTS[kind] : raw.maxConcurrentRequests;
-  if (!Number.isInteger(maxConcurrentRequests) || maxConcurrentRequests < 1 || maxConcurrentRequests > 8) {
-    throw new ProfileError('invalid', 'Requests at once must be a whole number from 1 to 8.', 'maxConcurrentRequests');
-  }
-  const checked: CheckedFields = { name, baseUrl, defaultModel, maxConcurrentRequests };
+  const checked: CheckedFields = { name, baseUrl, defaultModel };
   if (fields !== undefined) checked.fields = fields;
   const headers = checkHeaders(kind, preset, raw.customHeaders);
   if (headers !== undefined) checked.customHeaders = headers;
@@ -258,7 +245,6 @@ function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
     }
     checked.pricePer1k = { prompt, completion };
   }
-  if (raw.promptCache !== undefined) checked.promptCache = checkCachePolicy(raw.promptCache);
   if (raw.params !== undefined) {
     const params = checkParams(raw.params);
     if (params !== undefined) checked.params = params;
@@ -320,16 +306,6 @@ function checkParams(raw: RequestParams): RequestParams | undefined {
   return Object.keys(out).length === 0 ? undefined : out;
 }
 
-/** A profile's caching policy, checked: `off` or `auto`, and Anthropic's lifetime `5m` or `1h`. Anything else is refused. */
-function checkCachePolicy(raw: CachePolicy | null): CachePolicy {
-  if (!isRecord(raw)) throw new ProfileError('invalid', 'Prompt caching is either on or off.', 'promptCache');
-  if (raw.mode !== 'off' && raw.mode !== 'auto') throw new ProfileError('invalid', 'Prompt caching is either on or off.', 'promptCache');
-  if (raw.ttl !== undefined && raw.ttl !== '5m' && raw.ttl !== '1h') {
-    throw new ProfileError('invalid', 'A cached prompt is kept for 5 minutes or 1 hour.', 'promptCache');
-  }
-  return { mode: raw.mode, ...(raw.ttl === undefined ? {} : { ttl: raw.ttl }) };
-}
-
 /**
  * Validates a key for an `endpoint` profile. Whitespace is refused because a key
  * pasted with a line break makes every request fail with a confusing 401.
@@ -368,7 +344,6 @@ function toView(rec: StoredProfile): ProfileView {
     ...(rec.fields === undefined ? {} : { fields: { ...rec.fields } }),
     baseUrl: rec.baseUrl,
     defaultModel: rec.defaultModel,
-    maxConcurrentRequests: rec.maxConcurrentRequests,
     isActive: rec.isActive,
     hasKey: rec.hasKey,
   };
@@ -376,7 +351,6 @@ function toView(rec: StoredProfile): ProfileView {
   if (rec.maxOutputTokens !== undefined) view.maxOutputTokens = rec.maxOutputTokens;
   if (rec.params !== undefined) view.params = copyParams(rec.params);
   if (rec.pricePer1k !== undefined) view.pricePer1k = { ...rec.pricePer1k };
-  if (rec.promptCache !== undefined) view.promptCache = { ...rec.promptCache };
   if (rec.responseFormat !== undefined) view.responseFormat = { ...rec.responseFormat };
   if (rec.verification !== undefined) view.verification = { ...rec.verification };
   return view;
@@ -386,7 +360,6 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
   const { keys } = options;
   const randomBytes = options.randomBytes ?? defaultRandomBytes;
   const records = new Map<string, StoredProfile>();
-  const limitListeners = new Set<(profileId: string) => void>();
 
   const requireRecord = (id: string): StoredProfile => {
     const rec = records.get(id);
@@ -401,10 +374,6 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
   };
 
   return {
-    subscribeLimits(listener) {
-      limitListeners.add(listener);
-      return () => { limitListeners.delete(listener); };
-    },
     async create(input) {
       // The retired kind name still arrives in data written before presets; it is the endpoint kind.
       const kind: ProfileKind = (input.kind as string) === 'openai-compatible' ? 'endpoint' : input.kind;
@@ -431,12 +400,10 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         name: fields.name,
         baseUrl: fields.baseUrl,
         defaultModel: fields.defaultModel,
-        maxConcurrentRequests: fields.maxConcurrentRequests,
         ...(fields.temperature === undefined ? {} : { temperature: fields.temperature }),
         ...(fields.maxOutputTokens === undefined ? {} : { maxOutputTokens: fields.maxOutputTokens }),
         ...(fields.params === undefined ? {} : { params: fields.params }),
         ...(fields.pricePer1k === undefined ? {} : { pricePer1k: fields.pricePer1k }),
-        ...(fields.promptCache === undefined ? {} : { promptCache: fields.promptCache }),
         isActive: activate,
         hasKey: key !== '',
       });
@@ -464,10 +431,8 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         // `null` clears the temperature and the parameters; an absent field keeps what is saved.
         temperature: patch.temperature === null ? undefined : (patch.temperature ?? rec.temperature),
         maxOutputTokens: patch.maxOutputTokens ?? rec.maxOutputTokens,
-        maxConcurrentRequests: patch.maxConcurrentRequests === undefined ? rec.maxConcurrentRequests : patch.maxConcurrentRequests,
         params: patch.params === null ? undefined : (patch.params ?? rec.params),
         pricePer1k: price,
-        promptCache: patch.promptCache ?? rec.promptCache,
       });
 
       let hasKey = rec.hasKey;
@@ -521,7 +486,6 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
       if (records.get(id) !== rec) throw new ProfileError('not-found', `No provider profile has the id ${id}.`);
 
       const endpointChanged = fields.baseUrl !== rec.baseUrl || fields.defaultModel !== rec.defaultModel;
-      const limitChanged = fields.maxConcurrentRequests !== rec.maxConcurrentRequests;
       const { customHeaders: _sealed, ...stored } = fields;
       Object.assign(rec, stored, { hasKey });
       // `Object.assign` cannot clear a key it was not given, so a cleared price is removed from the record here.
@@ -535,13 +499,7 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         rec.responseFormat = undefined;
         rec.verification = providerVerificationMachine.step(rec.verification ?? { kind: 'unknown' }, { type: 'invalidate' });
       }
-      const view = toView(rec);
-      if (limitChanged) {
-        for (const listener of limitListeners) {
-          try { listener(id); } catch { continue; }
-        }
-      }
-      return view;
+      return toView(rec);
     },
 
     async remove(id) {
