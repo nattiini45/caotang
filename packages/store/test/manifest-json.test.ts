@@ -156,17 +156,20 @@ describe('manifest serializer', () => {
     const m = rich();
     m.tree[1]!.publish = {
       slug: 17,
-      publishedAt: '2026-11-15T12:00:00Z',
+      publishedAt: '2026-02-30T00:00:00Z',
+      canonical: 'http://example.com/posts/x',
       tags: 'serial',
+      layout: 'post',
       customField: 'kept',
     } as unknown as Record<string, unknown>;
 
     const r = validateManifest(m);
     expect(r.ok).toBe(true);
     const publish = r.manifest?.tree[1]!.publish as Record<string, unknown>;
-    expect(publish).toEqual({ publishedAt: '2026-11-15T12:00:00Z', customField: 'kept' });
-    expect(r.warnings.some((w) => w.path.includes('publish.slug'))).toBe(true);
-    expect(r.warnings.some((w) => w.path.includes('publish.tags'))).toBe(true);
+    expect(publish).toEqual({ layout: 'post', customField: 'kept' });
+    for (const field of ['slug', 'publishedAt', 'canonical', 'tags']) {
+      expect(r.warnings.some((w) => w.path.includes(`publish.${field}`))).toBe(true);
+    }
   });
 
   it('drops a malformed EPUB slot or recipe with a warning, and keeps the rest (load tolerance)', () => {

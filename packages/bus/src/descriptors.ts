@@ -124,11 +124,75 @@ export const KEYWORD_CHARS_MAX = 64;
 export const NOTES_MAX = 50_000;
 const NOTES_APPEND_MAX = 2000;
 const CODEX_BATCH_MAX = 20;
-/** web-publishing.md §2's limits for `binder.setPublish`, local like the notes caps: a load keeps what it finds. */
+/**
+ * web-publishing.md §2's limits for `binder.setPublish`, local like the notes caps. A load keeps an
+ * unknown key it finds, but drops a named field whose value the command could never write — see
+ * `publishFieldValueOk`, which the store's loader shares so an undo inverse can never hold one.
+ */
 const PUBLISH_TEXT_MAX = 2000;
 const PUBLISH_TAGS_MAX = 64;
 /** The RFC 3339 shape §2 pins `publishedAt` to — a full instant, not a date. */
-const RFC3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+const RFC3339 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-](\d{2}):(\d{2}))$/;
+const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+/**
+ * A `publishedAt` the command will write and re-apply: the RFC 3339 shape **and** a real instant.
+ * The shape alone lets `2026-02-30` and `T24:00` through, and `Date.parse` only deepens the trap —
+ * it normalizes `24:00` into the next day, so the stored string is not what a reader parses it as.
+ * Every field's range is checked outright, day-of-month against the year's leap rule.
+ */
+export function isPublishInstant(value: string): boolean {
+  const m = RFC3339.exec(value);
+  if (!m) return false;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const second = Number(m[6]);
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return false;
+  if (m[7] !== 'Z' && (Number(m[8]) > 23 || Number(m[9]) > 59)) return false;
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = (DAYS_IN_MONTH[month - 1] ?? 0) + (month === 2 && leap ? 1 : 0);
+  return day >= 1 && day <= days;
+}
+
+/**
+ * A `canonical` the command will write: an absolute `https` address carrying no credentials — a
+ * `user:pass@` inside the address would land in the manifest and every export that reads it.
+ */
+export function isPublishCanonical(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.username === '' && url.password === '';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether `value` is one a `binder.setPublish` patch can write to `field` — the predicate half of
+ * the descriptor's per-field checks, shared with the store's load. A stored field the command could
+ * never produce lands in an undo inverse it then refuses to re-apply, so the load drops it.
+ */
+export function publishFieldValueOk(field: (typeof PUBLISH_FIELD_NAMES)[number], value: unknown): boolean {
+  switch (field) {
+    case 'tags':
+      return (
+        Array.isArray(value) &&
+        value.length <= PUBLISH_TAGS_MAX &&
+        value.every((tag) => typeof tag === 'string' && tag.trim().length > 0)
+      );
+    case 'slug':
+      return typeof value === 'string' && value.length <= PUBLISH_TEXT_MAX && value.trim().length > 0;
+    case 'publishedAt':
+      return typeof value === 'string' && value.length <= PUBLISH_TEXT_MAX && isPublishInstant(value);
+    case 'canonical':
+      return typeof value === 'string' && value.length <= PUBLISH_TEXT_MAX && isPublishCanonical(value);
+    default:
+      return typeof value === 'string' && value.length <= PUBLISH_TEXT_MAX;
+  }
+}
 
 /**
  * codex.md §2's limits, **exported**.
@@ -750,30 +814,19 @@ export const binderSetPublish: CommandDescriptor<BinderSetPublishParams> = {
     if (typeof typed.slug === 'string' && typed.slug.trim() === '') {
       return invalid('a slug cannot be empty', 'type a slug like "first-post", or null to clear it', 'patch.slug');
     }
-    if (typeof typed.publishedAt === 'string' && (!RFC3339.test(typed.publishedAt) || Number.isNaN(Date.parse(typed.publishedAt)))) {
-      // The shape alone is not enough — `2026-13-40T99:00:00Z` matches the pattern and means no instant.
+    if (typeof typed.publishedAt === 'string' && !isPublishInstant(typed.publishedAt)) {
       return invalid(
         `"${typed.publishedAt}" is not an RFC 3339 instant`,
         'type a full timestamp like "2026-11-15T12:00:00Z", or null to clear the date',
         'patch.publishedAt',
       );
     }
-    if (typeof typed.canonical === 'string') {
-      let absolute = false;
-      try {
-        const url = new URL(typed.canonical);
-        // Credentials inside the address would land in the manifest and every export that reads it.
-        absolute = url.protocol === 'https:' && url.username === '' && url.password === '';
-      } catch {
-        absolute = false;
-      }
-      if (!absolute) {
-        return invalid(
-          `"${typed.canonical}" is not an absolute https address`,
-          'type the full address without credentials, like "https://example.com/post", or null to clear it',
-          'patch.canonical',
-        );
-      }
+    if (typeof typed.canonical === 'string' && !isPublishCanonical(typed.canonical)) {
+      return invalid(
+        `"${typed.canonical}" is not an absolute https address`,
+        'type the full address without credentials, like "https://example.com/post", or null to clear it',
+        'patch.canonical',
+      );
     }
     if (patch['tags'] !== undefined) {
       if (patch['tags'] === null) {

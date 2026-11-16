@@ -31,7 +31,7 @@ import {
   type AppliedMigration,
   type FormatContext,
 } from './migrations.js';
-import { CALENDAR_JSON_MAX_CHARS, CHAR_LIMIT_MAX, CRITERIA_KEYS, EPUB_IMAGE_MAX_PX_MAX, EPUB_IMAGE_MAX_PX_MIN, HOOKS_MAX, HOOK_EVENTS_RUN, MACROS_MAX, PICTURE_MODES, PUBLISH_FIELD_NAMES, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits, readHook, readMacro } from '@caotang/bus';
+import { CALENDAR_JSON_MAX_CHARS, CHAR_LIMIT_MAX, CRITERIA_KEYS, EPUB_IMAGE_MAX_PX_MAX, EPUB_IMAGE_MAX_PX_MIN, HOOKS_MAX, HOOK_EVENTS_RUN, MACROS_MAX, PICTURE_MODES, PUBLISH_FIELD_NAMES, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits, publishFieldValueOk, readHook, readMacro } from '@caotang/bus';
 // The shapes the bus names for the furniture commands. The *values* the bus
 // refuses at the command boundary are restated below, for the load; the types
 // are the bus's own, so a value the bus does not know cannot be listed here.
@@ -136,6 +136,22 @@ function isFixedRootId(id: unknown): boolean {
 
 function isIsoDate(v: unknown): v is string {
   return typeof v === 'string' && !Number.isNaN(Date.parse(v));
+}
+
+/** What §2 expects a stored publish field to hold — the message half of `publishFieldValueOk`. */
+function publishFieldExpectation(field: (typeof PUBLISH_FIELD_NAMES)[number]): string {
+  switch (field) {
+    case 'slug':
+      return 'a non-empty slug';
+    case 'publishedAt':
+      return 'an RFC 3339 instant';
+    case 'canonical':
+      return 'an absolute https address';
+    case 'tags':
+      return 'a list of tags';
+    default:
+      return 'a string';
+  }
 }
 
 /**
@@ -674,18 +690,16 @@ function validateFields(
         delete node[key];
       }
       if (key === 'publish' && isRecord(node.publish)) {
-        // A malformed *named* field — `publish.slug: 17` — would land in a `binder.setPublish` undo inverse
-        // the command then cannot re-apply (a field takes a string or null, `tags` a string list or null),
-        // leaving an edit undo cannot restore. The load drops it the way a malformed scene style goes;
-        // unknown keys stay — §2's tolerance is for names it does not know, not for the wrong type.
+        // A *named* field holding a value the command could never write — `publish.slug: 17`, or the
+        // right type with a bad reading, `publish.publishedAt: 'soon'` — would land in a
+        // `binder.setPublish` undo inverse the command then refuses to re-apply, leaving an edit undo
+        // cannot restore. The load drops it the way a malformed scene style goes; unknown keys stay —
+        // §2's tolerance is for names it does not know, not for values no patch could produce.
         for (const field of PUBLISH_FIELD_NAMES) {
           if (!(field in node.publish)) continue;
           const fieldValue = node.publish[field];
-          const good = field === 'tags'
-            ? Array.isArray(fieldValue) && fieldValue.every((tag) => typeof tag === 'string')
-            : typeof fieldValue === 'string';
-          if (!good) {
-            warn(`${at}.publish.${field}`, `expected ${field === 'tags' ? 'a string list' : 'a string'}; ignoring field`);
+          if (fieldValue !== null && !publishFieldValueOk(field, fieldValue)) {
+            warn(`${at}.publish.${field}`, `expected ${publishFieldExpectation(field)}; ignoring field`);
             delete node.publish[field];
           }
         }

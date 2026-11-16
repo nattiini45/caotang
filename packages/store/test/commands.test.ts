@@ -1679,6 +1679,10 @@ describe('binder.setPublish — a document’s publish metadata (web-publishing.
     });
     h.undoGroup(outcome.undoGroupId!);
     expect('publish' in node(h.state, LANDING)).toBe(false);
+
+    // A leap day is a real instant — the range check refuses only what no calendar holds.
+    h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { publishedAt: '2028-02-29T12:00:00Z' } } }));
+    expect(node(h.state, LANDING).publish).toEqual({ publishedAt: '2028-02-29T12:00:00Z' });
   });
 
   it('clears a field with null, keeps the keys it was not handed, and restores them on undo', () => {
@@ -1719,6 +1723,10 @@ describe('binder.setPublish — a document’s publish metadata (web-publishing.
     expect(refused({ canonical: 'http://example.com/posts/x' }).code).toBe('invalid-params');
     expect(refused({ publishedAt: '2026-11-15' }).code).toBe('invalid-params');
     expect(refused({ publishedAt: '2026-13-40T99:99:99Z' }).code).toBe('invalid-params');
+    // Calendar overflows the shape alone admits — `Date.parse` even normalizes `24:00` into the next day.
+    expect(refused({ publishedAt: '2026-11-15T24:00:00Z' }).code).toBe('invalid-params');
+    expect(refused({ publishedAt: '2029-02-29T12:00:00Z' }).code).toBe('invalid-params');
+    expect(refused({ publishedAt: '2026-11-15T12:00:00+25:00' }).code).toBe('invalid-params');
     expect(refused({ bogus: 'x' }).code).toBe('invalid-params');
     expect(refused({}).code).toBe('invalid-params');
     const folder = refused({ slug: 'chapter-1' }, CHAPTER_ONE);
