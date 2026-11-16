@@ -36,6 +36,7 @@ function TaskList({ agent, tasks, onAction, onOpenFindings }: TaskSectionProps &
                 : t`${{ done: formatCount(task.done) }} / ${{ total: formatCount(task.total) }} drafted · Call allowance: ${{ used: formatCount(task.used) }} of ${{ cap: formatCount(task.cap) }} reserved or used.`
               : t`${{ done: formatCount(task.done) }} / ${{ total: formatCount(task.total) }} drafted · ${{ used: formatCount(task.used) }} of ${{ cap: formatCount(task.cap) }} model calls · ${{ tokens: formatCount(task.promptTokens + task.completionTokens) }} tokens`}
           </p>
+          {task.status === 'interrupted' && task.reservedCalls > 0 ? <p className="agent-task-meta"><Trans>Some call outcomes were not saved before the interruption. Their allowance stays reserved; it is not reported as actual usage.</Trans></p> : null}
           {task.kind !== 'draft' && task.report === null ? <p className="agent-task-meta muted"><Trans>No review report has been published. Recorded usage may be incomplete.</Trans></p> : null}
           {task.report !== null ? (
             <div className="agent-task-report" data-testid="task-review-report">

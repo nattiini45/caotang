@@ -29,7 +29,7 @@ async function openSettings(page: Page): Promise<ReturnType<Page['getByTestId']>
 async function storedProfiles(page: Page): Promise<Record<string, unknown>[]> {
   return page.evaluate(async () => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open('caotang-app', 4);
+      const req = indexedDB.open('caotang-app');
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
@@ -56,7 +56,7 @@ async function seedProfiles(page: Page, records: readonly Record<string, unknown
   await expect.poll(async () => (await storedProfiles(page)).some((profile) => profile['name'] === 'Demo (no key)')).toBe(true);
   await page.evaluate(async (extra) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open('caotang-app', 4);
+      const req = indexedDB.open('caotang-app');
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });

@@ -34,7 +34,7 @@ import { childrenOf, enclosingFolders, newDocumentRefusalText, newItemParent, no
 import { newPlan, newTarget, type NewKind } from '../app/new-menu.js';
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, type DirectoryHandleLike } from '../app/fs-access.js';
-import { isImeEnter, keyFacts, keyboardLayoutStore, resolveKey } from '../app/keymap.js';
+import { MODAL_DIALOG_SELECTOR, isImeEnter, keyFacts, keyboardLayoutStore, resolveKey } from '../app/keymap.js';
 import { shellActions } from '../app/shell-actions.js';
 import { NARROW_QUERY, narrowMediaFeature, type NarrowPanel } from '../app/narrow-model.js';
 import {
@@ -627,6 +627,7 @@ export function Workspace({
   // and always sees the current selection, without re-subscribing on each change.
   const onKey = (event: KeyboardEvent): void => {
     const target = event.target;
+    if (event.defaultPrevented || (target instanceof Element && target.closest(MODAL_DIALOG_SELECTOR) !== null)) return;
     const inTextField =
       target instanceof HTMLTextAreaElement ||
       target instanceof HTMLInputElement ||
