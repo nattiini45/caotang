@@ -173,6 +173,7 @@ function reviewCheckpointOk(value: unknown): boolean {
   if (!isObject(value)) return false;
   if (!isStrings(value['extractedDocIds']) || !isCount(value['verifiedBatches']) || !isCount(value['promptTokens']) || !isCount(value['completionTokens']) || !isStrings(value['notes']) || !isStrings(value['evaluated'])) return false;
   if (value['status'] !== 'complete' && value['status'] !== 'partial') return false;
+  if (value['verifiedPairs'] !== undefined && !isStrings(value['verifiedPairs'])) return false;
   if (!Array.isArray(value['spans']) || !value['spans'].every(spanOk)) return false;
   if (!Array.isArray(value['verdicts']) || !value['verdicts'].every(verdictOk)) return false;
   const usage = value['usageByPair'];

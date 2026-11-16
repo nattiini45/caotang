@@ -53,6 +53,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **LibreOffice keeps the Word contents field.** A `.docx` contents field is now written the way Word writes it — the field instruction in its own run, one cached entry per paragraph, no `w:sdt` wrapper — and the Heading styles carry an outline level. Before, LibreOffice flattened the field to dead text, showed the instruction ahead of the first entry and could not regenerate the table; now it imports it as a real index, keeps it on re-save, and Tools → Update indexes fills in the page numbers and links (#26).
 
+- A queued coherence review that resumes after further extraction verifies every remaining pair and keeps each earlier verdict on the pair its spans form, instead of skipping recomposed batches or attributing a verdict to a renumbered pair. A resume that finishes the remaining work reports a complete review, and an unusable extraction or verification reply is asked again rather than counted as done. Checkpoints saved by an earlier version re-verify their pairs and re-ask any extraction they counted without evaluating, so an old record cannot skip work or report complete without it.
+
 - Explicit codex leave-outs are reported before reading their descriptions, even when an entry is empty or unmentioned. Never keeps its own suppression reason; kept prompt text is unchanged.
 
 - Unknown shot metadata names remain data: a field named `__proto__` cannot replace the reader's metadata dictionary prototype. Unknown fields are still reported and dropped on the next save.
