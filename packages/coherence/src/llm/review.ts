@@ -443,6 +443,7 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
   const usageByPair = new Map<string, ModelUsage | undefined>();
   const verdicts: ParsedVerdict[] = [];
   const verdictKeys: string[] = [];
+  const verdictKeySet = new Set<string>();
   if (usable !== undefined) {
     for (const [pairId, usage] of Object.entries(usable.usageByPair)) {
       const key = previousKeys.get(pairId);
@@ -453,6 +454,7 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
       if (key === undefined) continue;
       verdicts.push(verdict);
       verdictKeys.push(key);
+      verdictKeySet.add(key);
     }
   }
   let verifiedBatches = usable?.verifiedBatches ?? 0;
@@ -572,6 +574,9 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
       acknowledge();
       continue;
     }
+    const sentIds = new Set(blocks.map((block) => block.pairId));
+    const sent = pending.filter((pair) => sentIds.has(pair.pairId));
+    if (sent.length < pending.length) notes.push(`${pending.length - sent.length} pair(s) could not be read and were skipped`);
     const prompt = verificationPrompt(blocks);
     let reply: ModelReply;
     try {
@@ -591,20 +596,41 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
     try {
       const parsed = parseVerification(reply.content, {
         bodies,
-        pairs: new Map(pending.map((pair) => [pair.pairId, pair] as const)),
+        pairs: new Map(sent.map((pair) => [pair.pairId, pair] as const)),
       });
       notes.push(...parsed.notes);
+      const judged = new Map<string, ParsedVerdict>();
+      let repeated = 0;
       for (const verdict of parsed.verdicts) {
-        const pair = pairById.get(verdict.pairId);
+        if (judged.has(verdict.pairId)) {
+          repeated += 1;
+          continue;
+        }
+        judged.set(verdict.pairId, verdict);
+      }
+      if (repeated > 0) notes.push(`${repeated} repeated verdict(s) for one pair were kept once`);
+      for (const [pairId, verdict] of judged) {
+        const pair = pairById.get(pairId);
         if (pair === undefined) continue;
+        const key = pairKey(pair);
+        if (verdictKeySet.has(key)) continue;
+        verdictKeySet.add(key);
         verdicts.push(verdict);
-        verdictKeys.push(pairKey(pair));
-        usageByPair.set(pairKey(pair), reply.usage);
+        verdictKeys.push(key);
+        usageByPair.set(key, reply.usage);
+      }
+      const missing = sent.filter((pair) => !judged.has(pair.pairId));
+      if (missing.length > 0) {
+        status = 'partial';
+        notes.push(`verification at ${pairLabelOf(pending[0])} judged ${judged.size} of ${sent.length} pairs; the rest are asked again on resume`);
+        await options.onCheckpoint?.(checkpoint());
+        break;
       }
     } catch (error) {
       if (!(error instanceof MalformedReplyError)) throw error;
       status = 'partial';
       notes.push(`a verification batch was unusable: ${error.message}`);
+      await options.onCheckpoint?.(checkpoint());
       break;
     }
     acknowledge();
