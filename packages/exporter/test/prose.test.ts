@@ -115,6 +115,20 @@ describe('footnotes (#271)', () => {
     expect(plainProse(parsed.blocks, '* * *')).toBe('A gap[^nowhere].');
   });
 
+  it('a note cited only by a note nothing refers to stays literal with it', () => {
+    const parsed = parseProse('Body.\n\n[^loose]: See [^child].\n\n[^child]: A child note.');
+    // The child must not be lifted into `notes` — nothing that renders refers to it, so its text would be lost.
+    expect(parsed.notes.size).toBe(0);
+    expect(plainProse(parsed.blocks, '* * *')).toBe('Body.\n\n[^loose]: See [^child].\n\n[^child]: A child note.');
+  });
+
+  it('a note cited inside a note is collected and placed with the others', () => {
+    const parsed = parseProse('Late[^a].\n\n[^a]: See [^b].\n\n[^b]: Nested.');
+    expect(parsed.notes.get('a')).toBeDefined();
+    expect(parsed.notes.get('b')).toBeDefined();
+    expect(plainProse(parsed.notes.get('b') ?? [], '* * *')).toBe('Nested.');
+  });
+
   it('the marker callback numbers the note run in plain text', () => {
     const parsed = parseProse('Late[^1] and later[^2].\n\n[^1]: One.\n\n[^2]: Two.');
     const text = plainProse(parsed.blocks, '* * *', 'placeholder', (noteId) => `[${noteId}]`);

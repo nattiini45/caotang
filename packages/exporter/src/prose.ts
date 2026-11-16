@@ -101,19 +101,32 @@ export function parseProse(body: string): ParsedProse {
 /** The identifiers every `footnoteReference` in the tree marks, so the definitions they name are collected as notes. */
 function referencedNotesOf(tree: Root): ReadonlySet<string> {
   const found = new Set<string>();
-  const walk = (nodes: readonly Content[]): void => {
+  const definitions = new Map<string, readonly Content[]>();
+  // A marker counts only where its text renders: the body, and each note the body reaches. A marker inside a
+  // definition nothing marks stays literal with that definition, so the note it names stays literal too.
+  const collect = (nodes: readonly Content[]): void => {
     for (const node of nodes) {
       if (node.type === 'footnoteReference') {
         found.add((node as { identifier: string }).identifier);
       } else if (node.type === 'footnoteDefinition') {
-        // A marker inside a note is still a marker: its note is collected and placed with the others.
-        walk((node as { children: Content[] }).children);
+        const definition = node as { identifier: string; children: Content[] };
+        definitions.set(definition.identifier, definition.children);
       } else if ('children' in node) {
-        walk(node.children as readonly Content[]);
+        collect(node.children as readonly Content[]);
       }
     }
   };
-  walk(tree.children);
+  collect(tree.children);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const [identifier, children] of definitions) {
+      if (!found.has(identifier)) continue;
+      const size = found.size;
+      collect(children);
+      if (found.size > size) grew = true;
+    }
+  }
   return found;
 }
 
