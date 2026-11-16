@@ -52,7 +52,7 @@ export function CompanionWindow({ regions, pageId }: ModernSlotProps): ReactNode
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       const target = event.target;
-      if (target instanceof Element && target.closest('dialog') !== null) return;
+      if (target instanceof Element && target.closest('dialog, [role="dialog"], [role="alertdialog"]') !== null) return;
       const inTextField =
         target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement || (target instanceof HTMLElement && target.isContentEditable);
       const action = resolveKey({ ...keyFacts(event), composing: isImeEnter(event) }, { inTextField, inBinder: false, shell: 'modern' });

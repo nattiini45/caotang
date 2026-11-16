@@ -135,6 +135,7 @@ import { SkillReviews, dropReviewsOf } from './skill-reviews.js';
 import { forgetPictureNotices } from './picture-notices.js';
 import { dropTasksOf } from './task-store.js';
 import { dropTaskRunsOf } from './task-runs.js';
+import { dropTaskConsentsOf } from './task-consents.js';
 import { openTasksHome } from './tasks-io.js';
 import { recoverPending, recoveryNotice } from './pending-journal.js';
 import { copyState, shadowOf, type Shadow } from './persistence-plan.js';
@@ -538,6 +539,7 @@ export async function removeProject(store: RuntimeStore, projectId: string): Pro
     await dropTasksOf(projectId);
     // And the run history of its recurring tasks (task-runs.ts).
     await dropTaskRunsOf(projectId);
+    await dropTaskConsentsOf(projectId);
     // And what the writer answered about keeping its pictures safe (picture-notices.ts).
     await forgetPictureNotices(projectId);
   } finally {

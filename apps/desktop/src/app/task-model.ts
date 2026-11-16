@@ -42,6 +42,10 @@ export interface TaskView {
   readonly report: TaskReviewReport | null;
   readonly unread: boolean;
   readonly acknowledged: boolean;
+  /** The recurring task this run came from, when a consented due task staged it; `null` for a plan the writer queued. */
+  readonly recurringTaskId: string | null;
+  readonly createdAt: number;
+  readonly reservedCalls: number;
 }
 
 function statusText(task: TaskRecord, phase: TaskQueueStatus, done: number, total: number, outdated: number): string {
@@ -68,6 +72,7 @@ function statusText(task: TaskRecord, phase: TaskQueueStatus, done: number, tota
       const draftItems = task.items.filter((item) => task.steps[item.step]?.tool !== 'coherence.review');
       const draftTotal = draftItems.length;
       const staged = draftItems.filter((item) => item.state === 'staged').length;
+      if (task.recurringTaskId !== undefined && draftTotal === 0) return t`Ready to review: no steps have run`;
       if (kind === 'mixed' && draftTotal === 0) {
         return (task.report ?? null) === null
           ? t`The review did not publish. Its other steps are ready for review.`
@@ -138,6 +143,9 @@ export function viewOf(task: TaskRecord & { readonly phase?: TaskQueueStatus }, 
     report,
     unread: report !== null && !acknowledged,
     acknowledged,
+    recurringTaskId: task.recurringTaskId ?? null,
+    createdAt: task.createdAt,
+    reservedCalls: task.reservedCalls ?? 0,
   };
 }
 

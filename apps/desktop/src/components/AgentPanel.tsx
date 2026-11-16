@@ -304,7 +304,7 @@ export function AgentPanel({
   const onPanelKey = (event: ReactKeyboardEvent<HTMLElement>): void => {
     // A dialog inside the panel (the restore confirmation) has Escape for itself.
     const target = event.target;
-    if (event.defaultPrevented || (target instanceof HTMLElement && target.closest('dialog') !== null)) return;
+    if (event.defaultPrevented || (target instanceof HTMLElement && target.closest('dialog, [role="dialog"], [role="alertdialog"]') !== null)) return;
     const action = resolveKey(
       // keyFacts reads AltGraph from the modifier state (Windows reports it as Ctrl+Alt); isImeEnter reads the native event's composition.
       { ...keyFacts(event), composing: isImeEnter(event) },

@@ -627,6 +627,7 @@ export function Workspace({
   // and always sees the current selection, without re-subscribing on each change.
   const onKey = (event: KeyboardEvent): void => {
     const target = event.target;
+    if (event.defaultPrevented || (target instanceof Element && target.closest('dialog, [role="dialog"], [role="alertdialog"]') !== null)) return;
     const inTextField =
       target instanceof HTMLTextAreaElement ||
       target instanceof HTMLInputElement ||

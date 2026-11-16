@@ -56,6 +56,7 @@ async function sessionOver(
     readonly offer?: (offer: PlanOffer) => OfferAnswer | Promise<OfferAnswer>;
     readonly decision?: Decision;
     readonly sessionId?: string;
+    readonly mode?: 'plan-only';
   } = {},
 ) {
   const harness = createHarness({ state, ports: createAgentPorts() });
@@ -80,6 +81,7 @@ async function sessionOver(
         }),
     ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }),
     maxModelCalls: 12,
+    ...(options.mode === undefined ? {} : { mode: options.mode }),
   });
   return { session, harness, gateway, cards, offers };
 }
@@ -257,6 +259,24 @@ describe('staging with no card (stageOnly)', () => {
 
 describe('the review of a plan staged earlier (submitStaged)', () => {
   const plan = { steps: [synopses(['The Storm', 'The Friend'])] };
+
+  it.each([
+    { kind: 'model-backed', step: synopses(['The Storm', 'The Friend']) },
+    { kind: 'native', step: { tool: 'meta.set', params: { targets: [FRIEND], label: 'act-2' }, expect: 'a label' } },
+  ])('refuses a staged $kind write in Plan-only mode without a card or another model call', async ({ step }) => {
+    const state = withScenes(2);
+    const stager = await sessionOver(state);
+    const result = await stager.session.stageOnly([step]);
+    const before = JSON.stringify(state);
+    const reviewer = await sessionOver(state, { scripts: [], mode: 'plan-only' });
+    const report = await reviewer.session.submitStaged(INTENT, { steps: [step] }, result.proposals, result.revisions);
+    expect(report.status).toBe('failed');
+    expect(report.mode).toBe('plan-only');
+    expect(report.heldSteps).toEqual([step]);
+    expect(report.modelCalls).toBe(0);
+    expect(reviewer.cards).toHaveLength(0);
+    expect(JSON.stringify(state)).toBe(before);
+  });
 
   /** Stages the plan in one session and returns what a task would hold, plus a second session over the same project for the review. */
   async function staged(state: ProjectState, scripts?: readonly MockScript[]) {

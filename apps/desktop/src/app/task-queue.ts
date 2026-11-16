@@ -78,6 +78,7 @@ export interface TaskQueueOptions {
   readonly reviewFor?: TaskReviewFactory;
   /** Whether a foreground turn is running. The runner makes no call while it is. */
   readonly foregroundBusy: () => boolean;
+  readonly callCap?: (task: TaskRecord) => number;
   /** Whether the browser can guarantee one runner (Web Locks). Default: `navigator.locks` exists. */
   readonly locksAvailable?: () => boolean;
   readonly now?: () => number;
@@ -170,7 +171,7 @@ export class TaskQueue {
   }
 
   /** Queues a plan. It is refused, with the reason in words, when it cannot run unattended or the browser cannot guarantee one runner. */
-  async enqueue(intent: string, steps: readonly PlanStep[], contextOverrides?: ContextOverrides, review?: QueuedReviewApproval, signal?: AbortSignal): Promise<EnqueueResult> {
+  async enqueue(intent: string, steps: readonly PlanStep[], contextOverrides?: ContextOverrides, review?: QueuedReviewApproval, signal?: AbortSignal, scheduled?: { readonly taskId: string; readonly cap: number; readonly hash: string; readonly permission: 'read-only' | 'ask' }): Promise<EnqueueResult> {
     const cancelled = (): boolean => signal?.aborted === true;
     if (cancelled()) return { ok: false, reason: t`Cancelled before it started.`, cancelled: true };
     const unavailable = this.unavailable();
@@ -179,16 +180,22 @@ export class TaskQueue {
     if ((contextOverrides !== undefined && !contextOverridesOk(contextOverrides)) || steps.some((step) => step.contextOverrides !== undefined && !contextOverridesOk(step.contextOverrides))) {
       return { ok: false, reason: t`The context choices could not be kept. Run this plan here, or send the request again.` };
     }
+    if (scheduled !== undefined && (!Number.isInteger(scheduled.cap) || scheduled.cap < 1 || scheduled.taskId === '')) {
+      return { ok: false, reason: t`The task's allowance could not be kept, so it stays offered when it is due.` };
+    }
     const reviewSteps = steps.filter((step) => step.tool === 'coherence.review');
+    if (scheduled !== undefined && reviewSteps.length > 0) {
+      return { ok: false, reason: t`A coherence review needs its own approved estimate each time, so this task stays offered when it is due.` };
+    }
     if (reviewSteps.length > 1) return { ok: false, reason: t`Queue one coherence review at a time. Split this plan into one review per task.` };
     if (reviewSteps.length === 1 && review === undefined) return { ok: false, reason: t`A coherence review needs its approved estimate before it can be queued. Run it here, or approve the queue preview.` };
     if (review !== undefined && reviewSteps.length === 0) return { ok: false, reason: t`This plan has no coherence review to queue.` };
     if (review !== undefined && this.options.reviewFor === undefined) return { ok: false, reason: t`This browser cannot run a queued review here, so the review can only run now.` };
     const bounds: (ReviewCallBound | undefined)[] = steps.map((step) => (step.tool === 'coherence.review' ? review?.callBound : undefined));
-    const eligible = backgroundEligibility(steps, bounds);
+    const eligible = backgroundEligibility(steps, bounds, { allowNoModelStep: scheduled !== undefined });
     if (!eligible.eligible) return { ok: false, reason: eligible.reason };
-    const cap = estimatedModelCalls(steps, bounds);
-    if (cap < 1) return { ok: false, reason: t`No step of this plan needs a model call.` };
+    const cap = scheduled === undefined ? estimatedModelCalls(steps, bounds) : scheduled.cap;
+    if (scheduled === undefined && cap < 1) return { ok: false, reason: t`No step of this plan needs a model call.` };
     if (review !== undefined && (!reviewCallBoundOk(review.callBound) || reviewCallCap(review.callBound) < 1 || review.fingerprint === '')) {
       return { ok: false, reason: t`The review's approval could not be kept. Approve the queue preview again.` };
     }
@@ -211,8 +218,9 @@ export class TaskQueue {
       updatedAt: at,
       kind,
       ...(review === undefined ? {} : { review: structuredClone(review), reviewRunId: newReviewRunId() }),
+      ...(scheduled === undefined ? {} : { recurringTaskId: scheduled.taskId, recurringHash: scheduled.hash, recurringPermission: scheduled.permission }),
     };
-    if (review !== undefined) {
+    if (review !== undefined || scheduled !== undefined) {
       try {
         await this.options.store.save(task);
       } catch {
@@ -388,13 +396,13 @@ export class TaskQueue {
       if (started === undefined || abort.signal.aborted) return;
       const sessionId = started.runs === 1 ? started.id : started.id + '.run' + started.runs;
       const bounds = started.steps.map((step) => (step.tool === 'coherence.review' ? started.review?.callBound : undefined));
-      const eligible = backgroundEligibility(started.steps, bounds);
+      const eligible = backgroundEligibility(started.steps, bounds, { allowNoModelStep: started.recurringTaskId !== undefined });
       const pending = started.items.filter((item) => item.state === 'pending');
       const hasDrafts = pending.some((item) => started.steps[item.step]?.tool !== 'coherence.review');
       let agent: TaskAgent | string | undefined;
       try {
         if (!eligible.eligible) agent = eligible.reason;
-        else if (hasDrafts) agent = await this.options.agentFor(started, sessionId, Math.max(0, started.cap - started.used));
+        else if (hasDrafts || started.recurringTaskId !== undefined) agent = await this.options.agentFor(started, sessionId, Math.max(0, started.cap - started.used - (started.reservedCalls ?? 0)));
       } catch (error) {
         const errorText = error instanceof Error ? error.message : String(error);
         agent = t`The agent could not be started: ${{ error: errorText }}`;
@@ -493,8 +501,8 @@ export class TaskQueue {
     const item = task?.items.find((entry) => entry.key === key);
     if (task === undefined || item === undefined) return true;
     const calls = callsOfItem(task, item);
-    if (task.used + calls > task.cap) {
-      const cap = task.cap;
+    const cap = Math.min(task.cap, this.options.callCap?.(task) ?? task.cap);
+    if (task.used + (task.reservedCalls ?? 0) + calls > cap) {
       await this.updateItem(id, key, {
         state: 'failed',
         error: t`This step needs ${{ calls }} model ${plural(calls, { one: 'call', other: 'calls' })}, which would go past the task's limit of ${{ cap }}.`,
@@ -502,6 +510,14 @@ export class TaskQueue {
       return true;
     }
     let result: StageOnlyResult;
+    if (task.recurringTaskId !== undefined) {
+      try {
+        await this.updateStrict(id, { reservedCalls: cap - task.used });
+      } catch {
+        await this.updateItem(id, key, { state: 'failed', error: t`The call allowance could not be saved, so no model request was sent. Try again after checking browser storage.` });
+        return false;
+      }
+    }
     try {
       result = await agent.stageOnly([stepOfItem(task, item)], { signal, ...(task.contextOverrides === undefined ? {} : { contextOverrides: copyContext(task.contextOverrides) }) });
     } catch (error) {
@@ -510,7 +526,8 @@ export class TaskQueue {
       return !signal.aborted;
     }
     const spent = {
-      used: (this.find(id)?.used ?? 0) + result.modelCalls,
+      used: task.used + result.modelCalls,
+      ...(task.recurringTaskId === undefined ? {} : { reservedCalls: 0 }),
       promptTokens: (this.find(id)?.promptTokens ?? 0) + result.tokens.promptTokens,
       completionTokens: (this.find(id)?.completionTokens ?? 0) + result.tokens.completionTokens,
     };
@@ -551,6 +568,6 @@ export class TaskQueue {
       await this.move(id, task.report !== undefined || draftStaged || hasDeferred ? 'ready' : 'fail');
       return;
     }
-    await this.move(id, task.items.some((item) => item.state === 'staged') ? 'ready' : 'fail');
+    await this.move(id, task.items.some((item) => item.state === 'staged') || (task.recurringTaskId !== undefined && task.items.length === 0) ? 'ready' : 'fail');
   }
 }
