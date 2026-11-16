@@ -76,11 +76,17 @@ export function RecurringTasksPanel({
     setEditing({ id: task.id, draft: task.draft, error: null, stepsInvalid: false });
   };
   const focusTarget = useRef<string | null | undefined>(undefined);
+  const focusInvalidSteps = useRef(false);
   const focusAfterEdit = (id: string | null): void => {
     focusTarget.current = id;
   };
   useEffect(() => {
-    if (editing !== null || saving || focusTarget.current === undefined) return;
+    if (saving) return;
+    if (focusInvalidSteps.current) {
+      focusInvalidSteps.current = false;
+      if (editing?.stepsInvalid === true) stepsRef.current?.focus();
+    }
+    if (editing !== null || focusTarget.current === undefined) return;
     const id = focusTarget.current;
     focusTarget.current = undefined;
     const row = id === null ? null : sectionRef.current?.querySelector<HTMLElement>(`[data-task="${CSS.escape(id)}"] [data-action="edit"]`);
@@ -110,8 +116,8 @@ export function RecurringTasksPanel({
         return;
       }
       const stepsInvalid = session.draft.body === 'plan' && !readPlanText(session.draft.steps).ok;
+      focusInvalidSteps.current = stepsInvalid;
       setEditing((now) => (now === null ? now : { ...now, error: failure, stepsInvalid }));
-      if (stepsInvalid) requestAnimationFrame(() => stepsRef.current?.focus());
     });
   };
 
