@@ -38,7 +38,7 @@
 
 import type { ZipOptions } from 'fflate/browser';
 import { boilerplateOf, contentsHeading, hasTitlePage, headingsByBlock, sectionTitle, type RenderInput } from './render-input.js';
-import { parseProse, type ProseBlock, type Run } from './prose.js';
+import { parseProse, type ParsedProse, type ProseBlock, type Run } from './prose.js';
 import type { FlatBlock } from './types.js';
 import type { FigurePack, ResolvedFigure } from './figures.js';
 import { stripXmlIllegal } from './xml-text.js';
@@ -71,6 +71,63 @@ export interface EpubInput extends RenderInput {
   readonly mtime: Date;
 }
 
+/**
+ * A body's note collected for its file: `id` and `num` are the anchor and the number it is emitted with (`fn-N` per
+ * chapter file for footnotes, `en-N` for the book's endnotes file), `refCount` the markers that named it — the
+ * backlink points at the first.
+ */
+interface EpubNote {
+  readonly id: string;
+  readonly num: number;
+  readonly blocks: readonly ProseBlock[];
+  /** The `notes` map of the body the note came from — a marker inside the note resolves against it. */
+  readonly defs: ParsedProse['notes'];
+  refCount: number;
+  /** The file the first marker sits in — the backlink's target for an endnote, same file for a footnote. */
+  refFile: string;
+}
+
+/**
+ * The book's note sink. A marker resolves through `ref`, which numbers the note in its file's order (the section's
+ * queue for footnotes, the book's list for endnotes) and remembers it for emission. Notes are keyed by their body's
+ * `notes` map, so two scenes may both write `[^1]`.
+ */
+class BookNotes {
+  constructor(private readonly endnote: boolean) {}
+
+  private readonly scoped = new WeakMap<ParsedProse['notes'], Map<string, EpubNote>>();
+  /** The book's endnotes in the order their markers are met (endnote mode only). */
+  readonly collected: EpubNote[] = [];
+
+  get count(): number {
+    return this.collected.length;
+  }
+
+  /** The note a marker in `file` refers to, queueing it in `sink` (footnotes) or the book (endnotes) on first use. */
+  ref(defs: ParsedProse['notes'], noteId: string, sink: EpubNote[], file: string): EpubNote | undefined {
+    const blocks = defs.get(noteId);
+    if (blocks === undefined) return undefined;
+    let numbered = this.scoped.get(defs);
+    if (numbered === undefined) this.scoped.set(defs, (numbered = new Map()));
+    let note = numbered.get(noteId);
+    if (note === undefined) {
+      const queue = this.endnote ? this.collected : sink;
+      note = {
+        id: `${this.endnote ? 'en' : 'fn'}-${queue.length + 1}`,
+        num: queue.length + 1,
+        blocks,
+        defs,
+        refCount: 0,
+        refFile: file,
+      };
+      numbered.set(noteId, note);
+      queue.push(note);
+    }
+    note.refCount += 1;
+    return note;
+  }
+}
+
 /** One XHTML file: a chapter, the leading material before any chapter, or the title page. */
 interface Section {
   readonly file: string;
@@ -89,6 +146,7 @@ const TITLE_PAGE_FILE = 'titlepage.xhtml';
 const COVER_PAGE_FILE = 'cover.xhtml';
 const NAV_FILE = 'nav.xhtml';
 const NCX_FILE = 'toc.ncx';
+const ENDNOTES_FILE = 'endnotes.xhtml';
 const OPF_PATH = 'OEBPS/content.opf';
 
 /** Renders the EPUB and returns the ZIP's bytes. */
@@ -98,12 +156,18 @@ export async function renderEpub(input: EpubInput): Promise<Uint8Array> {
   const titlePage = hasTitlePage(input);
   const mtime = input.mtime;
 
+  const endnotes = input.notes === 'endnote';
+  const bookNotes = new BookNotes(endnotes);
+  // The sections render before the package document: their noterefs are what fills `bookNotes`, whose count decides
+  // whether the manifest and spine carry an endnotes file.
+  const rendered = sections.map((section) => [section, sectionXhtml(input, section, bookNotes)] as const);
+
   const files: Record<string, [Uint8Array, ZipOptions]> = {};
   // Insertion order is the archive order, and the spec's one hard ordering rule is
   // that `mimetype` is the first entry and is stored, not deflated (§3a).
   files['mimetype'] = [strToU8(EPUB_MIME), { level: 0, mtime }];
   files['META-INF/container.xml'] = [strToU8(containerXml()), { level: 9, mtime }];
-  files[OPF_PATH] = [strToU8(packageOpf(input, sections, titlePage)), { level: 9, mtime }];
+  files[OPF_PATH] = [strToU8(packageOpf(input, sections, titlePage, bookNotes.count > 0)), { level: 9, mtime }];
   files[`OEBPS/${NAV_FILE}`] = [strToU8(navXhtml(input, sections)), { level: 9, mtime }];
   files[`OEBPS/${NCX_FILE}`] = [strToU8(ncx(input, sections)), { level: 9, mtime }];
   if (titlePage) {
@@ -118,8 +182,12 @@ export async function renderEpub(input: EpubInput): Promise<Uint8Array> {
   for (const image of input.figures?.images ?? []) {
     files[`OEBPS/images/${image.name}`] = [image.bytes, { level: 0, mtime }];
   }
-  for (const section of sections) {
-    files[`OEBPS/${section.file}`] = [strToU8(sectionXhtml(input, section)), { level: 9, mtime }];
+  for (const [section, xhtml] of rendered) {
+    files[`OEBPS/${section.file}`] = [strToU8(xhtml), { level: 9, mtime }];
+  }
+  // The endnotes the recipe placed at the book's end: a spine item of its own, reached through the noterefs.
+  if (endnotes && bookNotes.count > 0) {
+    files[`OEBPS/${ENDNOTES_FILE}`] = [strToU8(endnotesXhtml(input, bookNotes)), { level: 9, mtime }];
   }
 
   return zipSync(files, { level: 9, mtime });
@@ -220,7 +288,7 @@ function coverHref(cover: EpubCover): string {
   return `cover.${cover.extension}`;
 }
 
-function packageOpf(input: EpubInput, sections: readonly Section[], titlePage: boolean): string {
+function packageOpf(input: EpubInput, sections: readonly Section[], titlePage: boolean, hasEndnotes: boolean): string {
   const lang = escapeXml(input.language);
   const manifest: string[] = [
     '    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>',
@@ -245,6 +313,10 @@ function packageOpf(input: EpubInput, sections: readonly Section[], titlePage: b
   for (const section of sections) {
     manifest.push(`    <item id="${section.id}" href="${section.file}" media-type="application/xhtml+xml"/>`);
     spine.push(`    <itemref idref="${section.id}"/>`);
+  }
+  if (hasEndnotes) {
+    manifest.push(`    <item id="endnotes" href="${ENDNOTES_FILE}" media-type="application/xhtml+xml"/>`);
+    spine.push('    <itemref idref="endnotes"/>');
   }
   // The navigation document is an auxiliary spine item, so the `toc` landmark may point at it (EPUBCheck RSC-011 requires a
   // hyperlink's target to be in the spine). `linear="no"` keeps it out of the reading order a reader pages through.
@@ -382,15 +454,23 @@ function titlePageXhtml(input: EpubInput): string {
   return xhtmlPage(input, input.title, ['<section class="titlepage">', ...lines, '</section>']);
 }
 
-function sectionXhtml(input: EpubInput, section: Section): string {
+function sectionXhtml(input: EpubInput, section: Section, bookNotes: BookNotes): string {
   const body: string[] = [`  <h1>${escapeXml(section.heading)}</h1>`];
   const words = boilerplateOf(input);
+  // This file's footnotes in the order their markers are met; a nested marker adds its note while the asides drain.
+  const sectionNotes: EpubNote[] = [];
+  const noteref = (defs: ParsedProse['notes'], noteId: string): string | undefined =>
+    noterefXhtml(bookNotes.ref(defs, noteId, sectionNotes, section.file));
   for (const block of section.blocks) {
     switch (block.kind) {
       case 'scene': {
         const title = block.docId === section.headedBy ? undefined : sectionTitle(block, words.untitled);
         if (title !== undefined) body.push(`  <h2>${escapeXml(title)}</h2>`);
-        for (const prose of parseProse(block.body)) body.push(...indent(proseXhtml(prose, input.template.separator.plain, input.figures)));
+        const parsed = parseProse(block.body);
+        for (const prose of parsed.blocks) {
+          body.push(...indent(proseXhtml(prose, input.template.separator.plain, input.figures, (noteId) => noteref(parsed.notes, noteId))));
+        }
+
         break;
       }
       case 'separator':
@@ -400,8 +480,56 @@ function sectionXhtml(input: EpubInput, section: Section): string {
         break;
     }
   }
+  // The chapter-end footnotes (the recipe's default): each an `epub:type="footnote"` aside carrying a backlink.
+  for (let i = 0; i < sectionNotes.length; i++) {
+    const note = sectionNotes[i];
+    if (note === undefined) continue;
+    body.push(...noteAsideXhtml(note, input, noteref));
+  }
   const type = section.part ? 'part' : 'chapter';
   return xhtmlPage(input, section.heading, [`<section id="${section.id}" epub:type="${type}">`, ...body, '</section>']);
+}
+
+/** The `epub:type="noteref"` link a marker is written as, with the anchor the note's backlink returns to. */
+function noterefXhtml(note: EpubNote | undefined): string | undefined {
+  if (note === undefined) return undefined;
+  const href = note.id.startsWith('en-') ? `${ENDNOTES_FILE}#${note.id}` : `#${note.id}`;
+  return `<a epub:type="noteref" id="${note.id}-r${note.refCount}" href="${href}"><sup>${note.num}</sup></a>`;
+}
+
+/**
+ * One note as its aside — `epub:type="footnote"` in the chapter file, `epub:type="rearnote"` in the endnotes file —
+ * opening with the backlink to its first marker (the EPUB 3 accessible pattern). A nested marker resolves inside it.
+ */
+function noteAsideXhtml(note: EpubNote, input: EpubInput, noteref: (defs: ParsedProse['notes'], noteId: string) => string | undefined): string[] {
+  const backHref = note.id.startsWith('en-') ? `${note.refFile}#${note.id}-r1` : `#${note.id}-r1`;
+  const backlink = `<a epub:type="backlink" href="${backHref}">${note.num}</a>`;
+  const inner: string[] = [];
+  const lines = note.blocks.flatMap((block) =>
+    proseXhtml(block, input.template.separator.plain, input.figures, (noteId) => noteref(note.defs, noteId)),
+  );
+  const first = lines.findIndex((line) => line.startsWith('<p>'));
+  if (first === -1) inner.push(`<p>${backlink}</p>`);
+  for (const [index, line] of lines.entries()) inner.push(index === first ? line.replace('<p>', `<p>${backlink} `) : line);
+  return [`<aside epub:type="${note.id.startsWith('en-') ? 'rearnote' : 'footnote'}" id="${note.id}">`, ...inner.map((line) => `  ${line}`), '</aside>'];
+}
+
+/** The book's endnotes file (the recipe's `notes: endnote`): one `endnotes` section after the last chapter. */
+function endnotesXhtml(input: EpubInput, bookNotes: BookNotes): string {
+  const words = boilerplateOf(input);
+  const body: string[] = [];
+  // A marker inside an endnote queues its own note; the list drains until nothing new was named.
+  for (let i = 0; i < bookNotes.collected.length; i++) {
+    const note = bookNotes.collected[i];
+    if (note === undefined) continue;
+    body.push(...noteAsideXhtml(note, input, (defs, noteId) => noterefXhtml(bookNotes.ref(defs, noteId, [], ENDNOTES_FILE))));
+  }
+  return xhtmlPage(input, words.notes, [
+    `<section id="endnotes" epub:type="endnotes">`,
+    `  <h1>${escapeXml(words.notes)}</h1>`,
+    ...body.map((line) => `  ${line}`),
+    '</section>',
+  ]);
 }
 
 function indent(lines: readonly string[]): string[] {
@@ -409,14 +537,19 @@ function indent(lines: readonly string[]): string[] {
 }
 
 /** One prose block as XHTML lines. Every line here is a complete element, so the output is well-formed by construction. */
-function proseXhtml(block: ProseBlock, separator: string, figures: FigurePack | undefined): string[] {
+function proseXhtml(
+  block: ProseBlock,
+  separator: string,
+  figures: FigurePack | undefined,
+  noteref?: (noteId: string) => string | undefined,
+): string[] {
   switch (block.kind) {
     case 'paragraph': {
-      const inner = runsXhtml(block.runs);
+      const inner = runsXhtml(block.runs, noteref);
       return inner === '' ? [] : [`<p>${inner}</p>`];
     }
     case 'heading': {
-      const inner = runsXhtml(block.runs);
+      const inner = runsXhtml(block.runs, noteref);
       return inner === '' ? [] : [`<p class="heading"><strong>${inner}</strong></p>`];
     }
     case 'break':
@@ -424,12 +557,12 @@ function proseXhtml(block: ProseBlock, separator: string, figures: FigurePack | 
     case 'figure':
       return figureXhtml(block, figures);
     case 'quote':
-      return ['<blockquote>', ...block.blocks.flatMap((inner) => proseXhtml(inner, separator, figures)).map((line) => `  ${line}`), '</blockquote>'];
+      return ['<blockquote>', ...block.blocks.flatMap((inner) => proseXhtml(inner, separator, figures, noteref)).map((line) => `  ${line}`), '</blockquote>'];
     case 'list': {
       const tag = block.ordered ? 'ol' : 'ul';
       const items = block.items.flatMap((item) => [
         '<li>',
-        ...item.flatMap((inner) => proseXhtml(inner, separator, figures)).map((line) => `  ${line}`),
+        ...item.flatMap((inner) => proseXhtml(inner, separator, figures, noteref)).map((line) => `  ${line}`),
         '</li>',
       ]);
       return [`<${tag}>`, ...items.map((line) => `  ${line}`), `</${tag}>`];
@@ -457,10 +590,11 @@ function figureXhtml(block: Extract<ProseBlock, { kind: 'figure' }>, figures: Fi
   return [`<figure>${img}${caption}</figure>`];
 }
 
-function runsXhtml(runs: readonly Run[]): string {
+function runsXhtml(runs: readonly Run[], noteref?: (noteId: string) => string | undefined): string {
   return runs
     .map((run) => {
       if (run.br === true) return '<br/>';
+      if (run.noteId !== undefined) return noteref?.(run.noteId) ?? escapeXml(`[^${run.noteId}]`);
       let out = escapeXml(run.text);
       if (run.code === true) out = `<code>${out}</code>`;
       if (run.em === true) out = `<em>${out}</em>`;

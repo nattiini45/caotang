@@ -109,7 +109,11 @@ export function figureSourcesOf(blocks: readonly FlatBlock[]): ImageRef[] {
     }
   };
   for (const block of blocks) {
-    if (block.kind === 'scene') walk(parseProse(block.body));
+    if (block.kind === 'scene') {
+      const prose = parseProse(block.body);
+      walk(prose.blocks);
+      for (const note of prose.notes.values()) walk(note);
+    }
   }
   return out;
 }

@@ -449,6 +449,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
       toc: tocIncluded && request.format !== 'epub',
       contentsLabel: boilerplate.contents,
       boilerplate,
+      ...(request.options.notes === undefined ? {} : { notes: request.options.notes }),
       ...(pictures.mode === undefined ? {} : { pictures: pictures.mode }),
       ...(pictures.assetsDir === undefined ? {} : { assetsDir: pictures.assetsDir }),
     };

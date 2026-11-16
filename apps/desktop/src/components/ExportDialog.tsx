@@ -187,6 +187,8 @@ interface ShownOptions {
    * explicit value always wins (screenplay.md §5.3, storyboard.md §6).
    */
   readonly colourEmoji: boolean | undefined;
+  /** Where the prose formats put a footnote's text; `footnote` is the default (exporter.md §3). */
+  readonly notes: 'footnote' | 'endnote';
 }
 
 /** The picture modes, in the words the dialog shows. */
@@ -226,6 +228,16 @@ const SCRIPT_FONT_LABELS: Readonly<Record<RecipeScriptFont, string>> = {
   'courier-prime': 'Courier Prime',
   courier: 'Courier (the reader’s own)',
   cousine: 'Cousine (like Courier New)',
+};
+
+/** The notes placements, in the words the dialog shows (exporter.md §3). */
+const NOTES_LABELS: Readonly<Record<'footnote' | 'endnote', string>> = {
+  get footnote() {
+    return t`Under each page or chapter`;
+  },
+  get endnote() {
+    return t`At the end of the book`;
+  },
 };
 
 /** The screenplay PDF's options as recipe options. The defaults (off, on, Courier Prime) are left out, so a recipe saved without them stays as it was. */
@@ -296,6 +308,7 @@ function shownOptionsOf(recipe: ExportRecipe | undefined): ShownOptions {
     sceneNumbers: recipe?.options?.sceneNumbers ?? 'off',
     continued: recipe?.options?.continued ?? true,
     pictures: shownPictureOptionsOf(recipe?.options),
+    notes: recipe?.options?.notes ?? 'footnote',
   };
 }
 
@@ -430,6 +443,7 @@ export function ExportDialog({
         ...(next.timelinePictures ? { timelinePictures: true } : {}),
         ...pictureOptionsOf(next.pictures),
         ...(next.colourEmoji === undefined ? {} : { colourEmoji: next.colourEmoji }),
+        ...(next.notes === 'footnote' ? {} : { notes: next.notes }),
       },
     });
     if (outcome.ok) setNotice(null);
@@ -468,6 +482,7 @@ export function ExportDialog({
         ...(shown.timelinePictures ? { timelinePictures: true } : {}),
         ...pictureOptionsOf(shown.pictures),
         ...(shown.colourEmoji === undefined ? {} : { colourEmoji: shown.colourEmoji }),
+        ...(shown.notes === 'footnote' ? {} : { notes: shown.notes }),
       },
     });
     if (outcome.ok) {
@@ -738,6 +753,21 @@ export function ExportDialog({
                 ) : null}
               </>
             )}
+            {format === 'docx' || format === 'epub' || format === 'txt' ? (
+              <label className="export-field">
+                <span className="export-option-label"><Trans>Footnotes</Trans></span>
+                <select
+                  value={shown.notes}
+                  onChange={(event) => saveOptions({ ...shown, notes: event.target.value === 'endnote' ? 'endnote' : 'footnote' })}
+                >
+                  {(['footnote', 'endnote'] as const).map((option) => (
+                    <option key={option} value={option}>
+                      {NOTES_LABELS[option]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             {format === 'dialogue-csv' || format === 'dialogue-xlsx' ? (
               <CharLimitField
                 key={`limit:${recipe?.name ?? ''}`}
