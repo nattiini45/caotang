@@ -24,6 +24,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **Encrypted object storage for the server.** In account mode with an R2 binding, the standalone server stores sealed project objects under opaque names with ETag create/replace preconditions, per-account isolation and quota-charged writes: one idempotency key per upload, a scheduled sweep that settles abandoned writes, and retained versions that stay charged until a later collection slice. `@caotang/remote-store` adds the matching HTTP blob client with typed conflict, quota and unreachable errors. The local browser app is unchanged.
 
+- **Account-key cryptography for the hosted instance.** `@caotang/crypto` adds the account-key layer over the existing sealing: passphrase setup, unlock and recovery, passphrase rotation that re-wraps the same master key without rewriting any project file, an Argon2id adapter (hash-wasm, loaded lazily so it stays out of the first-load bundle) whose algorithm and parameters travel with the wrapped key, remember-this-device under a non-extractable device key, and the provider-key vault derivation. Argon2id is pinned by RFC 9106 known-answer vectors. `@caotang/remote-store` is tested end to end with sealed objects over the HTTP blob client. The local browser app is unchanged.
+
 - **Self-hostable server skeleton.** A standalone Worker module provides GitHub sign-in with state, PKCE and secure signed cookies, plus per-identity hibernating WebSocket connectivity. It is not imported by the browser app, stores no projects and does not enable sync in the local app. Runtime tests mock GitHub and exercise real WebSocket upgrades.
 
 - **Durable agent sessions.** Conversations stay with each project in this browser across reloads. Sessions opens earlier conversations, starts a new one, exports Markdown with a JSON head, or deletes one. Fork from here branches only the conversation, never the manuscript. Settings › Data controls session count/age and shows retained run-log size. Restoring an earlier-visit turn still requires its tab's undo history; Activity's durable run restore is separate.
@@ -50,6 +52,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Hook lifecycle checks.** Pure checks now run before and after turns and exports, and before explicit folder and bundle saves. A submit check can stop a turn before any provider request; end and save checks only warn. A writer's blocked export offers **Compile anyway** for that export only, while the agent cannot override it. Export warnings enter the compile log, and opening a project announces its hooks. Settings › Hooks lists existing hooks with an enable switch and undoable deletion.
 
 ### Fixed
+
+- A queued coherence review that resumes after further extraction verifies every remaining pair and keeps each earlier verdict on the pair its spans form, instead of skipping recomposed batches or attributing a verdict to a renumbered pair. A resume that finishes the remaining work reports a complete review, and an unusable extraction or verification reply is asked again rather than counted as done. Checkpoints saved by an earlier version re-verify their pairs and re-ask any extraction they counted without evaluating, so an old record cannot skip work or report complete without it.
 
 - Explicit codex leave-outs are reported before reading their descriptions, even when an entry is empty or unmentioned. Never keeps its own suppression reason; kept prompt text is unchanged.
 
