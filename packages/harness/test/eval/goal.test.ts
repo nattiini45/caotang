@@ -184,8 +184,9 @@ describe.each<Wire>(['json', 'native'])('goal runs on the %s wire', (wire) => {
   it('applies no tool step when its required step-intent log fails', async () => {
     const limits = { maxModelCalls: 20 };
     const log = createMemoryRunLog();
+    const states = new Map<string, string>();
     const f = await rig(wire, () => [final(STORM)], limits, undefined, undefined, {
-      session: { runLog: { projectId: 'project', required: () => true, port: {
+      session: { emit: (event) => { if (event.type === 'card') states.set(event.card.id, event.card.status); }, runLog: { projectId: 'project', required: () => true, port: {
         ...log,
         append: async (runId, events, patch) => {
           if (events.some((event) => event.t === 'step.intent')) throw new Error('step intent refused');
@@ -196,6 +197,7 @@ describe.each<Wire>(['json', 'native'])('goal runs on the %s wire', (wire) => {
     const run = await f.start(goalOf([ALL_FINAL], limits));
     expect(run.status).toBe('failed');
     expect(snapshotOf(f.state)).toBe(f.before);
+    expect([...states.values()]).not.toContain('running');
   });
 
   it('keeps its accumulated stall count when resuming a saved checkpoint', async () => {

@@ -1895,7 +1895,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
     }
     await turn.run?.append({ t: 'step.intent', turnId: turn.id, callId, index, tool, expect: revisionsNow(), structure: structureDigest(harness.state.manifest) });
-    guardRunLog(turn);
+    try { guardRunLog(turn); } catch (error) {
+      return refusal('revision-conflict', error instanceof Error ? error.message : 'The required run log could not be saved.', { correctiveHint: 'check project storage, then send the request again' });
+    }
     const approved = turn.automaticRules.get(step);
     if (approved !== undefined && (turn.run === undefined || turn.run.broken || !automaticRuleValid(turn, step, approved))) {
       return refusal('permission-denied', 'The automatic approval is no longer valid, so nothing further was run.', { correctiveHint: 'review the current rules and mode, then send the request again' });
@@ -3016,6 +3018,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     grant: 'read' | 'confirmed' | 'plan',
     proposal: unknown,
   ): Promise<Executed> {
+    guardRunLog(turn);
     const write = grant !== 'read';
     const card = cardFor(turn, id, step.tool, step.params, write ? 'pending-approval' : 'running');
     if (card.status !== 'running') moveCard(turn, id, 'running');
