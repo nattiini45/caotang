@@ -111,6 +111,7 @@ import {
   type BudgetMeter,
   type Goal,
   type GoalCheckpoint,
+  type WriteScope,
   type RunLimits,
   type RunLogPort,
   type RunRecord,
@@ -124,7 +125,7 @@ import {
 import { computeReview, emptyCoherenceFile, emptyReviewCheckpoint, planReview, publishReview, reviewExecutionPlanOf, type CoherenceRun, type ReviewCheckpoint, type ReviewComputed, type ReviewExecutionPlan, type ReviewPlan } from '@caotang/coherence';
 import { createMcpTransport } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
-import { createRunLogPort, getRevision, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot, readAgentSessions, saveAgentSession, settleAgentSessionTurn, removeAgentSession, pruneAgentSessions, agentSessionReferences, appendGoalCheckpoint, checkpointReadable, createGoalRun, deleteGoalRun, markGoalsInterrupted, openGoalRecovery, readGoalRuns, recordGoalIteration, resumeGoalRun, settleGoalRun, type AgentSessionRow, type AgentSessionTurnRef, type GoalRunRow, type SessionSummary } from '@caotang/store';
+import { createRunLogPort, getRevision, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot, readAgentSessions, saveAgentSession, settleAgentSessionTurn, removeAgentSession, pruneAgentSessions, agentSessionReferences, appendGoalCheckpoint, checkpointReadable, goalRowReadable, createGoalRun, deleteGoalRun, markGoalsInterrupted, openGoalRecovery, readGoalRuns, recordGoalIteration, resumeGoalRun, settleGoalRun, type AgentSessionRow, type AgentSessionTurnRef, type GoalRunRow, type SessionSummary } from '@caotang/store';
 import { captureTextAnchor } from '@caotang/storyboard';
 
 import { registerAgent } from './agent-registry.js';
@@ -305,20 +306,21 @@ export interface BackgroundOptions {
 
 /** A stored goal row as the panel offers it: the words from its checkpoint, and whether this build can resume it. */
 function goalRecoveryView(row: GoalRunRow): GoalRecoveryView {
-  const readable = checkpointReadable(row.checkpoint);
+  const validRow = goalRowReadable(row);
+  const readable = validRow && checkpointReadable(row.checkpoint);
   const checkpoint = readable ? row.checkpoint as GoalCheckpoint : null;
-  const result = row.result;
+  const result = validRow ? row.result : undefined;
   return {
     goalId: row.goalId,
     intent: checkpoint?.goal.intent ?? '',
-    status: row.status,
+    status: validRow ? row.status : 'interrupted',
     nextIteration: checkpoint?.nextIteration ?? 1,
-    turns: row.iterationRunIds.length,
+    turns: Array.isArray(row.iterationRunIds) ? row.iterationRunIds.length : 0,
     reason: result === undefined ? null : `${result.status}: ${result.reason}`,
     unreadable: !readable,
     resumable: readable && row.status === 'interrupted',
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
+    createdAt: Number.isFinite(row.createdAt) ? row.createdAt : 0,
+    updatedAt: Number.isFinite(row.updatedAt) ? row.updatedAt : 0,
   };
 }
 
@@ -460,6 +462,7 @@ export class AgentController {
   private goals: readonly GoalRecoveryView[] = [];
   /** The meter a goal run shares across its iterations; the session's turns reserve from it while the run lasts. */
   private goalMeter: BudgetMeter | null = null;
+  private goalScope: WriteScope | null = null;
   /** The goal a run is under way for, so no other turn starts beside it. */
   private goalRunning: string | null = null;
   private goalAbort: AbortController | null = null;
@@ -1609,10 +1612,10 @@ export class AgentController {
    */
   async loadGoals(): Promise<void> {
     const store = this.session.runtimeStore();
-    if (!this.goalsMarked) {
-      this.goalsMarked = true;
+    if (!this.goalsMarked && this.goalRunning === null && this.goalAction === null) {
       try {
         await markGoalsInterrupted(store, this.session.projectId, this.clock());
+        this.goalsMarked = true;
       } catch {
         // A read-only or stale store: the records are still read below, and no goal is resumed from one this build could not mark.
       }
@@ -1654,9 +1657,7 @@ export class AgentController {
       this.message = t`The goal could not be saved, so it was not started: ${{ reason: error instanceof Error ? error.message : String(error) }}`;
       this.bump();
     } finally {
-      this.goalAction = null;
-      this.bump();
-      if (this.queue.length > 0 && !this.queuePaused && !this.detached) queueMicrotask(() => void this.runNext());
+      await this.releaseGoalAction();
     }
   }
 
@@ -1711,9 +1712,7 @@ export class AgentController {
     } catch (error) {
       this.message = t`The goal could not be resumed: ${{ reason: error instanceof Error ? error.message : String(error) }}`;
     } finally {
-      this.goalAction = null;
-      await this.loadGoals();
-      if (this.queue.length > 0 && !this.queuePaused && !this.detached) queueMicrotask(() => void this.runNext());
+      await this.releaseGoalAction();
     }
   }
 
@@ -1725,9 +1724,14 @@ export class AgentController {
     try {
       await deleteGoalRun(this.session.runtimeStore(), goalId);
     } finally {
-      this.goalAction = null;
-      await this.loadGoals();
+      await this.releaseGoalAction();
     }
+  }
+
+  private async releaseGoalAction(): Promise<void> {
+    this.goalAction = null;
+    await this.loadGoals();
+    if (this.queue.length > 0 && !this.queuePaused && !this.detached) queueMicrotask(() => void this.runNext());
   }
 
   /**
@@ -1743,6 +1747,7 @@ export class AgentController {
       if (options.checkpoint !== undefined && goal.limits.maxModelCalls !== undefined && options.checkpoint.spend.modelCalls >= goal.limits.maxModelCalls) {
         meter.stop({ dimension: 'model-calls', limit: goal.limits.maxModelCalls, spent: options.checkpoint.spend.modelCalls });
       }
+      this.goalScope = goal.writeScope ?? { mode: 'full' };
       const agent = this.sessionFor('chat', loop);
       const abort = new AbortController();
       this.goalAbort = abort;
@@ -1781,6 +1786,7 @@ export class AgentController {
       await settleGoalRun(store, goal.id, { status: 'failed', reason, at: this.clock() }).catch(() => undefined);
     } finally {
       this.goalMeter = null;
+      this.goalScope = null;
       this.goalRunning = null;
       this.goalAbort = null;
       meter?.dispose();
@@ -3204,7 +3210,7 @@ export class AgentController {
   private sessionFor(role: TaskRole, loop: HarnessModule): AgentSession {
     const kept = this.sessions.get(role);
     if (kept !== undefined) return kept;
-    const harness = this.session.harness;
+    const harness = this.session.harness.withRules(() => this.goalScope === null ? { rules: [] } : loop.goalRules(undefined, this.goalScope, this.session.state)());
     const agent = loop.createAgentSession({
       harness,
       gateway: this.providers.gateway,

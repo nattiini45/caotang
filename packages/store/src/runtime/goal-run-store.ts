@@ -91,9 +91,12 @@ export function checkpointReadable(value: unknown): boolean {
   return iterations.every((iteration) => isRecord(iteration) && Number.isSafeInteger(iteration['n']));
 }
 
-function rowReadable(row: GoalRunRow): boolean {
-  return row.schema === 1 && isId(row.goalId) && isId(row.projectId) && isId(row.sessionId) && isStatus(row.status) &&
-    isAmount(row.createdAt) && isAmount(row.updatedAt) && Array.isArray(row.iterationRunIds) && row.iterationRunIds.every(isId);
+export function goalRowReadable(row: unknown): row is GoalRunRow {
+  if (!isRecord(row)) return false;
+  const result = row['result'];
+  return row['schema'] === 1 && isId(row['goalId']) && isId(row['projectId']) && isId(row['sessionId']) && isStatus(row['status']) &&
+    isAmount(row['createdAt']) && isAmount(row['updatedAt']) && Array.isArray(row['iterationRunIds']) && row['iterationRunIds'].every(isId) &&
+    (result === undefined || (isRecord(result) && typeof result['status'] === 'string' && typeof result['reason'] === 'string'));
 }
 
 /** Every goal of a project, oldest first. A row this build cannot read is still returned, so the writer can discard it. */
@@ -120,7 +123,7 @@ export async function readOpenGoalRuns(store: RuntimeStore, projectId: string): 
 export async function openGoalRecovery(store: RuntimeStore, goalId: string): Promise<GoalRecovery> {
   const row = await readGoalRun(store, goalId);
   if (row === undefined) return { kind: 'none' };
-  if (!rowReadable(row) || !checkpointReadable(row.checkpoint)) return { kind: 'unreadable', row };
+  if (!goalRowReadable(row) || !checkpointReadable(row.checkpoint)) return { kind: 'unreadable', row };
   if (row.status === 'settled') return { kind: 'none' };
   return { kind: 'offer', row };
 }

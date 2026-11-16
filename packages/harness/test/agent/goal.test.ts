@@ -694,6 +694,27 @@ describe('the write scope', () => {
     expect(finished.status).toBe('out-of-scope');
   });
 
+  it('adds live goal rules in an isolated harness view without replacing base rules or shared history', () => {
+    const state = makeState();
+    const base = createHarness({ state, rules: () => ({ rules: [{ effect: 'deny', tool: 'meta.set', access: 'write', source: 'project' }] }) });
+    let scoped = false;
+    const view = base.withRules(() => scoped ? goalRules(undefined, { mode: 'doc', docIds: [STORM] }, state)() : { rules: [] });
+    expect(view.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeUndefined();
+    scoped = true;
+    expect(view.undo).toBe(base.undo);
+    expect(view.log).toBe(base.log);
+    expect(view.state).toBe(base.state);
+    expect(view.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeDefined();
+    expect(base.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeUndefined();
+    expect(view.ruleCheck('meta.set', { targets: [STORM], status: 'final' }).denied).toBeDefined();
+    const nested = view.withRules(() => ({ rules: [] }));
+    expect(nested.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeDefined();
+    scoped = false;
+    expect(view.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeUndefined();
+    expect(nested.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeUndefined();
+    expect(view.ruleCheck('meta.set', { targets: [STORM], status: 'final' }).denied).toBeDefined();
+  });
+
   it('is judged against the tree as it was before the turn, so a rename does not hide the target', async () => {
     const trace: TurnReport['trace'] = [{ tool: 'meta.set', callId: 'c1', outcome: 'ok', params: { targets: ['The Friend'], status: 'final' } }];
     const scripts = scripted(makeState(), [

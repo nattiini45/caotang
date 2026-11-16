@@ -375,6 +375,7 @@ export {
   DEFAULT_GOAL_RETENTION,
   appendGoalCheckpoint,
   checkpointReadable,
+  goalRowReadable,
   createGoalRun,
   deleteGoalRun,
   deleteGoalsOf,

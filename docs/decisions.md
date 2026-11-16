@@ -1,5 +1,7 @@
 # Decisions
 
+- Goal-owned foreground sessions add live write-scope rules through an isolated harness view sharing the existing command bus history; background task policies are not changed. Scope rules apply before drafting/applying, not only after an iteration. Recovery validates the whole stored row, retries a failed interruption mark and releases all three goal actions through one queue-aware path. [delegated 2026-11-16]
+
 - Goal completion releases the controller's existing unpaused message queue, and goal-owned setup failures settle as failed instead of leaving an inactive running record. Ordinary paused-queue behavior and explicit recovery remain unchanged. [delegated 2026-11-16]
 
 - Goal checkpoint recovery validates every limit and restored spend dimension, including optional cost, before constructing the shared meter. Limits must be known, finite and non-negative, and call/step counts are safe integers; fractional provider token reports, costs and times remain valid. Invalid budget or loop counters make the record unreadable and discard-only rather than weakening the writer's caps. [delegated 2026-11-16]

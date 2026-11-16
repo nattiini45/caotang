@@ -72,7 +72,7 @@ function passedGoal() {
   };
 }
 
-async function fixture(reply = false) {
+async function fixture(reply = false, response: unknown = { reply: 'Nothing to change.' }) {
   const state = sampleProjectState();
   for (const node of state.manifest.tree) if (node.type === 'document') node.synopsis = 'Already written.';
   const store = await openRuntimeStore(new MemoryIndexedDb());
@@ -82,7 +82,7 @@ async function fixture(reply = false) {
   const profiles = createProfileStore({ keys });
   const profile = await profiles.create({ name: 'Mock', kind: 'mock', isActive: true });
   const providers = {
-    gateway: createGateway({ profiles, keys, clock: createManualClock(0), mock: createMockProvider({ scripts: reply ? [{ match: () => true, respond: () => ({ content: JSON.stringify({ reply: 'Nothing to change.' }) }) }] : [] }) }),
+    gateway: createGateway({ profiles, keys, clock: createManualClock(0), mock: createMockProvider({ scripts: reply ? [{ match: () => true, respond: () => ({ content: JSON.stringify(response) }) }] : [] }) }),
     active: () => profile,
     persist: async () => undefined,
   } as unknown as ProviderService;
@@ -299,7 +299,7 @@ it('offers a checkpoint with invalid cost spend only for discarding, without con
   expect(await readGoalRun(f.store, GOAL)).toBeDefined();
 });
 
-it.each(['start', 'resume'] as const)('drains queued messages after a goal %s releases the controller', async (action) => {
+it.each(['start', 'resume', 'discard'] as const)('drains queued messages after a goal %s releases the controller', async (action) => {
   const f = await fixture(true);
   f.controller.attach();
   await when(f.controller, (snapshot) => snapshot.goals.length === 1);
@@ -311,7 +311,8 @@ it.each(['start', 'resume'] as const)('drains queued messages after a goal %s re
   });
   try {
     if (action === 'start') await f.controller.startGoal({ ...passedGoal(), id: 'g_7QK4M2N8RZ' });
-    else await f.controller.resumeGoal(GOAL);
+    else if (action === 'resume') await f.controller.resumeGoal(GOAL);
+    else await f.controller.discardGoal(GOAL);
     expect(queued).toBe(true);
     await vi.waitFor(() => expect(f.controller.snapshot().queue).toHaveLength(0));
     await when(f.controller, (snapshot) => !snapshot.busy && snapshot.turns.length === 1);
@@ -332,4 +333,94 @@ it('settles a resumed goal when harness setup fails instead of leaving it runnin
   expect(f.controller.snapshot().message).toContain('The harness could not load.');
   expect(f.controller.snapshot().turns).toEqual([]);
   expect(f.providers.gateway.ledger.turnRows()).toEqual([]);
+});
+
+it('retries a transient interruption-mark failure on the next recovery load', async () => {
+  const f = await fixture();
+  const transaction = f.store.db.transaction.bind(f.store.db);
+  const failed = vi.spyOn(f.store.db, 'transaction').mockImplementationOnce(() => { throw new Error('Storage is temporarily unavailable.'); });
+  await f.controller.loadGoals();
+  expect((await readGoalRun(f.store, GOAL))?.status).toBe('running');
+  failed.mockImplementation(transaction);
+  await f.controller.loadGoals();
+  expect(f.controller.snapshot().goals[0]).toMatchObject({ status: 'interrupted', resumable: true });
+});
+
+it('does not retry interruption marking while this controller owns a goal action', async () => {
+  const f = await fixture();
+  vi.spyOn(f.store.db, 'transaction').mockImplementationOnce(() => { throw new Error('Storage is temporarily unavailable.'); });
+  await f.controller.loadGoals();
+  let entered = () => {};
+  let release = () => {};
+  const setupEntered = new Promise<void>((resolve) => { entered = resolve; });
+  const setupReleased = new Promise<void>((resolve) => { release = resolve; });
+  const ready = f.session.harnessReady.bind(f.session);
+  vi.spyOn(f.session, 'harnessReady').mockImplementationOnce(async () => {
+    entered();
+    await setupReleased;
+    return ready();
+  });
+  const id = 'g_7QK4M2N8RZ';
+  const starting = f.controller.startGoal({ ...passedGoal(), id });
+  try {
+    await setupEntered;
+    await f.controller.loadGoals();
+    expect((await readGoalRun(f.store, id))?.status).toBe('running');
+  } finally {
+    release();
+    await starting;
+  }
+  expect((await readGoalRun(f.store, GOAL))?.status).toBe('interrupted');
+});
+
+it('keeps a malformed goal row available for Discard without breaking the recovery list', async () => {
+  const f = await fixture();
+  const row = await readGoalRun(f.store, GOAL);
+  const { iterationRunIds: _removed, ...damaged } = row!;
+  await new Promise<void>((resolve, reject) => {
+    const tx = f.store.db.transaction('goalRuns', 'readwrite');
+    tx.objectStore('goalRuns').put(damaged);
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(tx.error);
+  });
+  await f.controller.loadGoals();
+  expect(f.controller.snapshot().goals[0]).toMatchObject({ goalId: GOAL, unreadable: true, resumable: false, turns: 0 });
+  await f.controller.discardGoal(GOAL);
+  expect(await readGoalRun(f.store, GOAL)).toBeUndefined();
+});
+
+it.each(['start', 'resume'] as const)('refuses an out-of-scope goal %s write before any approval or project mutation', async (action) => {
+  const f = await fixture(true, { steps: [{ tool: 'meta.set', params: { targets: ['The Friend'], status: 'final' }, expect: 'The friend is final.' }] });
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  const allowed = f.session.state.manifest.tree.find((node) => node.title === 'The Storm')!;
+  const target = f.session.state.manifest.tree.find((node) => node.title === 'The Friend')!;
+  const before = structuredClone(target);
+  let approvals = 0;
+  const unsubscribe = f.controller.subscribe(() => {
+    if (f.controller.snapshot().pending === null) return;
+    approvals += 1;
+    f.controller.answer({ action: 'approve' });
+  });
+  try {
+    const goal = { ...passedGoal(), id: action === 'resume' ? GOAL : 'g_7QK4M2N8RZ', maxIterations: 1,
+      checks: [{ kind: 'status.all', status: 'final', scope: { mode: 'full' } }],
+      writeScope: { mode: 'doc', docIds: [allowed.id] },
+    } as const;
+    if (action === 'start') await f.controller.startGoal(goal);
+    else {
+      const checkpoint = (await readGoalRun(f.store, GOAL))!.checkpoint as GoalCheckpoint;
+      await appendGoalCheckpoint(f.store, GOAL, { checkpoint: { ...checkpoint, goal, nextIteration: 1 }, at: 300 });
+      await markGoalsInterrupted(f.store, f.session.projectId, 400);
+      await f.controller.resumeGoal(GOAL);
+    }
+    expect(f.session.state.manifest.tree.find((node) => node.id === target.id)).toEqual(before);
+    expect(approvals).toBe(0);
+    expect(f.session.harness.ruleCheck('meta.set', { targets: [target.id], status: 'final' }).denied).toBeUndefined();
+    const ordinary = await f.controller.submit('Mark the friend as final.');
+    expect(ordinary?.status).toBe('applied');
+    expect(f.session.state.manifest.tree.find((node) => node.id === target.id)?.status).toBe('final');
+  } finally {
+    unsubscribe();
+  }
 });
