@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseTasksFile, serializeTasksFile, type AgentTask } from '../src/index.js';
+import { parseTasksFile, planText, readPlanText, serializeTasksFile, type AgentTask } from '../src/index.js';
 import { fileOf, task } from './fixtures.js';
 
 const ok = (text: string) => {
@@ -148,5 +148,42 @@ describe('tasks.json codec', () => {
       const scan = { ...raw(1), body: { kind: 'scan', scope: 'full', checks: ['nope.check'] } };
       expect(ok(textOf(scan)).file.tasks[0]?.problem).toContain('nope.check');
     });
+  });
+});
+
+describe('a plan typed into the editor', () => {
+  const steps = [
+    { tool: 'coherence.scan', params: { scope: { mode: 'changed' } }, expect: 'A scan is recorded' },
+    { tool: 'synopsis.fill', params: { doc: 'The lamp' }, expect: 'A synopsis is proposed' },
+  ];
+
+  it('reads back the steps it was written from, and the file reads the same steps', () => {
+    const text = planText(steps);
+    const read = readPlanText(text);
+    expect(read).toEqual({ ok: true, steps });
+    const saved = serializeTasksFile(fileOf(task(1, { body: { kind: 'plan', steps: read.ok ? read.steps : [] } })));
+    expect(ok(saved).file.tasks[0]?.body).toEqual({ kind: 'plan', steps });
+    expect(ok(saved).file.tasks[0]?.problem).toBeUndefined();
+  });
+
+  it('is refused with a sentence for text that is empty, not JSON, not a list, or a plan that does not parse', () => {
+    expect(readPlanText('  ')).toEqual({ ok: false, message: 'Write the plan’s steps as a list.' });
+    const notJson = readPlanText('[{"tool": ');
+    expect(notJson.ok).toBe(false);
+    expect(notJson.ok ? '' : notJson.message).toMatch(/^The steps are not valid JSON: /);
+    expect(readPlanText('{"steps": []}')).toEqual({ ok: false, message: 'Write the plan’s steps as a list, between [ and ].' });
+    for (const bad of ['[]', '[{"tool": "meta.set"}]', '[{"tool": 3, "params": {}, "expect": "x"}]']) {
+      const read = readPlanText(bad);
+      expect(read.ok).toBe(false);
+      expect(read.ok ? '' : read.message).toMatch(/^The plan does not parse: /);
+    }
+  });
+
+  it('refuses exactly the plans the file loader marks as not parsing', () => {
+    for (const bad of [[], [{ tool: 'meta.set' }], [{ tool: 'a', params: [], expect: 'x' }]]) {
+      const loaded = ok(JSON.stringify({ formatVersion: 1, tasks: [{ ...raw(1), body: { kind: 'plan', steps: bad } }] }));
+      expect(loaded.file.tasks[0]?.problem).toBeDefined();
+      expect(readPlanText(JSON.stringify(bad)).ok).toBe(false);
+    }
   });
 });
