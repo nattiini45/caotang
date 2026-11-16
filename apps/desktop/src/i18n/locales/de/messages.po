@@ -2644,6 +2644,14 @@ msgstr "Ein Ziel braucht eine ganze Zahl an Zeichen über null."
 msgid "A goal needs a whole number of words above zero."
 msgstr "Ein Ziel braucht eine ganze Zahl an Wörtern über null."
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "A goal of this project."
+msgstr "Ein Ziel dieses Projekts."
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "A goal run was interrupted"
+msgstr "Ein Ziellauf wurde unterbrochen"
+
 #. Interpolated values: error, name, reason, refused
 #: apps/desktop/src/app/furniture-store.ts
 msgid "a goal: {reason}"
@@ -6833,6 +6841,10 @@ msgstr "Lauf von {at} verwerfen"
 msgid "Discard the changes and leave"
 msgstr "Die Änderungen verwerfen und gehen"
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Discard the goal record"
+msgstr "Den Zieleintrag verwerfen"
+
 #. Interpolated values: count, stamp, titles
 #: apps/desktop/src/components/UnsentWords.tsx
 msgid "Discard them"
@@ -8491,6 +8503,10 @@ msgstr "Ziel geändert"
 msgid "Goal deleted"
 msgstr "Ziel gelöscht"
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Goal run finished"
+msgstr "Ziellauf beendet"
+
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
@@ -9269,6 +9285,10 @@ msgstr "Ausgelöst von"
 msgid "It also takes back these later changes, oldest first:"
 msgstr "Es macht auch diese späteren Änderungen rückgängig, die ältesten zuerst:"
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "It has finished."
+msgstr "Er ist beendet."
+
 #. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportProofView.tsx
 msgid "It is a binary file that Caotang cannot draw here, and a look-alike drawn in its place could differ from the real file. The Draft shows what goes in; compile and open the file to see its pages. Markdown, plain text and the other text formats (Fountain, Final Draft, the Ink story, the CSV tables, the prompt pack and the coherence report) have a Proof."
@@ -9308,6 +9328,15 @@ msgstr "Es wird nur ersetzt, wenn es noch die Revision {revision} hat, die für 
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "It must follow {names}, which moved."
 msgstr "Es muss {names} folgen, die verschoben wurden."
+
+#. iteration is the number of the next iteration in the interrupted goal run.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "It was on iteration {iteration} when the tab closed, and it has not continued on its own."
+msgstr "Beim Schließen des Tabs war er bei Durchlauf {iteration}. Er wurde nicht von selbst fortgesetzt."
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "It was running."
+msgstr "Er lief noch."
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -14578,10 +14607,18 @@ msgstr "Ergebnisse"
 msgid "Resume"
 msgstr "Fortsetzen"
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Resume the goal"
+msgstr "Das Ziel fortsetzen"
+
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Resuming the run."
 msgstr "Der Lauf wird fortgesetzt."
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Resuming…"
+msgstr "Wird fortgesetzt…"
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
@@ -17259,6 +17296,12 @@ msgstr "Diese Feststellung ist nicht mehr in der Feststellungsdatei, daher gibt 
 msgid "That folder is not empty"
 msgstr "Dieser Ordner ist nicht leer"
 
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "That goal can no longer be resumed."
+msgstr "Dieses Ziel kann nicht mehr fortgesetzt werden."
+
 #. Interpolated values: refusal
 #: apps/desktop/src/app/binder-model.ts
 msgid "That is already where it is."
@@ -17493,8 +17536,18 @@ msgstr "Der Agent arbeitet an einem anderen Durchlauf. Öffnen Sie diese Aufgabe
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
+msgid "The agent is working on another turn. Resume the goal when it has finished."
+msgstr "Der Agent arbeitet an einem anderen Durchlauf. Setzen Sie das Ziel fort, wenn er fertig ist."
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
 msgid "The agent is working on another turn. Resume the run when it has finished."
 msgstr "Der Agent arbeitet an einem anderen Durchlauf. Setzen Sie den Lauf fort, wenn er fertig ist."
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The agent is working on another turn. Start the goal when it has finished."
+msgstr "Der Agent arbeitet an einem anderen Durchlauf. Starten Sie das Ziel, wenn er fertig ist."
 
 #: apps/desktop/src/components/AgentRulesSettings.tsx
 msgid "The agent may skip approval in Ask mode"
@@ -18110,6 +18163,21 @@ msgstr "Der Vorausblick ist ausgeschaltet."
 #: apps/desktop/src/media/ScreenplayView.tsx
 msgid "The Fountain source, edited as text"
 msgstr "Die Fountain-Quelle, als Text bearbeitet"
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The goal could not be resumed: {reason}"
+msgstr "Das Ziel konnte nicht fortgesetzt werden: {reason}"
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The goal could not be saved, so it was not started: {reason}"
+msgstr "Das Ziel konnte nicht gespeichert werden und wurde deshalb nicht gestartet: {reason}"
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The goal stopped unexpectedly: {error}"
+msgstr "Der Ziellauf wurde unerwartet beendet: {error}"
 
 #. Interpolated values: count, number, total
 #: apps/desktop/src/components/ProviderFormParts.tsx
@@ -19756,6 +19824,10 @@ msgstr "Die caotang.json dieses Ordners wurde entfernt"
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
 msgid "This format is not built from a block list, so there is none to show. Its counts are the compile’s own."
 msgstr "Dieses Format wird nicht aus einer Blockliste gebaut, daher gibt es keine zu zeigen. Seine Zahlen sind die des Kompilierens selbst."
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "This goal’s saved progress cannot be read by this version of Caotang."
+msgstr "Der gespeicherte Fortschritt dieses Ziels kann von dieser Version von Caotang nicht gelesen werden."
 
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #: apps/desktop/src/components/UsagePanel.tsx

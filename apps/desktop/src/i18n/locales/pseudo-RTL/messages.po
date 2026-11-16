@@ -2643,6 +2643,14 @@ msgstr ""
 msgid "A goal needs a whole number of words above zero."
 msgstr ""
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "A goal of this project."
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "A goal run was interrupted"
+msgstr ""
+
 #. Interpolated values: error, name, reason, refused
 #: apps/desktop/src/app/furniture-store.ts
 msgid "a goal: {reason}"
@@ -6832,6 +6840,10 @@ msgstr ""
 msgid "Discard the changes and leave"
 msgstr ""
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Discard the goal record"
+msgstr ""
+
 #. Interpolated values: count, stamp, titles
 #: apps/desktop/src/components/UnsentWords.tsx
 msgid "Discard them"
@@ -8490,6 +8502,10 @@ msgstr ""
 msgid "Goal deleted"
 msgstr ""
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Goal run finished"
+msgstr ""
+
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
@@ -9268,6 +9284,10 @@ msgstr ""
 msgid "It also takes back these later changes, oldest first:"
 msgstr ""
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "It has finished."
+msgstr ""
+
 #. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportProofView.tsx
 msgid "It is a binary file that Caotang cannot draw here, and a look-alike drawn in its place could differ from the real file. The Draft shows what goes in; compile and open the file to see its pages. Markdown, plain text and the other text formats (Fountain, Final Draft, the Ink story, the CSV tables, the prompt pack and the coherence report) have a Proof."
@@ -9306,6 +9326,15 @@ msgstr ""
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "It must follow {names}, which moved."
+msgstr ""
+
+#. iteration is the number of the next iteration in the interrupted goal run.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "It was on iteration {iteration} when the tab closed, and it has not continued on its own."
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "It was running."
 msgstr ""
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
@@ -14577,9 +14606,17 @@ msgstr ""
 msgid "Resume"
 msgstr ""
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Resume the goal"
+msgstr ""
+
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Resuming the run."
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Resuming…"
 msgstr ""
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
@@ -17258,6 +17295,12 @@ msgstr ""
 msgid "That folder is not empty"
 msgstr ""
 
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "That goal can no longer be resumed."
+msgstr ""
+
 #. Interpolated values: refusal
 #: apps/desktop/src/app/binder-model.ts
 msgid "That is already where it is."
@@ -17492,7 +17535,17 @@ msgstr ""
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
+msgid "The agent is working on another turn. Resume the goal when it has finished."
+msgstr ""
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
 msgid "The agent is working on another turn. Resume the run when it has finished."
+msgstr ""
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The agent is working on another turn. Start the goal when it has finished."
 msgstr ""
 
 #: apps/desktop/src/components/AgentRulesSettings.tsx
@@ -18108,6 +18161,21 @@ msgstr ""
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
 #: apps/desktop/src/media/ScreenplayView.tsx
 msgid "The Fountain source, edited as text"
+msgstr ""
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The goal could not be resumed: {reason}"
+msgstr ""
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The goal could not be saved, so it was not started: {reason}"
+msgstr ""
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The goal stopped unexpectedly: {error}"
 msgstr ""
 
 #. Interpolated values: count, number, total
@@ -19754,6 +19822,10 @@ msgstr ""
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
 msgid "This format is not built from a block list, so there is none to show. Its counts are the compile’s own."
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "This goal’s saved progress cannot be read by this version of Caotang."
 msgstr ""
 
 #. Interpolated values: cost, prompt, completion, requestsTotal

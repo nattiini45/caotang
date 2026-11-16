@@ -140,6 +140,44 @@ const statusOf = (state: ProjectState, id: string): string | null => state.manif
 const ALL_FINAL: CheckSpec = { kind: 'status.all', scope: FULL, status: 'final' };
 
 describe.each<Wire>(['json', 'native'])('goal runs on the %s wire', (wire) => {
+  it('keeps its accumulated stall count when resuming a saved checkpoint', async () => {
+    const limits = { maxModelCalls: 20 };
+    const f = await rig(wire, () => [], limits);
+    const goal = goalOf([ALL_FINAL], limits);
+    let saved: GoalCheckpoint | undefined;
+    await f.start(goal, {
+      saveCheckpoint: async (checkpoint) => {
+        if (checkpoint.nextIteration !== 2) return;
+        saved = checkpoint;
+        throw new Error('tab closed before iteration two');
+      },
+    });
+    expect(saved?.progress?.sinceBest).toBe(1);
+    const resumed = await f.start(goal, { checkpoint: saved! });
+    expect(resumed.status).toBe('stalled');
+    expect(resumed.iterations.map((iteration) => iteration.n)).toEqual([1, 2]);
+  });
+
+  it('resumes the saved iteration history without resetting the goal iteration bound', async () => {
+    const limits = { maxModelCalls: 20 };
+    const f = await rig(wire, (n) => n === 1 ? [final(STORM)] : [keywords(FRIEND)], limits);
+    const goal = goalOf([ALL_FINAL], limits, { maxIterations: 2 });
+    let saved: GoalCheckpoint | undefined;
+    await f.start(goal, {
+      saveCheckpoint: async (checkpoint) => {
+        if (checkpoint.nextIteration !== 2) return;
+        saved = checkpoint;
+        throw new Error('tab closed before iteration two');
+      },
+    });
+    expect(saved?.iterations.map((iteration) => iteration.n)).toEqual([1]);
+    const resumed = await f.start(goal, { checkpoint: saved! });
+    expect(resumed.status).toBe('max-iterations');
+    expect(resumed.iterations.map((iteration) => iteration.n)).toEqual([1, 2]);
+    expect(resumed.iterations[0]?.turnId).toBe(saved?.iterations[0]?.turnId);
+    expect(resumed.iterations[1]?.intent).toContain('This is iteration 2 of at most 2');
+  });
+
   it('makes no provider call or project change when its first durable checkpoint cannot be saved', async () => {
     const limits = { maxModelCalls: 20 };
     const f = await rig(wire, () => [final(STORM)], limits);

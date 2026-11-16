@@ -348,7 +348,7 @@ export interface AgentSnapshot {
   /** The durable goals this project holds, newest first: a run a reload or a closed tab abandoned is offered for an explicit resume. */
   readonly goals: readonly GoalRecoveryView[];
   /** The goal an action is under way for, or `null`. */
-  readonly goalAction: 'running' | 'resume' | 'discard' | null;
+  readonly goalAction: 'running' | 'start' | 'resume' | 'discard' | null;
   readonly runHistory: readonly InterruptedRunView[];
   readonly runHistoryLoad: { readonly kind: 'loading' | 'ready' } | { readonly kind: 'failed'; readonly message: string };
   readonly runCopyFailure: string | null;
@@ -462,7 +462,8 @@ export class AgentController {
   private goalMeter: BudgetMeter | null = null;
   /** The goal a run is under way for, so no other turn starts beside it. */
   private goalRunning: string | null = null;
-  private goalAction: 'resume' | 'discard' | null = null;
+  private goalAbort: AbortController | null = null;
+  private goalAction: 'start' | 'resume' | 'discard' | null = null;
   /** The reopen that marks abandoned goals interrupted runs once per controller. */
   private goalsMarked = false;
   private readonly runForTurn = new Map<string, string>();
@@ -527,7 +528,7 @@ export class AgentController {
 
   private get turn() { return controllerTurn(this.state); }
   private get actionBusy() { return (this.selection.kind === 'loading' && this.sessionLoading === null) || this.turn !== null || this.state.interrupted.some((run) => run.pending !== null && run.pending !== undefined); }
-  private get busy() { return this.selection.kind === 'loading' || this.actionBusy || this.goalRunning !== null; }
+  private get busy() { return this.selection.kind === 'loading' || this.actionBusy || this.goalRunning !== null || this.goalAction !== null; }
   private get detached() { return this.state.kind === 'detached'; }
   private get stopping() { return this.state.kind === 'stopping' || (this.state.kind === 'detached' && this.state.from === 'stopping'); }
   private get pending() { return this.state.kind === 'parked-on-card' ? this.state.decision.pending : null; }
@@ -602,6 +603,7 @@ export class AgentController {
       await port.append(runId, events, patch);
       for (const event of events) if (event.t === 'turn.start') {
         this.runForTurn.set(event.turnId, runId);
+        if (this.goalRunning !== null) await recordGoalIteration(session.runtimeStore(), this.goalRunning, runId, this.clock());
         if (event.hiddenFromPlanner === true) this.hiddenTurnIds.add(event.turnId);
       }
       this.runCopyWork = this.runCopyWork.then(() => this.copyRunLogs(runId)).catch((error: unknown) => {
@@ -674,8 +676,8 @@ export class AgentController {
       }),
       pending: this.pending,
       busy: this.busy,
-      stoppable: this.turn !== null || this.pending !== null,
-      stopping: this.stopping,
+      stoppable: this.turn !== null || this.pending !== null || this.goalAbort !== null,
+      stopping: this.stopping || this.goalAbort?.signal.aborted === true,
       interrupted: this.interrupted,
       goals: this.goals,
       goalAction: this.goalRunning !== null ? 'running' : this.goalAction,
@@ -1174,8 +1176,10 @@ export class AgentController {
     intent: string,
     options: SubmitOptions,
     start: (agent: AgentSession, turn: TurnOptions, loop: HarnessModule) => Promise<TurnReport>,
+    goalIteration = false,
   ): Promise<TurnReport | null> {
     if (this.actionBusy || this.sessionSave.failure !== null) return null;
+    if (!goalIteration && (this.goalRunning !== null || this.goalAction !== null)) return null;
     let settle = (): void => {};
     this.turnSettled = new Promise<void>((resolve) => { settle = resolve; });
     this.message = null;
@@ -1636,17 +1640,23 @@ export class AgentController {
       this.bump();
       return;
     }
+    this.goalAction = 'start';
+    this.bump();
     try {
+      if (!(await this.loadSessions()) || this.conversation === null) return;
+      await saveAgentSession(this.session.runtimeStore(), this.conversation);
       await createGoalRun(this.session.runtimeStore(), {
         goalId: goal.id, projectId: this.session.projectId, sessionId: this.sessionId,
-        checkpoint: { goal, iterations: [], results: [], nextIteration: 1, spend: null }, at: this.clock(),
+        checkpoint: { goal, iterations: [], results: [], nextIteration: 1, spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 } }, at: this.clock(),
       });
+      await this.runGoal(goal, {});
     } catch (error) {
       this.message = t`The goal could not be saved, so it was not started: ${{ reason: error instanceof Error ? error.message : String(error) }}`;
       this.bump();
-      return;
+    } finally {
+      this.goalAction = null;
+      this.bump();
     }
-    await this.runGoal(goal, {});
   }
 
   /** The writer's explicit resume of an interrupted goal: the same goal, spending what it already spent. */
@@ -1665,9 +1675,29 @@ export class AgentController {
         this.message = t`That goal can no longer be resumed.`;
         return;
       }
-      const checkpoint = recovery.row.checkpoint as GoalCheckpoint;
+      const checkpoint = structuredClone(recovery.row.checkpoint as GoalCheckpoint);
+      if (this.sessionId !== recovery.row.sessionId) {
+        await this.sessionWrites;
+        if (this.sessionSave.failure !== null) return;
+        const conversation = (await readAgentSessions(this.session.runtimeStore(), this.session.projectId)).find((row) => row.sessionId === recovery.row.sessionId);
+        if (conversation === undefined) {
+          this.message = t`That goal can no longer be resumed.`;
+          return;
+        }
+        await saveAgentSession(this.session.runtimeStore(), { ...conversation, active: true });
+        await this.readConversations();
+        await this.showConversation(conversation);
+      }
+      const spend = { ...checkpoint.spend };
+      for (const runId of recovery.row.iterationRunIds) {
+        const summary = await this.summarizeLogged(runId);
+        if (summary === undefined) throw new Error('The goal iteration log cannot be read.');
+        const logged = summary.restoredSpend;
+        for (const key of ['modelCalls', 'promptTokens', 'completionTokens', 'estimatedTokens', 'steps', 'activeMs'] as const) spend[key] = Math.max(spend[key], logged[key]);
+        if (logged.costUsd !== undefined) spend.costUsd = Math.max(spend.costUsd ?? 0, logged.costUsd);
+      }
       await resumeGoalRun(this.session.runtimeStore(), goalId, this.clock());
-      await this.runGoal(checkpoint.goal, { restoredSpend: checkpoint.spend });
+      await this.runGoal(checkpoint.goal, { checkpoint: { ...checkpoint, spend } });
     } catch (error) {
       this.message = t`The goal could not be resumed: ${{ reason: error instanceof Error ? error.message : String(error) }}`;
     } finally {
@@ -1693,26 +1723,42 @@ export class AgentController {
    * The run itself: one shared meter, the checkpoint saved ahead of every iteration, and one settled record at the end. A checkpoint
    * that cannot be saved ends the run before that iteration: the meter is never spent on work whose record was lost.
    */
-  private async runGoal(goal: Goal, options: { readonly restoredSpend?: BudgetSpend }): Promise<void> {
+  private async runGoal(goal: Goal, options: { readonly checkpoint?: GoalCheckpoint }): Promise<void> {
     const loop = await this.harnessLoop();
-    const meter = loop.createBudgetMeter(goal.limits, options.restoredSpend === undefined ? {} : { restored: options.restoredSpend });
+    const meter = loop.createBudgetMeter(goal.limits, options.checkpoint === undefined ? {} : { restored: options.checkpoint.spend });
+    if (options.checkpoint !== undefined && goal.limits.maxModelCalls !== undefined && options.checkpoint.spend.modelCalls >= goal.limits.maxModelCalls) {
+      meter.stop({ dimension: 'model-calls', limit: goal.limits.maxModelCalls, spent: options.checkpoint.spend.modelCalls });
+    }
     const store = this.session.runtimeStore();
     const agent = this.sessionFor('chat', loop);
+    const abort = new AbortController();
+    this.goalAbort = abort;
     this.goalMeter = meter;
     this.goalRunning = goal.id;
     this.message = null;
     this.bump();
     try {
       const run = await loop.createGoalRunner().start(goal, {
-        session: agent,
+        session: {
+          ...agent,
+          submit: async (intent) => {
+            const report = await this.turnWith(intent, {}, (session, turn) => session.submit(intent, { ...turn, signal: turn.signal === undefined ? abort.signal : AbortSignal.any([turn.signal, abort.signal]) }), true);
+            if (report === null) throw new Error(this.message ?? 'The goal iteration could not start.');
+            return report;
+          },
+        },
         state: this.session.state,
         meter,
+        signal: abort.signal,
+        ...(options.checkpoint === undefined ? {} : { checkpoint: options.checkpoint }),
         withheld: () => this.session.harness.withheldAnywhere(),
         saveCheckpoint: async (checkpoint) => {
           await appendGoalCheckpoint(store, goal.id, { checkpoint, at: this.clock() });
         },
         onIteration: async (record) => {
-          await recordGoalIteration(store, goal.id, record.report.turnId, this.clock());
+          const runId = this.runForTurn.get(record.report.turnId);
+          if (runId === undefined) throw new Error('The goal iteration has no durable run log.');
+          await recordGoalIteration(store, goal.id, runId, this.clock());
         },
       });
       await settleGoalRun(store, goal.id, { status: run.status, reason: run.reason, at: this.clock() });
@@ -1724,6 +1770,7 @@ export class AgentController {
     } finally {
       this.goalMeter = null;
       this.goalRunning = null;
+      this.goalAbort = null;
       meter.dispose();
       await this.loadGoals();
     }
@@ -1997,7 +2044,11 @@ export class AgentController {
    * and a bus command that has started is not interrupted. A card that waits is cancelled, exactly as its Cancel does.
    */
   stop(): void {
-    if (this.turnAbort === null || this.stopping) return;
+    this.goalAbort?.abort();
+    if (this.turnAbort === null || this.stopping) {
+      if (this.goalAbort !== null) this.bump();
+      return;
+    }
     this.announcement = t`Stopping the turn.`;
     const abort = this.turnAbort;
     const resolve = this.resolveDecision;

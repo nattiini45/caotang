@@ -9,7 +9,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore } from '@caotang/gateway';
 import { createMockProvider } from '@caotang/gateway/mock';
-import { appendGoalCheckpoint, createGoalRun, openRuntimeStore, readGoalRun, MemoryIndexedDb, type GoalCheckpoint } from '@caotang/store';
+import { appendGoalCheckpoint, createGoalRun, createRunLogPort, openRuntimeStore, readGoalRun, readRun, recordGoalIteration, writeProjectState, MemoryIndexedDb, type GoalCheckpoint } from '@caotang/store';
 
 import { AgentController, type AgentSnapshot } from '../src/app/agent.js';
 import type { AppDb } from '../src/app/app-db.js';
@@ -72,16 +72,17 @@ function passedGoal() {
   };
 }
 
-async function fixture() {
+async function fixture(reply = false) {
   const state = sampleProjectState();
   for (const node of state.manifest.tree) if (node.type === 'document') node.synopsis = 'Already written.';
   const store = await openRuntimeStore(new MemoryIndexedDb());
+  await writeProjectState(store, state);
   const session = new ProjectSession({ store, projectId: state.manifest.project.id, state, shadow: null });
   const keys = createKeyStore(createMemoryVaultPort());
   const profiles = createProfileStore({ keys });
   const profile = await profiles.create({ name: 'Mock', kind: 'mock', isActive: true });
   const providers = {
-    gateway: createGateway({ profiles, keys, clock: createManualClock(0), mock: createMockProvider({ scripts: [] }) }),
+    gateway: createGateway({ profiles, keys, clock: createManualClock(0), mock: createMockProvider({ scripts: reply ? [{ match: () => true, respond: () => ({ content: JSON.stringify({ reply: 'Nothing to change.' }) }) }] : [] }) }),
     active: () => profile,
     persist: async () => undefined,
   } as unknown as ProviderService;
@@ -91,9 +92,11 @@ async function fixture() {
     sleep: () => when(controller, (snapshot) => !snapshot.busy),
   });
   sessions.push({ session, controller });
+  await controller.loadSessions();
+  await controller.newSession();
   const goal = passedGoal();
   const checkpoint: GoalCheckpoint = { goal, iterations: [], results: [], nextIteration: 1, spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 } };
-  await createGoalRun(store, { goalId: GOAL, projectId: session.projectId, sessionId: 'conversation', checkpoint, at: 100 });
+  await createGoalRun(store, { goalId: GOAL, projectId: session.projectId, sessionId: controller.snapshot().sessionId, checkpoint, at: 100 });
   await appendGoalCheckpoint(store, GOAL, { checkpoint: { ...checkpoint, nextIteration: 2 }, at: 200 });
   return { session, controller, store };
 }
@@ -109,7 +112,11 @@ it('offers a goal a reload abandoned as interrupted, resumes it only when the wr
   expect(f.controller.snapshot().turns).toEqual([]);
   expect((await readGoalRun(f.store, GOAL))?.iterationRunIds).toEqual([]);
 
+  const originalSession = f.controller.snapshot().sessionId;
+  await f.controller.newSession();
+  expect(f.controller.snapshot().sessionId).not.toBe(originalSession);
   await f.controller.resumeGoal(GOAL);
+  expect(f.controller.snapshot().sessionId).toBe(originalSession);
   const settled = await readGoalRun(f.store, GOAL);
   expect(settled?.status).toBe('settled');
   expect(settled?.result?.status).toBe('passed');
@@ -126,4 +133,74 @@ it('discards a goal record without touching the project or anything it ran', asy
   expect(await readGoalRun(f.store, GOAL)).toBeUndefined();
   expect(f.controller.snapshot().goals).toEqual([]);
   expect(JSON.stringify(f.session.state.manifest)).toBe(before);
+});
+
+it('Stop owns the goal between turns and prevents its next provider request', async () => {
+  const f = await fixture();
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  let stopped = false;
+  const unsubscribe = f.controller.subscribe(() => {
+    if (stopped || f.controller.snapshot().goalAction !== 'running') return;
+    stopped = true;
+    expect(f.controller.snapshot().stoppable).toBe(true);
+    f.controller.stop();
+  });
+  try {
+    await f.controller.startGoal({ ...passedGoal(), id: 'g_7QK4M2N8RV', checks: [{ kind: 'status.all', status: 'final', scope: { mode: 'full' } }] });
+    expect(stopped, f.controller.snapshot().message ?? undefined).toBe(true);
+    expect((await readGoalRun(f.store, 'g_7QK4M2N8RV'))?.result?.status).toBe('cancelled');
+    expect(f.controller.snapshot().turns).toEqual([]);
+  } finally {
+    unsubscribe();
+  }
+});
+
+it('runs goal iterations through the normal conversation lifecycle and retains their run-log ids', async () => {
+  const f = await fixture(true);
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  const id = 'g_7QK4M2N8RW';
+  await f.controller.startGoal({ ...passedGoal(), id, checks: [{ kind: 'status.all', status: 'final', scope: { mode: 'full' } }] });
+  const row = await readGoalRun(f.store, id);
+  expect(row?.result?.status, row?.result?.reason).toBe('stalled');
+  const turns = f.controller.snapshot().turns;
+  expect(turns).toHaveLength(2);
+  expect(turns.map((turn) => turn.intent)).toEqual([
+    expect.stringContaining('This is iteration 1 of at most 10'),
+    expect.stringContaining('This is iteration 2 of at most 10'),
+  ]);
+  expect(row?.iterationRunIds).toHaveLength(2);
+  for (const runId of row?.iterationRunIds ?? []) expect(await readRun(f.store, runId)).toMatchObject({ projectId: f.session.projectId });
+});
+
+it('reserves the controller while Resume is awaiting its durable record', async () => {
+  const f = await fixture();
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  const resuming = f.controller.resumeGoal(GOAL);
+  expect(f.controller.snapshot().busy).toBe(true);
+  const ordinary = await f.controller.submit('A separate request must wait.');
+  await resuming;
+  expect(ordinary).toBeNull();
+  expect(f.controller.snapshot().turns).toEqual([]);
+});
+
+it('counts a crash-lost reserved call from the active iteration before resuming the goal', async () => {
+  const f = await fixture();
+  const goal = { ...passedGoal(), checks: [{ kind: 'status.all' as const, status: 'final', scope: { mode: 'full' as const } }], limits: { maxModelCalls: 1 } };
+  const spend = { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 };
+  await appendGoalCheckpoint(f.store, GOAL, { checkpoint: { goal, iterations: [], results: [], nextIteration: 1, spend }, at: 200 });
+  const port = createRunLogPort(f.store);
+  await port.create({ schema: 3, runId: 'active-iteration', projectId: f.session.projectId, kind: 'turn', intent: goal.intent, createdAt: 200, updatedAt: 200, status: 'interrupted' });
+  await port.append('active-iteration', [
+    { t: 'turn.start', v: 3, turnId: 'active-turn', intent: goal.intent, wire: 'planner', native: false, seq: 0, at: 200 },
+    { t: 'spend', turnId: 'active-turn', spend, reservedCalls: 1, seq: 1, at: 201 },
+  ]);
+  await recordGoalIteration(f.store, GOAL, 'active-iteration', 200);
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  await f.controller.resumeGoal(GOAL);
+  expect((await readGoalRun(f.store, GOAL))?.result?.status).toBe('budget');
+  expect(f.controller.snapshot().turns).toEqual([]);
 });

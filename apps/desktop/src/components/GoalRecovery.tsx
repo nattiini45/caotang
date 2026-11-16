@@ -6,6 +6,7 @@
 import { useState, type ReactNode } from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
+import { Button } from '@ui-sdk/react/button';
 
 import type { AgentController, GoalRecoveryView } from '../app/agent.js';
 
@@ -13,7 +14,7 @@ const goalStateWords = (goal: GoalRecoveryView): string =>
   goal.unreadable
     ? t`This goal’s saved progress cannot be read by this version of Caotang.`
     : goal.status === 'interrupted'
-      ? t`It was on iteration ${{ iteration: goal.nextIteration }} when the tab closed, and it has not continued on its own.`
+      ? t({ message: `It was on iteration ${{ iteration: goal.nextIteration }} when the tab closed, and it has not continued on its own.`, comment: 'iteration is the number of the next iteration in the interrupted goal run.' })
       : goal.status === 'settled'
         ? goal.reason ?? t`It has finished.`
         : t`It was running.`;
@@ -34,29 +35,30 @@ export function GoalRecovery({ agent, goals }: { agent: AgentController; goals: 
             <p className="muted">{goalStateWords(goal)}</p>
             <div className="confirm-actions">
               {goal.resumable ? (
-                <button
+                <Button
                   type="button"
                   className="button is-primary"
                   disabled={busy !== null}
                   onClick={() => {
                     setBusy(goal.goalId);
-                    void agent.resumeGoal(goal.goalId).finally(() => setBusy(null));
+                    return agent.resumeGoal(goal.goalId).finally(() => setBusy(null));
                   }}
+                  pendingAnnouncement={t`Resuming…`}
                 >
                   {busy === goal.goalId ? t`Resuming…` : t`Resume the goal`}
-                </button>
+                </Button>
               ) : null}
-              <button
+              <Button
                 type="button"
                 className="button"
                 disabled={busy !== null}
                 onClick={() => {
                   setBusy(goal.goalId);
-                  void agent.discardGoal(goal.goalId).finally(() => setBusy(null));
+                  return agent.discardGoal(goal.goalId).finally(() => setBusy(null));
                 }}
               >
                 <Trans>Discard the goal record</Trans>
-              </button>
+              </Button>
             </div>
           </div>
         </section>

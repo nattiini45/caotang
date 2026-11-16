@@ -100,6 +100,7 @@ export interface GoalCheckpoint {
   readonly results: readonly CheckResult[];
   readonly nextIteration: number;
   readonly spend: BudgetSpend;
+  readonly progress?: { readonly best: number; readonly sinceBest: number; readonly passed: readonly string[] };
 }
 
 /** A check that passed earlier and fails now. */
@@ -143,6 +144,7 @@ export interface GoalOptions {
   /** Told after each iteration. The run waits for it; a throw or a rejection becomes a note and does not lose the run. */
   readonly onIteration?: (record: IterationRecord) => void | Promise<void>;
   readonly saveCheckpoint?: (checkpoint: GoalCheckpoint) => Promise<void>;
+  readonly checkpoint?: GoalCheckpoint;
   /** Where the one coherence run goes. Default: the project's held coherence file. */
   readonly recordCoherence?: (file: NonNullable<ProjectState['coherence']>) => void;
 }
@@ -391,16 +393,23 @@ export function createGoalRunner(): GoalRunner {
       const writeScope: WriteScope = goal.writeScope ?? { mode: 'full' };
       const evaluate = (): readonly CheckResult[] => evaluateChecks(checks, state, { ...(options.checks ?? {}), now: now(), withheld: options.withheld() });
 
-      const iterations: IterationRecord[] = [];
+      const iterations: IterationRecord[] = structuredClone([...(options.checkpoint?.iterations ?? [])]);
       const notes: string[] = [];
       // Said once: a failure that recurs on every iteration is one clause in `notes` and in `reason`, not one per iteration.
       const note = (text: string): void => {
         if (!notes.includes(text)) notes.push(text);
       };
       let results = evaluate();
-      const passedBefore = new Set(results.filter((result) => result.pass).map((result) => result.key));
-      let best = sum(results);
-      let sinceBest = 0;
+      const passedBefore = new Set(options.checkpoint?.progress?.passed ?? results.filter((result) => result.pass).map((result) => result.key));
+      let best = options.checkpoint?.progress?.best ?? sum(iterations[0]?.before ?? results);
+      let sinceBest = options.checkpoint?.progress?.sinceBest ?? 0;
+      if (options.checkpoint?.progress === undefined) for (const iteration of iterations) {
+        if (iteration.distance.after < best) {
+          best = iteration.distance.after;
+          sinceBest = 0;
+        } else sinceBest += 1;
+      }
+      let nextIteration = options.checkpoint?.nextIteration ?? 1;
 
       const finish = (status: GoalStatus, reason: string, extra: Pick<GoalRun, 'askBack' | 'budgetStop'> = {}): GoalRun => {
         let scanRunId: string | undefined;
@@ -450,12 +459,13 @@ export function createGoalRunner(): GoalRunner {
       for (;;) {
         if (options.signal?.aborted === true) return finish('cancelled', 'the writer stopped the run');
         const limit = meter.stopped();
-        if (limit !== undefined) return finish('budget', `the run reached its ${limit.dimension} limit before iteration ${iterations.length + 1}`, { budgetStop: limit });
+        if (limit !== undefined) return finish('budget', `the run reached its ${limit.dimension} limit before iteration ${nextIteration}`, { budgetStop: limit });
 
-        const n = iterations.length + 1;
+        const n = nextIteration;
+        if (n > maxIterations) return finish('max-iterations', `the run made its ${plural(maxIterations, 'iteration')} without every check passing (${sum(results)} left)`);
         if (options.saveCheckpoint !== undefined) {
           try {
-            await options.saveCheckpoint(structuredClone({ goal, iterations, results, nextIteration: n, spend: meter.spend() }));
+            await options.saveCheckpoint(structuredClone({ goal, iterations, results, nextIteration: n, spend: meter.spend(), progress: { best, sinceBest, passed: [...passedBefore] } }));
           } catch (error) {
             return { goal, status: 'failed', reason: `the goal checkpoint could not be saved before iteration ${n}: ${error instanceof Error ? error.message : 'storage refused'}`, iterations, results, notes };
           }
@@ -477,6 +487,7 @@ export function createGoalRunner(): GoalRunner {
         const breaches = scopeBreaches(report, state, treeBefore, writeScope);
         const record: IterationRecord = { n, turnId: report.turnId, intent, before, after: results, report, distance: { before: sum(before), after: sum(results) }, outOfScope: breaches };
         iterations.push(record);
+        nextIteration = n + 1;
         try {
           await options.onIteration?.(record);
         } catch (error) {

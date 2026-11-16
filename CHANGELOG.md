@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Goal recovery.** Goals started through the app controller now leave a durable record. A reload offers an interrupted goal with **Resume the goal** and **Discard the goal record**; nothing continues automatically. Resume keeps shared spend and loop progress, and Stop ends the whole goal. A goal-start interface is still separate work.
+
 - **Allowed automatic plan tasks.** A recurring plan can start when due after you allow that exact task on this browser, with a model-call cap. Drafts wait in the Inbox for review; no steps apply by themselves. Relevant edits invalidate the allowance, and revocation cancels pending work. History reconciles each queued occurrence once and shows its calls and tokens. Instructions still stay offered; their planning-only auto-start surface is tracked in #685.
 
 - **Recurring tasks on the command line.** `caotang tasks list` and `caotang tasks due` read a project's tasks without a lock and without changing a byte; `caotang tasks run <id|name>` or `run --due` runs them from a scheduler or CI. Last-handled runs are kept in a state file outside the project (`~/.caotang/task-state/<project id>.json`, or `--state`), so a folder under git does not churn. An offered task runs under `--due` only with `--include-offered` and an explicit `--permission`; the task's permission and call cap are ceilings no flag can raise. A scan needs no provider; a model task takes the same provider and key flags as `caotang agent` and runs under the Background role. `--write` saves through the single-writer lock; without it the turn stays in memory.
