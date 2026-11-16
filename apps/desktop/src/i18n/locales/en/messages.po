@@ -7,6 +7,11 @@ msgstr ""
 "X-Generator: @lingui/cli\n"
 "Language: en\n"
 
+#. Interpolated values: calls
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid " Preparing drafts…"
+msgstr " Preparing drafts…"
+
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "- Call `{tool}`: {status}"
@@ -1398,6 +1403,21 @@ msgstr "{name} is now pinned to the paragraph you selected. Undo puts it back as
 msgid "{name} is now placed on the whole item. Undo puts it back under its paragraph."
 msgstr "{name} is now placed on the whole item. Undo puts it back under its paragraph."
 
+#. Interpolated values: name
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "{name} is offered when it is due again."
+msgstr "{name} is offered when it is due again."
+
+#. Interpolated values: name
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "{name} is staging its drafts in the background. They will wait in the Inbox for your review."
+msgstr "{name} is staging its drafts in the background. They will wait in the Inbox for your review."
+
+#. Interpolated values: name
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "{name} may start by itself. Its drafts will wait in the Inbox for your review."
+msgstr "{name} may start by itself. Its drafts will wait in the Inbox for your review."
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "{name} names page {number}, and another file in this batch already names it"
@@ -2471,6 +2491,11 @@ msgstr "A coherence review"
 msgid "A coherence review needs its approved estimate before it can be queued. Run it here, or approve the queue preview."
 msgstr "A coherence review needs its approved estimate before it can be queued. Run it here, or approve the queue preview."
 
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "A coherence review needs its own approved estimate each time, so this task stays offered when it is due."
+msgstr "A coherence review needs its own approved estimate each time, so this task stays offered when it is due."
+
 #: apps/desktop/src/app/new-menu.ts
 msgid "A comic book with its first page"
 msgstr "A comic book with its first page"
@@ -2787,6 +2812,7 @@ msgid "A request’s temperature goes out, even on a model that takes none."
 msgstr "A request’s temperature goes out, even on a model that takes none."
 
 #. Interpolated values: error, reason, title
+#. Interpolated values: name
 #: apps/desktop/src/app/recurring-tasks.ts
 #: apps/desktop/src/app/session.ts
 msgid "A review is running. Wait for it to finish before scanning."
@@ -2803,6 +2829,7 @@ msgid "A rule refuses this review: {reason}"
 msgstr "A rule refuses this review: {reason}"
 
 #. Interpolated values: error, reason, title
+#. Interpolated values: name
 #: apps/desktop/src/app/recurring-tasks.ts
 #: apps/desktop/src/app/session.ts
 msgid "A scan is already running. Wait for it to finish, or cancel it."
@@ -3556,14 +3583,31 @@ msgstr "All changes saved in this browser"
 msgid "All scenes"
 msgstr "All scenes"
 
+#. Interpolated values: calls
+#. Interpolated values: calls
+#: apps/desktop/src/components/RecurringTasks.tsx
+#: apps/desktop/src/components/TaskAllowanceDialog.tsx
+msgid "Allow automatic starts"
+msgstr "Allow automatic starts"
+
 #: apps/desktop/src/components/AgentRulesSettings.tsx
 msgid "Allow never overrides Plan, read-only access, a mode’s restrictions or a turn marked as untrusted. External writes and tools that change agent memory or instructions still need your approval. Rules from projects, imports, MCP servers or the agent cannot grant approval."
 msgstr "Allow never overrides Plan, read-only access, a mode’s restrictions or a turn marked as untrusted. External writes and tools that change agent memory or instructions still need your approval. Rules from projects, imports, MCP servers or the agent cannot grant approval."
+
+#. Interpolated values: calls
+#: apps/desktop/src/components/TaskAllowanceDialog.tsx
+msgid "Allow this task to start by itself?"
+msgstr "Allow this task to start by itself?"
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Allow write access to the project folder, then retry the folder copy."
 msgstr "Allow write access to the project folder, then retry the folder copy."
+
+#. Interpolated values: calls
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Allowed on this browser. Nothing is applied automatically."
+msgstr "Allowed on this browser. Nothing is applied automatically."
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
@@ -3662,6 +3706,10 @@ msgstr "an entry that is gone"
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "An equation was kept as text."
 msgstr "An equation was kept as text."
+
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "An instruction needs a plan before it can start by itself. Give this task a plan, or run it when it is offered."
+msgstr "An instruction needs a plan before it can start by itself. Give this task a plan, or run it when it is offered."
 
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
@@ -4021,6 +4069,11 @@ msgstr "Ask the AI"
 msgid "Asking…"
 msgstr "Asking…"
 
+#. Interpolated values: calls
+#: apps/desktop/src/components/TaskAllowanceDialog.tsx
+msgid "Asks before it changes anything"
+msgstr "Asks before it changes anything"
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Asks first"
@@ -4040,6 +4093,11 @@ msgstr "At least"
 #: apps/desktop/src/components/InspectorGoals.tsx
 msgid "At most"
 msgstr "At most"
+
+#. Interpolated values: calls
+#: apps/desktop/src/components/TaskAllowanceDialog.tsx
+msgid "At most {calls} model calls per run. A lower limit in Settings still applies."
+msgstr "At most {calls} model calls per run. A lower limit in Settings still applies."
 
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
 #: apps/desktop/src/media/PromptPackPanel.tsx
@@ -4654,6 +4712,7 @@ msgstr "Camera movement"
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
+#. Interpolated values: calls
 #. Interpolated values: calls, cap
 #. Interpolated values: confirm, file, files, generation, name, path
 #. Interpolated values: model, name, provider, total
@@ -4693,6 +4752,7 @@ msgstr "Camera movement"
 #: apps/desktop/src/components/shared.tsx
 #: apps/desktop/src/components/SkillsPanel.tsx
 #: apps/desktop/src/components/TargetQuickSet.tsx
+#: apps/desktop/src/components/TaskAllowanceDialog.tsx
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
 #: apps/desktop/src/media/DialogueView.tsx
 #: apps/desktop/src/media/TranscriptionReviewDialog.tsx
@@ -7347,6 +7407,7 @@ msgstr "Edit summary"
 msgid "Edit synopsis"
 msgstr "Edit synopsis"
 
+#. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx
 msgid "Edit task"
 msgstr "Edit task"
@@ -10190,6 +10251,11 @@ msgstr "Maximum words"
 msgid "Maximum words (optional)"
 msgstr "Maximum words (optional)"
 
+#. Interpolated values: calls
+#: apps/desktop/src/components/TaskAllowanceDialog.tsx
+msgid "May not change anything"
+msgstr "May not change anything"
+
 #. Interpolated values: tool
 #: apps/desktop/src/app/agent-rules-model.ts
 msgid "May skip approval in Ask mode for {tool}"
@@ -10370,6 +10436,11 @@ msgstr "Model call failed"
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Model calls per turn"
 msgstr "Model calls per turn"
+
+#. Interpolated values: calls
+#: apps/desktop/src/components/TaskAllowanceDialog.tsx
+msgid "Model calls send project context to your configured provider and may incur charges. The call limit is not a spending limit. Changing the plan, schedule, permission or cap requires a new allowance."
+msgstr "Model calls send project context to your configured provider and may incur charges. The call limit is not a spending limit. Changing the plan, schedule, permission or cap requires a new allowance."
 
 #. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
 #: apps/desktop/src/app/run-log-export.ts
@@ -10904,6 +10975,8 @@ msgstr "New skill…"
 msgid "New storyboard here"
 msgstr "New storyboard here"
 
+#. Interpolated values: calls
+#. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx
 msgid "New task"
 msgstr "New task"
@@ -11989,8 +12062,18 @@ msgstr "Only {max} skills can be taken at once; the rest were left out."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
+msgid "Only a plan can stage its results in the Inbox."
+msgstr "Only a plan can stage its results in the Inbox."
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
 msgid "Only a saved, settled turn can be forked."
 msgstr "Only a saved, settled turn can be forked."
+
+#. Interpolated values: name
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "Only an eligible plan set to start by itself can be allowed. Model plans also need a call limit."
+msgstr "Only an eligible plan set to start by itself can be allowed. Model plans also need a call limit."
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
@@ -12217,6 +12300,11 @@ msgstr "OpenAI-compatible endpoint"
 #: apps/desktop/src/app/activity-model.ts
 msgid "Opened in the editor"
 msgstr "Opened in the editor"
+
+#. Interpolated values: calls
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Opening allowance…"
+msgstr "Opening allowance…"
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
@@ -12904,6 +12992,8 @@ msgstr "Plan only mode does not run reviews. Switch to Ask, then queue the revie
 msgid "Plan only mode does not run reviews. Switch to Ask, then queue the review."
 msgstr "Plan only mode does not run reviews. Switch to Ask, then queue the review."
 
+#. Interpolated values: calls
+#. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx
 msgid "Plan steps"
 msgstr "Plan steps"
@@ -12979,6 +13069,11 @@ msgstr "POV {povName}"
 #: apps/desktop/src/components/PlanOfferCard.tsx
 msgid "Prepares this plan in the current turn and may send draft requests to the model."
 msgstr "Prepares this plan in the current turn and may send draft requests to the model."
+
+#. Interpolated values: calls
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Preparing drafts"
+msgstr "Preparing drafts"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -13807,6 +13902,11 @@ msgstr "Reads run. Every write is refused and kept as a plan you can run later."
 msgid "Ready"
 msgstr "Ready"
 
+#. Interpolated values: calls
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Ready in Inbox"
+msgstr "Ready in Inbox"
+
 #. Interpolated values: done, intent, outdated, staged, total
 #: apps/desktop/src/app/task-model.ts
 msgid "Ready to review: {staged} of {draftTotal} drafted"
@@ -13816,6 +13916,11 @@ msgstr "Ready to review: {staged} of {draftTotal} drafted"
 #: apps/desktop/src/app/task-model.ts
 msgid "Ready to review: {staged} of {draftTotal} drafted, {outdated} out of date"
 msgstr "Ready to review: {staged} of {draftTotal} drafted, {outdated} out of date"
+
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
+msgid "Ready to review: no steps have run"
+msgstr "Ready to review: no steps have run"
 
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
@@ -13883,6 +13988,8 @@ msgstr "Recording is off"
 msgid "Recovering the project"
 msgstr "Recovering the project"
 
+#. Interpolated values: calls
+#. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx
 msgid "Recurring tasks"
 msgstr "Recurring tasks"
@@ -14660,6 +14767,11 @@ msgstr "Reviewing: extracting {doneCalls} of {totalCalls}"
 msgid "Reviewing: verifying {doneCalls} of {totalCalls}"
 msgstr "Reviewing: verifying {doneCalls} of {totalCalls}"
 
+#. Interpolated values: calls
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Revoke automatic starts"
+msgstr "Revoke automatic starts"
+
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Rewind conversation to before this turn"
@@ -14724,6 +14836,7 @@ msgstr "RTF file"
 msgid "Run /context again to retry. No request was sent."
 msgstr "Run /context again to retry. No request was sent."
 
+#. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx
 msgid "Run a plan"
 msgstr "Run a plan"
@@ -14998,6 +15111,7 @@ msgstr "Save summary"
 msgid "Save target"
 msgstr "Save target"
 
+#. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx
 msgid "Save task"
 msgstr "Save task"
@@ -15249,11 +15363,14 @@ msgstr "Saving will re-style {count} {blocks, plural, one {block} other {blocks}
 msgid "Saving writes this tab’s version over them. The folder’s version is kept first, in <0>.caotang-backup</0> in the folder, so if you need anything from it, copy it from there."
 msgstr "Saving writes this tab’s version over them. The folder’s version is kept first, in <0>.caotang-backup</0> in the folder, so if you need anything from it, copy it from there."
 
+#. Interpolated values: calls
+#. Interpolated values: calls
 #. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/app/integrity-model.ts
 #: apps/desktop/src/components/EditorPane.tsx
 #: apps/desktop/src/components/RecurringTasks.tsx
+#: apps/desktop/src/components/TaskAllowanceDialog.tsx
 #: apps/desktop/src/media/screenplay-model.ts
 msgid "Saving…"
 msgstr "Saving…"
@@ -16288,6 +16405,11 @@ msgstr "Small thumbnails, pictures only"
 msgid "Soft budget"
 msgstr "Soft budget"
 
+#. Background task and Inbox status. Counts describe drafts, calls, tokens or findings; titles and model labels are supplied text.
+#: apps/desktop/src/components/BackgroundTasks.tsx
+msgid "Some call outcomes were not saved before the interruption. Their allowance stays reserved; it is not reported as actual usage."
+msgstr "Some call outcomes were not saved before the interruption. Their allowance stays reserved; it is not reported as actual usage."
+
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave."
@@ -16424,10 +16546,6 @@ msgstr "Start the review"
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Start the scene. Your words are saved in this browser as you go."
 msgstr "Start the scene. Your words are saved in this browser as you go."
-
-#: apps/desktop/src/app/recurring-tasks.ts
-msgid "Starting a plan by itself is not built yet, so this one is offered when it is due."
-msgstr "Starting a plan by itself is not built yet, so this one is offered when it is due."
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -16994,6 +17112,11 @@ msgstr "Task roles"
 msgid "Tasks"
 msgstr "Tasks"
 
+#. Interpolated values: calls
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Tasks run only while this project is open in a visible tab. Scans may start by themselves. Plans need your allowance on this browser; their drafts wait in the Inbox for review. Instructions are offered when due."
+msgstr "Tasks run only while this project is open in a visible tab. Scans may start by themselves. Plans need your allowance on this browser; their drafts wait in the Inbox for review. Instructions are offered when due."
+
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "Temperature"
@@ -17433,6 +17556,14 @@ msgstr "The AI suggests {encoding}."
 msgid "The AI’s answer did not name one of the encodings."
 msgstr "The AI’s answer did not name one of the encodings."
 
+#: apps/desktop/src/app/task-consents.ts
+msgid "The allowance could not be saved on this machine, so the task stays offered when it is due. Try again."
+msgstr "The allowance could not be saved on this machine, so the task stays offered when it is due. Try again."
+
+#: apps/desktop/src/app/task-consents.ts
+msgid "The allowance could not be taken back on this machine. Try again."
+msgstr "The allowance could not be taken back on this machine. Try again."
+
 #. Interpolated values: error
 #: apps/desktop/src/app/services.ts
 msgid "The app settings could not be opened here, so they will not be kept: {error}"
@@ -17542,6 +17673,11 @@ msgstr "The bundle could not be made: {error}"
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "The bundle file itself is not changed. Its unreadable caotang.json is not kept, so keep the bundle file if you may need that copy."
 msgstr "The bundle file itself is not changed. Its unreadable caotang.json is not kept, so keep the bundle file if you may need that copy."
+
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "The call allowance could not be saved, so no model request was sent. Try again after checking browser storage."
+msgstr "The call allowance could not be saved, so no model request was sent. Try again after checking browser storage."
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -19081,6 +19217,11 @@ msgstr "the take's seed is a whole number from {first} to {last}"
 msgid "The task has been asked to stop. Check Background tasks for its final status."
 msgstr "The task has been asked to stop. Check Background tasks for its final status."
 
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "The task's allowance could not be kept, so it stays offered when it is due."
+msgstr "The task's allowance could not be kept, so it stays offered when it is due."
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "The text before chapter 1 ({words} words) goes into the manuscript."
@@ -19438,6 +19579,11 @@ msgstr "This allow rule for {tool} has no effect because it only names read acce
 msgid "This allow rule has no effect because it names a folder or path."
 msgstr "This allow rule has no effect because it names a folder or path."
 
+#. Interpolated values: calls
+#: apps/desktop/src/components/TaskAllowanceDialog.tsx
+msgid "This allowance stays in this browser. Drafts wait in the Inbox for your review. Nothing is applied automatically."
+msgstr "This allowance stays in this browser. Drafts wait in the Inbox for your review. Nothing is applied automatically."
+
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "This approval is already saving your typing. Wait for it to finish."
@@ -19475,6 +19621,10 @@ msgstr "This browser has not promised to keep these pictures. Attach a folder, o
 #: apps/desktop/src/components/Home.tsx
 msgid "This browser keeps “{project}”, and the folder “{folder}” holds a version of it that is not the same. Another program may have changed the folder, or the project changed here after it was last saved there."
 msgstr "This browser keeps “{project}”, and the folder “{folder}” holds a version of it that is not the same. Another program may have changed the folder, or the project changed here after it was last saved there."
+
+#: apps/desktop/src/app/task-consents.ts
+msgid "This browser will not keep the allowance on this machine, so the task stays offered when it is due."
+msgstr "This browser will not keep the allowance on this machine, so the task stays offered when it is due."
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
@@ -19700,10 +19850,19 @@ msgstr "This picture is no longer in the project"
 msgid "This picture is still used, so it cannot be deleted:"
 msgstr "This picture is still used, so it cannot be deleted:"
 
+#. Interpolated values: calls
+#: apps/desktop/src/components/TaskAllowanceDialog.tsx
+msgid "This plan calls no model."
+msgstr "This plan calls no model."
+
 #. Interpolated values: calls, cap, error
 #: apps/desktop/src/app/task-queue.ts
 msgid "This plan has no coherence review to queue."
 msgstr "This plan has no coherence review to queue."
+
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "This plan is offered when it is due. Allow it to start by itself to stage its drafts in the Inbox for your review."
+msgstr "This plan is offered when it is due. Allow it to start by itself to stage its drafts in the Inbox for your review."
 
 #. Interpolated values: calls, cap
 #: apps/desktop/src/components/PlanOfferCard.tsx
@@ -20000,10 +20159,26 @@ msgstr "This tab cannot save: another tab has newer text for this project. Expor
 msgid "This tab no longer owns the project. Copy unsaved text before reloading."
 msgstr "This tab no longer owns the project. Copy unsaved text before reloading."
 
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "This task changed since you allowed it to start by itself, so it is offered until you allow it again."
+msgstr "This task changed since you allowed it to start by itself, so it is offered until you allow it again."
+
+#. Interpolated values: name
+#. Interpolated values: name
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "This task changed while its allowance was open. Review it again before allowing it."
+msgstr "This task changed while its allowance was open. Review it again before allowing it."
+
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "This task has no review approval."
 msgstr "This task has no review approval."
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "This task is no longer allowed to start by itself. Review its allowance before running it again."
+msgstr "This task is no longer allowed to start by itself. Review its allowance before running it again."
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
@@ -21459,6 +21634,7 @@ msgstr "Write the script"
 msgid "Write the script from the pages…"
 msgstr "Write the script from the pages…"
 
+#. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx
 msgid "Write the steps as a list in JSON, each with a tool, its params and what to expect. They are checked as the agent’s own plans are when you save, and the task’s permission limits what the plan may do."
 msgstr "Write the steps as a list in JSON, each with a tool, its params and what to expect. They are checked as the agent’s own plans are when you save, and the task’s permission limits what the plan may do."

@@ -38,7 +38,7 @@ import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, 
 import { formatUsd } from '../app/plan-preview.js';
 import { sumUsage } from '@caotang/gateway';
 import { groupUsage } from '../app/usage-model.js';
-import { isImeEnter, keyFacts, keyboardLayoutStore, resolveKey, shortcutLabel } from '../app/keymap.js';
+import { isImeEnter, keyFacts, keyboardLayoutStore, MODAL_DIALOG_SELECTOR, resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
 import { UNRESOLVED_NOTICE } from '../app/review-text.js';
 import type { AgentController, AgentSnapshot } from '../app/agent.js';
@@ -304,7 +304,7 @@ export function AgentPanel({
   const onPanelKey = (event: ReactKeyboardEvent<HTMLElement>): void => {
     // A dialog inside the panel (the restore confirmation) has Escape for itself.
     const target = event.target;
-    if (event.defaultPrevented || (target instanceof HTMLElement && target.closest('dialog') !== null)) return;
+    if (event.defaultPrevented || (target instanceof HTMLElement && target.closest(MODAL_DIALOG_SELECTOR) !== null)) return;
     const action = resolveKey(
       // keyFacts reads AltGraph from the modifier state (Windows reports it as Ctrl+Alt); isImeEnter reads the native event's composition.
       { ...keyFacts(event), composing: isImeEnter(event) },

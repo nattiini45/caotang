@@ -9,7 +9,7 @@ import { ProjectSession } from '../../apps/desktop/src/app/session.js';
 import { AgentController } from '../../apps/desktop/src/app/agent.js';
 import { ProviderService } from '../../apps/desktop/src/app/providers.js';
 import { sampleProjectState } from '../../apps/desktop/src/app/demo.js';
-import { EMPTY_DRAFT, planSelfStartNote, RecurringTasks, SELF_START_NOTE, type RecurringOptions } from '../../apps/desktop/src/app/recurring-tasks.js';
+import { EMPTY_DRAFT, planSelfStartNote, RecurringTasks, selfStartNote, type RecurringOptions } from '../../apps/desktop/src/app/recurring-tasks.js';
 import { TaskRuns } from '../../apps/desktop/src/app/task-runs.js';
 import { attachCoherence } from '../../apps/desktop/src/app/coherence-io.js';
 import { openTasksHome } from '../../apps/desktop/src/app/tasks-io.js';
@@ -425,7 +425,7 @@ test.describe('a task that uses a model is only offered', () => {
     await r.recurring.attach();
 
     const row = r.recurring.snapshot().tasks[0];
-    expect(row?.note).toBe(SELF_START_NOTE);
+    expect(row?.note).toBe(selfStartNote());
     expect(r.recurring.snapshot().offers.map((offer) => offer.id)).toEqual([task.id]);
     expect(r.agent.snapshot().turns).toEqual([]);
     expect(r.runs.history(task.id)).toEqual([]);
@@ -618,7 +618,7 @@ test.describe('the definitions', () => {
     expect(await r.recurring.save({ ...draft, name: 'Reader' })).toContain('limit on its model calls');
     expect(await r.recurring.save({ ...draft, name: 'Reader', maxModelCalls: 'many' })).toContain('whole number');
     expect(await r.recurring.save({ ...draft, name: 'Reader', maxModelCalls: '3' })).toBeNull();
-    expect(r.recurring.snapshot().tasks[0]?.note).toBe(SELF_START_NOTE);
+    expect(r.recurring.snapshot().tasks[0]?.note).toBe(selfStartNote());
     await r.session.close();
   });
 

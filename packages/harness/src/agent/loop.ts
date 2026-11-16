@@ -4031,6 +4031,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   ): Promise<Settled> {
     const eligible = backgroundEligibility(plan.steps, undefined, { allowNoModelStep: true });
     if (!eligible.eligible) return { status: 'failed', askBack: askBackFor(refusal('invalid-params', eligible.reason, { correctiveHint: 'send the request again' })) };
+    if (policyOf(turn).readOnly && plan.steps.some((step) => isWrite(riskOf(step.tool)))) return givenPlanTurn(turn, plan);
     const stale = staleSteps(harness.state, plan.steps, stored, revisions);
     // A proposal that fails its shape guard never reaches the card: it is treated as a step that was not drafted.
     const proposals = plan.steps.map((step, index) => (MODEL_BACKED.has(step.tool) && proposalShapeOk(step.tool, stored[index]) ? stored[index] : undefined));

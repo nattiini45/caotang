@@ -1,8 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import type * as RecurringModule from '../apps/desktop/src/app/recurring-tasks.js';
+import type { TaskRecord } from '../apps/desktop/src/app/task-store.js';
 
 import { fakeEndpoint, useFakeEndpoint, type FakeReply } from './endpoint.js';
 import { binderTitle, createProject, waitForSaved } from './support.js';
+import { projectTrace } from './support.js';
 
 /**
  * Recurring tasks as a writer meets them (agent-harness.md §12): a task made in the agent drawer, a scan that starts by itself when
@@ -29,13 +31,14 @@ async function openAgent(page: Page): Promise<void> {
 }
 
 /** Reloads and opens the project again. A reload begun while the indicator reads saving could take the task a writer has just made. */
-async function reopen(page: Page, name: string, openLabel = 'Open'): Promise<void> {
+async function reopen(page: Page, name: string, openLabel = 'Open', shell: 'classic' | 'modern' = 'classic'): Promise<void> {
   await waitForSaved(page);
   await page.reload();
   const row = page.getByRole('listitem').filter({ hasText: name });
   await expect(row).toBeVisible({ timeout: 20_000 });
   await row.getByRole('button', { name: openLabel }).click();
-  await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
+  if (shell === 'classic') await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
+  else await expect(page.getByTestId('shell')).toHaveAttribute('data-state', 'modern');
 }
 
 interface NewTask {
@@ -170,7 +173,7 @@ test('a model task saved to start by itself is offered instead, and says so', as
   await form.getByLabel('What to ask').fill('Look over the newest scene.');
   await form.getByLabel('When', { exact: true }).selectOption({ label: 'Each time the project opens' });
   await form.getByLabel('When it is due').selectOption({ label: 'Start it by itself' });
-  await expect(form).toContainText('Starting by itself is not built for tasks that use the model yet');
+  await expect(form).toContainText('An instruction needs a plan before it can start by itself');
   // A model task that starts by itself needs its limit on model calls.
   await form.getByRole('button', { name: 'Save task' }).click();
   await expect(form.getByRole('alert')).toContainText('limit on its model calls');
@@ -178,7 +181,7 @@ test('a model task saved to start by itself is offered instead, and says so', as
   await form.getByRole('button', { name: 'Save task' }).click();
   // The task is a row of its own once it is saved. The note alone proves nothing: the form shows the same sentence before the save.
   const saved = page.getByTestId('recurring-tasks').locator('[data-task]', { hasText: 'Self-start read' });
-  await expect(saved).toContainText('Starting by itself is not built for tasks that use the model yet');
+  await expect(saved).toContainText('An instruction needs a plan before it can start by itself');
 
   await reopen(page, 'Consent Book');
   await expect(page.getByTestId('task-offers').getByRole('group', { name: 'Task due: Self-start read' })).toBeVisible({ timeout: LOADED });
@@ -336,6 +339,127 @@ for (const language of ['en', 'de'] as const) {
     await kept.getByRole('button', { name: /^Run now/ }).click();
     await expect(kept.getByText('Runs on this machine (1)')).toBeVisible({ timeout: LOADED });
     expect(counter.calls).toBe(0);
+  });
+}
+
+for (const [shell, language] of [['classic', 'en'], ['modern', 'de']] as const) {
+  test(`an exact plan allowance stages due drafts in the Inbox without applying them (${shell}, ${language})`, async ({ page }, testInfo) => {
+    test.setTimeout(90_000);
+    let calls = 0;
+    await fakeEndpoint(page, () => { calls += 1; return { text: 'The ferry arrives after a long wait.' }; });
+    await useFakeEndpoint(page);
+    await createProject(page, 'Allowed Plan Book');
+    await chapterWithScene(page, 'Opening');
+    await openAgent(page);
+    await page.getByRole('button', { name: 'New task' }).click();
+    const form = page.getByRole('form', { name: 'New task' });
+    await form.getByLabel('Task name').fill('Opening synopsis');
+    await form.getByLabel('What it does').selectOption('plan');
+    await form.getByLabel('Plan steps').fill(JSON.stringify([{ tool: 'synopsis.fill', params: { docs: ['Opening'], source: 'text', max_words: 20 }, expect: 'A synopsis is ready' }]));
+    await form.getByLabel('When', { exact: true }).selectOption('on-open');
+    await form.getByLabel('When it is due').selectOption('run');
+    await form.getByLabel('Most model calls in a run').fill('2');
+    await form.getByRole('button', { name: 'Save task' }).click();
+    await expect(form).toHaveCount(0);
+    expect(calls).toBe(0);
+    if (language === 'de') {
+      await page.getByRole('button', { name: 'Settings', exact: true }).click();
+      const settings = page.getByTestId('settings');
+      await settings.locator('[data-section="appearance"]').click();
+      await settings.locator('input[name="interface-language"][value="de"]').click();
+      await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+      await settings.locator('.settings-head button').click();
+    }
+    await page.evaluate((value) => localStorage.setItem('caotang.interface', value), shell);
+    await reopen(page, 'Allowed Plan Book', language === 'de' ? 'Öffnen' : 'Open', shell);
+    expect(calls).toBe(0);
+    const tasks = page.getByTestId('recurring-tasks');
+    const reveal = async (): Promise<void> => {
+      if (shell === 'classic') {
+        const toggle = page.locator('.agent-toggle');
+        if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+      } else if (!(await tasks.isVisible())) await page.getByRole('button', { name: 'Fragen', exact: true }).click();
+      await expect(tasks).toBeVisible();
+    };
+    await reveal();
+    const row = tasks.locator('[data-task]', { hasText: 'Opening synopsis' });
+    const allow = row.getByRole('button', { name: language === 'de' ? /^Automatische Starts erlauben/ : /^Allow automatic starts/ });
+    await allow.focus();
+    await page.keyboard.press('Enter');
+    const dialog = page.getByRole('dialog', { name: language === 'de' ? 'Diese Aufgabe automatisch starten lassen?' : 'Allow this task to start by itself?' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: language === 'de' ? 'Abbrechen' : 'Cancel', exact: true })).toBeFocused();
+    await expect(dialog).toContainText('synopsis.fill');
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+    await expect(allow).toBeFocused();
+    expect(calls).toBe(0);
+    await allow.click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: language === 'de' ? 'Abbrechen' : 'Cancel', exact: true })).toBeInViewport({ ratio: 1 });
+    await expect(dialog.getByRole('button', { name: language === 'de' ? 'Automatische Starts erlauben' : 'Allow automatic starts', exact: true })).toBeInViewport({ ratio: 1 });
+    const bounds = await dialog.boundingBox();
+    const viewport = page.viewportSize();
+    expect(bounds).not.toBeNull();
+    expect(Math.abs((bounds!.x + bounds!.width / 2) - viewport!.width / 2)).toBeLessThan(2);
+    await page.screenshot({ path: testInfo.outputPath(`allowance-${shell}-${language}.png`) });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: language === 'de' ? 'Abbrechen' : 'Cancel', exact: true })).toBeInViewport({ ratio: 1 });
+    await expect(dialog.getByRole('button', { name: language === 'de' ? 'Automatische Starts erlauben' : 'Allow automatic starts', exact: true })).toBeInViewport({ ratio: 1 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`allowance-${shell}-${language}-narrow.png`) });
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await dialog.getByRole('button', { name: language === 'de' ? 'Automatische Starts erlauben' : 'Allow automatic starts', exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    await expect(row.getByRole('button', { name: language === 'de' ? /^Automatische Starts widerrufen/ : /^Revoke automatic starts/ })).toBeFocused();
+    expect(calls).toBe(0);
+    await reopen(page, 'Allowed Plan Book', language === 'de' ? 'Öffnen' : 'Open', shell);
+    await reveal();
+    const inbox = page.getByTestId('review-inbox');
+    await expect(inbox.locator('[data-task][data-status="ready"]')).toBeVisible({ timeout: LOADED });
+    expect(calls).toBe(1);
+    expect(await projectTrace(page)).not.toContain('binder.setSynopsis');
+    await expect(page.getByRole('combobox', { name: language === 'de' ? 'Absicht' : 'Intent' })).toBeEnabled();
+    await inbox.locator('[data-task][data-status="ready"]').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: testInfo.outputPath(`inbox-${shell}-${language}.png`) });
+    const interrupted = await page.evaluate(() => new Promise<number>((resolve, reject) => {
+      const request = indexedDB.open('caotang-app');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction('kv', 'readwrite');
+        const store = tx.objectStore('kv');
+        const rows = store.getAll();
+        let changed = 0;
+        rows.onsuccess = () => {
+          for (const row of rows.result as { key: string; value?: TaskRecord }[]) {
+            if (row.value?.recurringTaskId === undefined || row.value.status !== 'ready') continue;
+            store.put({ ...row, value: { ...row.value, status: 'interrupted', items: row.value.items.map((item) => ({ ...item, state: 'pending' })) } });
+            changed += 1;
+          }
+        };
+        tx.oncomplete = () => { db.close(); resolve(changed); };
+        tx.onabort = () => { db.close(); reject(tx.error); };
+      };
+    }));
+    expect(interrupted).toBe(1);
+    await reopen(page, 'Allowed Plan Book', language === 'de' ? 'Öffnen' : 'Open', shell);
+    await reveal();
+    const backgroundTasks = page.getByTestId('background-tasks');
+    const recovered = backgroundTasks.locator('[data-task][data-status="interrupted"]');
+    await expect(recovered).toBeVisible();
+    await expect(recovered.getByRole('button', { name: language === 'de' ? /^Fortsetzen/ : /^Resume/ })).toBeVisible();
+    await expect(recovered.getByRole('button', { name: language === 'de' ? /^Abbrechen/ : /^Cancel/ })).toBeVisible();
+    const revoke = tasks.locator('[data-task]', { hasText: 'Opening synopsis' }).getByRole('button', { name: language === 'de' ? /^Automatische Starts widerrufen/ : /^Revoke automatic starts/ });
+    await revoke.click();
+    await expect(backgroundTasks.locator('[data-task][data-status="cancelled"]')).toBeVisible();
+    await expect(backgroundTasks.locator('[data-task][data-status="interrupted"]')).toHaveCount(0);
+    await expect(tasks.getByRole('button', { name: language === 'de' ? /^Automatische Starts erlauben/ : /^Allow automatic starts/ })).toBeVisible();
+    await reopen(page, 'Allowed Plan Book', language === 'de' ? 'Öffnen' : 'Open', shell);
+    await reveal();
+    await expect(page.getByTestId('task-offers').locator('[data-task]', { hasText: 'Opening synopsis' })).toBeVisible({ timeout: LOADED });
+    expect(calls).toBe(1);
   });
 }
 

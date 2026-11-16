@@ -8,6 +8,8 @@ The agent names when it is loading, processing an approval or stopping. Its comp
 
 Recurring task offers keep updating while a scan runs. If the agent is busy, a due task stays offered without a failed run; choose **Run now** after the turn ends.
 
+Recurring plans can also start when due after a separate allowance on this browser, within their model-call cap. Their drafts wait in the Inbox for review; no steps apply automatically. Editing the plan, schedule, permission or cap requires a new allowance. Instructions still stay offered.
+
 After a project restore, the agent names the project changes taken back and keeps its earlier report as **Original result**. Rewinding the conversation alone does not claim to undo project changes.
 
 Dialogs keep unfinished input underneath a later dialog; Escape acts on the top one. A stopped-tab notice always takes precedence. In Modern, background notice capsules wait out the dialog visually, while new notices are still announced and current ones return afterward. An error received while covered is kept over later information; a newer error replaces it.
