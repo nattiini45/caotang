@@ -258,6 +258,9 @@ const EXTENSION: Record<ExportFormat, string> = {
   'timeline-pdf': 'pdf',
   cbz: 'cbz',
   'comic-epub': 'epub',
+  'show-notes': 'md',
+  'transcript-md': 'md',
+  teleprompter: 'txt',
 };
 
 /**
@@ -288,6 +291,9 @@ export const EXPORT_MIME: Readonly<Record<ExportFormat, string>> = {
   'timeline-pdf': PDF_MIME,
   cbz: CBZ_MIME,
   'comic-epub': EPUB_MIME,
+  'show-notes': 'text/markdown;charset=utf-8',
+  'transcript-md': 'text/markdown;charset=utf-8',
+  teleprompter: 'text/plain;charset=utf-8',
 };
 
 const NO_ASSETS: ReadonlyMap<string, AssetRecord> = new Map();
@@ -522,6 +528,8 @@ export function createExporter(options: ExporterOptions): ExporterService {
       ...(request.templateId === undefined ? {} : { vendor: request.templateId }),
       // The recipe's character limit reaches the dialogue table (dialogue-narrative.md §4), as CSV or as a spreadsheet.
       charLimit: request.options.charLimit ?? null,
+      // The teleprompter's wrap width in characters (av-script.md §5). Absent is the compile's own default. Only `teleprompter` reads it.
+      teleprompterWidth: request.options.teleprompterWidth ?? null,
       // The screenplay PDF's scene numbers and continuation marks (screenplay.md §5.3). Only `pdf` reads them.
       ...(request.options.sceneNumbers === undefined ? {} : { sceneNumbers: request.options.sceneNumbers }),
       ...(request.options.continued === undefined ? {} : { continued: request.options.continued }),
