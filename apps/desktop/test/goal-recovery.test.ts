@@ -188,6 +188,55 @@ it('reserves the controller while Resume is awaiting its durable record', async 
   expect(f.controller.snapshot().turns).toEqual([]);
 });
 
+it.each(['start', 'resume'] as const)('allows Stop as soon as goal %s claims the controller', async (action) => {
+  const f = await fixture();
+  await f.controller.loadGoals();
+  await f.controller.resumeGoal('g_0000000000');
+  expect(f.controller.snapshot().message).not.toBeNull();
+  const id = action === 'start' ? 'g_7QK4M2N8RZ' : GOAL;
+  const work = action === 'start' ? f.controller.startGoal({ ...passedGoal(), id }) : f.controller.resumeGoal(id);
+  const stoppable = f.controller.snapshot().stoppable;
+  const message = f.controller.snapshot().message;
+  f.controller.stop();
+  await work;
+  expect(stoppable).toBe(true);
+  expect(message).toBeNull();
+  expect(f.controller.snapshot()).toMatchObject({ busy: false, stoppable: false });
+  expect((await readGoalRun(f.store, id))?.status).toBe(action === 'start' ? undefined : 'interrupted');
+  expect(f.controller.snapshot().turns).toEqual([]);
+});
+
+it.each(['start', 'resume'] as const)('cancels goal %s while harness setup is pending without a paid turn', async (action) => {
+  const f = await fixture();
+  await f.controller.loadGoals();
+  let entered = () => {};
+  let release = () => {};
+  const setupEntered = new Promise<void>((resolve) => { entered = resolve; });
+  const setupReleased = new Promise<void>((resolve) => { release = resolve; });
+  const ready = f.session.harnessReady.bind(f.session);
+  vi.spyOn(f.session, 'harnessReady').mockImplementationOnce(async () => {
+    entered();
+    await setupReleased;
+    return ready();
+  });
+  const id = action === 'start' ? 'g_7QK4M2N8RZ' : GOAL;
+  const work = action === 'start' ? f.controller.startGoal({ ...passedGoal(), id }) : f.controller.resumeGoal(id);
+  let stoppable = false;
+  try {
+    await setupEntered;
+    stoppable = f.controller.snapshot().stoppable;
+    f.controller.stop();
+  } finally {
+    release();
+    await work;
+  }
+  expect(stoppable).toBe(true);
+  expect(await readGoalRun(f.store, id)).toMatchObject({ status: 'settled', result: { status: 'cancelled' } });
+  expect(f.controller.snapshot()).toMatchObject({ busy: false, stoppable: false });
+  expect(f.controller.snapshot().turns).toEqual([]);
+  expect(f.providers.gateway.ledger.turnRows()).toEqual([]);
+});
+
 it('counts a crash-lost reserved call from the active iteration before resuming the goal', async () => {
   const f = await fixture();
   const goal = { ...passedGoal(), checks: [{ kind: 'status.all' as const, status: 'final', scope: { mode: 'full' as const } }], limits: { maxModelCalls: 1 } };

@@ -297,6 +297,21 @@ describe('a run that regresses', () => {
     const finished = await run(scripts, goalOf([SYNOPSES, LANDING_DRAFT]));
     expect(finished.status).toBe('regressed');
   });
+
+  it('protects checks that pass on resume as well as the saved passing checks', async () => {
+    const goal = goalOf([SYNOPSES, LANDING_DRAFT]);
+    const scripts = scripted(makeState(), breaks);
+    const finished = await run(scripts, goal, {
+      checkpoint: {
+        goal, iterations: [], results: [], nextIteration: 2,
+        spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 },
+        progress: { best: 2, sinceBest: 0, passed: [] },
+      },
+    });
+    expect(finished.status).toBe('regressed');
+    expect(finished.iterations.map((iteration) => iteration.n)).toEqual([2]);
+    expect(finished.askBack?.options).toEqual([...REGRESSION_OPTIONS]);
+  });
 });
 
 describe('a run that reaches a limit', () => {

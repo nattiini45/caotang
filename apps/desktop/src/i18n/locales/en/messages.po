@@ -18250,6 +18250,12 @@ msgid "The goal stopped unexpectedly: {error}"
 msgstr "The goal stopped unexpectedly: {error}"
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The goal was stopped."
+msgstr "The goal was stopped."
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The goal’s conversation could not be checked. Reopen the project to try again, or discard the goal record."
 msgstr "The goal’s conversation could not be checked. Reopen the project to try again, or discard the goal record."

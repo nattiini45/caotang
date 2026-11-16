@@ -1,5 +1,7 @@
 # Decisions
 
+- Resumed goals protect both saved passing checks and checks that pass now. Start and Resume expose Stop from their synchronous ownership claim and retain that signal through setup and the runner; cancelling setup starts no paid turn. [delegated 2026-11-17]
+
 - Goal recovery projects and enforces one shared linked-log refusal policy. An applied MCP action missing from the goal checkpoint is not replayed; closing coherence scans enter the session's findings persistence path even without an iteration. [delegated 2026-11-17]
 
 - Goal recovery counts unresolved model reservations as spent calls and conservatively consumes any token, cost and active-time limits before continuing; the recovery card explains the unrecorded usage. These are conservative meter charges, not fabricated provider usage reports. [delegated 2026-11-16]

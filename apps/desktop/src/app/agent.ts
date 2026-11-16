@@ -1704,15 +1704,20 @@ export class AgentController {
       return;
     }
     this.goalAction = 'start';
+    const abort = new AbortController();
+    this.goalAbort = abort;
+    this.message = null;
     this.bump();
     try {
       if (!(await this.loadSessions()) || this.conversation === null) return;
+      if (abort.signal.aborted) return;
       await saveAgentSession(this.session.runtimeStore(), this.conversation);
+      if (abort.signal.aborted) return;
       await createGoalRun(this.session.runtimeStore(), {
         goalId: goal.id, projectId: this.session.projectId, sessionId: this.sessionId,
         checkpoint: { goal, iterations: [], results: [], nextIteration: 1, spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 } }, at: this.clock(),
       });
-      await this.runGoal(goal, {});
+      await this.runGoal(goal, { signal: abort.signal });
     } catch (error) {
       this.message = t`The goal could not be saved, so it was not started: ${{ reason: error instanceof Error ? error.message : String(error) }}`;
       this.bump();
@@ -1720,6 +1725,7 @@ export class AgentController {
       await this.releaseGoalAction();
     }
   }
+
   /** The writer's explicit resume of an interrupted goal: the same goal, spending what it already spent. */
   async resumeGoal(goalId: string): Promise<void> {
     if (this.goalUnavailable !== null) {
@@ -1734,33 +1740,43 @@ export class AgentController {
       return;
     }
     this.goalAction = 'resume';
+    const abort = new AbortController();
+    this.goalAbort = abort;
+    this.message = null;
     this.bump();
     try {
       const recovery = await openGoalRecovery(this.session.runtimeStore(), goalId);
+      if (abort.signal.aborted) return;
       if (recovery.kind !== 'offer' || recovery.row.status !== 'interrupted') {
         this.message = t`That goal can no longer be resumed.`;
         return;
       }
       const checkpoint = structuredClone(recovery.row.checkpoint as GoalCheckpoint);
       await this.sessionWrites;
+      if (abort.signal.aborted) return;
       if (this.sessionSave.failure !== null) {
         this.message = this.sessionSave.failure;
         return;
       }
       const conversation = (await readAgentSessions(this.session.runtimeStore(), this.session.projectId)).find((row) => row.sessionId === recovery.row.sessionId);
+      if (abort.signal.aborted) return;
       if (conversation === undefined) {
         this.message = t`That goal can no longer be resumed.`;
         return;
       }
       if (this.sessionId !== recovery.row.sessionId) {
         await saveAgentSession(this.session.runtimeStore(), { ...conversation, active: true });
+        if (abort.signal.aborted) return;
         await this.readConversations();
+        if (abort.signal.aborted) return;
         await this.showConversation(conversation);
+        if (abort.signal.aborted) return;
       }
       const spend = { ...checkpoint.spend };
       let uncertainUsage = false;
       for (const runId of recovery.row.iterationRunIds) {
         const summary = await this.goalIterationSummary(runId, checkpoint);
+        if (abort.signal.aborted) return;
         const logged = summary.restoredSpend;
         uncertainUsage ||= summary.reservedCalls > 0;
         for (const key of ['modelCalls', 'promptTokens', 'completionTokens', 'estimatedTokens', 'steps', 'activeMs'] as const) spend[key] = Math.max(spend[key], logged[key]);
@@ -1776,7 +1792,7 @@ export class AgentController {
       }
       await resumeGoalRun(this.session.runtimeStore(), goalId, this.clock());
       const restored = { ...checkpoint, spend };
-      await this.runGoal(checkpoint.goal, { checkpoint: restored, uncertainUsage });
+      await this.runGoal(checkpoint.goal, { checkpoint: restored, uncertainUsage, signal: abort.signal });
     } catch (error) {
       this.message = t`The goal could not be resumed: ${{ reason: error instanceof Error ? error.message : String(error) }}`;
     } finally {
@@ -1797,6 +1813,8 @@ export class AgentController {
   }
 
   private async releaseGoalAction(): Promise<void> {
+    if (this.goalAbort?.signal.aborted === true) this.announcement = t`The goal was stopped.`;
+    this.goalAbort = null;
     this.goalAction = null;
     await this.loadGoals();
     if (this.queue.length > 0 && !this.queuePaused && !this.detached) queueMicrotask(() => void this.runNext());
@@ -1806,14 +1824,18 @@ export class AgentController {
    * The run itself: one shared meter, the checkpoint saved ahead of every iteration, and one settled record at the end. A checkpoint
    * that cannot be saved ends the run before that iteration: the meter is never spent on work whose record was lost.
    */
-  private async runGoal(goal: Goal, options: { readonly checkpoint?: GoalCheckpoint; readonly uncertainUsage?: boolean }): Promise<void> {
+  private async runGoal(goal: Goal, options: { readonly checkpoint?: GoalCheckpoint; readonly uncertainUsage?: boolean; readonly signal: AbortSignal }): Promise<void> {
     const store = this.session.runtimeStore();
+    const signal = options.signal;
     let meter: BudgetMeter | null = null;
     try {
+      signal.throwIfAborted();
       if (options.uncertainUsage === true && options.checkpoint !== undefined) {
         await appendGoalCheckpoint(store, goal.id, { checkpoint: options.checkpoint, at: this.clock() });
+        signal.throwIfAborted();
       }
       const loop = await this.harnessLoop();
+      signal.throwIfAborted();
       meter = loop.createBudgetMeter(goal.limits, options.checkpoint === undefined ? {} : { restored: options.checkpoint.spend });
       if (options.checkpoint !== undefined && goal.limits.maxModelCalls !== undefined && options.checkpoint.spend.modelCalls >= goal.limits.maxModelCalls) {
         meter.stop({ dimension: 'model-calls', limit: goal.limits.maxModelCalls, spent: options.checkpoint.spend.modelCalls });
@@ -1826,8 +1848,6 @@ export class AgentController {
       }
       this.goalScope = goal.writeScope ?? { mode: 'full' };
       const agent = this.sessionFor('chat', loop);
-      const abort = new AbortController();
-      this.goalAbort = abort;
       this.goalMeter = meter;
       this.goalRunning = goal.id;
       this.message = null;
@@ -1836,14 +1856,14 @@ export class AgentController {
         session: {
           ...agent,
           submit: async (intent) => {
-            const report = await this.turnWith(intent, {}, (session, turn) => session.submit(intent, { ...turn, signal: turn.signal === undefined ? abort.signal : AbortSignal.any([turn.signal, abort.signal]) }), true);
+            const report = await this.turnWith(intent, {}, (session, turn) => session.submit(intent, { ...turn, signal: turn.signal === undefined ? signal : AbortSignal.any([turn.signal, signal]) }), true);
             if (report === null) throw new Error(this.message ?? 'The goal iteration could not start.');
             return report;
           },
         },
         state: this.session.state,
         meter,
-        signal: abort.signal,
+        signal,
         ...(options.checkpoint === undefined ? {} : { checkpoint: options.checkpoint }),
         withheld: () => this.session.harness.withheldAnywhere(),
         recordCoherence: (file) => this.session.applyCoherenceFile(file),
@@ -1859,9 +1879,10 @@ export class AgentController {
       await settleGoalRun(store, goal.id, { status: run.status, reason: run.reason, at: this.clock() });
       this.announcement = run.reason;
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      this.message = t`The goal stopped unexpectedly: ${{ error: reason }}`;
-      await settleGoalRun(store, goal.id, { status: 'failed', reason, at: this.clock() }).catch(() => undefined);
+      const reason = signal.aborted ? t`The goal was stopped.` : error instanceof Error ? error.message : String(error);
+      this.message = signal.aborted ? reason : t`The goal stopped unexpectedly: ${{ error: reason }}`;
+      if (signal.aborted) this.announcement = reason;
+      await settleGoalRun(store, goal.id, { status: signal.aborted ? 'cancelled' : 'failed', reason, at: this.clock() }).catch(() => undefined);
     } finally {
       this.goalMeter = null;
       this.goalScope = null;

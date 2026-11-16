@@ -402,7 +402,7 @@ export function createGoalRunner(): GoalRunner {
         if (!notes.includes(text)) notes.push(text);
       };
       let results = evaluate();
-      const passedBefore = new Set(options.checkpoint?.progress?.passed ?? results.filter((result) => result.pass).map((result) => result.key));
+      const passedBefore = new Set([...(options.checkpoint?.progress?.passed ?? []), ...results.filter((result) => result.pass).map((result) => result.key)]);
       let best = options.checkpoint?.progress?.best ?? sum(iterations[0]?.before ?? results);
       let sinceBest = options.checkpoint?.progress?.sinceBest ?? 0;
       if (options.checkpoint?.progress === undefined) for (const iteration of iterations) {
