@@ -253,6 +253,8 @@ export class TaskQueue {
       const moving = this.move(id, 'cancel');
       this.active.abort.abort();
       await moving;
+    } else if (task.status === 'interrupted' && task.recurringTaskId !== undefined) {
+      await this.move(id, 'cancel-recovered');
     } else if (canMove(taskStatusTable, task.status, 'cancel') && task.status === 'queued') {
       await this.move(id, 'cancel');
     }

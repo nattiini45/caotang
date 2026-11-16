@@ -711,6 +711,7 @@ Initial: `queued`. Final: `applied`, `cancelled`, `completed`, `failed`.
 | `completed` | — | — |
 | `failed` | — | — |
 | `interrupted` | `cancel` | `cancelling` |
+| `interrupted` | `cancel-recovered` | `cancelled` |
 | `interrupted` | `resume` | `queued` |
 | `interrupted` | `settle` | `interrupted` |
 | `queued` | `cancel` | `cancelled` |

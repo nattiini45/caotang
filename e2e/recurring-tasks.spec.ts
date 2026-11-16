@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import type * as RecurringModule from '../apps/desktop/src/app/recurring-tasks.js';
+import type { TaskRecord } from '../apps/desktop/src/app/task-store.js';
 
 import { fakeEndpoint, useFakeEndpoint, type FakeReply } from './endpoint.js';
 import { binderTitle, createProject, waitForSaved } from './support.js';
@@ -422,8 +423,38 @@ for (const [shell, language] of [['classic', 'en'], ['modern', 'de']] as const) 
     await expect(page.getByRole('combobox', { name: language === 'de' ? 'Absicht' : 'Intent' })).toBeEnabled();
     await inbox.locator('[data-task][data-status="ready"]').scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath(`inbox-${shell}-${language}.png`) });
+    const interrupted = await page.evaluate(() => new Promise<number>((resolve, reject) => {
+      const request = indexedDB.open('caotang-app');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction('kv', 'readwrite');
+        const store = tx.objectStore('kv');
+        const rows = store.getAll();
+        let changed = 0;
+        rows.onsuccess = () => {
+          for (const row of rows.result as { key: string; value?: TaskRecord }[]) {
+            if (row.value?.recurringTaskId === undefined || row.value.status !== 'ready') continue;
+            store.put({ ...row, value: { ...row.value, status: 'interrupted', items: row.value.items.map((item) => ({ ...item, state: 'pending' })) } });
+            changed += 1;
+          }
+        };
+        tx.oncomplete = () => { db.close(); resolve(changed); };
+        tx.onabort = () => { db.close(); reject(tx.error); };
+      };
+    }));
+    expect(interrupted).toBe(1);
+    await reopen(page, 'Allowed Plan Book', language === 'de' ? 'Öffnen' : 'Open', shell);
+    await reveal();
+    const backgroundTasks = page.getByTestId('background-tasks');
+    const recovered = backgroundTasks.locator('[data-task][data-status="interrupted"]');
+    await expect(recovered).toBeVisible();
+    await expect(recovered.getByRole('button', { name: language === 'de' ? /^Fortsetzen/ : /^Resume/ })).toBeVisible();
+    await expect(recovered.getByRole('button', { name: language === 'de' ? /^Abbrechen/ : /^Cancel/ })).toBeVisible();
     const revoke = tasks.locator('[data-task]', { hasText: 'Opening synopsis' }).getByRole('button', { name: language === 'de' ? /^Automatische Starts widerrufen/ : /^Revoke automatic starts/ });
     await revoke.click();
+    await expect(backgroundTasks.locator('[data-task][data-status="cancelled"]')).toBeVisible();
+    await expect(backgroundTasks.locator('[data-task][data-status="interrupted"]')).toHaveCount(0);
     await expect(tasks.getByRole('button', { name: language === 'de' ? /^Automatische Starts erlauben/ : /^Allow automatic starts/ })).toBeVisible();
     await reopen(page, 'Allowed Plan Book', language === 'de' ? 'Öffnen' : 'Open', shell);
     await reveal();

@@ -26,7 +26,7 @@ import type { QueuedReviewApproval } from './queued-review.js';
 export type TaskStatus = 'queued' | 'running' | 'ready' | 'failed' | 'cancelled' | 'interrupted' | 'applied' | 'completed';
 
 export type TaskQueueStatus = TaskStatus | 'starting' | 'cancelling';
-export type TaskStatusEvent = 'pump' | 'agent-ready' | 'cancel' | 'close' | 'reload' | 'resume' | 'ready' | 'fail' | 'settle' | 'apply' | 'complete';
+export type TaskStatusEvent = 'pump' | 'agent-ready' | 'cancel' | 'cancel-recovered' | 'close' | 'reload' | 'resume' | 'ready' | 'fail' | 'settle' | 'apply' | 'complete';
 
 export const taskStatusTable: MachineTable<{ kind: TaskQueueStatus }, { type: TaskStatusEvent }> = {
   id: 'task.status',
@@ -37,7 +37,7 @@ export const taskStatusTable: MachineTable<{ kind: TaskQueueStatus }, { type: Ta
     starting: { 'agent-ready': ['running'], cancel: ['cancelling'], close: ['interrupted'], ready: ['ready'], fail: ['failed'], complete: ['completed'] },
     running: { cancel: ['cancelling'], close: ['interrupted'], reload: ['interrupted'], ready: ['ready'], fail: ['failed'], complete: ['completed'] },
     cancelling: { settle: ['cancelled'], complete: ['completed'], ready: ['ready'] },
-    interrupted: { cancel: ['cancelling'], settle: ['interrupted'], resume: ['queued'] },
+    interrupted: { cancel: ['cancelling'], 'cancel-recovered': ['cancelled'], settle: ['interrupted'], resume: ['queued'] },
     ready: { apply: ['applied'] },
     failed: {},
     cancelled: {},

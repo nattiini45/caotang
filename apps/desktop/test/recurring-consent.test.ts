@@ -50,8 +50,8 @@ function memoryDb(): AppDb {
   };
 }
 
-async function fixture(cap = 2, settingCap?: number) {
-  const state = sampleProjectState();
+async function fixture(cap = 2, settingCap?: number, previous?: { readonly state: ReturnType<typeof sampleProjectState>; readonly db: AppDb }) {
+  const state = previous?.state ?? sampleProjectState();
   const store = await openRuntimeStore(new MemoryIndexedDb());
   await writeProjectState(store, state, { now: new Date() });
   const session = new ProjectSession({ store, state, projectId: state.manifest.project.id, shadow: null });
@@ -62,7 +62,7 @@ async function fixture(cap = 2, settingCap?: number) {
   const requests: ChatRequest[] = [];
   const gateway = createGateway({ profiles, keys, clock: createManualClock(0), mock: createMockProvider({ scripts: [{ match: () => true, respond: (request) => { requests.push(request); return { content: 'A quiet synopsis.' }; } }] }) });
   const providers = { gateway, active: () => profile, get: (id: string) => profiles.get(id), resolveForRole: () => ({ profile, model: profile.defaultModel }), persist: async () => undefined } as unknown as ProviderService;
-  const db = memoryDb();
+  const db = previous?.db ?? memoryDb();
   setActiveAppDb(db);
   const agent = new AgentController(session, providers, () => ({}), () => false, { store: new TaskStore(db), locksAvailable: () => true }, () => ({ ...DEFAULT_AGENT_SETTINGS, budget: settingCap === undefined ? {} : { maxModelCalls: settingCap } }));
   await session.harnessReady();
@@ -147,6 +147,36 @@ it('takes a revoked allowance back durably before the next scheduler tick', asyn
   await f.recurring.evaluate();
   expect(f.requests).toHaveLength(0);
   expect(f.recurring.snapshot().offers).toHaveLength(1);
+});
+
+it.each(['revoke', 'disable', 'edit', 'remove'] as const)('%s cancels recovered automatic work durably instead of leaving it resumable', async (action) => {
+  const first = await fixture(5);
+  await first.recurring.allowSelfStart(first.task.id, bodyHash(first.task));
+  await first.recurring.evaluate();
+  await first.agent.tasksIdle();
+  await first.recurring.evaluate();
+  first.recurring.detach();
+  first.agent.detach();
+  await first.agent.tasksIdle();
+  const store = new TaskStore(first.db);
+  const stored = (await store.list(first.session.projectId))[0]!;
+  await store.save({ ...stored, status: 'interrupted', createdAt: Date.now() - 86_400_000, items: stored.items.map((item) => ({ ...item, state: 'pending' as const })) });
+  const recovered = await fixture(5, undefined, first);
+  expect(recovered.agent.taskViews()[0]).toMatchObject({ status: 'interrupted', canResume: true });
+  expect(recovered.recurring.snapshot().offers).toHaveLength(0);
+  let failure: string | null;
+  if (action === 'revoke') failure = await recovered.recurring.revokeSelfStart(recovered.task.id);
+  else if (action === 'disable') failure = await recovered.recurring.setEnabled(recovered.task.id, false);
+  else if (action === 'edit') failure = await recovered.recurring.save({ ...recovered.recurring.snapshot().tasks[0]!.draft, maxModelCalls: '6' }, recovered.task.id);
+  else failure = await recovered.recurring.remove(recovered.task.id);
+  expect(failure).toBeNull();
+  expect(recovered.agent.taskViews()[0]).toMatchObject({ status: 'cancelled', canResume: false });
+  expect((await store.list(first.session.projectId))[0]?.status).toBe('cancelled');
+  await recovered.agent.resumeTask(stored.id);
+  await recovered.agent.tasksIdle();
+  await recovered.recurring.evaluate();
+  expect(recovered.requests).toHaveLength(0);
+  expect(recovered.recurring.snapshot().offers).toHaveLength(action === 'revoke' || action === 'edit' ? 1 : 0);
 });
 
 it('holds Inbox review to the current task permission even under Auto mode', async () => {
