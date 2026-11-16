@@ -750,7 +750,8 @@ export const binderSetPublish: CommandDescriptor<BinderSetPublishParams> = {
     if (typeof typed.slug === 'string' && typed.slug.trim() === '') {
       return invalid('a slug cannot be empty', 'type a slug like "first-post", or null to clear it', 'patch.slug');
     }
-    if (typeof typed.publishedAt === 'string' && !RFC3339.test(typed.publishedAt)) {
+    if (typeof typed.publishedAt === 'string' && (!RFC3339.test(typed.publishedAt) || Number.isNaN(Date.parse(typed.publishedAt)))) {
+      // The shape alone is not enough — `2026-13-40T99:00:00Z` matches the pattern and means no instant.
       return invalid(
         `"${typed.publishedAt}" is not an RFC 3339 instant`,
         'type a full timestamp like "2026-11-15T12:00:00Z", or null to clear the date',
@@ -760,14 +761,16 @@ export const binderSetPublish: CommandDescriptor<BinderSetPublishParams> = {
     if (typeof typed.canonical === 'string') {
       let absolute = false;
       try {
-        absolute = new URL(typed.canonical).protocol === 'https:';
+        const url = new URL(typed.canonical);
+        // Credentials inside the address would land in the manifest and every export that reads it.
+        absolute = url.protocol === 'https:' && url.username === '' && url.password === '';
       } catch {
         absolute = false;
       }
       if (!absolute) {
         return invalid(
           `"${typed.canonical}" is not an absolute https address`,
-          'type the full address, like "https://example.com/post", or null to clear it',
+          'type the full address without credentials, like "https://example.com/post", or null to clear it',
           'patch.canonical',
         );
       }

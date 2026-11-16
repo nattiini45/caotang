@@ -1715,7 +1715,10 @@ describe('binder.setPublish — a document’s publish metadata (web-publishing.
       refusalOf(execute(cmd({ name: 'binder.setPublish', params: { nodeId, patch } }), h.bus, registry));
 
     expect(refused({ canonical: '/posts/the-landing' }).code).toBe('invalid-params');
+    expect(refused({ canonical: 'https://user:pass@example.com/posts/x' }).code).toBe('invalid-params');
+    expect(refused({ canonical: 'http://example.com/posts/x' }).code).toBe('invalid-params');
     expect(refused({ publishedAt: '2026-11-15' }).code).toBe('invalid-params');
+    expect(refused({ publishedAt: '2026-13-40T99:99:99Z' }).code).toBe('invalid-params');
     expect(refused({ bogus: 'x' }).code).toBe('invalid-params');
     expect(refused({}).code).toBe('invalid-params');
     const folder = refused({ slug: 'chapter-1' }, CHAPTER_ONE);

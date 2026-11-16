@@ -152,6 +152,23 @@ describe('manifest serializer', () => {
     expect(bare.tree[1]).not.toHaveProperty('publish');
   });
 
+  it('drops a malformed named publish field with a warning and keeps the rest, so undo stays re-appliable', () => {
+    const m = rich();
+    m.tree[1]!.publish = {
+      slug: 17,
+      publishedAt: '2026-11-15T12:00:00Z',
+      tags: 'serial',
+      customField: 'kept',
+    } as unknown as Record<string, unknown>;
+
+    const r = validateManifest(m);
+    expect(r.ok).toBe(true);
+    const publish = r.manifest?.tree[1]!.publish as Record<string, unknown>;
+    expect(publish).toEqual({ publishedAt: '2026-11-15T12:00:00Z', customField: 'kept' });
+    expect(r.warnings.some((w) => w.path.includes('publish.slug'))).toBe(true);
+    expect(r.warnings.some((w) => w.path.includes('publish.tags'))).toBe(true);
+  });
+
   it('drops a malformed EPUB slot or recipe with a warning, and keeps the rest (load tolerance)', () => {
     const m = rich();
     (m.project as unknown as Record<string, unknown>)['language'] = '';

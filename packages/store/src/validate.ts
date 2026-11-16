@@ -31,7 +31,7 @@ import {
   type AppliedMigration,
   type FormatContext,
 } from './migrations.js';
-import { CALENDAR_JSON_MAX_CHARS, CHAR_LIMIT_MAX, CRITERIA_KEYS, EPUB_IMAGE_MAX_PX_MAX, EPUB_IMAGE_MAX_PX_MIN, HOOKS_MAX, HOOK_EVENTS_RUN, MACROS_MAX, PICTURE_MODES, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits, readHook, readMacro } from '@caotang/bus';
+import { CALENDAR_JSON_MAX_CHARS, CHAR_LIMIT_MAX, CRITERIA_KEYS, EPUB_IMAGE_MAX_PX_MAX, EPUB_IMAGE_MAX_PX_MIN, HOOKS_MAX, HOOK_EVENTS_RUN, MACROS_MAX, PICTURE_MODES, PUBLISH_FIELD_NAMES, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits, readHook, readMacro } from '@caotang/bus';
 // The shapes the bus names for the furniture commands. The *values* the bus
 // refuses at the command boundary are restated below, for the load; the types
 // are the bus's own, so a value the bus does not know cannot be listed here.
@@ -672,6 +672,23 @@ function validateFields(
       if (problem !== undefined) {
         warn(`${at}.${key}${problem.path}`, `expected a value JSON can hold (${problem.reason}); ignoring field`);
         delete node[key];
+      }
+      if (key === 'publish' && isRecord(node.publish)) {
+        // A malformed *named* field — `publish.slug: 17` — would land in a `binder.setPublish` undo inverse
+        // the command then cannot re-apply (a field takes a string or null, `tags` a string list or null),
+        // leaving an edit undo cannot restore. The load drops it the way a malformed scene style goes;
+        // unknown keys stay — §2's tolerance is for names it does not know, not for the wrong type.
+        for (const field of PUBLISH_FIELD_NAMES) {
+          if (!(field in node.publish)) continue;
+          const fieldValue = node.publish[field];
+          const good = field === 'tags'
+            ? Array.isArray(fieldValue) && fieldValue.every((tag) => typeof tag === 'string')
+            : typeof fieldValue === 'string';
+          if (!good) {
+            warn(`${at}.publish.${field}`, `expected ${field === 'tags' ? 'a string list' : 'a string'}; ignoring field`);
+            delete node.publish[field];
+          }
+        }
       }
     }
   });
