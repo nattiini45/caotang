@@ -1167,6 +1167,14 @@ function vttTime(seconds: number): string {
 }
 
 /**
+ * WebVTT cue markup: `&`, `<` and `>` carry character references, so speech text and speaker names cannot close the
+ * voice span or the cue early (a literal `</v>` in a line would otherwise split the cue).
+ */
+function vttEscape(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
  * The WebVTT captions (av-script.md §5): one cue per speech line, timed from the durations §4 resolved, each speaker
  * in the standardised `<v Speaker>` voice span. A line with no duration — nothing declared and nothing estimated —
  * takes no cue and is named in the log, since a cue without times is one a player drops.
@@ -1187,7 +1195,7 @@ function vttOutput(request: MediaRequest): MediaOutput {
           notes.push(`"${ep.node.title}" line ${line.line}: no duration, so it takes no cue`);
           continue;
         }
-        cues.push(`${vttTime(at)} --> ${vttTime(at + line.durationSec)}\n<v ${speakerName(request, line)}>${line.text}</v>`);
+        cues.push(`${vttTime(at)} --> ${vttTime(at + line.durationSec)}\n<v ${vttEscape(speakerName(request, line))}>${vttEscape(line.text)}</v>`);
         cueCount += 1;
         wordCount += line.words;
         at += line.durationSec;
@@ -1222,9 +1230,7 @@ function chaptersJsonOutput(request: MediaRequest): MediaOutput {
     const chapters: { startTime: number; title: string; endTime: number }[] = [];
     for (const segment of ep.parsed.segments) {
       if (segment.startSec === undefined || segment.durationSec === undefined) {
-        if (segment.lines.length > 0 || segment.cues.length > 0) {
-          notes.push(`"${ep.node.title}": segment "${segment.title || 'the opening'}" is untimed, so it takes no chapter`);
-        }
+        notes.push(`"${ep.node.title}": segment "${segment.title || 'the opening'}" is untimed, so it takes no chapter`);
         continue;
       }
       chapters.push({
@@ -1234,6 +1240,10 @@ function chaptersJsonOutput(request: MediaRequest): MediaOutput {
       });
     }
     chapterCount += chapters.length;
+    if (chapters.length === 0) {
+      notes.push(`"${ep.node.title}": no segment is timed, so it writes no chapters document`);
+      continue;
+    }
     files.push({
       name: episodeFileName(request.base, 'chapters', 'json', episodes, ep),
       mimeType: 'application/json+chapters',

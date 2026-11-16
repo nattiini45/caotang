@@ -113,6 +113,16 @@ describe('the WebVTT captions', () => {
     expect(await result.files[0]!.blob.text()).toContain('<v Host Alice>Welcome back to the show today.</v>');
   });
 
+  it('escapes the cue text and speaker so markup cannot close the voice span', async () => {
+    const state = makeShowProject({
+      episode: '## A\nHOST_A: Look at </v> and &lt; tags. [0:10] <!-- lineId: sl_1000000011 -->\n',
+    });
+    const result = await rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'vtt');
+    const text = await result.files[0]!.blob.text();
+    expect(text).toContain('<v HOST_A>Look at &lt;/v&gt; and &amp;lt; tags.</v>');
+    expect(text).not.toContain('</v> and');
+  });
+
   it('refuses a selection with no episode, and an episode whose lines all lack a duration', async () => {
     const state = createProjectState(createEmptyManifest(PROJECT_NAME, OPENED, { locale: 'en-US' }));
     await expect(rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'vtt')).rejects.toBeInstanceOf(MediaRefusedError);
@@ -154,6 +164,21 @@ describe('the chapters document', () => {
     const doc = JSON.parse(await result.files[0]!.blob.text()) as { chapters: { title: string }[] };
     expect(doc.chapters.map((c) => c.title)).toEqual(['One', 'Three']);
     expect(result.log.notes.some((n) => n.includes('untimed'))).toBe(true);
+  });
+
+  it('writes no chapters document for an episode with no timed segment', async () => {
+    const state = makeShowProject();
+    const untimed = addDocument(state, {
+      parentId: SHOW_ID,
+      title: 'Episode 2',
+      body: '## A\nOnly a note for the editor.\n',
+      now: OPENED,
+      id: 'n_EPISODE002',
+    });
+    Object.assign(untimed, { kind: 'av-script' });
+    const result = await rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'chapters-json');
+    expect(result.files.length).toBe(1);
+    expect(result.log.notes.some((n) => n.includes('Episode 2') && n.includes('no chapters document'))).toBe(true);
   });
 
   it('refuses an episode with no timed segment', async () => {
