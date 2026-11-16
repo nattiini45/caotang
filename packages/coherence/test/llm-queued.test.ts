@@ -535,3 +535,238 @@ describe('a resume that finishes the missing work completes', () => {
     expect(again.drafts).toHaveLength(1);
   });
 });
+
+describe('a verification reply must judge every pair it was sent', () => {
+  const manyPairs = () => {
+    const scenes = [0, 1].map((d) => {
+      const quotes = Array.from({ length: 5 }, (_, i) => `Fact ${d}-${i}.`);
+      let at = 0;
+      const spans = quotes.map((quote) => {
+        const from = at;
+        at += quote.length + 1;
+        return { docId: `s${d}`, from, to: from + quote.length, quote, category: 'characterization' as const, note: '' };
+      });
+      return { id: `s${d}`, title: `Doc ${d}`, body: quotes.join(' '), spans };
+    });
+    const state = buildState({ scenes: scenes.map(({ id, title, body }) => ({ id, title, body })), entries: [] });
+    return { state, scenes };
+  };
+
+  const idsOf = (request: ModelRequest): string[] => [...request.user.matchAll(/\[pair (p\d+)\]/g)].map((m) => m[1]!);
+  const verdictsFor = (ids: readonly string[], verdict: 'contradictory' | 'consistent' | 'unclear' = 'consistent'): string =>
+    JSON.stringify({ verdicts: ids.map((pairId) => ({ pairId, verdict, reasoning: 'no conflict', factGroup: { entity: 'Elena', attribute: 'age' } })) });
+  const extracting = (scenes: ReturnType<typeof manyPairs>['scenes']) => (request: ModelRequest): string => {
+    const docId = docIdOf(request.user);
+    const scene = scenes.find((candidate) => candidate.id === docId)!;
+    return JSON.stringify({ spans: scene.spans });
+  };
+
+  async function firstBatch(reply: (ids: string[]) => string) {
+    const { state, scenes } = manyPairs();
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const checkpoints: ReviewCheckpoint[] = [];
+    const model = fake((request) => {
+      if (request.system.includes('continuity extractor')) return extracting(scenes)(request);
+      return reply(idsOf(request));
+    });
+    const computed = await computeReview(state, emptyCoherenceFile(), plan, {
+      model,
+      approved: true,
+      onCheckpoint: (checkpoint) => { checkpoints.push(structuredClone(checkpoint)); },
+    });
+    return { state, plan, computed, checkpoints, model };
+  }
+
+  const full = fake((request) => {
+    if (request.system.includes('continuity extractor')) throw new Error('extraction must not run again');
+    return verdictsFor(idsOf(request));
+  });
+
+  it('a reply that judges only part of its batch leaves the batch unacknowledged and the run partial', async () => {
+    const { state, plan, computed, checkpoints } = await firstBatch((ids) => verdictsFor(ids.slice(0, 2)));
+    expect(computed.status).toBe('partial');
+    expect(computed.notes.some((note) => note.includes('judged 2 of 10'))).toBe(true);
+    const last = checkpoints.at(-1)!;
+    expect(last.verifiedBatches).toBe(0);
+    expect(last.verifiedPairs).toEqual([]);
+    expect(last.verdicts).toHaveLength(2);
+    expect(last.promptTokens).toBe(300);
+
+    const again = await computeReview(state, emptyCoherenceFile(), plan, { model: full, approved: true, resumeFrom: last });
+    expect(full.calls).toHaveLength(5);
+    expect(full.calls[0]?.user).toContain('[pair p1]');
+    expect(again.status).toBe('complete');
+  });
+
+  it('an empty verdicts list is an incomplete batch, not a judged one', async () => {
+    const { state, plan, computed, checkpoints } = await firstBatch(() => JSON.stringify({ verdicts: [] }));
+    expect(computed.status).toBe('partial');
+    expect(computed.notes.some((note) => note.includes('judged 0 of 10'))).toBe(true);
+    expect(checkpoints.at(-1)?.verifiedPairs).toEqual([]);
+    const again = await computeReview(state, emptyCoherenceFile(), plan, { model: full, approved: true, resumeFrom: checkpoints.at(-1)! });
+    expect(again.status).toBe('complete');
+  });
+
+  it('a repeated verdict for one pair is kept once in the checkpoint', async () => {
+    const { computed, checkpoints } = await firstBatch((ids) => JSON.stringify({
+      verdicts: [...ids, ...ids].map((pairId) => ({ pairId, verdict: 'consistent', reasoning: 'no conflict', factGroup: { entity: 'Elena', attribute: 'age' } })),
+    }));
+    expect(computed.status).toBe('complete');
+    const last = checkpoints.at(-1)!;
+    expect(last.verdicts).toHaveLength(45);
+    expect(new Set(last.verdicts.map((verdict) => verdict.pairId)).size).toBe(45);
+    expect(computed.notes.some((note) => note.includes('kept once'))).toBe(true);
+  });
+
+  it('verdicts in any order judge the same pairs', async () => {
+    const { computed, checkpoints } = await firstBatch((ids) => verdictsFor([...ids].reverse()));
+    expect(computed.status).toBe('complete');
+    const last = checkpoints.at(-1)!;
+    expect(new Set(last.verdicts.map((verdict) => verdict.pairId))).toEqual(new Set(Array.from({ length: 45 }, (_, i) => `p${i + 1}`)));
+  });
+
+  it('a verdict for a pair outside the batch is dropped, and the pair it replaced is asked again', async () => {
+    const { computed, checkpoints } = await firstBatch((ids) => verdictsFor([...ids.slice(0, 9), 'p999']));
+    expect(computed.status).toBe('partial');
+    expect(computed.notes.some((note) => note.includes('not in its batch'))).toBe(true);
+    expect(computed.notes.some((note) => note.includes('judged 9 of 10'))).toBe(true);
+    expect(checkpoints.at(-1)?.verifiedPairs).toEqual([]);
+  });
+
+  it('an unclear verdict judges its pair', async () => {
+    const { computed } = await firstBatch((ids) => verdictsFor(ids, 'unclear'));
+    expect(computed.status).toBe('complete');
+    expect(computed.drafts).toEqual([]);
+  });
+
+  it('a contradictory verdict without reasoning is dropped, so its pair is asked again', async () => {
+    const { computed, checkpoints } = await firstBatch((ids) => JSON.stringify({
+      verdicts: [
+        ...ids.slice(0, 9).map((pairId) => ({ pairId, verdict: 'consistent', reasoning: 'no conflict', factGroup: { entity: 'Elena', attribute: 'age' } })),
+        { pairId: ids[9], verdict: 'contradictory', reasoning: '', factGroup: { entity: 'Elena', attribute: 'age' } },
+      ],
+    }));
+    expect(computed.status).toBe('partial');
+    expect(computed.notes.some((note) => note.includes('judged 9 of 10'))).toBe(true);
+    expect(checkpoints.at(-1)?.verifiedPairs).toEqual([]);
+  });
+
+  it('an unusable verification batch keeps its spent tokens in the checkpoint', async () => {
+    const { computed, checkpoints } = await firstBatch(() => 'not json at all');
+    expect(computed.status).toBe('partial');
+    expect(checkpoints.at(-1)?.promptTokens).toBe(300);
+    expect(checkpoints.at(-1)?.verifiedPairs).toEqual([]);
+  });
+
+  it('a span naming another document is dropped and the rest still extract', async () => {
+    const state = twoDocs();
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const model = fake((request) => {
+      if (request.system.includes('continuity extractor')) {
+        const body = bodyOf(request.user);
+        const docId = docIdOf(request.user);
+        const spans = [{ docId, from: 0, to: body.length, quote: body, category: 'characterization', note: '' }];
+        if (docId === 'sA') spans.push({ docId: 'sB', from: 0, to: 5, quote: 'Elena', category: 'characterization', note: '' });
+        return JSON.stringify({ spans });
+      }
+      const pairIds = [...request.user.matchAll(/\[pair (p\d+)\]/g)].map((m) => m[1]);
+      return JSON.stringify({ verdicts: pairIds.map((pairId) => ({ pairId, verdict: 'consistent', reasoning: 'no conflict', factGroup: { entity: 'Elena', attribute: 'age' } })) });
+    });
+    const computed = await computeReview(state, emptyCoherenceFile(), plan, { model, approved: true });
+    expect(computed.status).toBe('complete');
+    expect(computed.notes.some((note) => note.includes('names another document'))).toBe(true);
+    expect(computed.evaluated).toEqual(['sA', 'sB']);
+  });
+
+  it('an extraction over the per-document cap keeps the first twenty spans', async () => {
+    const quotes = Array.from({ length: 25 }, (_, i) => `Fact ${i}.`);
+    let at = 0;
+    const spans = quotes.map((quote) => {
+      const from = at;
+      at += quote.length + 1;
+      return { docId: 'sA', from, to: from + quote.length, quote, category: 'characterization' as const, note: '' };
+    });
+    const state = buildState({ scenes: [{ id: 'sA', title: 'One', body: quotes.join(' ') }], entries: [] });
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const checkpoints: ReviewCheckpoint[] = [];
+    const model = fake((request) => {
+      if (request.system.includes('continuity extractor')) return JSON.stringify({ spans });
+      return JSON.stringify({ verdicts: [] });
+    });
+    const computed = await computeReview(state, emptyCoherenceFile(), plan, {
+      model,
+      approved: true,
+      onCheckpoint: (checkpoint) => { checkpoints.push(structuredClone(checkpoint)); },
+    });
+    expect(computed.notes.some((note) => note.includes('only the first 20'))).toBe(true);
+    expect(checkpoints[0]?.spans).toHaveLength(20);
+    expect(computed.status).toBe('partial');
+  });
+
+  it('a verdict whose passages are not the pair\'s own falls back to the pair\'s spans', async () => {
+    const state = twoDocs();
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const model = fake((request) => {
+      if (request.system.includes('continuity extractor')) {
+        const body = bodyOf(request.user);
+        return extraction(body, docIdOf(request.user), [{ quote: body, category: 'characterization' }]);
+      }
+      return JSON.stringify({ verdicts: [{ pairId: 'p1', verdict: 'contradictory', reasoning: 'age differs', factGroup: { entity: 'Elena', attribute: 'age' }, evidence: [{ docId: 'sA', quote: 'Elena is thirty-four.', from: 0, to: 21 }, { docId: 'sA', quote: 'Elena is thirty-four.', from: 0, to: 21 }] }] });
+    });
+    const computed = await computeReview(state, emptyCoherenceFile(), plan, { model, approved: true });
+    expect(computed.status).toBe('complete');
+    expect(computed.drafts).toHaveLength(1);
+    expect(computed.drafts[0]?.evidence.map((passage) => passage.docId)).toEqual(['sA', 'sB']);
+    expect(computed.notes.some((note) => note.includes('not the pair\'s two passages'))).toBe(true);
+  });
+
+  it('the first verdict for a pair wins when a reply repeats it with another answer', async () => {
+    const { computed } = await firstBatch((ids) => JSON.stringify({
+      verdicts: ids.flatMap((pairId) => [
+        { pairId, verdict: 'consistent', reasoning: 'no conflict', factGroup: { entity: 'Elena', attribute: 'age' } },
+        { pairId, verdict: 'contradictory', reasoning: 'age differs', factGroup: { entity: 'Elena', attribute: 'age' } },
+      ]),
+    }));
+    expect(computed.status).toBe('complete');
+    expect(computed.drafts).toEqual([]);
+  });
+
+  it('a pair judged before an incomplete batch is not judged twice in the checkpoint', async () => {
+    const { state, plan, checkpoints } = await firstBatch((ids) => verdictsFor(ids.slice(0, 2)));
+    const resumed: ReviewCheckpoint[] = [];
+    const again = await computeReview(state, emptyCoherenceFile(), plan, {
+      model: full,
+      approved: true,
+      resumeFrom: checkpoints.at(-1)!,
+      onCheckpoint: (checkpoint) => { resumed.push(structuredClone(checkpoint)); },
+    });
+    expect(again.status).toBe('complete');
+    const last = resumed.at(-1)!;
+    expect(last.verdicts).toHaveLength(45);
+    expect(new Set(last.verdicts.map((verdict) => verdict.pairId)).size).toBe(45);
+    expect(again.evaluated).toEqual(['s0', 's1']);
+  });
+
+  it('duplicated and reordered extraction spans form the same pairs once', async () => {
+    const { state, scenes } = manyPairs();
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const checkpoints: ReviewCheckpoint[] = [];
+    const model = fake((request) => {
+      if (request.system.includes('continuity extractor')) {
+        const docId = docIdOf(request.user);
+        const scene = scenes.find((candidate) => candidate.id === docId)!;
+        return JSON.stringify({ spans: [...scene.spans].reverse().concat(scene.spans) });
+      }
+      return verdictsFor(idsOf(request));
+    });
+    const computed = await computeReview(state, emptyCoherenceFile(), plan, {
+      model,
+      approved: true,
+      onCheckpoint: (checkpoint) => { checkpoints.push(structuredClone(checkpoint)); },
+    });
+    expect(computed.status).toBe('complete');
+    expect(model.calls).toHaveLength(7);
+    expect(checkpoints.at(-1)?.spans).toHaveLength(10);
+    expect(checkpoints.at(-1)?.verdicts).toHaveLength(45);
+  });
+});
