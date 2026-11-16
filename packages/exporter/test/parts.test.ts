@@ -188,9 +188,11 @@ describe('Word — a part is Heading 1 and its chapters Heading 2', () => {
   });
 
   it('keeps the 1-2 field and no Heading 3 style for a book with parts and no section scenes', async () => {
-    const { body, styles } = await documentXml();
+    const { body } = await documentXml();
     expect(body).toContain('TOC \\h \\o &quot;1-2&quot;');
-    expect(styles).not.toContain('w:styleId="TOC3"');
+    // No paragraph uses Heading 3 when nothing is a section scene. styles.xml always carries docx's built-in TOC1–TOC9 and
+    // Heading 3–6 definitions (9.15's fix for LibreOffice), so the check is on the body's style use, not the styles part.
+    expect(body).not.toContain('w:pStyle w:val="Heading3"');
   });
 });
 

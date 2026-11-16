@@ -712,10 +712,11 @@ describe('the DOCX contents heading follows the project language (i18n.md §7.1)
   it('writes the German and Japanese word into word/document.xml, never the English one', async () => {
     const de = await documentOf('de');
     expect(de).toContain('Inhalt');
-    expect(de).not.toContain('Contents');
+    // The English word never appears as text a writer sees; docx's fixed docPartGallery id "Table of Contents" is not shown.
+    expect(de).not.toContain('>Contents<');
     const ja = await documentOf('ja');
     expect(ja).toContain('目次');
-    expect(ja).not.toContain('Contents');
+    expect(ja).not.toContain('>Contents<');
   });
 
   it('lets the recipe’s own contents label win over the language’s word', async () => {

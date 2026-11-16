@@ -25,9 +25,21 @@
  *
  * The TOC recipe rejects the two alternatives by name. `beginDirty: false` gives no prompt but
  * a stale table, because nothing ever refreshes it; a static table loses the field's
- * semantics, so Word can no longer regenerate it. The default — a dirty field with
- * cached content — is what `docx` writes when `beginDirty` is not given, and this
- * file leaves it that way on purpose.
+ * semantics, so Word can no longer regenerate it. A dirty field with cached content is
+ * what a `.docx` needs, and this file leaves it that way on purpose.
+ *
+ * ## Why the field is written by hand
+ *
+ * `docx`'s `TableOfContents` wraps the field in a `w:sdt` block control and packs `fldChar begin`, the `instrText` and
+ * `fldChar separate` into a single run. Word reads that shape, but LibreOffice flattens it: it shows the instruction as
+ * text ahead of the first cached entry, imports nothing as a document index (Tools → Update indexes finds none), and
+ * re-saves the file with the field instruction gone. The field is therefore emitted here as literal XML in the shape
+ * Word writes — begin, instruction and separate each in their own run, one paragraph per cached entry, no `w:sdt`.
+ * LibreOffice imports that shape as a real `ContentIndex` it can regenerate and re-save intact.
+ *
+ * The Heading styles carry `w:outlineLvl`, because a `\o` TOC field collects paragraphs by outline level and neither
+ * Word nor LibreOffice regenerates entries for headings without one. The regenerated table in LibreOffice, and the
+ * table Word rebuilds after the update prompt, keep their entries for that reason alone.
  *
  * ## Why the cached entries are not links
  *
@@ -92,7 +104,7 @@ function extentOf(width: number, height: number): { readonly width: number; read
 }
 
 type DocxModule = typeof Docx;
-type Block = Docx.Paragraph | Docx.TableOfContents;
+type Block = Docx.FileChild;
 
 /** Renders the whole project as a `.docx` and returns the package bytes. */
 export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
@@ -117,16 +129,7 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
         children: [new docx.TextRun({ text: stripXmlIllegal(contentsHeading(input)), bold: true })],
       }),
     );
-    children.push(
-      new docx.TableOfContents(stripXmlIllegal(contentsHeading(input)), {
-        hyperlink: true,
-        // exporter.md §2's recipe: `TableOfContents(alias, { hyperlink: true, headingStyleRange: '1-2' })`. Heading 1 is a
-        // chapter and Heading 2 a `section` scene, so the cached entries list both, in document order, as the field would. With
-        // parts the range reaches the deepest heading, since a chapter inside a part is Heading 2 and its sections Heading 3.
-        headingStyleRange: `1-${deepest}`,
-        cachedEntries: entries.map((entry) => ({ title: stripXmlIllegal(entry.label), level: Math.min(6, entry.level) })),
-      }),
-    );
+    children.push(...tocField(docx, entries, deepest));
   }
 
   const byBlock = headingsByBlock(input);
@@ -190,7 +193,7 @@ function styleDefinitions(docx: DocxModule, deepest: number): Docx.IStylesOption
   for (const level of deeper) {
     deeperHeadings[`heading${level as 3 | 4 | 5 | 6}`] = {
       run: { font: BODY_FONT, size: Math.max(BODY_SIZE, 28 - (level - 2) * 2), bold: true },
-      paragraph: { spacing: { before: 240, after: 240 } },
+      paragraph: { spacing: { before: 240, after: 240 }, outlineLevel: level - 1 },
     };
   }
   return {
@@ -205,11 +208,11 @@ function styleDefinitions(docx: DocxModule, deepest: number): Docx.IStylesOption
       },
       heading1: {
         run: { font: BODY_FONT, size: 32, bold: true },
-        paragraph: { spacing: { before: 240, after: 360 } },
+        paragraph: { spacing: { before: 240, after: 360 }, outlineLevel: 0 },
       },
       heading2: {
         run: { font: BODY_FONT, size: 28, bold: true },
-        paragraph: { spacing: { before: 240, after: 240 } },
+        paragraph: { spacing: { before: 240, after: 240 }, outlineLevel: 1 },
       },
       ...deeperHeadings,
     },
@@ -256,6 +259,37 @@ function styleDefinitions(docx: DocxModule, deepest: number): Docx.IStylesOption
       },
     ],
   };
+}
+
+/** Text for the literal XML the contents field is written as. */
+const escapeXml = (text: string): string =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+
+/**
+ * The contents field as literal XML paragraphs (see "Why the field is written by hand" above): a dirty complex field
+ * (`fldChar begin` + `instrText` + `fldChar separate`) ahead of the first cached entry, one `toc N` paragraph per
+ * entry, `fldChar end` on the last. The instruction `TOC \h \o "1-N"` reaches the deepest heading level the file
+ * uses; `\h` makes the entries Word regenerates clickable (there are no `_Toc` bookmarks to link to in the cache).
+ */
+function tocField(docx: DocxModule, entries: readonly { readonly label: string; readonly level: number }[], deepest: number): Docx.FileChild[] {
+  const tabs = '<w:tabs><w:tab w:val="clear" w:pos="9026"/><w:tab w:val="right" w:pos="9025" w:leader="dot"/></w:tabs>';
+  return entries.map((entry, index) => {
+    const runs = [
+      ...(index === 0
+        ? [
+            '<w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>',
+            `<w:r><w:instrText xml:space="preserve"> TOC \\h \\o &quot;1-${deepest}&quot; </w:instrText></w:r>`,
+            '<w:r><w:fldChar w:fldCharType="separate"/></w:r>',
+          ]
+        : []),
+      `<w:r><w:t xml:space="default">${escapeXml(stripXmlIllegal(entry.label))}</w:t><w:tab/></w:r>`,
+      ...(index === entries.length - 1 ? ['<w:r><w:fldChar w:fldCharType="end"/></w:r>'] : []),
+    ];
+    // One component per paragraph: fromXmlString writes the XML's single root element.
+    return docx.ImportedXmlComponent.fromXmlString(
+      `<w:p><w:pPr><w:pStyle w:val="TOC${Math.min(6, Math.max(1, entry.level))}"/>${tabs}</w:pPr>${runs.join('')}</w:p>`,
+    ) as unknown as Docx.FileChild;
+  });
 }
 
 /** The Word heading style for an outline level, from Heading 1 to Heading 6. */
