@@ -5,9 +5,10 @@ import { createProject } from './support.js';
 const INTENT = 'Keep the changed scenes as they are.';
 const RESUME_GOAL = 'g_0000000001';
 const DISCARD_GOAL = 'g_0000000002';
+const UNREADABLE_GOAL = 'g_0000000003';
 
-async function seedInterruptedGoal(page: Page, goalId: string): Promise<void> {
-  await page.evaluate(async ({ intent, goalId }) => {
+async function seedInterruptedGoal(page: Page, goalId: string, costUsd = 0): Promise<void> {
+  await page.evaluate(async ({ intent, goalId, costUsd }) => {
     const projectId = (window as unknown as { __caotang: { projectId(): string | null } }).__caotang.projectId();
     if (projectId === null) throw new Error('The project must be open before seeding goal recovery.');
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -41,7 +42,7 @@ async function seedInterruptedGoal(page: Page, goalId: string): Promise<void> {
             iterations: [],
             results: [],
             nextIteration: 2,
-            spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 },
+            spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0, costUsd },
           },
         });
         transaction.oncomplete = () => resolve();
@@ -51,7 +52,7 @@ async function seedInterruptedGoal(page: Page, goalId: string): Promise<void> {
     } finally {
       db.close();
     }
-  }, { intent: INTENT, goalId });
+  }, { intent: INTENT, goalId, costUsd });
 }
 
 async function reloadAndReopen(page: Page): Promise<void> {
@@ -115,5 +116,20 @@ test('a goal a reload left interrupted is offered, never resumes by itself, and 
   await reloadAndReopen(page);
   await expect(discardCard).toHaveCount(0);
   await expect(cards).toHaveCount(0);
+  expect(requests).toEqual([]);
+
+  await seedInterruptedGoal(page, UNREADABLE_GOAL, NaN);
+  await reloadAndReopen(page);
+  const unreadableCard = page.locator(`[data-testid="goal-recovery-card"][data-goal-id="${UNREADABLE_GOAL}"]`);
+  await expect(cards).toHaveCount(1);
+  await expect(unreadableCard).toHaveCount(1);
+  await expect(unreadableCard).toContainText('saved progress cannot be read by this version');
+  await expect(unreadableCard.getByRole('button', { name: 'Resume the goal' })).toHaveCount(0);
+  await unreadableCard.getByRole('button', { name: 'Discard the goal record' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(cards).toHaveCount(0);
+  await reloadAndReopen(page);
+  await expect(cards).toHaveCount(0);
+  await expect(page.locator('.agent-turn')).toHaveCount(0);
   expect(requests).toEqual([]);
 });

@@ -49,7 +49,9 @@ export type GoalRecovery =
   | { readonly kind: 'none' }
   | { readonly kind: 'unreadable'; readonly row: GoalRunRow };
 
-const isTime = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+const isAmount = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+
+const isCount = (value: unknown): value is number => isAmount(value) && Number.isSafeInteger(value);
 
 const isId = (value: unknown): value is string => typeof value === 'string' && value.trim() !== '';
 
@@ -69,15 +71,29 @@ export function checkpointReadable(value: unknown): boolean {
   const results = value['results'];
   const spend = value['spend'];
   if (!isRecord(goal) || !isId(goal['id']) || typeof goal['intent'] !== 'string' || !Array.isArray(goal['checks'])) return false;
+  const limits = goal['limits'];
+  if (!isRecord(limits)) return false;
+  const fields = ['maxModelCalls', 'maxTokens', 'maxCostUsd', 'maxSteps', 'maxActiveMs', 'deadline'];
+  const entries = Object.entries(limits);
+  if (!entries.some(([, limit]) => limit !== undefined)) return false;
+  for (const [field, limit] of entries) {
+    if (!fields.includes(field)) return false;
+    if (limit === undefined) continue;
+    if (!isAmount(limit) || ((field === 'maxModelCalls' || field === 'maxSteps') && !isCount(limit))) return false;
+  }
   if (!Array.isArray(iterations) || !Array.isArray(results)) return false;
   if (!Number.isSafeInteger(value['nextIteration']) || (value['nextIteration'] as number) < 1) return false;
-  if (!isRecord(spend) || !['modelCalls', 'promptTokens', 'completionTokens', 'estimatedTokens', 'steps', 'activeMs'].every((key) => typeof spend[key] === 'number' && Number.isFinite(spend[key]) && (spend[key] as number) >= 0)) return false;
+  if (!isRecord(spend) || !isCount(spend['modelCalls']) || !isCount(spend['steps'])) return false;
+  if (!['promptTokens', 'completionTokens', 'estimatedTokens', 'activeMs'].every((key) => isAmount(spend[key]))) return false;
+  if (spend['costUsd'] !== undefined && !isAmount(spend['costUsd'])) return false;
+  const progress = value['progress'];
+  if (progress !== undefined && (!isRecord(progress) || !isAmount(progress['best']) || !isCount(progress['sinceBest']) || !Array.isArray(progress['passed']) || !progress['passed'].every(isId))) return false;
   return iterations.every((iteration) => isRecord(iteration) && Number.isSafeInteger(iteration['n']));
 }
 
 function rowReadable(row: GoalRunRow): boolean {
   return row.schema === 1 && isId(row.goalId) && isId(row.projectId) && isId(row.sessionId) && isStatus(row.status) &&
-    isTime(row.createdAt) && isTime(row.updatedAt) && Array.isArray(row.iterationRunIds) && row.iterationRunIds.every(isId);
+    isAmount(row.createdAt) && isAmount(row.updatedAt) && Array.isArray(row.iterationRunIds) && row.iterationRunIds.every(isId);
 }
 
 /** Every goal of a project, oldest first. A row this build cannot read is still returned, so the writer can discard it. */

@@ -278,3 +278,23 @@ it('settles a committed terminal checkpoint after a crash without another iterat
   expect(f.controller.snapshot().turns).toHaveLength(1);
   expect(f.providers.gateway.ledger.turnRows()).toHaveLength(calls);
 });
+
+it('offers a checkpoint with invalid cost spend only for discarding, without constructing a resumed turn', async () => {
+  const f = await fixture();
+  const id = 'g_7QK4M2N8RZ';
+  const checkpoint = {
+    goal: { ...passedGoal(), id, limits: { maxCostUsd: 0.01 } }, iterations: [], results: [], nextIteration: 1,
+    spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0, costUsd: NaN },
+  };
+  await createGoalRun(f.store, { goalId: id, projectId: f.session.projectId, sessionId: f.controller.snapshot().sessionId, checkpoint, at: 100 });
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 2);
+  expect(f.controller.snapshot().goals.find((goal) => goal.goalId === id)).toMatchObject({ unreadable: true, resumable: false });
+  await f.controller.resumeGoal(id);
+  expect(f.controller.snapshot().turns).toEqual([]);
+  expect(f.providers.gateway.ledger.turnRows()).toEqual([]);
+  expect((await readGoalRun(f.store, id))?.status).toBe('interrupted');
+  await f.controller.discardGoal(id);
+  expect(await readGoalRun(f.store, id)).toBeUndefined();
+  expect(await readGoalRun(f.store, GOAL)).toBeDefined();
+});

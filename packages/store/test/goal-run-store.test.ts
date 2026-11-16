@@ -6,7 +6,7 @@ import { readAgentSessions } from '../src/runtime/agent-sessions.js';
 import { readRun } from '../src/runtime/run-log-store.js';
 import { createEmptyManifest, deleteProject } from '../src/index.js';
 import {
-  appendGoalCheckpoint, createGoalRun, markGoalsInterrupted, openGoalRecovery, pruneGoalRuns,
+  appendGoalCheckpoint, checkpointReadable, createGoalRun, markGoalsInterrupted, openGoalRecovery, pruneGoalRuns,
   readGoalRun, readGoalRuns, readOpenGoalRuns, recordGoalIteration, resumeGoalRun, settleGoalRun,
 } from '../src/runtime/goal-run-store.js';
 
@@ -69,6 +69,64 @@ const checkpoint = (nextIteration = 1) => ({
   results: [],
   nextIteration,
   spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 },
+});
+
+describe('checkpoint budget validation', () => {
+  it.each(['maxModelCalls', 'maxTokens', 'maxCostUsd', 'maxSteps', 'maxActiveMs', 'deadline'])('rejects invalid %s limits', (field) => {
+    const saved = checkpoint();
+    for (const value of [NaN, Infinity, -Infinity, -1, '1', null]) {
+      expect(checkpointReadable({ ...saved, goal: { ...saved.goal, limits: { ...saved.goal.limits, [field]: value } } }), `${field}=${String(value)}`).toBe(false);
+    }
+  });
+
+  it.each(['modelCalls', 'promptTokens', 'completionTokens', 'estimatedTokens', 'steps', 'activeMs', 'costUsd'])('rejects invalid restored %s spend', (field) => {
+    const saved = checkpoint();
+    for (const value of [NaN, Infinity, -Infinity, -1, '1', null]) {
+      expect(checkpointReadable({ ...saved, spend: { ...saved.spend, [field]: value } }), `${field}=${String(value)}`).toBe(false);
+    }
+  });
+
+  it('requires safe integral call and step counts in limits and spend', () => {
+    const saved = checkpoint();
+    for (const value of [0.5, Number.MAX_SAFE_INTEGER + 1]) {
+      for (const field of ['maxModelCalls', 'maxSteps']) expect(checkpointReadable({ ...saved, goal: { ...saved.goal, limits: { [field]: value } } })).toBe(false);
+      for (const field of ['modelCalls', 'steps']) expect(checkpointReadable({ ...saved, spend: { ...saved.spend, [field]: value } })).toBe(false);
+    }
+  });
+
+  it('accepts finite fractional prices, token reports and time, with zero integral counters', () => {
+    const saved = checkpoint();
+    expect(checkpointReadable({ ...saved,
+      goal: { ...saved.goal, limits: { maxModelCalls: 0, maxSteps: 0, maxTokens: 0.5, maxCostUsd: 0.01, maxActiveMs: 0.5, deadline: 1 } },
+      spend: { ...saved.spend, promptTokens: 0.5, completionTokens: 1.25, estimatedTokens: 0.75, activeMs: 0.5, costUsd: 0.002 },
+    })).toBe(true);
+  });
+
+  it('requires a known limit rather than accepting an empty or unknown budget', () => {
+    const saved = checkpoint();
+    for (const limits of [{}, { maxCostUsd: undefined }, { unknownLimit: 1 }]) expect(checkpointReadable({ ...saved, goal: { ...saved.goal, limits } })).toBe(false);
+  });
+
+  it('rejects non-finite or fractional saved loop counters', () => {
+    const saved = checkpoint();
+    for (const value of [NaN, Infinity, -1]) expect(checkpointReadable({ ...saved, progress: { best: value, sinceBest: 0, passed: [] } })).toBe(false);
+    for (const value of [NaN, Infinity, -1, 0.5]) expect(checkpointReadable({ ...saved, progress: { best: 1, sinceBest: value, passed: [] } })).toBe(false);
+  });
+
+  it('offers a persisted NaN cost checkpoint only as unreadable and refuses to append it', async () => {
+    const store = await openRuntimeStore(new MemoryIndexedDb(), 'goal-bad-budget');
+    const saved = checkpoint();
+    const invalid = { ...saved, spend: { ...saved.spend, costUsd: NaN } };
+    try {
+      await createGoalRun(store, { goalId: GOAL, projectId: PROJECT, sessionId: CONVERSATION, checkpoint: invalid, at: 100 });
+      await markGoalsInterrupted(store, PROJECT, 200);
+      expect(await openGoalRecovery(store, GOAL)).toMatchObject({ kind: 'unreadable' });
+      await expect(appendGoalCheckpoint(store, GOAL, { checkpoint: invalid, at: 300 })).rejects.toThrow('cannot be read');
+      expect((await readGoalRun(store, GOAL))?.status).toBe('interrupted');
+    } finally {
+      store.close();
+    }
+  });
 });
 
 describe('a durable goal record', () => {
