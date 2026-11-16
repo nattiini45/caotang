@@ -459,7 +459,8 @@ export function createGoalRunner(): GoalRunner {
           } catch (error) {
             return { goal, status: 'failed', reason: `the goal checkpoint could not be saved before iteration ${n}: ${error instanceof Error ? error.message : 'storage refused'}`, iterations, results, notes };
           }
-          if (options.signal?.aborted === true) return finish('cancelled', 'the writer stopped the run');
+          const stoppedAfterSave = Boolean(options.signal?.aborted);
+          if (stoppedAfterSave) return finish('cancelled', 'the writer stopped the run');
           const savedLimit = meter.stopped();
           if (savedLimit !== undefined) return finish('budget', `the run reached its ${savedLimit.dimension} limit before iteration ${n}`, { budgetStop: savedLimit });
         }

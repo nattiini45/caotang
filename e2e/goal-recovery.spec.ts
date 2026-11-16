@@ -2,112 +2,95 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { createProject } from './support.js';
 
-/**
- * A goal a reload left behind (agent-harness §7.2). A goal record is seeded as interrupted in the runtime database — the app has no
- * goal-start surface yet (H5i), so the record is the only way to reach the card — and the project is opened again. The card must
- * show, nothing may run by itself, Resume may only act on the click, and Discard must remove the record for good.
- */
+const INTENT = 'Keep the changed scenes as they are.';
+const RESUME_GOAL = 'g_0000000001';
+const DISCARD_GOAL = 'g_0000000002';
 
-const INTENT = 'Make the opening scene name the harbour.';
-
-const GOAL = 'gol_0000000001';
-
-/**
- * Seeds one interrupted goal row for the project the app currently has open, reading the project and session ids from the runtime
- * database the app itself just wrote.
- */
-async function seedInterruptedGoal(page: Page): Promise<void> {
-  const seeded = await page.evaluate(async (goalId: string) => {
-    const open = (): Promise<IDBDatabase> =>
-      new Promise((resolve, reject) => {
-        const request = indexedDB.open('caotang');
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      });
-    const db = await open();
-    const readAll = <T,>(store: string): Promise<T[]> =>
-      new Promise((resolve, reject) => {
-        const request = db.transaction(store, 'readonly').objectStore(store).getAll();
-        request.onsuccess = () => resolve(request.result as T[]);
-        request.onerror = () => reject(request.error);
-      });
-    const sessions = await readAll<{ projectId: string; sessionId?: string; id?: string }>('agentSessions');
-    const last = sessions.at(-1);
-    if (last === undefined) return null;
-    const projectId = last.projectId;
-    const sessionId = last.sessionId ?? last.id ?? '';
-    if (projectId === '' || sessionId === '') return null;
-    const now = Date.now();
-    const row = {
-      schema: 1,
-      goalId,
-      projectId,
-      sessionId,
-      status: 'interrupted',
-      createdAt: now,
-      updatedAt: now,
-      iterationRunIds: [],
-      checkpoint: {
-        goal: { id: goalId, intent: 'Make the opening scene name the harbour.', checks: [] },
-        iterations: [],
-        results: [],
-        nextIteration: 2,
-        spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 },
-      },
-    };
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction('goalRuns', 'readwrite');
-      transaction.objectStore('goalRuns').put(row);
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
+async function seedInterruptedGoals(page: Page): Promise<void> {
+  await page.evaluate(async ({ intent, ids }) => {
+    const projectId = (window as unknown as { __caotang: { projectId(): string | null } }).__caotang.projectId();
+    if (projectId === null) throw new Error('The project must be open before seeding goal recovery.');
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('caotang');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
     });
-    db.close();
-    return projectId;
-  }, GOAL);
-  expect(seeded, 'the agent panel saved a session for this project').not.toBeNull();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction('goalRuns', 'readwrite');
+        for (const goalId of ids) transaction.objectStore('goalRuns').put({
+          schema: 1,
+          goalId,
+          projectId,
+          sessionId: 'conversation',
+          status: 'interrupted',
+          createdAt: 100,
+          updatedAt: 200,
+          iterationRunIds: [],
+          checkpoint: {
+            goal: { id: goalId, intent, checks: [{ kind: 'synopsis.filled', scope: { mode: 'changed' } }], limits: { maxModelCalls: 1 } },
+            iterations: [],
+            results: [],
+            nextIteration: 2,
+            spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 },
+          },
+        });
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
+      });
+    } finally {
+      db.close();
+    }
+  }, { intent: INTENT, ids: [RESUME_GOAL, DISCARD_GOAL] });
 }
 
-/** Opens the agent drawer when it is closed: a new project starts with it shut. */
-async function openAgent(page: Page): Promise<void> {
-  const toggle = page.getByRole('button', { name: 'Agent', exact: true });
-  if ((await toggle.count()) > 0) await toggle.click();
-}
-
-async function reloadAndReopen(page: Page, name: string): Promise<void> {
+async function reloadAndReopen(page: Page): Promise<void> {
   await page.reload();
-  const row = page.getByRole('listitem').filter({ hasText: name });
+  const row = page.getByRole('listitem').filter({ hasText: 'Goal Recovery Book' });
   await expect(row).toBeVisible({ timeout: 20_000 });
   await row.getByRole('button', { name: 'Open' }).click();
   await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
 }
 
 test('a goal a reload left interrupted is offered, never resumes by itself, and can be resumed or discarded', async ({ page }) => {
+  const requests: string[] = [];
+  await page.route('**/chat/completions', (route) => {
+    requests.push(route.request().url());
+    return route.abort();
+  });
   await createProject(page, 'Goal Recovery Book');
-  await openAgent(page);
-  await expect(page.getByRole('combobox', { name: 'Intent' })).toBeVisible();
-  await seedInterruptedGoal(page);
+  await seedInterruptedGoals(page);
+  await reloadAndReopen(page);
 
-  await reloadAndReopen(page, 'Goal Recovery Book');
-
-  const card = page.getByTestId('goal-recovery-card');
-  await expect(card).toBeVisible();
-  await expect(card.getByRole('heading', { name: 'A goal run was interrupted' })).toBeVisible();
-  await expect(card).toContainText(INTENT);
-  await expect(card).toHaveAttribute('data-status', 'interrupted');
-  // It did not continue on its own: no plan card, no turn, and the card still says it waits.
+  const cards = page.getByTestId('goal-recovery-card');
+  const resumeCard = page.locator(`[data-testid="goal-recovery-card"][data-goal-id="${RESUME_GOAL}"]`);
+  const discardCard = page.locator(`[data-testid="goal-recovery-card"][data-goal-id="${DISCARD_GOAL}"]`);
+  await expect(cards).toHaveCount(2);
+  for (const card of [resumeCard, discardCard]) {
+    await expect(card.getByRole('heading', { name: 'A goal run was interrupted' })).toBeVisible();
+    await expect(card).toContainText(INTENT);
+    await expect(card).toContainText('iteration 2');
+    await expect(card).toHaveAttribute('data-status', 'interrupted');
+    await expect(card.getByRole('button', { name: 'Resume the goal' })).toBeEnabled();
+  }
   await expect(page.getByTestId('plan-card')).toHaveCount(0);
-  await expect(card.getByRole('button', { name: 'Resume the goal' })).toBeEnabled();
+  await expect(page.locator('.agent-turn')).toHaveCount(0);
+  expect(requests).toEqual([]);
 
-  // Resume is the writer's click and nothing else; whatever the run then does, the card leaves the untouched interrupted state.
-  await card.getByRole('button', { name: 'Resume the goal' }).click();
-  await expect(page.getByTestId('agent-announcement')).not.toBeEmpty();
-  await expect(page.getByTestId('goal-recovery-card')).not.toHaveAttribute('data-status', 'interrupted');
+  await resumeCard.getByRole('button', { name: 'Resume the goal' }).click();
+  await expect(resumeCard).toHaveAttribute('data-status', 'settled');
+  await expect(resumeCard).toContainText('passed:');
+  await expect(resumeCard.getByRole('button', { name: 'Resume the goal' })).toHaveCount(0);
+  await expect(discardCard).toHaveAttribute('data-status', 'interrupted');
+  expect(requests).toEqual([]);
 
-  // Discard removes the record, and a reload finds nothing left to offer.
-  const after = page.getByTestId('goal-recovery-card');
-  if ((await after.count()) > 0) await after.getByRole('button', { name: 'Discard the goal record' }).click();
-  await expect(page.getByTestId('goal-recovery-card')).toHaveCount(0);
-  await reloadAndReopen(page, 'Goal Recovery Book');
-  await expect(page.getByTestId('goal-recovery-card')).toHaveCount(0);
-  await expect(page.getByTestId('interrupted-run')).toHaveCount(0);
+  await discardCard.getByRole('button', { name: 'Discard the goal record' }).click();
+  await expect(discardCard).toHaveCount(0);
+  await reloadAndReopen(page);
+  await expect(discardCard).toHaveCount(0);
+  await expect(resumeCard).toHaveAttribute('data-status', 'settled');
+  await resumeCard.getByRole('button', { name: 'Discard the goal record' }).click();
+  await expect(cards).toHaveCount(0);
+  expect(requests).toEqual([]);
 });
