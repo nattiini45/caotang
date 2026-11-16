@@ -397,11 +397,6 @@ msgstr "(etwa {tokens} Token)"
 msgid "(changed)"
 msgstr "(geändert)"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "(leave empty to keep the stored key)"
-msgstr "(leer lassen, um den gespeicherten Schlüssel zu behalten)"
-
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "(MORE) and (CONT’D) where a speech crosses a page"
@@ -434,42 +429,20 @@ msgstr "(keine)"
 msgid "(once)"
 msgstr "(einmal)"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "(optional — leave empty to keep the stored key)"
-msgstr "(optional — leer lassen, um den gespeicherten Schlüssel zu behalten)"
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "(optional — only if you set one on the server)"
-msgstr "(optional — nur wenn Sie auf dem Server einen hinterlegt haben)"
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "(optional — this provider answers without one)"
-msgstr "(optional — dieser Anbieter antwortet auch ohne einen)"
-
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "(replaces the current one, {words} words): <0/>"
 msgstr "(ersetzt die aktuelle, {words} Wörter): <0/>"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "(required: the endpoint has moved to another address, so the stored key is not sent there)"
-msgstr "(erforderlich: der Endpunkt ist an eine andere Adresse umgezogen, daher wird der gespeicherte Schlüssel nicht dorthin gesendet)"
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "(required)"
-msgstr "(erforderlich)"
-
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "(unchanged)"
 msgstr "(unverändert)"
+
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "{acceptedBy} accepted the key."
+msgstr "{acceptedBy} hat den Schlüssel akzeptiert."
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
@@ -953,6 +926,7 @@ msgid "{count} shots lost their pictures because the files are not in the projec
 msgstr "{count} Einstellungen haben ihre Bilder verloren, weil die Dateien nicht im Projekt sind. Das Storyboard nennt sie."
 
 #. Interpolated values: completion, count, levels, prompt, window
+#. Interpolated values: completion, count, levels, prompt, window
 #: apps/desktop/src/app/provider-details.ts
 msgid "{count} tokens"
 msgstr "{count} Token"
@@ -1099,6 +1073,11 @@ msgstr "{done} / {total} erstellt · {used} von {cap} Modellaufrufen · {tokens}
 msgid "{done} / {total} drafted · Call allowance: {used} of {cap} reserved or used."
 msgstr "{done} / {total} erstellt · Aufrufkontingent: {used} von {cap} reserviert oder verwendet."
 
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "{doneName} is ready"
+msgstr "{doneName} ist bereit"
+
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "{dropped, plural, one {# context item left out} other {# context items left out}}"
@@ -1154,8 +1133,8 @@ msgstr "{field, select, title {Titel} author {Autor} language {Sprache} other {I
 msgid "{field} \"{shown}\" is not in the v1 list"
 msgstr "{field} „{shown}“ ist nicht in der v1-Liste"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
 msgid "{field} (optional)"
 msgstr "{field} (optional)"
 
@@ -1600,8 +1579,8 @@ msgstr "{placedCount, plural, one {# Seite platziert} other {# Seiten platziert}
 msgid "{plainCount, plural, one {# resource listed by this server.} other {# resources listed by this server.}}"
 msgstr "{plainCount, plural, one {# von diesem Server aufgeführte Ressource.} other {# von diesem Server aufgeführte Ressourcen.}}"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
 msgid "{product} documentation"
 msgstr "{product}-Dokumentation"
 
@@ -1640,10 +1619,45 @@ msgstr "{proposedCount, plural, one {# vorgeschlagene Änderung} other {# vorges
 msgid "{provider, plural, one {# request has a provider-reported cost.} other {# requests have a provider-reported cost.}}"
 msgstr "{provider, plural, one {Für # Anfrage hat der Provider die Kosten gemeldet.} other {Für # Anfragen hat der Provider die Kosten gemeldet.}}"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
 msgid "{provider} — Desktop app or hosted only"
 msgstr "{provider} — nur Desktop-App oder gehostet"
+
+#. Interpolated value: provider (a provider's name)
+#: apps/desktop/src/app/provider-setup-model.ts
+msgid "{provider} accepted the key but lists no models that write text. Check that the key belongs to a plan with model access."
+msgstr "{provider} hat den Schlüssel akzeptiert, listet aber keine Modelle auf, die Text schreiben. Prüfen Sie, ob der Schlüssel zu einem Tarif mit Modellzugriff gehört."
+
+#. Interpolated value: provider (a provider's name)
+#: apps/desktop/src/app/provider-setup-model.ts
+msgid "{provider} could not answer the key check. Try again in a moment."
+msgstr "{provider} konnte die Schlüsselprüfung nicht beantworten. Versuchen Sie es gleich noch einmal."
+
+#. Interpolated value: provider (a provider's name)
+#: apps/desktop/src/app/provider-setup-model.ts
+msgid "{provider} did not accept this key. Check that you copied all of it, then paste it again."
+msgstr "{provider} hat diesen Schlüssel nicht akzeptiert. Prüfen Sie, ob Sie ihn vollständig kopiert haben, und fügen Sie ihn dann erneut ein."
+
+#. Interpolated value: provider (a provider's name)
+#: apps/desktop/src/app/provider-setup-model.ts
+msgid "{provider} did not answer in time. Try again in a moment."
+msgstr "{provider} hat nicht rechtzeitig geantwortet. Versuchen Sie es gleich noch einmal."
+
+#. Interpolated value: provider (a provider's name)
+#: apps/desktop/src/app/provider-setup-model.ts
+msgid "{provider} did not answer the key check. This usually means the key was not accepted. Check it, then try again."
+msgstr "{provider} hat die Schlüsselprüfung nicht beantwortet. Meist heißt das, dass der Schlüssel nicht akzeptiert wurde. Prüfen Sie ihn und versuchen Sie es dann erneut."
+
+#. Interpolated value: provider (a provider's name)
+#: apps/desktop/src/app/provider-setup-model.ts
+msgid "{provider} did not list its models."
+msgstr "{provider} hat seine Modelle nicht aufgelistet."
+
+#. Interpolated value: provider (a provider's name)
+#: apps/desktop/src/app/provider-setup-model.ts
+msgid "{provider} is limiting requests right now. Wait a moment, then try again."
+msgstr "{provider} begrenzt gerade die Anfragen. Warten Sie einen Moment und versuchen Sie es dann erneut."
 
 #. Picture drops on a storyboard. Interpolated values: name and title are a file name and a shot title; number is a shot number; reason is a sentence ending or a failure message; where is a shot position; shotId is an id; counts are numbers.
 #: apps/desktop/src/media/shot-image-model.ts
@@ -3135,8 +3149,8 @@ msgstr "Ziel zu {title} hinzufügen"
 msgid "Add a goal on the manuscript"
 msgstr "Ziel zum Manuskript hinzufügen"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
 msgid "Add a header"
 msgstr "Überschrift hinzufügen"
 
@@ -3158,7 +3172,9 @@ msgstr "Bild hinzufügen"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: model, name, provider, total
 #: apps/desktop/src/components/AgentPanel.tsx
+#: apps/desktop/src/components/ProviderSetup.tsx
 #: apps/desktop/src/components/Settings.tsx
 msgid "Add a provider"
 msgstr "Anbieter hinzufügen"
@@ -3203,6 +3219,11 @@ msgstr "Hier erwarteten Eintrag hinzufügen"
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Add an entry expected here…"
 msgstr "Hier erwarteten Eintrag hinzufügen…"
+
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Add another provider"
+msgstr "Weiteren Anbieter hinzufügen"
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
@@ -3375,6 +3396,11 @@ msgstr "Wird zu den Notizen von „{doc}“ hinzugefügt"
 #: apps/desktop/src/components/Settings.tsx
 msgid "Address"
 msgstr "Adresse"
+
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
+msgid "Advanced"
+msgstr "Erweitert"
 
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
@@ -3751,10 +3777,15 @@ msgstr "Beliebiger Tag"
 msgid "Anywhere"
 msgstr "Überall"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
 msgid "API key"
 msgstr "API-Schlüssel"
+
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "API key (optional — only if the endpoint needs one)"
+msgstr "API-Schlüssel (optional – nur wenn der Endpunkt einen braucht)"
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -4181,6 +4212,11 @@ msgstr "Anhang"
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Back matter"
 msgstr "Anhang"
+
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Back to a key from a provider"
+msgstr "Zurück zu einem Schlüssel von einem Anbieter"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
@@ -4609,10 +4645,12 @@ msgstr "Kamerabewegung"
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #. Interpolated values: calls, cap
 #. Interpolated values: confirm, file, files, generation, name, path
+#. Interpolated values: model, name, provider, total
+#. Interpolated values: model, name, provider, total
+#. Interpolated values: model, profile
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: tokens, coveredTurns
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
@@ -4641,8 +4679,9 @@ msgstr "Kamerabewegung"
 #: apps/desktop/src/components/KnowledgeList.tsx
 #: apps/desktop/src/components/PlanCard.tsx
 #: apps/desktop/src/components/PlanOfferCard.tsx
+#: apps/desktop/src/components/ProfileEditor.tsx
+#: apps/desktop/src/components/ProviderSetup.tsx
 #: apps/desktop/src/components/RecoveryDialog.tsx
-#: apps/desktop/src/components/Settings.tsx
 #: apps/desktop/src/components/shared.tsx
 #: apps/desktop/src/components/SkillsPanel.tsx
 #: apps/desktop/src/components/TargetQuickSet.tsx
@@ -4767,6 +4806,11 @@ msgstr "Caotang hat keine Aufzeichnung darüber, was dieser Ordner enthielt, als
 #: apps/desktop/src/app/pending-journal.ts
 msgid "Caotang kept {saved, plural, one {# unsaved change} other {# unsaved changes}} from before the reload and saved {saved, plural, one {it} other {them}}."
 msgstr "Caotang hat {saved, plural, one {# ungespeicherte Änderung} other {# ungespeicherte Änderungen}} von vor dem erneuten Laden behalten und {saved, plural, one {sie} other {sie}} gespeichert."
+
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Caotang recognises the provider from the key. The key is encrypted in this browser and never written into a project."
+msgstr "Caotang erkennt den Anbieter am Schlüssel. Der Schlüssel wird in diesem Browser verschlüsselt und nie in ein Projekt geschrieben."
 
 #: apps/desktop/src/components/StaleTabNotice.tsx
 msgid "Caotang was updated in another tab"
@@ -5142,6 +5186,11 @@ msgstr "Prüfen Sie zuerst: "
 msgid "Check for continuity problems"
 msgstr "Auf Kontinuitätsprobleme prüfen"
 
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Check key"
+msgstr "Schlüssel prüfen"
+
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Check run discarded"
@@ -5153,6 +5202,16 @@ msgstr "Prüflauf verworfen"
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Check stopped"
 msgstr "Prüfung angehalten"
+
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Checking the key with {provider}…"
+msgstr "Der Schlüssel wird bei {provider} geprüft…"
+
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Checking the key…"
+msgstr "Der Schlüssel wird geprüft…"
 
 #. Picture drops on a storyboard. Interpolated values: name and title are a file name and a shot title; number is a shot number; reason is a sentence ending or a failure message; where is a shot position; shotId is an id; counts are numbers.
 #: apps/desktop/src/media/shot-image-model.ts
@@ -5248,6 +5307,11 @@ msgstr "Wählen Sie ein Bild im Format HEIC, PNG, JPEG oder WebP."
 msgid "Choose a line to open it in the Source tab. The page breaks follow the screenplay page: about 55 lines a page, 12 point Courier."
 msgstr "Wählen Sie eine Zeile, um sie in der Karte „Quelle“ zu öffnen. Die Seitenumbrüche folgen der Drehbuchseite: etwa 55 Zeilen pro Seite, 12 Punkt Courier."
 
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Choose a model"
+msgstr "Modell wählen"
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Choose a picture for this panel"
@@ -5304,18 +5368,6 @@ msgstr "Wählen Sie eine Anbieter-Vorlage, um eine Vorschau des Prompt-Packs zu 
 msgid "Choose a vendor template to see the Proof of the prompt pack."
 msgstr "Wählen Sie eine Anbieter-Vorlage, um den Abzug des Prompt-Packs zu sehen."
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Choose a whole number from 1 to 8."
-msgstr "Wählen Sie eine ganze Zahl von 1 bis 8."
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Choose a whole number from 1 to 8. Foreground requests go before queued Background requests; requests already running are not interrupted."
-msgstr "Wählen Sie eine ganze Zahl von 1 bis 8. Anfragen im Vordergrund werden vor eingereihten Hintergrundanfragen bearbeitet; laufende Anfragen werden nicht unterbrochen."
-
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Choose an entry…"
@@ -5350,11 +5402,6 @@ msgstr "Einen anderen Ordner wählen…"
 msgid "Choose another status to see the findings in it."
 msgstr "Einen anderen Status wählen, um die Feststellungen darin zu sehen."
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Choose at least 1 request at once."
-msgstr "Wählen Sie mindestens eine gleichzeitige Anfrage."
-
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
 msgid "Choose cover…"
@@ -5365,10 +5412,10 @@ msgstr "Titelbild wählen…"
 msgid "Choose how the timeline names the days of your story. The days you set on scenes stay as they are, whichever you choose."
 msgstr "Wählen Sie, wie die Zeitachse die Tage Ihrer Geschichte benennt. Die Tage, die Sie für Szenen festlegen, bleiben so, wie sie sind, egal wofür Sie sich entscheiden."
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Choose no more than 8 requests at once."
-msgstr "Wählen Sie höchstens acht gleichzeitige Anfragen."
+#. Interpolated values: error, name
+#: apps/desktop/src/app/providers.ts
+msgid "Choose one of the providers."
+msgstr "Wählen Sie einen der Anbieter."
 
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
@@ -5883,6 +5930,11 @@ msgstr "Verbinden"
 msgid "Connect a provider in Settings to review the story with a model."
 msgstr "Verbinden Sie in den Einstellungen einen Anbieter, um die Geschichte mit einem Modell zu prüfen."
 
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Connect and list models"
+msgstr "Verbinden und Modelle auflisten"
+
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #: apps/desktop/src/app/mcp-model.ts
 msgid "Connected"
@@ -5909,6 +5961,8 @@ msgid "Connecting to the server and checking its tool list…"
 msgstr "Die Verbindung zum Server wird hergestellt und seine Werkzeugliste geprüft…"
 
 #. Interpolated value: profile (the writer's provider profile name)
+#. Interpolated value: provider (a provider's name)
+#: apps/desktop/src/app/provider-setup-model.ts
 #: apps/desktop/src/components/provider-probe-message.ts
 msgid "Connection guidance:"
 msgstr "Verbindungshinweise:"
@@ -6085,6 +6139,11 @@ msgstr "Die Kosten beruhen auf erfassten Aufrufpreisen oder vom Provider gemelde
 msgid "Could not be read"
 msgstr "Konnte nicht gelesen werden"
 
+#. Interpolated value: provider (a provider's name)
+#: apps/desktop/src/app/provider-setup-model.ts
+msgid "Could not reach {provider}. Check your connection, then try again."
+msgstr "{provider} ist nicht erreichbar. Prüfen Sie Ihre Verbindung und versuchen Sie es dann erneut."
+
 #. Interpolated values: reason is a local storage error; count and days are configured upper bounds; size is a formatted byte estimate.
 #: apps/desktop/src/components/AgentSessionData.tsx
 msgid "Counting sessions and logs…"
@@ -6216,6 +6275,17 @@ msgstr "Aktuelle Anfrage: etwa {tokens} von {budget} budgetierten Token"
 #: apps/desktop/src/components/context-labels.ts
 msgid "Current task"
 msgstr "Aktuelle Aufgabe"
+
+#. Interpolated values: model, name, provider, total
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Custom endpoint"
+msgstr "Eigener Endpunkt"
+
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Custom URL"
+msgstr "Eigene URL"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -6567,15 +6637,11 @@ msgid "description: Say when the agent should use this skill, in a sentence or t
 msgstr "description: Sagen Sie in ein oder zwei Sätzen, wann der Agent diesen Skill verwenden soll."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
 #: apps/desktop/src/components/Settings.tsx
 msgid "Desktop app or hosted only"
 msgstr "Nur Desktop-App oder gehostet"
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Desktop app or hosted only — {note}"
-msgstr "Nur Desktop-App oder gehostet — {note}"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -6865,6 +6931,7 @@ msgstr "erledigt"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Interpolated values: done, limit, total, used
+#. Interpolated values: model, name, provider, total
 #. Interpolated values: name
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
@@ -6873,6 +6940,7 @@ msgstr "erledigt"
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/PlanCard.tsx
 #: apps/desktop/src/components/ProjectPanel.tsx
+#: apps/desktop/src/components/ProviderSetup.tsx
 #: apps/desktop/src/components/SkillsPanel.tsx
 #: apps/desktop/src/components/TaskChecklist.tsx
 #: apps/desktop/src/components/VocabularyEditor.tsx
@@ -7249,8 +7317,9 @@ msgstr "Hook bearbeiten"
 msgid "Edit notes"
 msgstr "Notizen bearbeiten"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: model, profile
+#. Interpolated values: model, profile
+#: apps/desktop/src/components/ProfileEditor.tsx
 msgid "Edit provider"
 msgstr "Anbieter bearbeiten"
 
@@ -7386,15 +7455,17 @@ msgstr "Aktiviert"
 msgid "Encoding"
 msgstr "Kodierung"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: model, name, provider, total
+#. Interpolated values: model, profile
+#: apps/desktop/src/components/ProfileEditor.tsx
+#: apps/desktop/src/components/ProviderSetup.tsx
 msgid "Endpoint (the base URL, ending in /v1)"
 msgstr "Endpunkt (die Basis-URL, endend auf /v1)"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Endpoint:"
-msgstr "Endpunkt:"
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Endpoint type"
+msgstr "Endpunkttyp"
 
 #. Columns and cells of the timeline's Agenda table. Interpolated values: count is a number of scenes or findings; title, name and part are writer or part words.
 #: apps/desktop/src/components/timeline/Agenda.tsx
@@ -7757,8 +7828,8 @@ msgstr "Externe Werkzeugserver werden von Ihnen verbunden, einer nach dem andere
 msgid "Extra high"
 msgstr "Sehr hoch"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
 msgid "Extra request headers (optional)"
 msgstr "Zusätzliche Anfrage-Header (optional)"
 
@@ -7847,6 +7918,11 @@ msgstr "Zu entfernende Dateien"
 msgid "harness.progress.synopsisFill.content"
 msgstr "{count, plural, one {# Zusammenfassung} other {# Zusammenfassungen}} ausfüllen"
 
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
+msgid "Fill both to see the cost of a step. Empty both to remove a saved price."
+msgstr "Füllen Sie beide Felder aus, um die Kosten eines Schritts zu sehen. Leeren Sie beide, um einen gespeicherten Preis zu entfernen."
+
 #: apps/desktop/src/app/demo.ts
 msgid "Fill in the synopses"
 msgstr "Zusammenfassungen ausfüllen"
@@ -7898,6 +7974,11 @@ msgstr "Nach Titel, Zusammenfassung oder Text filtern"
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "Filter by type"
 msgstr "Nach Typ filtern"
+
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
+msgid "Filter models"
+msgstr "Modelle filtern"
 
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
@@ -8481,13 +8562,13 @@ msgstr "Hat alle diese Stichwörter"
 msgid "Has any of these keywords"
 msgstr "Hat eines dieser Stichwörter"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
 msgid "Header {number} name"
 msgstr "Header {number}: Name"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
 msgid "Header {number} value"
 msgstr "Header {number}: Wert"
 
@@ -8510,6 +8591,13 @@ msgstr "In Ordnung"
 #: apps/desktop/src/app/mcp-model.ts
 msgid "Healthy. {count} {tools, plural, one {tool} other {tools}} listed and verified."
 msgstr "In Ordnung. {count} {tools, plural, one {Werkzeug} other {Werkzeuge}} aufgelistet und geprüft."
+
+#. Interpolated values: model, name, provider, total
+#. Interpolated values: model, profile
+#: apps/desktop/src/components/ProfileEditor.tsx
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Hide"
+msgstr "Ausblenden"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -8637,6 +8725,11 @@ msgstr "Bild der Einstellung {number}"
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "Image to video"
 msgstr "Bild zu Video"
+
+#. Interpolated values: completion, count, levels, prompt, window
+#: apps/desktop/src/app/provider-details.ts
+msgid "Images"
+msgstr "Bilder"
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
@@ -9522,6 +9615,11 @@ msgstr "Grund erfahren"
 msgid "Learns"
 msgstr "Lernt"
 
+#. Interpolated values: model, profile
+#: apps/desktop/src/components/ProfileEditor.tsx
+msgid "Leave empty to keep the stored key."
+msgstr "Leer lassen, um den gespeicherten Schlüssel zu behalten."
+
 #. The transcription review dialog. Interpolated values: file is a stored file name; current and total are the page position; second is the second read's word.
 #: apps/desktop/src/media/TranscriptionReviewDialog.tsx
 msgid "Leave empty to title the document from the first non-empty line of the first approved page."
@@ -9783,6 +9881,11 @@ msgstr "Der Ink-Compiler wird geladen…"
 msgid "Loading the interface…"
 msgstr "Die Oberfläche wird geladen…"
 
+#. Interpolated values: model, profile
+#: apps/desktop/src/components/ProfileEditor.tsx
+msgid "Loading the models…"
+msgstr "Die Modelle werden geladen…"
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 #: apps/desktop/src/media/PictureDetails.tsx
@@ -9844,6 +9947,11 @@ msgstr "Ihre Projekte werden gesucht…"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.codexRead.active"
 msgstr "„{query}“ wird im Kodex nachgeschlagen"
+
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Looks like a key from <0>{detectedName}</0>."
+msgstr "Sieht aus wie ein Schlüssel von <0>{detectedName}</0>."
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
@@ -10239,9 +10347,9 @@ msgstr "Modus oder Strang"
 msgid "Mode: {modeKey, select, planOnly {Plan only} ask {Ask} acceptEdits {Accept edits} auto {Auto} other {Ask}}. It applies from the next card."
 msgstr "Modus: {modeKey, select, planOnly {Nur planen} ask {Fragen} acceptEdits {Änderungen akzeptieren} auto {Auto} other {Fragen}}. Er gilt ab der nächsten Karte."
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: cost, prompt, completion, requestsTotal
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: model, profile
+#: apps/desktop/src/components/ProfileEditor.tsx
 #: apps/desktop/src/components/UsagePanel.tsx
 msgid "Model"
 msgstr "Modell"
@@ -10274,6 +10382,13 @@ msgstr "Modell-Aufrufe: {used} von {limit} · Limit erreicht"
 #: apps/desktop/src/components/TaskChecklist.tsx
 msgid "Model calls: {used} of {limit} · one call left"
 msgstr "Modell-Aufrufe: {used} von {limit} · ein Aufruf übrig"
+
+#. Interpolated values: model, name, provider, total
+#. Interpolated values: model, profile
+#: apps/desktop/src/components/ProfileEditor.tsx
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Model name the endpoint expects"
+msgstr "Modellname, den der Endpunkt erwartet"
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
@@ -10327,17 +10442,12 @@ msgstr "Modell: Plot"
 msgid "Model: world building"
 msgstr "Modell: Weltenbau"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Models documented for {profile}"
-msgstr "Für {profile} dokumentierte Modelle"
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Models listed by {profile}"
-msgstr "Von {profile} aufgelistete Modelle"
+#. Interpolated values: model, name, provider, total
+#. Interpolated values: model, profile
+#: apps/desktop/src/components/ProfileEditor.tsx
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Models you can use with {provider}"
+msgstr "Modelle, die Sie mit {provider} nutzen können"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -10397,6 +10507,12 @@ msgstr "Mehr"
 #: apps/desktop/src/components/AgentSessions.tsx
 msgid "More actions"
 msgstr "Weitere Aktionen"
+
+#. Interpolated values: model, name, provider, total
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "More providers"
+msgstr "Weitere Anbieter"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -10520,7 +10636,7 @@ msgstr "mythisch"
 msgid "Mythic"
 msgstr "Mythisch"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: model, profile
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: parent, title, amount
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
@@ -10531,7 +10647,7 @@ msgstr "Mythisch"
 #: apps/desktop/src/components/CodexPanel.tsx
 #: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/McpSection.tsx
-#: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/components/ProfileEditor.tsx
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "Name"
 msgstr "Name"
@@ -10736,11 +10852,6 @@ msgstr "Neue Seite hier"
 #: apps/desktop/src/components/Home.tsx
 msgid "New project"
 msgstr "Neues Projekt"
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "New provider"
-msgstr "Neuer Provider"
 
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
@@ -11054,6 +11165,11 @@ msgstr "Es ist kein MCP-Server mit dem Schlüssel {key} konfiguriert"
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "No mentions yet. A mention is found when the name or an alias is written into a scene."
 msgstr "Noch keine Erwähnungen. Eine Erwähnung wird gefunden, wenn der Name oder ein Alias in eine Szene geschrieben wird."
+
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
+msgid "No model matches that filter."
+msgstr "Kein Modell passt zu diesem Filter."
 
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #: apps/desktop/src/components/KnowledgeList.tsx
@@ -11503,6 +11619,11 @@ msgstr "Nicht auf dem Projekt oder einem Binder-Eintrag platziert."
 msgid "Not ready"
 msgstr "Nicht bereit"
 
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Not right? Choose a provider"
+msgstr "Nicht richtig? Anbieter wählen"
+
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Not run. The hook is disabled or its matcher does not match this input."
@@ -11798,11 +11919,6 @@ msgstr "An"
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "On (strict: true)"
 msgstr "An (strict: true)"
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "On this computer"
-msgstr "Auf diesem Computer"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
@@ -12134,6 +12250,11 @@ msgstr "Nur optionale Felder: Was eine Anfrage braucht, wird immer gesendet, und
 msgid "Optional. ISBN-10 or ISBN-13, with or without hyphens. It goes into EPUB files."
 msgstr "Optional. ISBN-10 oder ISBN-13, mit oder ohne Bindestriche. Sie gelangt in EPUB-Dateien."
 
+#. Interpolated values: model, profile
+#: apps/desktop/src/components/ProfileEditor.tsx
+msgid "Optional. Leave empty to keep the stored key."
+msgstr "Optional. Leer lassen, um den gespeicherten Schlüssel zu behalten."
+
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "Or use an image already in the project"
@@ -12418,6 +12539,11 @@ msgstr "Bestanden"
 #: apps/desktop/src/app/footer-model.ts
 msgid "past the deadline"
 msgstr "nach der Frist"
+
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Paste your API key"
+msgstr "API-Schlüssel einfügen"
 
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
 #: apps/desktop/src/media/picture-board-model.ts
@@ -12894,10 +13020,10 @@ msgstr "Vorschau, teils Englisch"
 msgid "Previous page"
 msgstr "Vorherige Seite"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Price per 1,000 tokens, in dollars (optional: fill both to see the cost of a step). A saved price stays until you type a new one, so clearing these fields does not remove it."
-msgstr "Preis pro 1.000 Token in Dollar (optional: beide Felder ausfüllen, um die Kosten eines Schritts zu sehen). Ein gespeicherter Preis bleibt bestehen, bis Sie einen neuen eingeben; das Leeren dieser Felder entfernt ihn also nicht."
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
+msgid "Price per 1,000 tokens, in dollars (optional)"
+msgstr "Preis pro 1.000 Token in Dollar (optional)"
 
 #. Interpolated values: error, name
 #: apps/desktop/src/app/providers.ts
@@ -13038,9 +13164,9 @@ msgstr "Projekte in diesem Browser"
 msgid "Prologue"
 msgstr "Prolog"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: count, number, total
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
-#: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/components/ProviderFormParts.tsx
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "Prompt"
 msgstr "Prompt"
@@ -13197,11 +13323,6 @@ msgstr "Prosa"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
-msgid "Provider"
-msgstr "Provider"
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
 msgid "Provider default"
 msgstr "Provider-Standard"
 
@@ -13211,6 +13332,8 @@ msgid "Provider profiles"
 msgstr "Provider-Profile"
 
 #. Interpolated value: profile (the writer's provider profile name)
+#. Interpolated value: provider (a provider's name)
+#: apps/desktop/src/app/provider-setup-model.ts
 #: apps/desktop/src/components/provider-probe-message.ts
 msgid "Provider reply:"
 msgstr "Antwort des Anbieters:"
@@ -13724,6 +13847,11 @@ msgstr "Exportprofil"
 msgid "Reckoning of Ash"
 msgstr "Abrechnung der Asche"
 
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
+msgid "Recommended"
+msgstr "Empfohlen"
+
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
 #: apps/desktop/src/components/AgentSessions.tsx
 msgid "Recorded tokens unavailable"
@@ -13842,9 +13970,9 @@ msgstr "Nächsten Monat erinnern"
 #. Dialogue coverage on a shot. Interpolated values: text is a passage of the writer's script; the count is a number.
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
+#. Interpolated values: count, number, total
 #. Interpolated values: name
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
@@ -13857,6 +13985,7 @@ msgstr "Nächsten Monat erinnern"
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/KnowledgeList.tsx
 #: apps/desktop/src/components/McpSection.tsx
+#: apps/desktop/src/components/ProviderFormParts.tsx
 #: apps/desktop/src/components/Settings.tsx
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 #: apps/desktop/src/components/VocabularyEditor.tsx
@@ -13910,8 +14039,8 @@ msgstr "Kontextauswahl {name} entfernen ({id})"
 msgid "Remove cover"
 msgstr "Titelbild entfernen"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
 msgid "Remove header {number}"
 msgstr "Kopfzeile {number} entfernen"
 
@@ -14119,13 +14248,18 @@ msgstr "Ordner von {name} erneut öffnen"
 msgid "Replace cover…"
 msgstr "Cover ersetzen…"
 
+#. Interpolated values: model, profile
+#: apps/desktop/src/components/ProfileEditor.tsx
+msgid "Replace the API key"
+msgstr "API-Schlüssel ersetzen"
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Replace the script with one written from the pages?"
 msgstr "Skript durch ein aus den Seiten geschriebenes ersetzen?"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
 msgid "Reply"
 msgstr "Antworten"
 
@@ -14149,11 +14283,6 @@ msgstr "Anfrageprotokoll"
 #: apps/desktop/src/components/UsagePanel.tsx
 msgid "Requests"
 msgstr "Anfragen"
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Requests at once"
-msgstr "Gleichzeitige Anfragen"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -14753,6 +14882,11 @@ msgstr "Als Exportprofil speichern"
 msgid "Save budgets"
 msgstr "Budgets speichern"
 
+#. Interpolated values: model, profile
+#: apps/desktop/src/components/ProfileEditor.tsx
+msgid "Save changes"
+msgstr "Änderungen speichern"
+
 #. Interpolated values: MAX_FINDINGS_CAP, max
 #: apps/desktop/src/components/CoherenceSettings.tsx
 msgid "Save coherence settings"
@@ -14818,11 +14952,6 @@ msgstr "Darüber speichern"
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Save over them"
 msgstr "Darüber hinweg speichern"
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Save profile"
-msgstr "Profil speichern"
 
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #: apps/desktop/src/media/ShotPromptEditor.tsx
@@ -14929,11 +15058,6 @@ msgstr "„{name}“ gespeichert. Der Agent sieht es erst wieder, wenn Sie es er
 #: apps/desktop/src/components/Settings.tsx
 msgid "Saved “{profile}”."
 msgstr "„{profile}“ gespeichert."
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Saved “{profile}”. Use this profile to make it the one the agent calls."
-msgstr "„{profile}“ gespeichert. Verwenden Sie dieses Profil, damit der Agent es aufruft."
 
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
 #: apps/desktop/src/components/AgentSessions.tsx
@@ -15567,13 +15691,13 @@ msgstr "Wird gesendet, wenn sein Name oder ein Alias im geschriebenen Text vorko
 msgid "Sent with every generation, whether or not it is mentioned."
 msgstr "Wird bei jeder Generierung gesendet, ob es erwähnt wird oder nicht."
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
 msgid "Sent with every request, and sealed with the key — they are never shown again."
 msgstr "Wird bei jeder Anfrage gesendet und mit dem Schlüssel versiegelt – sie werden nie wieder angezeigt."
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
 msgid "Sent with every request, and sealed with the key — they are never shown again. Leave this list untouched to keep the stored set; empty it again to clear it."
 msgstr "Wird bei jeder Anfrage gesendet und mit dem Schlüssel versiegelt – sie werden nie wieder angezeigt. Lassen Sie diese Liste unverändert, um den gespeicherten Satz zu behalten; leeren Sie sie, um ihn zu löschen."
 
@@ -15587,8 +15711,10 @@ msgstr "Durch Leerzeilen getrennt"
 msgid "Server address (https://…, or http://localhost…)"
 msgstr "Serveradresse (https://…, oder http://localhost…)"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: model, name, provider, total
+#. Interpolated values: model, profile
+#: apps/desktop/src/components/ProfileEditor.tsx
+#: apps/desktop/src/components/ProviderSetup.tsx
 msgid "Server address (on this computer, ending in /v1)"
 msgstr "Serveradresse (auf diesem Computer, endend auf /v1)"
 
@@ -15690,6 +15816,11 @@ msgstr "Synopsis wird gesetzt"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.synopsisSet.active"
 msgstr "Synopsis von „{doc}“ wird gesetzt"
+
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Setting up…"
+msgstr "Wird eingerichtet…"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
@@ -15865,7 +15996,11 @@ msgstr "Ruf"
 
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Interpolated values: model, name, provider, total
+#. Interpolated values: model, profile
 #: apps/desktop/src/components/FindingsPanel.tsx
+#: apps/desktop/src/components/ProfileEditor.tsx
+#: apps/desktop/src/components/ProviderSetup.tsx
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
 msgid "Show"
 msgstr "Anzeigen"
@@ -15879,6 +16014,11 @@ msgstr "{hidden} weitere Vorschläge anzeigen"
 #: apps/desktop/src/components/timeline/Agenda.tsx
 msgid "Show {more} more scenes of {name}"
 msgstr "{more} weitere Szenen von {name} anzeigen"
+
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
+msgid "Show all {total} models"
+msgstr "Alle {total} Modelle anzeigen"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -15919,6 +16059,13 @@ msgstr "Serieneinstellungen geändert"
 #: apps/desktop/src/components/WritingHistory.tsx
 msgid "Show the history"
 msgstr "Verlauf anzeigen"
+
+#. Interpolated values: model, name, provider, total
+#. Interpolated values: model, profile
+#: apps/desktop/src/components/ProfileEditor.tsx
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Show the key"
+msgstr "Schlüssel anzeigen"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
@@ -16820,8 +16967,11 @@ msgstr "Aufgaben"
 msgid "Temperature"
 msgstr "Temperatur"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: model, name, provider, total
+#. Interpolated values: model, name, provider, total
+#. Interpolated values: model, profile
+#: apps/desktop/src/components/ProfileEditor.tsx
+#: apps/desktop/src/components/ProviderSetup.tsx
 msgid "Temperature must be a number from 0 to 2."
 msgstr "Die Temperatur muss eine Zahl von 0 bis 2 sein."
 
@@ -17205,6 +17355,11 @@ msgstr "Der Agent arbeitet an einem anderen Durchlauf. Setzen Sie den Lauf fort,
 #: apps/desktop/src/components/AgentRulesSettings.tsx
 msgid "The agent may skip approval in Ask mode"
 msgstr "Im Fragen-Modus ohne Freigabe ausführen"
+
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "The agent now uses <0>{doneModel}</0>."
+msgstr "Der Agent nutzt jetzt <0>{doneModel}</0>."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -17600,11 +17755,6 @@ msgstr "Der Endpunkt hat die Formprüfung nicht beantwortet, daher bittet der Ag
 msgid "The endpoint did not list its models, so the profile was saved but is not verified: {error}"
 msgstr "Der Endpunkt hat seine Modelle nicht aufgelistet, daher wurde das Profil gespeichert, ist aber nicht verifiziert: {error}"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "The endpoint listed no models."
-msgstr "Der Endpunkt hat keine Modelle aufgelistet."
-
 #. Interpolated values: limit (document count), layer (stable context layer ID), budget and total (token budgets), rank (pruning rank), file (instruction file name), sent and tokens (token counts), need (required tokens)
 #: apps/desktop/src/components/context-labels.ts
 msgid "The entry uses Manual policy and is not attached to the focus."
@@ -17739,8 +17889,8 @@ msgstr "Der erste Prompt, den das Modell liest"
 msgid "The first prompt the review sends"
 msgstr "Der erste Prompt, den die Prüfung sendet"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
 msgid "The first time, Chrome and Edge ask whether this site may connect to apps on your device. Choose Allow; if you decline, requests are blocked until you allow them in the site settings. Safari is unverified."
 msgstr "Beim ersten Mal fragen Chrome und Edge, ob diese Website eine Verbindung zu Apps auf Ihrem Gerät herstellen darf. Wählen Sie „Zulassen“; wenn Sie ablehnen, werden Anfragen blockiert, bis Sie sie in den Website-Einstellungen zulassen. Safari ist nicht geprüft."
 
@@ -17804,8 +17954,8 @@ msgstr "Der Vorausblick ist ausgeschaltet."
 msgid "The Fountain source, edited as text"
 msgstr "Die Fountain-Quelle, als Text bearbeitet"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
 msgid "the header’s value"
 msgstr "der Wert des Headers"
 
@@ -17889,6 +18039,11 @@ msgstr "das Journal von {key} konnte nicht gelesen werden"
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "The JSON, Markdown and CSV packs for one video model, written together and downloaded as one zip."
 msgstr "Die JSON-, Markdown- und CSV-Pakete für ein Videomodell, zusammen geschrieben und als eine Zip-Datei heruntergeladen."
+
+#. Interpolated value: provider (a provider's name)
+#: apps/desktop/src/app/provider-setup-model.ts
+msgid "The key could not be checked. Try again."
+msgstr "Der Schlüssel konnte nicht geprüft werden. Versuchen Sie es erneut."
 
 #. Interpolated values: error, name
 #: apps/desktop/src/app/providers.ts
@@ -18369,6 +18524,11 @@ msgstr "Die vorgeschlagene Änderung an diesem Pin wird entfernt."
 #: apps/desktop/src/components/timeline/TimelineView.tsx
 msgid "The proposed change to this scene is removed."
 msgstr "Die vorgeschlagene Änderung an dieser Szene wird entfernt."
+
+#. Interpolated values: model, profile
+#: apps/desktop/src/components/ProfileEditor.tsx
+msgid "The provider did not list its models just now, so the name stays as it is unless you change it."
+msgstr "Der Anbieter hat seine Modelle gerade nicht aufgelistet, daher bleibt der Name, wie er ist, solange Sie ihn nicht ändern."
 
 #. Interpolated values: tag
 #: apps/desktop/src/i18n/runtime.ts
@@ -19573,15 +19733,10 @@ msgstr "Der Kalender dieses Projekts kann nicht verwendet werden, daher werden T
 msgid "This project’s pictures take about {size}, and this browser cannot save to a folder. Export a bundle for a copy of them that does not depend on the browser."
 msgstr "Die Bilder dieses Projekts belegen etwa {size}, und dieser Browser kann nicht in einem Ordner speichern. Exportieren Sie ein Bundle, um eine Kopie zu erhalten, die nicht vom Browser abhängt."
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "This provider documents no model list — its table below is the catalogue."
-msgstr "Dieser Anbieter dokumentiert keine Modellliste — seine Tabelle unten ist der Katalog."
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "This provider documents no model list — these are the models its table knows."
-msgstr "Dieser Anbieter dokumentiert keine Modellliste — das sind die Modelle, die seine Tabelle kennt."
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "This provider documents no model list, so these are the models Caotang knows for it."
+msgstr "Dieser Anbieter dokumentiert keine Modellliste, daher sind das die Modelle, die Caotang für ihn kennt."
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
@@ -19740,6 +19895,12 @@ msgstr "Dieser Server verwendet eine MCP-Version, die Caotang nicht unterstützt
 #: apps/desktop/src/components/UsageBreakdown.tsx
 msgid "This session: {requestsTotal, plural, one {# request} other {# requests}}, about {prompt} tokens in and {completion} out."
 msgstr "Diese Sitzung: {requestsTotal, plural, one {# Anfrage} other {# Anfragen}}, etwa {prompt} Eingabe- und {completion} Ausgabetoken."
+
+#. Interpolated values: error, name
+#. Interpolated values: error, name
+#: apps/desktop/src/app/providers.ts
+msgid "This setup is no longer open."
+msgstr "Diese Einrichtung ist nicht mehr geöffnet."
 
 #. Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number.
 #: apps/desktop/src/media/prompt-pack-model.ts
@@ -20066,6 +20227,11 @@ msgstr "Tool-Aufruf: {callId}"
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Tool calls"
 msgstr "Tool-Aufrufe"
+
+#. Interpolated values: completion, count, levels, prompt, window
+#: apps/desktop/src/app/provider-details.ts
+msgid "Tools"
+msgstr "Werkzeuge"
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
@@ -20632,15 +20798,10 @@ msgstr "Für diesen früheren Durchgang wurden keine Verbrauchsdaten aufgezeichn
 msgid "Usage was not recorded for this request."
 msgstr "Für diese Anfrage wurde kein Verbrauch aufgezeichnet."
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Use"
-msgstr "Verwenden"
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Use {model} as the model"
-msgstr "{model} als Modell verwenden"
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Use a different key"
+msgstr "Anderen Schlüssel verwenden"
 
 #. Interpolated values: reason is a local storage error; count and days are configured upper bounds; size is a formatted byte estimate.
 #: apps/desktop/src/components/AgentSessionData.tsx
@@ -20680,6 +20841,11 @@ msgstr "Das helle Design verwenden"
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Use the page's source photo"
 msgstr "Das Quellfoto der Seite verwenden"
+
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Use this model"
+msgstr "Dieses Modell verwenden"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -21023,6 +21189,11 @@ msgstr "Wo jeder Eintrag jetzt sitzt und wohin dieser Schritt ihn setzt"
 msgid "Which list to edit"
 msgstr "Welche Liste bearbeitet werden soll"
 
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
+msgid "Which provider is this key from?"
+msgstr "Von welchem Anbieter stammt dieser Schlüssel?"
+
 #. Interpolated values: bytes, folder, max, name, path, problem, size, taken
 #: apps/desktop/src/app/skills-model.ts
 msgid "While loaded, this skill limits the turn to these tools. It never grants approval. Unknown tool names are ignored; a list with no known names permits no tools."
@@ -21319,8 +21490,8 @@ msgstr "Der entworfene Text wird in „{doc}“ geschrieben"
 msgid "Written by hand"
 msgstr "Von Hand geschrieben"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: count, number, total
+#: apps/desktop/src/components/ProviderFormParts.tsx
 msgid "x-my-header"
 msgstr "x-my-header"
 
@@ -21410,8 +21581,8 @@ msgstr "Ihre Trennung"
 msgid "Your text stays on this computer"
 msgstr "Ihr Text bleibt auf diesem Computer"
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: model, name, provider, total
+#: apps/desktop/src/components/ProviderSetup.tsx
 msgid "Your text stays on this computer."
 msgstr "Ihr Text bleibt auf diesem Computer."
 

@@ -83,11 +83,13 @@ export {
   PROFILE_ID_PATTERN,
   MOCK_DEFAULT_MODEL,
   DEFAULT_MAX_OUTPUT_TOKENS,
-  DEFAULT_MAX_CONCURRENT_REQUESTS,
   mintProfileId,
   type ProfileStore,
   type ProfileStoreOptions,
 } from './profiles.js';
+export { detectProvider, FEATURED_PROVIDERS, type KeyDetection } from './detect.js';
+export { chooseModels, type ModelChoice } from './model-catalog.js';
+export { defaultConcurrency, type ConcurrencyPolicy } from './limiter.js';
 export { normalizeBaseUrl, normalizeLocalBaseUrl, MOCK_BASE_URL, isLoopbackBase, isLocalBase } from './base-url.js';
 export { isLoopbackHost, isLoopbackLiteral } from './loopback.js';
 

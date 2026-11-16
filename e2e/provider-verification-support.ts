@@ -1,15 +1,23 @@
 import { expect, type Page } from '@playwright/test';
 
+import { addCustomEndpoint } from './provider-setup-support.js';
+
+/**
+ * A saved profile whose model list is held, then rejected: the provider-verification states (checking, failed, verified) a
+ * writer meets after the profile exists. The profile is added through the ordinary key-first setup while the host still answers;
+ * the demo profile is made the active one again, so the checks that follow can show they never select a provider.
+ */
 export async function openVerification(page: Page, locale: 'en' | 'de', shell: 'classic' | 'modern') {
   let release!: () => void;
   const held = new Promise<void>((resolve) => { release = resolve; });
-  let passing = false;
+  let gated = false;
+  let passing = true;
   await page.route('https://verification.example.test/v1/**', async (route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({ json: { choices: [{ message: { content: '{}' } }] } });
       return;
     }
-    await held;
+    if (gated) await held;
     await route.fulfill(passing
       ? { json: { data: [{ id: 'writing-model' }] } }
       : { status: 401, json: { error: { message: 'The API key was rejected.' } } });
@@ -19,21 +27,22 @@ export async function openVerification(page: Page, locale: 'en' | 'de', shell: '
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByTestId('settings');
   const panel = settings.locator('[aria-labelledby="settings-providers"]');
+  await addCustomEndpoint(settings, { url: 'https://verification.example.test/v1', model: 'writing-model', name: 'Schreibmodell' });
+  await settings.locator('[data-profile="Demo (no key)"]').getByRole('button', { name: 'Use this profile' }).click();
+  await expect(settings.locator('[data-profile="Demo (no key)"] .badge.is-active')).toBeVisible();
+  await expect(settings.locator('[data-profile="Schreibmodell"]')).toHaveAttribute('data-state', 'verified');
   if (locale === 'de') {
     await settings.locator('[data-section="appearance"]').click();
     await settings.locator('input[name="interface-language"][value="de"]').click();
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
     await settings.locator('[data-section="providers"]').click();
   }
-  await settings.getByRole('button', { name: locale === 'de' ? 'Anbieter hinzufügen' : 'Add a provider', exact: true }).click();
-  const form = settings.locator('.profile-form');
-  await form.getByLabel('Name', { exact: true }).fill('Schreibmodell');
-  await form.locator('input[type="url"]').fill('https://verification.example.test/v1');
-  await form.getByLabel(locale === 'de' ? 'Modell' : 'Model', { exact: true }).fill('writing-model');
-  await form.locator('button[type="submit"]').click();
+  gated = true;
+  passing = false;
   const row = settings.locator('[data-profile="Schreibmodell"]');
+  await row.getByRole('button', { name: locale === 'de' ? 'Bearbeiten' : 'Edit', exact: true }).click();
   await expect(row).toHaveAttribute('data-state', 'checking');
-  await form.getByRole('button', { name: locale === 'de' ? 'Abbrechen' : 'Cancel', exact: true }).click();
+  await settings.getByRole('form', { name: locale === 'de' ? 'Anbieter bearbeiten' : 'Edit provider' }).getByRole('button', { name: locale === 'de' ? 'Abbrechen' : 'Cancel', exact: true }).click();
   await row.scrollIntoViewIfNeeded();
   return {
     settings, panel, row, release,

@@ -28,7 +28,12 @@ import {
   createIndexedDbVaultPort,
   createKeyStore,
   createMemoryVaultPort,
+  chooseModels,
   createProfileStore,
+  presetFor,
+  presetForProfile,
+  ProfileError,
+  ProviderError,
   type Clock,
   type FetchLike,
   type Gateway,
@@ -56,6 +61,7 @@ import { normalizeSettings, type RoleSettings } from './settings.js';
 import { TabTrace } from './trace-store.js';
 import { SaveChannel } from './save-channel.js';
 import { probeFailureOf, type ProbeFailure } from './provider-probe.js';
+import { SetupError, type SetupDiscovery, type SetupInput } from './provider-setup.js';
 
 /* lingui-set comment="Interpolated values: error, name" */
 
@@ -68,6 +74,9 @@ export const DEMO_PROFILE_NAME = 'Demo (no key)';
 // The demo provider's mock lives in the gateway, shared with the SDK. These keep the names the app and its specs import.
 export { DEMO_FALLBACK_REPLY, appMockProvider };
 
+/** A custom endpoint names no default model, and a profile needs one to exist; the listing never reads it, and finishing replaces it. */
+const SETUP_PLACEHOLDER_MODEL = 'model';
+
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 /** The request-log entries kept across reloads: the log's own cap (provider-gateway §4). */
 const REQUEST_LOG_KEEP = 50;
@@ -77,9 +86,8 @@ const REQUEST_LOG_KEEP = 50;
  * before presets, whose kind is `openai-compatible` and whose `preset` is absent.
  * The key is never on it — the vault holds the sealed payload.
  */
-type PersistedProfile = Omit<ProfileView, 'kind' | 'maxConcurrentRequests'> & {
+type PersistedProfile = Omit<ProfileView, 'kind'> & {
   kind: ProfileView['kind'] | 'openai-compatible';
-  maxConcurrentRequests?: number;
 };
 
 /** A profile's id as the ten random bytes that generate it. The generator maps a byte with `% 32`, so an index is its own byte. */
@@ -157,6 +165,7 @@ export class ProviderService {
   readonly saves = new SaveChannel('settings');
   private usageReadFailure: string | null = null;
   private verificationAttempt = 0;
+  private readonly drafts = new Set<string>();
   private readonly verificationListeners = new Set<() => void>();
 
   private constructor(parts: {
@@ -346,10 +355,8 @@ export class ProviderService {
             ...(payload?.customHeaders === undefined ? {} : { customHeaders: payload.customHeaders }),
             ...(record.temperature === undefined ? {} : { temperature: record.temperature }),
             ...(record.maxOutputTokens === undefined ? {} : { maxOutputTokens: record.maxOutputTokens }),
-            ...(record.maxConcurrentRequests === undefined ? {} : { maxConcurrentRequests: record.maxConcurrentRequests }),
             ...(record.params === undefined ? {} : { params: record.params }),
             ...(record.pricePer1k === undefined ? {} : { pricePer1k: record.pricePer1k }),
-            ...(record.promptCache === undefined ? {} : { promptCache: record.promptCache }),
           });
           if (view.id !== record.id) {
             notices.push(t`“${{ name: isolate(record.name) }}” came back under a new id, so its saved usage is not attached to it.`);
@@ -387,9 +394,9 @@ export class ProviderService {
     }
   }
 
-  /** Every profile, oldest first, without keys. */
+  /** Every profile, oldest first, without keys. A provider still being set up is not one yet. */
   list(): ProfileView[] {
-    return this.profiles.list();
+    return this.profiles.list().filter((profile) => !this.drafts.has(profile.id));
   }
 
   active(): ProfileView | undefined {
@@ -421,7 +428,7 @@ export class ProviderService {
   private async write(): Promise<string | null> {
     if (this.db === null) return null;
     try {
-      await this.db.put(APP_KEYS.profiles, this.profiles.list().map((profile) => profile.verification?.kind === 'checking'
+      await this.db.put(APP_KEYS.profiles, this.list().map((profile) => profile.verification?.kind === 'checking'
         ? { ...profile, verification: readVerification(profile.verification) }
         : profile));
       if (this.usageReadFailure === null) await this.db.put(APP_KEYS.usage, this.ledger.snapshot());
@@ -490,6 +497,89 @@ export class ProviderService {
     }
     await this.persist();
     return note === undefined ? {} : { note };
+  }
+
+  /**
+   * Adding a provider, step one (provider-gateway §2, "Adding a provider"): checks the key against the provider and lists the models
+   * it can write with. The check is the provider's own model list, or, where it documents none or answers it without a key, a
+   * one-token request, so a wrong key is found here and not in the first agent turn. The profile this makes stays hidden from
+   * `list()` and from storage until {@link finishSetup}; a failure removes it again, so a bad key leaves nothing behind.
+   */
+  async beginSetup(input: SetupInput): Promise<SetupDiscovery> {
+    const preset = presetFor(input.preset);
+    if (preset === undefined || preset.id === 'mock') throw new SetupError({ kind: 'invalid', message: t`Choose one of the providers.` });
+    const name = this.freeName(preset.name);
+    let id: string;
+    try {
+      const view = await this.profiles.create({
+        name,
+        kind: 'endpoint',
+        preset: preset.id,
+        apiKey: input.apiKey,
+        defaultModel: preset.defaultModel === '' ? SETUP_PLACEHOLDER_MODEL : preset.defaultModel,
+        ...(input.baseUrl === undefined ? {} : { baseUrl: input.baseUrl }),
+        ...(input.fields === undefined ? {} : { fields: input.fields }),
+        ...(input.customHeaders === undefined ? {} : { customHeaders: input.customHeaders }),
+        isActive: false,
+      });
+      id = view.id;
+    } catch (error) {
+      throw new SetupError({ kind: 'invalid', message: messageOf(error), ...(error instanceof ProfileError && error.field !== undefined ? { field: error.field } : {}) });
+    }
+    this.drafts.add(id);
+    const abandon = async (failure: SetupError['failure']): Promise<never> => {
+      await this.profiles.remove(id).catch(() => undefined);
+      this.drafts.delete(id);
+      throw new SetupError(failure);
+    };
+
+    const probe = await this.probeModels(id);
+    if (probe.error !== undefined) return abandon({ kind: 'probe', failure: probe.failure ?? { cause: 'unknown' } });
+    const view = this.profiles.get(id);
+    const effective = view === undefined ? preset : (presetForProfile(view) ?? preset);
+    if (effective.noModelsRoute === true || (effective.keylessModels === true && input.apiKey !== '')) {
+      // A listing that needs no key proves nothing about the key, so one real request does. With no key given there is nothing to prove.
+      try {
+        await this.gateway.probeResponseFormat(id);
+      } catch (error) {
+        if (error instanceof ProviderError && (error.kind === 'auth' || effective.noModelsRoute === true)) {
+          return abandon({ kind: 'probe', failure: probeFailureOf(error) });
+        }
+      }
+    }
+    const models = chooseModels(effective, probe.models ?? []);
+    if (models.length === 0) return abandon({ kind: 'empty' });
+    return { draftId: id, name, preset: effective, models, source: effective.noModelsRoute === true ? 'table' : 'live' };
+  }
+
+  /** Adding a provider, step two: the chosen model becomes the profile's, the profile appears in the list and becomes the active one. */
+  async finishSetup(draftId: string, model: string, overrides: Pick<ProfilePatch, 'params' | 'temperature' | 'pricePer1k'> = {}): Promise<{ view: ProfileView; note?: string }> {
+    if (!this.drafts.has(draftId)) throw new Error(t`This setup is no longer open.`);
+    await this.profiles.update(draftId, { ...overrides, defaultModel: model });
+    this.drafts.delete(draftId);
+    const attempt = ++this.verificationAttempt;
+    this.verification(draftId, { type: 'check', attempt });
+    this.verification(draftId, { type: 'passed', attempt, checkedAt: this.clock.now() });
+    const { note } = await this.activate(draftId);
+    const view = this.profiles.get(draftId);
+    if (view === undefined) throw new Error(t`This setup is no longer open.`);
+    return { view, ...(note === undefined ? {} : { note }) };
+  }
+
+  /** Abandons a setup that was not finished: the hidden profile and its key go. */
+  async cancelSetup(draftId: string): Promise<void> {
+    if (!this.drafts.has(draftId)) return;
+    await this.profiles.remove(draftId).catch(() => undefined);
+    this.drafts.delete(draftId);
+  }
+
+  /** The provider's own name, or that name with a number when a profile already has it. */
+  freeName(base: string): string {
+    const taken = new Set(this.profiles.list().map((profile) => profile.name));
+    if (!taken.has(base)) return base;
+    let n = 2;
+    while (taken.has(`${base} ${n}`)) n += 1;
+    return `${base} ${n}`;
   }
 
   /** Removes a profile and its key. The active profile moves to another one, or the demo profile is made again. */
