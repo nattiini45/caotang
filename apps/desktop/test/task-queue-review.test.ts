@@ -281,7 +281,7 @@ describe('a queued coherence review', () => {
     await queue.idle();
     const key = `task:${PROJECT}:task_TEST000001`;
     const stored = rows.get(key) as TaskRecord;
-    rows.set(key, { ...stored, status: 'interrupted', items: stored.items.map((item) => ({ ...item, state: 'pending' })), reviewCheckpoint: { ...stored.reviewCheckpoint, extractedDocIds: ['sA'], spans: stored.reviewCheckpoint?.spans.slice(0, 1) ?? [], verifiedBatches: 0, verdicts: [], evaluated: ['sA'] }, used: 1, report: undefined });
+    rows.set(key, { ...stored, status: 'interrupted', items: stored.items.map((item) => ({ ...item, state: 'pending' })), reviewCheckpoint: { ...stored.reviewCheckpoint, extractedDocIds: ['sA'], spans: stored.reviewCheckpoint?.spans.slice(0, 1) ?? [], verifiedBatches: 0, verifiedPairs: [], verdicts: [], usageByPair: {}, evaluated: ['sA'] }, used: 1, report: undefined });
     const resumedModel = reviewing();
     const queue2 = reopen(resumedModel);
     await queue2.open();
@@ -333,7 +333,7 @@ describe('a queued coherence review', () => {
       report: undefined,
       promptTokens: 110,
       completionTokens: 25,
-      reviewCheckpoint: { ...cp, extractedDocIds: [firstDoc], spans: cp.spans.filter((span) => span.docId === firstDoc), verifiedBatches: 0, verdicts: [], usageByPair: {}, evaluated: [firstDoc], promptTokens: 100, completionTokens: 20 },
+      reviewCheckpoint: { ...cp, extractedDocIds: [firstDoc], spans: cp.spans.filter((span) => span.docId === firstDoc), verifiedBatches: 0, verifiedPairs: [], verdicts: [], usageByPair: {}, evaluated: [firstDoc], promptTokens: 100, completionTokens: 20 },
     });
     const queue2 = reopen(reviewing());
     await queue2.open();

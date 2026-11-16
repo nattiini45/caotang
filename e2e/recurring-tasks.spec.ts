@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import type * as RecurringModule from '../apps/desktop/src/app/recurring-tasks.js';
 
 import { fakeEndpoint, useFakeEndpoint, type FakeReply } from './endpoint.js';
 import { binderTitle, createProject, waitForSaved } from './support.js';
@@ -28,12 +29,12 @@ async function openAgent(page: Page): Promise<void> {
 }
 
 /** Reloads and opens the project again. A reload begun while the indicator reads saving could take the task a writer has just made. */
-async function reopen(page: Page, name: string): Promise<void> {
+async function reopen(page: Page, name: string, openLabel = 'Open'): Promise<void> {
   await waitForSaved(page);
   await page.reload();
   const row = page.getByRole('listitem').filter({ hasText: name });
   await expect(row).toBeVisible({ timeout: 20_000 });
-  await row.getByRole('button', { name: 'Open' }).click();
+  await row.getByRole('button', { name: openLabel }).click();
   await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
 }
 
@@ -205,6 +206,138 @@ test('tasks are the writer’s: they are kept in the project, switched off and d
   await expect(page.getByTestId('recurring-tasks').locator('[data-task]')).toHaveCount(0);
   await expect(page.getByTestId('recurring-tasks')).toContainText('No tasks yet.');
 });
+
+test('a save in flight holds the form and the rows inert until the write settles', async ({ page }) => {
+  test.setTimeout(60_000);
+  await createProject(page, 'Held Save');
+  await openAgent(page);
+  await page.getByRole('button', { name: 'New task' }).click();
+  const form = page.getByRole('form', { name: 'New task' });
+  await form.getByLabel('Task name').fill('Held task');
+  await form.getByLabel('What it does').selectOption({ label: 'Scan for continuity problems' });
+  await form.getByRole('button', { name: 'Save task' }).click();
+  const row = page.getByTestId('recurring-tasks').locator('[data-task]');
+  await expect(row).toHaveCount(1);
+
+  await page.evaluate(async () => {
+    const path = '/src/app/recurring-tasks.ts';
+    const mod = await import(path) as typeof RecurringModule;
+    const original = mod.RecurringTasks.prototype.save;
+    let release = (): void => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    mod.RecurringTasks.prototype.save = function (this: InstanceType<typeof mod.RecurringTasks>, ...args: Parameters<typeof original>) {
+      Object.assign(window, { __releaseTaskSave: () => { release(); mod.RecurringTasks.prototype.save = original; } });
+      return gate.then(() => original.apply(this, args));
+    };
+  });
+  await row.locator('[data-action="edit"]').click();
+  const editForm = page.getByRole('form', { name: 'Edit task' });
+  await editForm.getByLabel('Task name').fill('Held task renamed');
+  await editForm.getByRole('button', { name: 'Save task' }).click();
+  await expect(editForm.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+  await expect(editForm.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  await expect(editForm.getByLabel('Task name')).toBeDisabled();
+  await expect(editForm).toHaveAttribute('aria-busy', 'true');
+  await expect(row.locator('[data-action="edit"]')).toBeDisabled();
+  await page.evaluate(() => (window as unknown as { __releaseTaskSave: () => void }).__releaseTaskSave());
+  await expect(page.getByRole('form', { name: 'Edit task' })).toHaveCount(0);
+  await expect(row).toContainText('Held task renamed');
+});
+
+for (const language of ['en', 'de'] as const) {
+  const words = language === 'en'
+    ? { newTask: 'New task', plan: 'Run a plan', steps: 'Plan steps', save: 'Save task', open: 'Open' }
+    : { newTask: 'Neue Aufgabe', plan: 'Einen Plan ausführen', steps: 'Schritte des Plans', save: 'Aufgabe speichern', open: 'Öffnen' };
+  test(`a plan is written, refused when it does not parse, edited and run from the keyboard (${language})`, async ({ page }, testInfo) => {
+    test.setTimeout(90_000);
+    const counter = { calls: 0 };
+    await fakeEndpoint(page, countingReply(counter));
+    await useFakeEndpoint(page);
+    await createProject(page, 'Plan Book');
+    await chapterWithScene(page, 'Opening');
+    if (language === 'de') {
+      await page.getByRole('button', { name: 'Settings', exact: true }).click();
+      const settings = page.getByTestId('settings');
+      await settings.locator('[data-section="appearance"]').click();
+      await settings.locator('input[name="interface-language"][value="de"]').click();
+      await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+      await settings.locator('.settings-head button').click();
+    }
+    const toggle = page.locator('.agent-toggle');
+    const openDrawer = async (): Promise<void> => {
+      if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+      await expect(page.getByTestId('recurring-tasks')).toBeVisible();
+    };
+    await openDrawer();
+
+    const tasks = page.getByTestId('recurring-tasks');
+    await tasks.getByRole('button', { name: words.newTask, exact: true }).click();
+    const form = tasks.getByRole('form');
+    await form.getByLabel('Task name').fill('Weekly plan scan');
+    await form.getByLabel('What it does').selectOption({ label: words.plan });
+    await form.getByLabel('When', { exact: true }).selectOption({ label: 'Only when I run it' });
+    await form.getByLabel('What it may do').selectOption({ label: 'Change nothing' });
+    const steps = form.getByLabel(words.steps);
+    await expect(steps).toBeVisible();
+    // Choosing Run a plan starts from steps that parse, so the writer edits a plan rather than inventing one.
+    await expect(steps).toHaveValue(/coherence\.scan/);
+    await page.setViewportSize({ width: 390, height: 844 });
+    const fit = await steps.evaluate((area) => {
+      const box = area.getBoundingClientRect();
+      const formBox = area.closest('form')?.getBoundingClientRect();
+      return { wide: box.width <= (formBox?.width ?? 0) + 1, page: document.documentElement.scrollWidth <= innerWidth + 1 };
+    });
+    expect(fit).toEqual({ wide: true, page: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.screenshot({ path: testInfo.outputPath(`plan-form-${language}.png`) });
+
+    const save = form.getByRole('button', { name: words.save });
+    await steps.focus();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText('[{"tool":');
+    await save.focus();
+    await page.keyboard.press('Enter');
+    await expect(form.getByRole('alert')).toContainText('The steps are not valid JSON');
+    await expect(steps).toHaveValue('[{"tool":');
+    await expect(steps).toBeFocused();
+    await expect(steps).toHaveAttribute('aria-invalid', 'true');
+
+    const written = [{ tool: 'coherence.scan', params: { scope: { mode: 'full' } }, expect: 'A scan is recorded' }];
+    await steps.focus();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText(JSON.stringify(written));
+    await save.focus();
+    await page.keyboard.press('Enter');
+    const row = tasks.locator('[data-task]', { hasText: 'Weekly plan scan' });
+    await expect(row).toContainText('Run a plan of 1 step');
+    await expect(row).toContainText('May not change anything');
+    await expect(row.getByRole('button', { name: /^Edit/ })).toBeFocused();
+
+    await row.getByRole('button', { name: /^Edit/ }).click();
+    await expect(steps).toHaveValue(JSON.stringify(written, null, 2));
+    const changed = [{ ...written[0], expect: 'A scan is recorded and its findings are listed' }];
+    await steps.focus();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText(JSON.stringify(changed, null, 2));
+    await save.focus();
+    await page.keyboard.press('Enter');
+    await expect(form).toHaveCount(0);
+
+    await reopen(page, 'Plan Book', words.open);
+    await binderTitle(page, 'Opening').click();
+    await openDrawer();
+    const kept = tasks.locator('[data-task]', { hasText: 'Weekly plan scan' });
+    await expect(kept).toContainText('Run a plan of 1 step');
+    await kept.getByRole('button', { name: /^Edit/ }).click();
+    await expect(form.getByLabel(words.steps)).toHaveValue(JSON.stringify(changed, null, 2));
+    await form.getByRole('button', { name: 'Cancel' }).click();
+    await expect(kept.getByRole('button', { name: /^Edit/ })).toBeFocused();
+
+    await kept.getByRole('button', { name: /^Run now/ }).click();
+    await expect(kept.getByText('Runs on this machine (1)')).toBeVisible({ timeout: LOADED });
+    expect(counter.calls).toBe(0);
+  });
+}
 
 test('with no task due, the offers section takes no room, so the closed drawer is no taller for it', async ({ page }) => {
   await createProject(page, 'Quiet Book');

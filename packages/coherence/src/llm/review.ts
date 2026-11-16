@@ -31,7 +31,7 @@ import { recurredAfterFixedNote, upsertFindings, type UpsertDraft } from '../ups
 
 import { assembleFindings } from './assemble.js';
 import type { CoherenceModel, ModelReply, ModelUsage } from './port.js';
-import { blockFor, pairCount, pairSequence, type PairRef } from './pairs.js';
+import { blockFor, pairCount, pairKey, pairSequence, type PairRef } from './pairs.js';
 import { pairLabelOf, parseExtraction, parseVerification, type ExtractedSpan, type ParsedVerdict } from './parse.js';
 import { PAIRS_PER_CALL, SPANS_PER_DOCUMENT, extractionPrompt, verificationPrompt, type PairBlock } from './prompts.js';
 
@@ -294,6 +294,8 @@ export interface ReviewCheckpoint {
   readonly extractedDocIds: readonly string[];
   readonly spans: readonly ExtractedSpan[];
   readonly verifiedBatches: number;
+  /** The stable keys of the pairs whose verification succeeded, so a resume acknowledges them even when further extraction recomposes the batches. Absent on checkpoints written before this field: their count is trusted only while their extraction is complete. */
+  readonly verifiedPairs?: readonly string[];
   readonly verdicts: readonly ParsedVerdict[];
   readonly usageByPair: Readonly<Record<string, ModelUsage>>;
   readonly promptTokens: number;
@@ -332,7 +334,7 @@ export interface ReviewComputeOptions {
 export const REVIEW_YIELD_EVERY = 2000;
 
 export function emptyReviewCheckpoint(): ReviewCheckpoint {
-  return { extractedDocIds: [], spans: [], verifiedBatches: 0, verdicts: [], usageByPair: {}, promptTokens: 0, completionTokens: 0, notes: [], status: 'complete', evaluated: [] };
+  return { extractedDocIds: [], spans: [], verifiedBatches: 0, verifiedPairs: [], verdicts: [], usageByPair: {}, promptTokens: 0, completionTokens: 0, notes: [], status: 'complete', evaluated: [] };
 }
 
 /**
@@ -349,6 +351,8 @@ export async function reviewCheckpointEvidenceOk(plan: ReviewExecutionPlan, bodi
   const scope = new Set(plan.scopeDocIds);
   const categories = new Set<string>(plan.categories);
   if (!checkpoint.extractedDocIds.every((id) => scope.has(id)) || !checkpoint.evaluated.every((id) => scope.has(id))) return false;
+  const extracted = new Set(checkpoint.extractedDocIds);
+  if (!checkpoint.evaluated.every((id) => extracted.has(id))) return false;
   const verbatim = (docId: string, quote: string, from: number, to: number): boolean => {
     const body = bodies.get(docId);
     return body !== undefined && quote !== '' && body.slice(from, to) === quote;
@@ -362,10 +366,14 @@ export async function reviewCheckpointEvidenceOk(plan: ReviewExecutionPlan, bodi
   }
   const named = new Set(checkpoint.verdicts.map((verdict) => verdict.pairId));
   const captured = new Map<string, PairRef>();
+  const formed = new Set<string>();
+  const formedIds = new Set<string>();
   let pairs = 0;
   let sinceYield = 0;
   for (const pair of pairSequence(checkpoint.spans, plan.categories)) {
     pairs += 1;
+    formed.add(pairKey(pair));
+    formedIds.add(pair.pairId);
     if (named.has(pair.pairId)) captured.set(pair.pairId, pair);
     sinceYield += 1;
     if (yieldToHost !== undefined && sinceYield >= REVIEW_YIELD_EVERY) {
@@ -374,6 +382,8 @@ export async function reviewCheckpointEvidenceOk(plan: ReviewExecutionPlan, bodi
     }
   }
   if (checkpoint.verifiedBatches > Math.ceil(pairs / PAIRS_PER_CALL)) return false;
+  if (checkpoint.verifiedPairs !== undefined && !checkpoint.verifiedPairs.every((key) => formed.has(key))) return false;
+  if (!Object.keys(checkpoint.usageByPair).every((pairId) => formedIds.has(pairId))) return false;
   const overlaps = (passage: { docId: string; from: number; to: number }, span: ExtractedSpan): boolean =>
     passage.docId === span.docId && passage.from < span.to && span.from < passage.to;
   for (const verdict of checkpoint.verdicts) {
@@ -414,7 +424,24 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
   const usable = resume !== undefined && (await reviewCheckpointEvidenceOk(plan, bodies, resume, options.yieldToHost)) ? resume : undefined;
   if (resume !== undefined && usable === undefined) notes.push('the saved checkpoint did not match the approved documents; the review started again within its remaining limit');
 
-  let status: 'complete' | 'partial' = usable?.status ?? 'complete';
+  // A resume finishes the work the checkpoint left missing, so its outcome is this run's: an unusable reply is retried, not carried as a permanent gap.
+  let status: 'complete' | 'partial' = 'complete';
+  const previousKeys = new Map<string, string>();
+  const verifiedKeys = new Set<string>();
+  if (usable !== undefined) {
+    for (const pair of pairSequence(usable.spans, plan.categories)) previousKeys.set(pair.pairId, pairKey(pair));
+    // A checkpoint written before the keys existed carries a count over a composition that may since have grown; its pairs are verified again and its kept verdicts fold as duplicates.
+    if (usable.verifiedPairs !== undefined) {
+      const judged = new Set(usable.verdicts.map((verdict) => previousKeys.get(verdict.pairId)));
+      let unjudged = 0;
+      for (const key of usable.verifiedPairs) {
+        if (judged.has(key)) verifiedKeys.add(key);
+        else unjudged += 1;
+      }
+      // A checkpoint written before a batch needed every pair judged can claim pairs it never judged; those pairs are verified again.
+      if (unjudged > 0) notes.push(`${unjudged} pair(s) the saved checkpoint claimed verified without a verdict are verified again`);
+    }
+  }
   let promptTokens = resume?.promptTokens ?? 0;
   let completionTokens = resume?.completionTokens ?? 0;
   const addUsage = (usage: ModelUsage | undefined): void => {
@@ -423,24 +450,63 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
   };
   const context = options.context ?? {};
   const extractedDocIds = new Set(usable?.extractedDocIds ?? []);
+  const evaluatedIds = new Set(usable?.evaluated ?? []);
+  for (const docId of [...extractedDocIds]) if (!evaluatedIds.has(docId)) extractedDocIds.delete(docId);
   const spans: ExtractedSpan[] = usable === undefined ? [] : [...usable.spans];
   const evaluated: string[] = usable === undefined ? [] : [...usable.evaluated];
-  const usageByPair = new Map<string, ModelUsage | undefined>(Object.entries(usable?.usageByPair ?? {}));
-  const verdicts: ParsedVerdict[] = usable === undefined ? [] : [...usable.verdicts];
+  const usageByPair = new Map<string, ModelUsage | undefined>();
+  const verdicts: ParsedVerdict[] = [];
+  const verdictKeys: string[] = [];
+  const verdictKeySet = new Set<string>();
+  if (usable !== undefined) {
+    for (const [pairId, usage] of Object.entries(usable.usageByPair)) {
+      const key = previousKeys.get(pairId);
+      if (key !== undefined) usageByPair.set(key, usage);
+    }
+    for (const verdict of usable.verdicts) {
+      const key = previousKeys.get(verdict.pairId);
+      if (key === undefined || verdictKeySet.has(key)) continue;
+      verdicts.push(verdict);
+      verdictKeys.push(key);
+      verdictKeySet.add(key);
+    }
+  }
   let verifiedBatches = usable?.verifiedBatches ?? 0;
+  let idsByKeyCache: { spanCount: number; ids: Map<string, string> } | undefined;
+  const idsByKey = (): Map<string, string> => {
+    if (idsByKeyCache !== undefined && idsByKeyCache.spanCount === spans.length) return idsByKeyCache.ids;
+    const ids = new Map<string, string>();
+    for (const pair of pairSequence(spans, plan.categories)) ids.set(pairKey(pair), pair.pairId);
+    idsByKeyCache = { spanCount: spans.length, ids };
+    return ids;
+  };
+  const withCurrentIds = (): { verdicts: ParsedVerdict[]; usageByPair: Map<string, ModelUsage | undefined> } => {
+    const ids = idsByKey();
+    return {
+      verdicts: verdicts.map((verdict, index) => ({ ...verdict, pairId: ids.get(verdictKeys[index]!) ?? verdict.pairId })),
+      usageByPair: new Map([...usageByPair].flatMap(([key, usage]) => {
+        const pairId = ids.get(key);
+        return pairId === undefined ? [] : [[pairId, usage] as const];
+      })),
+    };
+  };
 
-  const checkpoint = (): ReviewCheckpoint => ({
+  const checkpoint = (): ReviewCheckpoint => {
+    const current = withCurrentIds();
+    return {
     extractedDocIds: [...extractedDocIds],
     spans: [...spans],
     verifiedBatches,
-    verdicts: [...verdicts],
-    usageByPair: Object.fromEntries([...usageByPair].filter((entry): entry is [string, ModelUsage] => entry[1] !== undefined)),
+    verifiedPairs: [...verifiedKeys],
+    verdicts: current.verdicts,
+    usageByPair: Object.fromEntries([...current.usageByPair].filter((entry): entry is [string, ModelUsage] => entry[1] !== undefined)),
     promptTokens,
     completionTokens,
     notes: [...notes],
     status,
     evaluated: [...evaluated],
-  });
+    };
+  };
 
   // Stage 1: one call per document, in binder order.
   for (const scene of scenes) {
@@ -476,7 +542,6 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
       if (!(error instanceof MalformedReplyError)) throw error;
       status = 'partial';
       notes.push(`extraction for "${scene.title}" was unusable: ${error.message}`);
-      extractedDocIds.add(scene.docId);
     }
     await options.onCheckpoint?.(checkpoint());
   }
@@ -502,19 +567,30 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
   if (filling.length > 0) batches.push(filling);
   if (options.yieldToHost !== undefined) await options.yieldToHost();
   for (const [index, batch] of batches.entries()) {
-    if (index < verifiedBatches) continue;
+    const pending = batch.filter((pair) => !verifiedKeys.has(pairKey(pair)));
+    if (pending.length === 0) {
+      verifiedBatches = index + 1;
+      continue;
+    }
+    const acknowledge = (): void => {
+      for (const pair of pending) verifiedKeys.add(pairKey(pair));
+      verifiedBatches = index + 1;
+    };
     if (options.signal?.aborted === true) {
       status = 'partial';
       notes.push('verification stopped: the run was cancelled');
       break;
     }
-    const blocks = batch
+    const blocks = pending
       .map((pair) => blockFor(pair, bodies))
       .filter((block): block is PairBlock => block !== undefined);
     if (blocks.length === 0) {
-      verifiedBatches = index + 1;
+      acknowledge();
       continue;
     }
+    const sentIds = new Set(blocks.map((block) => block.pairId));
+    const sent = pending.filter((pair) => sentIds.has(pair.pairId));
+    if (sent.length < pending.length) notes.push(`${pending.length - sent.length} pair(s) could not be read and were skipped`);
     const prompt = verificationPrompt(blocks);
     let reply: ModelReply;
     try {
@@ -527,37 +603,65 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
       });
     } catch (error) {
       status = 'partial';
-      notes.push(`verification stopped at ${pairLabelOf(batch[0])}: ${reasonOf(error)}`);
+      notes.push(`verification stopped at ${pairLabelOf(pending[0])}: ${reasonOf(error)}`);
       break;
     }
     addUsage(reply.usage);
     try {
       const parsed = parseVerification(reply.content, {
         bodies,
-        pairs: new Map(batch.map((pair) => [pair.pairId, pair] as const)),
+        pairs: new Map(sent.map((pair) => [pair.pairId, pair] as const)),
       });
-      verdicts.push(...parsed.verdicts);
       notes.push(...parsed.notes);
-      for (const verdict of parsed.verdicts) usageByPair.set(verdict.pairId, reply.usage);
+      const judged = new Map<string, ParsedVerdict>();
+      let repeated = 0;
+      for (const verdict of parsed.verdicts) {
+        if (judged.has(verdict.pairId)) {
+          repeated += 1;
+          continue;
+        }
+        judged.set(verdict.pairId, verdict);
+      }
+      if (repeated > 0) notes.push(`${repeated} repeated verdict(s) for one pair were kept once`);
+      for (const [pairId, verdict] of judged) {
+        const pair = pairById.get(pairId);
+        if (pair === undefined) continue;
+        const key = pairKey(pair);
+        if (verdictKeySet.has(key)) continue;
+        verdictKeySet.add(key);
+        verdicts.push(verdict);
+        verdictKeys.push(key);
+        usageByPair.set(key, reply.usage);
+      }
+      const missing = sent.filter((pair) => !judged.has(pair.pairId));
+      if (missing.length > 0) {
+        status = 'partial';
+        notes.push(`verification at ${pairLabelOf(pending[0])} judged ${judged.size} of ${sent.length} pairs; the rest are asked again on resume`);
+        await options.onCheckpoint?.(checkpoint());
+        break;
+      }
     } catch (error) {
       if (!(error instanceof MalformedReplyError)) throw error;
       status = 'partial';
       notes.push(`a verification batch was unusable: ${error.message}`);
+      await options.onCheckpoint?.(checkpoint());
+      break;
     }
-    verifiedBatches = index + 1;
+    acknowledge();
     await options.onCheckpoint?.(checkpoint());
   }
 
   // Stage 4: deterministic assembly, then the shared upsert. An llm run never clears findings.
   if (options.yieldToHost !== undefined) await options.yieldToHost();
   const docOrder = new Map(snapshot.scanned.map((scene) => [scene.docId, scene.binderIndex] as const));
-  const assembled = assembleFindings(verdicts, {
+  const current = withCurrentIds();
+  const assembled = assembleFindings(current.verdicts, {
     pairs: pairById,
     entries: entriesOf(state),
     model: model.model,
     docOrder,
     maxFindings: plan.maxFindings,
-    usageByPair,
+    usageByPair: current.usageByPair,
   });
   notes.push(...assembled.notes);
 
