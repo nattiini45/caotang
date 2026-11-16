@@ -532,7 +532,8 @@
           "vo-script-xlsx",
           "show-notes",
           "transcript-md",
-          "teleprompter"
+          "teleprompter",
+          "html"
         ],
         "description": "The output format."
       },

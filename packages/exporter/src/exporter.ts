@@ -26,13 +26,14 @@ import type { ComicLetteringFontLoader, FontLoader } from '@caotang/pdf-fonts';
 import { extensionOfMime, isAssetId, planPicture, finishPassthrough, sniffPicture, PictureRefusal, type ProcessPicture, type PictureBytes } from '@caotang/pictures';
 import type { PictureTranscoder } from './render-contact-sheet.js';
 import { CBZ_MIME, type ComicRasterizer } from './comic-raster.js';
-import type { ImageRef } from './prose.js';
+import { parseProse, type ImageRef } from './prose.js';
 import { figureSourcesOf, formatBytes, resolveFigures, usedAssetFilesOf, type FigureHost, type FigurePack, type FigureRecord } from './figures.js';
 import { copySpec, docxSpec, epubCoverSpec, epubSpec, profileForSource, type FigureTargetSpec } from './picture-profile.js';
 import { createEmitter, isSkippedRendered, splitRendered, type ByteArtifacts, type Emitter, type EmitFailure, type RenderedContents } from './emit.js';
 import type { ExportJob } from './export-job.js';
 import {
   ExportUnavailableError,
+  MediaRefusedError,
   NoPersistentIdentifierError,
   UnknownExportFormatError,
   UnknownRecipeError,
@@ -47,6 +48,7 @@ import { boilerplateFor } from './boilerplate.js';
 import { renderDocx, DOCX_MIME } from './render-docx.js';
 import { renderEpub, EPUB_MIME, type EpubCover, type EpubInput } from './render-epub.js';
 import { XLSX_MIME } from './render-xlsx.js';
+import { renderHtmlArticle, type PublishMeta } from './render-html.js';
 import { renderMarkdown, renderText } from './render-text.js';
 import type { RenderInput } from './render-input.js';
 import { DEFAULT_TEMPLATE_ID, fileStem, resolveTemplate, type ExportTemplate } from './template.js';
@@ -263,6 +265,7 @@ const EXTENSION: Record<ExportFormat, string> = {
   'show-notes': 'md',
   'transcript-md': 'md',
   teleprompter: 'txt',
+  html: 'html',
 };
 
 /**
@@ -298,6 +301,7 @@ export const EXPORT_MIME: Readonly<Record<ExportFormat, string>> = {
   'show-notes': 'text/markdown;charset=utf-8',
   'transcript-md': 'text/markdown;charset=utf-8',
   teleprompter: 'text/plain;charset=utf-8',
+  html: 'text/html;charset=utf-8',
 };
 
 const NO_ASSETS: ReadonlyMap<string, AssetRecord> = new Map();
@@ -444,6 +448,13 @@ export function createExporter(options: ExporterOptions): ExporterService {
       };
     }
 
+    // The HTML article is one file per document (web-publishing.md §3), each named by its slug or its title, each
+    // carrying its publish record. A compile that names no document with a body is refused before anything is reserved.
+    const html = request.format === 'html' ? htmlPlanOf(state, flat.blocks, request.options, metadata.language) : undefined;
+    if (request.format === 'html' && html !== undefined && html.articles.length === 0) {
+      throw new MediaRefusedError('html', ['the selection holds no document with a body, so there is no article to write']);
+    }
+
     // The pictures the bodies place (pictures.md §4): the mode, the assets folder a copy writes beside the file, and the
     // resolution plan (the host, the target's profile and the placements) the render runs.
     const pictures = picturesPlanOf(state, request, flat.blocks, request.base);
@@ -477,7 +488,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
       notes,
     };
 
-    return { kind: 'prose', format: request.format, input, flat, entry, title, epub, at: request.at, base: request.base, pictures: pictures.plan };
+    return { kind: 'prose', format: request.format, input, flat, entry, title, epub, html, at: request.at, base: request.base, pictures: pictures.plan };
   };
 
   /**
@@ -503,7 +514,8 @@ export function createExporter(options: ExporterOptions): ExporterService {
     // EPUB always carries a contents document (nav.xhtml, §3a), so its flag is on
     // whenever it has a chapter or a part to list; the other formats follow the recipe.
     const headings = flat.chapterCount + flat.partCount;
-    const tocIncluded = request.format === 'epub' ? headings > 0 : request.format !== 'txt' && wantToc && headings > 0;
+    // An article has no contents list: the `html` writer writes one file per document, each its own piece.
+    const tocIncluded = request.format === 'epub' ? headings > 0 : request.format !== 'txt' && request.format !== 'html' && wantToc && headings > 0;
 
     const notes: string[] = [...flat.notes];
     if (templateNote !== undefined) notes.push(templateNote);
@@ -816,6 +828,28 @@ export function createExporter(options: ExporterOptions): ExporterService {
    */
   function filesOf(compiled: CompilePlan, proseName: string): RenderedFile[] {
     if (compiled.kind === 'prose') {
+      if (compiled.format === 'html' && compiled.html !== undefined) {
+        const html = compiled.html;
+        return html.articles.map((article) => ({
+          name: `${article.name}.html`,
+          mimeType: EXPORT_MIME.html,
+          render: async () => {
+            const notes: string[] = [];
+            const parsed = parseProse(article.body);
+            const text = renderHtmlArticle({
+              title: article.title,
+              blocks: parsed.blocks,
+              ...(parsed.notes.size === 0 ? {} : { notes: parsed.notes }),
+              ...(article.publish === undefined ? {} : { publish: article.publish }),
+              standalone: html.standalone,
+              frontMatter: html.frontMatter,
+              ...(html.css === undefined ? {} : { css: html.css }),
+              lang: html.lang,
+            });
+            return { contents: text, notes };
+          },
+        }));
+      }
       const files: RenderedFile[] = [{ name: proseName, mimeType: EXPORT_MIME[compiled.format], render: () => renderProse(compiled) }];
       if (compiled.format === 'md' && compiled.pictures?.mode === 'copy') {
         for (const file of usedAssetFilesOf(compiled.flat.blocks)) {
@@ -844,6 +878,43 @@ export function createExporter(options: ExporterOptions): ExporterService {
   }
 
   return exporter;
+}
+
+/**
+ * The documents an `html` compile writes one file each for (web-publishing.md §3): the flat blocks' scenes, named by
+ * the document's slug or its title made safe, each carrying the `publish` record its node holds. Two documents that
+ * resolve to the same stem are told apart by a `-2`/`-3` suffix, so the group reservation never sees a duplicate.
+ */
+function htmlPlanOf(
+  state: ProjectState,
+  blocks: readonly FlatBlock[],
+  options: CompileOptions,
+  language: string | undefined,
+): HtmlPlan {
+  const taken = new Set<string>();
+  const articles: HtmlArticlePlan[] = [];
+  for (const block of blocks) {
+    if (block.kind !== 'scene') continue;
+    const publish = state.manifest.tree.find((node) => node.id === block.docId)?.publish;
+    const stem = fileStem(typeof publish?.['slug'] === 'string' && publish['slug'] !== '' ? publish['slug'] : block.title);
+    let name = stem;
+    for (let n = 2; taken.has(name); n += 1) name = `${stem}-${n}`;
+    taken.add(name);
+    articles.push({
+      name,
+      docId: block.docId,
+      title: block.title,
+      body: block.body,
+      ...(publish === undefined ? {} : { publish }),
+    });
+  }
+  return {
+    standalone: options.htmlMode !== 'fragment',
+    frontMatter: options.frontMatter ?? false,
+    ...(options.css === undefined || options.css === '' ? {} : { css: options.css }),
+    lang: language ?? 'en',
+    articles,
+  };
 }
 
 /** The MIME type of an `assets/` file name, from its extension. */
@@ -1012,6 +1083,29 @@ interface ProsePlan extends PlanCommon {
   readonly pictures?: ProsePictures;
   /** Present for an EPUB only: the identifier and language its package document carries. */
   readonly epub?: EpubFacts;
+  /** Present for the HTML article only: the documents it writes a file each for, and its recipe options (web-publishing.md §3). */
+  readonly html?: HtmlPlan;
+}
+
+/** One document's article file, as the html compile knows it from the flat blocks and the manifest. */
+interface HtmlArticlePlan {
+  /** The file stem, unique within the compile: the document's slug, else its title made safe. */
+  readonly name: string;
+  readonly docId: string;
+  readonly title: string;
+  readonly body: string;
+  /** The document's `publish` record, when it has one (web-publishing.md §2). */
+  readonly publish?: PublishMeta;
+}
+
+/** The HTML article compile's shape: one file per document, under the recipe's frontMatter/htmlMode/css options. */
+interface HtmlPlan {
+  readonly standalone: boolean;
+  readonly frontMatter: boolean;
+  /** The stylesheet address the recipe names, emitted as `<link rel="stylesheet">` (web-publishing.md §3). */
+  readonly css?: string;
+  readonly lang: string;
+  readonly articles: readonly HtmlArticlePlan[];
 }
 
 /** One prose compile's picture resolution: built at plan time (synchronously), run once at render. */

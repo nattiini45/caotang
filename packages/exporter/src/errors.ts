@@ -52,6 +52,8 @@ const MEDIA_FORMAT_NAMES: Readonly<Record<string, string>> = {
   'transcript-md': 'the transcript',
   teleprompter: 'the teleprompter',
   promptpack: 'the prompt pack',
+  // `html` is a prose format, but its per-document gate refuses through this class too: an empty selection names it.
+  html: 'the HTML article',
 };
 
 /**

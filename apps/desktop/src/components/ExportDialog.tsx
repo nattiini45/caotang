@@ -79,6 +79,7 @@ function formatGroups(comicSelected: boolean): readonly { readonly name: string;
       { format: 'txt', label: t`Plain text (.txt)`, help: t`Chapter headings in capitals, scenes set apart by a line.` },
       { format: 'docx', label: t`Word (.docx)`, help: t`Styled headings, and a contents field Word can update.` },
       { format: 'epub', label: t`EPUB (.epub)`, help: t`A reading-system book, one file per chapter.` },
+      { format: 'html', label: t`Web article (.html)`, help: t`One HTML file per document: the article with its publish date, canonical link and description from the Publishing inspector section.` },
     ],
   },
   {

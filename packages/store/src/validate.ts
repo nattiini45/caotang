@@ -205,7 +205,10 @@ function isRecipeOptions(v: unknown): boolean {
     (o['epubKeepWebp'] === undefined || typeof o['epubKeepWebp'] === 'boolean') &&
     (o['keepPictureMetadata'] === undefined || typeof o['keepPictureMetadata'] === 'boolean') &&
     (o['timelinePictures'] === undefined || typeof o['timelinePictures'] === 'boolean') &&
-    (o['notes'] === undefined || o['notes'] === 'footnote' || o['notes'] === 'endnote')
+    (o['notes'] === undefined || o['notes'] === 'footnote' || o['notes'] === 'endnote') &&
+    (o['frontMatter'] === undefined || typeof o['frontMatter'] === 'boolean') &&
+    (o['htmlMode'] === undefined || o['htmlMode'] === 'standalone' || o['htmlMode'] === 'fragment') &&
+    (o['css'] === undefined || typeof o['css'] === 'string')
   );
 }
 
