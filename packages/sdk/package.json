@@ -22,6 +22,7 @@
     "@caotang/pdf-fonts": "workspace:*",
     "@caotang/pictures": "workspace:*",
     "@caotang/store": "workspace:*",
+    "@caotang/tasks": "workspace:*",
     "@caotang/timeline": "workspace:*"
   },
   "scripts": {
