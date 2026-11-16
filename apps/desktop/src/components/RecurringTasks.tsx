@@ -4,7 +4,7 @@
  * task but a click; what is due is offered in `TaskOffers`. The agent has no tool for any of this.
  */
 
-import { useId, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { t } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
@@ -56,21 +56,28 @@ export function RecurringTasksPanel({
   const editSerial = useRef(0);
 
   const startNew = (): void => {
+    if (saving) return;
     editSerial.current += 1;
     setSaving(false);
     setEditing({ id: null, draft: EMPTY_DRAFT, error: null, stepsInvalid: false });
   };
   const edit = (task: TaskRowView): void => {
+    if (saving) return;
     editSerial.current += 1;
     setSaving(false);
     setEditing({ id: task.id, draft: task.draft, error: null, stepsInvalid: false });
   };
+  const focusTarget = useRef<string | null | undefined>(undefined);
   const focusAfterEdit = (id: string | null): void => {
-    requestAnimationFrame(() => {
-      const row = id === null ? null : sectionRef.current?.querySelector<HTMLElement>(`[data-task="${CSS.escape(id)}"] [data-action="edit"]`);
-      (row ?? newTaskRef.current)?.focus();
-    });
+    focusTarget.current = id;
   };
+  useEffect(() => {
+    if (editing !== null || saving || focusTarget.current === undefined) return;
+    const id = focusTarget.current;
+    focusTarget.current = undefined;
+    const row = id === null ? null : sectionRef.current?.querySelector<HTMLElement>(`[data-task="${CSS.escape(id)}"] [data-action="edit"]`);
+    (row ?? newTaskRef.current)?.focus();
+  }, [editing, saving]);
   const cancelEdit = (): void => {
     const id = editing?.id ?? null;
     editSerial.current += 1;
@@ -164,7 +171,7 @@ export function RecurringTasksPanel({
                 Run now
                 <span className="visually-hidden"> {task.name}</span>
               </button>
-              <button type="button" className="button" data-action="edit" onClick={() => edit(task)}>
+              <button type="button" className="button" data-action="edit" disabled={saving} onClick={() => edit(task)}>
                 Edit
                 <span className="visually-hidden"> {task.name}</span>
               </button>
@@ -206,7 +213,7 @@ export function RecurringTasksPanel({
       </ul>
 
       {editing === null ? (
-        <button ref={newTaskRef} type="button" className="button" onClick={startNew} disabled={!status.writable}>
+        <button ref={newTaskRef} type="button" className="button" onClick={startNew} disabled={!status.writable || saving}>
           <Trans>New task</Trans>
         </button>
       ) : (

@@ -207,7 +207,7 @@ test('tasks are the writer’s: they are kept in the project, switched off and d
   await expect(page.getByTestId('recurring-tasks')).toContainText('No tasks yet.');
 });
 
-test('a save in flight holds the form inert until the write settles', async ({ page }) => {
+test('a save in flight holds the form and the rows inert until the write settles', async ({ page }) => {
   test.setTimeout(60_000);
   await createProject(page, 'Held Save');
   await openAgent(page);
@@ -215,6 +215,10 @@ test('a save in flight holds the form inert until the write settles', async ({ p
   const form = page.getByRole('form', { name: 'New task' });
   await form.getByLabel('Task name').fill('Held task');
   await form.getByLabel('What it does').selectOption({ label: 'Scan for continuity problems' });
+  await form.getByRole('button', { name: 'Save task' }).click();
+  const row = page.getByTestId('recurring-tasks').locator('[data-task]');
+  await expect(row).toHaveCount(1);
+
   await page.evaluate(async () => {
     const path = '/src/app/recurring-tasks.ts';
     const mod = await import(path) as typeof RecurringModule;
@@ -226,14 +230,18 @@ test('a save in flight holds the form inert until the write settles', async ({ p
       return gate.then(() => original.apply(this, args));
     };
   });
-  await form.getByRole('button', { name: 'Save task' }).click();
-  await expect(form.getByRole('button', { name: 'Saving…' })).toBeDisabled();
-  await expect(form.getByRole('button', { name: 'Cancel' })).toBeDisabled();
-  await expect(form.getByLabel('Task name')).toBeDisabled();
-  await expect(form).toHaveAttribute('aria-busy', 'true');
+  await row.locator('[data-action="edit"]').click();
+  const editForm = page.getByRole('form', { name: 'Edit task' });
+  await editForm.getByLabel('Task name').fill('Held task renamed');
+  await editForm.getByRole('button', { name: 'Save task' }).click();
+  await expect(editForm.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+  await expect(editForm.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+  await expect(editForm.getByLabel('Task name')).toBeDisabled();
+  await expect(editForm).toHaveAttribute('aria-busy', 'true');
+  await expect(row.locator('[data-action="edit"]')).toBeDisabled();
   await page.evaluate(() => (window as unknown as { __releaseTaskSave: () => void }).__releaseTaskSave());
-  await expect(page.getByTestId('recurring-tasks').locator('[data-task]')).toHaveCount(1);
-  await expect(page.getByRole('form', { name: 'New task' })).toHaveCount(0);
+  await expect(page.getByRole('form', { name: 'Edit task' })).toHaveCount(0);
+  await expect(row).toContainText('Held task renamed');
 });
 
 for (const language of ['en', 'de'] as const) {
