@@ -3,8 +3,9 @@
  * it. A committed copy that no longer matches the production tree names the wrong packages, so this guard regenerates the
  * document and compares. When it fails, run `node tools/third-party-notices.mjs --write` and commit the result.
  */
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -31,22 +32,28 @@ describe('THIRD-PARTY-NOTICES.md', () => {
   }, 120_000);
 
   // hash.js 1.1.7 and isarray 1.0.0 ship no license file; their READMEs carry the license, and its copyright line must
-  // travel with the copy.
+  // travel with the copy. The overrides are keyed by name@version, so a bare fixture directory exercises the same path
+  // whether or not the package sits in the current dependency tree.
   it.each([
     ['hash.js', '1.1.7', 'Copyright Fedor Indutny, 2014.'],
     ['isarray', '1.0.0', 'Copyright (c) 2013 Julian Gruber'],
   ])('carries the README license section of %s@%s with its copyright line', (name, version, copyright) => {
-    const path = resolve(repoRoot, 'node_modules/.pnpm', `${name}@${version}`, 'node_modules', name);
-    const described = describePackage({ name, version, path });
-    expect(described.files).toHaveLength(1);
-    expect(described.files[0]?.name).toBe('README (licence section)');
-    expect(described.files[0]?.text).toContain(copyright);
-    expect(described.files[0]?.text).toContain('Permission is hereby granted, free of charge');
-    // The rendered document carries it under the package's own heading.
-    const rendered = renderNotices([described]);
-    expect(rendered).toContain(`### ${name}@${version}`);
-    expect(rendered).toContain(copyright);
-    expect(rendered).not.toContain('This package ships no license file.');
+    const path = mkdtempSync(join(tmpdir(), `notices-${name}-`));
+    try {
+      writeFileSync(join(path, 'package.json'), JSON.stringify({ name, version, license: 'MIT' }));
+      const described = describePackage({ name, version, path });
+      expect(described.files).toHaveLength(1);
+      expect(described.files[0]?.name).toBe('README (licence section)');
+      expect(described.files[0]?.text).toContain(copyright);
+      expect(described.files[0]?.text).toContain('Permission is hereby granted, free of charge');
+      // The rendered document carries it under the package's own heading.
+      const rendered = renderNotices([described]);
+      expect(rendered).toContain(`### ${name}@${version}`);
+      expect(rendered).toContain(copyright);
+      expect(rendered).not.toContain('This package ships no license file.');
+    } finally {
+      rmSync(path, { recursive: true, force: true });
+    }
   });
 
   it('names only bundled files that exist, each where the notices say it ships', () => {

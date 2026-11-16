@@ -205,11 +205,12 @@ describe('the DOCX renderer — loaded lazily, and pinned', () => {
     // The spec names no version to pin. exporter.md §7-E1 records 9.5.2 and the later 9.8.1 and 9.9.0 as upstream facts,
     // and it leaves the choice to the renderer-fidelity benchmark, which has not run. What this test holds is the pin
     // this build ships ahead of that benchmark: one exact version, so a range can never move the renderer under a
-    // benchmark that has not run.
+    // benchmark that has not run. The pin moved to 9.15.4 for #446 (the TOC1–TOC9 style fix LibreOffice needs and Word's
+    // "Update Table" offer), and it moved once, exactly, rather than to a range.
     const manifest = JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as {
       dependencies: Record<string, string>;
     };
-    expect(manifest.dependencies['docx']).toBe('9.9.0');
+    expect(manifest.dependencies['docx']).toBe('9.15.4');
     expect(manifest.dependencies['docx']).not.toMatch(/^[\^~]/);
   });
 });
