@@ -72,7 +72,7 @@ A chapter has a heading and a scene has none: below the chapter the body is one 
 |---|---|---|
 | Markdown | `## {partLabel}` | `### {chapterLabel}`; a `section` scene one level below its chapter; contents indented under the part |
 | TXT | the part label in capitals | `CHAPTER n. TITLE` as before |
-| DOCX | `Heading 1`, page break before | `Heading 2`, page break before; a `section` scene `Heading 3`; the TOC field's range reaches the deepest level used (`1-2` with no section scenes, `1-3` with them), and `Heading 3`–`6` and `TOC3`–`TOC6` are defined only when used |
+| DOCX | `Heading 1`, page break before | `Heading 2`, page break before; a `section` scene `Heading 3`; the TOC field's range reaches the deepest level used (`1-2` with no section scenes, `1-3` with them). Caotang's own `Heading 3`–`6` and `TOC3`–`TOC6` style definitions are emitted only when used, and take precedence over docx 9.15's built-in `Heading 3`–`6` and `TOC1`–`TOC9` styles, which every file now carries so LibreOffice indents a regenerated table's levels |
 | EPUB | its own XHTML file, `epub:type="part"`, holding any scene filed directly in the part | a chapter file each; `nav.xhtml` nests them in an `ol` inside the part's `li`, and `toc.ncx` nests their `navPoint`s, with `dtb:depth` set to the depth |
 | Fountain, FDX, PDF | a `#` section line, as every folder already was (screenplay.md §2.2) | unchanged |
 
