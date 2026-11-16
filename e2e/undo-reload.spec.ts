@@ -112,7 +112,7 @@ test('caotang-app is upgraded from version 1 with the journal, skill review and 
       }),
   );
   // Version 3 added the writer's skill reviews (app-db.ts); the upgrade adds a store and touches none of the others.
-  expect(after.version).toBe(4);
-  expect(after.stores).toEqual(['editor-history', 'editor-history-meta', 'kv', 'skill-reviews', 'task-runs']);
+  expect(after.version).toBe(5);
+  expect(after.stores).toEqual(['editor-history', 'editor-history-meta', 'kv', 'skill-reviews', 'task-consents', 'task-runs']);
   expect(after.row).toEqual({ key: 'version-one-row', value: { kept: true } });
 });

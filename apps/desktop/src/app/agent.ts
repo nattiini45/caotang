@@ -139,6 +139,8 @@ import { textDigest, type RestorePlan } from '@caotang/bus';
 import { TaskQueue, type TaskAgent, type TaskReviewRunner, type EnqueueResult } from './task-queue.js';
 import { announcementFor, viewOf, type TaskView } from './task-model.js';
 import { TaskStore, type TaskRecord, type TaskReviewReport } from './task-store.js';
+import { bodyHash, effectiveMode, effectiveWhenDue, type AgentTask } from '@caotang/tasks';
+import { TaskConsents } from './task-consents.js';
 import { freezeDeep, reviewCallCap, type QueuedReviewApproval, type QueuedReviewPrepared, type QueuedReviewPreview, type QueuedReviewRoute } from './queued-review.js';
 import type { ReviewChoice } from './coherence-review.js';
 import type * as LazyHarness from './lazy-harness.js';
@@ -530,9 +532,10 @@ export class AgentController {
     this.tasks = new TaskQueue({
       projectId: session.projectId,
       store: background.store ?? new TaskStore(),
-      agentFor: (_task, sessionId, maxModelCalls) => this.agentForTask(sessionId, maxModelCalls),
+      agentFor: (task, sessionId, maxModelCalls) => this.agentForTask(sessionId, maxModelCalls, task),
       reviewFor: (task, sessionId) => this.reviewRunnerFor(task, sessionId),
       foregroundBusy: () => this.busy,
+      callCap: (task) => task.recurringTaskId === undefined ? task.cap : Math.min(task.cap, this.agentSettings().budget.maxModelCalls ?? 8),
       ...(background.locksAvailable === undefined ? {} : { locksAvailable: background.locksAvailable }),
       ...(background.sleep === undefined ? {} : { sleep: background.sleep }),
     });
@@ -2506,7 +2509,13 @@ export class AgentController {
       return null;
     }
     const { task, review } = found;
-    const report = await this.turnWith(task.intent, task.contextOverrides === undefined ? {} : { contextOverrides: task.contextOverrides }, (agent, turn) =>
+    const currentTask = this.session.tasksHome()?.current().tasks.find((entry) => entry.id === task.recurringTaskId);
+    const options = {
+      ...(task.contextOverrides === undefined ? {} : { contextOverrides: task.contextOverrides }),
+      ...(task.recurringPermission === undefined ? {} : { mode: effectiveMode(task.recurringPermission, effectiveMode(currentTask?.permission ?? task.recurringPermission), this.settingMode(), this.mode()) }),
+      ...(task.recurringTaskId === undefined ? {} : { role: 'background' as const, maxModelCalls: task.cap }),
+    };
+    const report = await this.turnWith(task.intent, options, (agent, turn) =>
       agent.submitStaged(task.intent, { steps: review.steps }, review.proposals, review.revisions, turn),
     );
     const hasDraftToApply = review.proposals.some((proposal) => proposal !== undefined);
@@ -2715,6 +2724,20 @@ export class AgentController {
 
   async acknowledgeReviewTask(id: string): Promise<void> {
     await this.tasks.acknowledge(id);
+  }
+
+  /**
+   * Stages a consented recurring task's plan in the background queue (agent-harness §12): the task's call cap is the queue's cap, and the
+   * record names the recurring task so its run can be recorded when staging settles. Nothing applies; the drafts wait in the Inbox.
+   */
+  async queueRecurringPlan(task: AgentTask, signal?: AbortSignal): Promise<EnqueueResult> {
+    if (task.body.kind !== 'plan') return { ok: false, reason: t`Only a plan can stage its results in the Inbox.` };
+    const consent = (await TaskConsents.open(this.session.projectId)).get(task.id);
+    const current = this.session.tasksHome()?.current().tasks.find((entry) => entry.id === task.id);
+    if (current === undefined || !current.enabled || bodyHash(current) !== bodyHash(task) || effectiveWhenDue(current, consent) !== 'run') {
+      return { ok: false, reason: t`This task is no longer allowed to start by itself. Review its allowance before running it again.` };
+    }
+    return this.tasks.enqueue(task.name, task.body.steps, undefined, undefined, signal, { taskId: task.id, cap: task.maxModelCalls ?? 1, hash: bodyHash(task), permission: task.permission });
   }
 
   private reviewOfferFor(step: PlanStep, plan: ReviewPlan): PlanOfferReview | undefined {
@@ -2984,7 +3007,19 @@ export class AgentController {
   }
 
   /** The session a task is staged with: the Background role's profile, the task's id as its name, and no way to decide a card. */
-  private async agentForTask(sessionId: string, maxModelCalls: number): Promise<TaskAgent | string> {
+  private async agentForTask(sessionId: string, maxModelCalls: number, task?: TaskRecord): Promise<TaskAgent | string> {
+    const consent = task?.recurringTaskId === undefined ? undefined : (await TaskConsents.open(this.session.projectId)).get(task.recurringTaskId);
+    const fence = (): void => {
+      if (task?.recurringTaskId === undefined) return;
+      const current = this.session.tasksHome()?.current().tasks.find((entry) => entry.id === task.recurringTaskId);
+      if (current === undefined || !current.enabled || current.body.kind !== 'plan' || bodyHash(current) !== task.recurringHash
+        || bodyHash({ ...current, body: { kind: 'plan', steps: task.steps } }) !== task.recurringHash
+        || current.permission !== task.recurringPermission || (current.maxModelCalls ?? 1) !== task.cap
+        || effectiveWhenDue(current, consent) !== 'run') {
+        throw new Error(t`This task is no longer allowed to start by itself. Review its allowance before running it again.`);
+      }
+    };
+    fence();
     const resolved = this.providers.resolveForRole?.('background');
     const profile = resolved?.profile ?? this.providers.active();
     if (profile === undefined) return noProviderText();
@@ -2992,7 +3027,11 @@ export class AgentController {
     const [loop, harness] = await Promise.all([loadHarnessModule(), this.session.harnessReady()]);
     return loop.createAgentSession({
       harness,
-      gateway: this.providers.gateway,
+      gateway: {
+        ...this.providers.gateway,
+        complete: (request, signal, beforeSend) => this.providers.gateway.complete(request, signal, () => { fence(); beforeSend?.(); }),
+        completeOnce: (request, signal, beforeSend) => this.providers.gateway.completeOnce(request, signal, () => { fence(); beforeSend?.(); }),
+      },
       pictureOutbox: this.session.pictureOutbox,
       transcribe: (input) => this.session.transcribePictures(input),
       transcriptionRoute: (profileId, model) => this.transcriptionRoute(profileId, model),
@@ -3003,7 +3042,7 @@ export class AgentController {
       role: 'background',
       sessionId,
       usageSessionId: this.sessionId,
-      maxModelCalls,
+      maxModelCalls: Math.min(maxModelCalls, this.agentSettings().budget.maxModelCalls ?? 8),
       clock: this.clock,
       trace: this.traceSink,
       loadEveryTool: this.loadEveryTool,

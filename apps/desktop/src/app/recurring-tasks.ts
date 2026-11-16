@@ -3,10 +3,12 @@
  *
  * ## Offered, never sprung
  *
- * A task that is due shows a card with Run now and Skip. Nothing the card offers starts until the writer clicks, with one exception:
- * a `scan` task whose file says `run` starts by itself, because it reads the project, calls no model and sends nothing anywhere
- * (`effectiveWhenDue`). A task that uses a model is offered whatever its file says: the consent a model task would need to start by
- * itself, and a place for an unattended run's results to wait for review, are not part of this build, and the panel says so on the task.
+ * A task that is due shows a card with Run now and Skip. Nothing the card offers starts until the writer clicks, with two exceptions
+ * (`effectiveWhenDue`): a `scan` task whose file says `run` starts by itself, because it reads the project, calls no model and sends
+ * nothing anywhere; and a `plan` task whose file says `run` starts by itself once the writer has allowed exactly that task on this
+ * machine (task-consents.ts, keyed by its `bodyHash`) and it has a call cap. Such a run is staged in the background queue: its drafts
+ * wait in the Inbox for the writer's ordinary approval, and nothing applies by itself. An `intent` task is always offered: planning an
+ * instruction unattended is not built yet (#685), and the panel says so on the task.
  *
  * ## Only while the project is open
  *
@@ -30,6 +32,7 @@ import { recurringRunTable, stepRecurringRun, type RecurringRunState, type Recur
 import { requestInkCompilerFor } from './ink-compiler.js';
 import {
   TASKS_LIMIT,
+  bodyHash,
   checkTask,
   dueTasks,
   effectiveMode,
@@ -38,6 +41,7 @@ import {
   planText,
   readPlanText,
   scheduleWords,
+  selfStartProblem,
   usesModel,
   type AgentTask,
   type TaskBody,
@@ -51,23 +55,28 @@ import {
 
 import type { AgentController } from './agent.js';
 import type { ProjectSession } from './session.js';
+import { TaskConsents } from './task-consents.js';
 import { TaskRuns } from './task-runs.js';
 import type { TasksStatus } from './tasks-io.js';
 
 /** How often the due tasks are looked at while the tab is visible. */
 export const EVALUATE_EVERY_MS = 60_000;
 
-/** The sentence a task saved as `run` with a model gets in the panel. */
-export const SELF_START_NOTE = 'Starting by itself is not built for tasks that use the model yet, so this one is offered when it is due.';
+/** The sentence an instruction saved as `run` gets in the panel: planning it unattended is not built yet. */
+export function selfStartNote(): string {
+  return t`An instruction needs a plan before it can start by itself. Give this task a plan, or run it when it is offered.`;
+}
 
 /** A valid first plan for the editor: a scan step, so a writer who chooses Run a plan starts from steps that parse and can edit them. */
 export function planStarter(): string {
   return planText([{ tool: 'coherence.scan', params: { scope: { mode: 'changed' } }, expect: t`A scan is recorded` }]);
 }
 
-/** The same, for a plan, which can change the project whether or not a step calls a model. */
-export function planSelfStartNote(): string {
-  return t`Starting a plan by itself is not built yet, so this one is offered when it is due.`;
+/** What a plan saved as `run` is told about its allowance: none yet, or voided by an edit. */
+export function planSelfStartNote(consent: 'none' | 'stale' = 'none'): string {
+  return consent === 'none'
+    ? t`This plan is offered when it is due. Allow it to start by itself to stage its drafts in the Inbox for your review.`
+    : t`This task changed since you allowed it to start by itself, so it is offered until you allow it again.`;
 }
 
 /** What the writer fills in to make or change a task. Every field is the text of a control. */
@@ -168,6 +177,15 @@ export interface TaskRowView {
   readonly permission: TaskPermission;
   readonly maxModelCalls: number | null;
   readonly running: boolean;
+  /** A consented run of this task is staging its drafts in the background queue. */
+  readonly staging: boolean;
+  /** Whether the task starts by itself as it stands: a scan that says so, or a consented, capped plan. */
+  readonly selfStart: boolean;
+  /** The writer's allowance for this task: none, current, or voided by an edit. `null` for a task that needs none. */
+  readonly consent: 'none' | 'current' | 'stale' | null;
+  /** Whether Allow to start by itself can be asked for: a capped plan that says `run` and can run. */
+  readonly canAllow: boolean;
+  readonly fingerprint: string;
   readonly history: readonly RunView[];
   readonly draft: TaskDraft;
 }
@@ -200,6 +218,8 @@ export interface RecurringOptions {
   readonly enabledChecks?: () => readonly DeterministicCheckId[];
   /** The histories, when the caller has them open already; otherwise they are read from the app database when the controller attaches. */
   readonly runs?: TaskRuns;
+  /** The consents, when the caller has them open already; otherwise they are read from the app database when the controller attaches. */
+  readonly consents?: TaskConsents;
   readonly now?: () => Date;
   readonly timeZone?: () => string;
   readonly visible?: () => boolean;
@@ -218,14 +238,22 @@ function defaultEvery(tick: () => void, ms: number): () => void {
 
 const cut = (text: string, limit = 280): string => (text.length <= limit ? text : `${text.slice(0, limit - 1).trimEnd()}…`);
 
+/* lingui-set comment="Interpolated values: name" */
+
 export class RecurringTasks {
   private runs: TaskRuns | null;
+  private consents: TaskConsents | null;
   private readonly listeners = new Set<() => void>();
   private snapshotValue: RecurringSnapshot;
   private attached = false;
   /** Counts the attaches, so one that was overtaken by a detach and a new attach (React runs an effect twice in development) does nothing. */
   private generation = 0;
   private runsOpening: Promise<TaskRuns> | null = null;
+  private consentsOpening: Promise<TaskConsents> | null = null;
+  /** Consented runs staging in the background queue: recurring task id to queue task id. Settled ones are recorded and removed. */
+  private recordWork: Promise<void> = Promise.resolve();
+  private readonly starting = new Map<string, AbortController>();
+  private readonly disabling = new Set<string>();
   private opened = false;
   private stopTimer: (() => void) | null = null;
   private stopVisibility: (() => void) | null = null;
@@ -248,6 +276,7 @@ export class RecurringTasks {
 
   constructor(private readonly options: RecurringOptions) {
     this.runs = options.runs ?? null;
+    this.consents = options.consents ?? null;
     this.snapshotValue = this.build();
   }
 
@@ -277,6 +306,12 @@ export class RecurringTasks {
       if (generation !== this.generation) return;
       this.runs = runs;
     }
+    if (this.consents === null) {
+      this.consentsOpening ??= TaskConsents.open(this.options.session.projectId);
+      const consents = await this.consentsOpening;
+      if (generation !== this.generation) return;
+      this.consents = consents;
+    }
     const every = this.options.every ?? defaultEvery;
     this.stopTimer = every(() => void this.tick(), EVALUATE_EVERY_MS);
     // Back in the tab after a while away: look at once rather than at the next minute.
@@ -286,7 +321,10 @@ export class RecurringTasks {
       this.stopVisibility = () => document.removeEventListener('visibilitychange', onVisible);
     }
     // A turn that ends, or a restore, changes what a run's row can offer.
-    this.stopAgent = this.options.agent.subscribe(() => this.bump());
+    this.stopAgent = this.options.agent.subscribe(() => {
+      void this.recordSettledStaging();
+      this.bump();
+    });
     const opening = !this.opened;
     this.opened = true;
     await this.evaluate(opening);
@@ -295,6 +333,7 @@ export class RecurringTasks {
   /** The panel is gone. A run already started finishes and is recorded; nothing new starts. */
   detach(): void {
     this.attached = false;
+    for (const abort of this.starting.values()) abort.abort();
     this.generation += 1;
     this.stopTimer?.();
     this.stopTimer = null;
@@ -317,15 +356,23 @@ export class RecurringTasks {
     return this.file().tasks.find((task) => task.id === id);
   }
 
+  /** Whether this build can start the task unattended: a scan, or a plan with model-backed steps and the cap the consent covers. */
+  private stageable(task: AgentTask): boolean {
+    if (task.body.kind === 'scan') return true;
+    return task.body.kind === 'plan' && selfStartProblem(task) === undefined;
+  }
+
   /**
-   * Looks at what is due. A scan whose file says `run` starts now; every other due task becomes an offer. An offer stays until the writer
-   * runs or skips it, or the task is gone, switched off or no longer readable.
+   * Looks at what is due. A scan whose file says `run` starts now, and so does a consented, capped plan — staged in the background queue,
+   * never applied. Every other due task becomes an offer. An offer stays until the writer runs or skips it, or the task is gone, switched
+   * off or no longer readable. A run already staging is not started again; a staged run from an earlier visit is adopted and recorded.
    */
   async evaluate(opening = false): Promise<void> {
     if (this.runs === null || this.evaluating) return;
     const starting: AgentTask[] = [];
     this.evaluating = true;
     try {
+      await this.recordSettledStaging();
       const file = this.file();
       const now = (this.options.now ?? (() => new Date()))();
       const timeZone = (this.options.timeZone ?? (() => Intl.DateTimeFormat().resolvedOptions().timeZone))();
@@ -334,8 +381,8 @@ export class RecurringTasks {
       // An offer that has gone (run, skipped, removed or switched off) is announced again when its task comes due again.
       for (const id of [...this.announced]) if (!this.offered.has(id)) this.announced.delete(id);
       for (const task of dueTasks(file, this.runs.lastRuns(), now, timeZone, opening)) {
-        if (task.id === this.running) continue;
-        if (effectiveWhenDue(task) === 'run') starting.push(task);
+        if (task.id === this.running || this.isStaging(task.id) || this.disabling.has(task.id)) continue;
+        if (effectiveWhenDue(task, this.consents?.get(task.id)) === 'run' && this.stageable(task)) starting.push(task);
         else if (!this.offered.has(task.id)) this.offered.add(task.id);
       }
       const news = [...this.offered].filter((id) => !this.announced.has(id));
@@ -349,8 +396,75 @@ export class RecurringTasks {
       this.evaluating = false;
     }
     for (const task of starting) {
+      if (task.body.kind === 'plan') {
+        await this.stageTask(task);
+        continue;
+      }
       if (this.running !== null) break;
       await this.runTask(task.id, 'due');
+    }
+  }
+
+  /**
+   * Stages a consented plan's drafts in the background queue. The queue's cap is the task's call cap; nothing applies, and the run is
+   * recorded when staging settles. A refusal offers the task instead and records nothing, so it is still due next time.
+   */
+  private async stageTask(task: AgentTask): Promise<void> {
+    const current = this.taskById(task.id);
+    if (current === undefined || !current.enabled || current.body.kind !== 'plan' || this.isStaging(task.id) || this.disabling.has(task.id)) return;
+    if (effectiveWhenDue(current, this.consents?.get(task.id)) !== 'run') return;
+    const abort = new AbortController();
+    this.starting.set(task.id, abort);
+    this.message = null;
+    let queued: Awaited<ReturnType<AgentController['queueRecurringPlan']>>;
+    try {
+      queued = await this.options.agent.queueRecurringPlan(current, abort.signal);
+    } finally {
+      this.starting.delete(task.id);
+    }
+    if (!queued.ok) {
+      if (queued.cancelled === true) { this.bump(); return; }
+      this.offered.add(task.id);
+      this.message = queued.reason;
+      this.bump();
+      return;
+    }
+    await this.recordSettledStaging();
+    this.offered.delete(task.id);
+    this.announcement = t`${{ name: task.name }} is staging its drafts in the background. They will wait in the Inbox for your review.`;
+    this.bump();
+  }
+
+  private recordSettledStaging(): Promise<void> {
+    this.recordWork = this.recordWork.catch(() => undefined).then(async () => {
+      if (this.runs === null) return;
+      for (const view of this.options.agent.taskViews()) {
+        const taskId = view.recurringTaskId;
+        if (taskId === null || this.taskById(taskId) === undefined) continue;
+        const status: TaskRunRecord['status'] =
+          view.status === 'ready' ? 'ready' : view.status === 'applied' || view.status === 'completed' ? 'done'
+          : view.status === 'failed' ? 'failed' : view.status === 'cancelled' || view.status === 'interrupted' ? 'stopped' : 'queued';
+        const record = this.recordOf({ id: taskId }, 'due', status, view.statusText, {
+          at: new Date(view.createdAt).toISOString(), queueTaskId: view.id,
+          requests: view.used, promptTokens: view.promptTokens, completionTokens: view.completionTokens,
+        });
+        const previous = this.runs.history(taskId).find((run) => run.queueTaskId === view.id);
+        if (JSON.stringify(previous) !== JSON.stringify(record)) await this.runs.record(record);
+      }
+      this.bump();
+    });
+    return this.recordWork;
+  }
+
+  private isStaging(taskId: string): boolean {
+    return this.starting.has(taskId) || this.options.agent.taskViews().some((view) =>
+      view.recurringTaskId === taskId && ['queued', 'starting', 'running', 'cancelling', 'interrupted'].includes(view.status));
+  }
+
+  private async cancelStaging(taskId: string): Promise<void> {
+    this.starting.get(taskId)?.abort();
+    for (const view of this.options.agent.taskViews()) {
+      if (view.recurringTaskId === taskId && view.canCancel) await this.options.agent.cancelTask(view.id);
     }
   }
 
@@ -363,6 +477,7 @@ export class RecurringTasks {
   async skip(id: string): Promise<void> {
     const task = this.taskById(id);
     if (task === undefined || this.runs === null) return;
+    await this.cancelStaging(id);
     this.offered.delete(id);
     await this.runs.record({
       taskId: id,
@@ -382,7 +497,7 @@ export class RecurringTasks {
     const task = this.taskById(id);
     if (task === undefined || this.runs === null) return;
     this.message = null;
-    if (this.running !== null) {
+    if (this.running !== null || this.isStaging(id)) {
       this.message = 'Another task is running. Run this one when it has finished.';
       this.bump();
       return;
@@ -433,7 +548,7 @@ export class RecurringTasks {
     }
   }
 
-  private recordOf(task: AgentTask, trigger: TaskRunRecord['trigger'], status: TaskRunRecord['status'], summary: string, extra: Partial<TaskRunRecord> = {}): TaskRunRecord {
+  private recordOf(task: { readonly id: string }, trigger: TaskRunRecord['trigger'], status: TaskRunRecord['status'], summary: string, extra: Partial<TaskRunRecord> = {}): TaskRunRecord {
     return {
       taskId: task.id,
       at: (this.options.now ?? (() => new Date()))().toISOString(),
@@ -525,6 +640,11 @@ export class RecurringTasks {
     if (draft.maxModelCalls.trim() !== '' && !/^\d+$/.test(draft.maxModelCalls.trim())) return 'Limit model calls to a whole number from 1 to 100.';
     const refusal = checkTask(task);
     if (refusal !== undefined) return refusal;
+    if (existing !== undefined && bodyHash(existing) !== bodyHash(task)) {
+      await this.cancelStaging(task.id);
+      const revokeFailure = await this.consents?.revoke(task.id);
+      if (revokeFailure !== undefined && revokeFailure !== null) return revokeFailure;
+    }
     const failure = await home.save({ ...file, tasks: existing === undefined ? [...file.tasks, task] : file.tasks.map((entry) => (entry.id === task.id ? task : entry)) });
     this.bump();
     return failure;
@@ -534,9 +654,14 @@ export class RecurringTasks {
     const home = this.options.session.tasksHome();
     const file = this.file();
     if (home === null || !file.tasks.some((task) => task.id === id)) return 'That task is gone.';
-    const failure = await home.save({ ...file, tasks: file.tasks.map((task) => (task.id === id ? { ...task, enabled } : task)) });
-    this.bump();
-    return failure;
+    if (!enabled) this.disabling.add(id);
+    try {
+      if (!enabled) await this.cancelStaging(id);
+      return await home.save({ ...file, tasks: file.tasks.map((task) => (task.id === id ? { ...task, enabled } : task)) });
+    } finally {
+      this.disabling.delete(id);
+      this.bump();
+    }
   }
 
   async remove(id: string): Promise<string | null> {
@@ -549,8 +674,50 @@ export class RecurringTasks {
       return this.message;
     }
     this.offered.delete(id);
+    await this.cancelStaging(id);
+    const revokeFailure = await this.consents?.revoke(id);
+    if (revokeFailure !== undefined && revokeFailure !== null) return revokeFailure;
     const failure = await home.save({ ...file, tasks: file.tasks.filter((task) => task.id !== id) });
+    if (failure !== null) { this.bump(); return failure; }
     await this.runs?.forget(id);
+    await this.consents?.forget(id);
+    this.bump();
+    return failure;
+  }
+
+  /**
+   * The writer allows this task to start by itself, as it stands now: the consent names its body hash, so an edit to what it does, when,
+   * with what permission or under what cap voids it. Only a capped plan that says `run` can be allowed; a scan needs no allowance, and an
+   * instruction cannot start by itself yet. Resolves with why it was not kept, or `null`.
+   */
+  async allowSelfStart(id: string, expectedHash: string): Promise<string | null> {
+    const task = this.taskById(id);
+    if (task === undefined || this.consents === null) return 'That task is gone.';
+    if (bodyHash(task) !== expectedHash) return t`This task changed while its allowance was open. Review it again before allowing it.`;
+    if (task.body.kind !== 'plan' || selfStartProblem(task) !== undefined || task.whenDue !== 'run') {
+      return t`Only an eligible plan set to start by itself can be allowed. Model plans also need a call limit.`;
+    }
+    const failure = await this.consents.grant(id, bodyHash(task), (this.options.now ?? (() => new Date()))().toISOString());
+    const current = this.taskById(id);
+    if (failure === null && (current === undefined || bodyHash(current) !== expectedHash)) {
+      const revokeFailure = await this.consents.revoke(id);
+      this.bump();
+      return revokeFailure ?? t`This task changed while its allowance was open. Review it again before allowing it.`;
+    }
+    if (failure === null) this.announcement = t`${{ name: task.name }} may start by itself. Its drafts will wait in the Inbox for your review.`;
+    this.bump();
+    return failure;
+  }
+
+  /** Takes the allowance back: the task is offered when due again. Resolves with why it was not taken back, or `null`. */
+  async revokeSelfStart(id: string): Promise<string | null> {
+    if (this.consents === null) return null;
+    await this.cancelStaging(id);
+    const failure = await this.consents.revoke(id);
+    if (failure === null) {
+      const task = this.taskById(id);
+      if (task !== undefined) this.announcement = t`${{ name: task.name }} is offered when it is due again.`;
+    }
     this.bump();
     return failure;
   }
@@ -592,6 +759,11 @@ export class RecurringTasks {
         ...run,
         canRestore: run.turnId !== undefined && agent.canRestore(run.turnId),
       }));
+      const held = this.consents?.get(task.id);
+      const consent: 'none' | 'current' | 'stale' | null =
+        task.whenDue !== 'run' || task.body.kind === 'scan' ? null : held === undefined ? 'none' : held.hash === bodyHash(task) ? 'current' : 'stale';
+      const problem = task.problem ?? checkTask(task) ?? null;
+      const selfStart = effectiveWhenDue(task, held) === 'run' && this.stageable(task);
       return {
         id: task.id,
         name: task.name,
@@ -600,11 +772,23 @@ export class RecurringTasks {
         doing: this.doing(task),
         schedule: scheduleWords(task.schedule),
         usesModel: model,
-        problem: task.problem ?? checkTask(task) ?? null,
-        note: task.whenDue === 'run' && effectiveWhenDue(task) === 'offer' ? (task.body.kind === 'plan' ? planSelfStartNote() : model ? SELF_START_NOTE : null) : null,
+        problem,
+        note:
+          task.whenDue !== 'run'
+            ? null
+            : task.body.kind === 'intent'
+              ? selfStartNote()
+              : task.body.kind === 'plan' && consent !== 'current'
+                ? selfStartProblem(task) ?? planSelfStartNote(consent === 'stale' ? 'stale' : 'none')
+                : null,
         permission: task.permission,
         maxModelCalls: task.maxModelCalls ?? null,
         running: this.running === task.id,
+        staging: this.isStaging(task.id),
+        selfStart,
+        consent,
+        canAllow: task.whenDue === 'run' && task.body.kind === 'plan' && selfStartProblem(task) === undefined && problem === null,
+        fingerprint: bodyHash(task),
         history,
         draft: draftOf(task),
       };

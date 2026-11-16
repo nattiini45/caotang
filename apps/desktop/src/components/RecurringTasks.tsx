@@ -4,14 +4,14 @@
  * task but a click; what is due is offered in `TaskOffers`. The agent has no tool for any of this.
  */
 
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { lazy, Suspense, useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { t } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 
 import { WEEKDAYS, readPlanText } from '@caotang/tasks';
 
-import { EMPTY_DRAFT, planSelfStartNote, planStarter, SELF_START_NOTE, type RecurringTasks, type RunView, type TaskDraft, type TaskRowView } from '../app/recurring-tasks.js';
+import { EMPTY_DRAFT, planSelfStartNote, planStarter, selfStartNote, type RecurringTasks, type RunView, type TaskDraft, type TaskRowView } from '../app/recurring-tasks.js';
 import { ConfirmDialog } from './shared.js';
 import { DATE_AND_TIME, formatCount, formatDateTime } from '../i18n/locale.js';
 import './recurring-tasks.css';
@@ -19,6 +19,9 @@ import './recurring-tasks.css';
 const WEEKDAY_NAMES = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' } as const;
 
 const STATUS_WORDS = { done: 'Done', failed: 'Failed', stopped: 'Stopped', skipped: 'Skipped' } as const;
+const TaskAllowanceDialog = lazy(() => import('./TaskAllowanceDialog.js'));
+
+/* lingui-set comment="Interpolated values: calls" */
 
 function usedWords(run: RunView): string {
   if (run.requests === 0) return 'no model calls';
@@ -50,6 +53,11 @@ export function RecurringTasksPanel({
   const [restoring, setRestoring] = useState<{ readonly turnId: string; readonly name: string } | null>(null);
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [allowing, setAllowing] = useState<TaskRowView | null>(null);
+  const [allowanceLoaded, setAllowanceLoaded] = useState(false);
+  const [revoking, setRevoking] = useState<string | null>(null);
+  const [allowanceError, setAllowanceError] = useState<string | null>(null);
+  const allowanceTaskId = useRef<string | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
   const newTaskRef = useRef<HTMLButtonElement | null>(null);
   const stepsRef = useRef<HTMLTextAreaElement | null>(null);
@@ -68,11 +76,17 @@ export function RecurringTasksPanel({
     setEditing({ id: task.id, draft: task.draft, error: null, stepsInvalid: false });
   };
   const focusTarget = useRef<string | null | undefined>(undefined);
+  const focusInvalidSteps = useRef(false);
   const focusAfterEdit = (id: string | null): void => {
     focusTarget.current = id;
   };
   useEffect(() => {
-    if (editing !== null || saving || focusTarget.current === undefined) return;
+    if (saving) return;
+    if (focusInvalidSteps.current) {
+      focusInvalidSteps.current = false;
+      if (editing?.stepsInvalid === true) stepsRef.current?.focus();
+    }
+    if (editing !== null || focusTarget.current === undefined) return;
     const id = focusTarget.current;
     focusTarget.current = undefined;
     const row = id === null ? null : sectionRef.current?.querySelector<HTMLElement>(`[data-task="${CSS.escape(id)}"] [data-action="edit"]`);
@@ -102,8 +116,8 @@ export function RecurringTasksPanel({
         return;
       }
       const stepsInvalid = session.draft.body === 'plan' && !readPlanText(session.draft.steps).ok;
+      focusInvalidSteps.current = stepsInvalid;
       setEditing((now) => (now === null ? now : { ...now, error: failure, stepsInvalid }));
-      if (stepsInvalid) requestAnimationFrame(() => stepsRef.current?.focus());
     });
   };
 
@@ -124,10 +138,9 @@ export function RecurringTasksPanel({
     <section ref={sectionRef} className="recurring" aria-label={t`Recurring tasks`} data-testid="recurring-tasks">
       <Heading><Trans>Recurring tasks</Trans></Heading>
       <p className="recurring-note muted">
-        A task runs only while this project is open in a visible tab. When one is due you are offered it, and a continuity scan, which reads
-        your project and calls no model, may start by itself. Tasks live in tasks.json beside caotang.json; when each last ran is kept in
-        this browser only.
+        <Trans>Tasks run only while this project is open in a visible tab. Scans may start by themselves. Plans need your allowance on this browser; their drafts wait in the Inbox for review. Instructions are offered when due.</Trans>
       </p>
+      {allowanceError === null ? null : <p className="form-message is-error" role="alert">{allowanceError}</p>}
       {status.notices.length > 0 ? (
         <ul className="recurring-notices" aria-label="About the tasks file">
           {status.notices.map((notice) => (
@@ -157,7 +170,7 @@ export function RecurringTasksPanel({
             <p className="recurring-task-title">
               <strong>{task.name}</strong>
               {task.enabled ? null : <span className="recurring-off"> (off)</span>}
-              {task.running ? <span className="recurring-running"> Running…</span> : null}
+              {task.running ? <span className="recurring-running"> Running…</span> : task.staging ? <span className="recurring-running"><Trans> Preparing drafts…</Trans></span> : null}
             </p>
             <p className="recurring-task-meta muted">
               {task.schedule} · {task.doing} · {task.usesModel ? 'Uses the model' : 'Calls no model'} ·{' '}
@@ -166,8 +179,9 @@ export function RecurringTasksPanel({
             </p>
             {task.problem === null ? null : <p className="recurring-problem">{task.problem}</p>}
             {task.note === null ? null : <p className="recurring-task-meta">{task.note}</p>}
+            {task.consent === 'current' && task.selfStart ? <p className="recurring-task-meta"><Trans>Allowed on this browser. Nothing is applied automatically.</Trans></p> : null}
             <div className="recurring-actions">
-              <button type="button" className="button" disabled={snapshot.running !== null || task.problem !== null} onClick={() => void recurring.runNow(task.id)}>
+              <button type="button" className="button" disabled={snapshot.running !== null || task.staging || task.problem !== null} onClick={() => void recurring.runNow(task.id)}>
                 Run now
                 <span className="visually-hidden"> {task.name}</span>
               </button>
@@ -183,6 +197,19 @@ export function RecurringTasksPanel({
                 Delete
                 <span className="visually-hidden"> {task.name}</span>
               </button>
+              {task.consent === 'current' ? (
+                <button type="button" className="button" data-action="allow" disabled={revoking !== null} onClick={() => {
+                  setRevoking(task.id);
+                  setAllowanceError(null);
+                  void recurring.revokeSelfStart(task.id).then((failure) => { setAllowanceError(failure); setRevoking(null); });
+                }}>
+                  <Trans>Revoke automatic starts</Trans><span className="visually-hidden"> {task.name}</span>
+                </button>
+              ) : task.canAllow ? (
+                <button type="button" className="button" data-action="allow" disabled={saving || revoking !== null} onClick={() => { allowanceTaskId.current = task.id; setAllowanceLoaded(true); setAllowing(task); }}>
+                  <Trans>Allow automatic starts</Trans><span className="visually-hidden"> {task.name}</span>
+                </button>
+              ) : null}
             </div>
             {task.history.length === 0 ? null : (
               <details className="recurring-history">
@@ -192,7 +219,7 @@ export function RecurringTasksPanel({
                 <ol aria-label={`Runs of ${task.name}`}>
                   {task.history.map((run) => (
                     <li key={`${run.at}:${run.status}`} data-status={run.status}>
-                      <span className="recurring-run-when">{formatDateTime(new Date(run.at), DATE_AND_TIME)}</span> — <strong>{STATUS_WORDS[run.status]}</strong>
+                      <span className="recurring-run-when">{formatDateTime(new Date(run.at), DATE_AND_TIME)}</span> — <strong>{run.status === 'queued' ? t`Preparing drafts` : run.status === 'ready' ? t`Ready in Inbox` : STATUS_WORDS[run.status]}</strong>
                       {run.trigger === 'manual' ? ' (started by you)' : ''}. {run.summary}{' '}
                       <span className="muted">({usedWords(run)})</span>
                       {run.canRestore && run.turnId !== undefined ? (
@@ -233,9 +260,16 @@ export function RecurringTasksPanel({
           restore.
         </p>
       </ConfirmDialog>
+      <Suspense fallback={<p role="status">{t`Opening allowance…`}</p>}>
+      {allowanceLoaded ? <TaskAllowanceDialog task={allowing} recurring={recurring} onClose={() => setAllowing(null)} finalFocus={() => {
+        const id = allowanceTaskId.current;
+        return id === null ? newTaskRef.current : sectionRef.current?.querySelector<HTMLElement>(`[data-task="${CSS.escape(id)}"] [data-action="allow"]`) ?? newTaskRef.current;
+      }} /> : null}
+      </Suspense>
     </section>
   );
 }
+
 
 function TaskForm({
   editing,
@@ -337,7 +371,7 @@ function TaskForm({
           <option value="run">Start it by itself</option>
         </select>
       </label>
-      {draft.whenDue === 'run' && draft.body !== 'scan' ? <p className="muted">{draft.body === 'plan' ? planSelfStartNote() : SELF_START_NOTE}</p> : null}
+      {draft.whenDue === 'run' && draft.body !== 'scan' ? <p className="muted">{draft.body === 'plan' ? planSelfStartNote() : selfStartNote()}</p> : null}
       <label>
         <span>What it may do</span>
         <select aria-label="What it may do" value={draft.permission} onChange={(event) => set({ permission: event.target.value as TaskDraft['permission'] })}>

@@ -12,7 +12,7 @@
 
 import { MODEL_BACKED_TOOLS, contextOverridesOk, estimatedStepCalls, mergePreviews, stagedOf, type ContextOverrides, type PlanStep, type PromptPreview, type StepRevisions } from '@caotang/harness';
 import { LLM_CATEGORIES, type ReviewCheckpoint } from '@caotang/coherence';
-import { newId } from '@caotang/ids';
+import { isIdWithPrefix, newId } from '@caotang/ids';
 import type { MachineTable } from '@caotang/machine';
 
 import { activeAppDb, type AppDb } from './app-db.js';
@@ -26,7 +26,7 @@ import type { QueuedReviewApproval } from './queued-review.js';
 export type TaskStatus = 'queued' | 'running' | 'ready' | 'failed' | 'cancelled' | 'interrupted' | 'applied' | 'completed';
 
 export type TaskQueueStatus = TaskStatus | 'starting' | 'cancelling';
-export type TaskStatusEvent = 'pump' | 'agent-ready' | 'cancel' | 'close' | 'reload' | 'resume' | 'ready' | 'fail' | 'settle' | 'apply' | 'complete';
+export type TaskStatusEvent = 'pump' | 'agent-ready' | 'cancel' | 'cancel-recovered' | 'close' | 'reload' | 'resume' | 'ready' | 'fail' | 'settle' | 'apply' | 'complete';
 
 export const taskStatusTable: MachineTable<{ kind: TaskQueueStatus }, { type: TaskStatusEvent }> = {
   id: 'task.status',
@@ -37,7 +37,7 @@ export const taskStatusTable: MachineTable<{ kind: TaskQueueStatus }, { type: Ta
     starting: { 'agent-ready': ['running'], cancel: ['cancelling'], close: ['interrupted'], ready: ['ready'], fail: ['failed'], complete: ['completed'] },
     running: { cancel: ['cancelling'], close: ['interrupted'], reload: ['interrupted'], ready: ['ready'], fail: ['failed'], complete: ['completed'] },
     cancelling: { settle: ['cancelled'], complete: ['completed'], ready: ['ready'] },
-    interrupted: { cancel: ['cancelling'], settle: ['interrupted'], resume: ['queued'] },
+    interrupted: { cancel: ['cancelling'], 'cancel-recovered': ['cancelled'], settle: ['interrupted'], resume: ['queued'] },
     ready: { apply: ['applied'] },
     failed: {},
     cancelled: {},
@@ -111,6 +111,11 @@ export interface TaskRecord {
   readonly report?: TaskReviewReport;
   readonly reviewRunId?: string;
   readonly acknowledged?: boolean;
+  /** The recurring task this queued run came from, when a consented due task staged it (agent-harness §12). Its cap is the task's call cap. */
+  readonly recurringTaskId?: string;
+  readonly recurringHash?: string;
+  readonly recurringPermission?: 'read-only' | 'ask';
+  readonly reservedCalls?: number;
 }
 
 /** Finished tasks kept for a project, newest first; the rest are pruned when the project opens. */
@@ -204,6 +209,12 @@ function reviewMetadataOk(value: Record<string, unknown>): boolean {
   if (value['reviewProgress'] !== undefined && (!isObject(value['reviewProgress']) || !isCount(value['reviewProgress']['done']) || !isCount(value['reviewProgress']['total']))) return false;
   if (value['reviewRunId'] !== undefined && typeof value['reviewRunId'] !== 'string') return false;
   if (value['acknowledged'] !== undefined && typeof value['acknowledged'] !== 'boolean') return false;
+  if (value['recurringTaskId'] !== undefined) {
+    if (typeof value['recurringTaskId'] !== 'string' || !isIdWithPrefix('t', value['recurringTaskId'])) return false;
+    if (typeof value['recurringHash'] !== 'string' || !/^[a-f0-9]{64}$/.test(value['recurringHash'])) return false;
+    if (value['recurringPermission'] !== 'read-only' && value['recurringPermission'] !== 'ask') return false;
+    if (value['reservedCalls'] !== undefined && (!isCount(value['reservedCalls']) || (value['reservedCalls'] as number) + (value['used'] as number) > (value['cap'] as number))) return false;
+  } else if (value['recurringHash'] !== undefined || value['recurringPermission'] !== undefined || value['reservedCalls'] !== undefined) return false;
   if ((kind === 'review' || kind === 'mixed') && !reviewApprovalOk(value['review'])) return false;
   const carriesReview = value['review'] !== undefined || value['reviewCheckpoint'] !== undefined || value['report'] !== undefined || value['reviewPhase'] !== undefined || value['reviewProgress'] !== undefined || value['reviewRunId'] !== undefined;
   if (carriesReview && kind !== 'review' && kind !== 'mixed') return false;
@@ -220,6 +231,7 @@ export function asTaskRecord(value: unknown, projectId: string): TaskRecord | un
   for (const field of ['cap', 'used', 'promptTokens', 'completionTokens', 'runs', 'createdAt', 'updatedAt']) {
     if (!isCount(value[field])) return undefined;
   }
+  if (!['createdAt', 'updatedAt'].every((field) => Number.isFinite(new Date(value[field] as number).getTime()))) return undefined;
   const stepsOk = steps.every((step) => isObject(step) && typeof step['tool'] === 'string' && isObject(step['params']) && typeof step['expect'] === 'string' && (step['contextOverrides'] === undefined || contextOverridesOk(step['contextOverrides'])));
   const itemsOk = items.every(
     (item) =>
