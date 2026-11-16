@@ -65,6 +65,8 @@ import { assertSessionRecord, type SessionRecord } from '../sessions.js';
 
 export const RUNTIME_DB_NAME = 'caotang';
 /**
+ * 6: `goalRuns` holds durable goal checkpoints and their conversation ownership.
+ *
  * 5: `agentSessions` holds conversation metadata referencing settled runs. Upgrades
  * from shipped versions add missing stores without rewriting existing records.
  *
@@ -74,7 +76,7 @@ export const RUNTIME_DB_NAME = 'caotang';
  * 3: the `snapshots` object store joined `projects`, `documents` and
  * `sessions`.
  */
-export const RUNTIME_DB_VERSION = 5;
+export const RUNTIME_DB_VERSION = 6;
 
 /** The manifest — structural truth, vocabulary, codex (§2). */
 export const PROJECT_STORE = 'projects';
@@ -129,6 +131,8 @@ export const RUN_EVENT_STORE = 'runEvents';
 export const RUN_EVENT_RUN_INDEX = 'byRun';
 export const AGENT_SESSION_STORE = 'agentSessions';
 export const AGENT_SESSION_PROJECT_INDEX = 'byProject';
+export const GOAL_RUN_STORE = 'goalRuns';
+export const GOAL_RUN_PROJECT_INDEX = 'byProject';
 
 export interface ProjectRow {
   id: string;
@@ -594,6 +598,10 @@ export function openRuntimeStore(
       if (!db.objectStoreNames.contains(AGENT_SESSION_STORE)) {
         const sessions = db.createObjectStore(AGENT_SESSION_STORE, { keyPath: ['projectId', 'sessionId'] });
         sessions.createIndex(AGENT_SESSION_PROJECT_INDEX, 'projectId', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(GOAL_RUN_STORE)) {
+        const goals = db.createObjectStore(GOAL_RUN_STORE, { keyPath: 'goalId' });
+        goals.createIndex(GOAL_RUN_PROJECT_INDEX, 'projectId', { unique: false });
       }
     };
     request.onsuccess = () => {
@@ -1378,7 +1386,7 @@ export function readBodySnapshots(store: RuntimeStore, projectId: string): Promi
 export function deleteProject(store: RuntimeStore, projectId: string): Promise<boolean> {
   return transact<boolean>(
     store.db,
-    [PROJECT_STORE, DOCUMENT_STORE, SESSION_STORE, SNAPSHOT_STORE, RUN_STORE, RUN_EVENT_STORE, AGENT_SESSION_STORE],
+    [PROJECT_STORE, DOCUMENT_STORE, SESSION_STORE, SNAPSHOT_STORE, RUN_STORE, RUN_EVENT_STORE, AGENT_SESSION_STORE, GOAL_RUN_STORE],
     'readwrite',
     (tx, done, fail) => {
       const projects = tx.objectStore(PROJECT_STORE);
@@ -1389,6 +1397,11 @@ export function deleteProject(store: RuntimeStore, projectId: string): Promise<b
       existing.onsuccess = guarded(fail, () => {
         const existed = existing.result !== undefined;
         projects.delete(projectId);
+        const goals = tx.objectStore(GOAL_RUN_STORE);
+        const goalsRequest = goals.index(GOAL_RUN_PROJECT_INDEX).getAll(projectId);
+        goalsRequest.onsuccess = guarded(fail, () => {
+          for (const row of goalsRequest.result as { goalId: string }[]) goals.delete(row.goalId);
+        });
         const agentSessions = tx.objectStore(AGENT_SESSION_STORE);
         const agentSessionsRequest = agentSessions.index(AGENT_SESSION_PROJECT_INDEX).getAll(projectId);
         agentSessionsRequest.onsuccess = guarded(fail, () => {

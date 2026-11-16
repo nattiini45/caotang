@@ -108,6 +108,9 @@ import {
   type PlanCardView,
   type PlanOffer,
   type PlanOfferReview,
+  type BudgetMeter,
+  type Goal,
+  type GoalCheckpoint,
   type RunLimits,
   type RunLogPort,
   type RunRecord,
@@ -121,7 +124,7 @@ import {
 import { computeReview, emptyCoherenceFile, emptyReviewCheckpoint, planReview, publishReview, reviewExecutionPlanOf, type CoherenceRun, type ReviewCheckpoint, type ReviewComputed, type ReviewExecutionPlan, type ReviewPlan } from '@caotang/coherence';
 import { createMcpTransport } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
-import { createRunLogPort, getRevision, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot, readAgentSessions, saveAgentSession, settleAgentSessionTurn, removeAgentSession, pruneAgentSessions, agentSessionReferences, type AgentSessionRow, type AgentSessionTurnRef, type SessionSummary } from '@caotang/store';
+import { createRunLogPort, getRevision, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot, readAgentSessions, saveAgentSession, settleAgentSessionTurn, removeAgentSession, pruneAgentSessions, agentSessionReferences, appendGoalCheckpoint, checkpointReadable, createGoalRun, deleteGoalRun, markGoalsInterrupted, openGoalRecovery, readGoalRuns, recordGoalIteration, resumeGoalRun, settleGoalRun, type AgentSessionRow, type AgentSessionTurnRef, type GoalRunRow, type SessionSummary } from '@caotang/store';
 import { captureTextAnchor } from '@caotang/storyboard';
 
 import { registerAgent } from './agent-registry.js';
@@ -218,6 +221,29 @@ export interface SubmitOptions {
   readonly command?: string;
 }
 
+/**
+ * A durable goal as recovery offers it (agent-harness §7.2). A goal whose tab died is `interrupted` and stays that way until the
+ * writer resumes or discards it: nothing here restarts a run on its own.
+ */
+export interface GoalRecoveryView {
+  readonly goalId: string;
+  /** The writer's words, from the stored checkpoint. */
+  readonly intent: string;
+  readonly status: 'running' | 'interrupted' | 'settled';
+  /** The iteration the checkpoint was saved for. */
+  readonly nextIteration: number;
+  /** Turns the goal's iterations ran, as the record names them. */
+  readonly turns: number;
+  /** How the run ended, for a settled goal. */
+  readonly reason: string | null;
+  /** The stored checkpoint is not one this build can read: it is offered for discarding only. */
+  readonly unreadable: boolean;
+  /** Whether Resume is offered: an interrupted goal with a readable checkpoint. */
+  readonly resumable: boolean;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
 /** A run the project was left with, as the panel's interrupted-run card shows it (agent-harness §5.1). */
 export interface InterruptedRunView {
   readonly runId: string;
@@ -277,6 +303,25 @@ export interface BackgroundOptions {
   readonly sleep?: (ms: number) => Promise<void>;
 }
 
+/** A stored goal row as the panel offers it: the words from its checkpoint, and whether this build can resume it. */
+function goalRecoveryView(row: GoalRunRow): GoalRecoveryView {
+  const readable = checkpointReadable(row.checkpoint);
+  const checkpoint = readable ? row.checkpoint as GoalCheckpoint : null;
+  const result = row.result;
+  return {
+    goalId: row.goalId,
+    intent: checkpoint?.goal.intent ?? '',
+    status: row.status,
+    nextIteration: checkpoint?.nextIteration ?? 1,
+    turns: row.iterationRunIds.length,
+    reason: result === undefined ? null : `${result.status}: ${result.reason}`,
+    unreadable: !readable,
+    resumable: readable && row.status === 'interrupted',
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
 export interface AgentSnapshot {
   readonly sessionId: string;
   readonly sessionLoad: SessionSelection;
@@ -300,6 +345,10 @@ export interface AgentSnapshot {
   readonly stopping: boolean;
   /** The runs this project was left with unfinished, oldest first. */
   readonly interrupted: readonly InterruptedRunView[];
+  /** The durable goals this project holds, newest first: a run a reload or a closed tab abandoned is offered for an explicit resume. */
+  readonly goals: readonly GoalRecoveryView[];
+  /** The goal an action is under way for, or `null`. */
+  readonly goalAction: 'running' | 'resume' | 'discard' | null;
   readonly runHistory: readonly InterruptedRunView[];
   readonly runHistoryLoad: { readonly kind: 'loading' | 'ready' } | { readonly kind: 'failed'; readonly message: string };
   readonly runCopyFailure: string | null;
@@ -407,6 +456,15 @@ export class AgentController {
   private conversation: AgentSessionRow | null = null;
   private readonly presentations = new Map<string, SessionTurnPresentation>();
   private readonly sessionRunRows = new Map<string, RunRecord>();
+  /** The durable goals this project holds, as recovery offers them. */
+  private goals: readonly GoalRecoveryView[] = [];
+  /** The meter a goal run shares across its iterations; the session's turns reserve from it while the run lasts. */
+  private goalMeter: BudgetMeter | null = null;
+  /** The goal a run is under way for, so no other turn starts beside it. */
+  private goalRunning: string | null = null;
+  private goalAction: 'resume' | 'discard' | null = null;
+  /** The reopen that marks abandoned goals interrupted runs once per controller. */
+  private goalsMarked = false;
   private readonly runForTurn = new Map<string, string>();
   private readonly roleForTurn = new Map<string, TaskRole>();
   private readonly liveTurnIds = new Set<string>();
@@ -469,7 +527,7 @@ export class AgentController {
 
   private get turn() { return controllerTurn(this.state); }
   private get actionBusy() { return (this.selection.kind === 'loading' && this.sessionLoading === null) || this.turn !== null || this.state.interrupted.some((run) => run.pending !== null && run.pending !== undefined); }
-  private get busy() { return this.selection.kind === 'loading' || this.actionBusy; }
+  private get busy() { return this.selection.kind === 'loading' || this.actionBusy || this.goalRunning !== null; }
   private get detached() { return this.state.kind === 'detached'; }
   private get stopping() { return this.state.kind === 'stopping' || (this.state.kind === 'detached' && this.state.from === 'stopping'); }
   private get pending() { return this.state.kind === 'parked-on-card' ? this.state.decision.pending : null; }
@@ -619,6 +677,8 @@ export class AgentController {
       stoppable: this.turn !== null || this.pending !== null,
       stopping: this.stopping,
       interrupted: this.interrupted,
+      goals: this.goals,
+      goalAction: this.goalRunning !== null ? 'running' : this.goalAction,
       runHistory: this.state.interrupted,
       runHistoryLoad: this.runHistoryLoad,
       runCopyFailure: this.runCopyFailure,
@@ -1533,6 +1593,141 @@ export class AgentController {
   /* ------------------------------------------------------------------ *
    * Interrupted runs
    * ------------------------------------------------------------------ */
+
+  /* ------------------------------------------------------------------ *
+   * Durable goals (agent-harness §7.2)
+   * ------------------------------------------------------------------ */
+
+  /**
+   * Reads this project's goal records. The first call marks any goal a closed tab or a crash left `running` as `interrupted`, which
+   * is what makes recovery explicit: the record waits for the writer, and nothing starts a turn on its own. A store that cannot be
+   * written leaves the rows as they are; the offer below still reads them.
+   */
+  async loadGoals(): Promise<void> {
+    const store = this.session.runtimeStore();
+    if (!this.goalsMarked) {
+      this.goalsMarked = true;
+      try {
+        await markGoalsInterrupted(store, this.session.projectId, this.clock());
+      } catch {
+        // A read-only or stale store: the records are still read below, and no goal is resumed from one this build could not mark.
+      }
+    }
+    let rows: readonly GoalRunRow[];
+    try {
+      rows = await readGoalRuns(store, this.session.projectId);
+    } catch {
+      if (this.goals.length === 0) return;
+      this.goals = [];
+      this.bump();
+      return;
+    }
+    this.goals = rows.map((row) => goalRecoveryView(row)).sort((a, b) => b.updatedAt - a.updatedAt);
+    this.bump();
+  }
+
+  /**
+   * Runs a goal from its first iteration, recording the checkpoint ahead of each one. It refuses while another turn or goal runs: a
+   * goal run owns the panel until it settles, because it is the thing that decides what the next turn is for.
+   */
+  async startGoal(goal: Goal): Promise<void> {
+    if (this.busy) {
+      this.message = t`The agent is working on another turn. Start the goal when it has finished.`;
+      this.bump();
+      return;
+    }
+    try {
+      await createGoalRun(this.session.runtimeStore(), {
+        goalId: goal.id, projectId: this.session.projectId, sessionId: this.sessionId,
+        checkpoint: { goal, iterations: [], results: [], nextIteration: 1, spend: null }, at: this.clock(),
+      });
+    } catch (error) {
+      this.message = t`The goal could not be saved, so it was not started: ${{ reason: error instanceof Error ? error.message : String(error) }}`;
+      this.bump();
+      return;
+    }
+    await this.runGoal(goal, {});
+  }
+
+  /** The writer's explicit resume of an interrupted goal: the same goal, spending what it already spent. */
+  async resumeGoal(goalId: string): Promise<void> {
+    if (this.goalAction !== null) return;
+    if (this.busy) {
+      this.message = t`The agent is working on another turn. Resume the goal when it has finished.`;
+      this.bump();
+      return;
+    }
+    this.goalAction = 'resume';
+    this.bump();
+    try {
+      const recovery = await openGoalRecovery(this.session.runtimeStore(), goalId);
+      if (recovery.kind !== 'offer' || recovery.row.status !== 'interrupted') {
+        this.message = t`That goal can no longer be resumed.`;
+        return;
+      }
+      const checkpoint = recovery.row.checkpoint as GoalCheckpoint;
+      await resumeGoalRun(this.session.runtimeStore(), goalId, this.clock());
+      await this.runGoal(checkpoint.goal, { restoredSpend: checkpoint.spend });
+    } catch (error) {
+      this.message = t`The goal could not be resumed: ${{ reason: error instanceof Error ? error.message : String(error) }}`;
+    } finally {
+      this.goalAction = null;
+      await this.loadGoals();
+    }
+  }
+
+  /** Throws a goal's record away. Its turns and what they wrote stay in the project; only the recovery offer goes. */
+  async discardGoal(goalId: string): Promise<void> {
+    if (this.goalAction !== null) return;
+    this.goalAction = 'discard';
+    this.bump();
+    try {
+      await deleteGoalRun(this.session.runtimeStore(), goalId);
+    } finally {
+      this.goalAction = null;
+      await this.loadGoals();
+    }
+  }
+
+  /**
+   * The run itself: one shared meter, the checkpoint saved ahead of every iteration, and one settled record at the end. A checkpoint
+   * that cannot be saved ends the run before that iteration: the meter is never spent on work whose record was lost.
+   */
+  private async runGoal(goal: Goal, options: { readonly restoredSpend?: BudgetSpend }): Promise<void> {
+    const loop = await this.harnessLoop();
+    const meter = loop.createBudgetMeter(goal.limits, options.restoredSpend === undefined ? {} : { restored: options.restoredSpend });
+    const store = this.session.runtimeStore();
+    const agent = this.sessionFor('chat', loop);
+    this.goalMeter = meter;
+    this.goalRunning = goal.id;
+    this.message = null;
+    this.bump();
+    try {
+      const run = await loop.createGoalRunner().start(goal, {
+        session: agent,
+        state: this.session.state,
+        meter,
+        withheld: () => this.session.harness.withheldAnywhere(),
+        saveCheckpoint: async (checkpoint) => {
+          await appendGoalCheckpoint(store, goal.id, { checkpoint, at: this.clock() });
+        },
+        onIteration: async (record) => {
+          await recordGoalIteration(store, goal.id, record.report.turnId, this.clock());
+        },
+      });
+      await settleGoalRun(store, goal.id, { status: run.status, reason: run.reason, at: this.clock() });
+      this.announcement = run.reason;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.message = t`The goal stopped unexpectedly: ${{ error: reason }}`;
+      await settleGoalRun(store, goal.id, { status: 'failed', reason, at: this.clock() }).catch(() => undefined);
+    } finally {
+      this.goalMeter = null;
+      this.goalRunning = null;
+      meter.dispose();
+      await this.loadGoals();
+    }
+  }
 
   /**
    * Reads the project's unfinished runs from the run log and checks each against the project as it stands. A run whose log could not be
@@ -2987,7 +3182,8 @@ export class AgentController {
         // A task's cap can only lower the writer's limit, never raise it.
         return this.runCalls === null ? budget : { ...budget, maxModelCalls: Math.min(budget.maxModelCalls ?? Infinity, this.runCalls) };
       },
-      meter: () => this.meter ?? undefined,
+      // A goal run's iterations spend from one meter across turns; an ordinary turn carries its own (`turnWith`).
+      meter: () => this.goalMeter ?? this.meter ?? undefined,
       beforeAutoApply: (card) => this.beforeAutoApply(card),
       runLog: {
         port: this.runLog,
@@ -3145,7 +3341,7 @@ export class AgentController {
         return JSON.parse(JSON.stringify(held)) as unknown;
       }),
     );
-    void this.loadSessions().then(() => this.loadInterrupted());
+    void this.loadSessions().then(() => this.loadInterrupted()).then(() => this.loadGoals());
     this.queueWork = this.queueWork.then(() => this.tasks.open());
     // Registered here, where the panel that shows the controller attaches it, so a controller React discarded (StrictMode builds
     // one twice) is never the one a findings panel reaches.

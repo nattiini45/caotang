@@ -229,6 +229,7 @@ export {
   type Goal,
   type GoalOptions,
   type GoalRun,
+  type GoalCheckpoint,
   type GoalRunner,
   type GoalStatus,
   type IterationRecord,

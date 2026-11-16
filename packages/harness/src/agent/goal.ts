@@ -6,7 +6,7 @@
  * `session.submit` turn, so it has its own cards, its own checkpoint and its own entry in the run log, and it is held to the mode, the
  * rules and the run limits the session carries. A goal adds no approval shortcut: every card the mode does not approve still asks.
  *
- * The record of a run (`GoalRun`) is held in memory. Nothing here survives a reload.
+ * A host can keep the checkpoint ahead of each iteration. The host owns its durable storage and explicit recovery.
  */
 
 import type { CommandError, Result, UndoOutcome } from '@caotang/bus';
@@ -20,7 +20,7 @@ import { NO_RULES, type RulesProvider, type SourcedRule } from '../rules.js';
 import { TOOL_TARGETS } from '../targets.js';
 import { countIn, heldFile } from '../tools/coherence.js';
 import { canonicalJson } from '../util.js';
-import type { BudgetMeter, BudgetStop, RunLimits } from './budget.js';
+import type { BudgetMeter, BudgetSpend, BudgetStop, RunLimits } from './budget.js';
 import { checkKey, checkLabel, checkSpecProblem, documentsInScope, evaluateChecks, excludedBy, largeScopes, type CheckOptions, type CheckResult, type CheckSpec } from './checks.js';
 import type { TurnReport } from './events.js';
 import type { AgentSession, SubmitOptions } from './loop.js';
@@ -94,6 +94,14 @@ export interface GoalRun {
   readonly notes: readonly string[];
 }
 
+export interface GoalCheckpoint {
+  readonly goal: Goal;
+  readonly iterations: readonly IterationRecord[];
+  readonly results: readonly CheckResult[];
+  readonly nextIteration: number;
+  readonly spend: BudgetSpend;
+}
+
 /** A check that passed earlier and fails now. */
 export interface Regression {
   readonly iteration: number;
@@ -134,6 +142,7 @@ export interface GoalOptions {
   readonly onRegression?: (regression: Regression) => Promise<RegressionChoice> | RegressionChoice;
   /** Told after each iteration. The run waits for it; a throw or a rejection becomes a note and does not lose the run. */
   readonly onIteration?: (record: IterationRecord) => void | Promise<void>;
+  readonly saveCheckpoint?: (checkpoint: GoalCheckpoint) => Promise<void>;
   /** Where the one coherence run goes. Default: the project's held coherence file. */
   readonly recordCoherence?: (file: NonNullable<ProjectState['coherence']>) => void;
 }
@@ -444,6 +453,16 @@ export function createGoalRunner(): GoalRunner {
         if (limit !== undefined) return finish('budget', `the run reached its ${limit.dimension} limit before iteration ${iterations.length + 1}`, { budgetStop: limit });
 
         const n = iterations.length + 1;
+        if (options.saveCheckpoint !== undefined) {
+          try {
+            await options.saveCheckpoint(structuredClone({ goal, iterations, results, nextIteration: n, spend: meter.spend() }));
+          } catch (error) {
+            return { goal, status: 'failed', reason: `the goal checkpoint could not be saved before iteration ${n}: ${error instanceof Error ? error.message : 'storage refused'}`, iterations, results, notes };
+          }
+          if (options.signal?.aborted === true) return finish('cancelled', 'the writer stopped the run');
+          const savedLimit = meter.stopped();
+          if (savedLimit !== undefined) return finish('budget', `the run reached its ${savedLimit.dimension} limit before iteration ${n}`, { budgetStop: savedLimit });
+        }
         const before = results;
         const intent = iterationIntent(goal, before, n);
         const treeBefore = state.manifest.tree.map((node) => ({ ...node }));

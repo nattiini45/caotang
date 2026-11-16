@@ -6,14 +6,14 @@
  * that iteration's steps, then a plain reply if the turn goes back to it.
  */
 
-import { textOf } from '@caotang/gateway';
+import { createManualClock, textOf } from '@caotang/gateway';
 import { describe, expect, it } from 'vitest';
 
 import type { ChatRequest, Gateway } from '@caotang/gateway';
 import { isPlannerCall, plannerScript, userTextOf, type MockResponse, type MockScript } from '@caotang/gateway/mock';
 import type { ProjectState } from '@caotang/store';
 
-import { PLANNER_SYSTEM_PREFIX, createAgentPorts, createAgentSession, createBudgetMeter, createContextPort, createGoalRunner, goalRules, restoreGoal, type CheckSpec, type Decision, type AgentSessionOptions, type Goal, type GoalOptions, type GoalRun, type PendingCard, type RulesProvider, type RunLimits, type WriteScope } from '../../src/index.js';
+import { PLANNER_SYSTEM_PREFIX, createAgentPorts, createAgentSession, createBudgetMeter, createContextPort, createGoalRunner, goalRules, restoreGoal, type CheckSpec, type Decision, type AgentSessionOptions, type Goal, type GoalCheckpoint, type GoalOptions, type GoalRun, type PendingCard, type RulesProvider, type RunLimits, type WriteScope } from '../../src/index.js';
 import { mockGateway } from '../agent/gateway.js';
 import { answer, steps } from '../agent/scripts.js';
 import { checkedHarness, clock, FRIEND, LANDING, makeState, snapshotOf, STORM } from '../fixtures.js';
@@ -140,6 +140,79 @@ const statusOf = (state: ProjectState, id: string): string | null => state.manif
 const ALL_FINAL: CheckSpec = { kind: 'status.all', scope: FULL, status: 'final' };
 
 describe.each<Wire>(['json', 'native'])('goal runs on the %s wire', (wire) => {
+  it('makes no provider call or project change when its first durable checkpoint cannot be saved', async () => {
+    const limits = { maxModelCalls: 20 };
+    const f = await rig(wire, () => [final(STORM)], limits);
+    const run = await f.start(goalOf([ALL_FINAL], limits), {
+      saveCheckpoint: async () => { throw new Error('storage refused'); },
+    });
+
+    expect(f.requests).toHaveLength(0);
+    expect(f.cards).toHaveLength(0);
+    expect(snapshotOf(f.state)).toBe(f.before);
+    expect(run).toMatchObject({ status: 'failed', iterations: [] });
+    expect(run.reason).toContain('checkpoint');
+    expect(run.reason).toContain('storage refused');
+  });
+
+  it('keeps the completed iteration and its spend when saving admission for the next iteration fails', async () => {
+    const limits = { maxModelCalls: 20 };
+    const f = await rig(wire, (n) => n === 1 ? [final(STORM)] : [final(FRIEND), final(LANDING)], limits);
+    const checkpoints: GoalCheckpoint[] = [];
+    let callsWhenRefused = -1;
+    const run = await f.start(goalOf([ALL_FINAL], limits), {
+      saveCheckpoint: async (checkpoint) => {
+        checkpoints.push(checkpoint);
+        if (checkpoint.nextIteration === 2) {
+          callsWhenRefused = f.requests.length;
+          throw new Error('second save refused');
+        }
+      },
+    });
+
+    expect(run.status).toBe('failed');
+    expect(run.iterations.map((iteration) => iteration.n)).toEqual([1]);
+    expect(checkpoints.map((checkpoint) => checkpoint.nextIteration)).toEqual([1, 2]);
+    expect(checkpoints[0]?.iterations).toHaveLength(0);
+    expect(checkpoints[0]?.spend.modelCalls).toBe(0);
+    expect(checkpoints[1]?.spend.modelCalls).toBe(callsWhenRefused);
+    expect(callsWhenRefused).toBeGreaterThan(0);
+    expect(f.requests).toHaveLength(callsWhenRefused);
+    expect([STORM, FRIEND, LANDING].map((id) => statusOf(f.state, id))).toEqual(['final', null, 'draft']);
+  });
+
+  it('starts no iteration when Stop arrives while its durable checkpoint is being saved', async () => {
+    const limits = { maxModelCalls: 20 };
+    const f = await rig(wire, () => [final(STORM)], limits);
+    const stop = new AbortController();
+    const run = await f.start(goalOf([ALL_FINAL], limits), {
+      signal: stop.signal,
+      saveCheckpoint: async () => { stop.abort(); },
+    });
+
+    expect(run).toMatchObject({ status: 'cancelled', iterations: [] });
+    expect(f.requests).toHaveLength(0);
+    expect(f.cards).toHaveLength(0);
+    expect(snapshotOf(f.state)).toBe(f.before);
+  });
+
+  it('starts no iteration when its shared time limit expires while its checkpoint is being saved', async () => {
+    const limits = { maxActiveMs: 10 };
+    const goalClock = createManualClock(0);
+    const meter = createBudgetMeter(limits, { clock: goalClock });
+    const f = await rig(wire, () => [final(STORM)], limits, undefined, undefined, { session: { meter } });
+    const run = await f.start(goalOf([ALL_FINAL], limits), {
+      meter,
+      saveCheckpoint: async () => { goalClock.advance(20); },
+    });
+
+    expect(run).toMatchObject({ status: 'budget', iterations: [], budgetStop: { dimension: 'active-time' } });
+    expect(f.requests).toHaveLength(0);
+    expect(f.cards).toHaveLength(0);
+    expect(snapshotOf(f.state)).toBe(f.before);
+    meter.dispose();
+  });
+
   it('passes in two iterations, asking for every card each time, and the whole run restores at once', async () => {
     const limits = { maxModelCalls: 20 };
     const f = await rig(wire, (n) => (n === 1 ? [final(STORM), final(FRIEND)] : [final(LANDING), keywords(LANDING)]), limits);
@@ -305,4 +378,3 @@ describe.each<Wire>(['json', 'native'])('goal runs on the %s wire', (wire) => {
     expect(snapshotOf(f.state)).toBe(f.before);
   });
 });
-

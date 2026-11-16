@@ -61,6 +61,7 @@ import { PlanOfferCard } from './PlanOfferCard.js';
 import { BackgroundTasks } from './BackgroundTasks.js';
 import { RecurringTasksPanel } from './RecurringTasks.js';
 import { TaskOffers } from './TaskOffers.js';
+import { GoalRecovery } from './GoalRecovery.js';
 import { InterruptedRuns } from './InterruptedRuns.js';
 import { TaskChecklist } from './TaskChecklist.js';
 import { renderRef, WRITER_VALUE_KEYS } from '../i18n/render-ref.js';
@@ -556,6 +557,9 @@ export function AgentPanel({
 
       {/* An unfinished run is shown with the drawer closed too: it is the first thing the writer has to decide after a reload. */}
       <InterruptedRuns agent={agent} runs={snapshot.interrupted} busy={snapshot.busy} onResume={() => (open ? undefined : onToggle())} />
+
+      {/* A goal the project was left with waits for the same answer (agent-harness §7.2): it never resumes on its own. */}
+      <GoalRecovery agent={agent} goals={snapshot.goals} />
 
       {/* A task that is due waits for the writer's answer, so its offer is shown with the drawer closed too. */}
       <TaskOffers recurring={recurring} />

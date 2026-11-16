@@ -372,8 +372,33 @@ export {
 } from './runtime/autosave.js';
 
 export {
+  DEFAULT_GOAL_RETENTION,
+  appendGoalCheckpoint,
+  checkpointReadable,
+  createGoalRun,
+  deleteGoalRun,
+  deleteGoalsOf,
+  markGoalsInterrupted,
+  openGoalRecovery,
+  pruneGoalRuns,
+  readGoalRun,
+  readGoalRuns,
+  readOpenGoalRuns,
+  recordGoalIteration,
+  resumeGoalRun,
+  settleGoalRun,
+  type GoalRecovery,
+  type GoalRetention,
+  type GoalRunResult,
+  type GoalRunRow,
+  type GoalRunStatus,
+} from './runtime/goal-run-store.js';
+
+export {
   AGENT_SESSION_PROJECT_INDEX,
   AGENT_SESSION_STORE,
+  GOAL_RUN_STORE,
+  GOAL_RUN_PROJECT_INDEX,
   DOCUMENT_PROJECT_INDEX,
   DOCUMENT_STORE,
   PROJECT_STORE,
