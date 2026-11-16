@@ -202,3 +202,29 @@ describe('what the model list shows', () => {
     expect(setupFailureText('Acme', { kind: 'empty' }).canTypeModel).toBe(true);
   });
 });
+
+describe('the visible list never runs empty while a setup is open', () => {
+  it('removing the last visible profile during a setup makes the demo again, and cancelling the setup keeps it', async () => {
+    const db = memoryDb();
+    const { service } = await ProviderService.open({
+      db, vault: null,
+      fetch: async (url, init) => (init?.method === 'POST' ? completion() : listing(['model-a'])),
+    });
+    const demo = service.list()[0]!;
+    const found = await service.beginSetup({ preset: 'openai', apiKey: KEY });
+    expect(service.list().map((profile) => profile.id)).toEqual([demo.id]);
+
+    await service.remove(demo.id);
+
+    const fallback = service.list();
+    expect(fallback).toHaveLength(1);
+    expect(fallback[0]!.kind).toBe('mock');
+    expect(fallback[0]!.isActive).toBe(true);
+    expect(service.active()?.kind).toBe('mock');
+
+    await service.cancelSetup(found.draftId);
+
+    expect(service.list().map((profile) => profile.id)).toEqual([fallback[0]!.id]);
+    expect(service.active()?.id).toBe(fallback[0]!.id);
+  });
+});

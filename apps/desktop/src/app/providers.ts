@@ -585,7 +585,7 @@ export class ProviderService {
   /** Removes a profile and its key. The active profile moves to another one, or the demo profile is made again. */
   async remove(id: string): Promise<void> {
     await this.profiles.remove(id);
-    if (this.profiles.list().length === 0) {
+    if (this.list().length === 0) {
       await this.profiles.create({ name: DEMO_PROFILE_NAME, kind: 'mock', isActive: true });
     }
     await this.persist();
