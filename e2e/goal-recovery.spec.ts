@@ -70,7 +70,7 @@ async function reloadAndReopen(page: Page): Promise<void> {
   const row = page.getByRole('listitem').filter({ hasText: 'Goal Recovery Book' });
   await expect(row).toBeVisible({ timeout: 20_000 });
   await row.getByRole('button', { name: 'Open' }).click();
-  await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
+  await expect(page.getByRole('tree', { name: 'Binder' }).or(page.getByTestId('modern-binder-bar')).first()).toBeVisible();
 }
 
 test('a goal a reload left interrupted is offered, never resumes by itself, and can be resumed or discarded', async ({ page }, testInfo) => {
@@ -180,37 +180,64 @@ test('recovery explains unrecorded usage and treats its limits as spent without 
   expect(requests).toEqual([]);
 });
 
-test('without Web Locks recovery stays disabled but the project and Discard remain usable', async ({ page }, testInfo) => {
-  await createProject(page, 'Goal Recovery Book');
-  await page.addInitScript(() => Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined }));
-  await page.evaluate(() => Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined }));
-  await seedInterruptedGoal(page, RESUME_GOAL, { status: 'running' });
-  await reloadAndReopen(page);
-  const recovery = page.getByTestId('goal-recovery');
-  const card = page.getByTestId('goal-recovery-card');
-  await expect(card).toHaveCount(1);
-  await expect(card).toHaveAttribute('data-status', 'running');
-  await expect(recovery).toContainText('Goal runs need Web Locks');
-  const resume = card.getByRole('button', { name: 'Resume the goal' });
-  await expect(resume).toBeDisabled();
-  await resume.focus();
-  await expect(resume).toBeFocused();
-  await expect(resume).toHaveAccessibleDescription(/Web Locks/);
-  await page.keyboard.press('Enter');
-  await expect(card).toHaveAttribute('data-status', 'running');
-  await expect(page.locator('.agent-turn')).toHaveCount(0);
-  await page.keyboard.press('Space');
-  await page.keyboard.press('Tab');
-  await expect(card.getByRole('button', { name: 'Discard the goal record' })).toBeFocused();
-  await page.keyboard.press('Shift+Tab');
-  await expect(resume).toBeFocused();
-  await expect(resume).toHaveCSS('opacity', '1');
-  await expect(page.getByRole('alert').filter({ hasText: 'Web Locks' })).toHaveCount(0);
-  const screenshot = testInfo.outputPath('web-locks-unavailable.png');
-  await recovery.screenshot({ path: screenshot });
-  await testInfo.attach('Web Locks unavailable', { path: screenshot, contentType: 'image/png' });
-  await card.getByRole('button', { name: 'Discard the goal record' }).click();
-  await expect(card).toHaveCount(0);
-  await reloadAndReopen(page);
-  await expect(page.getByTestId('goal-recovery-card')).toHaveCount(0);
-});
+for (const shell of ['classic', 'modern'] as const) {
+  for (const theme of ['light', 'dark'] as const) {
+    test(`without Web Locks recovery stays disabled but the project and Discard remain usable (${shell}, ${theme})`, async ({ page }, testInfo) => {
+      await page.addInitScript(({ shell, theme }) => {
+        localStorage.setItem('caotang.interface', shell);
+        localStorage.setItem('caotang.theme', theme);
+      }, { shell, theme });
+      await createProject(page, 'Goal Recovery Book');
+      await page.addInitScript(() => Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined }));
+      await page.evaluate(() => Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined }));
+      await seedInterruptedGoal(page, RESUME_GOAL, { status: 'running' });
+      await reloadAndReopen(page);
+      if (shell === 'modern') await page.keyboard.press('Control+j');
+      const recovery = page.getByTestId('goal-recovery');
+      const card = page.getByTestId('goal-recovery-card');
+      await expect(card).toHaveCount(1);
+      await expect.poll(async () => (await recovery.boundingBox())?.height ?? 0).toBeGreaterThan(100);
+      await expect(card).toHaveAttribute('data-status', 'running');
+      await expect(recovery).toContainText('Goal runs need Web Locks');
+      const resume = card.getByRole('button', { name: 'Resume the goal' });
+      await expect(resume).toBeDisabled();
+      await resume.focus();
+      await expect(resume).toBeFocused();
+      await expect(resume).toHaveAccessibleDescription(/Web Locks/);
+      await page.keyboard.press('Enter');
+      await expect(card).toHaveAttribute('data-status', 'running');
+      await expect(page.locator('.agent-turn')).toHaveCount(0);
+      await page.keyboard.press('Space');
+      await page.keyboard.press('Tab');
+      await expect(card.getByRole('button', { name: 'Discard the goal record' })).toBeFocused();
+      await page.keyboard.press('Shift+Tab');
+      await expect(resume).toBeFocused();
+      await expect(resume).toHaveCSS('opacity', '1');
+      await expect(resume).toHaveCSS('cursor', 'not-allowed');
+      expect(await resume.evaluate((button) => {
+        const enabled = document.createElement('button');
+        enabled.className = 'button is-primary';
+        button.parentElement!.append(enabled);
+        const normal = getComputedStyle(enabled);
+        const disabled = getComputedStyle(button);
+        const distinct = { fill: disabled.backgroundColor !== normal.backgroundColor, ink: disabled.color !== normal.color };
+        enabled.remove();
+        return distinct;
+      })).toEqual({ fill: true, ink: true });
+      const background = await resume.evaluate((button) => getComputedStyle(button).backgroundColor);
+      await resume.hover();
+      await expect(resume).toHaveCSS('background-color', background);
+      await expect(page.getByRole('alert').filter({ hasText: 'Web Locks' })).toHaveCount(0);
+      await page.setViewportSize({ width: 1440, height: 1100 });
+      await expect(recovery.getByText('Goal runs need Web Locks', { exact: false })).toBeInViewport({ ratio: 1 });
+      await expect(card.getByRole('heading')).toBeInViewport({ ratio: 1 });
+      const screenshot = testInfo.outputPath(`web-locks-unavailable-${shell}-${theme}.png`);
+      await recovery.screenshot({ path: screenshot });
+      await testInfo.attach('Web Locks unavailable', { path: screenshot, contentType: 'image/png' });
+      await card.getByRole('button', { name: 'Discard the goal record' }).click();
+      await expect(card).toHaveCount(0);
+      await reloadAndReopen(page);
+      await expect(page.getByTestId('goal-recovery-card')).toHaveCount(0);
+    });
+  }
+}

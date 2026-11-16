@@ -18241,6 +18241,11 @@ msgstr ""
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
+msgid "The goal iteration already completed an MCP action. Discard the goal record rather than repeating it."
+msgstr ""
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
 msgid "The goal stopped unexpectedly: {error}"
 msgstr ""
 

@@ -18242,6 +18242,11 @@ msgstr "Das Ziel konnte nicht gespeichert werden und wurde deshalb nicht gestart
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
+msgid "The goal iteration already completed an MCP action. Discard the goal record rather than repeating it."
+msgstr "In diesem Zieldurchlauf wurde bereits eine MCP-Aktion abgeschlossen. Verwerfen Sie den Zieldatensatz, statt die Aktion zu wiederholen."
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
 msgid "The goal stopped unexpectedly: {error}"
 msgstr "Der Ziellauf wurde unerwartet beendet: {error}"
 

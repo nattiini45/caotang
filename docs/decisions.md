@@ -1,5 +1,7 @@
 # Decisions
 
+- Goal recovery projects and enforces one shared linked-log refusal policy. An applied MCP action missing from the goal checkpoint is not replayed; closing coherence scans enter the session's findings persistence path even without an iteration. [delegated 2026-11-17]
+
 - Goal recovery counts unresolved model reservations as spent calls and conservatively consumes any token, cost and active-time limits before continuing; the recovery card explains the unrecorded usage. These are conservative meter charges, not fabricated provider usage reports. [delegated 2026-11-16]
 - Goal Start, Resume and abandoned-goal marking require Web Locks; unavailable controls show one reason while ordinary projects and Discard remain usable. Do not add a durable owner lease unless a no-Web-Locks host becomes a real requirement. [delegated 2026-11-16]
 

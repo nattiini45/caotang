@@ -10,7 +10,7 @@
  */
 
 import type { CommandError, Result, UndoOutcome } from '@caotang/bus';
-import { DETERMINISTIC_CHECK_IDS, runDeterministic, type DeterministicCheckId, type ScopeSpec } from '@caotang/coherence';
+import { DETERMINISTIC_CHECK_IDS, runDeterministic, type CoherenceFile, type DeterministicCheckId, type ScopeSpec } from '@caotang/coherence';
 import type { ProjectState, TreeNode } from '@caotang/store';
 
 import { metadataFor } from '../metadata.js';
@@ -148,7 +148,7 @@ export interface GoalOptions {
   readonly checkpoint?: GoalCheckpoint;
   readonly saveIteration?: (checkpoint: GoalCheckpoint, record: IterationRecord) => Promise<void>;
   /** Where the one coherence run goes. Default: the project's held coherence file. */
-  readonly recordCoherence?: (file: NonNullable<ProjectState['coherence']>) => void;
+  readonly recordCoherence?: (file: CoherenceFile) => void;
 }
 
 export interface GoalRunner {
@@ -452,7 +452,7 @@ export function createGoalRunner(): GoalRunner {
           // Recording is a second step with its own failure: the scan ran, but it is not the last scan in Findings.
           if (scanned !== undefined) {
             try {
-              const file = scanned.file as NonNullable<ProjectState['coherence']>;
+              const file = scanned.file;
               if (options.recordCoherence === undefined) state.coherence = file;
               else options.recordCoherence(file);
               scanRunId = scanned.run.id;

@@ -1655,9 +1655,11 @@ export class AgentController {
       if (view.resumable && owners === null) view = { ...view, resumable: false, note: t`The goal’s conversation could not be checked. Reopen the project to try again, or discard the goal record.` };
       else if (view.resumable && !owners?.has(row.sessionId)) view = { ...view, resumable: false, note: t`That goal’s conversation is no longer saved. Discard the goal record.` };
       if (view.resumable) for (const runId of row.iterationRunIds) {
-        const summary = await this.summarizeLogged(runId).catch(() => undefined);
-        if (summary !== undefined && summary.reservedCalls > 0) {
-          view = { ...view, note: t`A model call’s usage was not recorded. Any token, cost or active-time limits are treated as spent.` };
+        try {
+          const summary = await this.goalIterationSummary(runId, row.checkpoint as GoalCheckpoint);
+          if (summary.reservedCalls > 0) view = { ...view, note: t`A model call’s usage was not recorded. Any token, cost or active-time limits are treated as spent.` };
+        } catch (error) {
+          view = { ...view, resumable: false, note: error instanceof Error ? error.message : String(error) };
           break;
         }
       }
@@ -1666,6 +1668,24 @@ export class AgentController {
     if (seq !== this.goalLoadSeq) return;
     this.goals = goals.sort((a, b) => b.updatedAt - a.updatedAt);
     this.bump();
+  }
+
+  private async goalIterationSummary(runId: string, checkpoint: GoalCheckpoint) {
+    const run = await readRun(this.session.runtimeStore(), runId);
+    const summary = await this.summarizeLogged(runId);
+    if (run?.projectId !== this.session.projectId || run.schema !== RUN_LOG_VERSION || run.cannotResume === true || summary === undefined || !summary.resumable) {
+      throw new Error(summary?.note ?? 'The goal iteration log cannot be safely resumed.');
+    }
+    const parsed = parseRunEvents(await this.runLog.events(runId));
+    if (!parsed.ok) throw new Error(parsed.detail);
+    const ended = parsed.events.findLast((event) => event.t === 'turn.end');
+    if (ended !== undefined && !checkpoint.iterations.some((iteration) => iteration.turnId === ended.turnId)) {
+      throw new Error('A completed iteration has no saved goal checkpoint. Discard the goal record rather than repeating its work.');
+    }
+    if (parsed.events.some((event) => event.t === 'step.applied' && event.tool.startsWith('mcp__') && !checkpoint.iterations.some((iteration) => iteration.turnId === event.turnId))) {
+      throw new Error(t`The goal iteration already completed an MCP action. Discard the goal record rather than repeating it.`);
+    }
+    return summary;
   }
 
   /**
@@ -1700,7 +1720,6 @@ export class AgentController {
       await this.releaseGoalAction();
     }
   }
-
   /** The writer's explicit resume of an interrupted goal: the same goal, spending what it already spent. */
   async resumeGoal(goalId: string): Promise<void> {
     if (this.goalUnavailable !== null) {
@@ -1741,17 +1760,7 @@ export class AgentController {
       const spend = { ...checkpoint.spend };
       let uncertainUsage = false;
       for (const runId of recovery.row.iterationRunIds) {
-        const run = await readRun(this.session.runtimeStore(), runId);
-        const summary = await this.summarizeLogged(runId);
-        if (run?.projectId !== this.session.projectId || run.schema !== RUN_LOG_VERSION || run.cannotResume === true || summary === undefined || !summary.resumable) {
-          throw new Error(summary?.note ?? 'The goal iteration log cannot be safely resumed.');
-        }
-        const parsed = parseRunEvents(await this.runLog.events(runId));
-        if (!parsed.ok) throw new Error(parsed.detail);
-        const ended = parsed.events.findLast((event) => event.t === 'turn.end');
-        if (ended !== undefined && !checkpoint.iterations.some((iteration) => iteration.turnId === ended.turnId)) {
-          throw new Error('A completed iteration has no saved goal checkpoint. Discard the goal record rather than repeating its work.');
-        }
+        const summary = await this.goalIterationSummary(runId, checkpoint);
         const logged = summary.restoredSpend;
         uncertainUsage ||= summary.reservedCalls > 0;
         for (const key of ['modelCalls', 'promptTokens', 'completionTokens', 'estimatedTokens', 'steps', 'activeMs'] as const) spend[key] = Math.max(spend[key], logged[key]);
@@ -1837,6 +1846,7 @@ export class AgentController {
         signal: abort.signal,
         ...(options.checkpoint === undefined ? {} : { checkpoint: options.checkpoint }),
         withheld: () => this.session.harness.withheldAnywhere(),
+        recordCoherence: (file) => this.session.applyCoherenceFile(file),
         saveCheckpoint: async (checkpoint) => {
           await appendGoalCheckpoint(store, goal.id, { checkpoint, at: this.clock() });
         },

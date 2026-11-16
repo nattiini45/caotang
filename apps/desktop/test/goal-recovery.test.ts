@@ -7,6 +7,7 @@
  */
 
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { emptyCoherenceFile } from '@caotang/coherence';
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore } from '@caotang/gateway';
 import { createMockProvider } from '@caotang/gateway/mock';
 import { appendGoalCheckpoint, createGoalRun, createRunLogPort, deleteGoalRun, markGoalsInterrupted, openRuntimeStore, readGoalRun, readRun, recordGoalIteration, removeAgentSession, resumeGoalRun, writeProjectState, MemoryIndexedDb, type GoalCheckpoint } from '@caotang/store';
@@ -360,10 +361,52 @@ it('keeps a goal interrupted when its linked iteration may already have written 
   await recordGoalIteration(f.store, GOAL, 'uncertain-mcp', 200);
   f.controller.attach();
   await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  expect(f.controller.snapshot().goals[0]).toMatchObject({ resumable: false, note: expect.stringContaining('server may already have acted') });
   await f.controller.resumeGoal(GOAL);
   expect((await readGoalRun(f.store, GOAL))?.status).toBe('interrupted');
   expect(f.controller.snapshot().message).toContain('server may already have acted');
   expect(f.controller.snapshot().turns).toEqual([]);
+});
+
+it('keeps a goal discard-only after an unfinished iteration completed an MCP action', async () => {
+  const f = await fixture();
+  const port = createRunLogPort(f.store);
+  await port.create({ schema: 3, runId: 'completed-mcp', projectId: f.session.projectId, kind: 'turn', intent: 'Send the scene.', createdAt: 200, updatedAt: 202, status: 'interrupted' });
+  await port.append('completed-mcp', [
+    { t: 'turn.start', v: 3, turnId: 'external-turn', intent: 'Send the scene.', wire: 'planner', native: false, seq: 0, at: 200 },
+    { t: 'step.intent', turnId: 'external-turn', callId: 'external-write', index: 0, tool: 'mcp__test__write', expect: {}, structure: 'unchanged', seq: 1, at: 201 },
+    { t: 'step.applied', turnId: 'external-turn', callId: 'external-write', index: 0, tool: 'mcp__test__write', after: {}, seq: 2, at: 202 },
+  ]);
+  await recordGoalIteration(f.store, GOAL, 'completed-mcp', 202);
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  const offered = f.controller.snapshot().goals[0];
+  await f.controller.resumeGoal(GOAL);
+  expect((await readGoalRun(f.store, GOAL))?.status).toBe('interrupted');
+  expect(offered).toMatchObject({ resumable: false, note: expect.stringContaining('MCP action') });
+  expect(f.controller.snapshot().turns).toEqual([]);
+});
+
+it('keeps a goal discard-only when its linked iteration has no readable log', async () => {
+  const f = await fixture();
+  const port = createRunLogPort(f.store);
+  await port.create({ schema: 3, runId: 'empty-iteration', projectId: f.session.projectId, kind: 'turn', intent: 'Missing events.', createdAt: 200, updatedAt: 200, status: 'interrupted' });
+  await recordGoalIteration(f.store, GOAL, 'empty-iteration', 200);
+  await f.controller.loadGoals();
+  expect(f.controller.snapshot().goals[0]).toMatchObject({ resumable: false, note: expect.any(String) });
+});
+
+it('persists the closing coherence scan when a goal passes without an iteration', async () => {
+  const f = await fixture();
+  const save = vi.fn(async () => undefined);
+  f.session.attachCoherence({ file: emptyCoherenceFile(), writable: true, notices: [] }, { save, attachFolder: async () => undefined });
+  await f.controller.startGoal({ ...passedGoal(), id: 'g_7QK4M2N8RZ', checks: [{ kind: 'coherence.clean', scope: { mode: 'full' }, checks: ['timeline.order-drift'] }] });
+  await f.session.saved();
+  const result = (await readGoalRun(f.store, 'g_7QK4M2N8RZ'))?.result;
+  expect(result, result?.reason).toMatchObject({ status: 'passed' });
+  expect(f.controller.snapshot().turns).toEqual([]);
+  expect(save).toHaveBeenCalled();
+  expect(f.session.coherenceFile()?.runs.length).toBeGreaterThan(0);
 });
 
 it('sends no model request when the active goal-to-run link fails in storage', async () => {
