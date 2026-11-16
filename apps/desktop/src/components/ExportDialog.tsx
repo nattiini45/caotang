@@ -124,7 +124,7 @@ function formatGroups(comicSelected: boolean): readonly { readonly name: string;
         : []),
     ],
   },
-  // The show's own exports (av-script.md §5): the reading exports and the VO script its episodes' speakable lines make, for the booth.
+  // The show's own exports (av-script.md §5): the reading exports, the VO script its episodes' speakable lines make for the booth, the captions and the chapters.
   {
     name: t`Show`,
     formats: [
@@ -145,12 +145,6 @@ function formatGroups(comicSelected: boolean): readonly { readonly name: string;
       },
       { format: 'vo-script-csv', label: t`VO script (.csv)`, help: t`One row per speakable line — line id, segment, speaker, text, duration and whether it was declared — for a recording booth or a translation shop.` },
       { format: 'vo-script-xlsx', label: t`VO script (.xlsx)`, help: t`The same rows as a spreadsheet, with the durations as numbers, for Excel, Numbers or LibreOffice.` },
-    ],
-  },
-  // The AV script's caption and chapter exports (av-script.md §5): WebVTT and the Podcasting 2.0 chapters document.
-  {
-    name: t`Show`,
-    formats: [
       {
         format: 'vtt',
         label: t`Captions (.vtt)`,
