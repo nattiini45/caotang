@@ -117,9 +117,18 @@ test('a goal a reload left interrupted is offered, never resumes by itself, and 
   await expect(discardCard).toHaveCount(0);
   await expect(cards).toHaveCount(0);
   expect(requests).toEqual([]);
+});
 
+test('an unreadable goal is discard-only and stays absent after reload', async ({ page }) => {
+  const requests: string[] = [];
+  await page.route('**/chat/completions', (route) => {
+    requests.push(route.request().url());
+    return route.abort();
+  });
+  await createProject(page, 'Goal Recovery Book');
   await seedInterruptedGoal(page, UNREADABLE_GOAL, NaN);
   await reloadAndReopen(page);
+  const cards = page.getByTestId('goal-recovery-card');
   const unreadableCard = page.locator(`[data-testid="goal-recovery-card"][data-goal-id="${UNREADABLE_GOAL}"]`);
   await expect(cards).toHaveCount(1);
   await expect(unreadableCard).toHaveCount(1);

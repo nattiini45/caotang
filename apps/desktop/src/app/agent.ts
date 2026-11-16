@@ -1656,6 +1656,7 @@ export class AgentController {
     } finally {
       this.goalAction = null;
       this.bump();
+      if (this.queue.length > 0 && !this.queuePaused && !this.detached) queueMicrotask(() => void this.runNext());
     }
   }
 
@@ -1712,6 +1713,7 @@ export class AgentController {
     } finally {
       this.goalAction = null;
       await this.loadGoals();
+      if (this.queue.length > 0 && !this.queuePaused && !this.detached) queueMicrotask(() => void this.runNext());
     }
   }
 
@@ -1733,20 +1735,21 @@ export class AgentController {
    * that cannot be saved ends the run before that iteration: the meter is never spent on work whose record was lost.
    */
   private async runGoal(goal: Goal, options: { readonly checkpoint?: GoalCheckpoint }): Promise<void> {
-    const loop = await this.harnessLoop();
-    const meter = loop.createBudgetMeter(goal.limits, options.checkpoint === undefined ? {} : { restored: options.checkpoint.spend });
-    if (options.checkpoint !== undefined && goal.limits.maxModelCalls !== undefined && options.checkpoint.spend.modelCalls >= goal.limits.maxModelCalls) {
-      meter.stop({ dimension: 'model-calls', limit: goal.limits.maxModelCalls, spent: options.checkpoint.spend.modelCalls });
-    }
     const store = this.session.runtimeStore();
-    const agent = this.sessionFor('chat', loop);
-    const abort = new AbortController();
-    this.goalAbort = abort;
-    this.goalMeter = meter;
-    this.goalRunning = goal.id;
-    this.message = null;
-    this.bump();
+    let meter: BudgetMeter | null = null;
     try {
+      const loop = await this.harnessLoop();
+      meter = loop.createBudgetMeter(goal.limits, options.checkpoint === undefined ? {} : { restored: options.checkpoint.spend });
+      if (options.checkpoint !== undefined && goal.limits.maxModelCalls !== undefined && options.checkpoint.spend.modelCalls >= goal.limits.maxModelCalls) {
+        meter.stop({ dimension: 'model-calls', limit: goal.limits.maxModelCalls, spent: options.checkpoint.spend.modelCalls });
+      }
+      const agent = this.sessionFor('chat', loop);
+      const abort = new AbortController();
+      this.goalAbort = abort;
+      this.goalMeter = meter;
+      this.goalRunning = goal.id;
+      this.message = null;
+      this.bump();
       const run = await loop.createGoalRunner().start(goal, {
         session: {
           ...agent,
@@ -1780,7 +1783,7 @@ export class AgentController {
       this.goalMeter = null;
       this.goalRunning = null;
       this.goalAbort = null;
-      meter.dispose();
+      meter?.dispose();
       await this.loadGoals();
     }
   }

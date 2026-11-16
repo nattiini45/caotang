@@ -298,3 +298,38 @@ it('offers a checkpoint with invalid cost spend only for discarding, without con
   expect(await readGoalRun(f.store, id)).toBeUndefined();
   expect(await readGoalRun(f.store, GOAL)).toBeDefined();
 });
+
+it.each(['start', 'resume'] as const)('drains queued messages after a goal %s releases the controller', async (action) => {
+  const f = await fixture(true);
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  let queued = false;
+  const unsubscribe = f.controller.subscribe(() => {
+    if (queued || f.controller.snapshot().goalAction === null) return;
+    queued = true;
+    f.controller.enqueue('Explain the next scene.');
+  });
+  try {
+    if (action === 'start') await f.controller.startGoal({ ...passedGoal(), id: 'g_7QK4M2N8RZ' });
+    else await f.controller.resumeGoal(GOAL);
+    expect(queued).toBe(true);
+    await vi.waitFor(() => expect(f.controller.snapshot().queue).toHaveLength(0));
+    await when(f.controller, (snapshot) => !snapshot.busy && snapshot.turns.length === 1);
+    expect(f.controller.snapshot().turns[0]?.intent).toBe('Explain the next scene.');
+  } finally {
+    unsubscribe();
+  }
+});
+
+it('settles a resumed goal when harness setup fails instead of leaving it running', async () => {
+  const f = await fixture();
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  vi.spyOn(f.session, 'harnessReady').mockRejectedValueOnce(new Error('The harness could not load.'));
+  await f.controller.resumeGoal(GOAL);
+  expect(await readGoalRun(f.store, GOAL)).toMatchObject({ status: 'settled', result: { status: 'failed', reason: 'The harness could not load.' } });
+  expect(f.controller.snapshot()).toMatchObject({ busy: false, goalAction: null });
+  expect(f.controller.snapshot().message).toContain('The harness could not load.');
+  expect(f.controller.snapshot().turns).toEqual([]);
+  expect(f.providers.gateway.ledger.turnRows()).toEqual([]);
+});
