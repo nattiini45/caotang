@@ -180,6 +180,19 @@ function blocksOf(
       case 'code':
         out.push({ kind: 'code', text: node.value });
         break;
+      case 'table': {
+        // The prose model has no table block, but a manuscript's GFM table still keeps its words: one row a paragraph,
+        // its cells beside each other as they were written, and a cell's marks still marks.
+        for (const row of (node as { children: { children: { children: PhrasingContent[] }[] }[] }).children) {
+          const runs: Run[] = [];
+          row.children.forEach((cell, cellIndex) => {
+            if (cellIndex > 0) runs.push({ text: ' | ' });
+            runs.push(...runsOf(cell.children, {}, definitions, referenced));
+          });
+          out.push(...paragraphBlocks(runs));
+        }
+        break;
+      }
       case 'html':
         out.push({ kind: 'paragraph', runs: [{ text: node.value }] });
         break;
@@ -258,6 +271,15 @@ function plainBlocks(blocks: readonly Content[]): string {
     nodes.flatMap((node) => {
       if (node.type === 'text' || node.type === 'inlineCode') return [node.value ?? ''];
       if (node.type === 'footnoteReference') return [`[^${(node as { label?: string }).label ?? ''}]`];
+      if (node.type === 'image') {
+        // The note's words include the picture's: `![alt](url "title")`, as the definition was written.
+        const image = node as { alt?: string | null; url?: string; title?: string | null };
+        return [`![${image.alt ?? ''}](${image.url ?? ''}${image.title === null || image.title === undefined || image.title === '' ? '' : ` "${image.title}"`})`];
+      }
+      if (node.type === 'imageReference') {
+        const image = node as { alt?: string | null; label?: string | null; identifier?: string };
+        return [`![${image.alt ?? ''}][${image.label ?? image.identifier ?? ''}]`];
+      }
       return walk((node.children ?? []) as readonly { type: string; value?: string; children?: readonly unknown[] }[]);
     });
   return walk(blocks as readonly { type: string; value?: string; children?: readonly unknown[] }[]).join('');
@@ -281,6 +303,10 @@ function runsOf(nodes: readonly PhrasingContent[], marks: Marks, definitions: De
         break;
       case 'strong':
         out.push(...runsOf(node.children, { ...marks, strong: true }, definitions, referenced));
+        break;
+      case 'delete':
+        // GFM's strikethrough is a mark the prose model does not carry; its words are still prose.
+        out.push(...runsOf(node.children, marks, definitions, referenced));
         break;
       case 'inlineCode':
         out.push({ text: node.value, ...marks, code: true });

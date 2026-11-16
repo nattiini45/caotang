@@ -134,4 +134,27 @@ describe('footnotes (#271)', () => {
     const text = plainProse(parsed.blocks, '* * *', 'placeholder', (noteId) => `[${noteId}]`);
     expect(text).toBe('Late[1] and later[2].');
   });
+
+  it('an unmarked note with a picture keeps the picture and its alt text', () => {
+    const parsed = parseProse('Body.\n\n[^loose]: See ![map](assets/x.png "A map").');
+    expect(parsed.notes.size).toBe(0);
+    expect(plainProse(parsed.blocks, '* * *')).toBe('Body.\n\n[^loose]: See ![map](assets/x.png "A map").');
+  });
+});
+
+describe('GFM constructs beside footnotes (#271)', () => {
+  it('a table keeps every cell, one row a paragraph', () => {
+    const parsed = parseProse(['Head.', '', '| name | part |', '| --- | --- |', '| Marta | ferry |', '| Odin | boat |'].join('\n'));
+    expect(plainProse(parsed.blocks, '* * *')).toBe('Head.\n\nname | part\n\nMarta | ferry\n\nOdin | boat');
+  });
+
+  it('strikethrough keeps its words', () => {
+    const parsed = parseProse('Keep ~~gone~~ this.');
+    expect(plainProse(parsed.blocks, '* * *')).toBe('Keep gone this.');
+  });
+
+  it('a note cited by a table row is still collected', () => {
+    const parsed = parseProse(['| leg | note |', '| --- | --- |', '| Marta | late[^1] |', '', '[^1]: On ice.'].join('\n'));
+    expect(parsed.notes.get('1')).toBeDefined();
+  });
 });
