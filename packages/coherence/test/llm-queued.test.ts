@@ -13,6 +13,8 @@ import {
   type ReviewCheckpoint,
 } from '../src/index.js';
 
+import { pairKey, pairSequence } from '../src/llm/pairs.js';
+
 import { NOW, buildState, entry } from './fixtures.js';
 
 const ELENA = 'c_5H8QK2M9RT';
@@ -768,5 +770,116 @@ describe('a verification reply must judge every pair it was sent', () => {
     expect(model.calls).toHaveLength(7);
     expect(checkpoints.at(-1)?.spans).toHaveLength(10);
     expect(checkpoints.at(-1)?.verdicts).toHaveLength(45);
+  });
+});
+
+describe('a recovered checkpoint must prove every pair it claims verified', () => {
+  const manyPairs = () => {
+    const scenes = [0, 1].map((d) => {
+      const quotes = Array.from({ length: 5 }, (_, i) => `Fact ${d}-${i}.`);
+      let at = 0;
+      const spans = quotes.map((quote) => {
+        const from = at;
+        at += quote.length + 1;
+        return { docId: `s${d}`, from, to: from + quote.length, quote, category: 'characterization' as const, note: '' };
+      });
+      return { id: `s${d}`, title: `Doc ${d}`, body: quotes.join(' '), spans };
+    });
+    const state = buildState({ scenes: scenes.map(({ id, title, body }) => ({ id, title, body })), entries: [] });
+    return { state, scenes };
+  };
+
+  const legacyCheckpoint = (scenes: ReturnType<typeof manyPairs>['scenes'], judgedCount: number, withKeys: boolean): ReviewCheckpoint => {
+    const spans = scenes.flatMap((scene) => scene.spans);
+    const pairs = [...pairSequence(spans)];
+    const verdicts = pairs.slice(0, judgedCount).map((pair) => ({ pairId: pair.pairId, verdict: 'consistent' as const, reasoning: 'no conflict', entity: 'Elena', attribute: 'age' }));
+    const usageByPair = Object.fromEntries(verdicts.map((verdict) => [verdict.pairId, { promptTokens: 100, completionTokens: 20 }]));
+    const base: ReviewCheckpoint = {
+      extractedDocIds: scenes.map((scene) => scene.id),
+      spans,
+      verifiedBatches: 1,
+      verdicts,
+      usageByPair,
+      promptTokens: 300,
+      completionTokens: 60,
+      notes: [],
+      status: 'complete',
+      evaluated: scenes.map((scene) => scene.id),
+    };
+    return withKeys ? { ...base, verifiedPairs: pairs.slice(0, 10).map((pair) => pairKey(pair)) } : base;
+  };
+
+  const fullModel = () => fake((request) => {
+    if (request.system.includes('continuity extractor')) throw new Error('extraction must not run again');
+    const pairIds = [...request.user.matchAll(/\[pair (p\d+)\]/g)].map((m) => m[1]);
+    return JSON.stringify({ verdicts: pairIds.map((pairId) => ({ pairId, verdict: 'consistent', reasoning: 'no conflict', factGroup: { entity: 'Elena', attribute: 'age' } })) });
+  });
+
+  it('a pre-fix checkpoint that verified a batch without judging every pair re-verifies the unjudged pairs', async () => {
+    const { state, scenes } = manyPairs();
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const checkpoint = legacyCheckpoint(scenes, 2, true);
+    const checkpoints: ReviewCheckpoint[] = [];
+    const model = fullModel();
+    const again = await computeReview(state, emptyCoherenceFile(), plan, {
+      model,
+      approved: true,
+      resumeFrom: checkpoint,
+      onCheckpoint: (next) => { checkpoints.push(structuredClone(next)); },
+    });
+    expect(model.calls).toHaveLength(5);
+    expect(model.calls[0]?.user).toContain('[pair p3]');
+    expect(model.calls[0]?.user).not.toContain('[pair p1]');
+    expect(again.status).toBe('complete');
+    const last = checkpoints.at(-1)!;
+    expect(last.verdicts).toHaveLength(45);
+    expect(new Set(last.verdicts.map((verdict) => verdict.pairId)).size).toBe(45);
+    expect(again.notes.some((note) => note.includes('without a verdict'))).toBe(true);
+  });
+
+  it('a legacy count checkpoint with an incomplete verified batch re-verifies every pair', async () => {
+    const { state, scenes } = manyPairs();
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const model = fullModel();
+    const again = await computeReview(state, emptyCoherenceFile(), plan, { model, approved: true, resumeFrom: legacyCheckpoint(scenes, 2, false) });
+    expect(model.calls).toHaveLength(5);
+    expect(model.calls[0]?.user).toContain('[pair p1]');
+    expect(again.status).toBe('complete');
+  });
+
+  it('a carried verdict repeated for one pair is kept once', async () => {
+    const { state, scenes } = manyPairs();
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const base = legacyCheckpoint(scenes, 2, true);
+    const checkpoint = { ...base, verdicts: [...base.verdicts, ...base.verdicts] };
+    const checkpoints: ReviewCheckpoint[] = [];
+    await computeReview(state, emptyCoherenceFile(), plan, {
+      model: fullModel(),
+      approved: true,
+      resumeFrom: checkpoint,
+      onCheckpoint: (next) => { checkpoints.push(structuredClone(next)); },
+    });
+    const last = checkpoints.at(-1)!;
+    expect(last.verdicts).toHaveLength(45);
+    expect(new Set(last.verdicts.map((verdict) => verdict.pairId)).size).toBe(45);
+  });
+
+  it('usage named for a pair the spans do not form is not resumed', async () => {
+    const { state, scenes } = manyPairs();
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const base = legacyCheckpoint(scenes, 2, true);
+    const bodies = new Map(scenes.map((scene) => [scene.id, scene.body] as const));
+    const forged = { ...base, usageByPair: { ...base.usageByPair, p999: { promptTokens: 1, completionTokens: 1 } } };
+    expect(await reviewCheckpointEvidenceOk(plan, bodies, forged)).toBe(false);
+    expect(await reviewCheckpointEvidenceOk(plan, bodies, base)).toBe(true);
+  });
+
+  it('an evaluated document the checkpoint never extracted is not resumed', async () => {
+    const { state, scenes } = manyPairs();
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const base = legacyCheckpoint(scenes, 2, true);
+    const bodies = new Map(scenes.map((scene) => [scene.id, scene.body] as const));
+    const forged = { ...base, extractedDocIds: ['s0'] };
+    expect(await reviewCheckpointEvidenceOk(plan, bodies, forged)).toBe(false);
   });
 });
