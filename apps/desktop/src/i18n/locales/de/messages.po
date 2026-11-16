@@ -1314,6 +1314,7 @@ msgid "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneC
 msgstr "{lines} {lineCount, plural, one {Zeile} other {Zeilen}} in {scenes} {sceneCount, plural, one {Container} other {Container}}, {words} {wordCount, plural, one {Wort} other {Wörtern}}"
 
 #. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
 #: apps/desktop/src/components/export-preview-model.ts
 msgid "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {episode} other {episodes}}, {words} {wordCount, plural, one {word} other {words}}"
 msgstr "{lines} {lineCount, plural, one {Zeile} other {Zeilen}} in {scenes} {sceneCount, plural, one {Episode} other {Episoden}}, {words} {wordCount, plural, one {Wort} other {Wörter}}"
@@ -12080,6 +12081,11 @@ msgstr "Ein Bild pro Comicseite, 1988 px hoch mit eingezeichnetem Lettering, fü
 msgid "One row per scene — part, day, duration, mode, point of view, presence, dependencies, threads, open findings, picture ids and alt text — in canonical scene order."
 msgstr "Eine Zeile pro Szene — Teil, Handlungstag, Dauer, Modus, Erzählperspektive, Präsenz, Abhängigkeiten, Stränge, offene Feststellungen, Bild-IDs und Alternativtext — in kanonischer Szenenreihenfolge."
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "One row per speakable line — line id, segment, speaker, text, duration and whether it was declared — for a recording booth or a translation shop."
+msgstr "Eine Zeile pro Sprechzeile — Zeilen-ID, Segment, Sprecher, Text, Dauer und ob sie deklariert wurde — für ein Aufnahmestudio oder eine Übersetzungswerkstatt."
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "One screenplay character is cued with two spellings"
@@ -18984,6 +18990,11 @@ msgstr "Der Scan hat ein Limit erreicht"
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
+msgid "The same rows as a spreadsheet, with the durations as numbers, for Excel, Numbers or LibreOffice."
+msgstr "Dieselben Zeilen als Tabellenkalkulation, mit den Dauern als Zahlen, für Excel, Numbers oder LibreOffice."
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
 msgid "The same rows as a spreadsheet, with the reading index and the days as numbers."
 msgstr "Dieselben Zeilen wie in einer Tabelle, mit dem Leseindex und den Tagen als Zahlen."
 
@@ -21310,6 +21321,16 @@ msgstr "Die Ansichten sind in der Leiste unten"
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "Visual references"
 msgstr "Visuelle Referenzen"
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "VO script (.csv)"
+msgstr "VO-Skript (.csv)"
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "VO script (.xlsx)"
+msgstr "VO-Skript (.xlsx)"
 
 #: apps/desktop/src/app/persistence.ts
 msgid "Wait for the project to finish saving before restoring it."

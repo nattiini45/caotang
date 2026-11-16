@@ -1313,6 +1313,7 @@ msgid "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneC
 msgstr ""
 
 #. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
 #: apps/desktop/src/components/export-preview-model.ts
 msgid "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {episode} other {episodes}}, {words} {wordCount, plural, one {word} other {words}}"
 msgstr ""
@@ -12079,6 +12080,11 @@ msgstr ""
 msgid "One row per scene — part, day, duration, mode, point of view, presence, dependencies, threads, open findings, picture ids and alt text — in canonical scene order."
 msgstr ""
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "One row per speakable line — line id, segment, speaker, text, duration and whether it was declared — for a recording booth or a translation shop."
+msgstr ""
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "One screenplay character is cued with two spellings"
@@ -18983,6 +18989,11 @@ msgstr ""
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
+msgid "The same rows as a spreadsheet, with the durations as numbers, for Excel, Numbers or LibreOffice."
+msgstr ""
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
 msgid "The same rows as a spreadsheet, with the reading index and the days as numbers."
 msgstr ""
 
@@ -21308,6 +21319,16 @@ msgstr ""
 #: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "Visual references"
+msgstr ""
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "VO script (.csv)"
+msgstr ""
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "VO script (.xlsx)"
 msgstr ""
 
 #: apps/desktop/src/app/persistence.ts
