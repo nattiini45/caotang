@@ -528,6 +528,8 @@
           "timeline-pdf",
           "cbz",
           "comic-epub",
+          "vo-script-csv",
+          "vo-script-xlsx",
           "show-notes",
           "transcript-md",
           "teleprompter"
