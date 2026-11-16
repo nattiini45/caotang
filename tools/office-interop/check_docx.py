@@ -162,9 +162,15 @@ def pdf_text(path: Path) -> Optional[str]:
     return run.stdout
 
 
+def squash(text: str) -> str:
+    """Whitespace runs collapse to one space: a PDF viewer pads a line to its columns and drops or wraps
+    whatever it cannot draw, so a title matches the text modulo whitespace, never its exact glyphs' spacing."""
+    return " ".join(text.split())
+
+
 def contents_region(name: str, check: str, text: str, entries: list[str]) -> Optional[list[str]]:
     """The lines between the `Contents` heading and the first chapter heading — the table as a viewer shows it."""
-    lines = [line.strip() for line in text.splitlines()]
+    lines = [squash(line) for line in text.splitlines()]
     try:
         start = lines.index("Contents")
     except ValueError:
@@ -173,7 +179,7 @@ def contents_region(name: str, check: str, text: str, entries: list[str]) -> Opt
     end = len(lines)
     for i in range(start + 1, len(lines)):
         # The first chapter's bare heading ends the table; an entry carries dot leaders or a page number, never bare.
-        if lines[i] == entries[0]:
+        if lines[i] == squash(entries[0]):
             end = i
             break
     return [line for line in lines[start + 1 : end] if line]
@@ -198,7 +204,7 @@ def check_cached_visible(book: dict[str, Any], path: Path) -> None:
     for title in book["entries"]:
         found = False
         while at < len(region):
-            if region[at].startswith(title):
+            if region[at].startswith(squash(title)):
                 found = True
                 at += 1
                 break
@@ -323,11 +329,11 @@ def check_page_numbers(book: dict[str, Any], path: Path) -> None:
     for title in book["entries"]:
         found = False
         while at < len(region):
-            if region[at].startswith(title):
+            if region[at].startswith(squash(title)):
                 found = True
                 # The page number is what follows the title: leaders and whitespace, then digits. Checking the tail of the
                 # row alone would let a title that itself ends in digits ("Chapter 1984") satisfy the check with no number.
-                rest = region[at][len(title):]
+                rest = region[at][len(squash(title)):]
                 if re.fullmatch(r"[\s.\u2026]+\d+\s*", rest) is None:
                     fail(name, "libreoffice-uno", f"the regenerated entry {title!r} shows no page number: {region[at][:80]!r}")
                 at += 1
