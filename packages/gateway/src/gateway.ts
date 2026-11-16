@@ -36,8 +36,8 @@ import {
   type StreamStats,
   type TransportDeps,
 } from './transport.js';
-import { DEFAULT_MAX_CONCURRENT_REQUESTS, DEFAULT_MAX_OUTPUT_TOKENS } from './profiles.js';
-import { ProfileLimiter } from './limiter.js';
+import { DEFAULT_MAX_OUTPUT_TOKENS } from './profiles.js';
+import { defaultConcurrency, ProfileLimiter, type ConcurrencyPolicy } from './limiter.js';
 import { CallerCancelled } from './timing.js';
 import { checkRequestImages, imageBase64Of } from './parts.js';
 import { usageFor } from './tokens.js';
@@ -143,6 +143,8 @@ export type GatewayTraceEvent =
 export interface GatewayOptions {
   profiles: ProfileStore;
   keys: KeyStore;
+  /** Overrides where a profile's adaptive request limit starts and tops out, and how many successes raise it (tests; there is no setting). */
+  concurrency?: { policy?: (profile: ProfileView) => ConcurrencyPolicy; successesPerStep?: number };
   clock?: Clock;
   /** the jitter source; defaults to `Math.random`, and tests pin it */
   random?: () => number;
@@ -180,11 +182,15 @@ const ITERATOR_ABANDONED = Symbol('iterator-abandoned');
 export function createGateway(options: GatewayOptions): Gateway {
   const { profiles, keys } = options;
   const clock = options.clock ?? systemClock;
-  const limiter = new ProfileLimiter(clock, (id) => {
-    const profile = profiles.get(id);
-    return profile?.maxConcurrentRequests ?? DEFAULT_MAX_CONCURRENT_REQUESTS[profile?.kind ?? 'endpoint'];
-  });
-  profiles.subscribeLimits?.((id) => limiter.refresh(id));
+  const limiter = new ProfileLimiter(
+    clock,
+    (id) => {
+      const profile = profiles.get(id);
+      if (profile === undefined) return defaultConcurrency('endpoint', undefined);
+      return options.concurrency?.policy?.(profile) ?? defaultConcurrency(profile.kind, presetForProfile(profile));
+    },
+    options.concurrency?.successesPerStep,
+  );
   const ledger = options.ledger ?? new UsageLedger(clock);
   const requestLog = options.requestLog ?? new RequestLog();
   const mock = options.mock ?? createMockProvider();
@@ -325,8 +331,8 @@ export function createGateway(options: GatewayOptions): Gateway {
   ): CallSpec => {
     const { adapter, ctx } = route;
     const { effective } = settleOutput(profile, route.spec, req.thinking, req);
-    // Prompt caching (§3): the request's policy, else the profile's, against what the model's row says the route does.
-    const cache = cacheSettingsFor(policyOf(req.cache, profile.promptCache), ctx.caps, profile.id, req);
+    // Prompt caching (§3): the request's policy, else on, against what the model's row says the route does.
+    const cache = cacheSettingsFor(policyOf(req.cache), ctx.caps, profile.id, req);
     // Tool names go out in their wire-safe form and the assembled calls come back by their registry names (tool-names.ts).
     const names = toolNameCodec(toolNamesOf(req));
     const body = adapter.buildBody({
@@ -550,11 +556,15 @@ export function createGateway(options: GatewayOptions): Gateway {
           yield { finishReason: 'error', usage: ZERO };
           return;
         }
-        const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal, onRateLimit: (delayMs: number) => limiter.pause(profile.id, delayMs), ...(beforeSend === undefined ? {} : { beforeSend }) };
+        let limited = false;
+        let finished: ChatChunk['finishReason'];
+        const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal, onRateLimit: (delayMs: number) => { limited = true; limiter.rateLimited(profile.id, delayMs); }, ...(beforeSend === undefined ? {} : { beforeSend }) };
         for await (const chunk of streamChat(deps, spec, stats)) {
+          if (chunk.finishReason !== undefined) finished = chunk.finishReason;
           trace?.chunk(chunk, stats, signal);
           yield chunk;
         }
+        if (!limited && finished !== undefined && finished !== 'error') limiter.succeeded(profile.id);
       } catch (error) {
         trace?.fail(error);
         throw error;
@@ -665,7 +675,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     const { cap, effective: settled } = settleOutput(profile, spec, thinking, request ?? {});
     const thinkingTokens = settled.maxTokens > cap ? settled.maxTokens - cap : undefined;
     // The forecast's cache terms (§3, "Prompt caching"): only when this profile caches and the row says how a read is priced.
-    const policy = policyOf(request?.cache, profile.promptCache);
+    const policy = policyOf(request?.cache);
     const caching =
       policy.mode === 'auto' && (spec.caps.cache === 'explicit' || spec.caps.cache === 'automatic') ? spec.caps : undefined;
     // Anthropic's hour-long lifetime writes at twice the prompt price, not the row's 1.25.

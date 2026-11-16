@@ -22,15 +22,18 @@ const guide = read('docs/USER-GUIDE.md');
 const changelog = read('CHANGELOG.md');
 
 describe('provider request-limit guidance', () => {
-  it('limits calls that generate a response without promising to serialize model lists or save-time checks', () => {
-    const guidance = guide.split('\n').find((line) => line.startsWith('In **Providers**, **Requests at once**'));
+  it('says the limit is settled automatically, covers only calls that generate a response, and is not a setting', () => {
+    const guidance = guide.split('\n').find((line) => line.startsWith('In **Providers**, Caotang settles how many calls'));
     expect(guidance).toContain('calls that generate a response');
     expect(guidance).toContain('Model lists and the checks run when saving a profile are outside this limit');
-    const overview = read('README.md').split('\n').find((line) => line.startsWith('**Requests at once**'));
-    expect(overview).toContain('limits overlapping completion calls per profile');
-    const translated = read('docs/i18n/de/USER-GUIDE.md').split('\n').find((line) => line.startsWith('Unter **Anbieter** legt **Gleichzeitige Anfragen**'));
+    expect(guidance).toContain('This is not a setting');
+    const overview = read('README.md').split('\n').find((line) => line.startsWith('Adding a provider is a key and one press'));
+    expect(overview).toContain('settled automatically');
+    expect(overview).toContain('Model lists and save-time provider checks are not part of the request limit');
+    const translated = read('docs/i18n/de/USER-GUIDE.md').split('\n').find((line) => line.startsWith('Unter **Anbieter** legt Caotang selbst fest'));
     expect(translated).toContain('Aufrufe, die eine Modellantwort erzeugen');
     expect(translated).toContain('Modelllisten und die Prüfungen beim Speichern eines Profils liegen außerhalb dieser Grenze');
+    expect(translated).toContain('Das ist keine Einstellung');
     const gateway = read('packages/gateway/src/gateway.ts');
     const listing = gateway.slice(gateway.indexOf('async function listModels('), gateway.indexOf('function modelLimits('));
     const probe = gateway.slice(gateway.indexOf('async function probeResponseFormat('), gateway.indexOf('function modelCaps('));
@@ -38,6 +41,15 @@ describe('provider request-limit guidance', () => {
     expect(probe).toContain('await probeJsonObject(');
     expect(listing).not.toContain('limiter.acquire(');
     expect(probe).not.toContain('limiter.acquire(');
+  });
+
+  it('names no Requests at once or Prompt caching setting any more', () => {
+    for (const path of ['docs/USER-GUIDE.md', 'README.md', 'docs/i18n/de/USER-GUIDE.md']) {
+      const text = read(path);
+      expect(text, path).not.toContain('**Requests at once**');
+      expect(text, path).not.toContain('**Gleichzeitige Anfragen**');
+      expect(text, path).not.toContain('**Prompt caching**, on by default');
+    }
   });
 });
 

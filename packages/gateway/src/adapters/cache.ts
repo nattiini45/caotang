@@ -26,9 +26,9 @@ export interface CacheSettings {
   readonly key: string;
 }
 
-/** The policy a request runs under: its own, else its profile's, else on with the default lifetime. */
-export function policyOf(request: CachePolicy | undefined, profile: CachePolicy | undefined): CachePolicy {
-  return request ?? profile ?? { mode: 'auto' };
+/** The policy a request runs under: its own, else on with the provider's default lifetime. No profile setting changes it. */
+export function policyOf(request: CachePolicy | undefined): CachePolicy {
+  return request ?? { mode: 'auto' };
 }
 
 /**
