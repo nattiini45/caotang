@@ -936,6 +936,9 @@ describe('export.compile, export.compileSelection and project.deleteNode', () =>
       // The AV script's VO script (av-script.md §5), the twenty-fourth and twenty-fifth.
       'vo-script-csv',
       'vo-script-xlsx',
+      'show-notes',
+      'transcript-md',
+      'teleprompter',
     ]);
   });
 

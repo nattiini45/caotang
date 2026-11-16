@@ -120,8 +120,9 @@ const scenarios: Scenario[] = [
       // rows are not listed, so the planner calls are about 3000 tokens lighter than when every wired tool was, and each carries the
       // outside-text rule that system prompt v2 adds. Measured at 10126 on main, so the ceiling was 10150 (it was 16300 when
       // every wired tool was listed). Merge: the comic and timeline formats joined export.compile's enum (on each of the two planner
-      // calls), measured at 10178, so the ceiling is 10200.
-      maxTokens: 10200,
+      // calls), measured at 10178, so the ceiling was 10200. Merge: the AV script's show and VO formats joined the same
+      // enum, measured at 10218, so the ceiling is 10250.
+      maxTokens: 10250,
       maxModelCalls: 3,
       state: (state) => {
         const node = state.manifest.tree.find((candidate) => candidate.id === STORM);

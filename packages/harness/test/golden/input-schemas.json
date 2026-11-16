@@ -529,7 +529,10 @@
           "cbz",
           "comic-epub",
           "vo-script-csv",
-          "vo-script-xlsx"
+          "vo-script-xlsx",
+          "show-notes",
+          "transcript-md",
+          "teleprompter"
         ],
         "description": "The output format."
       },

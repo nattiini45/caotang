@@ -79,7 +79,7 @@ export const METADATA_PATCH_KEYS = ['author', 'language', 'isbn', 'coverAssetId'
  * `pictures`, `epubImageMaxPx`, `epubKeepWebp` and `keepPictureMetadata` are the prose exports' picture options, pictures.md §4;
  * `timelinePictures` is the timeline PDF's thumbnails, timeline.md §9.1).
  */
-const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued', 'pageSize', 'scriptFont', 'paperFrames', 'colourEmoji', 'bleed', 'cropMarks', 'contentsLabel', 'pictures', 'epubImageMaxPx', 'epubKeepWebp', 'keepPictureMetadata', 'timelinePictures', 'notes'] as const;
+const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued', 'pageSize', 'scriptFont', 'paperFrames', 'colourEmoji', 'bleed', 'cropMarks', 'contentsLabel', 'pictures', 'epubImageMaxPx', 'epubKeepWebp', 'keepPictureMetadata', 'timelinePictures', 'notes', 'teleprompterWidth'] as const;
 
 /** Where the screenplay PDF may print scene numbers (screenplay.md §5.3). */
 export const SCENE_NUMBER_OPTIONS = ['off', 'left', 'right', 'both'] as const;
@@ -239,6 +239,17 @@ function recipeOptionsOf(value: unknown): Result<RecipeOptionsParams | undefined
       );
     }
     typed.charLimit = charLimit as number;
+  }
+  const teleprompterWidth = value['teleprompterWidth'];
+  if (teleprompterWidth !== undefined) {
+    if (!Number.isSafeInteger(teleprompterWidth) || (teleprompterWidth as number) < 1) {
+      return invalid(
+        `params.options.teleprompterWidth must be a whole number of characters above zero, got ${showValue(teleprompterWidth)}`,
+        'pass a width such as 60, or leave it out for the default',
+        'options.teleprompterWidth',
+      );
+    }
+    typed.teleprompterWidth = teleprompterWidth as number;
   }
   const sceneNumbers = value['sceneNumbers'];
   if (sceneNumbers !== undefined) {

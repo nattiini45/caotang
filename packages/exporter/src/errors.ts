@@ -48,6 +48,9 @@ const MEDIA_FORMAT_NAMES: Readonly<Record<string, string>> = {
   'timeline-pdf': 'the timeline PDF',
   'vo-script-csv': 'the VO script',
   'vo-script-xlsx': 'the VO script',
+  'show-notes': 'the show notes',
+  'transcript-md': 'the transcript',
+  teleprompter: 'the teleprompter',
   promptpack: 'the prompt pack',
 };
 

@@ -1434,6 +1434,10 @@ export const EXPORT_FORMATS = [
   // The AV script's VO script (av-script.md §5), as CSV and as a spreadsheet. Appended as the twenty-fourth and twenty-fifth.
   'vo-script-csv',
   'vo-script-xlsx',
+  // The AV script's reading formats (av-script.md §5): show notes, the transcript and the teleprompter. Appended as the twenty-fourth to twenty-sixth.
+  'show-notes',
+  'transcript-md',
+  'teleprompter',
 ] as const;
 
 function exportFormatRefusal(format: string): Result<never, CommandError> | undefined {

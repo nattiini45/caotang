@@ -92,6 +92,8 @@ export interface ExportRecipeOptions {
    * book's end in EPUB and plain text. Markdown always keeps `[^n]` as written and never reads it.
    */
   notes?: 'footnote' | 'endnote';
+  /** The teleprompter's wrap width in characters per line (av-script.md §5). Absent = the compile's default. Only `teleprompter` reads it. */
+  teleprompterWidth?: number;
 }
 
 /**

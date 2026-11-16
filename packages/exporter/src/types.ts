@@ -56,6 +56,10 @@ export const EXPORT_FORMATS = [
   // The AV script's VO script (av-script.md §5), as CSV and as a spreadsheet. Appended after the comic's, so the order above holds.
   'vo-script-csv',
   'vo-script-xlsx',
+  // The AV script's reading formats (av-script.md §5): show notes, a transcript and a teleprompter. Appended, so the order above holds.
+  'show-notes',
+  'transcript-md',
+  'teleprompter',
 ] as const;
 
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
@@ -87,6 +91,9 @@ export const MEDIA_FORMATS = [
   'comic-epub',
   'vo-script-csv',
   'vo-script-xlsx',
+  'show-notes',
+  'transcript-md',
+  'teleprompter',
 ] as const satisfies readonly ExportFormat[];
 
 export type MediaFormat = (typeof MEDIA_FORMATS)[number];
@@ -352,6 +359,9 @@ export const TEXT_PROOF_FORMATS = [
   'timeline-csv',
   'timeline-svg',
   'vo-script-csv',
+  'show-notes',
+  'transcript-md',
+  'teleprompter',
 ] as const satisfies readonly ExportFormat[];
 
 /** Whether a format has a Proof: it is listed in {@link TEXT_PROOF_FORMATS}. A format added without being listed has none. */
