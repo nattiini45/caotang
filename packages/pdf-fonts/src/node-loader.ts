@@ -56,8 +56,10 @@ function fontCandidates(file: string, pkg: string, moduleUrl: string): string[] 
   return candidates;
 }
 
-/** Reads a font from the first place that holds it, and says every place it looked when none does. */
-async function readFirst(file: string, candidates: readonly string[]): Promise<Uint8Array> {
+/** Reads a font from the first place that holds it, and says every place it looked when none does. Exported so the
+ * failure path can be tested: under vitest the workspace package resolves from any module location, so a loader cannot be
+ * made to miss through its URL. */
+export async function readFirst(file: string, candidates: readonly string[]): Promise<Uint8Array> {
   for (const path of candidates) {
     try {
       return new Uint8Array(await readFile(path));
