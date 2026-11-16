@@ -20,9 +20,12 @@
 
 import { i18n, type MessageDescriptor } from '@lingui/core';
 import { msg, plural, t } from '@lingui/core/macro';
-import { backgroundEligibility, contextOverridesOk, estimatedModelCalls, type AgentSession, type ContextOverrides, type PlanStep, type StageOnlyResult } from '@caotang/harness';
+import { backgroundEligibility, contextOverridesOk, estimatedModelCalls, reviewCallBoundOk, type AgentSession, type ContextOverrides, type PlanStep, type ReviewCallBound, type StageOnlyResult } from '@caotang/harness';
+import type { ReviewCheckpoint } from '@caotang/coherence';
 import { canMove } from '@caotang/machine';
+import { newId } from '@caotang/ids';
 import { copyContext } from './context-choices.js';
+import { reviewCallCap, type QueuedReviewApproval } from './queued-review.js';
 
 import {
   callsOfItem,
@@ -32,8 +35,11 @@ import {
   stepOfItem,
   taskStatusTable,
   type TaskItem,
+  type TaskKind,
   type TaskRecord,
   type TaskReview,
+  type TaskReviewPhase,
+  type TaskReviewReport,
   type TaskQueueStatus,
   type TaskStatusEvent,
   type TaskStore,
@@ -41,6 +47,8 @@ import {
 
 /** How long the runner waits before it asks again whether the foreground turn is still busy. */
 export const FOREGROUND_POLL_MS = 250;
+
+const newReviewRunId = (): string => newId('r');
 
 /** What the queue asks of an agent session: staging, and nothing else. */
 export type TaskAgent = Pick<AgentSession, 'stageOnly'>;
@@ -51,12 +59,26 @@ export type TaskAgent = Pick<AgentSession, 'stageOnly'>;
  */
 export type TaskAgentFactory = (task: TaskRecord, sessionId: string, maxModelCalls: number) => TaskAgent | string | Promise<TaskAgent | string>;
 
+export interface TaskReviewHost {
+  readonly signal: AbortSignal;
+  reserve(): Promise<void>;
+  fence(): void;
+  checkpoint(checkpoint: ReviewCheckpoint): Promise<void>;
+  phase(phase: TaskReviewPhase, done: number, total: number): Promise<void>;
+}
+
+export type TaskReviewRunner = (task: TaskRecord, host: TaskReviewHost) => Promise<{ readonly status: 'complete' | 'partial' | 'cancelled' | 'failed'; readonly report?: TaskReviewReport; readonly error?: string }>;
+
+export type TaskReviewFactory = (task: TaskRecord, sessionId: string) => TaskReviewRunner | string | Promise<TaskReviewRunner | string>;
+
 export interface TaskQueueOptions {
   readonly projectId: string;
   readonly store: TaskStore;
   readonly agentFor: TaskAgentFactory;
+  readonly reviewFor?: TaskReviewFactory;
   /** Whether a foreground turn is running. The runner makes no call while it is. */
   readonly foregroundBusy: () => boolean;
+  readonly callCap?: (task: TaskRecord) => number;
   /** Whether the browser can guarantee one runner (Web Locks). Default: `navigator.locks` exists. */
   readonly locksAvailable?: () => boolean;
   readonly now?: () => number;
@@ -64,7 +86,7 @@ export interface TaskQueueOptions {
   readonly newId?: () => string;
 }
 
-export type EnqueueResult = { readonly ok: true; readonly task: TaskRecord } | { readonly ok: false; readonly reason: string };
+export type EnqueueResult = { readonly ok: true; readonly task: TaskRecord } | { readonly ok: false; readonly reason: string; readonly cancelled?: true };
 
 export interface TaskSnapshot extends TaskRecord {
   readonly phase?: TaskQueueStatus;
@@ -149,17 +171,35 @@ export class TaskQueue {
   }
 
   /** Queues a plan. It is refused, with the reason in words, when it cannot run unattended or the browser cannot guarantee one runner. */
-  async enqueue(intent: string, steps: readonly PlanStep[], contextOverrides?: ContextOverrides): Promise<EnqueueResult> {
+  async enqueue(intent: string, steps: readonly PlanStep[], contextOverrides?: ContextOverrides, review?: QueuedReviewApproval, signal?: AbortSignal, scheduled?: { readonly taskId: string; readonly cap: number; readonly hash: string; readonly permission: 'read-only' | 'ask' }): Promise<EnqueueResult> {
+    const cancelled = (): boolean => signal?.aborted === true;
+    if (cancelled()) return { ok: false, reason: t`Cancelled before it started.`, cancelled: true };
     const unavailable = this.unavailable();
     if (unavailable !== null) return { ok: false, reason: unavailable };
     if (this.closed) return { ok: false, reason: t`The project is not open here, so the plan can only run now.` };
     if ((contextOverrides !== undefined && !contextOverridesOk(contextOverrides)) || steps.some((step) => step.contextOverrides !== undefined && !contextOverridesOk(step.contextOverrides))) {
       return { ok: false, reason: t`The context choices could not be kept. Run this plan here, or send the request again.` };
     }
-    const eligible = backgroundEligibility(steps);
+    if (scheduled !== undefined && (!Number.isInteger(scheduled.cap) || scheduled.cap < 1 || scheduled.taskId === '')) {
+      return { ok: false, reason: t`The task's allowance could not be kept, so it stays offered when it is due.` };
+    }
+    const reviewSteps = steps.filter((step) => step.tool === 'coherence.review');
+    if (scheduled !== undefined && reviewSteps.length > 0) {
+      return { ok: false, reason: t`A coherence review needs its own approved estimate each time, so this task stays offered when it is due.` };
+    }
+    if (reviewSteps.length > 1) return { ok: false, reason: t`Queue one coherence review at a time. Split this plan into one review per task.` };
+    if (reviewSteps.length === 1 && review === undefined) return { ok: false, reason: t`A coherence review needs its approved estimate before it can be queued. Run it here, or approve the queue preview.` };
+    if (review !== undefined && reviewSteps.length === 0) return { ok: false, reason: t`This plan has no coherence review to queue.` };
+    if (review !== undefined && this.options.reviewFor === undefined) return { ok: false, reason: t`This browser cannot run a queued review here, so the review can only run now.` };
+    const bounds: (ReviewCallBound | undefined)[] = steps.map((step) => (step.tool === 'coherence.review' ? review?.callBound : undefined));
+    const eligible = backgroundEligibility(steps, bounds, { allowNoModelStep: scheduled !== undefined });
     if (!eligible.eligible) return { ok: false, reason: eligible.reason };
-    const cap = estimatedModelCalls(steps);
-    if (cap < 1) return { ok: false, reason: t`No step of this plan needs a model call.` };
+    const cap = scheduled === undefined ? estimatedModelCalls(steps, bounds) : scheduled.cap;
+    if (scheduled === undefined && cap < 1) return { ok: false, reason: t`No step of this plan needs a model call.` };
+    if (review !== undefined && (!reviewCallBoundOk(review.callBound) || reviewCallCap(review.callBound) < 1 || review.fingerprint === '')) {
+      return { ok: false, reason: t`The review's approval could not be kept. Approve the queue preview again.` };
+    }
+    const kind: TaskKind = review === undefined ? 'draft' : steps.some((step) => step.tool !== 'coherence.review') ? 'mixed' : 'review';
     const at = this.now();
     const task: TaskRecord = {
       id: (this.options.newId ?? newTaskId)(),
@@ -176,9 +216,29 @@ export class TaskQueue {
       runs: 0,
       createdAt: at,
       updatedAt: at,
+      kind,
+      ...(review === undefined ? {} : { review: structuredClone(review), reviewRunId: newReviewRunId() }),
+      ...(scheduled === undefined ? {} : { recurringTaskId: scheduled.taskId, recurringHash: scheduled.hash, recurringPermission: scheduled.permission }),
     };
+    if (review !== undefined || scheduled !== undefined) {
+      try {
+        await this.options.store.save(task);
+      } catch {
+        return { ok: false, reason: t`This browser would not keep the review, so it can only run now.` };
+      }
+    } else {
+      await this.persist(task);
+    }
+    if (cancelled() || this.closed) {
+      const reason = cancelled() ? t`Cancelled before it started.` : t`The project closed before the review could start.`;
+      try {
+        await this.options.store.save({ ...task, status: 'cancelled', updatedAt: this.now() });
+      } catch {
+        return { ok: false, reason: t`The review will not run here, but this browser could not keep that record. Check Tasks after reopening the project.` };
+      }
+      return { ok: false, reason, cancelled: true };
+    }
     this.tasks = [...this.tasks, task];
-    await this.persist(task);
     this.notify();
     this.start();
     return { ok: true, task };
@@ -193,6 +253,8 @@ export class TaskQueue {
       const moving = this.move(id, 'cancel');
       this.active.abort.abort();
       await moving;
+    } else if (task.status === 'interrupted' && task.recurringTaskId !== undefined) {
+      await this.move(id, 'cancel-recovered');
     } else if (canMove(taskStatusTable, task.status, 'cancel') && task.status === 'queued') {
       await this.move(id, 'cancel');
     }
@@ -222,6 +284,12 @@ export class TaskQueue {
   /** The writer approved the task's review. */
   async markApplied(id: string): Promise<void> {
     await this.move(id, 'apply');
+  }
+
+  async acknowledge(id: string): Promise<void> {
+    const task = this.find(id);
+    if (task === undefined || task.report === undefined || task.acknowledged === true) return;
+    await this.update(id, { acknowledged: true });
   }
 
   /** What a review of a ready task is given, or `undefined` when the task is not ready. */
@@ -284,6 +352,16 @@ export class TaskQueue {
     return next;
   }
 
+  private async updateStrict(id: string, patch: Partial<Omit<TaskRecord, 'id' | 'projectId'>>): Promise<TaskRecord | undefined> {
+    const task = this.find(id);
+    if (task === undefined) return undefined;
+    const next: TaskRecord = { ...task, ...patch, updatedAt: this.now() };
+    await this.options.store.save(next);
+    this.tasks = this.tasks.map((entry) => (entry.id === id ? next : entry));
+    this.notify();
+    return next;
+  }
+
   private async updateItem(id: string, key: string, patch: Partial<TaskItem>, extra: Partial<TaskRecord> = {}): Promise<void> {
     const task = this.find(id);
     if (task === undefined) return;
@@ -319,31 +397,104 @@ export class TaskQueue {
       const started = await this.update(id, { status: 'running', runs: (this.find(id)?.runs ?? 0) + 1 });
       if (started === undefined || abort.signal.aborted) return;
       const sessionId = started.runs === 1 ? started.id : started.id + '.run' + started.runs;
-      let agent: TaskAgent | string;
+      const bounds = started.steps.map((step) => (step.tool === 'coherence.review' ? started.review?.callBound : undefined));
+      const eligible = backgroundEligibility(started.steps, bounds, { allowNoModelStep: started.recurringTaskId !== undefined });
+      const pending = started.items.filter((item) => item.state === 'pending');
+      const hasDrafts = pending.some((item) => started.steps[item.step]?.tool !== 'coherence.review');
+      let agent: TaskAgent | string | undefined;
       try {
-        const eligible = backgroundEligibility(started.steps);
-        agent = eligible.eligible ? await this.options.agentFor(started, sessionId, Math.max(0, started.cap - started.used)) : eligible.reason;
+        if (!eligible.eligible) agent = eligible.reason;
+        else if (hasDrafts || started.recurringTaskId !== undefined) agent = await this.options.agentFor(started, sessionId, Math.max(0, started.cap - started.used - (started.reservedCalls ?? 0)));
       } catch (error) {
-        // A lazy chunk or the harness failed to load: this task's items fail with the reason, and the pump goes on to the next task.
         const errorText = error instanceof Error ? error.message : String(error);
         agent = t`The agent could not be started: ${{ error: errorText }}`;
       }
       if (abort.signal.aborted) return;
-      if (typeof agent === 'string') {
-        for (const item of started.items) if (item.state === 'pending') await this.updateItem(id, item.key, { state: 'failed', error: agent });
-      } else {
-        await this.move(id, 'agent-ready');
-        for (const pending of started.items.filter((item) => item.state === 'pending')) {
-          if (abort.signal.aborted) break;
-          await this.waitForForeground(abort.signal);
-          if (abort.signal.aborted) break;
-          if (!(await this.stageItem(agent, id, pending.key, abort.signal))) break;
+      if (!eligible.eligible) {
+        for (const item of pending) await this.updateItem(id, item.key, { state: 'failed', error: agent as string });
+        return;
+      }
+      await this.move(id, 'agent-ready');
+      for (const item of pending) {
+        if (abort.signal.aborted) break;
+        await this.waitForForeground(abort.signal);
+        if (abort.signal.aborted) break;
+        const step = stepOfItem(started, item);
+        if (step.tool === 'coherence.review') {
+          if (!(await this.runReviewItem(id, item.key, sessionId, abort.signal))) break;
+          continue;
         }
+        if (agent === undefined || typeof agent === 'string') {
+          await this.updateItem(id, item.key, { state: 'failed', error: agent ?? t`The agent could not be started.` });
+          continue;
+        }
+        if (!(await this.stageItem(agent, id, item.key, abort.signal))) break;
       }
     } finally {
       await this.finish(id);
       this.active = null;
     }
+  }
+
+  private async runReviewItem(id: string, key: string, sessionId: string, signal: AbortSignal): Promise<boolean> {
+    const task = this.find(id);
+    const review = task?.review;
+    const factory = this.options.reviewFor;
+    if (task === undefined || review === undefined || factory === undefined) return true;
+    let runner: TaskReviewRunner | string;
+    try {
+      runner = await factory(task, sessionId);
+    } catch (error) {
+      const errorText = error instanceof Error ? error.message : String(error);
+      runner = t`The review could not be started: ${{ error: errorText }}`;
+    }
+    if (signal.aborted) return false;
+    if (typeof runner === 'string') {
+      await this.updateItem(id, key, { state: 'failed', error: runner });
+      return true;
+    }
+    // The checkpoint's tokens cover the review alone; the task's totals also hold any drafting staged before it.
+    // On resume the stored totals already include the checkpoint's earlier review tokens, so subtract them once.
+    const basePrompt = Math.max(0, task.promptTokens - (task.reviewCheckpoint?.promptTokens ?? 0));
+    const baseCompletion = Math.max(0, task.completionTokens - (task.reviewCheckpoint?.completionTokens ?? 0));
+    const host: TaskReviewHost = {
+      signal,
+      reserve: async () => {
+        await this.waitForForeground(signal);
+        const current = this.find(id);
+        if (current === undefined || signal.aborted || this.closed) throw new Error(t`The project closed before the review could continue.`);
+        if (current.used >= current.cap) throw new Error(t`The review reached its approved limit of ${{ cap: current.cap }} model calls.`);
+        await this.updateStrict(id, { used: current.used + 1 });
+      },
+      fence: () => {
+        if (signal.aborted || this.closed) throw new Error(t`The project closed before the review could continue.`);
+      },
+      checkpoint: async (checkpoint) => {
+        await this.updateStrict(id, { reviewCheckpoint: checkpoint, promptTokens: basePrompt + checkpoint.promptTokens, completionTokens: baseCompletion + checkpoint.completionTokens });
+      },
+      phase: async (phase, done, totalCalls) => {
+        await this.updateStrict(id, { reviewPhase: phase, reviewProgress: { done, total: totalCalls } });
+      },
+    };
+    let outcome: Awaited<ReturnType<TaskReviewRunner>>;
+    try {
+      outcome = await runner(task, host);
+    } catch (error) {
+      const errorText = error instanceof Error ? error.message : String(error);
+      outcome = { status: signal.aborted ? 'cancelled' : 'failed', error: errorText };
+    }
+    if (outcome.status === 'cancelled' || (signal.aborted && outcome.report === undefined)) {
+      return false;
+    }
+    if (outcome.status === 'failed') {
+      await this.updateItem(id, key, { state: 'failed', error: outcome.error ?? t`The review failed.` });
+      return true;
+    }
+    await this.updateItem(id, key, { state: 'staged', ...(outcome.report === undefined ? {} : { proposal: outcome.report }) }, {
+      ...(outcome.report === undefined ? {} : { report: outcome.report }),
+      reviewPhase: undefined,
+    });
+    return true;
   }
 
   /** Stages one item and records its outcome. Returns false when the stop ended it, so the run does not go on. */
@@ -352,8 +503,8 @@ export class TaskQueue {
     const item = task?.items.find((entry) => entry.key === key);
     if (task === undefined || item === undefined) return true;
     const calls = callsOfItem(task, item);
-    if (task.used + calls > task.cap) {
-      const cap = task.cap;
+    const cap = Math.min(task.cap, this.options.callCap?.(task) ?? task.cap);
+    if (task.used + (task.reservedCalls ?? 0) + calls > cap) {
       await this.updateItem(id, key, {
         state: 'failed',
         error: t`This step needs ${{ calls }} model ${plural(calls, { one: 'call', other: 'calls' })}, which would go past the task's limit of ${{ cap }}.`,
@@ -361,6 +512,14 @@ export class TaskQueue {
       return true;
     }
     let result: StageOnlyResult;
+    if (task.recurringTaskId !== undefined) {
+      try {
+        await this.updateStrict(id, { reservedCalls: cap - task.used });
+      } catch {
+        await this.updateItem(id, key, { state: 'failed', error: t`The call allowance could not be saved, so no model request was sent. Try again after checking browser storage.` });
+        return false;
+      }
+    }
     try {
       result = await agent.stageOnly([stepOfItem(task, item)], { signal, ...(task.contextOverrides === undefined ? {} : { contextOverrides: copyContext(task.contextOverrides) }) });
     } catch (error) {
@@ -369,7 +528,8 @@ export class TaskQueue {
       return !signal.aborted;
     }
     const spent = {
-      used: (this.find(id)?.used ?? 0) + result.modelCalls,
+      used: task.used + result.modelCalls,
+      ...(task.recurringTaskId === undefined ? {} : { reservedCalls: 0 }),
       promptTokens: (this.find(id)?.promptTokens ?? 0) + result.tokens.promptTokens,
       completionTokens: (this.find(id)?.completionTokens ?? 0) + result.tokens.completionTokens,
     };
@@ -392,6 +552,24 @@ export class TaskQueue {
     const task = this.find(id);
     if (task === undefined) return;
     const phase = this.phase(task);
-    await this.move(id, phase === 'cancelling' || phase === 'interrupted' ? 'settle' : task.items.some((item) => item.state === 'staged') ? 'ready' : 'fail');
+    if (phase === 'cancelling' && task.report !== undefined) {
+      await this.move(id, task.kind === 'review' ? 'complete' : 'ready');
+      return;
+    }
+    if (phase === 'cancelling' || phase === 'interrupted') {
+      await this.move(id, 'settle');
+      return;
+    }
+    if (task.kind === 'review') {
+      await this.move(id, task.report !== undefined ? 'complete' : 'fail');
+      return;
+    }
+    if (task.kind === 'mixed') {
+      const draftStaged = task.items.some((item) => item.state === 'staged' && task.steps[item.step]?.tool !== 'coherence.review');
+      const hasDeferred = task.steps.some((step, index) => step.tool !== 'coherence.review' && !task.items.some((item) => item.step === index));
+      await this.move(id, task.report !== undefined || draftStaged || hasDeferred ? 'ready' : 'fail');
+      return;
+    }
+    await this.move(id, task.items.some((item) => item.state === 'staged') || (task.recurringTaskId !== undefined && task.items.length === 0) ? 'ready' : 'fail');
   }
 }

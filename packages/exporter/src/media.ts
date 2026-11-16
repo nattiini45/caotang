@@ -34,6 +34,16 @@ import {
   type TableRow,
 } from '@caotang/dialogue';
 import type { ProcessPicture } from '@caotang/pictures';
+import {
+  isEpisodeDocument,
+  parseEpisode,
+  readShowMeta,
+  showFolderOf,
+  type ParsedEpisode,
+  type ScriptLine,
+  type ScriptSegment,
+  type ShowMeta,
+} from '@caotang/script';
 import { countBody, getBody, identifierUrn, nodeById, type ProjectState, type TreeNode } from '@caotang/store';
 import {
   exportNumbers,
@@ -122,6 +132,8 @@ export interface MediaRequest {
    * null leaves the column empty, which is unconstrained. Only the dialogue table (`dialogue-csv`, `dialogue-xlsx`) reads it.
    */
   readonly charLimit?: number | null;
+  /** The teleprompter's wrap width in characters (av-script.md §5). Absent or null is the compile's default. Only `teleprompter` reads it. */
+  readonly teleprompterWidth?: number | null;
   /** Stored assets by id, with their file names (storyboard.md §2.1). The exporter reads these synchronously. */
   readonly assets: ReadonlyMap<string, AssetRecord>;
   /**
@@ -249,6 +261,12 @@ export function renderMedia(request: MediaRequest): MediaOutput {
       return timelineSvgOutput(request);
     case 'timeline-pdf':
       return timelinePdfOutput(request);
+    case 'show-notes':
+      return showNotesOutput(request);
+    case 'transcript-md':
+      return transcriptOutput(request);
+    case 'teleprompter':
+      return teleprompterOutput(request);
   }
 }
 
@@ -798,6 +816,212 @@ function shotListXlsxOutput(request: MediaRequest): MediaOutput {
     skippedDocs: [],
     notes: [...listed.notes, ...prepared.notes, ...bareShotNotes(request)],
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * The AV script's reading formats: show notes, transcript, teleprompter (av-script.md §5)
+ * ------------------------------------------------------------------ */
+
+/** The teleprompter's wrap width when the recipe says nothing (av-script.md §5: no cited standard, a recipe option by spec). */
+const TELEPROMPTER_WIDTH_DEFAULT = 60;
+
+/** One parsed episode with the node it came from and its show's settings. */
+interface EpisodeRead {
+  readonly node: TreeNode;
+  readonly parsed: ParsedEpisode;
+  readonly show: ShowMeta;
+}
+
+/**
+ * The episode documents a selection covers, each parsed with its own show's settings and the project's codex
+ * (av-script.md §2–§4). A selection with no episode is refused; each parse's notices reach the compile log
+ * named by the episode.
+ */
+function readEpisodes(request: MediaRequest, format: MediaFormat): { readonly episodes: readonly EpisodeRead[]; readonly notes: readonly string[] } {
+  const nodes = selectedNodes(request.state, request.includeRootIds).filter((node) => isEpisodeDocument(node));
+  if (nodes.length === 0) {
+    throw new MediaRefusedError(format, ['the selection holds no episode, so there is nothing to compile']);
+  }
+  const episodes: EpisodeRead[] = [];
+  const notes: string[] = [];
+  for (const node of nodes) {
+    const show = showFolderOf(request.state, node.id);
+    const read = show === undefined ? { meta: {} as ShowMeta, notices: [] as readonly string[] } : readShowMeta(show.showMeta);
+    const parsed = parseEpisode(getBody(request.state, node.id), {
+      show: read.meta,
+      codex: request.state.manifest.codex ?? [],
+    });
+    episodes.push({ node, parsed, show: read.meta });
+    notes.push(...read.notices.map((note) => `"${node.title}": ${note}`));
+    notes.push(...parsed.notices.map((notice) => `"${node.title}" line ${notice.line}: ${notice.message}`));
+  }
+  return { episodes, notes };
+}
+
+/** Seconds as `mm:ss` (`h:mm:ss` past an hour): the timestamp shape YouTube chapter lines and the show notes share. */
+function clockTime(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = s % 60;
+  const two = (n: number) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${two(m)}:${two(r)}` : `${two(m)}:${two(r)}`;
+}
+
+/** A speakable line with its segment, in episode order; text lines take no row in any of these formats. */
+function speakableLines(parsed: ParsedEpisode): { readonly segment: ScriptSegment; readonly line: ScriptLine }[] {
+  const out: { segment: ScriptSegment; line: ScriptLine }[] = [];
+  for (const segment of parsed.segments) {
+    for (const line of segment.lines) {
+      if (line.kind !== 'text') out.push({ segment, line });
+    }
+  }
+  return out;
+}
+
+/** How many speakable lines the selection's episodes hold, for the counts the compile reports. */
+function speakableCount(episodes: readonly EpisodeRead[]): number {
+  return episodes.reduce((sum, ep) => sum + speakableLines(ep.parsed).length, 0);
+}
+
+/** Words of the speakable lines, for the counts. */
+function speakableWords(episodes: readonly EpisodeRead[]): number {
+  return episodes.reduce((sum, ep) => sum + speakableLines(ep.parsed).reduce((s, { line }) => s + line.words, 0), 0);
+}
+
+/**
+ * The name a file takes: the compile's base plus what the artifact is, and the episode's title when a selection holds
+ * more than one, so two episodes never write to one name.
+ */
+function episodeFileName(base: string, what: string, episodes: readonly EpisodeRead[], ep: EpisodeRead): string {
+  return episodes.length === 1 ? `${base} (${what}).md` : `${base} (${ep.node.title}, ${what}).md`;
+}
+
+/**
+ * YouTube's chapter gates (av-script.md §5): the first chapter at `00:00`, at least three chapters, at least 10 s
+ * between them. The chapter lines come out only when every gate holds; the failure names the gate that did not,
+ * for the compile log.
+ */
+function youtubeChapters(ep: EpisodeRead): { readonly lines: readonly string[]; readonly failure?: string } {
+  const chapters: { at: number; title: string }[] = [];
+  const skipped: string[] = [];
+  for (const segment of ep.parsed.segments) {
+    if (segment.startSec === undefined) {
+      if (segment.lines.length > 0 || segment.cues.length > 0) skipped.push(segment.title);
+      continue;
+    }
+    chapters.push({ at: segment.startSec, title: segment.title !== '' ? segment.title : (ep.parsed.title ?? ep.node.title) });
+  }
+  if (skipped.length > 0) {
+    return { lines: [], failure: `untimed segments have no timestamp (${skipped.map((t) => `"${t || 'the opening'}"`).join(', ')}), so the chapter list cannot cover them` };
+  }
+  const first = chapters[0];
+  if (first === undefined || first.at !== 0) {
+    return { lines: [], failure: 'the first chapter is not at 00:00' };
+  }
+  if (chapters.length < 3) {
+    return { lines: [], failure: `fewer than three chapters (${chapters.length}); YouTube needs at least three` };
+  }
+  for (let i = 1; i < chapters.length; i += 1) {
+    const prev = chapters[i - 1];
+    const next = chapters[i];
+    if (next !== undefined && prev !== undefined && next.at - prev.at < 10) {
+      return { lines: [], failure: `"${prev.title}" and "${next.title}" are under 10 s apart; YouTube needs at least 10 s` };
+    }
+  }
+  return { lines: chapters.map((c) => `${clockTime(c.at)} ${c.title}`) };
+}
+
+/**
+ * The show notes (av-script.md §5): the show's own description, then the episode's segments as a timestamped list,
+ * then the YouTube-shaped chapter lines when that platform's gates hold — the description a listener pastes into an
+ * episode page. An untimed segment lists `(untimed)` where its time would be.
+ */
+function showNotesOutput(request: MediaRequest): MediaOutput {
+  const { episodes, notes: parseNotes } = readEpisodes(request, 'show-notes');
+  const notes = [...parseNotes];
+  const files: MediaFile[] = [];
+  for (const ep of episodes) {
+    const out: string[] = [`# ${ep.parsed.title ?? ep.node.title}`, ''];
+    if (typeof ep.show.description === 'string' && ep.show.description.trim() !== '') {
+      out.push(ep.show.description.trim(), '');
+    }
+    for (const segment of ep.parsed.segments) {
+      const title = segment.title !== '' ? segment.title : 'Opening';
+      out.push(`- ${segment.startSec === undefined ? '(untimed)' : clockTime(segment.startSec)} ${title}`);
+    }
+    const chapters = youtubeChapters(ep);
+    if (chapters.failure !== undefined) {
+      notes.push(`"${ep.node.title}": no YouTube chapter lines — ${chapters.failure}`);
+    } else {
+      out.push('', '## Chapters', '', ...chapters.lines);
+    }
+    files.push({ name: episodeFileName(request.base, 'show notes', episodes, ep), mimeType: 'text/markdown;charset=utf-8', text: out.join('\n') + '\n' });
+  }
+  return { files, blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
+}
+
+/** A speaker label as a reader sees it: the codex entry's display name when the speaker resolved to one, else the name as typed. */
+function speakerName(request: MediaRequest, line: ScriptLine): string {
+  const speaker = line.speaker ?? line.label ?? '';
+  const entry = (request.state.manifest.codex ?? []).find((e) => e.id === speaker);
+  return entry?.name ?? speaker;
+}
+
+/**
+ * The transcript (av-script.md §5): the speaker's display name and the text, segment by segment, narration set apart
+ * in italics. No cues and no timings — a transcript is for reading.
+ */
+function transcriptOutput(request: MediaRequest): MediaOutput {
+  const { episodes, notes } = readEpisodes(request, 'transcript-md');
+  const files: MediaFile[] = [];
+  for (const ep of episodes) {
+    const out: string[] = [`# ${ep.parsed.title ?? ep.node.title}`];
+    for (const segment of ep.parsed.segments) {
+      if (segment.title !== '') out.push('', `## ${segment.title}`);
+      for (const line of segment.lines) {
+        if (line.kind === 'text') continue;
+        out.push('', line.kind === 'narration' ? `_${line.text}_` : `**${speakerName(request, line)}:** ${line.text}`);
+      }
+    }
+    files.push({ name: episodeFileName(request.base, 'transcript', episodes, ep), mimeType: 'text/markdown;charset=utf-8', text: out.join('\n') + '\n' });
+  }
+  return { files, blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
+}
+
+/** One text line wrapped to `width` columns on word boundaries; a word longer than the width keeps its own line. */
+function wrapLine(text: string, width: number): string[] {
+  const words = text.split(/\s+/).filter((w) => w !== '');
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    if (current === '') {
+      current = word;
+    } else if (current.length + 1 + word.length <= width) {
+      current += ` ${word}`;
+    } else {
+      lines.push(current);
+      current = word;
+    }
+  }
+  if (current !== '') lines.push(current);
+  return lines;
+}
+
+/**
+ * The teleprompter (av-script.md §5): speech and narration only — cues and headings stripped, labels gone, one line
+ * per breath at the recipe's wrap width (`teleprompterWidth`, the compile's default when unset), a blank line between
+ * the script's lines.
+ */
+function teleprompterOutput(request: MediaRequest): MediaOutput {
+  const { episodes, notes } = readEpisodes(request, 'teleprompter');
+  const width = request.teleprompterWidth ?? TELEPROMPTER_WIDTH_DEFAULT;
+  const files: MediaFile[] = episodes.map((ep) => ({
+    name: episodeFileName(request.base, 'teleprompter', episodes, ep).replace(/\.md$/, '.txt'),
+    mimeType: 'text/plain;charset=utf-8',
+    text: speakableLines(ep.parsed).map(({ line }) => wrapLine(line.text, width).join('\n')).join('\n\n') + '\n',
+  }));
+  return { files, blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
 }
 
 /**

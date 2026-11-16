@@ -124,6 +124,27 @@ function formatGroups(comicSelected: boolean): readonly { readonly name: string;
         : []),
     ],
   },
+  // The AV script's reading exports (av-script.md §5): the show notes, the transcript and the teleprompter.
+  {
+    name: t`Show`,
+    formats: [
+      {
+        format: 'show-notes',
+        label: t`Show notes (.md)`,
+        help: t`The show's description and the episode's segments with their timestamps — and the chapter lines for YouTube when its gates hold — to paste into an episode page.`,
+      },
+      {
+        format: 'transcript-md',
+        label: t`Transcript (.md)`,
+        help: t`The spoken lines with each speaker's display name, segment by segment — no cues or timings — for reading or publishing.`,
+      },
+      {
+        format: 'teleprompter',
+        label: t`Teleprompter (.txt)`,
+        help: t`The spoken lines only, wrapped to a set width with no labels or cues, to read off a teleprompter or a sheet.`,
+      },
+    ],
+  },
   // The coherence report (media-track.md, Review): the findings file and its run history, for reading outside Caotang.
   {
     name: t`Review`,
@@ -180,6 +201,8 @@ interface ShownOptions {
   readonly cropMarks: boolean;
   /** The timeline PDF draws each scene's pictures as thumbnails on its bar; off unless the recipe sets it (timeline.md §9.1). */
   readonly timelinePictures: boolean;
+  /** The teleprompter's wrap width in characters; `undefined` is the compile's default (av-script.md §5). */
+  readonly teleprompterWidth: number | undefined;
   /** How the prose formats treat the pictures in the bodies: the mode, keeping their metadata, and the EPUB's WebP (pictures.md §4). */
   readonly pictures: ShownPictureOptions;
   /**
@@ -187,6 +210,8 @@ interface ShownOptions {
    * explicit value always wins (screenplay.md §5.3, storyboard.md §6).
    */
   readonly colourEmoji: boolean | undefined;
+  /** Where the prose formats put a footnote's text; `footnote` is the default (exporter.md §3). */
+  readonly notes: 'footnote' | 'endnote';
 }
 
 /** The picture modes, in the words the dialog shows. */
@@ -226,6 +251,16 @@ const SCRIPT_FONT_LABELS: Readonly<Record<RecipeScriptFont, string>> = {
   'courier-prime': 'Courier Prime',
   courier: 'Courier (the reader’s own)',
   cousine: 'Cousine (like Courier New)',
+};
+
+/** The notes placements, in the words the dialog shows (exporter.md §3). */
+const NOTES_LABELS: Readonly<Record<'footnote' | 'endnote', string>> = {
+  get footnote() {
+    return t`Under each page or chapter`;
+  },
+  get endnote() {
+    return t`At the end of the book`;
+  },
 };
 
 /** The screenplay PDF's options as recipe options. The defaults (off, on, Courier Prime) are left out, so a recipe saved without them stays as it was. */
@@ -292,10 +327,12 @@ function shownOptionsOf(recipe: ExportRecipe | undefined): ShownOptions {
     bleed: recipe?.options?.bleed ?? true,
     cropMarks: recipe?.options?.cropMarks ?? false,
     timelinePictures: recipe?.options?.timelinePictures ?? false,
+    teleprompterWidth: recipe?.options?.teleprompterWidth,
     colourEmoji: recipe?.options?.colourEmoji,
     sceneNumbers: recipe?.options?.sceneNumbers ?? 'off',
     continued: recipe?.options?.continued ?? true,
     pictures: shownPictureOptionsOf(recipe?.options),
+    notes: recipe?.options?.notes ?? 'footnote',
   };
 }
 
@@ -428,8 +465,10 @@ export function ExportDialog({
         ...(next.bleed ? {} : { bleed: false }),
         ...(next.cropMarks ? { cropMarks: true } : {}),
         ...(next.timelinePictures ? { timelinePictures: true } : {}),
+        ...(next.teleprompterWidth === undefined ? {} : { teleprompterWidth: next.teleprompterWidth }),
         ...pictureOptionsOf(next.pictures),
         ...(next.colourEmoji === undefined ? {} : { colourEmoji: next.colourEmoji }),
+        ...(next.notes === 'footnote' ? {} : { notes: next.notes }),
       },
     });
     if (outcome.ok) setNotice(null);
@@ -466,8 +505,10 @@ export function ExportDialog({
         ...(shown.bleed ? {} : { bleed: false }),
         ...(shown.cropMarks ? { cropMarks: true } : {}),
         ...(shown.timelinePictures ? { timelinePictures: true } : {}),
+        ...(shown.teleprompterWidth === undefined ? {} : { teleprompterWidth: shown.teleprompterWidth }),
         ...pictureOptionsOf(shown.pictures),
         ...(shown.colourEmoji === undefined ? {} : { colourEmoji: shown.colourEmoji }),
+        ...(shown.notes === 'footnote' ? {} : { notes: shown.notes }),
       },
     });
     if (outcome.ok) {
@@ -738,11 +779,34 @@ export function ExportDialog({
                 ) : null}
               </>
             )}
+            {format === 'docx' || format === 'epub' || format === 'txt' ? (
+              <label className="export-field">
+                <span className="export-option-label"><Trans>Footnotes</Trans></span>
+                <select
+                  value={shown.notes}
+                  onChange={(event) => saveOptions({ ...shown, notes: event.target.value === 'endnote' ? 'endnote' : 'footnote' })}
+                >
+                  {(['footnote', 'endnote'] as const).map((option) => (
+                    <option key={option} value={option}>
+                      {NOTES_LABELS[option]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             {format === 'dialogue-csv' || format === 'dialogue-xlsx' ? (
               <CharLimitField
                 key={`limit:${recipe?.name ?? ''}`}
                 value={shown.charLimit}
                 onSave={(charLimit) => saveOptions({ ...shown, charLimit })}
+                onInvalid={(text) => setNotice({ text, tone: 'error' })}
+              />
+            ) : null}
+            {format === 'teleprompter' ? (
+              <TeleprompterWidthField
+                key={`telewidth:${recipe?.name ?? ''}`}
+                value={shown.teleprompterWidth}
+                onSave={(teleprompterWidth) => saveOptions({ ...shown, teleprompterWidth })}
                 onInvalid={(text) => setNotice({ text, tone: 'error' })}
               />
             ) : null}
@@ -954,6 +1018,46 @@ function ContentsLabelField({ value, onSave }: { value: string; onSave: (label: 
  * leaves it, as the author line does. Empty is no limit; a value the bus would refuse is said in the dialog (`onInvalid`), and the field
  * goes back to the saved value.
  */
+function TeleprompterWidthField({
+  value,
+  onSave,
+  onInvalid,
+}: {
+  value: number | undefined;
+  onSave: (width: number | undefined) => void;
+  onInvalid: (text: string) => void;
+}): ReactNode {
+  useLingui();
+  const saved = value === undefined ? '' : String(value);
+  const [draft, setDraft] = useState(saved);
+  return (
+    <label className="export-field">
+      <span className="export-option-label"><Trans>Line width in characters</Trans></span>
+      <input
+        type="number"
+        min={1}
+        value={draft}
+        placeholder={t`The default`}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => {
+          const text = draft.trim();
+          if (text === '') {
+            if (value !== undefined) onSave(undefined);
+            return;
+          }
+          const width = Number(text);
+          if (!Number.isInteger(width) || width < 1) {
+            onInvalid('A line width is a whole number of characters above zero, or empty for the default.');
+            setDraft(saved);
+            return;
+          }
+          if (width !== value) onSave(width);
+        }}
+      />
+    </label>
+  );
+}
+
 function CharLimitField({
   value,
   onSave,

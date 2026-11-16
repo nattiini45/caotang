@@ -9,8 +9,7 @@
  * turns takes each publication back.
  *
  * Providers: the existing e2e fake-endpoint fixture (endpoint.ts) on one routed preset origin — Mistral, whose
- * registry rows for the two models used carry vision and native tools. The key field takes the suite's placeholder
- * ('test-key', as settings-providers.spec.ts uses), never a real key, and nothing leaves the page: Playwright answers
+ * registry rows for the two models used carry vision and native tools. The key field takes the suite's placeholder (long enough to be checked as a pasted key), never a real key, and nothing leaves the page: Playwright answers
  * every request to that origin. The raw request bodies are recorded at that boundary (a recorder route registered in
  * front of the fixture, falling through to it), which is where temperature 0, the three image parts per read and the
  * two distinct route models are asserted. The in-process mock provider's `calls` list is reachable only from the
@@ -28,6 +27,7 @@ import {
 } from '../packages/harness/src/tools/transcription-model.js';
 import { endpointRoute, planThenAnswer, type FakeReply } from './endpoint.js';
 import { registry, solidPng } from './pictures-support.js';
+import { addHostedProvider } from './provider-setup-support.js';
 import { bodyOf, countOf, createProject, hasTitle, idOf, loose, projectTrace, savedMessage, treeOf, waitForSaved } from './support.js';
 
 /** The one preset origin both vision profiles use; every request to it is answered by the routed fake. */
@@ -36,7 +36,7 @@ const PRIMARY = { name: 'Primary fake', model: 'mistral-large-2512', promptPrice
 const SECOND = { name: 'Second fake', model: 'ministral-14b-2512', promptPrice: '0.003', replyPrice: '0.004' };
 const MODELS = [PRIMARY.model, SECOND.model];
 /** A placeholder, never a real key: every request to the routed origin is answered by the fake, so it goes nowhere. */
-const PLACEHOLDER_KEY = 'test-key';
+const PLACEHOLDER_KEY = 'test-key-for-the-fake-mistral';
 
 /** The three handwritten pages, as the two reads answer them (the page-section wire of transcription-model.ts). */
 const FIRST_READ = [
@@ -133,15 +133,13 @@ function imageReads(): { readonly model: string; readonly temperature: unknown; 
 /** Adds one Mistral profile (vision rows for both models) with a price, so the card can cost both routes. */
 async function addVisionProfile(page: Page, spec: typeof PRIMARY): Promise<void> {
   const settings = page.getByTestId('settings');
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  const form = settings.getByRole('form', { name: 'New provider' });
-  await form.getByRole('combobox', { name: 'Provider' }).selectOption('mistral');
-  await form.getByLabel('Name').fill(spec.name);
-  await form.getByLabel('API key (required)').fill(PLACEHOLDER_KEY);
-  await form.getByLabel('Model', { exact: true }).fill(spec.model);
-  await form.getByLabel('Prompt', { exact: true }).fill(spec.promptPrice);
-  await form.getByLabel('Reply', { exact: true }).fill(spec.replyPrice);
-  await form.getByRole('button', { name: 'Save profile' }).click();
+  await addHostedProvider(settings, {
+    key: PLACEHOLDER_KEY,
+    provider: 'Mistral AI',
+    model: spec.model,
+    name: spec.name,
+    prices: { prompt: spec.promptPrice, reply: spec.replyPrice },
+  });
   await expect(settings.getByText(savedMessage(spec.name))).toBeVisible();
 }
 

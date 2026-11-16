@@ -3213,6 +3213,12 @@ label.settings-check {
   font-size: var(--text-md);
 }
 
+.agent-tasks .agent-inbox-group-title {
+  margin-block: var(--space-4) var(--space-2);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
 .agent-task-list {
   list-style: none;
   margin: 0;

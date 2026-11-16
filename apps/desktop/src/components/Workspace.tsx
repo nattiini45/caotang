@@ -34,7 +34,7 @@ import { childrenOf, enclosingFolders, newDocumentRefusalText, newItemParent, no
 import { newPlan, newTarget, type NewKind } from '../app/new-menu.js';
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, type DirectoryHandleLike } from '../app/fs-access.js';
-import { isImeEnter, keyFacts, keyboardLayoutStore, resolveKey } from '../app/keymap.js';
+import { MODAL_DIALOG_SELECTOR, isImeEnter, keyFacts, keyboardLayoutStore, resolveKey } from '../app/keymap.js';
 import { shellActions } from '../app/shell-actions.js';
 import { NARROW_QUERY, narrowMediaFeature, type NarrowPanel } from '../app/narrow-model.js';
 import {
@@ -168,6 +168,9 @@ export function Workspace({
   const [timelineFocus, setTimelineFocus] = useState<TimelineFocusRequest | null>(null);
   const [pictureFocus, setPictureFocus] = useState<PictureFocusRequest | null>(null);
   const [findingsFocus, setFindingsFocus] = useState<{ readonly factGroup: string; readonly serial: number } | null>(null);
+  const [findingsRunFocus, setFindingsRunFocus] = useState<{ readonly runId: string; readonly serial: number } | null>(null);
+  const [inboxReturnTask, setInboxReturnTask] = useState<string | null>(null);
+  const [inboxFocus, setInboxFocus] = useState<{ readonly taskId: string; readonly serial: number } | null>(null);
   const focusSerial = useRef(0);
   // The narrow layout (ui-modules §1): which panel is open over the centre, and the toolbar's overflow menu. View state only; a wide
   // window never reads it.
@@ -538,9 +541,38 @@ export function Workspace({
   /** "Open in Findings" from the timeline: the Findings rail opens on the fact group, which the panel scrolls to and focuses. */
   const openInFindings = useCallback((factGroup: string): void => {
     setRail('findings');
+    setFindingsRunFocus(null);
+    setInboxReturnTask(null);
     focusSerial.current += 1;
     setFindingsFocus({ factGroup, serial: focusSerial.current });
   }, []);
+
+  const openTaskFindings = async (taskId: string, runId: string): Promise<void> => {
+    setAgentOpen(false);
+    setRail('findings');
+    setRailRequest((count) => count + 1);
+    if (narrow) setPanel('rail');
+    if (hideRails) setFocusMode(false);
+    setFindingsFocus(null);
+    setInboxReturnTask(taskId);
+    focusSerial.current += 1;
+    setFindingsRunFocus({ runId, serial: focusSerial.current });
+    try {
+      await agent?.acknowledgeReviewTask(taskId);
+    } catch {
+      report({ text: t`The report’s read marker could not be saved. It may appear unread after reload.`, tone: 'error' });
+    }
+  };
+
+  const returnToInbox = (): void => {
+    if (inboxReturnTask === null) return;
+    setAgentOpen(true);
+    setPanel(null);
+    focusSerial.current += 1;
+    setInboxFocus({ taskId: inboxReturnTask, serial: focusSerial.current });
+    setFindingsRunFocus(null);
+    setInboxReturnTask(null);
+  };
 
   /** "Show on timeline" from a finding: the timeline replaces the centre and moves to the scenes the finding cites. */
   const showOnTimeline = useCallback((docIds: readonly string[], findingId: string): void => {
@@ -595,6 +627,7 @@ export function Workspace({
   // and always sees the current selection, without re-subscribing on each change.
   const onKey = (event: KeyboardEvent): void => {
     const target = event.target;
+    if (event.defaultPrevented || (target instanceof Element && target.closest(MODAL_DIALOG_SELECTOR) !== null)) return;
     const inTextField =
       target instanceof HTMLTextAreaElement ||
       target instanceof HTMLInputElement ||
@@ -926,6 +959,7 @@ export function Workspace({
         onReveal={revealPassage}
         settings={settingsNow.coherence}
         providers={services.providers}
+        controller={agent}
         onOpenAgent={() => {
           setAgentOpen(true);
           setPanel(null);
@@ -933,6 +967,8 @@ export function Workspace({
         onOpenDocument={openDocument}
         focusGroup={findingsFocus}
         onGroupFocused={() => setFindingsFocus(null)}
+        focusRun={findingsRunFocus}
+        onBackToInbox={inboxReturnTask === null ? undefined : returnToInbox}
         onShowOnTimeline={showOnTimeline}
       />
     ),
@@ -1002,6 +1038,9 @@ export function Workspace({
           onToggle={() => setAgentOpen((on) => !on)}
           sample={sample}
           onOpenProviders={openProviders}
+          onOpenTaskFindings={openTaskFindings}
+          inboxFocus={inboxFocus}
+          onInboxFocused={() => setInboxFocus(null)}
         />
       ),
     // The same panel for a shell that hosts it in a window of its own (Modern's companion, modern-interface.md §7.4, §8.10): always open,
@@ -1019,6 +1058,9 @@ export function Workspace({
           onClose={() => setAgentOpen(false)}
           onAddProvider={openProviders}
           onOpenProviders={openProviders}
+          onOpenTaskFindings={openTaskFindings}
+          inboxFocus={inboxFocus}
+          onInboxFocused={() => setInboxFocus(null)}
           placement="window"
           sample={sample}
         />

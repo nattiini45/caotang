@@ -107,6 +107,15 @@ describe('the inventory', () => {
     expect(scan.sites.some((site) => site.text === 'application/json')).toBe(false);
   });
 
+  it('recognizes typed and optional DOM selector methods without hiding adjacent interface copy', () => {
+    const scan = scanSource('inbox.tsx', `
+      const action = row?.querySelector<HTMLElement>('button:not(:disabled)');
+      const rows = container.querySelectorAll<HTMLElement>('[data-label="Ready to review"]');
+      const label = 'Ready to review';
+    `);
+    expect(scan.sites).toEqual([expect.objectContaining({ kind: 'literal', text: 'Ready to review' })]);
+  });
+
   it('counts nothing in a file where every string is already a message', () => {
     const scan = scanSource('wrapped.tsx', read('wrapped.tsx'));
     expect(scan.sites).toEqual([]);

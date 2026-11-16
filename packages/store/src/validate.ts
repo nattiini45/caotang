@@ -188,7 +188,8 @@ function isRecipeOptions(v: unknown): boolean {
         o['epubImageMaxPx'] <= EPUB_IMAGE_MAX_PX_MAX)) &&
     (o['epubKeepWebp'] === undefined || typeof o['epubKeepWebp'] === 'boolean') &&
     (o['keepPictureMetadata'] === undefined || typeof o['keepPictureMetadata'] === 'boolean') &&
-    (o['timelinePictures'] === undefined || typeof o['timelinePictures'] === 'boolean')
+    (o['timelinePictures'] === undefined || typeof o['timelinePictures'] === 'boolean') &&
+    (o['notes'] === undefined || o['notes'] === 'footnote' || o['notes'] === 'endnote')
   );
 }
 
@@ -459,7 +460,7 @@ function validateFields(
           // a saved selection the writer chose, and the options it cannot read fall back to the template's defaults.
           const options = (recipe as Record<string, unknown>)['options'];
           if (options !== undefined && !isRecipeOptions(options)) {
-            warn(`recipes[${i}].options`, 'not a set of recipe options (titlePage, toc, author, charLimit, sceneNumbers, continued, pageSize, scriptFont, paperFrames, colourEmoji, bleed, cropMarks, contentsLabel, pictures, epubImageMaxPx, epubKeepWebp, keepPictureMetadata, timelinePictures); dropped, and the recipe uses the template defaults');
+            warn(`recipes[${i}].options`, 'not a set of recipe options (titlePage, toc, author, charLimit, sceneNumbers, continued, pageSize, scriptFont, paperFrames, colourEmoji, bleed, cropMarks, contentsLabel, pictures, epubImageMaxPx, epubKeepWebp, keepPictureMetadata, timelinePictures, notes); dropped, and the recipe uses the template defaults');
             delete (recipe as Record<string, unknown>)['options'];
           }
           return true;

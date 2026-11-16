@@ -58,7 +58,7 @@ export { DIALOGUE_CONTAINER_TYPE, containersOf, dialogueFactsOf } from './cohere
 export { computeScanWorker, projectScanInput, type ScanWorkerInput } from './scan-worker.js';
 // The Ink compiler loads on demand (dialogue ink-loader.ts); a Node host awaits this before it opens a project, so every dialogue tool and check can compile.
 export { loadInkCompiler } from '@caotang/dialogue';
-export { gatewayCoherenceModel, reviewContextOf, withReviewLanguages } from './coherence-review-context.js';
+export { backgroundCoherenceModel, gatewayCoherenceModel, reviewContextOf, withReviewLanguages } from './coherence-review-context.js';
 export {
   askBackFor,
   parsePlan,
@@ -127,6 +127,7 @@ export {
   type RequestContextPreview,
   type OfferAnswer,
   type PlanOffer,
+  type PlanOfferReview,
   type StageOnlyResult,
   type SteerReceipt,
   type SubmitOptions,
@@ -243,9 +244,11 @@ export {
   estimatedModelCalls,
   estimatedStepCalls,
   proposalShapeOk,
+  reviewCallBoundOk,
   revisionsOf,
   staleSteps,
   type BackgroundEligibility,
+  type ReviewCallBound,
   type StepRevisions,
 } from './agent/background.js';
 export { PRELOAD_BY_CONTEXT, preloadContextOf, preloadFor, type PreloadContext } from './agent/preload.js';

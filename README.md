@@ -8,6 +8,8 @@ The agent names when it is loading, processing an approval or stopping. Its comp
 
 Recurring task offers keep updating while a scan runs. If the agent is busy, a due task stays offered without a failed run; choose **Run now** after the turn ends.
 
+Recurring plans can also start when due after a separate allowance on this browser, within their model-call cap. Their drafts wait in the Inbox for review; no steps apply automatically. Editing the plan, schedule, permission or cap requires a new allowance. Instructions still stay offered.
+
 After a project restore, the agent names the project changes taken back and keeps its earlier report as **Original result**. Rewinding the conversation alone does not claim to undo project changes.
 
 Dialogs keep unfinished input underneath a later dialog; Escape acts on the top one. A stopped-tab notice always takes precedence. In Modern, background notice capsules wait out the dialog visually, while new notices are still announced and current ones return afterward. An error received while covered is kept over later information; a newer error replaces it.
@@ -28,7 +30,7 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 
 Checking a provider in Settings never switches the active profile. **Not verified** stays beside profiles with an unknown or failed model-list check after a reload; edit and save the profile to check it again.
 
-**Requests at once**, in **Settings › Providers**, limits overlapping completion calls per profile from 1 to 8 (3 for an endpoint, 8 for the demo by default). Queued foreground requests go before Background requests without interrupting a running call. A rate-limit response pauses new calls on that profile; another profile can keep working. Model lists and save-time provider checks are outside this limit and can overlap a completion. This setting does not start parallel work or grant permissions.
+Adding a provider is a key and one press: paste an API key in **Settings › Providers**, Caotang recognises the provider, lists the models the key can use, and a press on one makes it the agent’s model. How many requests run at once and prompt caching are settled automatically, per provider and model; a rate-limit response pauses new calls on that profile for a moment while another profile keeps working. A server of your own is **Custom endpoint**, a second path with the same model list. Model lists and save-time provider checks are not part of the request limit and can overlap a completion. None of this starts parallel work or grants permissions.
 
 ## What works today
 
@@ -72,6 +74,7 @@ An unresolved document conflict keeps its recovery guidance even if a later prod
 - **Settings.** Provider profiles, the agent's context budgets, the daily target and autosave delay, coherence checks, light and dark themes, checkpoint limits, **MCP & tools**, and data.
 - **Request context.** The agent composer estimates context while you type and shows the actual planner request while it runs. Type `@` to pin codex entries or up to three document excerpts, remove a pin, or leave optional context out in the shared prompt preview. Choices apply only to that request; saved policies and read rules stay authoritative.
 - Requests with pins or leave-outs retain those choices in the composer's **Queue** and in background tasks, including after reload and Resume. Staging and review still respect current Never policies and read-deny rules. Run logs retain sent messages, including sent excerpts; recovery choice metadata contains IDs only. Discarding a runtime log does not remove exported or folder copies.
+- **Queued reviews and Review Inbox.** In Findings, **Queue a review** prepares the readable scope, Background model, call/token bounds, first prompt and price estimate before **Queue this review** starts it. A missing price is unknown, not free. Review plans can be offered in the background below five calls. A completed review records findings, not manuscript edits; its Inbox report opens those findings without another model call. Drafts and the other steps of a mixed plan still wait for the usual **Review** and approval. Interrupted reviews resume acknowledged work within the remaining cap; changed inputs, access or routing require a fresh preview. Dismissing the report does not delete its findings, and no model task starts on a schedule.
 - **MCP & tools.** Settings can connect external [Model Context Protocol](https://modelcontextprotocol.io) servers over Streamable HTTP. Each server's tool list is reviewed before its tools are used, and a tool can be switched off. The agent calls an enabled tool at once only when its server is trusted for reads and the tool is read-only. Any other call waits for your approval.
 - **Caotang as an MCP server.** Other AI tools can read a project folder, attach its documents, notes, codex and story timeline as resources, and run prompts that carry the context Caotang gathers for a scene. With writes allowed, they can change it, and each change that asks is confirmed in the host. See [Caotang as an MCP server](#caotang-as-an-mcp-server).
 

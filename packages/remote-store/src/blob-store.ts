@@ -1,6 +1,6 @@
 /**
  * The server as the client sees it — [hosted.md §6](docs/architecture/hosted.md). A blob store for one project that holds
- * opaque bytes under opaque names and nothing else. An HTTP client for it is Phase 2 work; this package ships none.
+ * opaque bytes under opaque names and nothing else. {@link createHttpBlobStore} is the HTTP client for this contract.
  */
 
 export interface RemoteBlob {

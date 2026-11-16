@@ -4,20 +4,24 @@
  * task but a click; what is due is offered in `TaskOffers`. The agent has no tool for any of this.
  */
 
-import { useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { t } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 
-import { WEEKDAYS } from '@caotang/tasks';
+import { WEEKDAYS, readPlanText } from '@caotang/tasks';
 
-import { EMPTY_DRAFT, SELF_START_NOTE, type RecurringTasks, type RunView, type TaskDraft, type TaskRowView } from '../app/recurring-tasks.js';
+import { EMPTY_DRAFT, planSelfStartNote, planStarter, selfStartNote, type RecurringTasks, type RunView, type TaskDraft, type TaskRowView } from '../app/recurring-tasks.js';
 import { ConfirmDialog } from './shared.js';
 import { DATE_AND_TIME, formatCount, formatDateTime } from '../i18n/locale.js';
+import './recurring-tasks.css';
 
 const WEEKDAY_NAMES = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' } as const;
 
 const STATUS_WORDS = { done: 'Done', failed: 'Failed', stopped: 'Stopped', skipped: 'Skipped' } as const;
+const TaskAllowanceDialog = lazy(() => import('./TaskAllowanceDialog.js'));
+
+/* lingui-set comment="Interpolated values: calls" */
 
 function usedWords(run: RunView): string {
   if (run.requests === 0) return 'no model calls';
@@ -28,8 +32,9 @@ interface Editing {
   /** The task being changed, or `null` for a new one. */
   readonly id: string | null;
   readonly draft: TaskDraft;
-  readonly bodyEditable: boolean;
   readonly error: string | null;
+  /** The last refusal was about the plan's steps, so the editor is marked invalid and takes focus. */
+  readonly stepsInvalid: boolean;
 }
 
 export function RecurringTasksPanel({
@@ -47,16 +52,72 @@ export function RecurringTasksPanel({
   const [removing, setRemoving] = useState<TaskRowView | null>(null);
   const [restoring, setRestoring] = useState<{ readonly turnId: string; readonly name: string } | null>(null);
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [allowing, setAllowing] = useState<TaskRowView | null>(null);
+  const [allowanceLoaded, setAllowanceLoaded] = useState(false);
+  const [revoking, setRevoking] = useState<string | null>(null);
+  const [allowanceError, setAllowanceError] = useState<string | null>(null);
+  const allowanceTaskId = useRef<string | null>(null);
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const newTaskRef = useRef<HTMLButtonElement | null>(null);
+  const stepsRef = useRef<HTMLTextAreaElement | null>(null);
+  const editSerial = useRef(0);
 
-  const startNew = (): void => setEditing({ id: null, draft: EMPTY_DRAFT, bodyEditable: true, error: null });
-  const edit = (task: TaskRowView): void => setEditing({ id: task.id, draft: task.draft, bodyEditable: task.bodyEditable, error: null });
+  const startNew = (): void => {
+    if (saving) return;
+    editSerial.current += 1;
+    setSaving(false);
+    setEditing({ id: null, draft: EMPTY_DRAFT, error: null, stepsInvalid: false });
+  };
+  const edit = (task: TaskRowView): void => {
+    if (saving) return;
+    editSerial.current += 1;
+    setSaving(false);
+    setEditing({ id: task.id, draft: task.draft, error: null, stepsInvalid: false });
+  };
+  const focusTarget = useRef<string | null | undefined>(undefined);
+  const focusInvalidSteps = useRef(false);
+  const focusAfterEdit = (id: string | null): void => {
+    focusTarget.current = id;
+  };
+  useEffect(() => {
+    if (saving) return;
+    if (focusInvalidSteps.current) {
+      focusInvalidSteps.current = false;
+      if (editing?.stepsInvalid === true) stepsRef.current?.focus();
+    }
+    if (editing !== null || focusTarget.current === undefined) return;
+    const id = focusTarget.current;
+    focusTarget.current = undefined;
+    const row = id === null ? null : sectionRef.current?.querySelector<HTMLElement>(`[data-task="${CSS.escape(id)}"] [data-action="edit"]`);
+    (row ?? newTaskRef.current)?.focus();
+  }, [editing, saving]);
+  const cancelEdit = (): void => {
+    const id = editing?.id ?? null;
+    editSerial.current += 1;
+    setSaving(false);
+    setEditing(null);
+    focusAfterEdit(id);
+  };
 
   const save = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    if (editing === null) return;
-    void recurring.save(editing.draft, editing.id ?? undefined).then((failure) => {
-      if (failure === null) setEditing(null);
-      else setEditing((now) => (now === null ? now : { ...now, error: failure }));
+    if (editing === null || saving) return;
+    const session = editing;
+    const serial = editSerial.current;
+    setSaving(true);
+    void recurring.save(session.draft, session.id ?? undefined).then((failure) => {
+      if (editSerial.current !== serial) return;
+      setSaving(false);
+      if (failure === null) {
+        const saved = session.id ?? recurring.snapshot().tasks.filter((task) => task.name === session.draft.name.trim()).at(-1)?.id ?? null;
+        setEditing(null);
+        focusAfterEdit(saved);
+        return;
+      }
+      const stepsInvalid = session.draft.body === 'plan' && !readPlanText(session.draft.steps).ok;
+      focusInvalidSteps.current = stepsInvalid;
+      setEditing((now) => (now === null ? now : { ...now, error: failure, stepsInvalid }));
     });
   };
 
@@ -74,13 +135,12 @@ export function RecurringTasksPanel({
 
   const { status } = snapshot;
   return (
-    <section className="recurring" aria-label={t`Recurring tasks`} data-testid="recurring-tasks">
+    <section ref={sectionRef} className="recurring" aria-label={t`Recurring tasks`} data-testid="recurring-tasks">
       <Heading><Trans>Recurring tasks</Trans></Heading>
       <p className="recurring-note muted">
-        A task runs only while this project is open in a visible tab. When one is due you are offered it, and a continuity scan, which reads
-        your project and calls no model, may start by itself. Tasks live in tasks.json beside caotang.json; when each last ran is kept in
-        this browser only.
+        <Trans>Tasks run only while this project is open in a visible tab. Scans may start by themselves. Plans need your allowance on this browser; their drafts wait in the Inbox for review. Instructions are offered when due.</Trans>
       </p>
+      {allowanceError === null ? null : <p className="form-message is-error" role="alert">{allowanceError}</p>}
       {status.notices.length > 0 ? (
         <ul className="recurring-notices" aria-label="About the tasks file">
           {status.notices.map((notice) => (
@@ -110,7 +170,7 @@ export function RecurringTasksPanel({
             <p className="recurring-task-title">
               <strong>{task.name}</strong>
               {task.enabled ? null : <span className="recurring-off"> (off)</span>}
-              {task.running ? <span className="recurring-running"> Running…</span> : null}
+              {task.running ? <span className="recurring-running"> Running…</span> : task.staging ? <span className="recurring-running"><Trans> Preparing drafts…</Trans></span> : null}
             </p>
             <p className="recurring-task-meta muted">
               {task.schedule} · {task.doing} · {task.usesModel ? 'Uses the model' : 'Calls no model'} ·{' '}
@@ -119,12 +179,13 @@ export function RecurringTasksPanel({
             </p>
             {task.problem === null ? null : <p className="recurring-problem">{task.problem}</p>}
             {task.note === null ? null : <p className="recurring-task-meta">{task.note}</p>}
+            {task.consent === 'current' && task.selfStart ? <p className="recurring-task-meta"><Trans>Allowed on this browser. Nothing is applied automatically.</Trans></p> : null}
             <div className="recurring-actions">
-              <button type="button" className="button" disabled={snapshot.running !== null || task.problem !== null} onClick={() => void recurring.runNow(task.id)}>
+              <button type="button" className="button" disabled={snapshot.running !== null || task.staging || task.problem !== null} onClick={() => void recurring.runNow(task.id)}>
                 Run now
                 <span className="visually-hidden"> {task.name}</span>
               </button>
-              <button type="button" className="button" onClick={() => edit(task)}>
+              <button type="button" className="button" data-action="edit" disabled={saving} onClick={() => edit(task)}>
                 Edit
                 <span className="visually-hidden"> {task.name}</span>
               </button>
@@ -136,6 +197,19 @@ export function RecurringTasksPanel({
                 Delete
                 <span className="visually-hidden"> {task.name}</span>
               </button>
+              {task.consent === 'current' ? (
+                <button type="button" className="button" data-action="allow" disabled={revoking !== null} onClick={() => {
+                  setRevoking(task.id);
+                  setAllowanceError(null);
+                  void recurring.revokeSelfStart(task.id).then((failure) => { setAllowanceError(failure); setRevoking(null); });
+                }}>
+                  <Trans>Revoke automatic starts</Trans><span className="visually-hidden"> {task.name}</span>
+                </button>
+              ) : task.canAllow ? (
+                <button type="button" className="button" data-action="allow" disabled={saving || revoking !== null} onClick={() => { allowanceTaskId.current = task.id; setAllowanceLoaded(true); setAllowing(task); }}>
+                  <Trans>Allow automatic starts</Trans><span className="visually-hidden"> {task.name}</span>
+                </button>
+              ) : null}
             </div>
             {task.history.length === 0 ? null : (
               <details className="recurring-history">
@@ -145,7 +219,7 @@ export function RecurringTasksPanel({
                 <ol aria-label={`Runs of ${task.name}`}>
                   {task.history.map((run) => (
                     <li key={`${run.at}:${run.status}`} data-status={run.status}>
-                      <span className="recurring-run-when">{formatDateTime(new Date(run.at), DATE_AND_TIME)}</span> — <strong>{STATUS_WORDS[run.status]}</strong>
+                      <span className="recurring-run-when">{formatDateTime(new Date(run.at), DATE_AND_TIME)}</span> — <strong>{run.status === 'queued' ? t`Preparing drafts` : run.status === 'ready' ? t`Ready in Inbox` : STATUS_WORDS[run.status]}</strong>
                       {run.trigger === 'manual' ? ' (started by you)' : ''}. {run.summary}{' '}
                       <span className="muted">({usedWords(run)})</span>
                       {run.canRestore && run.turnId !== undefined ? (
@@ -166,11 +240,11 @@ export function RecurringTasksPanel({
       </ul>
 
       {editing === null ? (
-        <button type="button" className="button" onClick={startNew} disabled={!status.writable}>
+        <button ref={newTaskRef} type="button" className="button" onClick={startNew} disabled={!status.writable || saving}>
           <Trans>New task</Trans>
         </button>
       ) : (
-        <TaskForm editing={editing} onChange={(draft) => setEditing({ ...editing, draft, error: null })} onSubmit={save} onCancel={() => setEditing(null)} />
+        <TaskForm editing={editing} saving={saving} stepsRef={stepsRef} onChange={(draft) => setEditing({ ...editing, draft, error: null, stepsInvalid: false })} onSubmit={save} onCancel={cancelEdit} />
       )}
       {!status.writable ? <p className="muted recurring-note">The tasks file cannot be saved here, so tasks cannot be made or changed.</p> : null}
 
@@ -186,50 +260,75 @@ export function RecurringTasksPanel({
           restore.
         </p>
       </ConfirmDialog>
+      <Suspense fallback={<p role="status">{t`Opening allowance…`}</p>}>
+      {allowanceLoaded ? <TaskAllowanceDialog task={allowing} recurring={recurring} onClose={() => setAllowing(null)} finalFocus={() => {
+        const id = allowanceTaskId.current;
+        return id === null ? newTaskRef.current : sectionRef.current?.querySelector<HTMLElement>(`[data-task="${CSS.escape(id)}"] [data-action="allow"]`) ?? newTaskRef.current;
+      }} /> : null}
+      </Suspense>
     </section>
   );
 }
 
+
 function TaskForm({
   editing,
+  saving,
+  stepsRef,
   onChange,
   onSubmit,
   onCancel,
 }: {
   editing: Editing;
+  saving: boolean;
+  stepsRef: RefObject<HTMLTextAreaElement | null>;
   onChange: (draft: TaskDraft) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
 }): ReactNode {
   useLingui();
   const { draft } = editing;
+  const stepsHelp = useId();
+  const errorId = useId();
   const set = (patch: Partial<TaskDraft>): void => onChange({ ...draft, ...patch });
   const timed = draft.schedule === 'daily' || draft.schedule === 'weekly';
-  const model = draft.body === 'intent';
+  const model = draft.body === 'intent' || draft.body === 'plan';
   return (
-    <form className="recurring-form settings-form" noValidate aria-label={editing.id === null ? t`New task` : t`Edit task`} onSubmit={onSubmit}>
+    <form className="recurring-form settings-form" noValidate aria-busy={saving} aria-label={editing.id === null ? t`New task` : t`Edit task`} onSubmit={onSubmit}>
+      <fieldset className="recurring-form-fields" disabled={saving}>
       <label>
         <span>Task name</span>
-        <input type="text" value={draft.name} maxLength={80} onChange={(event) => set({ name: event.target.value })} />
+        <input type="text" autoFocus value={draft.name} maxLength={80} onChange={(event) => set({ name: event.target.value })} />
       </label>
-      {editing.bodyEditable ? (
-        <label>
-          <span>What it does</span>
-          <select aria-label="What it does" value={draft.body} onChange={(event) => set({ body: event.target.value as TaskDraft['body'] })}>
-            <option value="intent">Ask the agent</option>
-            <option value="scan">Scan for continuity problems</option>
-          </select>
-        </label>
-      ) : (
-        <p className="muted">This task runs a plan. Change its steps in tasks.json.</p>
-      )}
-      {editing.bodyEditable && draft.body === 'intent' ? (
+      <label>
+        <span>What it does</span>
+        <select aria-label="What it does" value={draft.body} onChange={(event) => {
+          const body = event.target.value as TaskDraft['body'];
+          set(body === 'plan' && draft.steps === '' ? { body, steps: planStarter() } : { body });
+        }}>
+          <option value="intent">Ask the agent</option>
+          <option value="plan">{t`Run a plan`}</option>
+          <option value="scan">Scan for continuity problems</option>
+        </select>
+      </label>
+      {draft.body === 'intent' ? (
         <label>
           <span>What to ask</span>
           <textarea aria-label="What to ask" rows={3} value={draft.text} onChange={(event) => set({ text: event.target.value })} />
         </label>
       ) : null}
-      {editing.bodyEditable && draft.body === 'scan' ? (
+      {draft.body === 'plan' ? (
+        <>
+          <label>
+            <span>{t`Plan steps`}</span>
+            <textarea ref={stepsRef} className="recurring-steps" aria-label={t`Plan steps`} aria-describedby={editing.error === null ? stepsHelp : `${stepsHelp} ${errorId}`} aria-invalid={editing.stepsInvalid} rows={8} spellCheck={false} value={draft.steps} onChange={(event) => set({ steps: event.target.value })} />
+          </label>
+          <p id={stepsHelp} className="muted">
+            <Trans>Write the steps as a list in JSON, each with a tool, its params and what to expect. They are checked as the agent’s own plans are when you save, and the task’s permission limits what the plan may do.</Trans>
+          </p>
+        </>
+      ) : null}
+      {draft.body === 'scan' ? (
         <label>
           <span>What to scan</span>
           <select aria-label="What to scan" value={draft.scope} onChange={(event) => set({ scope: event.target.value as TaskDraft['scope'] })}>
@@ -272,7 +371,7 @@ function TaskForm({
           <option value="run">Start it by itself</option>
         </select>
       </label>
-      {model && draft.whenDue === 'run' ? <p className="muted">{SELF_START_NOTE}</p> : null}
+      {draft.whenDue === 'run' && draft.body !== 'scan' ? <p className="muted">{draft.body === 'plan' ? planSelfStartNote() : selfStartNote()}</p> : null}
       <label>
         <span>What it may do</span>
         <select aria-label="What it may do" value={draft.permission} onChange={(event) => set({ permission: event.target.value as TaskDraft['permission'] })}>
@@ -287,18 +386,19 @@ function TaskForm({
         </label>
       ) : null}
       {editing.error === null ? null : (
-        <p className="form-message is-error" role="alert">
+        <p id={errorId} className="form-message is-error" role="alert">
           {editing.error}
         </p>
       )}
       <div className="recurring-actions">
-        <button type="submit" className="button is-primary">
-          Save task
+        <button type="submit" className="button is-primary" disabled={saving}>
+          {saving ? t`Saving…` : t`Save task`}
         </button>
         <button type="button" className="button" onClick={onCancel}>
           Cancel
         </button>
       </div>
+      </fieldset>
     </form>
   );
 }

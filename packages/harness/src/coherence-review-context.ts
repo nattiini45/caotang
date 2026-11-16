@@ -15,9 +15,10 @@ import {
   type ReviewContext,
 } from '@caotang/coherence';
 import { detect, selectCandidates } from '@caotang/codex';
-import { contentTokens, textOf, type ProfileView, type ProviderGateway, type ThinkingLevel } from '@caotang/gateway';
+import { contentTokens, textOf, type Gateway, type ProfileView, type ProviderGateway, type ThinkingLevel } from '@caotang/gateway';
 import { getBody, type ProjectState, type TreeNode } from '@caotang/store';
 import { newId } from '@caotang/ids';
+import type { ContextOverrides } from '@caotang/context';
 import { appendLanguageLine, type LanguagePolicy } from './agent/context.js';
 
 /** The manuscript's documents in binder order, the order the story-so-far layer reads them in. */
@@ -47,16 +48,25 @@ function gist(state: ProjectState, node: TreeNode): string {
   return getBody(state, node.id).trim().slice(0, 160);
 }
 
+function overrideIds(overrides: ContextOverrides | undefined, choice: 'include' | 'exclude', kind: 'doc' | 'codex'): Set<string> {
+  return new Set(overrides?.[choice]?.filter((ref) => ref.kind === kind).map((ref) => ref.id));
+}
+
 /**
  * The codex entries one document's review may send (codex.md §5 and §6, the L2 layer): the candidates the include-policy rule
  * selects for this document, in codex order. A `never` entry is never sent. A `manual` entry is sent only when it is attached
  * to the document or an ancestor folder. A `detected` entry is sent only when its name or alias is in the document's text, which
  * is the same scan `continuity.scan` makes (codex.md §4 rule 6). An empty description is dropped (codex.md §2).
  */
-function codexBlocksOf(state: ProjectState, docId: string): ContextBlock[] {
-  const entries = state.manifest.codex ?? [];
+function codexBlocksOf(state: ProjectState, docId: string, excluded: ReadonlySet<string>, pinned: ReadonlySet<string>): ContextBlock[] {
+  const entries = (state.manifest.codex ?? []).filter((entry) => !excluded.has(entry.id) || entry.includePolicy === 'never');
   const detected = detect([{ id: docId, text: getBody(state, docId) }], entries);
-  const { candidates } = selectCandidates({ entries, tree: state.manifest.tree, focusDocId: docId, detected });
+  const { candidates } = selectCandidates({
+    entries: entries.map((entry) => (pinned.has(entry.id) && entry.includePolicy !== 'never' ? { ...entry, includePolicy: 'always' as const } : entry)),
+    tree: state.manifest.tree,
+    focusDocId: docId,
+    detected,
+  });
   return candidates.map(({ entry }) => ({ key: entry.name, text: `${entry.name} (${entry.type}): ${entry.description}` }));
 }
 
@@ -65,14 +75,66 @@ function codexBlocksOf(state: ProjectState, docId: string): ContextBlock[] {
  * story so far as one block per earlier document (the L4 layer). The engine fits both to its budgets and names what it left out
  * on the plan card.
  */
-export function reviewContextOf(state: ProjectState): ReviewContext {
+export function reviewContextOf(state: ProjectState, overrides?: ContextOverrides): ReviewContext {
   const documents = manuscriptDocuments(state);
+  const excludedDocs = overrideIds(overrides, 'exclude', 'doc');
+  const excludedCodex = overrideIds(overrides, 'exclude', 'codex');
+  const pinnedCodex = overrideIds(overrides, 'include', 'codex');
   return {
-    codex: (docId: string) => codexBlocksOf(state, docId),
+    codex: (docId: string) => codexBlocksOf(state, docId, excludedCodex, pinnedCodex),
     storySoFar: (docId: string) => {
       const index = documents.findIndex((node) => node.id === docId);
       if (index <= 0) return [];
-      return documents.slice(0, index).map((node) => ({ key: node.title, text: `${node.title}: ${gist(state, node)}` }));
+      return documents.slice(0, index)
+        .filter((node) => !excludedDocs.has(node.id))
+        .map((node) => ({ key: node.title, text: `${node.title}: ${gist(state, node)}` }));
+    },
+  };
+}
+
+export function backgroundCoherenceModel(
+  gateway: Gateway,
+  profile: ProfileView,
+  attribution: {
+    readonly turnId: string;
+    readonly sessionId: string;
+    readonly model?: string;
+    readonly thinking?: ThinkingLevel;
+    readonly languages?: LanguagePolicy;
+  },
+  beforeSend?: () => void,
+): CoherenceModel {
+  return {
+    model: attribution.model ?? profile.defaultModel,
+    async complete(request: ModelRequest): Promise<ModelReply> {
+      const before = gateway.ledger.turnTotals(attribution.turnId);
+      const message = await gateway.completeOnce(
+        {
+          profileId: profile.id,
+          turnId: attribution.turnId,
+          sessionId: attribution.sessionId,
+          role: 'background',
+          messages: [
+            { role: 'system', content: appendLanguageLine(request.system, attribution.languages) },
+            { role: 'user', content: request.user },
+          ],
+          responseFormat: { jsonSchemaHint: request.jsonSchemaHint },
+          temperature: 0,
+          ...(attribution.model === undefined ? {} : { model: attribution.model }),
+          ...(attribution.thinking === undefined ? {} : { thinking: attribution.thinking }),
+          ...(request.maxOutputTokens !== undefined ? { maxOutputTokens: request.maxOutputTokens } : {}),
+        },
+        request.signal,
+        beforeSend,
+      );
+      const after = gateway.ledger.turnTotals(attribution.turnId);
+      return {
+        content: textOf(message.content),
+        usage: {
+          promptTokens: Math.max(0, after.promptTokens - before.promptTokens),
+          completionTokens: Math.max(0, after.completionTokens - before.completionTokens),
+        },
+      };
     },
   };
 }

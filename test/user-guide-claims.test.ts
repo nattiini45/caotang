@@ -22,15 +22,18 @@ const guide = read('docs/USER-GUIDE.md');
 const changelog = read('CHANGELOG.md');
 
 describe('provider request-limit guidance', () => {
-  it('limits calls that generate a response without promising to serialize model lists or save-time checks', () => {
-    const guidance = guide.split('\n').find((line) => line.startsWith('In **Providers**, **Requests at once**'));
+  it('says the limit is settled automatically, covers only calls that generate a response, and is not a setting', () => {
+    const guidance = guide.split('\n').find((line) => line.startsWith('In **Providers**, Caotang settles how many calls'));
     expect(guidance).toContain('calls that generate a response');
     expect(guidance).toContain('Model lists and the checks run when saving a profile are outside this limit');
-    const overview = read('README.md').split('\n').find((line) => line.startsWith('**Requests at once**'));
-    expect(overview).toContain('limits overlapping completion calls per profile');
-    const translated = read('docs/i18n/de/USER-GUIDE.md').split('\n').find((line) => line.startsWith('Unter **Anbieter** legt **Gleichzeitige Anfragen**'));
+    expect(guidance).toContain('This is not a setting');
+    const overview = read('README.md').split('\n').find((line) => line.startsWith('Adding a provider is a key and one press'));
+    expect(overview).toContain('settled automatically');
+    expect(overview).toContain('Model lists and save-time provider checks are not part of the request limit');
+    const translated = read('docs/i18n/de/USER-GUIDE.md').split('\n').find((line) => line.startsWith('Unter **Anbieter** legt Caotang selbst fest'));
     expect(translated).toContain('Aufrufe, die eine Modellantwort erzeugen');
     expect(translated).toContain('Modelllisten und die Prüfungen beim Speichern eines Profils liegen außerhalb dieser Grenze');
+    expect(translated).toContain('Das ist keine Einstellung');
     const gateway = read('packages/gateway/src/gateway.ts');
     const listing = gateway.slice(gateway.indexOf('async function listModels('), gateway.indexOf('function modelLimits('));
     const probe = gateway.slice(gateway.indexOf('async function probeResponseFormat('), gateway.indexOf('function modelCaps('));
@@ -38,6 +41,15 @@ describe('provider request-limit guidance', () => {
     expect(probe).toContain('await probeJsonObject(');
     expect(listing).not.toContain('limiter.acquire(');
     expect(probe).not.toContain('limiter.acquire(');
+  });
+
+  it('names no Requests at once or Prompt caching setting any more', () => {
+    for (const path of ['docs/USER-GUIDE.md', 'README.md', 'docs/i18n/de/USER-GUIDE.md']) {
+      const text = read(path);
+      expect(text, path).not.toContain('**Requests at once**');
+      expect(text, path).not.toContain('**Gleichzeitige Anfragen**');
+      expect(text, path).not.toContain('**Prompt caching**, on by default');
+    }
   });
 });
 
@@ -80,11 +92,12 @@ describe('the user guide matches what the app does', () => {
     for (const label of ['Background tasks', 'Review', 'Resume', 'Cancel', 'Dismiss']) expect(tasks).toContain(label);
     const agent = guide.slice(guide.indexOf('## The agent'), guide.indexOf('## Skills'));
     expect(agent).toContain('**Run now**, **Run in background** or **Cancel**');
-    expect(agent).toContain('A task is drafted only while the project is open in this tab.');
-    expect(agent).toContain('Nothing is written until you choose **Review**');
+    expect(agent).toContain('A task runs only while the project is open in this tab.');
+    expect(agent).toContain('**Review Inbox** holds ready drafts and published review reports');
+    expect(agent).toContain('**Approve** applies them as one change that the checkpoint can restore');
     const missing = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(missing).toContain('**Background tasks.** A task is drafted only while the project is open in this tab');
-    expect(missing).toContain('A coherence review cannot be queued yet');
+    expect(missing).toContain('**Background tasks.** Work runs only while the project is open in this tab');
+    expect(missing).toContain('A changed review needs a new costed preview, not an automatic reroute or extra calls');
     expect(changelog).toContain('there is no Web Worker (no typing jank has been measured)');
   });
 
@@ -233,7 +246,16 @@ describe('the user guide’s reviewed claims match the code', () => {
 
   it('says the model review sends each scene only the codex entries its include policies select', () => {
     expect(guide).toContain('The review sends each scene only the codex entries its include policies select for that scene');
-    expect(read('packages/harness/src/coherence-review-context.ts')).toContain('selectCandidates({ entries, tree: state.manifest.tree, focusDocId: docId, detected })');
+    const context = read('packages/harness/src/coherence-review-context.ts');
+    expect(context).toContain('const { candidates } = selectCandidates({');
+    expect(context).toContain('tree: state.manifest.tree,');
+    expect(context).toContain('focusDocId: docId,');
+  });
+
+  it('says a queued review is approved with its scope, route and bounds before it runs', () => {
+    expect(guide).toContain('Before **Queue this review**, read the documents and exclusions');
+    expect(read('apps/desktop/src/components/FindingsPanel.tsx')).toContain('Queue a review');
+    expect(read('apps/desktop/src/app/task-store.ts')).toContain("'completed'");
   });
 
   it('says a large scope asks on the status line at more than 20 documents, and Scan it anyway runs the scope that asked', () => {

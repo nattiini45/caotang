@@ -38,7 +38,7 @@ import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, 
 import { formatUsd } from '../app/plan-preview.js';
 import { sumUsage } from '@caotang/gateway';
 import { groupUsage } from '../app/usage-model.js';
-import { isImeEnter, keyFacts, keyboardLayoutStore, resolveKey, shortcutLabel } from '../app/keymap.js';
+import { isImeEnter, keyFacts, keyboardLayoutStore, MODAL_DIALOG_SELECTOR, resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
 import { UNRESOLVED_NOTICE } from '../app/review-text.js';
 import type { AgentController, AgentSnapshot } from '../app/agent.js';
@@ -114,6 +114,9 @@ export interface AgentPanelProps {
   /** Opens Settings › Providers. Only the window gets it, and offers it under the demo's refusal (#363). */
   readonly onAddProvider?: () => void;
   readonly onOpenProviders?: () => void;
+  readonly onOpenTaskFindings?: (taskId: string, runId: string) => void | Promise<void>;
+  readonly inboxFocus?: { readonly taskId: string; readonly serial: number } | null;
+  readonly onInboxFocused?: () => void;
 }
 
 /**
@@ -162,6 +165,9 @@ export function AgentPanel({
   onClose,
   onAddProvider,
   onOpenProviders,
+  onOpenTaskFindings,
+  inboxFocus = null,
+  onInboxFocused,
 }: AgentPanelProps): ReactNode {
   const inWindow = placement === 'window';
   const sectionHeading = inWindow ? 3 : 4;
@@ -298,7 +304,7 @@ export function AgentPanel({
   const onPanelKey = (event: ReactKeyboardEvent<HTMLElement>): void => {
     // A dialog inside the panel (the restore confirmation) has Escape for itself.
     const target = event.target;
-    if (event.defaultPrevented || (target instanceof HTMLElement && target.closest('dialog') !== null)) return;
+    if (event.defaultPrevented || (target instanceof HTMLElement && target.closest(MODAL_DIALOG_SELECTOR) !== null)) return;
     const action = resolveKey(
       // keyFacts reads AltGraph from the modifier state (Windows reports it as Ctrl+Alt); isImeEnter reads the native event's composition.
       { ...keyFacts(event), composing: isImeEnter(event) },
@@ -606,12 +612,12 @@ export function AgentPanel({
             headingLevel={sectionHeading}
           />
 
-          <BackgroundTasks agent={agent} tasks={agent.taskViews()} headingLevel={sectionHeading} />
+          <BackgroundTasks agent={agent} tasks={agent.taskViews()} headingLevel={sectionHeading} onOpenFindings={onOpenTaskFindings} focusTask={inboxFocus} onTaskFocused={onInboxFocused} />
 
           {/* In the window it is one line under the turns, its explanation shown with a task's form (#363, companion.css). */}
           <RecurringTasksPanel recurring={recurring} headingLevel={sectionHeading} />
 
-          {snapshot.offer !== null ? <PlanOfferCard agent={agent} view={snapshot.offer} /> : null}
+          {snapshot.offer !== null ? <PlanOfferCard agent={agent} view={snapshot.offer} onReturnFocus={() => intentRef.current?.focus()} /> : null}
 
           {sample && snapshot.turns.length === 0 ? (
             <div className="agent-demos" role="group" aria-label={t`Demo intents`}>

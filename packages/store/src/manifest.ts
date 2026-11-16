@@ -86,6 +86,14 @@ export interface ExportRecipeOptions {
   keepPictureMetadata?: boolean;
   /** The timeline PDF draws each scene's pictures as thumbnails (timeline.md §9.1). Absent = off. Only `timeline-pdf` reads it. */
   timelinePictures?: boolean;
+  /**
+   * Where the prose formats put a footnote's text (exporter.md §3, the footnote engine): `footnote` (absent = this) at the
+   * page's foot in DOCX and at the chapter's end in EPUB and plain text; `endnote` at the document's end in DOCX and the
+   * book's end in EPUB and plain text. Markdown always keeps `[^n]` as written and never reads it.
+   */
+  notes?: 'footnote' | 'endnote';
+  /** The teleprompter's wrap width in characters per line (av-script.md §5). Absent = the compile's default. Only `teleprompter` reads it. */
+  teleprompterWidth?: number;
 }
 
 /**

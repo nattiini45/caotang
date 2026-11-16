@@ -46,6 +46,9 @@ const MEDIA_FORMAT_NAMES: Readonly<Record<string, string>> = {
   'timeline-xlsx': 'the timeline table',
   'timeline-svg': 'the timeline SVG',
   'timeline-pdf': 'the timeline PDF',
+  'show-notes': 'the show notes',
+  'transcript-md': 'the transcript',
+  teleprompter: 'the teleprompter',
   promptpack: 'the prompt pack',
 };
 

@@ -3,13 +3,13 @@ import { expect, test } from '@playwright/test';
 import { MemoryIndexedDb, openRuntimeStore, readTaskFiles, writeProjectState, ZIP_ENGINE, type ProjectState, type RuntimeStore } from '../../packages/store/src/index.js';
 import { DEMO_INTENTS } from '../../packages/gateway/src/mock/index.js';
 import { seededId } from '../../packages/ids/src/index.js';
-import { TASKS_FILE, bodyHash, type AgentTask } from '../../packages/tasks/src/index.js';
+import { TASKS_FILE, bodyHash, planText, type AgentTask } from '../../packages/tasks/src/index.js';
 
 import { ProjectSession } from '../../apps/desktop/src/app/session.js';
 import { AgentController } from '../../apps/desktop/src/app/agent.js';
 import { ProviderService } from '../../apps/desktop/src/app/providers.js';
 import { sampleProjectState } from '../../apps/desktop/src/app/demo.js';
-import { RecurringTasks, SELF_START_NOTE, type RecurringOptions } from '../../apps/desktop/src/app/recurring-tasks.js';
+import { EMPTY_DRAFT, planSelfStartNote, RecurringTasks, selfStartNote, type RecurringOptions } from '../../apps/desktop/src/app/recurring-tasks.js';
 import { TaskRuns } from '../../apps/desktop/src/app/task-runs.js';
 import { attachCoherence } from '../../apps/desktop/src/app/coherence-io.js';
 import { openTasksHome } from '../../apps/desktop/src/app/tasks-io.js';
@@ -425,7 +425,7 @@ test.describe('a task that uses a model is only offered', () => {
     await r.recurring.attach();
 
     const row = r.recurring.snapshot().tasks[0];
-    expect(row?.note).toBe(SELF_START_NOTE);
+    expect(row?.note).toBe(selfStartNote());
     expect(r.recurring.snapshot().offers.map((offer) => offer.id)).toEqual([task.id]);
     expect(r.agent.snapshot().turns).toEqual([]);
     expect(r.runs.history(task.id)).toEqual([]);
@@ -561,6 +561,7 @@ test.describe('the definitions', () => {
       name: 'Friday check',
       body: 'scan',
       text: '',
+      steps: '',
       scope: 'changed',
       schedule: 'weekly',
       at: '17:00',
@@ -612,13 +613,75 @@ test.describe('the definitions', () => {
 
   test('a draft that cannot be saved says why, and a model task saved as run needs its cap', async () => {
     const r = await rig([]);
-    const draft = { name: '', body: 'intent', text: 'Read it.', scope: 'full', schedule: 'daily', at: '09:00', day: 'mon', whenDue: 'run', permission: 'ask', maxModelCalls: '' } as const;
+    const draft = { name: '', body: 'intent', text: 'Read it.', steps: '', scope: 'full', schedule: 'daily', at: '09:00', day: 'mon', whenDue: 'run', permission: 'ask', maxModelCalls: '' } as const;
     expect(await r.recurring.save(draft)).toBe('Give the task a name.');
     expect(await r.recurring.save({ ...draft, name: 'Reader' })).toContain('limit on its model calls');
     expect(await r.recurring.save({ ...draft, name: 'Reader', maxModelCalls: 'many' })).toContain('whole number');
     expect(await r.recurring.save({ ...draft, name: 'Reader', maxModelCalls: '3' })).toBeNull();
-    expect(r.recurring.snapshot().tasks[0]?.note).toBe(SELF_START_NOTE);
+    expect(r.recurring.snapshot().tasks[0]?.note).toBe(selfStartNote());
     await r.session.close();
+  });
+
+  test.describe('a plan body written in the panel', () => {
+    const STEPS = [{ tool: 'coherence.scan', params: { scope: { mode: 'full' } }, expect: 'A scan is recorded' }];
+    const planDraft = { ...EMPTY_DRAFT, name: 'Plan check', body: 'plan', schedule: 'manual', permission: 'read-only', steps: planText(STEPS) } as const;
+
+    test('is saved, kept across a reopen, shown again as the text it was written from, and held to the task’s permission when it runs', async () => {
+      const r = await rig([]);
+      expect(await r.recurring.save(planDraft)).toBeNull();
+      const [made] = r.recurring.snapshot().tasks;
+      expect(made).toMatchObject({ name: 'Plan check', body: 'plan', doing: 'Run a plan of 1 step', usesModel: false, problem: null });
+      expect(made?.draft.steps).toBe(planText(STEPS));
+
+      await r.session.settle();
+      const reopened = await openTasksHome(r.state.manifest.project.id, r.store);
+      expect(reopened.current().tasks[0]?.body).toEqual({ kind: 'plan', steps: STEPS });
+      expect(reopened.current().tasks[0]?.problem).toBeUndefined();
+
+      await r.recurring.runNow(made?.id ?? '');
+      expect(r.runs.history(made?.id ?? '')[0]).toMatchObject({ status: 'done', trigger: 'manual' });
+      expect(r.agent.snapshot().turns[0]?.mode).toBe('plan-only');
+      expect(requestsMade(r)).toBe(0);
+      await r.session.close();
+    });
+
+    test('is checked as a plan before anything is written, and a refusal leaves the file as it was', async () => {
+      const r = await rig([]);
+      expect(await r.recurring.save({ ...planDraft, steps: '' })).toBe('Write the plan’s steps as a list.');
+      expect(await r.recurring.save({ ...planDraft, steps: '[{"tool":' })).toMatch(/^The steps are not valid JSON: /);
+      expect(await r.recurring.save({ ...planDraft, steps: '{"tool":"coherence.scan"}' })).toBe('Write the plan’s steps as a list, between [ and ].');
+      expect(await r.recurring.save({ ...planDraft, steps: '[]' })).toMatch(/^The plan does not parse: /);
+      expect(await r.recurring.save({ ...planDraft, steps: '[{"tool":"coherence.scan"}]' })).toMatch(/^The plan does not parse: /);
+      expect(await r.recurring.save({ ...planDraft, name: '  ' })).toBe('Give the task a name.');
+      expect(r.recurring.snapshot().tasks).toEqual([]);
+      expect(r.session.tasksHome()?.current().tasks).toEqual([]);
+      await r.session.close();
+    });
+
+    test('edits a plan that did not parse: the same text is refused, corrected steps clear the problem, and the ceiling and cap are kept', async () => {
+      const broken = seedTask(1, { schedule: { kind: 'manual' }, permission: 'read-only', maxModelCalls: 3, body: { kind: 'plan', steps: [{ tool: 'coherence.scan' } as never] }, problem: 'Its plan does not parse: nope' });
+      const r = await rig([broken]);
+      const row = r.recurring.snapshot().tasks[0];
+      expect(row?.problem).toContain('does not parse');
+      expect(row?.draft.steps).toContain('coherence.scan');
+      expect(await r.recurring.save(row?.draft ?? EMPTY_DRAFT, broken.id)).toMatch(/^The plan does not parse: /);
+      expect(r.session.tasksHome()?.current().tasks[0]?.problem).toBe('Its plan does not parse: nope');
+
+      expect(await r.recurring.save({ ...(row?.draft ?? EMPTY_DRAFT), steps: planText(STEPS) }, broken.id)).toBeNull();
+      expect(r.session.tasksHome()?.current().tasks[0]).toMatchObject({ id: broken.id, permission: 'read-only', maxModelCalls: 3, body: { kind: 'plan', steps: STEPS } });
+      expect(r.session.tasksHome()?.current().tasks[0]?.problem).toBeUndefined();
+      expect(r.recurring.snapshot().tasks[0]?.problem).toBeNull();
+      await r.session.close();
+    });
+
+    test('a plan that drafts text takes the call cap, and a plan saved to start by itself is offered and says so', async () => {
+      const r = await rig([]);
+      const drafting = planText([{ tool: 'synopsis.fill', params: { doc: 'The lamp' }, expect: 'A synopsis is proposed' }]);
+      expect(await r.recurring.save({ ...planDraft, steps: drafting, permission: 'ask', whenDue: 'run' })).toContain('limit on its model calls');
+      expect(await r.recurring.save({ ...planDraft, steps: drafting, permission: 'ask', whenDue: 'run', maxModelCalls: '2' })).toBeNull();
+      expect(r.recurring.snapshot().tasks[0]).toMatchObject({ usesModel: true, maxModelCalls: 2, note: planSelfStartNote() });
+      await r.session.close();
+    });
   });
 
   test('switching a task off or removing it takes it out of the offers, and removing it takes its history', async () => {

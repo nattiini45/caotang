@@ -1,6 +1,6 @@
 # Hosted instance — end-to-end encrypted projects
 
-> Status: **specified, not built.** Nothing here runs in the app. `caotang.app` stays local-only and unchanged: no accounts, no server calls, the same CSP. Two private packages build the storage core against an in-memory fake server and are imported by nothing: [`packages/crypto`](../../packages/crypto) (§2–§4, §7) and [`packages/remote-store`](../../packages/remote-store) (§5–§7). The backend, accounts, relay, domain and UI are not built, and none of them is until the owner funds the instance (§10). The epic is #17.
+> Status: **the storage core and the account-key layer are built; the app does not use them yet.** `caotang.app` stays local-only and unchanged: no accounts, no server calls, the same CSP. The key hierarchy and sealing, the account-key orchestration (setup, unlock, recovery, passphrase rotation), the Argon2id adapter, remember-device and the provider-key vault seam ([`packages/crypto`](../../packages/crypto), §2–§4, §7), the encrypted adapter and the HTTP blob client ([`packages/remote-store`](../../packages/remote-store), §5–§7) are built and tested, and the standalone server implements the blob service on R2 ([sync-server.md](sync-server.md#encrypted-object-storage)); nothing in the app imports them. The sign-in interface, the unlock screens, continuous sync and the relay are not built. The epic is #17.
 
 ## 1. Scope
 
@@ -22,23 +22,41 @@ An optional hosted copy of Caotang at `caotang.pawcommit.com` that lets a writer
 
 ```
 passphrase ──Argon2id(salt)──> KEK ──wraps──> MK ──wraps──> PK (one per project)
-                                                              │ HKDF-SHA-256, distinct info labels
-                                                              ├─ file key      (per file, info = label ‖ pathHash)
-                                                              ├─ path-HMAC key
-                                                              └─ manifest key
+                                              │               │ HKDF-SHA-256, distinct info labels
+                                              │               ├─ file key      (per file, info = label ‖ pathHash)
+                                              │               ├─ path-HMAC key
+                                              │               └─ manifest key
+                                              └─ HKDF-SHA-256 ──> vault key (provider-key sync, P9; its own slice)
 ```
 
 | Key | Made by | Held | Role |
 |---|---|---|---|
 | KEK | Argon2id over the NFKC-normalised passphrase and a per-account salt (at least 16 bytes) | memory only, while unlocked | wraps the MK |
-| MK | 256 random bits, once per account | wrapped under the KEK on the server; encoded as the recovery key (§4) | wraps each PK |
+| MK | 256 random bits, once per account | wrapped under the KEK on the server; encoded as the recovery key (§4); optionally wrapped under a device key (§2.3) | wraps each PK |
 | PK | 256 random bits, once per project | wrapped under the MK on the server, bound to the project id | root of that project's keys |
 | file, path, manifest keys | HKDF-SHA-256 of the PK, empty salt | derived on demand | one purpose each |
+| vault key | HKDF-SHA-256 of the MK, empty salt, info `caotang/v1/vault-key` | derived on demand | seals the provider-key vault (P9); the sync is its own slice |
 
-- **Argon2id** is `m = 64 MiB, t = 3, p = 1`. These are **provisional** until measured on low-end phones. The hash sits behind an injectable `Kdf` port (`derive(passphrase, salt)`); the Argon2id adapter, and the choice of a WASM library and its bundle cost, are a Phase 1 decision, so the packages carry no third-party dependency.
+- **Argon2id** is `m = 64 MiB, t = 3, p = 1`. These are **provisional** until measured on low-end phones. The hash sits behind an injectable `Kdf` port (`derive(passphrase, salt)`); the adapter is `argon2id.ts`, which loads `hash-wasm` (pinned to an exact version) lazily, so the WASM enters only on setup, unlock and recovery and never the first-load bundle. The algorithm and its parameters travel with the wrapped key (§2.1), so raising the cost later never strands an existing account. Parameters read from a record are bounded — memory at most 256 MiB (four times the default), iterations at most 10, parallelism at most 4, and memory at least 8 KiB for each lane — so a tampered descriptor cannot exhaust the unlocking client or name an invalid configuration; the default sits well inside the ceiling.
 - **Wrapping** is AES-256-GCM with a random 96-bit nonce. Associated data is a label: `caotang/v1/wrap/master`, and `caotang/v1/wrap/project` ‖ NUL ‖ projectId, so a project's wrapped key cannot stand in for another's.
-- **Info labels** are `caotang/v1/file-key`, `caotang/v1/path-hmac-key` and `caotang/v1/manifest-key`; a file key's info is its label ‖ NUL ‖ the file's path hash. No two purposes can derive the same key.
-- Only WebCrypto is used: AES-256-GCM, HKDF-SHA-256, HMAC-SHA-256, SHA-256. The key type prints as its role, so a logged key shows no bytes, and no key enters a project, bundle, export or log.
+- **Info labels** are `caotang/v1/file-key`, `caotang/v1/path-hmac-key`, `caotang/v1/manifest-key` and `caotang/v1/vault-key`; a file key's info is its label ‖ NUL ‖ the file's path hash. No two purposes can derive the same key, and the vault key is derived from the MK, never the PK.
+- Only WebCrypto is used for the primitives: AES-256-GCM, HKDF-SHA-256, HMAC-SHA-256, SHA-256. Argon2id is the one step WebCrypto does not provide, and it is the lazily loaded WASM above. The key type prints as its role, so a logged key shows no bytes, and no key enters a project, bundle, export or log.
+
+### 2.1 The account record
+
+What the server stores beside the account is an `AccountKeyRecord`: `{ format: 1, kdf: { id, params }, salt, wrappedMaster }`, where `salt` and `wrappedMaster` are base64. `kdf.id` names the algorithm (`argon2id`) and `kdf.params` its cost (`memoryKiB`, `iterations`, `parallelism`); an unlock rebuilds the KDF from this descriptor, so an account set up at one cost still unlocks after the default rises. `wrappedMaster` is the MK sealed under the KEK (§2). The record holds no plaintext key. Signing in proves identity to the server and never derives a key; setup, unlock, recovery and passphrase rotation are the orchestration in `account.ts`.
+
+### 2.2 Passphrase rotation
+
+Changing the passphrase derives a new KEK from a fresh salt and re-wraps the same MK, optionally at a new KDF cost. The MK is unchanged, so every project key and every sealed byte stays valid and no project file is rewritten. The recovery key still opens the account, because it is the MK itself (§4).
+
+### 2.3 Remember this device
+
+After the first passphrase unlock the device may wrap the MK under a fresh **non-extractable** AES-256-GCM key it keeps locally (the browser binds the `DeviceWrapStore` port to IndexedDB), so the passphrase is needed once per device. The wrapped form is `nonce(12) ‖ ciphertext ‖ tag(16)` with associated data `caotang/v1/remember-device`. The wrapping key never leaves the device as bytes; script in the page can use it while the app is open, the same limit as the provider-key vault (§9). `forgetDevice` removes it and the next unlock needs the passphrase again. Signing out everywhere revokes the session.
+
+### 2.4 The provider-key vault seam
+
+The vault key is HKDF-SHA-256 of the MK under `caotang/v1/vault-key`, a label no project subkey uses. Encrypted provider-key sync (P9) is its own slice; this slice ships only the derivation, so the vault has a key to seal under that cannot collide with a file, path or manifest key.
 
 ## 3. Sealed files and hashed paths
 
@@ -63,12 +81,12 @@ There is **no escrow**. If the passphrase and the recovery key are both lost, th
 
 - **Each file is a blob written once**, under a random name, and never replaced. A write creates a new blob; the old one is soft-deleted after the commit.
 - **One `manifest` blob** is the index. On the wire it is an 8-byte big-endian counter ‖ the sealed JSON. The counter is read first because it is part of the associated data, and it rises by one on every commit. The JSON lists, for every path, `[path, pathHash, version, blobName, deleted]`, and the explicit directories. A removed file stays as a tombstone with its version raised, so its mark still means something. `listFiles`, `listDirs` and `exists` answer from the index; a directory that holds a file exists without `ensureDir`, as it does on a folder.
-- **A write** (a) seals the content at `version + 1`, (b) puts the blob with `If-None-Match: *`, then (c) puts the new manifest with `If-Match` of the manifest it read. (c) is the commit. A write that fails before (c) leaves an unreferenced blob that is never read and that the server's retention clears.
+- **A write** (a) seals the content at `version + 1`, (b) puts the blob with `If-None-Match: *`, then (c) puts the new manifest with `If-Match` of the manifest it read. (c) is the commit. A write that fails before (c) leaves an unreferenced blob that is never read and that the server's quota sweep clears.
 - **Reads** serve the index as of the last open, refresh or commit. They do not poll. A read whose blob is gone asks the server for the index: if it moved on, another device replaced the file and the read raises the conflict error; if not, the server lost the file and the read raises an integrity error.
 - **One writer at a time per device**: mutations run in a queue, each one reading, changing and swapping the index.
 - **Paths** are checked as `MemoryArtifactFs` checks them (project-relative, no `..`). The same contract suite runs against both bindings.
 
-What this slice does not do, and Phase 3 owns: batching several writes into one index commit (a project save is one commit per file today), an offline queue, and clearing unreferenced blobs.
+What this slice does not do, and Phase 3 owns: batching several writes into one index commit (a project save is one commit per file today), an offline queue, and the server's collection of retained versions.
 
 ## 6. The blob service
 
@@ -78,15 +96,16 @@ The server is backend-neutral: a small HTTP service that stores opaque bytes und
 |---|---|---|
 | `GET /v1/projects/{id}/blobs/{name}` | the live object | `200` bytes and `ETag`; `404` when absent or soft-deleted |
 | `PUT /v1/projects/{id}/blobs/{name}` | `If-None-Match: *` creates; `If-Match: "<etag>"` replaces that version only | `200`/`201` and `ETag`; `412` when the precondition fails (nothing written); `507` over the account's storage cap |
-| `DELETE /v1/projects/{id}/blobs/{name}` | soft delete | `204`; the server keeps the bytes 30 days, then purges |
+| `DELETE /v1/projects/{id}/blobs/{name}` | soft delete | `204`; the bytes are retained and stay charged until retention collection lands |
 | `GET /v1/projects/{id}/blobs` | live names | `200` JSON `[{name, etag, size}]` |
 
-- A name is lower-case letters, digits and `-`, at most 64 characters. The index is always `manifest`. The body is `application/octet-stream` and is never parsed.
-- The server keeps a replaced version of any object for the same 30 days, which is how an older index can be recovered by hand.
+- A name is lower-case letters, digits and `-`, at most 64 characters. The index is always `manifest`. The body is non-empty `application/octet-stream` with a truthful `Content-Length`, at most 64 MiB, and is never parsed; each version is charged at least 285 bytes, the smallest sealed object, so the allowance also bounds the object count.
+- A write may carry an `Idempotency-Key` (at most 120 letters, digits, `-` and `_`), bound to the project id, the object name and a SHA-256 fingerprint of the payload; a retry under the same key replays the committed ETag without a second charge, and a key reused for a different upload or already settled is refused with `409`. Missing or malformed preconditions are `400`, a missing `Content-Length` is `411`, an oversized body is `413`, and an unavailable store is `503`.
+- The server keeps every replaced and soft-deleted version, and keeps charging for it, so an older index can be recovered by hand. Thinning and purging retained versions (every version for 24 hours, then one per day to 30 days) need a collection pass with a reachability proof and a committed-bytes release; that is a later slice, and until it lands an account at its cap is refused with `507`.
 - It logs only what operation and abuse prevention strictly need: no content, no names beyond the request line, short retention. No telemetry, no analytics.
 - Authentication (email link, Google, GitHub; `HttpOnly`, `Secure`, `SameSite=Lax` cookies, CSRF protection on mutating routes) decides who may call these routes. It never derives a key.
 
-In code, `RemoteBlobStore` (`get`, `put` with a precondition, `delete`, `list`) is this contract. Its test double, a `FakeBlobServer` with ETags, 412, soft delete, an offline switch and a `dump()` of every version ever kept, lives in the package's tests. There is no HTTP client yet.
+In code, `RemoteBlobStore` (`get`, `put` with a precondition, `delete`, `list`) is this contract, and `createHttpBlobStore` in [`packages/remote-store`](../../packages/remote-store/src/http-blob-store.ts) is its HTTP client: same-origin session cookies, one idempotency key per logical write across bounded retries, and typed errors for a lost race (`BlobPreconditionFailedError`), an exhausted allowance (`RemoteQuotaExceededError`) and an unreachable server (`RemoteUnavailableError`). The contract's test double, a `FakeBlobServer` with ETags, 412, soft delete, an offline switch and a `dump()` of every version ever kept, lives in the package's tests. The R2-backed service itself is specified and built in [sync-server.md](sync-server.md#encrypted-object-storage).
 
 ## 7. Sync, conflicts and rollback
 
@@ -120,6 +139,7 @@ Limits that are stated, not hidden (SECURITY.md carries a pointer):
 - **Web end-to-end encryption cannot stop a malicious bundle.** An operator who serves a backdoored script can read what the page can. The mitigations above shrink the window; they do not close it.
 - **The server still sees metadata**: account email and OAuth identity, how many projects and blobs, padded sizes, timestamps, IPs and access patterns. A file's bucket is visible; its exact size is not. Blob names are random, but the number of writes is visible.
 - **A fresh device has no rollback memory** until it has read the project once.
+- **Remember this device trades the passphrase for the device.** A device that remembered the MK (§2.3) unlocks without the passphrase until it is forgotten. The wrapping key is non-extractable but usable by script in the page while the app is open, so anyone who can run code in that browser profile can use it; it is opt-in per device, and signing out everywhere revokes the session.
 - **Argon2id cost** protects a weak passphrase only as far as the parameters allow.
 - **An independent security review of the crypto and the hosted CSP and SRI is required before any launch.** These packages have not had one.
 
@@ -134,8 +154,8 @@ Limits that are stated, not hidden (SECURITY.md carries a pointer):
 | Phase | Work | State |
 |---|---|---|
 | 0 | Owner decisions (§10); this spec; run and record the CORS sweep | spec written; decisions open |
-| 1 | Auth and accounts; passphrase setup, recovery-key screen, unlock; account deletion; `.caotang` export; Argon2id adapter | not started |
-| 2 | Encrypted storage: `packages/crypto`, `packages/remote-store`, a fake backend | **the two packages here**; no server, HTTP client or UI |
+| 1 | Auth and accounts; passphrase setup, recovery-key screen, unlock; account deletion; `.caotang` export; Argon2id adapter | Argon2id adapter and account-key orchestration built; auth and the screens not started |
+| 2 | Encrypted storage: `packages/crypto`, `packages/remote-store`, a fake backend | **the two packages here**, with the account-key layer, the HTTP client and the standalone server; the app does not import them |
 | 3 | Sync: batching, offline queue, device lease, conflict question, `coherence.json` merge, import and export between the browser store, bundles and hosted | waits on #11 and #12 |
 | 4 | Relay (§8) | waits on the CORS sweep and its own decision |
 | 5 | Hardening and launch: hosted CSP, SRI, build hash, review, deploy | not started |

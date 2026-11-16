@@ -223,35 +223,37 @@ function isControl(code: number): boolean {
   return code < 0x20 || (code >= 0x7f && code < 0xa0);
 }
 
+/** Every run the plan places, in order. The one walk of the plan's text: `planTexts` and `boldTexts` read it, so they
+ * cannot list different places. */
+function* placedTexts(plan: SheetPlan): Generator<PlacedText, void, undefined> {
+  for (const sheet of plan.pages) {
+    yield* [sheet.title, sheet.pageLabel];
+    if (sheet.summary !== undefined) yield sheet.summary;
+    if (sheet.emptyNote !== undefined) yield sheet.emptyNote;
+    for (const card of sheet.cards) {
+      yield* [card.chipText, card.fallback];
+      if (card.placeholder !== undefined) yield card.placeholder;
+      if (card.caption !== undefined) yield card.caption;
+      yield* [...card.spec, ...card.action];
+    }
+  }
+}
+
 /**
- * The text a plan draws in bold (Helvetica-Bold is its base font): the header title, the page label and the number chip. It must name
- * exactly the texts the emitter draws with `bold` as the base font (`drawText` and the page label below), since it decides which file of
- * the Bold is read; a bold place left out of it reads the common file for a character only the full file has.
+ * The text a plan draws in bold (Helvetica-Bold is its base font): the runs the plan marks `bold`, today the header title,
+ * the page label and the number chip. The emitter picks its base font from the same mark, so the places it draws bold and
+ * the texts counted here can never drift apart. The list decides which file of the Bold is read; a bold place left out of
+ * it reads the common file for a character only the full file has.
  */
 function boldTexts(plan: SheetPlan): string[] {
   const texts: string[] = [];
-  for (const sheet of plan.pages) {
-    texts.push(sheet.title.text, sheet.pageLabel.text);
-    for (const card of sheet.cards) texts.push(card.chipText.text);
-  }
+  for (const placed of placedTexts(plan)) if (placed.bold === true) texts.push(placed.text);
   return texts;
 }
 
 /** The text a plan draws. It takes every string the emitter may set, the caption of a card whose picture is drawn included. */
 function planTexts(plan: SheetPlan): string[] {
-  const texts: string[] = [];
-  for (const sheet of plan.pages) {
-    texts.push(sheet.title.text, sheet.pageLabel.text);
-    if (sheet.summary !== undefined) texts.push(sheet.summary.text);
-    if (sheet.emptyNote !== undefined) texts.push(sheet.emptyNote.text);
-    for (const card of sheet.cards) {
-      texts.push(card.chipText.text, card.fallback.text);
-      if (card.placeholder !== undefined) texts.push(card.placeholder.text);
-      if (card.caption !== undefined) texts.push(card.caption.text);
-      for (const line of [...card.spec, ...card.action]) texts.push(line.text);
-    }
-  }
-  return texts;
+  return [...placedTexts(plan)].map((placed) => placed.text);
 }
 
 /**
@@ -317,6 +319,9 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
   const pdf = await PDFDocument.create({ updateMetadata: false });
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  /** The run's base font, from the plan's mark: a run the plan marks `bold` is set in Helvetica-Bold. The mark is the
+   * single source `boldTexts` reads, so a run drawn bold is always counted bold. */
+  const fontOf = (placed: PlacedText): PdfLib.PDFFont => (placed.bold === true ? bold : regular);
   const notes: string[] = [];
   /** What WinAnsi encodes: the same set for Helvetica and Helvetica-Bold. */
   const builtIn = new Set(regular.getCharacterSet());
@@ -847,7 +852,7 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
         const fit = containIn(box, image.width, image.height);
         page.drawImage(image, { x: fit.x, y: flip(fit.y + fit.height), width: fit.width, height: fit.height });
       } else {
-        await drawText(page, card.placeholder ?? card.fallback, regular, box.width - 2 * (card.fallback.x - box.x), MUTED);
+        await drawText(page, card.placeholder ?? card.fallback, fontOf(card.placeholder ?? card.fallback), box.width - 2 * (card.fallback.x - box.x), MUTED);
       }
     }
 
@@ -859,25 +864,26 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       height: card.chip.height,
       color: color(CHIP_FILL),
     });
-    await drawText(page, card.chipText, bold, card.chip.width, PAPER);
-    if (card.caption !== undefined) await drawText(page, card.caption, regular, card.frame.x + card.frame.width - card.caption.x - 4, INK);
+    await drawText(page, card.chipText, fontOf(card.chipText), card.chip.width, PAPER);
+    if (card.caption !== undefined) await drawText(page, card.caption, fontOf(card.caption), card.frame.x + card.frame.width - card.caption.x - 4, INK);
 
-    for (const line of card.spec) await drawText(page, line, regular, card.frame.width);
-    for (const line of card.action) await drawText(page, line, regular, card.frame.width);
+    for (const line of card.spec) await drawText(page, line, fontOf(line), card.frame.width);
+    for (const line of card.action) await drawText(page, line, fontOf(line), card.frame.width);
   };
 
   for (const sheet of input.plan.pages) {
     const page = pdf.addPage([pageWidth, pageHeight]);
-    const label = await piecesOf(sheet.pageLabel.text, bold);
-    const labelWidth = widthOf(label, bold, sheet.pageLabel.fontSize);
-    await drawText(page, sheet.title, bold, Math.max(0, contentWidth - labelWidth - 12));
-    drawPieces(page, label, pageWidth - margin - labelWidth, flip(sheet.pageLabel.y), sheet.pageLabel.fontSize, bold, MUTED);
-    if (sheet.summary !== undefined) await drawText(page, sheet.summary, regular, contentWidth, MUTED);
+    const labelFont = fontOf(sheet.pageLabel);
+    const label = await piecesOf(sheet.pageLabel.text, labelFont);
+    const labelWidth = widthOf(label, labelFont, sheet.pageLabel.fontSize);
+    await drawText(page, sheet.title, fontOf(sheet.title), Math.max(0, contentWidth - labelWidth - 12));
+    drawPieces(page, label, pageWidth - margin - labelWidth, flip(sheet.pageLabel.y), sheet.pageLabel.fontSize, labelFont, MUTED);
+    if (sheet.summary !== undefined) await drawText(page, sheet.summary, fontOf(sheet.summary), contentWidth, MUTED);
     // A rule under the header, above the first row of cards.
     const ruleY = flip(margin + headerHeight - 6);
     page.drawLine({ start: { x: margin, y: ruleY }, end: { x: pageWidth - margin, y: ruleY }, thickness: 0.5, color: color(FRAME_LINE) });
 
-    if (sheet.emptyNote !== undefined) await drawText(page, sheet.emptyNote, regular, contentWidth, MUTED);
+    if (sheet.emptyNote !== undefined) await drawText(page, sheet.emptyNote, fontOf(sheet.emptyNote), contentWidth, MUTED);
     for (const card of sheet.cards) await drawCard(page, card);
   }
 

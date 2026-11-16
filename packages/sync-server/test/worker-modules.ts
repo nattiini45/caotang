@@ -14,6 +14,10 @@ export function workerModules(appendToEntry = ''): { type: 'ESModule'; path: str
   return [
     { type: 'ESModule', path: 'src/index.mjs', contents: transpile('../src/index.ts') + appendToEntry },
     { type: 'ESModule', path: 'src/accounts.js', contents: transpile('../src/accounts.ts') },
+    { type: 'ESModule', path: 'src/fingerprint.js', contents: transpile('../src/fingerprint.ts') },
+    { type: 'ESModule', path: 'src/quota-lifecycle.js', contents: transpile('../src/quota-lifecycle.ts') },
+    { type: 'ESModule', path: 'src/quota.js', contents: transpile('../src/quota.ts') },
+    { type: 'ESModule', path: 'src/storage.js', contents: transpile('../src/storage.ts') },
     { type: 'ESModule', path: 'account-policy.mjs', contents: read('../account-policy.mjs') },
   ];
 }

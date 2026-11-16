@@ -117,7 +117,12 @@ export const BUDGET = {
   // 1,030.3 kB (1,030,261 bytes) measured with #488's request-parameter enforcement in the gateway, which loads at start: the deny map that
   // takes a denied thinking field off the wire, the one output settlement the body and `modelLimits` share, and the pinned-preset rows. The
   // ceiling is that plus about 1%, rounded up to the thousand. [owner 2026-11-08]
-  initialGzip: 1_069_000,
+  // 1,072.9 kB (1,072,868 bytes) measured with queued coherence reviews and the Review Inbox (#50): the task substrate's costed approval and
+  // checkpoint accounting, the agent controller's queued path, and the compiled English catalogue's new queue/Inbox messages, which must be in
+  // the entry before the first paint (i18n.md §3.3). The Inbox UI itself is lazy. Optimisations checked: the Inbox components and their CSS load
+  // on use, pseudo-locales do not ship, and the new helpers are single-use; the growth is the feature and its required catalogue. The ceiling is
+  // that plus about 1%, rounded up to the thousand. [owner 2026-11-15]
+  initialGzip: 1_084_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -171,7 +176,11 @@ export const BUDGET = {
   // With origin/main merged in (the CPU worker of #669 and the search worker of #646, which regroup the lazy chunks): 8,312,279 bytes
   // measured, the first load 1,068.0 kB gzip. The reader Worker keeps `worker.format: 'es'`, which its dynamic imports need. The
   // ceiling is the measured size plus about 3 kB.
-  totalJs: 8_315_000,
+  // 8,341.3 kB (8,341,300 bytes) measured with queued coherence reviews and the Review Inbox (#50): the queue/checkpoint substrate and the agent
+  // queued path in the entry, the Inbox UI (BackgroundTasks, FindingsPanel, QueuedReviewDetails) and the German catalogue in lazy chunks.
+  // Optimisations checked as for the first load above; no duplicated modules, pseudo-locales do not ship. The ceiling is that plus about 1%,
+  // rounded up to the thousand. [owner 2026-11-15]
+  totalJs: 8_425_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
@@ -180,10 +189,12 @@ export const BUDGET = {
   lazy: { 'modern-shell': 70_000 },
   css: {
     /**
-     * The entry stylesheet (index.html's stylesheet links), raw, as measured: 105,500 bytes at #305, which added nothing to it (Modern's
-     * styles are in its own chunk). It may grow by `entryMargin` (1%) before the number here has to move with a reason.
+     * The entry stylesheet (index.html's stylesheet links), raw, as measured: 106,648 bytes with queued coherence reviews and the Review Inbox
+     * (#50), which added the Inbox group-title rule (the rest of the Inbox styles are in the lazy queued-review.css). Before that, 105,500 bytes
+     * at #305, which added nothing to it (Modern's styles are in its own chunk). It may grow by `entryMargin` (1%) before the number here has to
+     * move with a reason. [owner 2026-11-15]
      */
-    entry: 105_500,
+    entry: 106_648,
     entryMargin: 0.01,
     // Current: 96,600 B raw for `modern-shell`'s stylesheet: 95,670 B measured after sharing save-recovery row/truncation/control rules, plus about 1% (owner's standing 2026-11-08 rule; #580/#578).
     /** Lazy stylesheets by chunk name, raw. Modern's (tokens/modern.css and shell-modern.css): 12.3 kB raw, 2.7 kB gzip at #305. */

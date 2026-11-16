@@ -59,10 +59,6 @@
           "hash": "0af900f6",
           "anchor": "der-kodex"
         },
-        "prologues-and-epilogues": {
-          "hash": "0b686038",
-          "anchor": "prologe-und-epiloge"
-        },
         "knowledge": {
           "hash": "6e10c440",
           "anchor": "wissen"
@@ -84,7 +80,7 @@
           "anchor": "caotang-auf-einem-telefon-oder-tablet-verwenden"
         },
         "settings": {
-          "hash": "16277e16",
+          "hash": "3fc082fe",
           "anchor": "einstellungen"
         },
         "keyboard": {
