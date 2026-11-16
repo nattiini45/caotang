@@ -214,3 +214,37 @@ describe('the DOCX renderer — loaded lazily, and pinned', () => {
     expect(manifest.dependencies['docx']).not.toMatch(/^[\^~]/);
   });
 });
+
+describe('the DOCX footnotes — real Word notes (exporter.md §3, #271)', () => {
+  const noted: readonly FlatBlock[] = [
+    { kind: 'chapter', title: 'Chapter One', level: 1, number: 1 },
+    { kind: 'scene', docId: IDS.landing, title: 'The Landing', body: 'The ferry was late[^1], again[^2].\n\n[^1]: The Marta.\n\n[^2]: Always.', number: 1 },
+    { kind: 'chapter', title: 'Chapter Two', level: 1, number: 2 },
+    { kind: 'scene', docId: IDS.morning, title: 'Morning', body: 'Light[^1].\n\n[^1]: At last.', number: 2 },
+  ];
+
+  it('writes a w:footnoteReference for each marker, numbered across the whole document', async () => {
+    const xml = await parts(await renderDocx(input(noted)));
+    const body = xml['word/document.xml'] ?? '';
+    // Two scenes may both write `[^1]`: the document numbers them 1, 2, 3 in order of appearance.
+    expect(body.match(/<w:footnoteReference w:id="(\d+)"\/>/g)).toEqual([
+      '<w:footnoteReference w:id="1"/>',
+      '<w:footnoteReference w:id="2"/>',
+      '<w:footnoteReference w:id="3"/>',
+    ]);
+    const notes = xml['word/footnotes.xml'] ?? '';
+    expect(notes).toContain('The Marta.');
+    expect(notes).toContain('Always.');
+    expect(notes).toContain('At last.');
+  });
+
+  it('the recipe\u2019s endnotes write w:endnoteReference and endnotes.xml instead', async () => {
+    const xml = await parts(await renderDocx({ ...input(noted), notes: 'endnote' }));
+    const body = xml['word/document.xml'] ?? '';
+    expect(body).toContain('<w:endnoteReference w:id="1"/>');
+    expect(body).not.toContain('w:footnoteReference');
+    expect(xml['word/endnotes.xml'] ?? '').toContain('The Marta.');
+    // The library may still ship a footnotes.xml shell; what must not be there is the note.
+    expect(xml['word/footnotes.xml'] ?? '').not.toContain('The Marta.');
+  });
+});

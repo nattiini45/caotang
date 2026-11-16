@@ -37,6 +37,12 @@ export interface RenderInput {
    * figures to resolve.
    */
   readonly pictures?: PictureExportMode;
+  /**
+   * Where the prose formats put a footnote's text (exporter.md §3): `footnote` (absent = this) at the page's foot in
+   * DOCX and at the chapter's end in EPUB and plain text; `endnote` at the document's end in DOCX and the book's end in
+   * EPUB and plain text. The Markdown renderer never reads it — a body keeps `[^n]` as written.
+   */
+  readonly notes?: 'footnote' | 'endnote';
   /** The Markdown copy's assets folder beside the export: `<name>.assets`. Set for `copy` only. */
   readonly assetsDir?: string;
   /** The resolved figures of this compile, keyed by the destination as written. The renderers look placements up here. */
