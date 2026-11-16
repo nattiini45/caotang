@@ -46,13 +46,10 @@ export interface ProviderProfile {
   /** sent only when the model row (or `params.temperature`) allows one; there is no built-in default */
   temperature?: number;
   maxOutputTokens?: number;
-  maxConcurrentRequests?: number;
   /** the profile's own request parameters over the model row's; absent follows the row */
   params?: RequestParams;
   /** optional, USD; powers context-assembly cost estimates (display-only) */
   pricePer1k?: { prompt: number; completion: number };
-  /** prompt caching for this profile's requests; absent means on, with the provider's default lifetime */
-  promptCache?: CachePolicy;
   /** exactly one profile is active whenever any profile exists */
   isActive: boolean;
 }
@@ -121,12 +118,9 @@ export interface NewProfile {
   customHeaders?: Readonly<Record<string, string>>;
   temperature?: number;
   maxOutputTokens?: number;
-  maxConcurrentRequests?: number;
   /** the profile's own request parameters over the model row's; absent follows the row */
   params?: RequestParams;
   pricePer1k?: { prompt: number; completion: number };
-  /** prompt caching for the profile's requests; absent means on, with the provider's default lifetime */
-  promptCache?: CachePolicy;
   /** activates the new profile; without it, the first profile ever created is active */
   isActive?: boolean;
 }
@@ -145,13 +139,10 @@ export interface ProfilePatch {
   /** A new temperature replaces the saved one; `null` clears it; absent keeps it. */
   temperature?: number | null;
   maxOutputTokens?: number;
-  maxConcurrentRequests?: number;
   /** New request parameters replace the saved ones; `null` clears them, so the profile follows its model row again. */
   params?: RequestParams | null;
   /** A new price replaces the saved one. `null` clears it, so the profile is unpriced again; an absent field keeps the saved price. */
   pricePer1k?: { prompt: number; completion: number } | null;
-  /** A new caching policy replaces the saved one; an absent field keeps it. */
-  promptCache?: CachePolicy;
 }
 
 export type ChatRole = 'system' | 'user' | 'assistant' | 'tool';
@@ -324,6 +315,10 @@ export interface ModelInfo {
   maxOutputTokens?: number;
   /** The provider's price, in USD per 1,000 tokens (the profile's unit, §2). Read from a per-token price list. */
   pricePer1k?: { prompt: number; completion: number };
+  /** When the provider says the model produces text: `false` for an image, speech, embedding or moderation model. Absent means the listing does not say. */
+  writes?: boolean;
+  /** When the provider published the model, in epoch milliseconds, when its listing says. */
+  created?: number;
 }
 
 /**
@@ -394,7 +389,7 @@ export interface ChatRequest {
   reasoningBudget?: number;
   /** default: the profile that resolved for the request's role, else the active profile */
   profileId?: string;
-  /** Prompt caching for this call. Default: the profile's policy, else `auto`. */
+  /** Prompt caching for this call. Default: `auto`, on with the provider's default lifetime where the row caches. */
   cache?: CachePolicy;
   /** the agent turn this request belongs to; keys the per-turn ledger row (§6) */
   turnId?: string;

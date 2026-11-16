@@ -235,7 +235,7 @@ test('a composing Enter that caused no submit leaves no mark behind to swallow a
   await expect(settings.getByText(savedMessage('Demo, clicked'))).toHaveCount(0);
 
   // An ordinary click on Save, not an Enter. The dropped mark must not swallow it: one save, one renamed card, form closed.
-  await form.getByRole('button', { name: 'Save profile' }).click();
+  await form.getByRole('button', { name: 'Save changes' }).click();
   await expect(settings.getByText(savedMessage('Demo, clicked'))).toHaveCount(1);
   await expect(settings.locator('[data-profile="Demo, clicked"]')).toHaveCount(1);
   await expect(form).toHaveCount(0);

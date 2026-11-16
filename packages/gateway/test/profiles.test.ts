@@ -246,7 +246,7 @@ describe('validation', () => {
     },
   );
 
-  it.each(['fields', 'customHeaders', 'pricePer1k', 'promptCache'])(
+  it.each(['fields', 'customHeaders', 'pricePer1k'])(
     'rejects malformed %s containers on create and update',
     async (field) => {
       const { profiles, keys } = store();
@@ -292,16 +292,13 @@ describe('validation', () => {
     ['customHeaders', 'x-team'],
     ['pricePer1k', 'prompt'],
     ['pricePer1k', 'completion'],
-    ['promptCache', 'mode'],
-    ['promptCache', 'ttl'],
   ])('rejects malformed %s.%s members on create and update', async (field, member) => {
     const { profiles, keys } = store();
     const created = await profiles.create(endpoint('saved'));
     const payload = await keys.revealPayload(created.id);
     const values = field === 'pricePer1k' ? ['1', ...malformedValues.slice(1)] : malformedValues;
-    const validMembers = field === 'pricePer1k' ? { prompt: 0, completion: 0 } : field === 'promptCache' ? { mode: 'auto' } : {};
+    const validMembers = field === 'pricePer1k' ? { prompt: 0, completion: 0 } : {};
     for (const value of [...values, null, undefined]) {
-      if (field === 'promptCache' && member === 'ttl' && value === undefined) continue;
       const input = {
         [field]: { ...validMembers, [member]: value },
       };
@@ -343,7 +340,6 @@ describe('validation', () => {
       temperature: 0.5,
       maxOutputTokens: 64,
       pricePer1k: { prompt: 1, completion: 2 },
-      promptCache: { mode: 'off' },
       customHeaders: { ' X-Team ': ' blue ' },
     }));
     const kept = await profiles.update(created.id, {
@@ -352,7 +348,6 @@ describe('validation', () => {
       defaultModel: null,
       fields: null,
       maxOutputTokens: null,
-      promptCache: null,
     } as unknown as ProfilePatch);
     expect(kept).toEqual(created);
     expect((await keys.revealPayload(created.id))?.customHeaders).toEqual({ 'x-team': 'blue' });
@@ -378,7 +373,7 @@ describe('validation', () => {
     expect(kept).toEqual(created);
   });
 
-  it.each(['pricePer1k', 'promptCache'])('rejects a null %s on create with a field-specific error', async (field) => {
+  it.each(['pricePer1k'])('rejects a null %s on create with a field-specific error', async (field) => {
     const { profiles } = store();
     const attempt = profiles.create(endpoint('invalid', { [field]: null }));
     await expect(attempt).rejects.toBeInstanceOf(ProfileError);
