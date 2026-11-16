@@ -58,6 +58,12 @@ export function candidatePairs(spans: readonly ExtractedSpan[], categories: read
   return [...pairSequence(spans, categories)];
 }
 
+/** A pair's identity across compositions: its category and both spans' document and offsets, in the order `orderedSpans` puts them. Pair ids are sequential over one composition, so a resume that extracts further spans renumbers them; this key does not change. */
+export function pairKey(pair: PairRef): string {
+  const span = (s: ExtractedSpan): string => `${s.docId}\u0000${s.from}\u0000${s.to}`;
+  return `${pair.category}\u0000${span(pair.a)}\u0000${span(pair.b)}`;
+}
+
 /** Splits pairs into calls of at most {@link PAIRS_PER_CALL}. */
 export function batchPairs(pairs: readonly PairRef[], size: number = PAIRS_PER_CALL): PairRef[][] {
   const batches: PairRef[][] = [];
