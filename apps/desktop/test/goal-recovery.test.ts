@@ -85,8 +85,7 @@ async function fixture() {
     active: () => profile,
     persist: async () => undefined,
   } as unknown as ProviderService;
-  let controller: AgentController;
-  controller = new AgentController(session, providers, () => ({}), () => false, {
+  const controller: AgentController = new AgentController(session, providers, () => ({}), () => false, {
     store: new TaskStore(memoryDb()),
     locksAvailable: () => false,
     sleep: () => when(controller, (snapshot) => !snapshot.busy),
