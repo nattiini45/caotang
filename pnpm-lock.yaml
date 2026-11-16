@@ -492,7 +492,11 @@ importers:
         specifier: workspace:*
         version: link:../store
 
-  packages/crypto: {}
+  packages/crypto:
+    dependencies:
+      hash-wasm:
+        specifier: 4.13.0
+        version: 4.13.0
 
   packages/dialogue:
     dependencies:
@@ -2946,6 +2950,9 @@ packages:
   has-flag@4.0.0:
     resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
     engines: {node: '>=8'}
+
+  hash-wasm@4.13.0:
+    resolution: {integrity: sha512-GrWl7wsV46fKIXQZB5ebskLZLAmKL6d9RS0fspCxDeQyjoNu1AfTJTMLPOJyfzaQm0ldFiwFN21/w+sE/kgEFQ==}
 
   hash.js@1.1.7:
     resolution: {integrity: sha512-taOaskGt4z4SOANNseOviYDvjEJinIkRgmp7LbKP2YTTmVxWBl87s/uzK9r+44BclBSp2X7K1hqeNfz9JbBeXA==}
@@ -5732,6 +5739,8 @@ snapshots:
   harfbuzzjs@1.6.3: {}
 
   has-flag@4.0.0: {}
+
+  hash-wasm@4.13.0: {}
 
   hash.js@1.1.7:
     dependencies:
