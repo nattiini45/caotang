@@ -9,7 +9,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore } from '@caotang/gateway';
 import { createMockProvider } from '@caotang/gateway/mock';
-import { appendGoalCheckpoint, createGoalRun, createRunLogPort, openRuntimeStore, readGoalRun, readRun, recordGoalIteration, writeProjectState, MemoryIndexedDb, type GoalCheckpoint } from '@caotang/store';
+import { appendGoalCheckpoint, createGoalRun, createRunLogPort, deleteGoalRun, markGoalsInterrupted, openRuntimeStore, readGoalRun, readRun, recordGoalIteration, writeProjectState, MemoryIndexedDb, type GoalCheckpoint } from '@caotang/store';
 
 import { AgentController, type AgentSnapshot } from '../src/app/agent.js';
 import type { AppDb } from '../src/app/app-db.js';
@@ -98,7 +98,7 @@ async function fixture(reply = false) {
   const checkpoint: GoalCheckpoint = { goal, iterations: [], results: [], nextIteration: 1, spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 } };
   await createGoalRun(store, { goalId: GOAL, projectId: session.projectId, sessionId: controller.snapshot().sessionId, checkpoint, at: 100 });
   await appendGoalCheckpoint(store, GOAL, { checkpoint: { ...checkpoint, nextIteration: 2 }, at: 200 });
-  return { session, controller, store };
+  return { session, controller, store, providers };
 }
 
 it('offers a goal a reload abandoned as interrupted, resumes it only when the writer asks, then settles it', async () => {
@@ -203,4 +203,78 @@ it('counts a crash-lost reserved call from the active iteration before resuming 
   await f.controller.resumeGoal(GOAL);
   expect((await readGoalRun(f.store, GOAL))?.result?.status).toBe('budget');
   expect(f.controller.snapshot().turns).toEqual([]);
+});
+
+it('keeps a goal interrupted when its linked iteration may already have written to an MCP server', async () => {
+  const f = await fixture();
+  const port = createRunLogPort(f.store);
+  await port.create({ schema: 3, runId: 'uncertain-mcp', projectId: f.session.projectId, kind: 'turn', intent: 'Send the scene.', createdAt: 200, updatedAt: 200, status: 'interrupted' });
+  await port.append('uncertain-mcp', [
+    { t: 'turn.start', v: 3, turnId: 'external-turn', intent: 'Send the scene.', wire: 'planner', native: false, seq: 0, at: 200 },
+    { t: 'step.intent', turnId: 'external-turn', callId: 'external-write', index: 0, tool: 'mcp__test__write', expect: {}, structure: 'unchanged', seq: 1, at: 201 },
+  ]);
+  await recordGoalIteration(f.store, GOAL, 'uncertain-mcp', 200);
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  await f.controller.resumeGoal(GOAL);
+  expect((await readGoalRun(f.store, GOAL))?.status).toBe('interrupted');
+  expect(f.controller.snapshot().message).toContain('server may already have acted');
+  expect(f.controller.snapshot().turns).toEqual([]);
+});
+
+it('sends no model request when the active goal-to-run link fails in storage', async () => {
+  const f = await fixture(true);
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  const transaction = f.store.db.transaction.bind(f.store.db);
+  let writes = 0;
+  vi.spyOn(f.store.db, 'transaction').mockImplementation((names, mode, options) => {
+    const stores = typeof names === 'string' ? [names] : [...names];
+    if (mode === 'readwrite' && stores.length === 1 && stores[0] === 'goalRuns' && ++writes === 2) throw new Error('goal link refused');
+    return transaction(names, mode, options);
+  });
+  const id = 'g_7QK4M2N8RX';
+  await f.controller.startGoal({ ...passedGoal(), id, checks: [{ kind: 'status.all', status: 'final', scope: { mode: 'full' } }] });
+  expect(writes).toBeGreaterThanOrEqual(2);
+  expect((await readGoalRun(f.store, id))?.result?.status).toBe('failed');
+  expect(f.providers.gateway.ledger.turnRows()).toEqual([]);
+  expect(f.controller.snapshot().turns[0]?.report?.modelCalls).toBe(0);
+});
+
+it('does not repeat a completed iteration whose goal checkpoint did not reach storage', async () => {
+  const f = await fixture();
+  const port = createRunLogPort(f.store);
+  await port.create({ schema: 3, runId: 'completed-with-stale-goal', projectId: f.session.projectId, kind: 'turn', intent: 'Finished work.', createdAt: 200, updatedAt: 200, status: 'finished' });
+  await port.append('completed-with-stale-goal', [
+    { t: 'turn.start', v: 3, turnId: 'completed-turn', intent: 'Finished work.', wire: 'planner', native: false, seq: 0, at: 200 },
+    { t: 'turn.end', turnId: 'completed-turn', status: 'replied', summary: 'Finished work.', seq: 1, at: 201 },
+  ]);
+  await recordGoalIteration(f.store, GOAL, 'completed-with-stale-goal', 200);
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  await f.controller.resumeGoal(GOAL);
+  expect((await readGoalRun(f.store, GOAL))?.status).toBe('interrupted');
+  expect(f.controller.snapshot().message).toContain('completed iteration has no saved goal checkpoint');
+  expect(f.providers.gateway.ledger.turnRows()).toEqual([]);
+});
+
+it('settles a committed terminal checkpoint after a crash without another iteration', async () => {
+  const f = await fixture(true);
+  f.controller.attach();
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  const id = 'g_7QK4M2N8RY';
+  await f.controller.startGoal({ ...passedGoal(), id, maxIterations: 1, checks: [{ kind: 'status.all', status: 'final', scope: { mode: 'full' } }] });
+  const completed = (await readGoalRun(f.store, id))!;
+  expect(completed.result?.status).toBe('max-iterations');
+  expect(completed.checkpoint).toMatchObject({ nextIteration: 2, outcome: { status: 'max-iterations' } });
+  const calls = f.providers.gateway.ledger.turnRows().length;
+  await deleteGoalRun(f.store, id);
+  await createGoalRun(f.store, { goalId: id, projectId: f.session.projectId, sessionId: completed.sessionId, checkpoint: completed.checkpoint, at: 300 });
+  for (const runId of completed.iterationRunIds) await recordGoalIteration(f.store, id, runId, 300);
+  await markGoalsInterrupted(f.store, f.session.projectId, 301);
+  await f.controller.loadGoals();
+  await f.controller.resumeGoal(id);
+  expect((await readGoalRun(f.store, id))?.result?.status).toBe('max-iterations');
+  expect(f.controller.snapshot().turns).toHaveLength(1);
+  expect(f.providers.gateway.ledger.turnRows()).toHaveLength(calls);
 });

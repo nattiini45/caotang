@@ -13,7 +13,7 @@ import type { ChatRequest, Gateway } from '@caotang/gateway';
 import { isPlannerCall, plannerScript, userTextOf, type MockResponse, type MockScript } from '@caotang/gateway/mock';
 import type { ProjectState } from '@caotang/store';
 
-import { PLANNER_SYSTEM_PREFIX, createAgentPorts, createAgentSession, createBudgetMeter, createContextPort, createGoalRunner, goalRules, restoreGoal, type CheckSpec, type Decision, type AgentSessionOptions, type Goal, type GoalCheckpoint, type GoalOptions, type GoalRun, type PendingCard, type RulesProvider, type RunLimits, type WriteScope } from '../../src/index.js';
+import { PLANNER_SYSTEM_PREFIX, createAgentPorts, createAgentSession, createBudgetMeter, createContextPort, createGoalRunner, createMemoryRunLog, goalRules, restoreGoal, type CheckSpec, type Decision, type AgentSessionOptions, type Goal, type GoalCheckpoint, type GoalOptions, type GoalRun, type PendingCard, type RulesProvider, type RunLimits, type WriteScope } from '../../src/index.js';
 import { mockGateway } from '../agent/gateway.js';
 import { answer, steps } from '../agent/scripts.js';
 import { checkedHarness, clock, FRIEND, LANDING, makeState, snapshotOf, STORM } from '../fixtures.js';
@@ -140,6 +140,64 @@ const statusOf = (state: ProjectState, id: string): string | null => state.manif
 const ALL_FINAL: CheckSpec = { kind: 'status.all', scope: FULL, status: 'final' };
 
 describe.each<Wire>(['json', 'native'])('goal runs on the %s wire', (wire) => {
+  it('sends no provider request when a required iteration log cannot commit its turn start', async () => {
+    const limits = { maxModelCalls: 20 };
+    const log = createMemoryRunLog();
+    const f = await rig(wire, () => [final(STORM)], limits, undefined, undefined, {
+      session: { runLog: { projectId: 'project', required: () => true, port: { ...log, append: async () => { throw new Error('goal link refused'); } } } },
+    });
+    const run = await f.start(goalOf([ALL_FINAL], limits));
+    expect(f.requests).toHaveLength(0);
+    expect(run.status).toBe('failed');
+    expect(run.reason).toContain('log');
+    expect(snapshotOf(f.state)).toBe(f.before);
+  });
+
+  it('commits a terminal iteration checkpoint before returning and never replays that completed iteration', async () => {
+    const limits = { maxModelCalls: 20 };
+    const f = await rig(wire, () => [final(STORM)], limits);
+    const goal = goalOf([ALL_FINAL], limits, { maxIterations: 1 });
+    const completed: GoalCheckpoint[] = [];
+    const run = await f.start(goal, { saveIteration: async (checkpoint) => { completed.push(checkpoint); } });
+    expect(run.status).toBe('max-iterations');
+    expect(completed).toHaveLength(1);
+    expect(completed[0]).toMatchObject({ nextIteration: 2, outcome: { status: 'max-iterations' } });
+    expect(completed[0]?.iterations.map((iteration) => iteration.n)).toEqual([1]);
+    const calls = f.requests.length;
+    const resumed = await f.start(goal, { checkpoint: completed[0]! });
+    expect(resumed.status).toBe('max-iterations');
+    expect(resumed.iterations.map((iteration) => iteration.turnId)).toEqual(run.iterations.map((iteration) => iteration.turnId));
+    expect(f.requests).toHaveLength(calls);
+  });
+
+  it('stops before another iteration when its completed checkpoint cannot be saved', async () => {
+    const limits = { maxModelCalls: 20 };
+    const f = await rig(wire, (n) => n === 1 ? [final(STORM)] : [final(FRIEND), final(LANDING)], limits);
+    const run = await f.start(goalOf([ALL_FINAL], limits), { saveIteration: async () => { throw new Error('completion refused'); } });
+    expect(run.status).toBe('failed');
+    expect(run.reason).toContain('completion refused');
+    expect(run.iterations.map((iteration) => iteration.n)).toEqual([1]);
+    expect(statusOf(f.state, STORM)).toBe('final');
+    expect(statusOf(f.state, FRIEND)).not.toBe('final');
+  });
+
+  it('applies no tool step when its required step-intent log fails', async () => {
+    const limits = { maxModelCalls: 20 };
+    const log = createMemoryRunLog();
+    const f = await rig(wire, () => [final(STORM)], limits, undefined, undefined, {
+      session: { runLog: { projectId: 'project', required: () => true, port: {
+        ...log,
+        append: async (runId, events, patch) => {
+          if (events.some((event) => event.t === 'step.intent')) throw new Error('step intent refused');
+          await log.append(runId, events, patch);
+        },
+      } } },
+    });
+    const run = await f.start(goalOf([ALL_FINAL], limits));
+    expect(run.status).toBe('failed');
+    expect(snapshotOf(f.state)).toBe(f.before);
+  });
+
   it('keeps its accumulated stall count when resuming a saved checkpoint', async () => {
     const limits = { maxModelCalls: 20 };
     const f = await rig(wire, () => [], limits);

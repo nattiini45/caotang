@@ -1510,7 +1510,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     let sent = false;
     let refused = false;
     const beforeSend = (): void => {
-      try { guardReadBoundary(turn); } catch (error) { refused = !sent; throw error; }
+      try { guardRunLog(turn); guardReadBoundary(turn); } catch (error) { refused = !sent; throw error; }
       sent = true;
     };
     try {
@@ -1532,6 +1532,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     }
   }
 
+  const guardRunLog = (turn: Turn): void => {
+    if (options.runLog?.required?.() === true && (turn.run === undefined || turn.run.broken)) {
+      throw new Error('The required run log could not be saved, so no further goal work was started.');
+    }
+  };
+
   const guardReadBoundary = (turn: Turn): void => {
     if (harness.readPolicy() === turn.requestReadPolicy) return;
     turn.readPolicy = undefined;
@@ -1550,6 +1556,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const modelCall = (turn: Turn, onDelta?: (delta: string) => void, role: TaskRole | undefined = options.role, planner: boolean | 'compaction' = false): ModelCall => ({
     gateway: {
       complete: (request, signal) => {
+        guardRunLog(turn);
         if (turn.modelCalls >= maxModelCalls) throw modelCallBound(maxModelCalls);
         // While a mode decides the cards, the other budgets hold a turn to what it was allowed to spend without asking.
         if (policyOf(turn).decides) {
@@ -1619,6 +1626,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return {
       gateway: {
         complete: (request, signal) => {
+          guardRunLog(turn);
           if (used >= limit) throw modelCallBound(limit);
           guardReadBoundary(turn);
           const asked = { ...request, sessionId: usageSessionId, ...(options.role === undefined ? {} : { role: options.role }) };
@@ -1887,6 +1895,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
     }
     await turn.run?.append({ t: 'step.intent', turnId: turn.id, callId, index, tool, expect: revisionsNow(), structure: structureDigest(harness.state.manifest) });
+    guardRunLog(turn);
     const approved = turn.automaticRules.get(step);
     if (approved !== undefined && (turn.run === undefined || turn.run.broken || !automaticRuleValid(turn, step, approved))) {
       return refusal('permission-denied', 'The automatic approval is no longer valid, so nothing further was run.', { correctiveHint: 'review the current rules and mode, then send the request again' });

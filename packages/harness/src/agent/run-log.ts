@@ -138,6 +138,7 @@ export interface RunLogPort {
 export interface RunLogOptions {
   readonly port: RunLogPort;
   readonly projectId: string;
+  readonly required?: () => boolean;
   /**
    * Resolves when everything the project holds in memory has reached the store. Awaited after each step and before its `step.applied`
    * is written, so an `applied` event means the write is on disk. A rejection means it could not be saved, and the run stops being

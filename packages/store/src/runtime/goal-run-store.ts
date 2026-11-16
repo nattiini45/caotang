@@ -138,7 +138,7 @@ export function createGoalRun(
 export function appendGoalCheckpoint(
   store: RuntimeStore,
   goalId: string,
-  change: { readonly checkpoint: unknown; readonly at: number },
+  change: { readonly checkpoint: unknown; readonly at: number; readonly runId?: string },
 ): Promise<void> {
   return transact<void>(store.db, [GOAL_RUN_STORE, RUN_STORE], 'readwrite', (tx, done, fail) => {
     const goals = tx.objectStore(GOAL_RUN_STORE);
@@ -157,7 +157,9 @@ export function appendGoalCheckpoint(
         fail(new Error('the goal checkpoint cannot be read'));
         return;
       }
-      goals.put({ ...row, status: 'running', updatedAt: change.at, checkpoint: change.checkpoint } satisfies GoalRunRow);
+      goals.put({ ...row, status: 'running', updatedAt: change.at, checkpoint: change.checkpoint,
+        iterationRunIds: change.runId === undefined || row.iterationRunIds.includes(change.runId) ? row.iterationRunIds : [...row.iterationRunIds, change.runId],
+      } satisfies GoalRunRow);
       done();
     });
   });
@@ -170,7 +172,9 @@ export function recordGoalIteration(store: RuntimeStore, goalId: string, runId: 
     const request = goals.get(goalId);
     request.onsuccess = guarded(fail, () => {
       const row = request.result as GoalRunRow | undefined;
-      if (row === undefined || row.iterationRunIds.includes(runId)) { done(); return; }
+      if (row === undefined) { fail(new Error(`no goal "${goalId}" in the runtime store`)); return; }
+      if (row.iterationRunIds.includes(runId)) { done(); return; }
+      if (row.status !== 'running') { fail(new Error(`goal "${goalId}" is not running`)); return; }
       goals.put({ ...row, updatedAt: at, iterationRunIds: [...row.iterationRunIds, runId] } satisfies GoalRunRow);
       done();
     });

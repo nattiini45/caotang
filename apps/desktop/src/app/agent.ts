@@ -1690,8 +1690,17 @@ export class AgentController {
       }
       const spend = { ...checkpoint.spend };
       for (const runId of recovery.row.iterationRunIds) {
+        const run = await readRun(this.session.runtimeStore(), runId);
         const summary = await this.summarizeLogged(runId);
-        if (summary === undefined) throw new Error('The goal iteration log cannot be read.');
+        if (run?.projectId !== this.session.projectId || run.schema !== RUN_LOG_VERSION || run.cannotResume === true || summary === undefined || !summary.resumable) {
+          throw new Error(summary?.note ?? 'The goal iteration log cannot be safely resumed.');
+        }
+        const parsed = parseRunEvents(await this.runLog.events(runId));
+        if (!parsed.ok) throw new Error(parsed.detail);
+        const ended = parsed.events.findLast((event) => event.t === 'turn.end');
+        if (ended !== undefined && !checkpoint.iterations.some((iteration) => iteration.turnId === ended.turnId)) {
+          throw new Error('A completed iteration has no saved goal checkpoint. Discard the goal record rather than repeating its work.');
+        }
         const logged = summary.restoredSpend;
         for (const key of ['modelCalls', 'promptTokens', 'completionTokens', 'estimatedTokens', 'steps', 'activeMs'] as const) spend[key] = Math.max(spend[key], logged[key]);
         if (logged.costUsd !== undefined) spend.costUsd = Math.max(spend.costUsd ?? 0, logged.costUsd);
@@ -1755,10 +1764,10 @@ export class AgentController {
         saveCheckpoint: async (checkpoint) => {
           await appendGoalCheckpoint(store, goal.id, { checkpoint, at: this.clock() });
         },
-        onIteration: async (record) => {
+        saveIteration: async (checkpoint, record) => {
           const runId = this.runForTurn.get(record.report.turnId);
           if (runId === undefined) throw new Error('The goal iteration has no durable run log.');
-          await recordGoalIteration(store, goal.id, runId, this.clock());
+          await appendGoalCheckpoint(store, goal.id, { checkpoint, runId, at: this.clock() });
         },
       });
       await settleGoalRun(store, goal.id, { status: run.status, reason: run.reason, at: this.clock() });
@@ -3237,6 +3246,7 @@ export class AgentController {
       meter: () => this.goalMeter ?? this.meter ?? undefined,
       beforeAutoApply: (card) => this.beforeAutoApply(card),
       runLog: {
+        required: () => this.goalRunning !== null,
         port: this.runLog,
         projectId: this.session.projectId,
         // A step's record is written only once the project holds the step, so "applied" in the log means saved.

@@ -101,6 +101,7 @@ export interface GoalCheckpoint {
   readonly nextIteration: number;
   readonly spend: BudgetSpend;
   readonly progress?: { readonly best: number; readonly sinceBest: number; readonly passed: readonly string[] };
+  readonly outcome?: Pick<GoalRun, 'status' | 'reason' | 'askBack' | 'budgetStop'>;
 }
 
 /** A check that passed earlier and fails now. */
@@ -145,6 +146,7 @@ export interface GoalOptions {
   readonly onIteration?: (record: IterationRecord) => void | Promise<void>;
   readonly saveCheckpoint?: (checkpoint: GoalCheckpoint) => Promise<void>;
   readonly checkpoint?: GoalCheckpoint;
+  readonly saveIteration?: (checkpoint: GoalCheckpoint, record: IterationRecord) => Promise<void>;
   /** Where the one coherence run goes. Default: the project's held coherence file. */
   readonly recordCoherence?: (file: NonNullable<ProjectState['coherence']>) => void;
 }
@@ -410,8 +412,20 @@ export function createGoalRunner(): GoalRunner {
         } else sinceBest += 1;
       }
       let nextIteration = options.checkpoint?.nextIteration ?? 1;
+      let completed: IterationRecord | undefined;
+      const commitIteration = async (outcome?: GoalCheckpoint['outcome']): Promise<string | undefined> => {
+        const record = completed;
+        completed = undefined;
+        if (record === undefined || options.saveIteration === undefined) return undefined;
+        try {
+          await options.saveIteration(structuredClone({ goal, iterations, results, nextIteration, spend: meter.spend(), progress: { best, sinceBest, passed: [...passedBefore] }, ...(outcome === undefined ? {} : { outcome }) }), record);
+          return undefined;
+        } catch (error) {
+          return `the completed goal checkpoint could not be saved after iteration ${record.n}: ${error instanceof Error ? error.message : 'storage refused'}`;
+        }
+      };
 
-      const finish = (status: GoalStatus, reason: string, extra: Pick<GoalRun, 'askBack' | 'budgetStop'> = {}): GoalRun => {
+      const finish = async (status: GoalStatus, reason: string, extra: Pick<GoalRun, 'askBack' | 'budgetStop'> = {}): Promise<GoalRun> => {
         let scanRunId: string | undefined;
         if (plan !== undefined) {
           let scanned: ReturnType<typeof runDeterministic> | undefined;
@@ -450,9 +464,12 @@ export function createGoalRunner(): GoalRunner {
           }
         }
         // The status stays what the checks say; the notes ride along in the one sentence the host shows the writer.
-        return { goal, status, reason: [reason, ...notes].join('; '), iterations, results, notes, ...extra, ...(scanRunId === undefined ? {} : { scanRunId }) };
+        const said = [reason, ...notes].join('; ');
+        const failed = await commitIteration({ status, reason: said, ...extra });
+        return { goal, status: failed === undefined ? status : 'failed', reason: failed ?? said, iterations, results, notes, ...extra, ...(scanRunId === undefined ? {} : { scanRunId }) };
       };
 
+      if (options.checkpoint?.outcome !== undefined) return { goal, ...options.checkpoint.outcome, iterations, results, notes };
       if (results.every((result) => result.pass)) return finish('passed', 'every check already passes, so no turn was needed');
       if (onlyUnmeetable(results)) return finish('failed', unmeetableReason(results));
 
@@ -488,6 +505,16 @@ export function createGoalRunner(): GoalRunner {
         const record: IterationRecord = { n, turnId: report.turnId, intent, before, after: results, report, distance: { before: sum(before), after: sum(results) }, outOfScope: breaches };
         iterations.push(record);
         nextIteration = n + 1;
+        completed = record;
+        const broken = results.filter((result) => !result.pass && passedBefore.has(result.key));
+        for (const result of results) if (result.pass) passedBefore.add(result.key);
+        const total = sum(results);
+        if (total < best) {
+          best = total;
+          sinceBest = 0;
+        } else {
+          sinceBest += 1;
+        }
         try {
           await options.onIteration?.(record);
         } catch (error) {
@@ -510,8 +537,6 @@ export function createGoalRunner(): GoalRunner {
         // What is left cannot be done by writing: another turn would be paid for and could not help.
         if (onlyUnmeetable(results)) return finish('failed', unmeetableReason(results));
 
-        const broken = results.filter((result) => !result.pass && passedBefore.has(result.key));
-        for (const result of results) if (result.pass) passedBefore.add(result.key);
         if (broken.length > 0) {
           const askBack: AskBack = {
             code: 'needs_input',
@@ -546,15 +571,10 @@ export function createGoalRunner(): GoalRunner {
           for (const result of broken) passedBefore.delete(result.key);
         }
 
-        const total = sum(results);
-        if (total < best) {
-          best = total;
-          sinceBest = 0;
-        } else {
-          sinceBest += 1;
-        }
         if (sinceBest >= stallAfter) return finish('stalled', `the checks are no closer after ${plural(stallAfter, 'iteration')} (${total} left), so the run stopped`);
         if (n >= maxIterations) return finish('max-iterations', `the run made its ${plural(maxIterations, 'iteration')} without every check passing (${total} left)`);
+        const failed = await commitIteration();
+        if (failed !== undefined) return finish('failed', failed);
       }
     },
   };

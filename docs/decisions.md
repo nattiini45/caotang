@@ -1,5 +1,7 @@
 # Decisions
 
+- Goal iteration admission and completion are both durable boundaries. Goal-owned turns require a healthy run log before model dispatch or tool work; recovery honors the ordinary run's unsafe-resume verdict. Completed checkpoints include progress, the next iteration and terminal outcome, and recovery refuses a completed turn missing from that checkpoint instead of replaying it. Ordinary turns keep best-effort logging. [delegated 2026-11-16]
+
 - A goal's active iteration is linked durably before model work. Resume reconciles cumulative run-log spend and crash-lost reserved calls before continuing, and goal storage actions reserve the foreground controller before their first await. This keeps reloads and storage waits from bypassing shared limits or allowing concurrent foreground turns. [delegated 2026-11-16]
 
 - Goal recovery keeps shared spend, completed iteration identities and loop progress instead of restarting iteration numbering or stall guards. The owning conversation is restored explicitly; each iteration uses the ordinary turn lifecycle and run-log id, and Stop owns the entire goal, including checkpoint waits. Goal recovery actions use the existing pinned UI SDK Button primitive. [delegated 2026-11-16]

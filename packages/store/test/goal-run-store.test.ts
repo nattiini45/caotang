@@ -72,6 +72,23 @@ const checkpoint = (nextIteration = 1) => ({
 });
 
 describe('a durable goal record', () => {
+  it('commits a completed checkpoint with its run reference and refuses links to missing or settled goals', async () => {
+    const store = await openRuntimeStore(new MemoryIndexedDb(), 'goal-completion');
+    try {
+      await expect(recordGoalIteration(store, GOAL, 'turn-one')).rejects.toThrow('no goal');
+      await createGoalRun(store, { goalId: GOAL, projectId: PROJECT, sessionId: CONVERSATION, checkpoint: checkpoint(), at: 100 });
+      const completed = { ...checkpoint(2), outcome: { status: 'passed', reason: 'Done.' } };
+      await appendGoalCheckpoint(store, GOAL, { checkpoint: completed, runId: 'turn-one', at: 200 });
+      expect(await readGoalRun(store, GOAL)).toMatchObject({ checkpoint: completed, iterationRunIds: ['turn-one'] });
+      await appendGoalCheckpoint(store, GOAL, { checkpoint: completed, runId: 'turn-one', at: 201 });
+      expect((await readGoalRun(store, GOAL))?.iterationRunIds).toEqual(['turn-one']);
+      await settleGoalRun(store, GOAL, { status: 'passed', reason: 'Done.', at: 300 });
+      await expect(recordGoalIteration(store, GOAL, 'turn-two')).rejects.toThrow('not running');
+    } finally {
+      store.close();
+    }
+  });
+
   it('survives a reopen with its checkpoint, iteration turns and owning conversation, and settles once', async () => {
     const factory = new MemoryIndexedDb();
     const store = await openRuntimeStore(factory, 'goal-record');
