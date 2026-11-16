@@ -30,7 +30,8 @@
     "@jsquash/webp": "1.5.0"
   },
   "devDependencies": {
-    "@caotang/store": "workspace:*"
+    "@caotang/store": "workspace:*",
+    "@caotang/tasks": "workspace:*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

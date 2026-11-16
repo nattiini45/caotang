@@ -428,6 +428,9 @@ importers:
       '@caotang/store':
         specifier: workspace:*
         version: link:../store
+      '@caotang/tasks':
+        specifier: workspace:*
+        version: link:../tasks
 
   packages/codex:
     dependencies:
@@ -1133,6 +1136,9 @@ importers:
       '@caotang/store':
         specifier: workspace:*
         version: link:../store
+      '@caotang/tasks':
+        specifier: workspace:*
+        version: link:../tasks
       '@caotang/timeline':
         specifier: workspace:*
         version: link:../timeline
