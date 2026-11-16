@@ -24,6 +24,7 @@
     "@caotang/pdf-fonts": "workspace:*",
     "@caotang/pictures": "workspace:*",
     "@caotang/screenplay": "workspace:*",
+    "@caotang/script": "workspace:*",
     "@caotang/store": "workspace:*",
     "@caotang/storyboard": "workspace:*",
     "@caotang/timeline": "workspace:*",

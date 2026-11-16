@@ -933,6 +933,9 @@ describe('export.compile, export.compileSelection and project.deleteNode', () =>
       // The comic's raster formats (comics.md §5), the twenty-second and twenty-third.
       'cbz',
       'comic-epub',
+      'show-notes',
+      'transcript-md',
+      'teleprompter',
     ]);
   });
 
