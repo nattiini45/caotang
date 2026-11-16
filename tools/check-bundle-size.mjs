@@ -177,7 +177,7 @@ export const BUDGET = {
   // queued path in the entry, the Inbox UI (BackgroundTasks, FindingsPanel, QueuedReviewDetails) and the German catalogue in lazy chunks.
   // Optimisations checked as for the first load above; no duplicated modules, pseudo-locales do not ship. The ceiling is that plus about 1%,
   // rounded up to the thousand. [owner 2026-11-15]
-  totalJs: 8_570_000,
+  totalJs: 8_425_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
