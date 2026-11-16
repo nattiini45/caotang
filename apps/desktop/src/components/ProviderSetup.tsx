@@ -98,6 +98,13 @@ export function ProviderSetup({
     if (step === 'form') keyField.current?.focus();
   }, [step]);
 
+  /** Setup inputs changed: the run in flight belongs to the old inputs, so its draft is abandoned when it lands. */
+  const invalidate = (): void => {
+    run.current += 1;
+    setError(null);
+    setStep('form');
+  };
+
   const check = async (): Promise<void> => {
     if (preset === undefined || !canCheck) return;
     const token = ++run.current;
@@ -286,7 +293,7 @@ export function ProviderSetup({
                 const next = presetFor(kind);
                 setCustomKind(kind);
                 setAddress(next?.local === undefined ? '' : next.baseUrl);
-                setError(null);
+                invalidate();
               }}
             >
               <SegmentedControlIndicator />
@@ -297,7 +304,7 @@ export function ProviderSetup({
           </Field>
           <Field className="field">
             <FieldLabel>{isLocal ? <Trans>Server address (on this computer, ending in /v1)</Trans> : <Trans>Endpoint (the base URL, ending in /v1)</Trans>}</FieldLabel>
-            <Input type="url" inputMode="url" autoComplete="off" spellCheck={false} placeholder={preset?.local === undefined ? 'https://openrouter.ai/api/v1' : preset.baseUrl} value={address} onValueChange={setAddress} />
+            <Input type="url" inputMode="url" autoComplete="off" spellCheck={false} placeholder={preset?.local === undefined ? 'https://openrouter.ai/api/v1' : preset.baseUrl} value={address} onValueChange={(value) => { setAddress(value); invalidate(); }} />
           </Field>
           {preset?.local === undefined ? null : (
             <>
@@ -330,7 +337,7 @@ export function ProviderSetup({
             setApiKey(value);
             setChosen(null);
             setPicking(false);
-            setError(null);
+            invalidate();
           }}
         >
           <PasswordInputControl ref={keyField} placeholder={custom ? undefined : t`Paste your API key`} spellCheck={false} autoCapitalize="off" />
@@ -353,7 +360,7 @@ export function ProviderSetup({
         <>
         <Field className="field">
           <FieldLabel><Trans>Which provider is this key from?</Trans></FieldLabel>
-          <RadioGroup value={chosen ?? ''} onValueChange={(next) => { if (typeof next === 'string' && next !== '') setChosen(next); }}>
+          <RadioGroup value={chosen ?? ''} onValueChange={(next) => { if (typeof next === 'string' && next !== '') { setChosen(next); invalidate(); } }}>
             {candidates.map((entry) => (
               <label data-slot="label" key={entry.id}>
                 <Radio value={entry.id}><RadioIndicator /></Radio>
@@ -365,7 +372,7 @@ export function ProviderSetup({
           <Collapsible className="more-providers">
             <CollapsibleTrigger className="button is-quiet"><Trans>More providers</Trans></CollapsibleTrigger>
             <CollapsiblePanel>
-              <Listbox aria-label={t`More providers`} activation="manual" value={rest.some((entry) => entry.id === chosen) ? chosen : null} onValueChange={(next) => { if (typeof next === 'string') setChosen(next); }}>
+              <Listbox aria-label={t`More providers`} activation="manual" value={rest.some((entry) => entry.id === chosen) ? chosen : null} onValueChange={(next) => { if (typeof next === 'string') { setChosen(next); invalidate(); } }}>
                 {rest.map((entry) => (
                   <ListboxItem key={entry.id} value={entry.id}>
                     {entry.cors === 'blocked' ? t`${{ provider: entry.name }} — Desktop app or hosted only` : entry.name}
@@ -383,12 +390,12 @@ export function ProviderSetup({
             field.options === undefined ? (
               <Field className="field" key={field.key}>
                 <FieldLabel>{field.required === true ? field.label : t`${{ field: field.label }} (optional)`}</FieldLabel>
-                <Input value={fields[field.key] ?? ''} autoComplete="off" spellCheck={false} onValueChange={(value) => setFields({ ...fields, [field.key]: value })} />
+                <Input value={fields[field.key] ?? ''} autoComplete="off" spellCheck={false} onValueChange={(value) => { setFields({ ...fields, [field.key]: value }); invalidate(); }} />
               </Field>
             ) : (
               <Field className="field" key={field.key}>
                 <FieldLabel>{field.label}</FieldLabel>
-                <Listbox aria-label={field.label} activation="manual" value={fields[field.key] ?? field.defaultValue ?? null} onValueChange={(next) => { if (typeof next === 'string') setFields({ ...fields, [field.key]: next }); }}>
+                <Listbox aria-label={field.label} activation="manual" value={fields[field.key] ?? field.defaultValue ?? null} onValueChange={(next) => { if (typeof next === 'string') { setFields({ ...fields, [field.key]: next }); invalidate(); } }}>
                   {field.options.map((option) => <ListboxItem key={option.value} value={option.value}>{option.label}</ListboxItem>)}
                 </Listbox>
               </Field>
@@ -443,9 +450,9 @@ export function ProviderSetup({
 
       <p className="provider-secondary">
         {custom ? (
-          <Button className="button is-quiet" disabled={checking} onClick={() => { setCustom(false); setError(null); }}><Trans>Back to a key from a provider</Trans></Button>
+          <Button className="button is-quiet" disabled={checking} onClick={() => { setCustom(false); invalidate(); }}><Trans>Back to a key from a provider</Trans></Button>
         ) : (
-          <Button className="button is-quiet" disabled={checking} onClick={() => { setCustom(true); setCustomKind('generic'); setAddress(''); setError(null); }}><Trans>Custom endpoint</Trans></Button>
+          <Button className="button is-quiet" disabled={checking} onClick={() => { setCustom(true); setCustomKind('generic'); setAddress(''); invalidate(); }}><Trans>Custom endpoint</Trans></Button>
         )}
       </p>
     </form>

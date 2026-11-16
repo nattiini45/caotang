@@ -215,3 +215,40 @@ test('on a phone the setup fits the screen with no sideways scrolling at every s
   await expect(settings.getByRole('heading', { name: 'Choose a model' })).toBeVisible();
   await noSideScroll();
 });
+
+test('correcting the key while the check runs lists the new key\'s models, not the old key\'s', async ({ page }) => {
+  let releaseFirst!: () => void;
+  const firstHeld = new Promise<void>((resolve) => { releaseFirst = resolve; });
+  let firstSeen!: () => void;
+  const seen = new Promise<void>((resolve) => { firstSeen = resolve; });
+  const keys: string[] = [];
+  await page.route('https://api.anthropic.com/**', async (route) => {
+    const request = route.request();
+    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'content-type': 'application/json' };
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    const key = request.headers()['x-api-key'] ?? '';
+    if (request.method() === 'GET') {
+      keys.push(key);
+      if (keys.length === 1) { firstSeen(); await firstHeld; }
+      return route.fulfill({ headers: cors, json: { data: [{ id: key.endsWith('B') ? 'new-model' : 'old-model' }] } });
+    }
+    return route.fulfill({ headers: cors, json: { choices: [{ message: { content: '{}' } }] } });
+  });
+  const settings = await openSettings(page);
+  const form = await openProviderSetup(settings);
+  await form.getByLabel('API key', { exact: true }).fill(ANTHROPIC_KEY);
+  await seen;
+  await form.getByLabel('API key', { exact: true }).fill(ANTHROPIC_KEY + 'B');
+  releaseFirst();
+
+  const models = settings.getByRole('listbox', { name: 'Models you can use with Anthropic (Claude)' });
+  await expect(models.getByRole('option', { name: 'new-model' })).toBeVisible();
+  await expect(models.getByRole('option', { name: 'old-model' })).toHaveCount(0);
+  await models.getByRole('option', { name: 'new-model' }).click();
+  await expect(settings.getByRole('heading', { name: /is ready$/ })).toBeVisible();
+  await settings.getByRole('button', { name: 'Done', exact: true }).click();
+
+  expect(keys).toContain(ANTHROPIC_KEY + 'B');
+  await expect(settings.locator('[data-profile="Anthropic (Claude)"]')).toContainText('new-model');
+  await expect(settings.locator('[data-profile]')).toHaveCount(2);
+});
