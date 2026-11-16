@@ -546,6 +546,7 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
   if (typeof o.keepPictureMetadata === 'boolean') pairs.push(['keepPictureMetadata', String(o.keepPictureMetadata)]);
   if (typeof o.timelinePictures === 'boolean') pairs.push(['timelinePictures', String(o.timelinePictures)]);
   if (typeof o.colourEmoji === 'boolean') pairs.push(['colourEmoji', String(o.colourEmoji)]);
+  if (o.notes === 'footnote' || o.notes === 'endnote') pairs.push(['notes', str(o.notes, 'recipe.options.notes')]);
   return pairs.length === 0 ? '{}' : oneLine(pairs);
 }
 

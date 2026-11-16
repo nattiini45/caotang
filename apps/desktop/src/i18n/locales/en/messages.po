@@ -4094,6 +4094,11 @@ msgstr "At most"
 msgid "At most {calls} model calls per run. A lower limit in Settings still applies."
 msgstr "At most {calls} model calls per run. A lower limit in Settings still applies."
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "At the end of the book"
+msgstr "At the end of the book"
+
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
 #: apps/desktop/src/media/PromptPackPanel.tsx
 msgid "Attach"
@@ -8309,6 +8314,11 @@ msgstr "Footnote {label}"
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Footnote without a marker"
 msgstr "Footnote without a marker"
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Footnotes"
+msgstr "Footnotes"
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
@@ -20682,6 +20692,11 @@ msgstr "undated"
 #: apps/desktop/src/app/plan-preview.ts
 msgid "under {amount}"
 msgstr "under {amount}"
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Under each page or chapter"
+msgstr "Under each page or chapter"
 
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/rtf-source.ts

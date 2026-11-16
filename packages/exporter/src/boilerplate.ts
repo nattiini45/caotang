@@ -20,6 +20,8 @@ export interface Boilerplate {
   readonly beginReading: string;
   /** The `cover` landmark's label. */
   readonly cover: string;
+  /** The heading of a notes section: plain text's `NOTES` line and the EPUB endnotes file's title. */
+  readonly notes: string;
 }
 
 const ENGLISH: Boilerplate = {
@@ -29,6 +31,7 @@ const ENGLISH: Boilerplate = {
   landmarks: 'Landmarks',
   beginReading: 'Begin Reading',
   cover: 'Cover',
+  notes: 'Notes',
 };
 
 /**
@@ -44,6 +47,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: 'Orientierungspunkte',
     beginReading: 'Textbeginn',
     cover: 'Umschlag',
+    notes: 'Anmerkungen',
   },
   fr: {
     contents: 'Table des matières',
@@ -52,6 +56,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: 'Repères',
     beginReading: 'Commencer la lecture',
     cover: 'Couverture',
+    notes: 'Notes',
   },
   es: {
     contents: 'Contenido',
@@ -60,6 +65,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: 'Puntos de referencia',
     beginReading: 'Empezar a leer',
     cover: 'Portada',
+    notes: 'Notas',
   },
   it: {
     contents: 'Indice',
@@ -68,6 +74,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: 'Punti di riferimento',
     beginReading: 'Inizia a leggere',
     cover: 'Copertina',
+    notes: 'Note',
   },
   pt: {
     contents: 'Conteúdo',
@@ -76,6 +83,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: 'Pontos de referência',
     beginReading: 'Começar a ler',
     cover: 'Capa',
+    notes: 'Notas',
   },
   nl: {
     contents: 'Inhoud',
@@ -84,6 +92,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: 'Oriëntatiepunten',
     beginReading: 'Begin met lezen',
     cover: 'Omslag',
+    notes: 'Notities',
   },
   sv: {
     contents: 'Innehåll',
@@ -92,6 +101,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: 'Hållpunkter',
     beginReading: 'Börja läsa',
     cover: 'Omslag',
+    notes: 'Noter',
   },
   pl: {
     contents: 'Spis treści',
@@ -100,6 +110,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: 'Punkty orientacyjne',
     beginReading: 'Zacznij czytać',
     cover: 'Okładka',
+    notes: 'Przypisy',
   },
   cs: {
     contents: 'Obsah',
@@ -108,6 +119,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: 'Orientační body',
     beginReading: 'Začít číst',
     cover: 'Obálka',
+    notes: 'Poznámky',
   },
   tr: {
     contents: 'İçindekiler',
@@ -116,6 +128,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: 'Yer imleri',
     beginReading: 'Okumaya başla',
     cover: 'Kapak',
+    notes: 'Notlar',
   },
   ru: {
     contents: 'Содержание',
@@ -124,6 +137,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: 'Ориентиры',
     beginReading: 'Начать чтение',
     cover: 'Обложка',
+    notes: 'Примечания',
   },
   uk: {
     contents: 'Зміст',
@@ -132,6 +146,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: 'Орієнтири',
     beginReading: 'Почати читання',
     cover: 'Обкладинка',
+    notes: 'Примітки',
   },
   ja: {
     contents: '目次',
@@ -140,6 +155,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: 'ランドマーク',
     beginReading: '本文へ',
     cover: '表紙',
+    notes: '脚注',
   },
   ko: {
     contents: '목차',
@@ -148,6 +164,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: '랜드마크',
     beginReading: '본문으로',
     cover: '표지',
+    notes: '각주',
   },
   zh: {
     contents: '目录',
@@ -156,6 +173,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: '地标',
     beginReading: '开始阅读',
     cover: '封面',
+    notes: '注释',
   },
   'zh-hant': {
     contents: '目錄',
@@ -164,6 +182,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: '地標',
     beginReading: '開始閱讀',
     cover: '封面',
+    notes: '註釋',
   },
   ar: {
     contents: 'المحتويات',
@@ -172,6 +191,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: 'معالم',
     beginReading: 'ابدأ القراءة',
     cover: 'الغلاف',
+    notes: 'حواش',
   },
   he: {
     contents: 'תוכן עניינים',
@@ -180,6 +200,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: 'ציוני דרך',
     beginReading: 'התחל לקרוא',
     cover: 'כריכה',
+    notes: 'הערות שוליים',
   },
   hi: {
     contents: 'विषय-सूची',
@@ -188,6 +209,7 @@ const TABLE: Readonly<Record<string, Boilerplate>> = {
     landmarks: 'लैंडमार्क',
     beginReading: 'पढ़ना शुरू करें',
     cover: 'आवरण',
+    notes: 'टिप्पणियाँ',
   },
 };
 

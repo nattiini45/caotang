@@ -113,12 +113,12 @@ describe('manifest serializer', () => {
     const m = rich();
     m.project.author = 'Ada Writer';
     m.recipes = [
-      { name: 'beta', includeRootIds: ['manuscript'], format: 'epub', options: { toc: false, titlePage: true, author: 'A. N. Other' } },
+      { name: 'beta', includeRootIds: ['manuscript'], format: 'epub', options: { toc: false, titlePage: true, author: 'A. N. Other', notes: 'endnote' } },
       { name: 'plain', includeRootIds: ['manuscript'], format: 'md', options: {} },
     ];
     const text = serializeManifest(m);
     expect(text).toContain('"author": "Ada Writer"');
-    expect(text).toContain('"options": { "titlePage": true, "toc": false, "author": "A. N. Other" }');
+    expect(text).toContain('"options": { "titlePage": true, "toc": false, "author": "A. N. Other", "notes": "endnote" }');
     expect(text).toContain('"options": {}');
     const back = JSON.parse(text) as Manifest;
     expect(back.recipes).toEqual(m.recipes);
