@@ -3,7 +3,7 @@
  * state lives outside it, and a run records what settled. The provider is the demo mock; no test needs a key.
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { LOCK_FILE } from '@caotang/sdk/folder';
@@ -55,7 +55,7 @@ describe('caotang tasks list and due', () => {
     expect(io.out.join('')).toContain('Broken plan');
     expect(io.out.join('')).toContain('problem');
     expect(folderBytes(root)).toEqual(before);
-    expect(existsSync(join(root, LOCK_FILE))).toBe(false);
+    expect(folderBytes(root)[LOCK_FILE]).toBeUndefined();
   });
 
   it('list in json is one object with the rows', async () => {
@@ -83,7 +83,7 @@ describe('caotang tasks list and due', () => {
     expect(text).not.toContain(MANUAL);
     expect(text).not.toContain(OFF);
     expect(folderBytes(root)).toEqual(before);
-    expect(existsSync(state)).toBe(false);
+    expect(() => readFileSync(state, 'utf8')).toThrow();
 
     writeFileSync(state, JSON.stringify({ formatVersion: 1, lastRuns: { [SCAN]: NOW.toISOString(), [MODEL]: NOW.toISOString() } }));
     const io2 = { ...capture({ cwd: root }), now: () => NOW };
@@ -130,7 +130,7 @@ describe('caotang tasks run', () => {
     expect(coherence.runs.length).toBe(1);
     const saved = JSON.parse(readFileSync(state, 'utf8')) as { lastRuns: Record<string, string> };
     expect(saved.lastRuns[SCAN]).toBe(NOW.toISOString());
-    expect(existsSync(join(root, LOCK_FILE))).toBe(false);
+    expect(folderBytes(root)[LOCK_FILE]).toBeUndefined();
   });
 
   it('a scan without --write leaves the folder byte-identical and still records the machine state', async () => {
@@ -139,7 +139,7 @@ describe('caotang tasks run', () => {
     expect(await runTasksCommand(['run', SCAN, '--state', state], io)).toBe(0);
     expect(folderBytes(root)).toEqual(before);
     expect(io.out.join('')).toContain('done');
-    expect(existsSync(state)).toBe(true);
+    expect(readFileSync(state, 'utf8')).toContain(SCAN);
   });
 
   it('a model task under the default read-only policy cancels its card and exits 4, recorded', async () => {
@@ -170,7 +170,7 @@ describe('caotang tasks run', () => {
   it('an unrunnable task is refused and records nothing; an unknown name is a usage error', async () => {
     const io = { ...capture({ cwd: root }), now: () => NOW };
     expect(await runTasksCommand(['run', BAD, '--state', state], io)).toBe(4);
-    expect(existsSync(state)).toBe(false);
+    expect(() => readFileSync(state, 'utf8')).toThrow();
     const io2 = { ...capture({ cwd: root }), now: () => NOW };
     expect(await runTasksCommand(['run', 'no such task', '--state', state], io2)).toBe(2);
   });
@@ -179,7 +179,7 @@ describe('caotang tasks run', () => {
     const io = { ...capture({ cwd: root }), now: () => NOW };
     expect(await runTasksCommand(['run', MODEL, '--state', state], io)).toBe(2);
     expect(io.err.join('')).toContain('needs a provider');
-    expect(existsSync(state)).toBe(false);
+    expect(() => readFileSync(state, 'utf8')).toThrow();
   });
 
   it('the permission and the cap are the lowest of the file and the flag', () => {
