@@ -20,9 +20,11 @@
 #     The two mobile projects run only e2e/mobile-shell.spec.ts, the narrow layout, in Chromium with touch (emulation, not WebKit).
 #   - `office-interop` writes the .xlsx corpus through the exporter (packages/exporter/test/xlsx-write-corpus.test.ts, which writes only
 #     when CAOTANG_XLSX_OUT is set, so `pnpm verify` is unchanged) and checks every file with tools/office-interop/check_xlsx.py: the
-#     package parts, openpyxl, then LibreOffice's CSV and its re-saved XLSX. LibreOffice (apt) and openpyxl (a venv) are installed for
-#     this job alone and never ship; it is a separate job so the main gate does not wait for the install. It is not a check in Excel or
-#     Numbers (docs/testing/office-interop.md).
+#     package parts, openpyxl, then LibreOffice's CSV and its re-saved XLSX. It does the same for the .docx contents-field corpus
+#     (packages/exporter/test/docx-write-corpus.test.ts, CAOTANG_DOCX_OUT) with tools/office-interop/check_docx.py: the package parts,
+#     LibreOffice's PDF, its re-saved DOCX, and an index regenerated over a UNO socket. LibreOffice (apt), python3-uno, Poppler and
+#     openpyxl (a venv) are installed for this job alone and never ship; it is a separate job so the main gate does not wait for the
+#     install. It is not a check in Excel, Numbers, Word, Pages or Google Docs (docs/testing/office-interop.md).
 #   - `pdf-validate` writes the PDF corpus through the exporter (packages/exporter/test/pdf-write-corpus.test.ts, which writes only when
 #     CAOTANG_PDF_OUT is set, so `pnpm verify` is unchanged) and checks every file with tools/pdf-validate/check.mjs: pdf.js in Node,
 #     then qpdf, Poppler, Ghostscript and MuPDF. Those are installed from apt for this job alone; they never ship, and a tool that is
@@ -327,6 +329,7 @@ jobs:
     timeout-minutes: 30
     env:
       CAOTANG_XLSX_OUT: ${{ github.workspace }}/test-results/xlsx
+      CAOTANG_DOCX_OUT: ${{ github.workspace }}/test-results/docx
     steps:
       - uses: actions/checkout@v7
 
@@ -348,10 +351,10 @@ jobs:
           key: apt-libreoffice-${{ steps.week.outputs.week }}
           restore-keys: apt-libreoffice-
 
-      - name: Install LibreOffice and openpyxl (CI only; neither ships)
+      - name: Install LibreOffice, python3-uno, Poppler and openpyxl (CI only; none of them ships)
         # tools/ci/apt-install.sh retries a slow mirror within a time limit instead of letting it run out the job's time.
         run: |
-          APT_ARCHIVES="$GITHUB_WORKSPACE/.apt-archives" bash tools/ci/apt-install.sh libreoffice-calc
+          APT_ARCHIVES="$GITHUB_WORKSPACE/.apt-archives" bash tools/ci/apt-install.sh libreoffice-calc libreoffice-writer python3-uno poppler-utils
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install openpyxl==3.1.5
 
@@ -367,12 +370,29 @@ jobs:
       - name: Prove the checker fails on a broken workbook (three negative controls)
         run: '"$RUNNER_TEMP/venv/bin/python" tools/office-interop/xlsx_negative_controls.py "$CAOTANG_XLSX_OUT"'
 
+      - name: Write the DOCX corpus
+        run: pnpm exec vitest run packages/exporter/test/docx-write-corpus.test.ts
+
+      - name: Check the corpus (package parts, LibreOffice PDF, re-saved DOCX and a regenerated index)
+        run: python3 tools/office-interop/check_docx.py "$CAOTANG_DOCX_OUT"
+
+      - name: Prove the checker fails on a broken document (three negative controls)
+        run: python3 tools/office-interop/docx_negative_controls.py "$CAOTANG_DOCX_OUT"
+
       - name: Upload the corpus and the LibreOffice logs on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: xlsx-corpus
           path: ${{ env.CAOTANG_XLSX_OUT }}/
+          retention-days: 7
+
+      - name: Upload the DOCX corpus and the LibreOffice logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: docx-corpus
+          path: ${{ env.CAOTANG_DOCX_OUT }}/
           retention-days: 7
 
   pdf-validate:

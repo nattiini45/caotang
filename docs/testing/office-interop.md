@@ -136,8 +136,8 @@ Word and the read-only importers.
 
 `packages/exporter/test/docx-write-corpus.test.ts` writes the five corpus files through the renderer to
 `$CAOTANG_DOCX_OUT`, with `expected.json` beside them (per file: whether a contents field is expected and its entry
-titles in order). `tools/office-interop/check_docx.py` then checks each file, run locally for now — wiring it into
-the `office-interop` CI job is a follow-up:
+titles in order). The `office-interop` CI job then runs `tools/office-interop/check_docx.py` on each file, after the
+same job's XLSX steps:
 
 - **the package:** a sound ZIP whose document holds a complex `w:fldChar` field (begin, `instrText`, separate, cached
   entries, end) with no `w:sdt` wrapper — the packed single-run `w:sdt` shape is the one LibreOffice flattens —
