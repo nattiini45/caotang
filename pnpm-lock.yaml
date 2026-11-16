@@ -409,6 +409,9 @@ importers:
       '@caotang/gateway':
         specifier: workspace:*
         version: link:../gateway
+      '@caotang/ids':
+        specifier: workspace:*
+        version: link:../ids
       '@caotang/mcp-server':
         specifier: workspace:*
         version: link:../mcp-server
@@ -428,6 +431,9 @@ importers:
       '@caotang/store':
         specifier: workspace:*
         version: link:../store
+      '@caotang/tasks':
+        specifier: workspace:*
+        version: link:../tasks
 
   packages/codex:
     dependencies:
@@ -1133,6 +1139,9 @@ importers:
       '@caotang/store':
         specifier: workspace:*
         version: link:../store
+      '@caotang/tasks':
+        specifier: workspace:*
+        version: link:../tasks
       '@caotang/timeline':
         specifier: workspace:*
         version: link:../timeline
