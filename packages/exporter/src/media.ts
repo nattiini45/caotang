@@ -1155,9 +1155,8 @@ function teleprompterOutput(request: MediaRequest): MediaOutput {
  * The AV script's captions and chapters (av-script.md §5)
  * ------------------------------------------------------------------ */
 
-/** Seconds as `hh:mm:ss.ttt` with the period separator WebVTT requires (av-script.md §5). */
-function vttTime(seconds: number): string {
-  const ms = Math.max(0, Math.round(seconds * 1000));
+/** Milliseconds as `hh:mm:ss.ttt` with the period separator WebVTT requires (av-script.md §5). */
+function vttTime(ms: number): string {
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
   const s = Math.floor((ms % 60000) / 1000);
@@ -1195,7 +1194,11 @@ function vttOutput(request: MediaRequest): MediaOutput {
           notes.push(`"${ep.node.title}" line ${line.line}: no duration, so it takes no cue`);
           continue;
         }
-        cues.push(`${vttTime(at)} --> ${vttTime(at + line.durationSec)}\n<v ${vttEscape(speakerName(request, line))}>${vttEscape(line.text)}</v>`);
+        // Quantized to milliseconds here, not inside vttTime: a positive duration shorter than 1 ms would give
+        // a cue whose end is not after its start, which a player drops — so the interval is at least 1 ms.
+        const startMs = Math.max(0, Math.round(at * 1000));
+        const endMs = Math.max(startMs + 1, Math.round((at + line.durationSec) * 1000));
+        cues.push(`${vttTime(startMs)} --> ${vttTime(endMs)}\n<v ${vttEscape(speakerName(request, line))}>${vttEscape(line.text)}</v>`);
         cueCount += 1;
         wordCount += line.words;
         at += line.durationSec;
