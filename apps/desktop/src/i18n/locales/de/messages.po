@@ -13540,6 +13540,11 @@ msgstr "Wird geplant"
 msgid "Planning"
 msgstr "Planung"
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Podcast feed (.rss.xml)"
+msgstr "Podcast-Feed (.rss.xml)"
+
 #. Interpolated values: count, day, days, error
 #: apps/desktop/src/components/WritingHistory.tsx
 msgid "Point at a bar to read its day and words."
@@ -19988,6 +19993,11 @@ msgstr "Die Einstellungen als Video-Prompt-Paket"
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "The shots as cards"
 msgstr "Die Einstellungen als Karten"
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "The show as an RSS feed Apple and the open directories read: an item per episode with its enclosure, duration and publish date. An episode with no hosted audio stays out and is named in the log."
+msgstr "Die Sendung als RSS-Feed, den Apple und die offenen Verzeichnisse lesen: ein Eintrag pro Episode mit ihrer Audiodatei, Dauer und ihrem Veröffentlichungsdatum. Eine Episode ohne gehostete Audiodatei bleibt aus und wird im Protokoll genannt."
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx

@@ -151,6 +151,7 @@ export { DEFAULT_TEMPLATE, DEFAULT_TEMPLATE_ID, anchorOf, fileStem, resolveTempl
 export { DOCX_MIME, renderDocx } from './render-docx.js';
 export { EPUB_MIME, escapeXml, renderEpub, type EpubCover, type EpubInput } from './render-epub.js';
 export { renderAtom, renderRss, type FeedInput, type FeedItem, type RenderedFeed } from './render-feed.js';
+export { renderPodcastRss, type PodcastChannel, type PodcastEpisode, type PodcastFeedInput, type RenderedPodcastFeed } from './render-podcast.js';
 export { renderHtmlArticle, type HtmlArticleInput, type PublishMeta } from './render-html.js';
 export { renderMarkdown, renderText } from './render-text.js';
 export { XLSX_CELL_MAX, XLSX_MIME, prepareSheet, renderXlsx, sheetName, xlsxParts, xlsxText, type XlsxCell, type XlsxSheet } from './render-xlsx.js';

@@ -38,6 +38,7 @@ import type { ProcessPicture } from '@caotang/pictures';
 import {
   isEpisodeDocument,
   parseEpisode,
+  readEpisodeMeta,
   readShowMeta,
   showFolderOf,
   type ParsedEpisode,
@@ -93,6 +94,7 @@ import {
 } from './coherence-report.js';
 import type { RenderedContents } from './emit.js';
 import { flatten, type FlattenResult } from './flatten.js';
+import { renderPodcastRss, type PodcastEpisode } from './render-podcast.js';
 import type { ComicLetteringFontLoader, FontLoader } from '@caotang/pdf-fonts';
 import { selectComic } from './comic-book.js';
 import type { ComicPdfPageInput } from './render-comic-pdf.js';
@@ -276,6 +278,8 @@ export function renderMedia(request: MediaRequest): MediaOutput {
       return vttOutput(request);
     case 'chapters-json':
       return chaptersJsonOutput(request);
+    case 'podcast-rss':
+      return podcastRssOutput(request);
   }
 }
 
@@ -1797,5 +1801,68 @@ function timelinePdfOutput(request: MediaRequest): MediaOutput {
     wordCount: table.model.items.filter((item) => item.kind === 'scene').reduce((sum, item) => sum + item.measure, 0),
     skippedDocs: [],
     notes,
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * The podcast feed (`podcast-rss`, av-script.md §5)
+ * ------------------------------------------------------------------ */
+
+/**
+ * The podcast feed: one file for the selection's episodes, RSS 2.0 with the itunes and podcastindex namespaces.
+ * The channel is the first episode's show (a selection that spans shows feeds one channel — the writer compiles
+ * one show at a time). A selection with no episode is refused, as the other media formats refuse an empty read.
+ */
+function podcastRssOutput(request: MediaRequest): MediaOutput {
+  const nodes = selectedNodes(request.state, request.includeRootIds).filter((node) => isEpisodeDocument(node));
+  if (nodes.length === 0) {
+    throw new MediaRefusedError('podcast-rss', ['the selection holds no episode, so there is nothing to compile']);
+  }
+  const notes: string[] = [];
+  const episodes: PodcastEpisode[] = [];
+  for (const node of nodes) {
+    const show = showFolderOf(request.state, node.id);
+    const showRead = show === undefined ? { meta: {} as ShowMeta, notices: [] as readonly string[] } : readShowMeta(show.showMeta);
+    const metaRead = readEpisodeMeta(node.episodeMeta);
+    const parsed = parseEpisode(getBody(request.state, node.id), {
+      show: showRead.meta,
+      codex: request.state.manifest.codex ?? [],
+    });
+    notes.push(...showRead.notices.map((note) => `"${node.title}": ${note}`));
+    notes.push(...metaRead.notices.map((note) => `"${node.title}": ${note}`));
+    notes.push(...parsed.notices.map((notice) => `"${node.title}" line ${notice.line}: ${notice.message}`));
+    episodes.push({
+      docId: node.id,
+      title: node.title,
+      ...(node.publish === undefined ? {} : { publish: node.publish }),
+      durationSec: parsed.totals.seconds,
+      meta: metaRead.meta,
+    });
+  }
+  const firstShow = showFolderOf(request.state, nodes[0]!.id);
+  const channelRead = firstShow === undefined ? { meta: {} as ShowMeta, notices: [] as readonly string[] } : readShowMeta(firstShow.showMeta);
+  notes.push(...channelRead.notices.map((note) => `"${firstShow!.title}": ${note}`));
+  const description = channelRead.meta.description ?? (firstShow !== undefined && firstShow.synopsis !== '' ? firstShow.synopsis : undefined);
+  const rendered = renderPodcastRss({
+    channel: {
+      title: channelRead.meta.feedTitle ?? firstShow?.title ?? request.title,
+      ...(description === undefined ? {} : { description }),
+      language: channelRead.meta.language ?? request.language,
+      ...(channelRead.meta.link === undefined ? {} : { link: channelRead.meta.link }),
+      ...(channelRead.meta.category === undefined ? {} : { category: channelRead.meta.category }),
+      ...(channelRead.meta.explicit === undefined ? {} : { explicit: channelRead.meta.explicit }),
+      ...(channelRead.meta.fundingUrl === undefined ? {} : { fundingUrl: channelRead.meta.fundingUrl }),
+      hasArtwork: channelRead.meta.imageAssetId !== undefined,
+    },
+    episodes,
+  });
+  return {
+    files: [{ name: `${request.base}.rss.xml`, mimeType: 'application/rss+xml', text: rendered.xml }],
+    blockCount: episodes.length,
+    chapterCount: 0,
+    sceneCount: episodes.length,
+    wordCount: 0,
+    skippedDocs: [],
+    notes: [...notes, ...rendered.notes],
   };
 }

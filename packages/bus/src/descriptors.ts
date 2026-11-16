@@ -1657,6 +1657,8 @@ export const EXPORT_FORMATS = [
   'html',
   'rss',
   'atom',
+  // The AV script's podcast feed (av-script.md §5), appended last.
+  'podcast-rss',
 ] as const;
 
 function exportFormatRefusal(format: string): Result<never, CommandError> | undefined {

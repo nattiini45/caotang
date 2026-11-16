@@ -537,7 +537,8 @@
           "chapters-json",
           "html",
           "rss",
-          "atom"
+          "atom",
+          "podcast-rss"
         ],
         "description": "The output format."
       },

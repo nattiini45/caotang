@@ -23,7 +23,7 @@ function rig(): { readonly state: ReturnType<typeof makeProject>; readonly expor
 
 describe('the html format', () => {
   it('is registered with the feeds it feeds, at the end of the format order', () => {
-    expect(EXPORT_FORMATS.slice(-3)).toEqual(['html', 'rss', 'atom']);
+    expect(EXPORT_FORMATS.slice(-4)).toEqual(['html', 'rss', 'atom', 'podcast-rss']);
   });
 
   it('writes one self-contained file per document with a body, named by slug or title', async () => {
