@@ -2790,6 +2790,10 @@ msgstr "Eine Regel lehnt diese Prüfung ab: {reason}"
 msgid "A scan is already running. Wait for it to finish, or cancel it."
 msgstr "Ein Scan läuft bereits. Warte, bis er fertig ist, oder brich ihn ab."
 
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "A scan is recorded"
+msgstr "Ein Scan wird aufgezeichnet"
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "A scan is running. Wait for it to finish, or cancel it, before starting a review."
@@ -12765,6 +12769,10 @@ msgstr "Der Modus „Nur Plan“ führt keine Prüfungen aus. Wechseln Sie zu �
 msgid "Plan only mode does not run reviews. Switch to Ask, then queue the review."
 msgstr "Der Modus „Nur Plan“ führt keine Prüfungen aus. Wechseln Sie zu „Fragen“ und reihen Sie die Prüfung dann ein."
 
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Plan steps"
+msgstr "Schritte des Plans"
+
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Plan, not run"
@@ -14578,6 +14586,10 @@ msgstr "RTF-Datei"
 msgid "Run /context again to retry. No request was sent."
 msgstr "Führen Sie /context erneut aus, um es noch einmal zu versuchen. Es wurde keine Anfrage gesendet."
 
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Run a plan"
+msgstr "Einen Plan ausführen"
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
@@ -14848,6 +14860,10 @@ msgstr "Zusammenfassung speichern"
 msgid "Save target"
 msgstr "Zielwert speichern"
 
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Save task"
+msgstr "Aufgabe speichern"
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Save task roles"
@@ -15104,6 +15120,7 @@ msgstr "Beim Speichern überschreibt die Version dieses Tabs sie. Die Version de
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/app/integrity-model.ts
 #: apps/desktop/src/components/EditorPane.tsx
+#: apps/desktop/src/components/RecurringTasks.tsx
 #: apps/desktop/src/media/screenplay-model.ts
 msgid "Saving…"
 msgstr "Speichern…"
@@ -16249,6 +16266,10 @@ msgstr "Prüfung starten"
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Start the scene. Your words are saved in this browser as you go."
 msgstr "Beginnen Sie die Szene. Ihre Wörter werden währenddessen in diesem Browser gespeichert."
+
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "Starting a plan by itself is not built yet, so this one is offered when it is due."
+msgstr "Ein Plan von allein zu starten ist noch nicht gebaut, deshalb wird dieser angeboten, wenn er fällig ist."
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -21240,6 +21261,10 @@ msgstr "Das Skript schreiben"
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Write the script from the pages…"
 msgstr "Das Skript aus den Seiten schreiben…"
+
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Write the steps as a list in JSON, each with a tool, its params and what to expect. They are checked as the agent’s own plans are when you save, and the task’s permission limits what the plan may do."
+msgstr "Schreiben Sie die Schritte als JSON-Liste, jeweils mit einem Werkzeug, seinen Parametern und dem, was zu erwarten ist. Sie werden beim Speichern so geprüft wie die eigenen Pläne des Agenten, und die Berechtigung der Aufgabe begrenzt, was der Plan darf."
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail

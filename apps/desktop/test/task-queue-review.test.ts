@@ -281,7 +281,7 @@ describe('a queued coherence review', () => {
     await queue.idle();
     const key = `task:${PROJECT}:task_TEST000001`;
     const stored = rows.get(key) as TaskRecord;
-    rows.set(key, { ...stored, status: 'interrupted', items: stored.items.map((item) => ({ ...item, state: 'pending' })), reviewCheckpoint: { ...stored.reviewCheckpoint, extractedDocIds: ['sA'], spans: stored.reviewCheckpoint?.spans.slice(0, 1) ?? [], verifiedBatches: 0, verifiedPairs: [], verdicts: [], evaluated: ['sA'] }, used: 1, report: undefined });
+    rows.set(key, { ...stored, status: 'interrupted', items: stored.items.map((item) => ({ ...item, state: 'pending' })), reviewCheckpoint: { ...stored.reviewCheckpoint, extractedDocIds: ['sA'], spans: stored.reviewCheckpoint?.spans.slice(0, 1) ?? [], verifiedBatches: 0, verifiedPairs: [], verdicts: [], usageByPair: {}, evaluated: ['sA'] }, used: 1, report: undefined });
     const resumedModel = reviewing();
     const queue2 = reopen(resumedModel);
     await queue2.open();
