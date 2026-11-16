@@ -230,7 +230,7 @@ for (const product of LOCAL_PRODUCTS) {
     try {
       const settings = await connectLocal(page, product, stub.baseUrl);
       // Nothing is saved, the check names the server it could not reach, and the message is the product's setting and nobody else's.
-      await expect(settings.locator('.form-message')).toContainText(new RegExp('Could not reach .*' + product.name.replace(/[().]/g, '\\$&')));
+      await expect(settings.locator('.form-message')).toContainText(new RegExp('Could not reach .*' + product.name.replace(/[\\().]/g, '\\$&')));
       await expect(settings.locator('.form-message')).toContainText(fix);
       await expect(settings.locator('.form-message')).toContainText(product.name === 'llama.cpp (llama-server)' ? 'llama-server' : product.name);
       await expect(settings.locator('[data-profile]')).toHaveCount(1);
