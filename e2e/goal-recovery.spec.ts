@@ -6,8 +6,8 @@ const INTENT = 'Keep the changed scenes as they are.';
 const RESUME_GOAL = 'g_0000000001';
 const DISCARD_GOAL = 'g_0000000002';
 
-async function seedInterruptedGoals(page: Page): Promise<void> {
-  await page.evaluate(async ({ intent, ids }) => {
+async function seedInterruptedGoal(page: Page, goalId: string): Promise<void> {
+  await page.evaluate(async ({ intent, goalId }) => {
     const projectId = (window as unknown as { __caotang: { projectId(): string | null } }).__caotang.projectId();
     if (projectId === null) throw new Error('The project must be open before seeding goal recovery.');
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -27,7 +27,7 @@ async function seedInterruptedGoals(page: Page): Promise<void> {
       await new Promise<void>((resolve, reject) => {
         const transaction = db.transaction(['goalRuns', 'agentSessions'], 'readwrite');
         transaction.objectStore('agentSessions').put(conversation);
-        for (const goalId of ids) transaction.objectStore('goalRuns').put({
+        transaction.objectStore('goalRuns').put({
           schema: 1,
           goalId,
           projectId,
@@ -51,7 +51,7 @@ async function seedInterruptedGoals(page: Page): Promise<void> {
     } finally {
       db.close();
     }
-  }, { intent: INTENT, ids: [RESUME_GOAL, DISCARD_GOAL] });
+  }, { intent: INTENT, goalId });
 }
 
 async function reloadAndReopen(page: Page): Promise<void> {
@@ -69,42 +69,51 @@ test('a goal a reload left interrupted is offered, never resumes by itself, and 
     return route.abort();
   });
   await createProject(page, 'Goal Recovery Book');
-  await seedInterruptedGoals(page);
+  await seedInterruptedGoal(page, RESUME_GOAL);
   await reloadAndReopen(page);
 
   const cards = page.getByTestId('goal-recovery-card');
   const resumeCard = page.locator(`[data-testid="goal-recovery-card"][data-goal-id="${RESUME_GOAL}"]`);
   const discardCard = page.locator(`[data-testid="goal-recovery-card"][data-goal-id="${DISCARD_GOAL}"]`);
-  await expect(cards).toHaveCount(2);
-  for (const card of [resumeCard, discardCard]) {
-    await expect(card.getByRole('heading', { name: 'A goal run was interrupted' })).toBeVisible();
-    await expect(card).toContainText(INTENT);
-    await expect(card).toContainText('iteration 2');
-    await expect(card).toHaveAttribute('data-status', 'interrupted');
-    await expect(card.getByRole('button', { name: 'Resume the goal' })).toBeEnabled();
-  }
+  await expect(cards).toHaveCount(1);
+  await expect(resumeCard).toHaveCount(1);
+  await expect(discardCard).toHaveCount(0);
+  await expect(resumeCard.getByRole('heading', { name: 'A goal run was interrupted' })).toBeVisible();
+  await expect(resumeCard).toContainText(INTENT);
+  await expect(resumeCard).toContainText('iteration 2');
+  await expect(resumeCard).toHaveAttribute('data-status', 'interrupted');
+  await expect(resumeCard.getByRole('button', { name: 'Resume the goal' })).toBeEnabled();
   await expect(page.getByTestId('plan-card')).toHaveCount(0);
   await expect(page.locator('.agent-turn')).toHaveCount(0);
   expect(requests).toEqual([]);
   const screenshot = testInfo.outputPath('goal-recovery.png');
   await page.screenshot({ path: screenshot });
-  await testInfo.attach('Interrupted goals', { path: screenshot, contentType: 'image/png' });
+  await testInfo.attach('Interrupted goal', { path: screenshot, contentType: 'image/png' });
 
   await resumeCard.getByRole('button', { name: 'Resume the goal' }).focus();
   await page.keyboard.press('Enter');
   await expect(resumeCard).toHaveAttribute('data-status', 'settled');
   await expect(resumeCard).toContainText('passed:');
   await expect(resumeCard.getByRole('button', { name: 'Resume the goal' })).toHaveCount(0);
-  await expect(discardCard).toHaveAttribute('data-status', 'interrupted');
   expect(requests).toEqual([]);
+  await reloadAndReopen(page);
+  await expect(cards).toHaveCount(1);
+  await expect(resumeCard).toHaveAttribute('data-status', 'settled');
+  await resumeCard.getByRole('button', { name: 'Discard the goal record' }).click();
+  await expect(cards).toHaveCount(0);
+
+  await seedInterruptedGoal(page, DISCARD_GOAL);
+  await reloadAndReopen(page);
+  await expect(cards).toHaveCount(1);
+  await expect(discardCard).toHaveCount(1);
+  await expect(discardCard).toHaveAttribute('data-status', 'interrupted');
+  await expect(resumeCard).toHaveCount(0);
 
   await discardCard.getByRole('button', { name: 'Discard the goal record' }).focus();
   await page.keyboard.press('Space');
   await expect(discardCard).toHaveCount(0);
   await reloadAndReopen(page);
   await expect(discardCard).toHaveCount(0);
-  await expect(resumeCard).toHaveAttribute('data-status', 'settled');
-  await resumeCard.getByRole('button', { name: 'Discard the goal record' }).click();
   await expect(cards).toHaveCount(0);
   expect(requests).toEqual([]);
 });
