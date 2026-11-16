@@ -8,8 +8,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import fontkit from '@pdf-lib/fontkit';
+import { unzlibSync } from 'fflate/browser';
 import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream, StandardFonts, decodePDFRawStream } from 'pdf-lib';
-import { EMBOLDEN_RATIO } from '@caotang/pdf-fonts';
+import { EMBOLDEN_RATIO, hanGlyph, hanLocaleTag, sfntFromWoff } from '@caotang/pdf-fonts';
 import type { FontLoader } from '@caotang/pdf-fonts';
 import { loadCjkBoldFontInNode, loadCjkFontInNode, loadColourEmojiInNode, loadEmojiFontInNode } from '@caotang/pdf-fonts/node-loader';
 import { planContactSheet, type SheetPlan } from '@caotang/storyboard';
@@ -54,7 +56,7 @@ function planWith(texts: Texts): SheetPlan {
   };
 }
 
-async function draw(plan: SheetPlan, options: { colourEmoji?: boolean; loadBoldFallbackFont?: FontLoader } = {}) {
+async function draw(plan: SheetPlan, options: { colourEmoji?: boolean; loadBoldFallbackFont?: FontLoader; language?: string } = {}) {
   const drawn = await drawContactSheet({
     plan,
     pictures: new Map(),
@@ -111,6 +113,17 @@ function cjkRuns(lines: readonly string[], resource = 'NotoCjk'): string[] {
   return runs;
 }
 
+/** The font programs a file embeds, each FontDescriptor's FontFile2 inflated. */
+function embeddedFontFiles(pdf: PDFDocument): Uint8Array[] {
+  const files: Uint8Array[] = [];
+  for (const [, object] of pdf.context.enumerateIndirectObjects()) {
+    if (!(object instanceof PDFDict) || object.get(PDFName.of('Type')) !== PDFName.of('FontDescriptor')) continue;
+    const stream = pdf.context.lookup(object.get(PDFName.of('FontFile2')));
+    if (stream instanceof PDFRawStream) files.push(stream.dict.get(PDFName.of('Filter')) === PDFName.of('FlateDecode') ? unzlibSync(stream.contents) : stream.contents);
+  }
+  return files;
+}
+
 /** The base fonts of a file's Type 0 fonts, in the order of its objects. */
 function type0Fonts(pdf: PDFDocument): string[] {
   const names: string[] = [];
@@ -165,6 +178,48 @@ describe('bold CJK and emoji in the contact sheet', () => {
     const around = colour.lines.slice(colour.lines.lastIndexOf('q', type3), colour.lines.indexOf('Q', type3));
     expect(around.some((line) => line.endsWith(' Tr') || line.endsWith(' Tc') || line.endsWith(' w'))).toBe(false);
   });
+
+  it('draws bold where the plan marks it, and nowhere else', async () => {
+    // The mark is the single source for both the emitter's base font and the bold file choice: a regular place marked
+    // bold strokes its run, a bold place unmarked draws plain. `planWith` gives a CJK title (a bold place) and a CJK
+    // action line (a regular one), so exactly one run is stroked to begin with.
+    const base = planWith({ title: '第一场', action: '草堂的早晨' });
+    const page = base.pages[0];
+    if (page === undefined) throw new Error('no page');
+    const summary = { text: '概要', x: 40, y: 70, fontSize: 8 };
+    const plan = (sheet: Partial<typeof page>) => ({ ...base, pages: [{ ...page, ...sheet }, ...base.pages.slice(1)] });
+
+    const unmarked = await draw(plan({ summary }));
+    expect(strokedRuns(unmarked.lines)).toHaveLength(1);
+
+    const marked = await draw(plan({ summary: { ...summary, bold: true as const } }));
+    expect(strokedRuns(marked.lines)).toHaveLength(2);
+
+    const untitled = await draw(plan({ title: { ...page.title, bold: undefined } }));
+    expect(strokedRuns(untitled.lines)).toHaveLength(0);
+  });
+
+  it('draws a bold-place Han character in the forms of the project’s language, in the Bold', async () => {
+    // 骨 takes a different glyph in the font's Japanese, Traditional Chinese, Hong Kong and Korean locl forms. The subset's
+    // second glyph is the chip's 骨 (glyph 0 is .notdef); its path must be the glyph the language's tag gives in the source
+    // font — with the language dropped, every run would draw the Simplified cmap glyph and this would fail.
+    const source = fontkit.create(await sfntFromWoff(await loadCjkBoldFontInNode())) as unknown as {
+      getGlyph(id: number): { path: { toSVG(): string } };
+      glyphForCodePoint(code: number): { id: number; path: { toSVG(): string } };
+    };
+    const outline = async (language: string | undefined): Promise<string> => {
+      const { pdf } = await draw(planWith({ chip: '骨' }), { loadBoldFallbackFont: loadCjkBoldFontInNode, ...(language === undefined ? {} : { language }) });
+      const files = embeddedFontFiles(pdf);
+      expect(files).toHaveLength(1);
+      const subset = fontkit.create(files[0] as Uint8Array) as unknown as { getGlyph(id: number): { path: { toSVG(): string } } };
+      expect(subset.getGlyph(1).path.toSVG()).toBe(hanGlyph(source, '骨', hanLocaleTag(language)).path.toSVG());
+      return subset.getGlyph(1).path.toSVG();
+    };
+    const simplified = await outline(undefined);
+    for (const language of ['ja', 'zh-Hant', 'ko', 'zh-HK']) expect(await outline(language), language).not.toBe(simplified);
+    for (const language of ['zh', 'zh-CN', 'zh-Hans', 'en']) expect(await outline(language), language).toBe(simplified);
+  });
+
 
   it('draws the regular run’s glyphs and copies the regular run’s text', async () => {
     const text = '第一场 草堂 🎬';
