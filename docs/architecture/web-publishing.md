@@ -1,6 +1,6 @@
 # Web publishing — publish metadata and the web compile targets
 
-> Status: **built in part.** Built (plan item W2): `tree[].publish` — the unknown-tolerant publish field in the manifest — the `binder.setPublish` command, and the inspector's Publishing section (§2). Built (plan item W3): the `html` export (§3). 🧭 Specified, not built: the `rss` and `atom` exports (§3, W4); the decisions in §7 bind that work when it is cut.
+> Status: **built in part.** Built (plan item W2): `tree[].publish` — the unknown-tolerant publish field in the manifest — the `binder.setPublish` command, and the inspector's Publishing section (§2). Built (plan item W3): the `html` export (§3). Built (plan item W4): the `rss` and `atom` exports (§3).
 > Scope: per-document publish metadata in the manifest, and three compile targets — a self-contained HTML article, an RSS 2.0 feed and an Atom feed. **No hosting, no deploy, no account, no analytics**: Caotang writes files into `exports/` and the writer publishes them.
 > Cross-refs: the compile pipeline and the closed recipe shape = [exporter.md](exporter.md) §2/§3 · the manifest's unknown-tolerance rule = [project-format.md](project-format.md) §6 · the podcast feed that rides these writers = [av-script.md](av-script.md) §5 · the media-track rule (new kinds, exporters and tools, never a fork) = [media-track.md](media-track.md) §0 · the plain-text artifact rule = [../decisions.md](../decisions.md).
 

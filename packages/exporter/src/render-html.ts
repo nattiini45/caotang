@@ -221,7 +221,8 @@ function yamlScalar(value: string): string {
   return JSON.stringify(value);
 }
 
-function publishString(publish: PublishMeta | undefined, key: string): string | undefined {
+/** A publish record's string field, when the record holds one — the feed writers read `canonical` and `description` the same way. */
+export function publishString(publish: PublishMeta | undefined, key: string): string | undefined {
   const value = publish?.[key];
   return typeof value === 'string' && value !== '' ? value : undefined;
 }

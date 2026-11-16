@@ -80,6 +80,8 @@ function formatGroups(comicSelected: boolean): readonly { readonly name: string;
       { format: 'docx', label: t`Word (.docx)`, help: t`Styled headings, and a contents field Word can update.` },
       { format: 'epub', label: t`EPUB (.epub)`, help: t`A reading-system book, one file per chapter.` },
       { format: 'html', label: t`Web article (.html)`, help: t`One HTML file per document: the article with its publish date, canonical link and description from the Publishing inspector section.` },
+      { format: 'rss', label: t`RSS feed (.rss.xml)`, help: t`One feed file for the selection: an item per published document. Needs the recipe's Site address (https).` },
+      { format: 'atom', label: t`Atom feed (.atom.xml)`, help: t`One feed file for the selection: an entry per published document, with the article as its content. Needs the recipe's Site address (https).` },
     ],
   },
   {
