@@ -13,7 +13,7 @@ import {
   MemoryArtifactFs,
   type ProjectState,
 } from '@caotang/store';
-import { createExporter, type ExporterService } from '../src/index.js';
+import { createExporter, renderMedia, type ExporterService, type MediaRequest } from '../src/index.js';
 import { MediaRefusedError } from '../src/errors.js';
 import { readRows } from './xlsx-read.js';
 import { unzipText } from './xml.js';
@@ -51,6 +51,20 @@ export function makeShowProject(options: { episode?: string } = {}): ProjectStat
   });
   Object.assign(episode, { kind: 'av-script' });
   return state;
+}
+
+function requestFor(state: ProjectState, format: MediaRequest['format']): MediaRequest {
+  return {
+    state,
+    format,
+    includeRootIds: ['manuscript'],
+    title: 'The Show',
+    author: '',
+    date: '2026-11-16',
+    titlePage: false,
+    base: 'Show',
+    assets: new Map(),
+  };
 }
 
 function rig(options: { state?: ProjectState } = {}): { readonly exporter: ExporterService } {
@@ -106,6 +120,39 @@ describe('the VO script', () => {
     expect(rows[1]).toEqual(['sl_0K3M9T2Q7X', '', 'NARRATION', 'Previously, on the show.', 8, 'true']);
     expect(rows[3]).toEqual(['sl_1000000003', 'The interview', 'GUEST', 'We lit the lamp.', 1.6, 'false']);
     expect(rows.length).toBe(5);
+  });
+
+  it('writes a codex-resolved speaker under the character\'s name, not its id', async () => {
+    const state = makeShowProject({ episode: '## A\nAnna: Hallo. <!-- lineId: sl_1000000001 -->' });
+    state.manifest.codex = [
+      {
+        id: 'c_ANNA000001',
+        name: 'Anna',
+        aliases: [],
+        type: 'character',
+        description: 'The innkeeper.',
+        includePolicy: 'detected',
+        caseSensitive: false,
+        exclude: [],
+        attachments: [],
+        keywords: [],
+        origin: 'manual',
+        sources: [],
+        createdAt: '2026-10-02T15:00:00.000Z',
+        updatedAt: '2026-10-02T15:00:00.000Z',
+      },
+    ];
+    const output = renderMedia(requestFor(state, 'vo-script-csv'));
+    expect(output.files[0]?.text).toContain('sl_1000000001,A,Anna,Hallo.');
+    expect(output.files[0]?.text).not.toContain('c_ANNA000001');
+  });
+
+  it('keeps a notice for a show setting it could not use', () => {
+    const state = makeShowProject();
+    const show = state.manifest.tree.find((node) => node.id === SHOW_ID);
+    Object.assign(show ?? {}, { kind: 'show', showMeta: { cueVocabulary: ['rumble', 'sfx!', 'boil'] } });
+    const output = renderMedia(requestFor(state, 'vo-script-csv'));
+    expect(output.notes.some((note) => note.includes('"Episode 1" settings:') && note.includes('cueVocabulary'))).toBe(true);
   });
 
   it('limits the table to the selected show, so a second show stays out', async () => {

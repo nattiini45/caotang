@@ -831,19 +831,21 @@ function episodesOf(request: MediaRequest): TreeNode[] {
 }
 
 /**
- * One episode's rows. A text line is not speakable and takes no row; a speech line's speaker is who the parser resolved,
- * a narration line's the show's default speaker or the `narration` word, and an empty speaker cell means neither resolved.
+ * One episode's rows. A text line is not speakable and takes no row; a speech line's speaker is the codex entry's name
+ * when the parser resolved it, else the typed label; a narration line's the show's default speaker or the `narration`
+ * word, and an empty speaker cell means neither resolved.
  * Untimed segments still write their lines: their `durationSec` and `declared` cells are empty (av-script.md §4).
  */
-function voRowsOf(parsed: ParsedEpisode): VoScriptRow[] {
+function voRowsOf(parsed: ParsedEpisode, codexNames: ReadonlyMap<string, string>): VoScriptRow[] {
   const rows: VoScriptRow[] = [];
   for (const segment of parsed.segments) {
     for (const line of segment.lines) {
       if (line.kind === 'text') continue;
+      const speaker = line.speaker === undefined ? undefined : (codexNames.get(line.speaker) ?? line.speaker);
       rows.push({
         lineId: line.id,
         segment: segment.title,
-        speaker: line.speaker ?? (line.kind === 'narration' ? 'NARRATION' : ''),
+        speaker: speaker ?? (line.kind === 'narration' ? 'NARRATION' : ''),
         text: line.text,
         durationSec: line.durationSec ?? null,
         declared: line.durationSec === undefined ? null : line.declared,
@@ -861,13 +863,16 @@ function voScriptTable(request: MediaRequest, format: 'vo-script-csv' | 'vo-scri
   }
   const rows: VoScriptRow[] = [];
   const notes: string[] = [];
+  const codexNames = new Map((request.state.manifest.codex ?? []).map((entry) => [entry.id, entry.name]));
   for (const node of episodes) {
     const show = showFolderOf(request.state, node.id);
+    const read = show === undefined ? { meta: undefined, notices: [] } : readShowMeta(show.showMeta);
     const parsed = parseEpisode(getBody(request.state, node.id), {
-      ...(show === undefined ? {} : { show: readShowMeta(show.showMeta).meta }),
+      ...(read.meta === undefined ? {} : { show: read.meta }),
       codex: request.state.manifest.codex ?? [],
     });
-    rows.push(...voRowsOf(parsed));
+    rows.push(...voRowsOf(parsed, codexNames));
+    notes.push(...read.notices.map((notice) => `"${node.title}" settings: ${notice}`));
     notes.push(...parsed.notices.map((notice) => `"${node.title}" line ${notice.line}: ${notice.message}`));
   }
   if (rows.length === 0) {
