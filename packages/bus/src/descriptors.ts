@@ -176,7 +176,12 @@ export function isPublishInstant(value: string): boolean {
     const offsetMs = /^[+-]/.test(m[7] ?? '')
       ? (Number(m[8]) * 60 + Number(m[9])) * 60_000 * (m[7]?.startsWith('-') ? -1 : 1)
       : 0;
-    return LEAP_SECOND_MS.has(Date.UTC(year, month - 1, day, hour, minute, 0) + 60_000 - offsetMs);
+    // `Date.UTC` reads years 0–99 as 1900–1999 — a `0072-…` stamp would land on 1972's leap second.
+    // `setUTCFullYear` takes the year as written.
+    const instant = new Date(0);
+    instant.setUTCFullYear(year, month - 1, day);
+    instant.setUTCHours(hour, minute, 0, 0);
+    return LEAP_SECOND_MS.has(instant.getTime() + 60_000 - offsetMs);
   }
   return true;
 }
@@ -186,6 +191,9 @@ export function isPublishInstant(value: string): boolean {
  * `user:pass@` inside the address would land in the manifest and every export that reads it.
  */
 export function isPublishCanonical(value: string): boolean {
+  // WHATWG's parser silently strips ASCII tabs and newlines — the stored string must be the URL
+  // that was validated, so a control character or space inside it is refused outright.
+  if ([...value].some((ch) => ch <= ' ')) return false;
   try {
     const url = new URL(value);
     return url.protocol === 'https:' && url.username === '' && url.password === '';

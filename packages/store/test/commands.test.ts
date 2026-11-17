@@ -1730,6 +1730,8 @@ describe('binder.setPublish — a document’s publish metadata (web-publishing.
     expect(refused({ canonical: '/posts/the-landing' }).code).toBe('invalid-params');
     expect(refused({ canonical: 'https://user:pass@example.com/posts/x' }).code).toBe('invalid-params');
     expect(refused({ canonical: 'http://example.com/posts/x' }).code).toBe('invalid-params');
+    // WHATWG's URL parser strips the `\n` — the stored string must be the address that was validated.
+    expect(refused({ canonical: 'https://exa\nmple.com/posts/x' }).code).toBe('invalid-params');
     expect(refused({ publishedAt: '2026-11-15' }).code).toBe('invalid-params');
     expect(refused({ publishedAt: '2026-13-40T99:99:99Z' }).code).toBe('invalid-params');
     // Calendar overflows the shape alone admits — `Date.parse` even normalizes `24:00` into the next day.
@@ -1741,6 +1743,8 @@ describe('binder.setPublish — a document’s publish metadata (web-publishing.
     // `:60` is a leap second only at the IERS instants — an ordinary second past 59 is not a real instant.
     expect(refused({ publishedAt: '2026-11-15T12:00:60Z' }).code).toBe('invalid-params');
     expect(refused({ publishedAt: '2017-06-30T23:59:60Z' }).code).toBe('invalid-params');
+    // `Date.UTC` reads year 72 as 1972 — `0072` never had a leap second, the check must not remap it.
+    expect(refused({ publishedAt: '0072-06-30T23:59:60Z' }).code).toBe('invalid-params');
     expect(refused({ bogus: 'x' }).code).toBe('invalid-params');
     expect(refused({}).code).toBe('invalid-params');
     const folder = refused({ slug: 'chapter-1' }, CHAPTER_ONE);
