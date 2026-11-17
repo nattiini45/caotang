@@ -5845,8 +5845,8 @@ msgid "Coherence checks to include"
 msgstr "Einzubeziehende Kohärenzprüfungen"
 
 #: apps/desktop/src/components/GoalComposer.tsx
-msgid "Coherence needs exactly one document here. Choose the current document or adjust the scope."
-msgstr "Kohärenz benötigt hier genau ein Dokument. Wählen Sie das aktuelle Dokument oder passen Sie den Bereich an."
+msgid "Coherence needs exactly one live document here. Choose the current document or adjust the scope."
+msgstr "Kohärenz benötigt hier genau ein aktives Dokument. Wählen Sie das aktuelle Dokument oder passen Sie den Bereich an."
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -17962,6 +17962,7 @@ msgid "The agent is loading."
 msgstr "Der Agent wird geladen."
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The agent is not ready for this project yet. Open the agent panel, then try again."
 msgstr "Der Agent ist für dieses Projekt noch nicht bereit. Öffnen Sie das Agenten-Panel und versuchen Sie es erneut."
@@ -19977,8 +19978,8 @@ msgid "the words kept from a stopped tab"
 msgstr "die von einem angehaltenen Tab aufbewahrten Wörter"
 
 #: apps/desktop/src/components/GoalComposer.tsx
-msgid "The write scope has no live document. Choose the current document or the whole project."
-msgstr "Der Schreibbereich enthält kein aktives Dokument. Wählen Sie das aktuelle Dokument oder das ganze Projekt."
+msgid "The write scope has no live binder item. Choose another binder item or the whole project."
+msgstr "Der Schreibbereich enthält keinen aktiven Eintrag im Binder. Wählen Sie einen anderen Eintrag oder das ganze Projekt."
 
 #. Interpolated values: count, day, days, error
 #: apps/desktop/src/components/WritingHistory.tsx

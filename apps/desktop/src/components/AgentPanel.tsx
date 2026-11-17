@@ -207,13 +207,14 @@ export function AgentPanel({
   const [goalOpen, setGoalOpen] = useState(false);
   const [goalLoaded, setGoalLoaded] = useState(false);
   const goalButtonRef = useRef<HTMLButtonElement>(null);
+  const stopButtonRef = useRef<HTMLButtonElement>(null);
   const goalComposerId = useId();
   const goalShowing = goalOpen || snapshot.goalDraft !== null;
   const goalWasShowing = useRef(goalShowing);
   useEffect(() => {
-    if (goalWasShowing.current && !goalShowing) goalButtonRef.current?.focus();
+    if (goalWasShowing.current && !goalShowing) (snapshot.activeGoalId === null ? goalButtonRef : stopButtonRef).current?.focus();
     goalWasShowing.current = goalShowing;
-  }, [goalShowing]);
+  }, [goalShowing, snapshot.activeGoalId]);
   const [contextOverrides, setContextOverrides] = useState(() => memoryFor(agent).contextOverrides);
   const updateContext = (next: ContextOverrides): void => {
     memoryFor(agent).contextOverrides = next;
@@ -564,6 +565,7 @@ export function AgentPanel({
           <button
             type="button"
             className="button is-danger agent-stop"
+            ref={stopButtonRef}
             data-testid="agent-stop"
             disabled={snapshot.stopping}
             title={snapshot.activeGoalId === null ? t`Stop the turn (${{ shortcut: shortcutLabel('agent-stop', keyboardLayout) }} with the Intent box empty)` : t`Stop the whole goal (${{ shortcut: shortcutLabel('agent-stop', keyboardLayout) }} with the Intent box empty)`}

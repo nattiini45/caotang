@@ -27,7 +27,9 @@ for (const shell of ['classic', 'modern'] as const) {
     await page.getByRole('checkbox', { name: 'Every synopsis is filled', exact: true }).check();
     await page.getByRole('spinbutton', { name: 'Model-call limit', exact: true }).fill('8');
     expect(requests).toBe(0);
-    await page.getByRole('button', { name: 'Start the goal', exact: true }).click();
+    await page.getByRole('button', { name: 'Start the goal', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('agent-stop')).toBeFocused();
     const plan = page.getByTestId('plan-card');
     await expect(plan.getByRole('button', { name: 'Approve', exact: true })).toBeVisible();
     const progress = page.getByRole('region', { name: /^Goal progress:/ });

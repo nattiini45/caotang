@@ -115,6 +115,29 @@ it('does not request large-scope consent for documents withheld from the goal', 
   expect(host.textContent).not.toContain('This coherence scope reads more than 20 documents.');
 });
 
+it('defaults a named coherence scope to a live document when none is open', async () => {
+  await render({ session: { ...props.session, view: { activeDocId: null } } as unknown as ProjectSession });
+  await change('Goal intent', 'setValue', ['Resolve the scene findings.']);
+  await change('No open coherence findings', 'setChecked', [true]);
+  await change('Check scope', 'setValue', ['doc']);
+  await submit();
+  expect(props.onStart).toHaveBeenCalledWith(expect.objectContaining({ checks: [{ kind: 'coherence.clean', scope: { mode: 'doc', docIds: ['n_HARBOUR001'] }, checks: ['codex.alias-collisions'] }] }), false);
+});
+
+it('refuses a named coherence scope archived while the composer stays open', async () => {
+  await render();
+  await change('Goal intent', 'setValue', ['Resolve the scene findings.']);
+  await change('No open coherence findings', 'setChecked', [true]);
+  await change('Check scope', 'setValue', ['doc']);
+  expect(button('Start the goal').getAttribute('aria-disabled')).not.toBe('true');
+  props.session.state.manifest.tree.find((node) => node.id === 'n_HARBOUR001')!.status = 'archived';
+  await render();
+  expect(button('Start the goal').getAttribute('aria-disabled')).toBe('true');
+  expect(host.textContent).toContain('Coherence needs exactly one live document here.');
+  await submit();
+  expect(props.onStart).not.toHaveBeenCalled();
+});
+
 it('retains an unfinished draft while closed and applies only new prefill ids without execution', async () => {
   await render();
   await change('Goal intent', 'setValue', ['Keep this unfinished intent.']);
@@ -239,14 +262,14 @@ it('does not ask for large coherence consent for a synopsis-only goal', async ()
 it('keeps a requested missing document visible and refuses coherence instead of substituting the active document', async () => {
   await render({ draft: { id: 1, intent: 'Resolve these findings.', scope: { mode: 'doc', docIds: ['n_MISSING001'] }, coherenceChecks: ['codex.alias-collisions'] } });
   expect(host.textContent).toContain('n_MISSING001');
-  expect(host.textContent).toContain('Coherence needs exactly one document here.');
+  expect(host.textContent).toContain('Coherence needs exactly one live document here.');
   expect(button('Start the goal').getAttribute('aria-disabled')).toBe('true');
   await submit();
   expect(props.onStart).not.toHaveBeenCalled();
   await act(async () => button('Use the current document').click());
   await submit();
   expect(props.onStart).not.toHaveBeenCalled();
-  expect(host.textContent).toContain('The write scope has no live document.');
+  expect(host.textContent).toContain('The write scope has no live binder item.');
   await act(async () => button('Write only in the current document').click());
   await submit();
   expect(props.onStart).toHaveBeenCalledWith(expect.objectContaining({ checks: [{ kind: 'coherence.clean', scope: { mode: 'doc', docIds: ['n_HARBOUR001'] }, checks: ['codex.alias-collisions'] }], writeScope: { mode: 'doc', docIds: ['n_HARBOUR001'] } }), false);

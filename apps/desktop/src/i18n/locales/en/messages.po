@@ -5844,8 +5844,8 @@ msgid "Coherence checks to include"
 msgstr "Coherence checks to include"
 
 #: apps/desktop/src/components/GoalComposer.tsx
-msgid "Coherence needs exactly one document here. Choose the current document or adjust the scope."
-msgstr "Coherence needs exactly one document here. Choose the current document or adjust the scope."
+msgid "Coherence needs exactly one live document here. Choose the current document or adjust the scope."
+msgstr "Coherence needs exactly one live document here. Choose the current document or adjust the scope."
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -17961,6 +17961,7 @@ msgid "The agent is loading."
 msgstr "The agent is loading."
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The agent is not ready for this project yet. Open the agent panel, then try again."
 msgstr "The agent is not ready for this project yet. Open the agent panel, then try again."
@@ -19976,8 +19977,8 @@ msgid "the words kept from a stopped tab"
 msgstr "the words kept from a stopped tab"
 
 #: apps/desktop/src/components/GoalComposer.tsx
-msgid "The write scope has no live document. Choose the current document or the whole project."
-msgstr "The write scope has no live document. Choose the current document or the whole project."
+msgid "The write scope has no live binder item. Choose another binder item or the whole project."
+msgstr "The write scope has no live binder item. Choose another binder item or the whole project."
 
 #. Interpolated values: count, day, days, error
 #: apps/desktop/src/components/WritingHistory.tsx

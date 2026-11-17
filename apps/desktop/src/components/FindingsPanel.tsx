@@ -430,8 +430,13 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
             report({ text: t`Open a document or choose the whole manuscript before setting a goal.`, tone: 'info' });
             return;
           }
+          const ready = controller ?? agentFor(session);
+          if (ready === undefined && onOpenAgent === undefined) {
+            report({ text: t`The agent is not ready for this project yet. Open the agent panel, then try again.`, tone: 'info' });
+            return;
+          }
           onOpenAgent?.();
-          const agent = controller ?? await whenAgent(session);
+          const agent = ready ?? await whenAgent(session);
           agent.offerGoal({ intent: t`Fix the findings in this scope until the selected coherence checks pass.`, scope, coherenceChecks: settings.enabledChecks });
         }}><Trans>Fix all in scope until clean</Trans></Button>
         <Button ref={queueButtonRef} className="button" onClick={prepareQueuedReview} disabled={backgroundMockOnly || controller === null || controller === undefined || running || scanBusy || queuePreview !== null} pendingAnnouncement={t`Preparing the Background review preview`}><Trans>Queue a review</Trans></Button>

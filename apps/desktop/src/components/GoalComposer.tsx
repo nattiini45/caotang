@@ -100,7 +100,7 @@ export default function GoalComposer({ open, session, coherenceChecks, draft, un
   };
   const changeScope = (value: string | null): void => {
     if (value === 'doc') {
-      const node = activeDoc ?? binderNodes[0];
+      const node = activeDoc ?? binderNodes.find((node) => node.type === 'document') ?? binderNodes[0];
       if (node === undefined) return;
       setScope({ mode: 'doc', docIds: [node.id] });
     } else if (value === 'full' || value === 'changed') setScope({ mode: value });
@@ -117,12 +117,12 @@ export default function GoalComposer({ open, session, coherenceChecks, draft, un
   const settingsOff = selectedChecks.filter((check) => !coherenceChecks.includes(check));
   const coherenceProblem = !form.clean ? null
     : settingsOff.length > 0 ? t`A selected check is off in Settings. Deselect it here, or enable it there.`
-    : scope.mode === 'doc' && (scope.docIds.length !== 1 || scopeDoc?.type !== 'document') ? t`Coherence needs exactly one document here. Choose the current document or adjust the scope.`
+    : scope.mode === 'doc' && (scope.docIds.length !== 1 || scopeDoc?.type !== 'document' || scopeDoc.status === 'archived') ? t`Coherence needs exactly one live document here. Choose the current document or adjust the scope.`
     : scope.mode !== 'full' && fullOnly.length > 0 ? t`Some selected checks require the whole manuscript. Deselect those checks or explicitly choose the whole manuscript.`
     : selectedChecks.length === 0 ? t`Choose at least one enabled coherence check.`
     : null;
   const writeProblem = writeScope.mode === 'doc' && !session.state.manifest.tree.some((node) => writeScope.docIds.includes(node.id) && (node.type === 'folder' || (node.type === 'document' && node.status !== 'archived')))
-    ? t`The write scope has no live document. Choose the current document or the whole project.` : null;
+    ? t`The write scope has no live binder item. Choose another binder item or the whole project.` : null;
   const reason = unavailable ?? (busy ? t`A goal or turn is active. Wait for it to finish.` : null) ?? coherenceProblem ?? writeProblem ??
     (overGuard && result.ok && !approved ? t`Approve this large read scope, or narrow the checks before starting.` : null);
 
