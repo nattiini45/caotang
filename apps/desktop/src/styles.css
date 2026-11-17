@@ -2938,6 +2938,28 @@ label.settings-check {
   max-height: 30%;
 }
 
+.agent.is-open.is-goal-setup,
+.agent.is-open.is-goal-running {
+  flex-shrink: 1;
+  max-height: 70%;
+}
+
+.agent.is-open:has(.goal-recovery) {
+  flex-shrink: 1;
+}
+
+:root[data-shell] .agent.is-goal-setup .agent-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+:root[data-shell] .agent.is-goal-setup .agent-body > :not(.goal-composer-slot) {
+  display: none;
+}
+
 /* Runs a reload left unfinished: shown above the drawer's body, open or closed, and scrolled inside themselves when there are several. */
 .agent-interrupted {
   display: grid;
@@ -2963,6 +2985,12 @@ label.settings-check {
   max-height: none;
   overflow: visible;
   padding-inline: 0;
+}
+
+.agent-body > .goal-recovery {
+  max-height: none;
+  overflow: visible;
+  padding: 0;
 }
 
 .interrupted-run {
@@ -3016,8 +3044,17 @@ label.settings-check {
   overflow-wrap: anywhere;
 }
 
+.agent-one-turn-composer:not([hidden]) {
+  display: contents;
+}
+
+.agent-intent .goal-entry {
+  align-self: flex-start;
+}
+
 .agent-intent {
   display: flex;
+  align-items: flex-start;
   gap: var(--space-4);
   margin: var(--space-3) 0 10px;
 }
