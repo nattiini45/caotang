@@ -881,6 +881,15 @@ importers:
 
   packages/ids: {}
 
+  packages/import-captions:
+    dependencies:
+      '@caotang/bus':
+        specifier: workspace:*
+        version: link:../bus
+      '@caotang/script':
+        specifier: workspace:*
+        version: link:../script
+
   packages/import-core: {}
 
   packages/import-read:
