@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from './test.js';
 import type * as UiAgentModule from '../apps/desktop/test/ui-agent-fixture.js';
 
 import { holdHarnessWorker, scanProject, scanStartupCancellation } from './harness-worker-flow.js';
@@ -9,7 +10,7 @@ type UiAgent = typeof UiAgentModule;
 const uiAgentUrl = `/@fs/${fileURLToPath(new URL('../apps/desktop/test/ui-agent-fixture.ts', import.meta.url)).replaceAll('\\', '/').replace(/^\/+/, '')}`;
 
 for (const shell of ['classic', 'modern'] as const) {
-  test(`${shell}: scan startup stays cancellable and leaves typing and findings intact`, async ({ page, context }, testInfo) => {
+  test(`${shell}: scan startup stays cancellable and leaves typing and findings intact`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page, context }, testInfo) => {
     const agentCancel = shell === 'modern' ? async (target: typeof page): Promise<void> => {
       const entries = await target.evaluate(async (url) => (await import(/* @vite-ignore */ url) as UiAgent).agent.snapshot(), uiAgentUrl);
       const cancel = entries.find((entry) => entry.label === 'Cancel scan');
@@ -21,7 +22,7 @@ for (const shell of ['classic', 'modern'] as const) {
     await page.screenshot({ path: testInfo.outputPath(`${shell}-cancelled-scan.png`) });
   });
 
-  test(`${shell}: an edited scan snapshot is refused and a fresh retry records one real worker run`, async ({ page, context }, testInfo) => {
+  test(`${shell}: an edited scan snapshot is refused and a fresh retry records one real worker run`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page, context }, testInfo) => {
     const gate = await holdHarnessWorker(page, context);
     try {
       await scanProject(page, shell);

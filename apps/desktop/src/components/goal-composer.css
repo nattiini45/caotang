@@ -1,0 +1,289 @@
+.goal-composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-block-size: 0;
+  flex: 1 1 auto;
+  max-block-size: 100%;
+  color: var(--ink);
+}
+
+.goal-composer-heading,
+.goal-composer-footer {
+  flex-shrink: 0;
+}
+
+.goal-composer h3,
+.goal-composer p {
+  margin: 0;
+}
+
+.goal-composer h3 {
+  font-size: var(--text-md);
+}
+
+.goal-composer-heading p,
+.goal-help {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.goal-composer-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 3px;
+}
+
+.goal-composer-fields > * {
+  flex-shrink: 0;
+}
+
+.goal-composer fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.goal-composer legend {
+  margin-block-end: var(--space-3);
+  padding: 0;
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+.goal-composer [data-slot='radio-group'] {
+  display: flex;
+  flex-direction: column;
+}
+
+.goal-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-block-size: var(--control-h, 24px);
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.goal-choice > span {
+  min-inline-size: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  overflow-wrap: normal;
+}
+
+.goal-choice [data-slot='checkbox'],
+.goal-choice [data-slot='radio'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  inline-size: 1.2rem;
+  block-size: 1.2rem;
+  margin-block-start: 0.15rem;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--raised);
+  color: var(--ink);
+}
+
+.goal-choice [data-slot='radio'] {
+  border-radius: 50%;
+}
+
+.goal-choice [data-checked] {
+  border-color: var(--accent);
+}
+
+.goal-choice svg {
+  display: block;
+  inline-size: 1rem;
+  block-size: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.goal-choice [data-slot='radio-indicator'] {
+  inline-size: 0.6rem;
+  block-size: 0.6rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.goal-choice:has([data-disabled]) {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.goal-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.goal-field input,
+.goal-field textarea {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--control-h, 24px);
+  padding: var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--raised);
+  color: var(--ink);
+  font: inherit;
+}
+
+.goal-field textarea {
+  resize: vertical;
+}
+
+.goal-composer [data-slot='field-error'],
+.goal-field [aria-invalid='true'] {
+  color: var(--danger);
+}
+
+.goal-number-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: var(--space-4);
+}
+
+.goal-composer .goal-coherence-checks {
+  margin-block: var(--space-3);
+  padding-inline-start: var(--space-4);
+}
+
+.goal-scope-approval,
+.goal-composer-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.goal-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.goal-composer .button {
+  white-space: normal;
+}
+
+.goal-composer .goal-start:not(:disabled, [aria-disabled='true']) {
+  font-weight: 600;
+  border-width: 2px;
+  opacity: 1;
+}
+
+.goal-composer .goal-start[aria-disabled='true'],
+.goal-composer .goal-start[aria-disabled='true']:hover {
+  background: var(--raised);
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
+  opacity: 1;
+}
+
+.goal-composer :focus-visible {
+  outline: 2px solid var(--focus, var(--accent));
+  outline-offset: 2px;
+}
+
+:root[data-shell='modern'] .goal-choice {
+  min-block-size: 44px;
+  align-items: center;
+}
+
+:root[data-shell='modern'] #root .goal-composer .goal-choice :is([data-slot='checkbox'], [data-slot='radio']) {
+  box-sizing: border-box;
+  min-inline-size: 1.2rem;
+  min-block-size: 1.2rem;
+  margin-block-start: 0;
+  padding: 0;
+  border-width: 1.5px;
+}
+
+:root[data-shell='modern'] .goal-choice :is([data-slot='checkbox'], [data-slot='radio']):not([data-checked]) {
+  border-color: var(--k-edge);
+}
+
+:root[data-shell='modern'] .goal-field input,
+:root[data-shell='modern'] .goal-composer-actions .button {
+  min-block-size: 44px;
+}
+
+:root[data-shell='modern'] .goal-composer .goal-start[aria-disabled='true'],
+:root[data-shell='modern'] .goal-composer .goal-start[aria-disabled='true']:is(:hover, :active) {
+  background: var(--k-fill);
+  color: var(--muted);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.goal-status-options {
+  padding: var(--space-3);
+  max-block-size: min(20rem, var(--available-height));
+  min-inline-size: var(--anchor-width);
+  overflow-y: auto;
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elev-popover, 0 8px 24px rgb(0 0 0 / 0.2));
+}
+
+.goal-status-options [data-slot='select-item'] {
+  padding: var(--space-3);
+  cursor: pointer;
+}
+
+.goal-status-options [data-highlighted] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+:root[data-shell='modern'] .goal-status-options [data-slot='select-item'] {
+  display: flex;
+  align-items: center;
+  min-block-size: 44px;
+}
+
+@media (forced-colors: active) {
+  .goal-choice [data-slot='checkbox'],
+  .goal-choice [data-slot='radio'],
+  .goal-field input,
+  .goal-field textarea {
+    border-color: ButtonText;
+  }
+
+  .goal-composer .goal-start[aria-disabled='true'] {
+    color: GrayText;
+    border-color: GrayText;
+  }
+}
+.goal-composer-slot {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+}

@@ -1,11 +1,12 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from './test.js';
 import type * as ModalModule from '../apps/desktop/src/components/modal-stack.js';
 
 import { createProject } from './support.js';
 import { importSkillFixture } from './modal-support.js';
 
 for (const shell of ['classic', 'modern'] as const) {
-  test(`${shell}: narrow modal portals retain shared touch targets and directional scroll cues`, async ({ page }) => {
+  test(`${shell}: narrow modal portals retain shared touch targets and directional scroll cues`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.addInitScript((chosen) => localStorage.setItem('caotang.interface', chosen), shell);
@@ -22,7 +23,7 @@ for (const shell of ['classic', 'modern'] as const) {
     await expect(body).toHaveAttribute('data-scroll-edges', 'top bottom');
   });
 
-  test(`${shell}: an arriving Settings dialog covers Skills without losing its input, and Escape returns focus in stack order`, async ({ page }) => {
+  test(`${shell}: an arriving Settings dialog covers Skills without losing its input, and Escape returns focus in stack order`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
     await page.addInitScript((chosen) => localStorage.setItem('caotang.interface', chosen), shell);
     await createProject(page, 'Modal drafts');
     if (shell === 'modern') {
@@ -77,7 +78,7 @@ for (const shell of ['classic', 'modern'] as const) {
   });
 }
 
-test('Modern notices stay current while covered, announce a new import failure inside the modal, and reappear on close', async ({ page }) => {
+test('Modern notices stay current while covered, announce a new import failure inside the modal, and reappear on close', { tag: '@modern' }, async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('caotang.interface', 'modern'));
   await createProject(page, 'Modal notices');
   await page.getByRole('button', { name: 'More', exact: true }).click();

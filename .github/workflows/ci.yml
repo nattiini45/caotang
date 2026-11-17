@@ -1,20 +1,24 @@
 # The standing gate: lint, typecheck, unit tests, the production build and the Playwright suite.
 #
 # What runs, and on which Node:
-#   - `verify_matrix` runs the frozen engine-strict install, verification, build, bundle-size check, MCP pack and CLI build
-#     on Node 22.19.0 and 24 for every PR and main push. Stable required `verify` waits for both matrix legs, Chromium's shard summary and Modern gate,
-#     and the called Firefox/WebKit workflow; it passes only when every acceptance gate succeeds.
+#   - `verify_matrix` runs the frozen engine-strict install and the production build on both Node 22.19.0 and 24. Everything else is
+#     the floor's or the gate's: lint, the recursive typecheck, every unit suite, the bundle-size check, the landing page and the MCP
+#     pack run once, on Node 24, while the Node 22.19.0 leg runs only what proves the floor — that typecheck, the CLI bundle and the
+#     tests whose subject runs in Node itself (`pnpm run test:node-floor`: the command line, the SDK, the MCP server, the sync server
+#     and the store's folder and filesystem layer). The two matrix legs keep their check names, and `verify (Node 22.19.0)` still
+#     fails when the floor stops installing, compiling or running. Stable required `verify` waits for both matrix legs, Chromium's
+#     shard summary and Modern gate, and the called Firefox/WebKit workflow; it passes only when every acceptance gate succeeds.
 #   - `e2e (chromium)` summarizes two duration-balanced Node 24 shard jobs and their merged report, beside `e2e (chromium, Modern gate)`,
 #     which runs the Modern reachability walk and accessibility gate (#313) in parallel. The cross-browser workflow merges the
 #     sharded reports and also runs nightly/on demand.
 #   - `office-interop` and `pdf-validate` remain separate Node 24 jobs and run alongside the PR gate.
-#   - `pnpm verify` runs lint, typecheck and the vitest suites (packages/ and test/). The desktop's pure model specs live in
-#     e2e/unit as Playwright specs, so they run under `pnpm test:e2e`, not under `pnpm verify`.
-#   - `pnpm build` builds the desktop app, which writes THIRD-PARTY-NOTICES.md beside it. `tools/check-bundle-size.mjs` then checks
-#     the build against its size budget (CONTRIBUTING.md, Bundle size). `tools/build-site.mjs` builds the landing page as pages.yml
-#     publishes it (and fails if it would carry a script or an inline style), and `tools/check-site-size.mjs` holds its HTML, CSS and
-#     asset caps and its zero JavaScript. The MCP server bundle is then packed as an MCPB, which checks its manifest with the pinned
-#     MCPB CLI.
+#   - `pnpm verify` runs lint, typecheck and the vitest suites (packages/ and test/), once and on Node 24. The desktop's pure model
+#     specs live in e2e/unit as Playwright specs, so they run under `pnpm test:e2e`, not under `pnpm verify`.
+#   - `pnpm build` builds the desktop app on both Node versions, which writes THIRD-PARTY-NOTICES.md beside it.
+#     `tools/check-bundle-size.mjs` then checks the build against its size budget (CONTRIBUTING.md, Bundle size).
+#     `tools/build-site.mjs` builds the landing page as pages.yml publishes it (and fails if it would carry a script or an inline
+#     style), and `tools/check-site-size.mjs` holds its HTML, CSS and asset caps and its zero JavaScript. The MCP server bundle is
+#     then packed as an MCPB, which checks its manifest with the pinned MCPB CLI.
 #   - `pnpm test:e2e` runs the dev-server suite, and the production-preview project, which smoke-tests the build from the step
 #     above on its own port (e2e/prod-smoke.spec.ts).
 #     The two mobile projects run only e2e/mobile-shell.spec.ts, the narrow layout, in Chromium with touch (emulation, not WebKit).
@@ -89,22 +93,39 @@ jobs:
       - name: Install (frozen lockfile, strict engines)
         run: pnpm install --frozen-lockfile --engine-strict
 
-      - name: Lint, typecheck, unit tests
+      # The whole gate, once. Lint, the recursive typecheck and every unit suite are the same work on either Node version, so
+      # the newer one runs them and the Node floor leg runs only what the floor itself needs (the two steps below).
+      - name: Lint, typecheck and every unit suite (the whole gate, once)
+        if: matrix.node == '24'
         run: pnpm verify
+
+      # The Node floor proves the floor, not the whole gate: the install above is the engine-strict one, this typecheck reads
+      # every package against the floor's own `@types/node`, and the tests below are the ones whose subject runs in Node itself.
+      - name: Typecheck (the Node floor)
+        if: matrix.node == '22.19.0'
+        run: pnpm run typecheck
+
+      - name: Unit tests that run in Node itself (the Node floor)
+        if: matrix.node == '22.19.0'
+        run: pnpm run test:node-floor
 
       - name: Production build (desktop app, with its notices)
         run: pnpm build
 
       - name: Bundle size (chunk caps, first load, total JS)
+        if: matrix.node == '24'
         run: node tools/check-bundle-size.mjs
 
       - name: Build the landing page (site/dist, as the pages workflow publishes it)
+        if: matrix.node == '24'
         run: node tools/build-site.mjs
 
       - name: Landing page size (HTML, CSS and assets caps; no JavaScript)
+        if: matrix.node == '24'
         run: node tools/check-site-size.mjs
 
       - name: Pack the MCP server bundle (manifest checked by the pinned MCPB CLI)
+        if: matrix.node == '24'
         run: pnpm --filter @caotang/mcp-server run pack
 
       - name: Build the caotang command-line bundle (one file, with its fonts/)

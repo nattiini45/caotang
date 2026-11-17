@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './test.js';
 import { fakeEndpoint, useFakeEndpoint } from './endpoint.js';
 
 async function visibleTurnLines(page: Page): Promise<number> {
@@ -19,7 +20,7 @@ for (const variant of [
   { shell: 'classic', language: 'en', width: 1280, height: 900, theme: 'light' },
   { shell: 'classic', language: 'de', width: 390, height: 844, theme: 'dark' },
 ]) {
-  test(`${variant.shell} ${variant.language} context stays bounded in default and opened states`, async ({ page }, testInfo) => {
+  test(`${variant.shell} ${variant.language} context stays bounded in default and opened states`, { tag: variant.shell === 'modern' ? '@modern' : [] }, async ({ page }, testInfo) => {
     await page.addInitScript(({ shell, theme }) => {
       localStorage.setItem('caotang.interface', shell);
       localStorage.setItem('caotang.theme', theme);
@@ -86,7 +87,7 @@ test('context options show a document path or a codex type instead of storage ID
 });
 
 for (const width of [390, 1440]) {
-  test(`Modern Rewind labels and consequences fit at ${width}px`, async ({ page }) => {
+  test(`Modern Rewind labels and consequences fit at ${width}px`, { tag: '@modern' }, async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem('caotang.interface', 'modern'));
     await page.goto('/');
     await page.getByRole('button', { name: 'Fill in the synopses', exact: true }).click();

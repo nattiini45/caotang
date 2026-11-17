@@ -72,6 +72,23 @@ const checkpoint = (nextIteration = 1) => ({
 });
 
 describe('checkpoint budget validation', () => {
+  it('accepts absent or boolean large-scope approval and refuses every other flag value', async () => {
+    const saved = checkpoint();
+    expect(checkpointReadable(saved)).toBe(true);
+    for (const approvedLargeScope of [true, false]) expect(checkpointReadable({ ...saved, approvedLargeScope })).toBe(true);
+    const store = await openRuntimeStore(new MemoryIndexedDb(), 'goal-invalid-scope-approval');
+    try {
+      const invalid = { ...saved, approvedLargeScope: 'true' };
+      for (const approvedLargeScope of ['true', 1, 0, null, {}, []]) expect(checkpointReadable({ ...saved, approvedLargeScope })).toBe(false);
+      await createGoalRun(store, { goalId: GOAL, projectId: PROJECT, sessionId: CONVERSATION, checkpoint: invalid, at: 100 });
+      await markGoalsInterrupted(store, PROJECT, 200);
+      expect(await openGoalRecovery(store, GOAL)).toMatchObject({ kind: 'unreadable' });
+      await expect(appendGoalCheckpoint(store, GOAL, { checkpoint: invalid, at: 300 })).rejects.toThrow('cannot be read');
+    } finally {
+      store.close();
+    }
+  });
+
   it('refuses recovery and checkpoint appends when the checkpoint names another goal', async () => {
     const store = await openRuntimeStore(new MemoryIndexedDb(), 'goal-wrong-owner');
     const saved = checkpoint();

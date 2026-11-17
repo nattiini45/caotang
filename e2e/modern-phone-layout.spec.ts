@@ -1,4 +1,5 @@
-import { devices, expect, test, type Page } from '@playwright/test';
+import { devices, expect, type Page } from '@playwright/test';
+import { test } from './test.js';
 
 import { NO_PIN } from './classic-pin.js';
 import { waitForSaved } from './support.js';
@@ -19,7 +20,7 @@ async function start(page: Page, width = 390): Promise<void> {
 }
 
 for (const width of [390, 1280, 320]) {
-  test(`Import stays on the binder action row at ${width} px`, async ({ page }) => {
+  test(`Import stays on the binder action row at ${width} px`, { tag: '@modern' }, async ({ page }) => {
     await start(page, width);
     if (width < 960) await page.getByTestId('modern-narrow-binder').click();
     else await page.getByTestId('modern-binder').getByRole('button', { name: 'Binder', exact: true }).click();
@@ -45,7 +46,7 @@ for (const width of [390, 1280, 320]) {
   });
 }
 
-test('Timeline has clearance in the phone tab bar and no radio track behind it', async ({ page }) => {
+test('Timeline has clearance in the phone tab bar and no radio track behind it', { tag: '@modern' }, async ({ page }) => {
   await start(page);
   const bar = page.getByTestId('modern-bottom-ornament');
   await expect(bar.getByRole('radio')).toHaveCount(1);
@@ -64,7 +65,7 @@ test('Timeline has clearance in the phone tab bar and no radio track behind it',
   expect(await bar.evaluate((element) => element.scrollWidth - element.clientWidth)).toBe(0);
 });
 
-test('WebKit hides the phone tab bar when only the visual viewport shrinks for typing', async ({ browser, browserName, baseURL }) => {
+test('WebKit hides the phone tab bar when only the visual viewport shrinks for typing', { tag: '@modern' }, async ({ browser, browserName, baseURL }) => {
   test.skip(browserName !== 'webkit', 'The visual-only keyboard resize is the iOS Safari path.');
   const context = await browser.newContext({ ...devices['iPhone 14'], baseURL, locale: 'en-US', storageState: NO_PIN });
   try {
@@ -118,7 +119,7 @@ test('WebKit hides the phone tab bar when only the visual viewport shrinks for t
   }
 });
 
-test('WebKit phone agent and source fields keep focus-zoom-safe type and matched highlight metrics', async ({ browser, browserName, baseURL }) => {
+test('WebKit phone agent and source fields keep focus-zoom-safe type and matched highlight metrics', { tag: '@modern' }, async ({ browser, browserName, baseURL }) => {
   test.skip(browserName !== 'webkit', 'Safari focus zoom is the path under test.');
   const context = await browser.newContext({ ...devices['iPhone 14'], baseURL, locale: 'en-US', storageState: NO_PIN });
   try {
