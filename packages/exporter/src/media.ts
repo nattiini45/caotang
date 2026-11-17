@@ -1227,7 +1227,9 @@ function vttOutput(request: MediaRequest): MediaOutput {
         // Quantized to milliseconds here, not inside vttTime: a positive duration shorter than 1 ms would give
         // a cue whose end is not after its start, which a player drops — so the interval is at least 1 ms.
         const startMs = Math.max(prevEndMs, Math.round(at * 1000));
-        const endMs = Math.max(startMs + 1, Math.round((at + line.durationSec) * 1000));
+        // The end is measured from the clamped start: the parser rounds a segment's start to hundredths
+        // while keeping the line's finer duration, so `at + duration` would shorten this cue at a boundary.
+        const endMs = Math.max(startMs + 1, Math.round(startMs + line.durationSec * 1000));
         // The clock advances on the declared duration even when the cue cannot be written — a line after
         // one whose duration overflows sits at a time a timestamp cannot name either, and takes no cue.
         at += line.durationSec;
@@ -1244,7 +1246,7 @@ function vttOutput(request: MediaRequest): MediaOutput {
       }
     }
     if (cues.length === 0) {
-      notes.push(`"${ep.node.title}": no speakable line has a duration, so it writes no captions`);
+      notes.push(`"${ep.node.title}": no speakable line could be written as a caption, so it writes no captions document`);
       continue;
     }
     files.push({
@@ -1293,7 +1295,7 @@ function chaptersJsonOutput(request: MediaRequest): MediaOutput {
     }
     chapterCount += chapters.length;
     if (chapters.length === 0) {
-      notes.push(`"${ep.node.title}": no segment is timed, so it writes no chapters document`);
+      notes.push(`"${ep.node.title}": no segment could be written as a chapter, so it writes no chapters document`);
       continue;
     }
     files.push({

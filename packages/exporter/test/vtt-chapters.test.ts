@@ -169,6 +169,18 @@ describe('the WebVTT captions', () => {
     );
   });
 
+  it('keeps a cue its whole duration when a segment boundary clamps its start', async () => {
+    const state = makeShowProject({
+      episode:
+        '## One\nHOST_A: First. [1.234s] <!-- lineId: sl_1000000022 -->\n## Two\nHOST_A: Second. [1.234s] <!-- lineId: sl_1000000023 -->\n',
+    });
+    const result = await rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'vtt');
+    const text = await result.files[0]!.blob.text();
+    // The second segment's start is stored as 1.23 s while its duration stays 1.234 s — the cue's end is
+    // measured from its clamped start, so it keeps the full duration instead of losing 4 ms.
+    expect(text).toContain('00:00:01.234 --> 00:00:02.468\n<v HOST_A>Second.</v>');
+  });
+
   it('names the cue it could not write when every timing overflows', async () => {
     const state = makeShowProject({
       episode: '## A\nHOST_A: Vast. [' + '9'.repeat(400) + 's] <!-- lineId: sl_1000000016 -->\n',
