@@ -143,6 +143,19 @@ describe('the WebVTT captions', () => {
     expect(text).toContain('00:00:00.001 --> 00:00:00.002\n<v HOST_A>Two.</v>');
   });
 
+  it('takes no cue for a line whose timing overflows a WebVTT timestamp', async () => {
+    const state = makeShowProject({
+      episode:
+        '## A\nHOST_A: Vast. [' + '9'.repeat(400) + 's] <!-- lineId: sl_1000000012 -->\nHOST_A: Still here. [1s] <!-- lineId: sl_1000000013 -->\n',
+    });
+    const result = await rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'vtt');
+    const text = await result.files[0]!.blob.text();
+    expect(text).not.toContain('Infinity');
+    expect(text).not.toContain('Vast.');
+    expect(text).toContain('<v HOST_A>Still here.</v>');
+    expect(result.log.notes.some((n) => n.includes('overflows a WebVTT timestamp'))).toBe(true);
+  });
+
   it('refuses a selection with no episode, and an episode whose lines all lack a duration', async () => {
     const state = createProjectState(createEmptyManifest(PROJECT_NAME, OPENED, { locale: 'en-US' }));
     await expect(rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'vtt')).rejects.toBeInstanceOf(MediaRefusedError);
@@ -184,6 +197,24 @@ describe('the chapters document', () => {
     const doc = JSON.parse(await result.files[0]!.blob.text()) as { chapters: { title: string }[] };
     expect(doc.chapters.map((c) => c.title)).toEqual(['One', 'Three']);
     expect(result.log.notes.some((n) => n.includes('untimed'))).toBe(true);
+  });
+
+  it('skips a segment whose duration rounds to zero, so no chapter ends where it starts', async () => {
+    const state = makeShowProject({
+      episode: [
+        '## One',
+        'HOST_A: Hi. [0:10] <!-- lineId: sl_1000000001 -->',
+        '## Blink',
+        'HOST_A: Tiny. [0.0004s] <!-- lineId: sl_1000000002 -->',
+        '## Three',
+        'HOST_A: Bye. [0:10] <!-- lineId: sl_1000000003 -->',
+      ].join('\n'),
+    });
+    const result = await rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'chapters-json');
+    const doc = JSON.parse(await result.files[0]!.blob.text()) as { chapters: { startTime: number; title: string; endTime: number }[] };
+    expect(doc.chapters.map((c) => c.title)).toEqual(['One', 'Three']);
+    expect(doc.chapters.every((c) => c.endTime > c.startTime)).toBe(true);
+    expect(result.log.notes.some((n) => n.includes('Blink') && n.includes('no positive duration'))).toBe(true);
   });
 
   it('writes no chapters document for an episode with no timed segment', async () => {
