@@ -1315,6 +1315,16 @@ msgstr "{lines, plural, one {Weglassen (# Zeile)} other {Weglassen (# Zeilen)}}"
 
 #. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
 #: apps/desktop/src/components/export-preview-model.ts
+msgid "{lines} {lineCount, plural, one {chapter} other {chapters}} in {scenes} {sceneCount, plural, one {episode} other {episodes}}"
+msgstr "{lines} {lineCount, plural, one {Kapitel} other {Kapitel}} in {scenes} {sceneCount, plural, one {Episode} other {Episoden}}"
+
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#: apps/desktop/src/components/export-preview-model.ts
+msgid "{lines} {lineCount, plural, one {cue} other {cues}} in {scenes} {sceneCount, plural, one {episode} other {episodes}}, {words} {wordCount, plural, one {word} other {words}}"
+msgstr "{lines} {lineCount, plural, one {Cue} other {Cues}} in {scenes} {sceneCount, plural, one {Episode} other {Episoden}}, {words} {wordCount, plural, one {Wort} other {Wörter}}"
+
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#: apps/desktop/src/components/export-preview-model.ts
 msgid "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {container} other {containers}}, {words} {wordCount, plural, one {word} other {words}}"
 msgstr "{lines} {lineCount, plural, one {Zeile} other {Zeilen}} in {scenes} {sceneCount, plural, one {Container} other {Container}}, {words} {wordCount, plural, one {Wort} other {Wörtern}}"
 
@@ -5052,6 +5062,11 @@ msgstr "Bildunterschrift"
 msgid "Caption when there is no image"
 msgstr "Bildunterschrift, wenn es kein Bild gibt"
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Captions (.vtt)"
+msgstr "Untertitel (.vtt)"
+
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #: apps/desktop/src/components/CardPictureDialog.tsx
 #: apps/desktop/src/components/InspectorPictures.tsx
@@ -5269,6 +5284,11 @@ msgstr "Kapitel {number}"
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Chapter headings in capitals, scenes set apart by a line."
 msgstr "Kapitelüberschriften in Großbuchstaben, Szenen durch eine Zeile getrennt."
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Chapters (.json)"
+msgstr "Kapitel (.json)"
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
@@ -19129,6 +19149,11 @@ msgstr "Die Bilderansicht"
 msgid "The pictures could not be imported."
 msgstr "Die Bilder konnten nicht importiert werden."
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "The Podcasting 2.0 chapters document — start, title and end per segment — the file a feed’s podcast:chapters points at."
+msgstr "Das Kapiteldokument nach Podcasting 2.0 — Anfang, Titel und Ende je Segment — die Datei, auf die podcast:chapters eines Feeds zeigt."
+
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
 msgid "The preview could not be made: {message}"
@@ -21969,6 +21994,11 @@ msgstr "Warnungen"
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Web article (.html)"
 msgstr ""
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "WebVTT captions — one cue per spoken line, each speaker in a voice span — to drop on a narrated video or an audio post."
+msgstr "WebVTT-Untertitel — ein Cue pro gesprochener Zeile, jeder Sprecher in einer Voice-Markierung — zum Ablegen auf einem vertonten Video oder einem Audiobeitrag."
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts

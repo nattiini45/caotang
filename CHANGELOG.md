@@ -67,6 +67,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **Show notes, transcript and teleprompter exports (#212).** An episode compiles to three new formats in the Export dialog's Show group. **Show notes (.md)** carry the show's description and the episode's segments as a timestamped list, plus chapter lines in YouTube's shape when its three gates hold — when they do not, the compile log names the gate that failed. **Transcript (.md)** writes each speaker's display name and the text, segment by segment, with narration set apart and no cues or timings. **Teleprompter (.txt)** writes the spoken lines only, wrapped to a recipe's new line-width option.
 
+- **WebVTT captions and JSON chapters (#213).** An episode compiles to two new formats in the Export dialog's Show group. **Captions (.vtt)** carry one cue per spoken line with each speaker in a `<v>` voice span and the period millisecond separator a player expects. **Chapters (.json)** is the Podcasting 2.0 `application/json+chapters` document — `startTime`, `title` and `endTime` per segment — for a feed's `podcast:chapters` tag to point at.
+
 ### Fixed
 
 - **Modern WebKit CI headroom.** Explicitly marked Modern-shell end-to-end cases get 60 seconds instead of the default 30 seconds in WebKit. Classic cases, other engines, assertions, larger existing budgets and job deadlines are unchanged; software-rendered wallpaper costs remain tracked separately (#698).

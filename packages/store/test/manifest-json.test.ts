@@ -155,7 +155,7 @@ describe('manifest serializer', () => {
   it('drops a malformed named publish field with a warning and keeps the rest, so undo stays re-appliable', () => {
     const m = rich();
     m.tree[1]!.publish = {
-      slug: 17,
+      slug: 'news/post',
       publishedAt: '2026-02-30T00:00:00Z',
       canonical: 'http://example.com/posts/x',
       tags: 'serial',

@@ -939,7 +939,9 @@ describe('export.compile, export.compileSelection and project.deleteNode', () =>
       'show-notes',
       'transcript-md',
       'teleprompter',
-      // The web publish targets (web-publishing.md §3): the HTML article, the twenty-ninth.
+      'vtt',
+      'chapters-json',
+      // The web publish targets (web-publishing.md §3): the HTML article, the thirty-first.
       'html',
     ]);
   });

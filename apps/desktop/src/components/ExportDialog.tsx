@@ -30,7 +30,7 @@ import {
 } from '@caotang/exporter';
 import { loadComicPage } from '@caotang/comic';
 import { loadZipEngine } from '@caotang/store';
-import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type RecipeScriptFont, type SceneNumbersOption } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type HtmlModeOption, type RecipeScriptFont, type SceneNumbersOption } from '@caotang/bus';
 
 import { downloadBytes } from '../app/download.js';
 import { exportCompileMachine, exportReadinessMachine, type CompileEvent, type CompileState } from '../app/export-dialog-model.js';
@@ -125,7 +125,7 @@ function formatGroups(comicSelected: boolean): readonly { readonly name: string;
         : []),
     ],
   },
-  // The show's own exports (av-script.md §5): the reading exports and the VO script its episodes' speakable lines make, for the booth.
+  // The show's own exports (av-script.md §5): the reading exports, the VO script its episodes' speakable lines make for the booth, the captions and the chapters.
   {
     name: t`Show`,
     formats: [
@@ -146,6 +146,16 @@ function formatGroups(comicSelected: boolean): readonly { readonly name: string;
       },
       { format: 'vo-script-csv', label: t`VO script (.csv)`, help: t`One row per speakable line — line id, segment, speaker, text, duration and whether it was declared — for a recording booth or a translation shop.` },
       { format: 'vo-script-xlsx', label: t`VO script (.xlsx)`, help: t`The same rows as a spreadsheet, with the durations as numbers, for Excel, Numbers or LibreOffice.` },
+      {
+        format: 'vtt',
+        label: t`Captions (.vtt)`,
+        help: t`WebVTT captions — one cue per spoken line, each speaker in a voice span — to drop on a narrated video or an audio post.`,
+      },
+      {
+        format: 'chapters-json',
+        label: t`Chapters (.json)`,
+        help: t`The Podcasting 2.0 chapters document — start, title and end per segment — the file a feed’s podcast:chapters points at.`,
+      },
     ],
   },
   // The coherence report (media-track.md, Review): the findings file and its run history, for reading outside Caotang.
@@ -206,6 +216,10 @@ interface ShownOptions {
   readonly timelinePictures: boolean;
   /** The teleprompter's wrap width in characters; `undefined` is the compile's default (av-script.md §5). */
   readonly teleprompterWidth: number | undefined;
+  /** The HTML article's options (web-publishing.md §3); the dialog has no controls for them, so they are preserved as the recipe holds them. */
+  readonly frontMatter: boolean | undefined;
+  readonly htmlMode: HtmlModeOption | undefined;
+  readonly css: string | undefined;
   /** How the prose formats treat the pictures in the bodies: the mode, keeping their metadata, and the EPUB's WebP (pictures.md §4). */
   readonly pictures: ShownPictureOptions;
   /**
@@ -331,6 +345,9 @@ function shownOptionsOf(recipe: ExportRecipe | undefined): ShownOptions {
     cropMarks: recipe?.options?.cropMarks ?? false,
     timelinePictures: recipe?.options?.timelinePictures ?? false,
     teleprompterWidth: recipe?.options?.teleprompterWidth,
+    frontMatter: recipe?.options?.frontMatter,
+    htmlMode: recipe?.options?.htmlMode,
+    css: recipe?.options?.css,
     colourEmoji: recipe?.options?.colourEmoji,
     sceneNumbers: recipe?.options?.sceneNumbers ?? 'off',
     continued: recipe?.options?.continued ?? true,
@@ -469,6 +486,9 @@ export function ExportDialog({
         ...(next.cropMarks ? { cropMarks: true } : {}),
         ...(next.timelinePictures ? { timelinePictures: true } : {}),
         ...(next.teleprompterWidth === undefined ? {} : { teleprompterWidth: next.teleprompterWidth }),
+        ...(next.frontMatter === undefined ? {} : { frontMatter: next.frontMatter }),
+        ...(next.htmlMode === undefined ? {} : { htmlMode: next.htmlMode }),
+        ...(next.css === undefined ? {} : { css: next.css }),
         ...pictureOptionsOf(next.pictures),
         ...(next.colourEmoji === undefined ? {} : { colourEmoji: next.colourEmoji }),
         ...(next.notes === 'footnote' ? {} : { notes: next.notes }),
@@ -509,6 +529,9 @@ export function ExportDialog({
         ...(shown.cropMarks ? { cropMarks: true } : {}),
         ...(shown.timelinePictures ? { timelinePictures: true } : {}),
         ...(shown.teleprompterWidth === undefined ? {} : { teleprompterWidth: shown.teleprompterWidth }),
+        ...(shown.frontMatter === undefined ? {} : { frontMatter: shown.frontMatter }),
+        ...(shown.htmlMode === undefined ? {} : { htmlMode: shown.htmlMode }),
+        ...(shown.css === undefined ? {} : { css: shown.css }),
         ...pictureOptionsOf(shown.pictures),
         ...(shown.colourEmoji === undefined ? {} : { colourEmoji: shown.colourEmoji }),
         ...(shown.notes === 'footnote' ? {} : { notes: shown.notes }),

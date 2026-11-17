@@ -187,6 +187,14 @@ export function isPublishInstant(value: string): boolean {
 }
 
 /**
+ * A `slug` the command will write: one address segment (web-publishing.md §2), so no `/` or `\` —
+ * a slug with a path separator names an address the export's file name disagrees with.
+ */
+export function isPublishSlug(value: string): boolean {
+  return value.trim().length > 0 && !value.includes('/') && !value.includes('\\');
+}
+
+/**
  * A `canonical` the command will write: an absolute `https` address carrying no credentials — a
  * `user:pass@` inside the address would land in the manifest and every export that reads it.
  */
@@ -216,7 +224,7 @@ export function publishFieldValueOk(field: (typeof PUBLISH_FIELD_NAMES)[number],
         value.every((tag) => typeof tag === 'string' && tag.trim().length > 0)
       );
     case 'slug':
-      return typeof value === 'string' && [...value].length <= PUBLISH_TEXT_MAX && value.trim().length > 0;
+      return typeof value === 'string' && [...value].length <= PUBLISH_TEXT_MAX && isPublishSlug(value);
     case 'publishedAt':
       return typeof value === 'string' && [...value].length <= PUBLISH_TEXT_MAX && isPublishInstant(value);
     case 'canonical':
@@ -845,8 +853,12 @@ export const binderSetPublish: CommandDescriptor<BinderSetPublishParams> = {
       if (!field.ok) return field;
       if (field.value !== undefined) typed[key] = field.value;
     }
-    if (typeof typed.slug === 'string' && typed.slug.trim() === '') {
-      return invalid('a slug cannot be empty', 'type a slug like "first-post", or null to clear it', 'patch.slug');
+    if (typeof typed.slug === 'string' && !isPublishSlug(typed.slug)) {
+      return invalid(
+        `"${typed.slug}" is not a slug: a slug is one address segment, so it cannot be empty or hold a "/" or "\\"`,
+        'type a slug like "first-post", or null to clear it',
+        'patch.slug',
+      );
     }
     if (typeof typed.publishedAt === 'string' && !isPublishInstant(typed.publishedAt)) {
       return invalid(
@@ -1626,7 +1638,10 @@ export const EXPORT_FORMATS = [
   'show-notes',
   'transcript-md',
   'teleprompter',
-  // The web publish targets (web-publishing.md §3): the HTML article, appended as the twenty-ninth.
+  // The AV script's captions and chapters (av-script.md §5). Appended as the twenty-ninth and thirtieth.
+  'vtt',
+  'chapters-json',
+  // The web publish targets (web-publishing.md §3): the HTML article, appended as the thirty-first.
   'html',
 ] as const;
 

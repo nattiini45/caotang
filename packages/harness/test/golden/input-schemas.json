@@ -533,6 +533,8 @@
           "show-notes",
           "transcript-md",
           "teleprompter",
+          "vtt",
+          "chapters-json",
           "html"
         ],
         "description": "The output format."

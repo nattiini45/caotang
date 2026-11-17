@@ -265,6 +265,8 @@ const EXTENSION: Record<ExportFormat, string> = {
   'show-notes': 'md',
   'transcript-md': 'md',
   teleprompter: 'txt',
+  vtt: 'vtt',
+  'chapters-json': 'json',
   html: 'html',
 };
 
@@ -301,6 +303,8 @@ export const EXPORT_MIME: Readonly<Record<ExportFormat, string>> = {
   'show-notes': 'text/markdown;charset=utf-8',
   'transcript-md': 'text/markdown;charset=utf-8',
   teleprompter: 'text/plain;charset=utf-8',
+  vtt: 'text/vtt;charset=utf-8',
+  'chapters-json': 'application/json+chapters',
   html: 'text/html;charset=utf-8',
 };
 
@@ -898,8 +902,9 @@ function htmlPlanOf(
     const publish = state.manifest.tree.find((node) => node.id === block.docId)?.publish;
     const stem = fileStem(typeof publish?.['slug'] === 'string' && publish['slug'] !== '' ? publish['slug'] : block.title);
     let name = stem;
-    for (let n = 2; taken.has(name); n += 1) name = `${stem}-${n}`;
-    taken.add(name);
+    // Compared without case: two stems that differ only in case share a file on a synced folder.
+    for (let n = 2; taken.has(name.toLowerCase()); n += 1) name = `${stem}-${n}`;
+    taken.add(name.toLowerCase());
     articles.push({
       name,
       docId: block.docId,

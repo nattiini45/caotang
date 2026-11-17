@@ -73,6 +73,24 @@ describe('the html format', () => {
     expect(written).toContain('<article>');
   });
 
+  it('tells two names apart that differ only in case — a synced folder cannot hold both', async () => {
+    const { state, exporter, fs } = rig();
+    await exporter.ready();
+    const landing = state.manifest.tree.find((node) => node.id === IDS.landing);
+    const storm = state.manifest.tree.find((node) => node.title === 'The Storm');
+    if (landing === undefined || storm === undefined) throw new Error('fixture lacks the nodes');
+    landing.publish = { slug: 'post' };
+    storm.publish = { slug: 'POST' };
+    exporter.commandPort().compile(state, {
+      selection: { kind: 'manuscript' },
+      format: 'html',
+      at: COMPILED_AT,
+    });
+    await exporter.idle();
+    expect(fs.snapshot()['exports/post.html']).toBeDefined();
+    expect(fs.snapshot()['exports/POST-2.html']).toBeDefined();
+  });
+
   it('refuses a selection with no document with a body, before anything is reserved', async () => {
     const { state, exporter, fs } = rig();
     await exporter.ready();
