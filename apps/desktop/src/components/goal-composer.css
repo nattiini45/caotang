@@ -220,6 +220,11 @@
   min-block-size: 1.2rem;
   margin-block-start: 0;
   padding: 0;
+  border-width: 1.5px;
+}
+
+:root[data-shell='modern'] .goal-choice :is([data-slot='checkbox'], [data-slot='radio']):not([data-checked]) {
+  border-color: var(--k-edge);
 }
 
 :root[data-shell='modern'] .goal-field input,

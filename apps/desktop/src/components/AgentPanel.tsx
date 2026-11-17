@@ -615,6 +615,7 @@ export function AgentPanel({
 
       {open ? (
         <div key={snapshot.sessionId} id="agent-body" className="agent-body">
+          {snapshot.goalDraft !== null && goalEntryBlocked ? <p className="form-message" role="status" data-testid="goal-draft-deferred">{t`A goal or turn is active. Wait for it to finish.`}</p> : null}
           {goalComposer}
           {inWindow ? sessionUsage : <>{oneTurnComposer}{sessionUsage}</>}
           <GoalRecovery agent={agent} goals={snapshot.goals.filter(goalInConversation)} unavailable={snapshot.goalUnavailable} activeGoalId={snapshot.activeGoalId} />

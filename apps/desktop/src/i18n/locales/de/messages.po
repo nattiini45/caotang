@@ -2673,6 +2673,7 @@ msgid "A goal of this project."
 msgstr "Ein Ziel dieses Projekts."
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/GoalComposer.tsx
 msgid "A goal or turn is active. Wait for it to finish."

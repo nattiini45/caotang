@@ -97,23 +97,48 @@ for (const shell of ['classic', 'modern'] as const) {
   test(`goal setup leaves an ordinary turn's pending approval accessible (${shell})`, async ({ page }) => {
     test.setTimeout(60_000);
     await page.addInitScript((shell) => localStorage.setItem('caotang.interface', shell), shell);
-    await fakeEndpoint(page, planThenAnswer({ steps: [{ tool: 'synopsis.fill', params: { docs: ['Opening'], source: 'text', max_words: 30 }, expect: 'Opening has a synopsis.' }] }));
+    let requests = 0;
+    const reply = planThenAnswer({ steps: [{ tool: 'synopsis.fill', params: { docs: ['Opening'], source: 'text', max_words: 30 }, expect: 'Opening has a synopsis.' }] });
+    await fakeEndpoint(page, (request) => { requests += 1; return reply({ ...request, assistantTurns: request.tool === '' ? 0 : 1 }); });
     await useFakeEndpoint(page);
     await createGoalScene(page, 'Pending Approval Book', shell);
     if (shell === 'modern') await page.keyboard.press('Control+j');
     else await page.getByRole('button', { name: 'Agent', exact: true }).click();
     await page.getByRole('combobox', { name: 'Intent', exact: true }).fill('Fill the synopsis of Opening.');
     await page.getByRole('button', { name: 'Send', exact: true }).click();
-    const approval = page.getByTestId('plan-card').getByRole('button', { name: 'Approve', exact: true });
+    const approval = page.getByTestId('plan-card').getByRole('button', { name: 'Approve', exact: true }).and(page.locator('button:enabled'));
     await expect(approval).toBeVisible();
     const goal = page.getByRole('button', { name: 'Goal', exact: true });
     await expect(goal).toBeDisabled();
     await goal.focus();
     await page.keyboard.press('Enter');
+    await goal.evaluate((node) => node.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })));
     await expect(approval).toBeVisible();
     await expect(page.getByRole('form', { name: 'Run toward a goal', exact: true })).toHaveCount(0);
     expect(await projectTrace(page)).not.toContain('binder.setSynopsis');
     await page.getByTestId('agent-stop').click();
+    await expect(page.getByTestId('agent-stop')).toHaveCount(0);
+    await expect(page.getByRole('form', { name: 'Run toward a goal', exact: true })).toHaveCount(0);
+    await page.getByRole('combobox', { name: 'Intent', exact: true }).fill('Fill the synopsis of Opening.');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(approval).toBeVisible();
+    const beforePrefill = requests;
+    if (shell === 'modern') {
+      await page.keyboard.press('Control+j');
+      await expect(page.getByTestId('agent-panel')).toBeHidden();
+      await page.getByRole('button', { name: 'Findings', exact: true }).click();
+    }
+    else await page.getByRole('tab', { name: 'Findings', exact: true }).click();
+    await page.getByRole('button', { name: 'Fix all in scope until clean', exact: true }).click();
+    await expect(page.getByTestId('goal-draft-deferred')).toHaveText('A goal or turn is active. Wait for it to finish.');
+    await expect(approval).toBeVisible();
+    await expect(page.getByRole('form', { name: 'Run toward a goal', exact: true })).toHaveCount(0);
+    expect(requests).toBe(beforePrefill);
+    await page.getByTestId('agent-stop').click();
+    await expect(page.getByRole('textbox', { name: 'Goal intent', exact: true })).toHaveValue('Fix the findings in this scope until the selected coherence checks pass.');
+    await expect(page.getByTestId('goal-draft-deferred')).toHaveCount(0);
+    await expect(page.getByTestId('goal-recovery-card')).toHaveCount(0);
+    expect(requests).toBe(beforePrefill);
   });
 
   test(`a completed goal returns focus from Stop to Goal (${shell})`, async ({ page }) => {
@@ -287,12 +312,20 @@ for (const shell of ['classic', 'modern'] as const) {
             const box = node.getBoundingClientRect();
             const label = node.closest('label')!;
             const text = label.querySelector(':scope > span')!.getBoundingClientRect();
-            return { width: box.width, height: box.height, offset: Math.abs(box.y + box.height / 2 - text.y - text.height / 2), targetHeight: label.getBoundingClientRect().height };
+            const style = getComputedStyle(node);
+            return { width: box.width, height: box.height, offset: Math.abs(box.y + box.height / 2 - text.y - text.height / 2), targetHeight: label.getBoundingClientRect().height, border: style.borderColor, background: style.backgroundColor };
           });
           expect(geometry.width).toBeLessThanOrEqual(24);
           expect(geometry.height).toBeLessThanOrEqual(24);
           expect(geometry.offset).toBeLessThanOrEqual(2);
           expect(geometry.targetHeight).toBeGreaterThanOrEqual(44);
+          const [edge, background] = [geometry.border, geometry.background].map((color) => color.match(/[\d.]+/g)!.map(Number));
+          expect(background![3] ?? 1).toBe(1);
+          const alpha = edge![3] ?? 1;
+          const luminance = (channels: number[]) => channels.map((channel) => channel / 255).map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4).reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index]!, 0);
+          const foreground = luminance(edge!.slice(0, 3).map((channel, index) => channel * alpha + background![index]! * (1 - alpha)));
+          const behind = luminance(background!.slice(0, 3));
+          expect((Math.max(foreground, behind) + 0.05) / (Math.min(foreground, behind) + 0.05)).toBeGreaterThanOrEqual(3);
         }
         await radios.first().focus();
         await page.keyboard.press('ArrowDown');
@@ -348,18 +381,7 @@ for (const shell of ['classic', 'modern'] as const) {
       else await page.getByRole('button', { name: 'Agent', exact: true }).click();
       await expect(progress).toHaveAttribute('data-status', 'passed');
       const passed = progress.getByRole('cell', { name: locale === 'de' ? /Bestanden/ : /Passed/ });
-      const saveCellBounds = async (name: string) => {
-        await writeFile(testInfo.outputPath(name), JSON.stringify(await passed.evaluate((node) => {
-          const ancestors = [];
-          for (let element: Element | null = node; element !== null; element = element.parentElement) {
-            const style = getComputedStyle(element);
-            ancestors.push({ tag: element.tagName, className: element.className, box: element.getBoundingClientRect().toJSON(), clientWidth: element.clientWidth, clientHeight: element.clientHeight, scrollWidth: element.scrollWidth, scrollHeight: element.scrollHeight, scrollLeft: element.scrollLeft, scrollTop: element.scrollTop, overflow: style.overflow });
-          }
-          return ancestors;
-        })));
-      };
       await passed.scrollIntoViewIfNeeded();
-      await saveCellBounds('goal-cell-wide.json');
       await expect(passed).toBeInViewport({ ratio: 1 });
       await expect(progress.getByRole('rowheader', { name: locale === 'de' ? 'Jede Synopsis ist ausgefüllt' : 'Every synopsis is filled', exact: true })).toBeInViewport({ ratio: 1 });
       if (shell === 'modern') {
@@ -377,7 +399,6 @@ for (const shell of ['classic', 'modern'] as const) {
       await testInfo.attach('Saved no-turn result', { path: watchImage, contentType: 'image/png' });
       await page.setViewportSize({ width: 390, height: 844 });
       await passed.scrollIntoViewIfNeeded();
-      await saveCellBounds('goal-cell-narrow.json');
       await expect(passed).toBeInViewport({ ratio: 1 });
       if (shell === 'modern') await expect(page.getByRole('status').filter({ hasText: /(?:Loading the binder|Der Binder wird geladen)/ })).toHaveCount(0);
       const brokenWords = await progress.getByRole('columnheader').evaluateAll((headers) => headers.flatMap((header) => {
