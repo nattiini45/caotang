@@ -1,10 +1,11 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from './test.js';
 
 import { createProject, idOf, waitForSaved } from './support.js';
 import { showBinder, switchToModern } from './modern-walk.js';
 import { fakeEndpoint, useFakeEndpoint } from './endpoint.js';
 
-test('sidebar panels explain real empty and disabled states with named glyphs', async ({ page }) => {
+test('sidebar panels explain real empty and disabled states with named glyphs', { tag: '@modern' }, async ({ page }) => {
   await createProject(page, 'Panel states');
   await switchToModern(page);
   await showBinder(page);

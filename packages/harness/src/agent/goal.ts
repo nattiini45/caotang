@@ -96,6 +96,7 @@ export interface GoalRun {
 
 export interface GoalCheckpoint {
   readonly goal: Goal;
+  readonly approvedLargeScope?: boolean;
   readonly iterations: readonly IterationRecord[];
   readonly results: readonly CheckResult[];
   readonly nextIteration: number;
@@ -364,11 +365,13 @@ export function createGoalRunner(): GoalRunner {
       });
       const problem = goalProblem({ ...goal, checks }, meter);
       if (problem !== undefined) return refuse(problem);
+      const approvedLargeScope = options.approvedLargeScope === true ||
+        (options.checkpoint?.approvedLargeScope === true && canonicalJson(options.checkpoint.goal.checks) === canonicalJson(goal.checks));
 
       // The scope guard (coherence.md §6.2) is satisfied here, once. The scan the run ends with reads a scope too, so it counts.
       const plan = scanPlan(checks, options.checks?.enabled);
       const large = largeScopes(plan === undefined ? checks : [...checks, { kind: 'coherence.clean', scope: plan.scope }], state, options.withheld());
-      if (large.length > 0 && options.approvedLargeScope !== true) {
+      if (large.length > 0 && !approvedLargeScope) {
         return refuse(`a coherence scope of this goal reads ${large[0]?.documents} documents, over the guard that asks first; approve the scope when setting the goal, or narrow it`);
       }
       // A words, status or synopsis check over a scope that holds nothing would pass without measuring anything: the writer probably aimed
@@ -413,12 +416,16 @@ export function createGoalRunner(): GoalRunner {
       }
       let nextIteration = options.checkpoint?.nextIteration ?? 1;
       let completed: IterationRecord | undefined;
+      const checkpoint = (outcome?: GoalCheckpoint['outcome']): GoalCheckpoint => structuredClone({
+        goal, approvedLargeScope, iterations, results, nextIteration, spend: meter.spend(),
+        progress: { best, sinceBest, passed: [...passedBefore] }, ...(outcome === undefined ? {} : { outcome }),
+      });
       const commitIteration = async (outcome?: GoalCheckpoint['outcome']): Promise<string | undefined> => {
         const record = completed;
         completed = undefined;
         if (record === undefined || options.saveIteration === undefined) return undefined;
         try {
-          await options.saveIteration(structuredClone({ goal, iterations, results, nextIteration, spend: meter.spend(), progress: { best, sinceBest, passed: [...passedBefore] }, ...(outcome === undefined ? {} : { outcome }) }), record);
+          await options.saveIteration(checkpoint(outcome), record);
           return undefined;
         } catch (error) {
           return `the completed goal checkpoint could not be saved after iteration ${record.n}: ${error instanceof Error ? error.message : 'storage refused'}`;
@@ -465,7 +472,16 @@ export function createGoalRunner(): GoalRunner {
         }
         // The status stays what the checks say; the notes ride along in the one sentence the host shows the writer.
         const said = [reason, ...notes].join('; ');
-        const failed = await commitIteration({ status, reason: said, ...extra });
+        const outcome = { status, reason: said, ...extra };
+        const savesIteration = completed !== undefined && options.saveIteration !== undefined;
+        let failed = await commitIteration(outcome);
+        if (!savesIteration && options.saveCheckpoint !== undefined) {
+          try {
+            await options.saveCheckpoint(checkpoint(outcome));
+          } catch (error) {
+            failed = `the final goal checkpoint could not be saved: ${error instanceof Error ? error.message : 'storage refused'}`;
+          }
+        }
         return { goal, status: failed === undefined ? status : 'failed', reason: failed ?? said, iterations, results, notes, ...extra, ...(scanRunId === undefined ? {} : { scanRunId }) };
       };
 
@@ -482,7 +498,7 @@ export function createGoalRunner(): GoalRunner {
         if (n > maxIterations) return finish('max-iterations', `the run made its ${plural(maxIterations, 'iteration')} without every check passing (${sum(results)} left)`);
         if (options.saveCheckpoint !== undefined) {
           try {
-            await options.saveCheckpoint(structuredClone({ goal, iterations, results, nextIteration: n, spend: meter.spend(), progress: { best, sinceBest, passed: [...passedBefore] } }));
+            await options.saveCheckpoint(checkpoint());
           } catch (error) {
             return { goal, status: 'failed', reason: `the goal checkpoint could not be saved before iteration ${n}: ${error instanceof Error ? error.message : 'storage refused'}`, iterations, results, notes };
           }
