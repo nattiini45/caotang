@@ -134,6 +134,20 @@ const PUBLISH_TAGS_MAX = 64;
 /** The RFC 3339 shape §2 pins `publishedAt` to — a full instant, not a date. `t`/`z` may be lowercase. */
 const RFC3339 = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?([Zz]|[+-](\d{2}):(\d{2}))$/;
 const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+/**
+ * The IERS leap seconds through the latest Bulletin C — each the `23:59:60` ending a UTC day. RFC 3339
+ * allows `60` in the second field for one of these instants and for nothing else; every other `:60` is
+ * an instant that never was.
+ */
+const LEAP_SECOND_MS = new Set(
+  [
+    [1972, 6, 30], [1972, 12, 31], [1973, 12, 31], [1974, 12, 31], [1975, 12, 31], [1976, 12, 31],
+    [1977, 12, 31], [1978, 12, 31], [1979, 12, 31], [1981, 6, 30], [1982, 6, 30], [1983, 6, 30],
+    [1985, 6, 30], [1987, 12, 31], [1989, 12, 31], [1990, 12, 31], [1992, 6, 30], [1993, 6, 30],
+    [1994, 6, 30], [1995, 12, 31], [1997, 6, 30], [1998, 12, 31], [2005, 12, 31], [2008, 12, 31],
+    [2012, 6, 30], [2015, 6, 30], [2016, 12, 31],
+  ].map(([y, m, d]) => Date.UTC(y!, m! - 1, d!, 23, 59, 60)),
+);
 
 /**
  * A `publishedAt` the command will write and re-apply: the RFC 3339 shape **and** a real instant.
@@ -152,11 +166,19 @@ export function isPublishInstant(value: string): boolean {
   const hour = Number(m[4]);
   const minute = Number(m[5]);
   const second = Number(m[6]);
-  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return false;
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 60) return false;
   if (!/^[Zz]$/.test(m[7] ?? '') && (Number(m[8]) > 23 || Number(m[9]) > 59)) return false;
   const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
   const days = (DAYS_IN_MONTH[month - 1] ?? 0) + (month === 2 && leap ? 1 : 0);
-  return day >= 1 && day <= days;
+  if (day < 1 || day > days) return false;
+  // A leap second is real only at the IERS instant it names, shifted by its own numeric offset.
+  if (second === 60) {
+    const offsetMs = /^[+-]/.test(m[7] ?? '')
+      ? (Number(m[8]) * 60 + Number(m[9])) * 60_000 * (m[7]?.startsWith('-') ? -1 : 1)
+      : 0;
+    return LEAP_SECOND_MS.has(Date.UTC(year, month - 1, day, hour, minute, 0) + 60_000 - offsetMs);
+  }
+  return true;
 }
 
 /**
@@ -186,13 +208,15 @@ export function publishFieldValueOk(field: (typeof PUBLISH_FIELD_NAMES)[number],
         value.every((tag) => typeof tag === 'string' && tag.trim().length > 0)
       );
     case 'slug':
-      return typeof value === 'string' && value.length <= PUBLISH_TEXT_MAX && value.trim().length > 0;
+      return typeof value === 'string' && [...value].length <= PUBLISH_TEXT_MAX && value.trim().length > 0;
     case 'publishedAt':
-      return typeof value === 'string' && value.length <= PUBLISH_TEXT_MAX && isPublishInstant(value);
+      return typeof value === 'string' && [...value].length <= PUBLISH_TEXT_MAX && isPublishInstant(value);
     case 'canonical':
-      return typeof value === 'string' && value.length <= PUBLISH_TEXT_MAX && isPublishCanonical(value);
+      return typeof value === 'string' && [...value].length <= PUBLISH_TEXT_MAX && isPublishCanonical(value);
     default:
-      return typeof value === 'string' && value.length <= PUBLISH_TEXT_MAX;
+      // `requireString` counts code points, not UTF-16 units — a value the command accepts (1001 emoji)
+      // must survive the load too, so the check counts the same way.
+      return typeof value === 'string' && [...value].length <= PUBLISH_TEXT_MAX;
   }
 }
 

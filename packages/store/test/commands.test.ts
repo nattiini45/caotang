@@ -1683,6 +1683,11 @@ describe('binder.setPublish — a document’s publish metadata (web-publishing.
     // A leap day is a real instant — the range check refuses only what no calendar holds.
     h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { publishedAt: '2028-02-29T12:00:00Z' } } }));
     expect(node(h.state, LANDING).publish).toEqual({ publishedAt: '2028-02-29T12:00:00Z' });
+    // A real leap second, written in UTC and in its offset-shifted spelling, is a valid instant.
+    h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { publishedAt: '2016-12-31T23:59:60Z' } } }));
+    expect(node(h.state, LANDING).publish).toEqual({ publishedAt: '2016-12-31T23:59:60Z' });
+    h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { publishedAt: '2017-01-01T01:59:60+02:00' } } }));
+    expect(node(h.state, LANDING).publish).toEqual({ publishedAt: '2017-01-01T01:59:60+02:00' });
 
     // `t`/`z` are RFC 3339's other accepted spellings — the value stores as written.
     h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { publishedAt: '2026-11-15t12:00:00z' } } }));
@@ -1733,6 +1738,9 @@ describe('binder.setPublish — a document’s publish metadata (web-publishing.
     expect(refused({ publishedAt: '2026-11-15T12:00:00+25:00' }).code).toBe('invalid-params');
     // A trailing line terminator slips past `$` — the match must cover the whole string.
     expect(refused({ publishedAt: '2026-11-15T12:00:00Z\n' }).code).toBe('invalid-params');
+    // `:60` is a leap second only at the IERS instants — an ordinary second past 59 is not a real instant.
+    expect(refused({ publishedAt: '2026-11-15T12:00:60Z' }).code).toBe('invalid-params');
+    expect(refused({ publishedAt: '2017-06-30T23:59:60Z' }).code).toBe('invalid-params');
     expect(refused({ bogus: 'x' }).code).toBe('invalid-params');
     expect(refused({}).code).toBe('invalid-params');
     const folder = refused({ slug: 'chapter-1' }, CHAPTER_ONE);

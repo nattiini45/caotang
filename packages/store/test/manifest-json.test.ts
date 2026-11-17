@@ -160,13 +160,15 @@ describe('manifest serializer', () => {
       canonical: 'http://example.com/posts/x',
       tags: 'serial',
       layout: 'post',
+      // 1 500 code points but 3 000 UTF-16 units — inside the command's limit, so the load keeps it.
+      description: '🙂'.repeat(1500),
       customField: 'kept',
     } as unknown as Record<string, unknown>;
 
     const r = validateManifest(m);
     expect(r.ok).toBe(true);
     const publish = r.manifest?.tree[1]!.publish as Record<string, unknown>;
-    expect(publish).toEqual({ layout: 'post', customField: 'kept' });
+    expect(publish).toEqual({ layout: 'post', description: '🙂'.repeat(1500), customField: 'kept' });
     for (const field of ['slug', 'publishedAt', 'canonical', 'tags']) {
       expect(r.warnings.some((w) => w.path.includes(`publish.${field}`))).toBe(true);
     }
