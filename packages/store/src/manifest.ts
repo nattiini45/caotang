@@ -100,6 +100,8 @@ export interface ExportRecipeOptions {
   htmlMode?: 'standalone' | 'fragment';
   /** The stylesheet the writer's site serves, emitted as the article's `<link rel="stylesheet">` (web-publishing.md §3). Only `html` reads it. */
   css?: string;
+  /** The site's absolute https address: RSS's channel link and Atom's feed id (web-publishing.md §3). A feed compile refuses without it. Only `rss` and `atom` read it. */
+  siteUrl?: string;
 }
 
 /**

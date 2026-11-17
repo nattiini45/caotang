@@ -535,7 +535,9 @@
           "teleprompter",
           "vtt",
           "chapters-json",
-          "html"
+          "html",
+          "rss",
+          "atom"
         ],
         "description": "The output format."
       },

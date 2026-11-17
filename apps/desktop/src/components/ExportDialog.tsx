@@ -80,6 +80,8 @@ function formatGroups(comicSelected: boolean): readonly { readonly name: string;
       { format: 'docx', label: t`Word (.docx)`, help: t`Styled headings, and a contents field Word can update.` },
       { format: 'epub', label: t`EPUB (.epub)`, help: t`A reading-system book, one file per chapter.` },
       { format: 'html', label: t`Web article (.html)`, help: t`One HTML file per document: the article with its publish date, canonical link and description from the Publishing inspector section.` },
+      { format: 'rss', label: t`RSS feed (.rss.xml)`, help: t`One feed file for the selection: an item per published document. Needs the recipe's Site address (https).` },
+      { format: 'atom', label: t`Atom feed (.atom.xml)`, help: t`One feed file for the selection: an entry per published document, with the article as its content. Needs the recipe's Site address (https).` },
     ],
   },
   {
@@ -220,6 +222,8 @@ interface ShownOptions {
   readonly frontMatter: boolean | undefined;
   readonly htmlMode: HtmlModeOption | undefined;
   readonly css: string | undefined;
+  /** The feeds' site address (web-publishing.md §3): an rss/atom compile refuses without it. */
+  readonly siteUrl: string | undefined;
   /** How the prose formats treat the pictures in the bodies: the mode, keeping their metadata, and the EPUB's WebP (pictures.md §4). */
   readonly pictures: ShownPictureOptions;
   /**
@@ -348,6 +352,7 @@ function shownOptionsOf(recipe: ExportRecipe | undefined): ShownOptions {
     frontMatter: recipe?.options?.frontMatter,
     htmlMode: recipe?.options?.htmlMode,
     css: recipe?.options?.css,
+    siteUrl: recipe?.options?.siteUrl,
     colourEmoji: recipe?.options?.colourEmoji,
     sceneNumbers: recipe?.options?.sceneNumbers ?? 'off',
     continued: recipe?.options?.continued ?? true,
@@ -489,6 +494,7 @@ export function ExportDialog({
         ...(next.frontMatter === undefined ? {} : { frontMatter: next.frontMatter }),
         ...(next.htmlMode === undefined ? {} : { htmlMode: next.htmlMode }),
         ...(next.css === undefined ? {} : { css: next.css }),
+        ...(next.siteUrl === undefined || next.siteUrl === '' ? {} : { siteUrl: next.siteUrl }),
         ...pictureOptionsOf(next.pictures),
         ...(next.colourEmoji === undefined ? {} : { colourEmoji: next.colourEmoji }),
         ...(next.notes === 'footnote' ? {} : { notes: next.notes }),
@@ -532,6 +538,7 @@ export function ExportDialog({
         ...(shown.frontMatter === undefined ? {} : { frontMatter: shown.frontMatter }),
         ...(shown.htmlMode === undefined ? {} : { htmlMode: shown.htmlMode }),
         ...(shown.css === undefined ? {} : { css: shown.css }),
+        ...(shown.siteUrl === undefined || shown.siteUrl === '' ? {} : { siteUrl: shown.siteUrl }),
         ...pictureOptionsOf(shown.pictures),
         ...(shown.colourEmoji === undefined ? {} : { colourEmoji: shown.colourEmoji }),
         ...(shown.notes === 'footnote' ? {} : { notes: shown.notes }),
@@ -836,6 +843,19 @@ export function ExportDialog({
                 onInvalid={(text) => setNotice({ text, tone: 'error' })}
               />
             ) : null}
+            {format === 'rss' || format === 'atom' ? (
+              <>
+                <SiteUrlField
+                  key={`siteurl:${recipe?.name ?? ''}`}
+                  value={shown.siteUrl}
+                  onSave={(siteUrl) => saveOptions({ ...shown, siteUrl })}
+                  onInvalid={(text) => setNotice({ text, tone: 'error' })}
+                />
+                <p className="export-option-help">
+                  <Trans>The feed&apos;s address — where the site serves it. A compile refuses without it.</Trans>
+                </p>
+              </>
+            ) : null}
             {format === 'pdf' ? (
               <>
                 <label className="export-field">
@@ -1078,6 +1098,52 @@ function TeleprompterWidthField({
             return;
           }
           if (width !== value) onSave(width);
+        }}
+      />
+    </label>
+  );
+}
+
+/** The feed formats' `siteUrl` (web-publishing.md §3): the site's absolute https address, cleared by emptying the field. */
+function SiteUrlField({
+  value,
+  onSave,
+  onInvalid,
+}: {
+  value: string | undefined;
+  onSave: (siteUrl: string | undefined) => void;
+  onInvalid: (text: string) => void;
+}): ReactNode {
+  useLingui();
+  const saved = value ?? '';
+  const [draft, setDraft] = useState(saved);
+  return (
+    <label className="export-field">
+      <span className="export-option-label"><Trans>Site address</Trans></span>
+      <input
+        type="url"
+        value={draft}
+        placeholder="https://example.com"
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => {
+          const text = draft.trim();
+          if (text === '') {
+            if (value !== undefined) onSave(undefined);
+            return;
+          }
+          let ok = false;
+          try {
+            const url = new URL(text);
+            ok = url.protocol === 'https:' && url.hostname !== '';
+          } catch {
+            ok = false;
+          }
+          if (!ok) {
+            onInvalid('The site address is the feed’s link: an absolute https address, like https://example.com.');
+            setDraft(saved);
+            return;
+          }
+          if (text !== value) onSave(text);
         }}
       />
     </label>
