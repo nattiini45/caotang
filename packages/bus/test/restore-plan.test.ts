@@ -332,7 +332,7 @@ describe('the footprint table', () => {
 
   it('gives a footprint to exactly these commands: body writes, node fields, rename and move', () => {
     const footprinted = COMMAND_NAMES.filter((name) => FOOTPRINT_CLASS[name] === 'content' || FOOTPRINT_CLASS[name] === 'move');
-    expect(footprinted).toEqual(['binder.move', 'binder.rename', 'binder.setMeta', 'binder.setSynopsis', 'notes.set', 'notes.append', 'doc.write', 'editor.insert', 'editor.replaceRange']);
+    expect(footprinted).toEqual(['binder.move', 'binder.rename', 'binder.setMeta', 'binder.setSynopsis', 'binder.setPublish', 'notes.set', 'notes.append', 'doc.write', 'editor.insert', 'editor.replaceRange']);
   });
 
   it('classifies a command as none only when it is a view command, and never a project mutation as none', () => {

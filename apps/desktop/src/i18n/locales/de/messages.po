@@ -2370,6 +2370,11 @@ msgstr "≈ {pace}/Tag, um diese Woche abzuschließen"
 msgid "1 item"
 msgstr "1 Element"
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "2026-11-15T12:00:00Z"
+msgstr "2026-11-15T12:00:00Z"
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "a “Chapter” line"
@@ -2525,6 +2530,11 @@ msgstr "Ein Comic mit seiner ersten Seite"
 msgid "A comic page belongs to a comic book. Move it into one, or choose another item."
 msgstr "Eine Comic-Seite gehört zu einem Comicbuch. Verschieben Sie sie in eines oder wählen Sie einen anderen Eintrag."
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "A comma-separated list"
+msgstr "Eine durch Kommas getrennte Liste"
+
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "A comment is text that a formatted view would hide. It is shown below as written."
@@ -2613,6 +2623,11 @@ msgstr "ein Dokument, das nicht mehr im Projekt ist"
 #: apps/desktop/src/media/coverage-model.ts
 msgid "A document that is no longer in the project"
 msgstr "Ein Dokument, das nicht mehr im Projekt ist"
+
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "A document with no publish date is a draft: it compiles into a preview but stays out of a feed."
+msgstr "Ein Dokument ohne Veröffentlichungsdatum ist ein Entwurf: Es wird in eine Vorschau kompiliert, bleibt aber aus einem Feed heraus."
 
 #. Interpolated values: what, who
 #: apps/desktop/src/app/knowledge-model.ts
@@ -2986,6 +3001,11 @@ msgstr "Eine Tabelle wurde zu Absätzen."
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "A tag may be at most {max} characters."
 msgstr "Ein Tag darf höchstens {max} Zeichen haben."
+
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "A template name, passed through"
+msgstr "Ein Vorlagenname, unverändert übernommen"
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
@@ -4934,6 +4954,11 @@ msgstr "Wird abgebrochen…"
 #: apps/desktop/src/components/InterruptedRuns.tsx
 msgid "Cannot resume: "
 msgstr "Fortsetzen nicht möglich: "
+
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "Canonical address"
+msgstr "Kanonische Adresse"
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
@@ -6898,10 +6923,12 @@ msgid "Describe what the changed passages should satisfy. Use at most 4,000 char
 msgstr "Beschreibe, welche Anforderungen die geänderten Passagen erfüllen sollen. Verwende höchstens 4.000 Zeichen."
 
 #. Interpolated values: parent, title, amount
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/CodexPanel.tsx
+#: apps/desktop/src/components/InspectorSections.tsx
 msgid "Description"
 msgstr "Beschreibung"
 
@@ -9036,6 +9063,11 @@ msgstr "Hooks"
 msgid "Hooks check this project at selected events. They can warn or stop an action, but never approve it, change your text or call a provider."
 msgstr "Hooks prüfen dieses Projekt bei ausgewählten Ereignissen. Sie können warnen oder eine Aktion stoppen, aber niemals eine Aktion genehmigen, deinen Text ändern oder einen Anbieter aufrufen."
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "https://example.com/post"
+msgstr "https://example.com/post"
+
 #: apps/desktop/src/components/GoalComposer.tsx
 msgid "I approve reading this large scope for these checks"
 msgstr "Ich stimme dem Lesen dieses großen Bereichs für diese Prüfungen zu"
@@ -10015,7 +10047,9 @@ msgstr "Später im Panel"
 msgid "Layers"
 msgstr "Ebenen"
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Layout"
 msgstr "Layout"
@@ -13912,6 +13946,22 @@ msgstr "Provider: {provider}"
 msgid "Providers"
 msgstr "Provider"
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "Publish date"
+msgstr "Veröffentlichungsdatum"
+
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
+#: apps/desktop/src/app/activity-model.ts
+msgid "Publish fields changed"
+msgstr "Veröffentlichungsfelder geändert"
+
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "Publishing"
+msgstr "Veröffentlichung"
+
 #. Interpolated values: done, intent, outdated, staged, total
 #: apps/desktop/src/app/task-model.ts
 msgid "Publishing the review…"
@@ -16942,6 +16992,11 @@ msgstr "Übersprungen"
 msgid "Skipped {skippedText} empty {skippedCount, plural, one {document} other {documents}}."
 msgstr "{skippedText} {skippedCount, plural, one {leeres Dokument} other {leere Dokumente}} übersprungen."
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "Slug"
+msgstr "Slug"
+
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "Small cards, number and picture only"
@@ -17585,6 +17640,8 @@ msgstr "Tag"
 msgid "Tag selected"
 msgstr "Tag ausgewählt"
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Tags"
 msgstr "Tags"
@@ -18024,6 +18081,11 @@ msgstr "Der 1. (die Standardeinstellung)"
 #: apps/desktop/src/components/McpSection.tsx
 msgid "The action did not finish: {reason}"
 msgstr "Die Aktion wurde nicht abgeschlossen: {reason}"
+
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "The address segment"
+msgstr "Das Adresssegment"
 
 #. Modern interface: the agent's companion window.
 #. Modern interface: the stage and the page.
@@ -19904,6 +19966,11 @@ msgstr "Die gesprochenen Zeilen mit dem Anzeigenamen des Sprechers, Segment für
 #: apps/desktop/src/components/editor-labels.ts
 msgid "The stream stopped before it finished ({reason}). The text above is partial; Retry or Discard."
 msgstr "Der Stream wurde vor dem Ende abgebrochen ({reason}). Der Text oben ist unvollständig; „Erneut versuchen“ oder „Verwerfen“."
+
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "The summary a feed item shows"
+msgstr "Die Zusammenfassung, die ein Feed-Eintrag anzeigt"
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
