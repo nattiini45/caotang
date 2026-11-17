@@ -32,6 +32,7 @@ export const COMMAND_TITLES: Readonly<Record<CommandName, MessageDescriptor>> = 
   'binder.rename': msg`Renamed`,
   'binder.setMeta': msg`Status, label or keywords changed`,
   'binder.setSynopsis': msg`Synopsis changed`,
+  'binder.setPublish': msg`Publish fields changed`,
   'notes.set': msg`Notes changed`,
   'notes.append': msg`Notes added to`,
   'doc.write': msg`Text saved`,

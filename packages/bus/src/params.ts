@@ -73,6 +73,7 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'binder.rename': ['nodeId', 'title'],
   'binder.setMeta': ['nodeId', 'patch'],
   'binder.setSynopsis': ['nodeId', 'synopsis'],
+  'binder.setPublish': ['nodeId', 'patch'],
   'notes.set': ['nodeId', 'notes'],
   'notes.append': ['nodeId', 'text', 'divider'],
   'doc.write': ['docId', 'body', 'expectedRevision'],

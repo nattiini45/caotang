@@ -164,6 +164,12 @@ export interface TreeNode {
   showMeta?: Record<string, unknown>;
   /** An episode document's settings (av-script.md §2): the enclosure, episode and season numbers, and two feed URLs. */
   episodeMeta?: Record<string, unknown>;
+  /**
+   * A document's publish metadata (web-publishing.md §2): slug, `publishedAt`, tags, `canonical`, `description` and
+   * `layout`, tolerant of unknown keys. A document with no `publishedAt` is a draft; there is no separate flag. The
+   * store carries it as an object and does not read its fields: the web-publishing exports do.
+   */
+  publish?: Record<string, unknown>;
 }
 
 export interface VocabularyTerm {
