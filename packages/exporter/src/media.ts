@@ -1186,6 +1186,9 @@ function vttOutput(request: MediaRequest): MediaOutput {
   let wordCount = 0;
   for (const ep of episodes) {
     const cues: string[] = [];
+    // Cues must not overlap: a start rounded down to the millisecond can land inside the previous cue's
+    // rounded-up end — two consecutive sub-millisecond lines would otherwise share a timestamp.
+    let prevEndMs = 0;
     for (const segment of ep.parsed.segments) {
       let at = segment.startSec ?? 0;
       for (const line of segment.lines) {
@@ -1196,8 +1199,9 @@ function vttOutput(request: MediaRequest): MediaOutput {
         }
         // Quantized to milliseconds here, not inside vttTime: a positive duration shorter than 1 ms would give
         // a cue whose end is not after its start, which a player drops — so the interval is at least 1 ms.
-        const startMs = Math.max(0, Math.round(at * 1000));
+        const startMs = Math.max(prevEndMs, Math.round(at * 1000));
         const endMs = Math.max(startMs + 1, Math.round((at + line.durationSec) * 1000));
+        prevEndMs = endMs;
         cues.push(`${vttTime(startMs)} --> ${vttTime(endMs)}\n<v ${vttEscape(speakerName(request, line))}>${vttEscape(line.text)}</v>`);
         cueCount += 1;
         wordCount += line.words;

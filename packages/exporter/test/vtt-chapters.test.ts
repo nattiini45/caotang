@@ -132,6 +132,17 @@ describe('the WebVTT captions', () => {
     expect(text).toContain('00:00:00.000 --> 00:00:00.001\n<v HOST_A>Tiny.</v>');
   });
 
+  it('never overlaps two consecutive sub-millisecond cues on one timestamp', async () => {
+    const state = makeShowProject({
+      episode: '## A\nHOST_A: One. [0.0004s] <!-- lineId: sl_1000000012 -->\nHOST_A: Two. [0.0004s] <!-- lineId: sl_1000000013 -->\n',
+    });
+    const result = await rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'vtt');
+    const text = await result.files[0]!.blob.text();
+    // Both starts would round to 0 ms; the second cue moves to the millisecond after the first's end.
+    expect(text).toContain('00:00:00.000 --> 00:00:00.001\n<v HOST_A>One.</v>');
+    expect(text).toContain('00:00:00.001 --> 00:00:00.002\n<v HOST_A>Two.</v>');
+  });
+
   it('refuses a selection with no episode, and an episode whose lines all lack a duration', async () => {
     const state = createProjectState(createEmptyManifest(PROJECT_NAME, OPENED, { locale: 'en-US' }));
     await expect(rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'vtt')).rejects.toBeInstanceOf(MediaRefusedError);
