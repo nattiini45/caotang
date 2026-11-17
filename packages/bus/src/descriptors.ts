@@ -187,11 +187,23 @@ export function isPublishInstant(value: string): boolean {
 }
 
 /**
- * A `slug` the command will write: one address segment (web-publishing.md §2), so no `/` or `\` —
- * a slug with a path separator names an address the export's file name disagrees with.
+ * A `slug` the command will write: one address segment (web-publishing.md §2) the export also names
+ * its file for, so it must be a file name unchanged — no path separator, no character a file name
+ * forbids, no leading or trailing space, no trailing dot, no run of spaces, at most 120 characters,
+ * and no Windows device name before a first dot (`CON.txt` writes `_CON.txt`). Keep in step with
+ * `fileStem` in the exporter: a slug it would rewrite makes the file name disagree with the
+ * front-matter permalink.
  */
+const PUBLISH_SLUG_FORBIDDEN = '<>:"/\\|?*';
+const PUBLISH_SLUG_DEVICE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 export function isPublishSlug(value: string): boolean {
-  return value.trim().length > 0 && !value.includes('/') && !value.includes('\\');
+  if (value.length === 0 || value.length > 120) return false;
+  if (value !== value.trim() || value.endsWith('.') || value.includes('  ')) return false;
+  for (const ch of value) {
+    if (ch.charCodeAt(0) < 32 || PUBLISH_SLUG_FORBIDDEN.includes(ch)) return false;
+    if (ch !== ' ' && /\s/.test(ch)) return false;
+  }
+  return !PUBLISH_SLUG_DEVICE.test(value.split('.')[0] ?? value);
 }
 
 /**
@@ -855,7 +867,7 @@ export const binderSetPublish: CommandDescriptor<BinderSetPublishParams> = {
     }
     if (typeof typed.slug === 'string' && !isPublishSlug(typed.slug)) {
       return invalid(
-        `"${typed.slug}" is not a slug: a slug is one address segment, so it cannot be empty or hold a "/" or "\\"`,
+        `"${typed.slug}" is not a slug: a slug is one address segment a file is named for, so it cannot be empty, hold a character a file name forbids (\`< > : " / \\ | ? *\` or a control character), start or end with a space, end with a dot, run of spaces, pass 120 characters, or start as a device name like "CON"`,
         'type a slug like "first-post", or null to clear it',
         'patch.slug',
       );

@@ -91,6 +91,28 @@ describe('the html format', () => {
     expect(fs.snapshot()['exports/POST-2.html']).toBeDefined();
   });
 
+  it('refuses two documents that share a slug when front matter is on — both would publish the one permalink', async () => {
+    const { state, exporter, fs } = rig();
+    await exporter.ready();
+    const landing = state.manifest.tree.find((node) => node.id === IDS.landing);
+    const storm = state.manifest.tree.find((node) => node.title === 'The Storm');
+    if (landing === undefined || storm === undefined) throw new Error('fixture lacks the nodes');
+    landing.publish = { slug: 'post' };
+    storm.publish = { slug: 'post' };
+    state.manifest.recipes = [
+      { name: 'Site posts', includeRootIds: ['manuscript'], format: 'html', options: { frontMatter: true } },
+    ];
+    expect(() =>
+      exporter.commandPort().compile(state, {
+        selection: { kind: 'manuscript' },
+        format: 'html',
+        recipeName: 'Site posts',
+        at: COMPILED_AT,
+      }),
+    ).toThrow('share the slug "post"');
+    expect(fs.snapshot()).toEqual({});
+  });
+
   it('refuses a selection with no document with a body, before anything is reserved', async () => {
     const { state, exporter, fs } = rig();
     await exporter.ready();

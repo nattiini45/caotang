@@ -142,7 +142,7 @@ function isIsoDate(v: unknown): v is string {
 function publishFieldExpectation(field: (typeof PUBLISH_FIELD_NAMES)[number]): string {
   switch (field) {
     case 'slug':
-      return 'a non-empty slug of one address segment';
+      return 'a non-empty slug of one address segment a file can be named for';
     case 'publishedAt':
       return 'an RFC 3339 instant';
     case 'canonical':

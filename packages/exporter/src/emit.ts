@@ -140,6 +140,9 @@ export interface EmitterOptions {
 
 export function createEmitter(options: EmitterOptions): Emitter {
   const { artifacts, bytes } = options;
+  // Reservation keys are lowercased: on a case-insensitive folder (a synced drive, Windows, macOS)
+  // `Post.html` and `post.html` are the same file, so a name is taken however it is cased.
+  const key = (path: string): string => path.toLowerCase();
   const reserved = new Set<string>();
   const failed: EmitFailure[] = [];
   const jobs = new Map<string, { current: ExportJob; settled: Promise<ExportJob> }>();
@@ -154,9 +157,9 @@ export function createEmitter(options: EmitterOptions): Emitter {
     primed = true;
 
     async function reserveDir(dir: string): Promise<void> {
-      for (const name of await artifacts.listFiles(dir)) reserved.add(`${dir}/${name}`);
+      for (const name of await artifacts.listFiles(dir)) reserved.add(key(`${dir}/${name}`));
       if (bytes?.listFiles !== undefined) {
-        for (const name of await bytes.listFiles(dir)) reserved.add(`${dir}/${name}`);
+        for (const name of await bytes.listFiles(dir)) reserved.add(key(`${dir}/${name}`));
       }
     }
   })();
@@ -241,7 +244,7 @@ export function createEmitter(options: EmitterOptions): Emitter {
 
   function restoreAll(paths: readonly string[]): void {
     for (const path of paths) {
-      reserved.delete(path);
+      reserved.delete(key(path));
       queue(path, () => removeArtifact(path));
     }
   }
@@ -252,22 +255,22 @@ export function createEmitter(options: EmitterOptions): Emitter {
     reserve(base, ext) {
       if (!primed) throw new ExportNotReadyError();
       let candidate = `${EXPORTS_DIR}/${base}.${ext}`;
-      for (let n = 2; reserved.has(candidate); n += 1) {
+      for (let n = 2; reserved.has(key(candidate)); n += 1) {
         candidate = `${EXPORTS_DIR}/${base}-${n}.${ext}`;
       }
-      reserved.add(candidate);
+      reserved.add(key(candidate));
       return candidate;
     },
 
     reserveGroup(files) {
       if (!primed) throw new ExportNotReadyError();
-      if (new Set(files.map((file) => file.name)).size !== files.length) {
+      if (new Set(files.map((file) => file.name.toLowerCase())).size !== files.length) {
         throw new Error('a compile named two of its files the same, so the set cannot be reserved without an overwrite');
       }
       for (let n = 1; ; n += 1) {
         const placed = files.map((file) => ({ file, path: `${EXPORTS_DIR}/${n === 1 ? file.name : suffixName(file.name, n)}` }));
-        if (placed.every(({ path }) => !reserved.has(path))) {
-          for (const { path } of placed) reserved.add(path);
+        if (placed.every(({ path }) => !reserved.has(key(path)))) {
+          for (const { path } of placed) reserved.add(key(path));
           return placed.map(({ file, path }) => ({ ...file, path }));
         }
       }

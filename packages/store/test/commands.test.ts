@@ -1742,6 +1742,15 @@ describe('binder.setPublish — a document’s publish metadata (web-publishing.
     expect(refused({ slug: 'news/post' }).code).toBe('invalid-params');
     expect(refused({ slug: 'a\\b' }).code).toBe('invalid-params');
     expect(refused({ slug: '' }).code).toBe('invalid-params');
+    // It also names the file: anything `fileStem` would rewrite would split the name from the permalink.
+    expect(refused({ slug: 'a<b' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'post ' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'a  b' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'post.' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'a\tb' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'x'.repeat(121) }).code).toBe('invalid-params');
+    expect(refused({ slug: 'CON' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'com1.log' }).code).toBe('invalid-params');
     // A trailing line terminator slips past `$` — the match must cover the whole string.
     expect(refused({ publishedAt: '2026-11-15T12:00:00Z\n' }).code).toBe('invalid-params');
     // `:60` is a leap second only at the IERS instants — an ordinary second past 59 is not a real instant.

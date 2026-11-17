@@ -897,10 +897,24 @@ function htmlPlanOf(
 ): HtmlPlan {
   const taken = new Set<string>();
   const articles: HtmlArticlePlan[] = [];
+  const frontMatter = options.frontMatter ?? false;
+  const slugs = new Map<string, string>();
   for (const block of blocks) {
     if (block.kind !== 'scene') continue;
     const publish = state.manifest.tree.find((node) => node.id === block.docId)?.publish;
-    const stem = fileStem(typeof publish?.['slug'] === 'string' && publish['slug'] !== '' ? publish['slug'] : block.title);
+    const slug = typeof publish?.['slug'] === 'string' && publish['slug'] !== '' ? publish['slug'] : undefined;
+    // A front-matter slug is the route a static site serves the article under: two documents sharing
+    // it would get distinct files but one permalink, so the compile refuses rather than diverging.
+    if (frontMatter && slug !== undefined) {
+      const owner = slugs.get(slug.toLowerCase());
+      if (owner !== undefined) {
+        throw new MediaRefusedError('html', [
+          `"${owner}" and "${block.title}" share the slug "${slug}", so their front matter would publish the same permalink`,
+        ]);
+      }
+      slugs.set(slug.toLowerCase(), block.title);
+    }
+    const stem = fileStem(slug ?? block.title);
     let name = stem;
     // Compared without case: two stems that differ only in case share a file on a synced folder.
     for (let n = 2; taken.has(name.toLowerCase()); n += 1) name = `${stem}-${n}`;
@@ -915,7 +929,7 @@ function htmlPlanOf(
   }
   return {
     standalone: options.htmlMode !== 'fragment',
-    frontMatter: options.frontMatter ?? false,
+    frontMatter,
     ...(options.css === undefined || options.css === '' ? {} : { css: options.css }),
     lang: language ?? 'en',
     articles,
