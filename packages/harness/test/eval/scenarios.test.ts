@@ -42,9 +42,10 @@ const scenarios: Scenario[] = [
       ],
       // The planner lists the core rows on each call and loads the deferred ones on demand (agent-harness §3), so the ceiling
       // tracks the core band: 13 rows and tool.search, with export.compile's recipeName parameter and codex.write's
-      // `visualRefs`, and the outside-text rule that system prompt v2 adds. Measured at 4903, so the ceiling is 4950 (it
-      // was 8000 when every wired tool was listed).
-      maxTokens: 4950,
+      // `visualRefs`, and the outside-text rule that system prompt v2 adds. Measured at 4903, so the ceiling was 4950 (it
+      // was 8000 when every wired tool was listed). Merge: the AV script's captions and chapters formats joined export.compile's
+      // enum, measured at 4954, so the ceiling is 5000.
+      maxTokens: 5000,
       state: (state) => (state.manifest.tree.find((node) => node.id === FRIEND)?.label === 'act-2' ? [] : ['The Friend is not labelled act-2']),
     },
   },
