@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './test.js';
 
 import { createProject, waitForSaved } from './support.js';
 
@@ -182,7 +183,7 @@ test('recovery explains unrecorded usage and treats its limits as spent without 
 
 for (const shell of ['classic', 'modern'] as const) {
   for (const theme of ['light', 'dark'] as const) {
-    test(`without Web Locks recovery stays disabled but the project and Discard remain usable (${shell}, ${theme})`, async ({ page }, testInfo) => {
+    test(`without Web Locks recovery stays disabled but the project and Discard remain usable (${shell}, ${theme})`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }, testInfo) => {
       await page.addInitScript(({ shell, theme }) => {
         localStorage.setItem('caotang.interface', shell);
         localStorage.setItem('caotang.theme', theme);

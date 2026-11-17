@@ -1,10 +1,11 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from './test.js';
 import { showAutosaveConflict } from './autosave-conflict-support.js';
 
 for (const shell of ['classic', 'modern'] as const) {
   for (const locale of ['en', 'de'] as const) {
     for (const failure of ['read', 'flush'] as const) {
-      test(`${shell}: a later producer ${failure} failure keeps both conflict instructions in ${locale}`, async ({ page }) => {
+      test(`${shell}: a later producer ${failure} failure keeps both conflict instructions in ${locale}`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
         await showAutosaveConflict(page, shell, locale);
         const footer = page.getByTestId('document-save-state');
         const recovery = await footer.textContent();
@@ -25,7 +26,7 @@ for (const shell of ['classic', 'modern'] as const) {
       });
     }
 
-    test(`${shell}: the document save line distinguishes a conflict in ${locale}`, async ({ page }) => {
+    test(`${shell}: the document save line distinguishes a conflict in ${locale}`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 900 });
       await showAutosaveConflict(page, shell, locale);
       const editor = page.getByRole('textbox', { name: locale === 'de' ? 'Dokumenttext' : 'Document text' });

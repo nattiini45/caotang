@@ -134,12 +134,14 @@ describe('the required pull-request CI gate', () => {
     expect(read('playwright.config.ts')).toContain("const visual = process.env['CAOTANG_VISUAL'] === '1';");
   });
 
-  it('splits Firefox into three shards without changing WebKit coverage or hiding interrupted progress', () => {
+  it('splits both browsers into three shards without dropping coverage or hiding interrupted progress', () => {
     const e2e = jobBlock(browsers, 'e2e');
+    expect(e2e).toContain('browser: [firefox, webkit]');
     expect(e2e).toContain('shard: [1, 2, 3, modern]');
-    expect(e2e).toContain('exclude:\n          - browser: webkit\n            shard: 3');
-    expect(e2e).toContain("format('{0}/{1}', matrix.shard, matrix.browser == 'firefox' && 3 || 2)");
-    expect(e2e).toContain("--shard=${{ matrix.shard }}/${{ matrix.browser == 'firefox' && 3 || 2 }}");
+    expect(e2e).not.toContain('exclude:');
+    expect(e2e).toContain("format('{0}/3', matrix.shard)");
+    expect(e2e).toContain('--project=${{ matrix.browser }} --shard=${{ matrix.shard }}/3');
+    expect(e2e).toContain('name: blob-report-${{ matrix.browser }}-${{ matrix.shard }}');
     expect(e2e.match(/--workers=2 --reporter=blob,list/g)).toHaveLength(2);
     expect(e2e).toContain('timeout-minutes: 40');
     expect(e2e).toContain('fail-fast: false');

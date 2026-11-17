@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './test.js';
 
 import { NO_PIN } from './classic-pin.js';
 import { waitForSaved } from './support.js';
@@ -24,7 +25,7 @@ async function create(page: Page, shell: string, name = 'The Harbour'): Promise<
 }
 
 for (const shell of ['classic', 'modern']) {
-  test(`${shell} Home reading and tab order match the phone layout without losing forms on resize`, async ({ page }) => {
+  test(`${shell} Home reading and tab order match the phone layout without losing forms on resize`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
     await create(page, shell);
     await page.reload();
     const projects = page.locator('[aria-labelledby="home-projects"]');
@@ -56,7 +57,7 @@ for (const shell of ['classic', 'modern']) {
     }
   });
 
-  test(`${shell} screenplay Source keeps its writing minimum with touch input`, async ({ browser, baseURL }, testInfo) => {
+  test(`${shell} screenplay Source keeps its writing minimum with touch input`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ browser, baseURL }, testInfo) => {
     const context = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 }, hasTouch: true, locale: 'en-US', storageState: NO_PIN });
     try {
       const page = await context.newPage();
@@ -95,7 +96,7 @@ for (const shell of ['classic', 'modern']) {
 
 for (const locale of ['en-US', 'de-DE']) {
   for (const shell of ['classic', 'modern']) {
-    test(`${shell} empty Write gives phone steps in ${locale} and retains the desktop shortcut`, async ({ browser, baseURL }) => {
+    test(`${shell} empty Write gives phone steps in ${locale} and retains the desktop shortcut`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ browser, baseURL }) => {
       const context = await browser.newContext({ baseURL, locale, viewport: { width: 390, height: 844 }, storageState: NO_PIN });
       try {
         const page = await context.newPage();
@@ -164,7 +165,7 @@ for (const locale of ['en-US', 'de-DE']) {
 }
 
 for (const view of ['board', 'timeline', 'codex', 'pictures']) {
-  test(`keyboard returns from narrow ${view} to Write`, async ({ page }) => {
+  test(`keyboard returns from narrow ${view} to Write`, { tag: '@modern' }, async ({ page }) => {
     await create(page, 'modern');
     const views = page.getByTestId('modern-narrow-views');
     await views.focus();
@@ -188,7 +189,7 @@ for (const view of ['board', 'timeline', 'codex', 'pictures']) {
   });
 }
 
-test('a refused first-run dismissal stays visible with a recoverable error', async ({ page }) => {
+test('a refused first-run dismissal stays visible with a recoverable error', { tag: '@modern' }, async ({ page }) => {
   await page.goto('/');
   await expect(page.getByTestId('first-run')).toBeVisible();
   await page.evaluate(() => {

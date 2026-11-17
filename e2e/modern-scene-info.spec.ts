@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './test.js';
 
 import { NO_PIN } from './classic-pin.js';
 import { binderRow, binderTitle, createProject, waitForSaved } from './support.js';
@@ -49,7 +50,7 @@ function sceneInfo(page: Page) {
   return page.getByRole('dialog', { name: 'Scene info' });
 }
 
-test('Edit synopsis opens Scene info on the synopsis, with the inspector’s ids, its sections and Progress', async ({ page }) => {
+test('Edit synopsis opens Scene info on the synopsis, with the inspector’s ids, its sections and Progress', { tag: '@modern' }, async ({ page }) => {
   await sceneInModern(page, 'Harbour Book');
   // Closed, the inspector is not in the page: Scene info holds it.
   await expect(page.locator('#inspector-synopsis')).toHaveCount(0);
@@ -88,7 +89,7 @@ test('Edit synopsis opens Scene info on the synopsis, with the inspector’s ids
   await expect(binderRow(page, 'The crossing').getByRole('button', { name: /^Status of The crossing: Final/ })).toBeVisible();
 });
 
-test('Escape in the synopsis commits it, closes Scene info and gives focus back', async ({ page }) => {
+test('Escape in the synopsis commits it, closes Scene info and gives focus back', { tag: '@modern' }, async ({ page }) => {
   await sceneInModern(page, 'Escape Book');
   await editSynopsis(page);
   const field = sceneInfo(page).locator('#inspector-synopsis');
@@ -112,7 +113,7 @@ test('Escape in the synopsis commits it, closes Scene info and gives focus back'
   expect(synopsis).toBe('Lin crosses at dawn.');
 });
 
-test('a click outside closes Scene info and leaves focus where the writer clicked; Close closes it too', async ({ page }) => {
+test('a click outside closes Scene info and leaves focus where the writer clicked; Close closes it too', { tag: '@modern' }, async ({ page }) => {
   await sceneInModern(page, 'Outside Book');
   await editSynopsis(page);
   await expect(sceneInfo(page)).toBeVisible();
@@ -126,7 +127,7 @@ test('a click outside closes Scene info and leaves focus where the writer clicke
   await expect(sceneInfo(page)).toHaveCount(0);
 });
 
-test('an inspector request from the text (the route the synopsis chord takes) opens Scene info, and Escape goes back to the text', async ({ page }) => {
+test('an inspector request from the text (the route the synopsis chord takes) opens Scene info, and Escape goes back to the text', { tag: '@modern' }, async ({ page }) => {
   await sceneInModern(page, 'Chord Book');
   // Ctrl+Shift+Y in a screenplay's Source and Edit synopsis send the same request (app/inspector-request.ts); this sends it from the text.
   await page.getByRole('textbox', { name: 'Document text' }).click();
@@ -145,7 +146,7 @@ test('an inspector request from the text (the route the synopsis chord takes) op
   await expect(page.getByRole('textbox', { name: 'Document text' })).toBeFocused();
 });
 
-test('Keep open docks Scene info beside the page: a click outside leaves it, Escape gives focus back, and it is kept in this browser', async ({ page }) => {
+test('Keep open docks Scene info beside the page: a click outside leaves it, Escape gives focus back, and it is kept in this browser', { tag: '@modern' }, async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await sceneInModern(page, 'Docked Book');
   const pageBox = async () => (await page.locator('#modern-page').boundingBox())?.x ?? 0;
@@ -181,7 +182,7 @@ test('Keep open docks Scene info beside the page: a click outside leaves it, Esc
 });
 
 test.describe('motion', () => {
-  test('with motion on, the durations stand, and Scene info grows out of the title capsule, from a route too', async ({ page }) => {
+  test('with motion on, the durations stand, and Scene info grows out of the title capsule, from a route too', { tag: '@modern' }, async ({ page }) => {
     await sceneInModern(page, 'Morph Book');
     await editSynopsis(page);
     // A route has no control of its own to grow from, so Scene info grows out of #306's title capsule, its opener (§8.3).
@@ -193,7 +194,7 @@ test.describe('motion', () => {
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--dur-3').trim())).toBe('520ms');
   });
 
-  test('under reduced motion it fades in place, and nothing moves', async ({ page }) => {
+  test('under reduced motion it fades in place, and nothing moves', { tag: '@modern' }, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await sceneInModern(page, 'Still Book');
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--dur-3').trim())).toBe('0s');

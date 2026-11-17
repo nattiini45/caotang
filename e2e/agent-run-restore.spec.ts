@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './test.js';
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint as pointAtFakeEndpoint } from './endpoint.js';
 import { bodyOf, createProject, idOf, projectTrace, waitForSaved } from './support.js';
 
@@ -116,7 +117,7 @@ test('Activity retries a failed folder-copy preference read without enabling a c
 });
 
 for (const shell of ['classic', 'modern'] as const) {
-  test(`German run-card actions fit their ${shell} Activity rail and narrow drawer`, async ({ page }) => {
+  test(`German run-card actions fit their ${shell} Activity rail and narrow drawer`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await finishedRun(page, 'Localized Run Book');
     await page.getByRole('button', { name: 'Hide the agent', exact: true }).click();

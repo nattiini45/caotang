@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from './test.js';
 import { planHeldReview, startHeldReview, stopHeldReview, type ReviewWindow } from './findings-review.js';
 import { holdFolderSave, releaseFolderPicker, releaseFolderWrite } from './folder-save-support.js';
 import { FOLDER_ACCESS_ONLY } from './support.js';
@@ -49,7 +50,7 @@ test('a stopped review outcome follows the interface language', async ({ page })
   await expect(outcome).toContainText('Die Modellprüfung wurde gestoppt.');
 });
 
-test('Modern keeps review controls visible with the sidebar closed, including in a narrow window', async ({ page }) => {
+test('Modern keeps review controls visible with the sidebar closed, including in a narrow window', { tag: '@modern' }, async ({ page }) => {
   await startHeldReview(page);
   await page.getByTestId('open-settings').click();
   const settings = page.getByTestId('settings');
@@ -72,7 +73,7 @@ test('Modern keeps review controls visible with the sidebar closed, including in
 });
 
 for (const width of [1280, 390]) {
-  test(`Modern covers a running review during a modal and restores its controls at ${width}px`, async ({ page }) => {
+  test(`Modern covers a running review during a modal and restores its controls at ${width}px`, { tag: '@modern' }, async ({ page }) => {
     await startHeldReview(page);
     await expect.poll(() => page.evaluate(() => (window as unknown as ReviewWindow).reviewCalls)).toBe(1);
     await page.getByTestId('open-settings').click();
@@ -114,7 +115,7 @@ for (const width of [1280, 390]) {
 
 for (const { shell, rtl } of [{ shell: 'Classic', rtl: false }, { shell: 'Modern', rtl: false }, { shell: 'Classic', rtl: true }] as const) {
   for (const width of [1280, 390]) {
-    test(`${shell}${rtl ? ' in RTL' : ''} keeps a running review and folder save separate inside a ${width}px viewport`, async ({ page, browserName }) => {
+    test(`${shell}${rtl ? ' in RTL' : ''} keeps a running review and folder save separate inside a ${width}px viewport`, { tag: shell.toLowerCase() === 'modern' ? '@modern' : [] }, async ({ page, browserName }) => {
       test.skip(browserName !== 'chromium', FOLDER_ACCESS_ONLY);
       if (rtl) await page.addInitScript(() => localStorage.setItem('caotang.pseudo', '1'));
       await holdFolderSave(page);
