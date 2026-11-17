@@ -124,7 +124,7 @@ function formatGroups(comicSelected: boolean): readonly { readonly name: string;
         : []),
     ],
   },
-  // The show's own exports (av-script.md §5): the reading exports and the VO script its episodes' speakable lines make, for the booth.
+  // The show's own exports (av-script.md §5): the reading exports, the VO script its episodes' speakable lines make for the booth, the captions and the chapters.
   {
     name: t`Show`,
     formats: [
@@ -145,6 +145,16 @@ function formatGroups(comicSelected: boolean): readonly { readonly name: string;
       },
       { format: 'vo-script-csv', label: t`VO script (.csv)`, help: t`One row per speakable line — line id, segment, speaker, text, duration and whether it was declared — for a recording booth or a translation shop.` },
       { format: 'vo-script-xlsx', label: t`VO script (.xlsx)`, help: t`The same rows as a spreadsheet, with the durations as numbers, for Excel, Numbers or LibreOffice.` },
+      {
+        format: 'vtt',
+        label: t`Captions (.vtt)`,
+        help: t`WebVTT captions — one cue per spoken line, each speaker in a voice span — to drop on a narrated video or an audio post.`,
+      },
+      {
+        format: 'chapters-json',
+        label: t`Chapters (.json)`,
+        help: t`The Podcasting 2.0 chapters document — start, title and end per segment — the file a feed’s podcast:chapters points at.`,
+      },
     ],
   },
   // The coherence report (media-track.md, Review): the findings file and its run history, for reading outside Caotang.

@@ -1626,6 +1626,9 @@ export const EXPORT_FORMATS = [
   'show-notes',
   'transcript-md',
   'teleprompter',
+  // The AV script's captions and chapters (av-script.md §5). Appended as the twenty-fourth and twenty-fifth.
+  'vtt',
+  'chapters-json',
 ] as const;
 
 function exportFormatRefusal(format: string): Result<never, CommandError> | undefined {

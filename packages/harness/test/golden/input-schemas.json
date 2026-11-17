@@ -532,7 +532,9 @@
           "vo-script-xlsx",
           "show-notes",
           "transcript-md",
-          "teleprompter"
+          "teleprompter",
+          "vtt",
+          "chapters-json"
         ],
         "description": "The output format."
       },
