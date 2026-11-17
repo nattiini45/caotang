@@ -66,6 +66,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
  */
 export function checkpointReadable(value: unknown, goalId?: string): boolean {
   if (!isRecord(value)) return false;
+  if (value['approvedLargeScope'] !== undefined && typeof value['approvedLargeScope'] !== 'boolean') return false;
   const goal = value['goal'];
   const iterations = value['iterations'];
   const results = value['results'];

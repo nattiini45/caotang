@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 import { NO_PIN } from './classic-pin.js';
+import { createGoalScene } from './goal-scene-flow.js';
 import { searchWhileTyping } from './text-search-flow.js';
 import { scanStartupCancellation } from './harness-worker-flow.js';
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
@@ -84,6 +85,25 @@ function watchChunks(page: Page): () => string[] {
 async function violations(page: Page): Promise<string[]> {
   return page.evaluate(() => window.__cspViolations ?? ['the violation listener was not installed']);
 }
+
+test('the goal form and its saved no-turn result work under the production CSP', async ({ page }) => {
+  const problems = await watchForProblems(page);
+  await createGoalScene(page, 'Goal Preview Book', 'classic', true);
+  await page.getByRole('button', { name: 'Agent', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Intent', exact: true }).fill('Keep the ordinary draft.');
+  await page.getByRole('button', { name: 'Goal', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Goal intent', exact: true }).fill('Keep every synopsis filled.');
+  await page.getByRole('checkbox', { name: 'Every synopsis is filled', exact: true }).check();
+  await page.getByRole('spinbutton', { name: 'Model-call limit', exact: true }).fill('0');
+  await page.getByRole('button', { name: 'Start the goal', exact: true }).click();
+  const progress = page.getByRole('region', { name: /^Goal progress:/ });
+  await expect(progress).toHaveAttribute('data-status', 'passed');
+  await expect(progress).toContainText('Completed iterations: 0 of 10');
+  await expect(progress.getByRole('cell', { name: /Passed/ })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Intent', exact: true })).toHaveValue('Keep the ordinary draft.');
+  expect(problems).toEqual([]);
+  expect(await violations(page)).toEqual([]);
+});
 
 /** Compiles the manuscript in the given format and returns the downloaded file's name. */
 async function compile(page: Page, format: RegExp): Promise<string> {
