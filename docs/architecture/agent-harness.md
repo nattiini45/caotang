@@ -387,6 +387,8 @@ A goal run works turn after turn until the checks the writer chose pass. The che
 
 #### Independent goal-verifier admission
 
+Verdict member names must be unique, including equivalent Unicode-escaped spellings. Duplicate `pass` or `reasons` members are refused rather than accepting JSON's last value; a contradictory reply cannot satisfy a required gate.
+
 For a `changed` verifier scope, eligibility compares current document revisions against the independent pre-iteration review-state snapshot. A coherence scan in the actor turn cannot mark its own edits out of verification. Once selected, source fences retain those document ids and check current manuscript membership, content and read rules; a later review-state update alone does not invalidate them. Archived, missing or withheld documents remain excluded.
 
 Negative verifier reasons fed into a later actor intent use the shared untrusted-text spotlight envelope, explicitly labelled `goal-verifier`, with marker defusing and hidden-character revelation. They remain model-derived data, never new actor instructions.

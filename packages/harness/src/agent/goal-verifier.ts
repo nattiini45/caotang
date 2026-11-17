@@ -156,9 +156,10 @@ function unfence(text: string): string {
 
 export function parseGoalVerifierVerdict(text: string): GoalVerifierVerdict {
   if (text.length > GOAL_VERIFIER_REPLY_CHARS_MAX) throw new Error(`the verifier reply is over ${GOAL_VERIFIER_REPLY_CHARS_MAX} characters`);
+  const json = unfence(text);
   let value: unknown;
   try {
-    value = JSON.parse(unfence(text));
+    value = JSON.parse(json);
   } catch {
     throw new Error('the verifier reply is not JSON');
   }
@@ -167,6 +168,13 @@ export function parseGoalVerifierVerdict(text: string): GoalVerifierVerdict {
   if (typeof pass !== 'boolean') throw new Error(REPLY_SHAPE);
   const reasons = value['reasons'];
   if (!Array.isArray(reasons) || reasons.length > REASONS_MAX) throw new Error(REPLY_SHAPE);
+  const members = new Set<string>();
+  for (const token of json.matchAll(/"(?:[^"\\]|\\.)*"/g)) {
+    if (!/^\s*:/.test(json.slice(token.index + token[0].length))) continue;
+    const member: unknown = JSON.parse(token[0]);
+    if (typeof member !== 'string' || members.has(member)) throw new Error(REPLY_SHAPE);
+    members.add(member);
+  }
   const read: string[] = [];
   for (const reason of reasons) {
     if (typeof reason !== 'string') throw new Error(REPLY_SHAPE);

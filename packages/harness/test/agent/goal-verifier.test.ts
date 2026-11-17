@@ -315,6 +315,20 @@ describe('assembleGoalVerifierCall', () => {
 });
 
 describe('parseGoalVerifierVerdict', () => {
+  it.each([
+    '{"pass":false,"pass":true,"reasons":[]}',
+    '{"pass":false,"pa\\u0073s":true,"reasons":[]}',
+    '{"pass":true,"reasons":["Not clear."],"reasons":[]}',
+    '```json\n{"pass":true,"pass":true,"reasons":[]}\n```',
+  ])('refuses duplicate verdict members: %s', text => {
+    expect(() => parseGoalVerifierVerdict(text)).toThrow();
+  });
+
+  it('does not mistake quoted member-like text inside a reason for duplicate keys', () => {
+    const reasons = ['The string "pass": false appears twice: "pass": false.'];
+    expect(parseGoalVerifierVerdict(JSON.stringify({ pass: false, reasons }))).toEqual({ pass: false, reasons });
+  });
+
   it('reads the verifier’s JSON, trims reasons, and accepts a fenced block', () => {
     expect(parseGoalVerifierVerdict('{"pass":true,"reasons":[]}')).toEqual({ pass: true, reasons: [] });
     expect(parseGoalVerifierVerdict('{"pass":false,"reasons":["  dawn, not noon  ","the ferry is early"]}')).toEqual({

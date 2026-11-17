@@ -137,6 +137,14 @@ it('reports malformed advisory output honestly without blocking deterministic su
   expect(JSON.stringify(run.verification)).not.toContain('UNTRUSTED_BAD_REPLY');
 });
 
+it('cannot complete a required gate with contradictory duplicate verdict members', async () => {
+  const f = fixture();
+  const run = await createGoalRunner().start(goal(true), { ...f, verifier: async () => ({ kind: 'complete', content: '{"pass":false,"pass":true,"reasons":[]}' }) });
+  expect(run.status).toBe('failed');
+  expect(run.verification?.status).toBe('unavailable');
+  expect(f.turns()).toBe(1);
+});
+
 it.each([false, true])('keeps an advisory budget refusal separate from an explicit gate (%s)', async gate => {
   const f = fixture();
   const definition = { ...goal(gate), limits: { maxModelCalls: 10, maxTokens: 1000 } };
