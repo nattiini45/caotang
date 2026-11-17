@@ -1,0 +1,33 @@
+# The pnpm store, restored before a workspace install and saved again after the job.
+#
+# Why an action of this repository's own rather than `cache: pnpm` on `actions/setup-node`: that input reads the store path by
+# running pnpm, so it needs pnpm on PATH when setup-node runs. Here pnpm arrives afterwards — `corepack enable` on Node 24, and
+# the pinned pnpm tarball's SHA-512 check on the Node 22.19.0 leg — so every job calls this once pnpm is available and installs
+# immediately after it.
+#
+# What the key holds: the runner's OS, the store path pnpm reports for itself, and the lockfile's hash. A pnpm store is
+# content-addressed by package, so a new lockfile gets a new key and `restore-keys` still hands it every package the old and the
+# new lockfile share. The store path is in the key because `actions/cache` restores an archive to the absolute paths it was
+# saved from, and a job whose HOME differs (a container job) would otherwise report a hit whose files land somewhere the
+# install never looks.
+name: pnpm store cache
+description: Restore the pnpm content-addressed store, keyed by the lockfile and the runner OS.
+
+runs:
+  using: composite
+  steps:
+    - name: Read the store path and the lockfile hash
+      id: store
+      shell: bash
+      run: |
+        store="$(pnpm store path | tail -1)"
+        echo "path=$store" >> "$GITHUB_OUTPUT"
+        echo "where=$(printf '%s' "$store" | sed 's/[^A-Za-z0-9]\+/-/g')" >> "$GITHUB_OUTPUT"
+        echo "lockfile=$(node -e 'process.stdout.write(require("node:crypto").createHash("sha256").update(require("node:fs").readFileSync("pnpm-lock.yaml")).digest("hex").slice(0, 16))')" >> "$GITHUB_OUTPUT"
+
+    - name: Restore the store
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.store.outputs.path }}
+        key: pnpm-store-${{ runner.os }}-${{ steps.store.outputs.where }}-${{ steps.store.outputs.lockfile }}
+        restore-keys: pnpm-store-${{ runner.os }}-${{ steps.store.outputs.where }}-

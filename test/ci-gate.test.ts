@@ -19,6 +19,19 @@ function jobBlock(workflow: string, id: string): string {
   return jobs.slice(blockStart, blockEnd);
 }
 
+/** Every top-level job of a workflow, by id, for the checks that hold across the whole file. */
+function jobBlocks(workflow: string): { id: string; body: string }[] {
+  const jobsStart = workflow.indexOf('\njobs:\n');
+  if (jobsStart < 0) throw new Error('workflow has no jobs block');
+  const blocks: { id: string; body: string }[] = [];
+  for (const line of workflow.slice(jobsStart).split('\n').slice(1)) {
+    const header = /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line);
+    if (header) blocks.push({ id: header[1]!, body: '' });
+    else if (blocks.length > 0) blocks[blocks.length - 1]!.body += `${line}\n`;
+  }
+  return blocks;
+}
+
 const ci = read('.github/workflows/ci.yml');
 const browsers = read('.github/workflows/e2e-browsers.yml');
 const summaryScript = jobBlock(ci, 'e2e').split('        run: |\n')[1]?.split('\n').map((line) => line.slice(10)).join('\n') ?? '';
@@ -153,5 +166,48 @@ describe('the required pull-request CI gate', () => {
     const e2e = jobBlock(browsers, 'e2e');
     expect(e2e).toContain('image: mcr.microsoft.com/playwright:v1.63.0-noble');
     expect(e2e).toContain('HOME: /root');
+  });
+});
+
+/**
+ * The pnpm store cache: a job that installs pays for the download once, not once per job.
+ *
+ * The guard is the pairing, not the existence of the action. An install that lands in a job without the restore step is
+ * silent — the job simply runs slower, and nothing fails — which is the direction this repository's guards exist to close.
+ * So every job whose steps run `pnpm install` must restore the store above that line, in every workflow, including the
+ * release, pages and desktop workflows that no pull request exercises.
+ */
+describe('the pnpm store cache', () => {
+  const store = read('.github/actions/pnpm-store/action.yml');
+
+  it('restores the store above every pnpm install, in every workflow that has one', () => {
+    const installed: string[] = [];
+    const unpaired: string[] = [];
+    for (const file of readdirSync(resolve(root, '.github/workflows')).filter((name) => name.endsWith('.yml'))) {
+      for (const job of jobBlocks(read(`.github/workflows/${file}`))) {
+        const at = job.body.indexOf('run: pnpm install');
+        if (at < 0) continue;
+        installed.push(`${file}: ${job.id}`);
+        const restore = job.body.indexOf('uses: ./.github/actions/pnpm-store');
+        if (restore < 0 || restore > at) unpaired.push(`${file}: ${job.id}`);
+      }
+    }
+    // The subject has to exist before its absence assertions mean anything: a parse that finds no installing job would
+    // satisfy every claim below while checking nothing.
+    expect(installed.length).toBeGreaterThanOrEqual(10);
+    expect(unpaired, 'jobs that install without restoring the pnpm store first').toEqual([]);
+  });
+
+  it('keys the store by the lockfile and the runner OS, over the path pnpm reports for itself', () => {
+    // The path is asked of pnpm rather than hard-coded: it moves with pnpm's major and with HOME, so a literal would cache a
+    // directory the install never reads, and `actions/cache` would still report a hit.
+    expect(store).toContain('pnpm store path');
+    expect(store).toContain('path: ${{ steps.store.outputs.path }}');
+    expect(store).toContain('pnpm-lock.yaml');
+    // The lockfile's own hash and the runner's OS, both in the key: a store is content-addressed, so a new lockfile is a new
+    // key, and a Linux store is never offered to Windows.
+    expect(store).toMatch(/key: pnpm-store-\$\{\{ runner\.os \}\}-.*\$\{\{ steps\.store\.outputs\.lockfile \}\}/);
+    expect(store).toContain('restore-keys: pnpm-store-${{ runner.os }}-');
+    expect(store).toContain('uses: actions/cache@v6');
   });
 });

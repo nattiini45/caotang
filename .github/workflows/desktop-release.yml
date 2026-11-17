@@ -82,6 +82,9 @@ jobs:
       - name: Enable corepack (pnpm from packageManager)
         run: corepack enable
 
+      - name: Restore the pnpm store
+        uses: ./.github/actions/pnpm-store
+
       - name: Install
         run: pnpm install --frozen-lockfile
 
@@ -163,6 +166,9 @@ jobs:
 
       - name: Enable corepack (pnpm from packageManager)
         run: corepack enable
+
+      - name: Restore the pnpm store
+        uses: ./.github/actions/pnpm-store
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -304,6 +310,9 @@ jobs:
 
       - name: Enable corepack (pnpm from packageManager)
         run: corepack enable
+
+      - name: Restore the pnpm store
+        uses: ./.github/actions/pnpm-store
 
       - name: Install
         run: pnpm install --frozen-lockfile

@@ -64,6 +64,9 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
 
+      - name: Restore the pnpm store
+        uses: ./.github/actions/pnpm-store
+
       - name: Install
         run: pnpm install --frozen-lockfile
 
