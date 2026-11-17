@@ -1,4 +1,5 @@
-import { expect, test, type BrowserContextOptions, type Page } from '@playwright/test';
+import { expect, type BrowserContextOptions, type Page } from '@playwright/test';
+import { test } from './test.js';
 import { classicPin } from './classic-pin.js';
 import { endpointRoute, fakeEndpoint, planThenAnswer, useFakeEndpoint as addFakeProvider, type FakeRequest } from './endpoint.js';
 import { binderTitle, idOf, projectTrace, loose, waitForSaved } from './support.js';
@@ -145,7 +146,7 @@ for (const shell of ['classic', 'modern'] as const) {
     }, { scope: 'worker' }],
     storageState: async ({ backgroundState }, provide) => { await provide(backgroundState); },
   });
-  backgroundTest(`${shell} background tasks retain context choices in payloads and review after reload`, async ({ page }, testInfo) => {
+  backgroundTest(`${shell} background tasks retain context choices in payloads and review after reload`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.addInitScript((value) => localStorage.setItem('caotang.interface', value), shell);
     await fakeEndpoint(page, (request) => request.tools === undefined ? JSON.stringify({ reply: 'Answered.' }) : { text: 'Answered.' });
@@ -419,7 +420,7 @@ test('German Classic context guidance explains background inheritance without a 
   await captureContextChoices(page, testInfo.outputPath('context-background-classic-de.png'));
 });
 
-test('German narrow Modern context controls wrap and remain keyboard-reachable', async ({ page }, testInfo) => {
+test('German narrow Modern context controls wrap and remain keyboard-reachable', { tag: '@modern' }, async ({ page }, testInfo) => {
   await page.addInitScript(() => localStorage.setItem('caotang.interface', 'modern'));
   await sample(page);
   await page.getByTestId('agent-close').click();

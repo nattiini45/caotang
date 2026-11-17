@@ -1,5 +1,7 @@
 # Decisions
 
+- Modern-shell WebKit end-to-end cases explicitly tagged `@modern` receive a 60-second per-test budget instead of the default 30 seconds. Classic cases, other engines, assertions, retries, workers, job caps and existing larger per-test/describe budgets stay unchanged. Software rendering of Modern's wallpaper on GPU-less CI WebKit contributes measurable frame cost (#698); identical source trees passed or failed with load, so this is capacity headroom, not a claimed product performance fix. [delegated 2026-11-17]
+
 - Resumed goals protect both saved passing checks and checks that pass now. Start and Resume expose Stop from their synchronous ownership claim and retain that signal through setup and the runner; cancelling setup starts no paid turn. [delegated 2026-11-17]
 
 - Goal recovery projects and enforces one shared linked-log refusal policy. An applied MCP action missing from the goal checkpoint is not replayed; closing coherence scans enter the session's findings persistence path even without an iteration. [delegated 2026-11-17]

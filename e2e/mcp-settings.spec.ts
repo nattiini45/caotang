@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './test.js';
 import { loose } from './support.js';
 import { installSaveRefusals, refuseSave } from './save-channel-fixture.js';
 
@@ -184,7 +185,7 @@ test('a connected server offers its tools for review, and trusts reads only afte
 });
 
 for (const shell of ['classic', 'modern'] as const) {
-  test(`${shell}: healthy MCP cards retain committed controls and show settings refusals`, async ({ page }) => {
+  test(`${shell}: healthy MCP cards retain committed controls and show settings refusals`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
     await page.addInitScript((chosen) => localStorage.setItem('caotang.interface', chosen), shell);
     await installSaveRefusals(page);
     await fixtureServer(page);

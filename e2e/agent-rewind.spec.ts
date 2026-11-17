@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './test.js';
 
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint, type FakeReply } from './endpoint.js';
 import { waitForShell } from './support.js';
@@ -174,7 +175,7 @@ test('the menu opens from the keyboard, closes with Escape and returns focus to 
 });
 
 for (const locale of ['de', 'en-XA']) {
-  test(`the narrow ${locale} restore card fits the Agent panel and localizes its recurring controls`, async ({ page }) => {
+  test(`the narrow ${locale} restore card fits the Agent panel and localizes its recurring controls`, { tag: '@modern' }, async ({ page }) => {
     await page.evaluate(() => localStorage.setItem('caotang.pseudo', '1'));
     await twoTurns(page);
     await page.getByTestId('open-settings').click();

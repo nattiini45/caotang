@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from './test.js';
 import { fakeEndpoint, useFakeEndpoint } from './endpoint.js';
 
 const require = createRequire(import.meta.url);
@@ -7,7 +8,7 @@ const axePath = require.resolve('axe-core');
 test.use({ bypassCSP: true });
 
 for (const shell of ['classic', 'modern']) {
-  test(`${shell} context completion keeps recovery guidance outside its option list`, async ({ page }) => {
+  test(`${shell} context completion keeps recovery guidance outside its option list`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
     await page.addInitScript((value) => localStorage.setItem('caotang.interface', value), shell);
     await fakeEndpoint(page, () => JSON.stringify({ reply: 'Answered.' }));
     await useFakeEndpoint(page);

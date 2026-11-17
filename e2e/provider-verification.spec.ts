@@ -1,9 +1,10 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from './test.js';
 import { openVerification } from './provider-verification-support.js';
 
 for (const shell of ['classic', 'modern'] as const) {
   for (const locale of ['en', 'de'] as const) {
-    test(`${shell}: provider verification survives reload and an unchanged save retries in ${locale}`, async ({ page }) => {
+    test(`${shell}: provider verification survives reload and an unchanged save retries in ${locale}`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
       const { settings, row, release, reopen, retry, pass } = await openVerification(page, locale, shell);
       const demo = settings.locator('[data-profile="Demo (no key)"]');
       await expect(demo).toHaveAttribute('data-state', 'demo');

@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
+import { test } from './test.js';
 
 import { NO_PIN } from './classic-pin.js';
 import { createProject, selectionOf, waitForSaved } from './support.js';
@@ -238,7 +239,7 @@ test('⋯ is a menu of every shell action, the other views and Appearance; Escap
   expect(await page.evaluate(() => localStorage.getItem('caotang.interface'))).toBe('classic');
 });
 
-test('the top ornament is one toolbar stop: the arrow keys move between the title capsule and ⋯, and the title opens Scene info', async ({ page }) => {
+test('the top ornament is one toolbar stop: the arrow keys move between the title capsule and ⋯, and the title opens Scene info', { tag: '@modern' }, async ({ page }) => {
   await modernScene(page, 'Toolbar Book');
   const title = scene(page).getByTestId('modern-title-capsule');
   await expect(title).toContainText('Toolbar Book');
@@ -276,7 +277,7 @@ test('the top ornament is one toolbar stop: the arrow keys move between the titl
   await expect(title).toHaveAttribute('aria-expanded', 'false');
 });
 
-test('Ask opens and closes the agent’s window and shows when the agent works; Search opens the palette', async ({ page }) => {
+test('Ask opens and closes the agent’s window and shows when the agent works; Search opens the palette', { tag: '@modern' }, async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await modernScene(page, 'Ask Book');
   const ask = views(page).getByRole('button', { name: 'Ask' });
@@ -352,7 +353,7 @@ test('a docked Scene info and the agent window stack at the inline-end edge, and
   await expect(info).toHaveClass(/is-popover/);
 });
 
-test('the ornaments show ten controls, each at least 44 by 44 px, and every ⋯ item is 44 px tall', async ({ page }) => {
+test('the ornaments show ten controls, each at least 44 by 44 px, and every ⋯ item is 44 px tall', { tag: '@modern' }, async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await modernScene(page, 'Target Book');
   const controls = page.locator('[data-testid="modern-top-ornament"] button, [data-testid="modern-bottom-ornament"] button');
@@ -370,7 +371,7 @@ test('the ornaments show ten controls, each at least 44 by 44 px, and every ⋯ 
   }
 });
 
-test('the page takes each view’s width from the layout, and morphs on a view change', async ({ page }) => {
+test('the page takes each view’s width from the layout, and morphs on a view change', { tag: '@modern' }, async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1000 });
   await modernScene(page, 'Width Book');
   const main = page.locator('#modern-page');
@@ -384,7 +385,7 @@ test('the page takes each view’s width from the layout, and morphs on a view c
   expect(await page.getByTestId('modern-stage').evaluate((element) => (element as HTMLElement).style.getPropertyValue('--page-w'))).toBe('1000px');
 });
 
-test('under reduced motion a view changes at once and ⋯ only fades in', async ({ page }) => {
+test('under reduced motion a view changes at once and ⋯ only fades in', { tag: '@modern' }, async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await modernScene(page, 'Still Book');
   const main = page.locator('#modern-page');
