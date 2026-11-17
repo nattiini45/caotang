@@ -65,6 +65,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **WebKit end-to-end shards finish and report.** The WebKit suite runs in three shards instead of two, so no shard reaches the 40-minute job limit before it uploads its report; every test, its deadline, retries, two workers per shard and the job limit are unchanged (#689).
+
 - **LibreOffice keeps the Word contents field.** A `.docx` contents field is now written the way Word writes it — the field instruction in its own run, one cached entry per paragraph, no `w:sdt` wrapper — and the Heading styles carry an outline level. Before, LibreOffice flattened the field to dead text, showed the instruction ahead of the first entry and could not regenerate the table; now it imports it as a real index, keeps it on re-save, and Tools → Update indexes fills in the page numbers and links (#26).
 
 - **Word export uses docx 9.15.4.** Every `.docx` now carries the built-in `toc 1`–`toc 9` and `Heading 3`–`6` styles, so LibreOffice indents each level of the contents table it regenerates, and Word offers **Update Table** on the contents field. The bump also drops the `jszip` subtree from the dependency tree.
