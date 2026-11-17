@@ -227,7 +227,11 @@ describe('provider-smoke.yml', () => {
       expect(pin, action).toBeDefined();
       expect(text).toContain(`${action}@${pin}`);
     }
-    for (const line of code.filter((l) => l.includes('uses:'))) expect(line).toMatch(/uses: actions\/(checkout|setup-node)@v\d+$/);
+    // A GitHub action pinned to a major, or an action of this repository (never a third party's floating ref). The store cache is
+    // the repository's own, so it is named by a path rather than by an owner, and it pins `actions/cache` itself.
+    for (const line of code.filter((l) => l.includes('uses:'))) {
+      expect(line).toMatch(/uses: (actions\/(checkout|setup-node)@v\d+|\.\/\.github\/actions\/[a-z-]+)$/);
+    }
   });
 
   it('passes the presets input through the environment, never into a command', () => {

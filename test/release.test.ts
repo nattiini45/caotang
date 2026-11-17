@@ -179,7 +179,8 @@ describe('the release workflow', () => {
     expect(workflow).toContain('tools/release.mjs notes');
     const uses = workflow.split('\n').filter((line) => line.includes('uses:'));
     expect(uses.length).toBeGreaterThan(0);
-    expect(uses.every((line) => line.trimStart().startsWith('- uses: actions/'))).toBe(true);
+    // An action of GitHub's, or one of this repository's own under `.github/actions/`; a third party's action would match neither.
+    expect(uses.every((line) => /- uses: (actions\/|\.\/\.github\/actions\/)/.test(line.trimStart()))).toBe(true);
   });
 });
 
