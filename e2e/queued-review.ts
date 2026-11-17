@@ -49,6 +49,11 @@ export async function queuedReviewProject(page: Page, plan?: unknown): Promise<{
   await expect(settings.getByText('Saved the task roles.')).toBeVisible();
   await settings.getByRole('button', { name: 'Close', exact: true }).click();
   await createProject(page, 'Ferry Notebook');
+  const modern = (await page.getByTestId('modern-stage').count()) > 0;
+  if (modern) {
+    await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Binder', exact: true }).click();
+    await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'open');
+  }
   await firstChapter(page);
   for (const scene of REVIEW_SCENES) {
     await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
@@ -56,6 +61,10 @@ export async function queuedReviewProject(page: Page, plan?: unknown): Promise<{
     await page.keyboard.press('Enter');
     await page.getByRole('textbox', { name: 'Document text' }).fill(scene.body);
     await waitForSaved(page);
+  }
+  if (modern) {
+    await page.mouse.move(700, 450);
+    await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'closed');
   }
   return { requests, models };
 }

@@ -1,8 +1,8 @@
 # Firefox and WebKit E2E, called by ci.yml as part of the required PR gate; also runs nightly and on demand.
 #
 # What runs:
-#   - The `firefox` and `webkit` projects of playwright.config.ts (they exist only with CAOTANG_E2E_BROWSERS=all), in three Firefox
-#     shards and two WebKit shards plus a `Modern gate` leg each, so seven jobs. The shards leave the Modern reachability walk and accessibility gate
+#   - The `firefox` and `webkit` projects of playwright.config.ts (they exist only with CAOTANG_E2E_BROWSERS=all), in three shards
+#     each plus a `Modern gate` leg each, so eight jobs. The shards leave the Modern reachability walk and accessibility gate
 #     (#313) to that leg (CAOTANG_E2E_MODERN_GATE=skip), so no leg runs near its limit. They skip e2e/unit, the production smoke
 #     and the provider specs, and the specs that need File System Access skip themselves outside Chromium.
 #     e2e/non-chromium-storage.spec.ts covers the bundle-only path instead.
@@ -29,22 +29,20 @@ concurrency:
 
 jobs:
   e2e:
-    name: e2e (${{ matrix.browser }} ${{ matrix.shard == 'modern' && 'Modern gate' || format('{0}/{1}', matrix.shard, matrix.browser == 'firefox' && 3 || 2) }})
+    name: e2e (${{ matrix.browser }} ${{ matrix.shard == 'modern' && 'Modern gate' || format('{0}/3', matrix.shard) }})
     runs-on: ubuntu-latest
     # Keep the preinstalled browser binaries and Linux dependencies aligned with the locked Playwright 1.63.0 package.
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
-    # Three Firefox shards restore headroom after the two-shard suite approached this unchanged limit.
+    # Three shards per browser restore headroom under this unchanged limit: Firefox after its two-shard suite used 37m04s of it, and
+    # WebKit after its second shard twice reached it without writing its report (#689).
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
         browser: [firefox, webkit]
-        # Numbered legs split the suite; `modern` is the Modern gate's leg.
+        # Numbered legs split the suite; `modern` is the Modern gate's leg. Both browsers run all three.
         shard: [1, 2, 3, modern]
-        exclude:
-          - browser: webkit
-            shard: 3
     steps:
       - uses: actions/checkout@v7
 
@@ -58,9 +56,9 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: End-to-end (${{ matrix.browser }}, shard ${{ matrix.shard }} of ${{ matrix.browser == 'firefox' && 3 || 2 }})
+      - name: End-to-end (${{ matrix.browser }}, shard ${{ matrix.shard }} of 3)
         if: ${{ matrix.shard != 'modern' }}
-        run: pnpm exec playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/${{ matrix.browser == 'firefox' && 3 || 2 }} --workers=2 --reporter=blob,list
+        run: pnpm exec playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/3 --workers=2 --reporter=blob,list
         env:
           # GitHub's /github/home is owned by pwuser, but this container runs as root and Firefox checks HOME ownership.
           HOME: /root
