@@ -122,7 +122,8 @@ import {
   type TurnReport,
   type SubmitOptions as SessionSubmitOptions,
 } from '@caotang/harness';
-import { computeReview, emptyCoherenceFile, emptyReviewCheckpoint, planReview, publishReview, reviewExecutionPlanOf, type CoherenceRun, type ReviewCheckpoint, type ReviewComputed, type ReviewExecutionPlan, type ReviewPlan } from '@caotang/coherence';
+import { computeReview, emptyCoherenceFile, emptyReviewCheckpoint, planReview, publishReview, reviewExecutionPlanOf, type CoherenceRun, type DeterministicCheckId, type ReviewCheckpoint, type ReviewComputed, type ReviewExecutionPlan, type ReviewPlan, type ScopeSpec } from '@caotang/coherence';
+import { goalWatchOf, type GoalWatchView } from './goal-watch.js';
 import { createMcpTransport } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
 import { createRunLogPort, getRevision, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot, readAgentSessions, saveAgentSession, settleAgentSessionTurn, removeAgentSession, pruneAgentSessions, agentSessionReferences, appendGoalCheckpoint, checkpointReadable, goalRowReadable, createGoalRun, deleteGoalRun, markGoalsInterrupted, openGoalRecovery, readGoalRuns, recordGoalIteration, resumeGoalRun, settleGoalRun, type AgentSessionRow, type AgentSessionTurnRef, type GoalRunRow, type SessionSummary } from '@caotang/store';
@@ -228,6 +229,8 @@ export interface SubmitOptions {
  */
 export interface GoalRecoveryView {
   readonly goalId: string;
+  readonly watch: GoalWatchView | null;
+  readonly outcome: string | null;
   /** The writer's words, from the stored checkpoint. */
   readonly intent: string;
   readonly status: 'running' | 'interrupted' | 'settled';
@@ -244,6 +247,13 @@ export interface GoalRecoveryView {
   readonly note: string | null;
   readonly createdAt: number;
   readonly updatedAt: number;
+}
+
+export interface GoalDraft {
+  readonly id: number;
+  readonly intent: string;
+  readonly scope: ScopeSpec;
+  readonly coherenceChecks: readonly DeterministicCheckId[];
 }
 
 /** A run the project was left with, as the panel's interrupted-run card shows it (agent-harness §5.1). */
@@ -313,6 +323,8 @@ function goalRecoveryView(row: GoalRunRow): GoalRecoveryView {
   const result = validRow ? row.result : undefined;
   return {
     goalId: row.goalId,
+    watch: checkpoint === null ? null : goalWatchOf(checkpoint),
+    outcome: result?.status ?? null,
     intent: checkpoint?.goal.intent ?? '',
     status: validRow ? row.status : 'interrupted',
     nextIteration: checkpoint?.nextIteration ?? 1,
@@ -353,6 +365,8 @@ export interface AgentSnapshot {
   readonly goals: readonly GoalRecoveryView[];
   /** The goal an action is under way for, or `null`. */
   readonly goalAction: 'running' | 'start' | 'resume' | 'discard' | null;
+  readonly activeGoalId: string | null;
+  readonly goalDraft: GoalDraft | null;
   readonly goalUnavailable: string | null;
   readonly runHistory: readonly InterruptedRunView[];
   readonly runHistoryLoad: { readonly kind: 'loading' | 'ready' } | { readonly kind: 'failed'; readonly message: string };
@@ -470,6 +484,9 @@ export class AgentController {
   private goalRunning: string | null = null;
   private goalAbort: AbortController | null = null;
   private goalAction: 'start' | 'resume' | 'discard' | null = null;
+  private goalActionId: string | null = null;
+  private goalDraft: GoalDraft | null = null;
+  private goalDraftSeq = 0;
   private goalLoadSeq = 0;
   private readonly runForTurn = new Map<string, string>();
   private readonly roleForTurn = new Map<string, TaskRole>();
@@ -686,6 +703,8 @@ export class AgentController {
       interrupted: this.interrupted,
       goals: this.goals,
       goalAction: this.goalRunning !== null ? 'running' : this.goalAction,
+      activeGoalId: this.goalRunning ?? (this.goalAction === 'start' || this.goalAction === 'resume' ? this.goalActionId : null),
+      goalDraft: this.goalDraft,
       goalUnavailable: this.goalUnavailable,
       runHistory: this.state.interrupted,
       runHistoryLoad: this.runHistoryLoad,
@@ -1615,6 +1634,17 @@ export class AgentController {
       : t`Goal runs need Web Locks to prevent two tabs from running the same goal.`;
   }
 
+  offerGoal(draft: Omit<GoalDraft, 'id'>): void {
+    this.goalDraft = structuredClone({ ...draft, id: ++this.goalDraftSeq });
+    this.bump();
+  }
+
+  clearGoalDraft(id: number): void {
+    if (this.goalDraft?.id !== id) return;
+    this.goalDraft = null;
+    this.bump();
+  }
+
   /**
    * Reads this project's goal records. An idle call marks any goal a closed tab or a crash left `running` as `interrupted`, which
    * is what makes recovery explicit: the record waits for the writer, and nothing starts a turn on its own. A store that cannot be
@@ -1692,7 +1722,7 @@ export class AgentController {
    * Runs a goal from its first iteration, recording the checkpoint ahead of each one. It refuses while another turn or goal runs: a
    * goal run owns the panel until it settles, because it is the thing that decides what the next turn is for.
    */
-  async startGoal(goal: Goal): Promise<void> {
+  async startGoal(goal: Goal, options: { readonly approvedLargeScope?: boolean } = {}): Promise<void> {
     if (this.goalUnavailable !== null) {
       this.message = this.goalUnavailable;
       this.bump();
@@ -1704,6 +1734,7 @@ export class AgentController {
       return;
     }
     this.goalAction = 'start';
+    this.goalActionId = goal.id;
     const abort = new AbortController();
     this.goalAbort = abort;
     this.message = null;
@@ -1715,9 +1746,10 @@ export class AgentController {
       if (abort.signal.aborted) return;
       await createGoalRun(this.session.runtimeStore(), {
         goalId: goal.id, projectId: this.session.projectId, sessionId: this.sessionId,
-        checkpoint: { goal, iterations: [], results: [], nextIteration: 1, spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 } }, at: this.clock(),
+        checkpoint: { goal, approvedLargeScope: options.approvedLargeScope === true, iterations: [], results: [], nextIteration: 1, spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 } }, at: this.clock(),
       });
-      await this.runGoal(goal, { signal: abort.signal });
+      await this.loadGoals();
+      await this.runGoal(goal, { signal: abort.signal, approvedLargeScope: options.approvedLargeScope === true });
     } catch (error) {
       this.message = t`The goal could not be saved, so it was not started: ${{ reason: error instanceof Error ? error.message : String(error) }}`;
       this.bump();
@@ -1740,6 +1772,7 @@ export class AgentController {
       return;
     }
     this.goalAction = 'resume';
+    this.goalActionId = goalId;
     const abort = new AbortController();
     this.goalAbort = abort;
     this.message = null;
@@ -1816,6 +1849,7 @@ export class AgentController {
     if (this.goalAbort?.signal.aborted === true) this.announcement = t`The goal was stopped.`;
     this.goalAbort = null;
     this.goalAction = null;
+    this.goalActionId = null;
     await this.loadGoals();
     if (this.queue.length > 0 && !this.queuePaused && !this.detached) queueMicrotask(() => void this.runNext());
   }
@@ -1824,7 +1858,7 @@ export class AgentController {
    * The run itself: one shared meter, the checkpoint saved ahead of every iteration, and one settled record at the end. A checkpoint
    * that cannot be saved ends the run before that iteration: the meter is never spent on work whose record was lost.
    */
-  private async runGoal(goal: Goal, options: { readonly checkpoint?: GoalCheckpoint; readonly uncertainUsage?: boolean; readonly signal: AbortSignal }): Promise<void> {
+  private async runGoal(goal: Goal, options: { readonly checkpoint?: GoalCheckpoint; readonly uncertainUsage?: boolean; readonly signal: AbortSignal; readonly approvedLargeScope?: boolean }): Promise<void> {
     const store = this.session.runtimeStore();
     const signal = options.signal;
     let meter: BudgetMeter | null = null;
@@ -1864,16 +1898,20 @@ export class AgentController {
         state: this.session.state,
         meter,
         signal,
+        checks: this.session.goalChecks(),
+        ...(options.approvedLargeScope === undefined ? {} : { approvedLargeScope: options.approvedLargeScope }),
         ...(options.checkpoint === undefined ? {} : { checkpoint: options.checkpoint }),
         withheld: () => this.session.harness.withheldAnywhere(),
         recordCoherence: (file) => this.session.applyCoherenceFile(file),
         saveCheckpoint: async (checkpoint) => {
           await appendGoalCheckpoint(store, goal.id, { checkpoint, at: this.clock() });
+          await this.loadGoals();
         },
         saveIteration: async (checkpoint, record) => {
           const runId = this.runForTurn.get(record.report.turnId);
           if (runId === undefined) throw new Error('The goal iteration has no durable run log.');
           await appendGoalCheckpoint(store, goal.id, { checkpoint, runId, at: this.clock() });
+          await this.loadGoals();
         },
       });
       await settleGoalRun(store, goal.id, { status: run.status, reason: run.reason, at: this.clock() });

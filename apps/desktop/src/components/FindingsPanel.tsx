@@ -77,6 +77,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
   const report = useReport();
   const [filter, setFilter] = useState<FindingFilter>('open');
   const [scopeChoice, setScopeChoice] = useState<ReviewScope>(settings.defaultReviewScope);
+  const goalCheckReasonId = useId();
   const [approvalNeeded, setApprovalNeeded] = useState(false);
   const [dismissing, setDismissing] = useState<FindingView | null>(null);
   const review = session.coherenceReview.snapshot();
@@ -423,6 +424,20 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
         <Button ref={scanButtonRef} className="button is-primary" onClick={() => scan(false)} disabled={running || scanBusy} focusableWhenDisabled={scanBusy} pendingAnnouncement=""><Trans>Scan the manuscript</Trans></Button>
         {approvalNeeded ? <Button className="button" onClick={() => scan(true)} disabled={running || scanBusy} focusableWhenDisabled={scanBusy} pendingAnnouncement="" onFocus={() => { transientScanFocusRef.current = true; }} onBlur={() => { transientScanFocusRef.current = false; }}><Trans>Scan it anyway</Trans></Button> : null}
         <Button className="button" onClick={planReviewNow} disabled={mockOnly || running || scanBusy || plan !== null || queuePlanning || queuePreview !== null}><Trans>Review with agent</Trans></Button>
+        <Button className="button" type="button" disabled={settings.enabledChecks.length === 0} focusableWhenDisabled aria-describedby={settings.enabledChecks.length === 0 ? goalCheckReasonId : undefined} onClick={() => {
+          const scope = scopeFor(scopeChoice, currentDocId);
+          if (scope === undefined) {
+            report({ text: t`Open a document or choose the whole manuscript before setting a goal.`, tone: 'info' });
+            return;
+          }
+          const agent = controller ?? agentFor(session);
+          if (agent === undefined) {
+            report({ text: t`Open the Agent panel, then set the goal again.`, tone: 'info' });
+            return;
+          }
+          agent.offerGoal({ intent: t`Fix the findings in this scope until the selected coherence checks pass.`, scope, coherenceChecks: settings.enabledChecks });
+          onOpenAgent?.();
+        }}><Trans>Fix all in scope until clean</Trans></Button>
         <Button ref={queueButtonRef} className="button" onClick={prepareQueuedReview} disabled={backgroundMockOnly || controller === null || controller === undefined || running || scanBusy || queuePreview !== null} pendingAnnouncement={t`Preparing the Background review preview`}><Trans>Queue a review</Trans></Button>
         <label className="findings-filter">
           <span><Trans>Show</Trans></span>
@@ -431,6 +446,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
           </select>
         </label>
       </div>
+      {settings.enabledChecks.length === 0 ? <p className="field-note" id={goalCheckReasonId}><Trans>Enable at least one coherence check in Settings before setting a clean-scope goal.</Trans></p> : null}
       {scanBusy ? (
         <section className="findings-plan" aria-label={t`The scan in progress`} data-testid="scan-running" {...panelState('loading')}>
           <Icon name="loading" label={t`Scan in progress`} />

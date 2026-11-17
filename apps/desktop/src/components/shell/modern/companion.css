@@ -204,10 +204,15 @@
 }
 
 :root[data-shell='modern'] .modern-companion .goal-recovery {
+  flex: 0 1 auto;
+  min-block-size: 0;
+}
+
+:root[data-shell='modern'] .modern-companion .agent:has(.goal-recovery) .agent-foot {
   flex-shrink: 0;
 }
 
-:root[data-shell='modern'] .modern-companion .agent:has(> .goal-recovery) .agent-body {
+:root[data-shell='modern'] .modern-companion .agent:has(.goal-recovery) .agent-body {
   flex: 1 1 0;
   min-block-size: 0;
 }
@@ -270,6 +275,10 @@
   min-block-size: var(--target-min);
 }
 
+:root[data-shell='modern'] .modern-companion .agent-body .goal-choice :is([data-slot='checkbox'], [data-slot='radio']) {
+  min-block-size: 1.2rem;
+}
+
 :root[data-shell='modern'] .modern-companion .agent-body summary {
   min-block-size: var(--target-min);
   align-content: center;
@@ -322,6 +331,10 @@
 :root[data-shell='modern'] .modern-companion .agent-body > * {
   flex: none;
   margin-block: 0;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-body > .goal-composer-slot {
+  flex: 1 1 auto;
 }
 
 :root[data-shell='modern'] .modern-companion .agent-body > .recurring {

@@ -7,10 +7,11 @@
  */
 
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { emptyCoherenceFile } from '@caotang/coherence';
+import { emptyCoherenceFile, type DeterministicCheckId } from '@caotang/coherence';
+import type { GoalCheckpoint } from '@caotang/harness';
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore } from '@caotang/gateway';
 import { createMockProvider } from '@caotang/gateway/mock';
-import { appendGoalCheckpoint, createGoalRun, createRunLogPort, deleteGoalRun, markGoalsInterrupted, openRuntimeStore, readGoalRun, readRun, recordGoalIteration, removeAgentSession, resumeGoalRun, writeProjectState, MemoryIndexedDb, type GoalCheckpoint } from '@caotang/store';
+import { addDocument, appendGoalCheckpoint, createGoalRun, createRunLogPort, deleteGoalRun, markGoalsInterrupted, openRuntimeStore, readGoalRun, readRun, recordGoalIteration, removeAgentSession, resumeGoalRun, writeProjectState, MemoryIndexedDb } from '@caotang/store';
 
 import { AgentController, type AgentSnapshot } from '../src/app/agent.js';
 import type { AppDb } from '../src/app/app-db.js';
@@ -74,12 +75,12 @@ function passedGoal() {
   };
 }
 
-async function fixture(reply = false, response: unknown = { reply: 'Nothing to change.' }) {
+async function fixture(reply = false, response: unknown = { reply: 'Nothing to change.' }, coherenceChecks?: () => readonly DeterministicCheckId[], extraDocuments = 0) {
   const state = sampleProjectState();
+  for (let index = 0; index < extraDocuments; index += 1) addDocument(state, { parentId: 'manuscript', title: `Extra scene ${index + 1}`, body: 'The boat returned.', now: new Date(0) });
   for (const node of state.manifest.tree) if (node.type === 'document') node.synopsis = 'Already written.';
   const store = await openRuntimeStore(new MemoryIndexedDb());
   await writeProjectState(store, state);
-  const session = new ProjectSession({ store, projectId: state.manifest.project.id, state, shadow: null });
   const keys = createKeyStore(createMemoryVaultPort());
   const profiles = createProfileStore({ keys });
   const profile = await profiles.create({ name: 'Mock', kind: 'mock', isActive: true });
@@ -88,6 +89,7 @@ async function fixture(reply = false, response: unknown = { reply: 'Nothing to c
     active: () => profile,
     persist: async () => undefined,
   } as unknown as ProviderService;
+  const session = new ProjectSession({ store, projectId: state.manifest.project.id, state, shadow: null, ...(coherenceChecks === undefined ? {} : { coherence: { checks: coherenceChecks, providers } }) });
   const controller: AgentController = new AgentController(session, providers, () => ({}), () => false, {
     store: new TaskStore(memoryDb()),
     locksAvailable: () => false,
@@ -102,6 +104,75 @@ async function fixture(reply = false, response: unknown = { reply: 'Nothing to c
   await appendGoalCheckpoint(store, GOAL, { checkpoint: { ...checkpoint, nextIteration: 2 }, at: 200 });
   return { session, controller, store, providers };
 }
+
+it('keeps the final no-turn check table in the recovery view', async () => {
+  const f = await fixture();
+  await f.controller.loadGoals();
+  await f.controller.resumeGoal(GOAL);
+  expect(f.controller.snapshot().goals[0]).toMatchObject({ watch: { checks: [{ kind: 'synopsis.filled', pass: true, distance: 0 }] } });
+});
+
+it('offers a Findings goal draft without starting it or borrowing an approval', async () => {
+  const f = await fixture();
+  const scope = { mode: 'doc' as const, docIds: [f.session.state.manifest.tree.find((node) => node.type === 'document')!.id] };
+  f.controller.offerGoal({ intent: 'Fix the findings in this scope.', scope, coherenceChecks: ['timeline.order-drift'] });
+  const draft = f.controller.snapshot().goalDraft;
+  expect(draft).toMatchObject({ intent: 'Fix the findings in this scope.', scope, coherenceChecks: ['timeline.order-drift'] });
+  expect(f.controller.snapshot()).toMatchObject({ busy: false, activeGoalId: null });
+  expect(f.providers.gateway.ledger.turnRows()).toEqual([]);
+  expect(await readGoalRun(f.store, GOAL)).toMatchObject({ status: 'running' });
+  scope.docIds.length = 0;
+  expect(draft?.scope).toMatchObject({ docIds: [expect.any(String)] });
+  f.controller.clearGoalDraft(draft!.id + 1);
+  expect(f.controller.snapshot().goalDraft).toBe(draft);
+  f.controller.clearGoalDraft(draft!.id);
+  expect(f.controller.snapshot().goalDraft).toBeNull();
+});
+
+it('publishes the owned running checkpoint while its ordinary approval card waits', async () => {
+  const f = await fixture(true, { steps: [{ tool: 'synopsis.fill', params: { docs: ['The Storm'], source: 'text', max_words: 30 }, expect: 'The storm has a synopsis.' }] });
+  f.controller.attach();
+  f.controller.setMode('ask');
+  await when(f.controller, (snapshot) => snapshot.goals.length === 1);
+  const id = 'g_7QK4M2N8RZ';
+  const work = f.controller.startGoal({ ...passedGoal(), id, checks: [{ kind: 'status.all', scope: { mode: 'full' }, status: 'final' }] });
+  try {
+    await Promise.race([when(f.controller, (snapshot) => snapshot.pending !== null || snapshot.offer !== null), work]);
+    expect(f.controller.snapshot().pending ?? f.controller.snapshot().offer).not.toBeNull();
+    expect(f.controller.snapshot()).toMatchObject({ activeGoalId: id });
+    expect(f.controller.snapshot().goals.find((goal) => goal.goalId === id)).toMatchObject({ status: 'running', watch: { checks: [{ kind: 'status.all', pass: false }] } });
+  } finally {
+    f.controller.stop();
+    await work;
+  }
+});
+
+it('passes the current coherence settings to each explicitly started goal', async () => {
+  let enabled: readonly DeterministicCheckId[] = [];
+  const f = await fixture(false, undefined, () => enabled);
+  const checks = [{ kind: 'coherence.clean' as const, scope: { mode: 'full' as const }, checks: ['timeline.order-drift' as const] }];
+  const first = 'g_7QK4M2N8RZ';
+  await f.controller.startGoal({ ...passedGoal(), id: first, checks });
+  expect((await readGoalRun(f.store, first))?.result).toMatchObject({ status: 'failed', reason: expect.stringContaining('turned off in Settings') });
+  enabled = ['timeline.order-drift'];
+  const second = 'g_7QK4M2N8RX';
+  await f.controller.startGoal({ ...passedGoal(), id: second, checks });
+  expect((await readGoalRun(f.store, second))?.result?.status).toBe('passed');
+  expect(f.providers.gateway.ledger.turnRows()).toEqual([]);
+});
+
+it('requires explicit approval for a large coherence scope and retains it in the final checkpoint', async () => {
+  const f = await fixture(false, undefined, () => ['timeline.order-drift'], 20);
+  const goal = { ...passedGoal(), id: 'g_7QK4M2N8RZ', checks: [{ kind: 'coherence.clean' as const, scope: { mode: 'full' as const }, checks: ['timeline.order-drift' as const] }] };
+  await f.controller.startGoal(goal);
+  expect((await readGoalRun(f.store, goal.id))?.result?.status).toBe('refused');
+  const approved = { ...goal, id: 'g_7QK4M2N8RX' };
+  await f.controller.startGoal(approved, { approvedLargeScope: true });
+  const row = await readGoalRun(f.store, approved.id);
+  expect(row?.result?.status).toBe('passed');
+  expect(row?.checkpoint).toMatchObject({ approvedLargeScope: true, results: [{ pass: true }] });
+  expect(f.providers.gateway.ledger.turnRows()).toEqual([]);
+});
 
 it('offers a goal a reload abandoned as interrupted, resumes it only when the writer asks, then settles it', async () => {
   const f = await fixture();

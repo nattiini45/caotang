@@ -127,7 +127,7 @@ import { assetRecordsOf } from '@caotang/exporter/export-metadata';
 import type { EmitFailure, ExportJob, ExportPreview, ExportPreviewRequest, ExportProof, ExporterService } from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
 import { InkCompilerNotLoaded } from '@caotang/dialogue';
-import { blockOf, checkMacro, createHookRunner, dialogueFactsOf, excludedBy, exportHookNodes, hookMessages, projectScanInput, type Harness, type HookRun, type PictureOutbox, type SourcedRule, type TranscriptionGenerationInput } from '@caotang/harness';
+import { blockOf, checkMacro, createHookRunner, dialogueFactsOf, excludedBy, exportHookNodes, hookMessages, projectScanInput, type GoalOptions, type Harness, type HookRun, type PictureOutbox, type SourcedRule, type TranscriptionGenerationInput } from '@caotang/harness';
 import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
@@ -943,6 +943,14 @@ export class ProjectSession {
 
   commandClient(): McpClient | undefined {
     return this.harnessOptions.mcp?.client;
+  }
+
+  goalChecks(): GoalOptions['checks'] {
+    const coherence = this.harnessOptions.coherence;
+    return {
+      ...(coherence === undefined ? {} : { get enabled() { return coherence.checks(); } }),
+      dialogue: dialogueFactsOf,
+    };
   }
 
   /** Takes one skill folder into the project (`skill.import`): the files are staged, and the command names them. */

@@ -1,5 +1,7 @@
 # Decisions
 
+- Goal Start is explicit and uses deterministic checks, existing permission modes and the shared Web Locks capability reason. Findings opens a prefilled form, never an automatic run. The watch reads durable checkpoints, including final no-iteration results; saved large-scope approval applies only to unchanged check definitions. The live watch starts compact with saved checks and spend on demand, and Classic may use up to 70% of its column during setup or an owned run so approval cards remain reachable. [delegated 2026-11-17]
+
 - Resumed goals protect both saved passing checks and checks that pass now. Start and Resume expose Stop from their synchronous ownership claim and retain that signal through setup and the runner; cancelling setup starts no paid turn. [delegated 2026-11-17]
 
 - Goal recovery projects and enforces one shared linked-log refusal policy. An applied MCP action missing from the goal checkpoint is not replayed; closing coherence scans enter the session's findings persistence path even without an iteration. [delegated 2026-11-17]

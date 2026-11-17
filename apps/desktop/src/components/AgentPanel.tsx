@@ -8,7 +8,7 @@
  * Ctrl+Enter sends it to the running turn as a note, and Stop (or Escape, with the box empty) stops the turn.
  */
 
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import './request-context.css';
 import { plural, t } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
@@ -41,7 +41,7 @@ import { groupUsage } from '../app/usage-model.js';
 import { isImeEnter, keyFacts, keyboardLayoutStore, MODAL_DIALOG_SELECTOR, resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
 import { UNRESOLVED_NOTICE } from '../app/review-text.js';
-import type { AgentController, AgentSnapshot } from '../app/agent.js';
+import type { AgentController, AgentSnapshot, GoalRecoveryView } from '../app/agent.js';
 import type { CommandNote } from '../app/slash-model.js';
 import type { RecurringTasks } from '../app/recurring-tasks.js';
 import type { StartIntent } from '../App.js';
@@ -78,6 +78,7 @@ import { RequestContext } from './RequestContext.js';
 
 /** Fetched when a turn has suggestions pending, which only an editor in review mode makes. */
 const TurnReview = lazy(() => import('./TurnReview.js').then((module) => ({ default: module.TurnReview })));
+const GoalComposer = lazy(() => import('./GoalComposer.js'));
 
 /* lingui-set comment="Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content." */
 
@@ -177,6 +178,7 @@ export function AgentPanel({
   useLingui();
   const sessionVersion = useSession(session);
   const snapshot = useSyncExternalStore(agent.subscribe, agent.snapshot);
+  const goalInConversation = (goal: GoalRecoveryView): boolean => open && (goal.goalId === snapshot.activeGoalId || (goal.status === 'settled' && !goal.unreadable));
   const chatMemory = snapshot.sessionMemory.find((memory) => memory.role === 'chat');
   const windowRecovery: WindowRecovery = {
     disabled: snapshot.busy || snapshot.queue.length > 0 || snapshot.sessionSave.kind === 'writing' || snapshot.sessionSave.failure !== null,
@@ -202,6 +204,16 @@ export function AgentPanel({
     return () => { offHealth?.(); offTools?.(); };
   }, [session]);
   const [intent, setIntent] = useState(() => memoryFor(agent).intent);
+  const [goalOpen, setGoalOpen] = useState(false);
+  const [goalLoaded, setGoalLoaded] = useState(false);
+  const goalButtonRef = useRef<HTMLButtonElement>(null);
+  const goalComposerId = useId();
+  const goalShowing = goalOpen || snapshot.goalDraft !== null;
+  const goalWasShowing = useRef(goalShowing);
+  useEffect(() => {
+    if (goalWasShowing.current && !goalShowing) goalButtonRef.current?.focus();
+    goalWasShowing.current = goalShowing;
+  }, [goalShowing]);
   const [contextOverrides, setContextOverrides] = useState(() => memoryFor(agent).contextOverrides);
   const updateContext = (next: ContextOverrides): void => {
     memoryFor(agent).contextOverrides = next;
@@ -467,6 +479,7 @@ export function AgentPanel({
         </button>
         {snapshot.busy ? <small className="muted context-next"><Trans>For the next request</Trans></small> : null}
       </span>
+      <Button ref={goalButtonRef} type="button" className="button is-quiet goal-entry" aria-expanded={goalShowing} aria-controls={goalLoaded || snapshot.goalDraft !== null ? goalComposerId : undefined} title={t`Set up a goal run`} onClick={() => { setGoalLoaded(true); setGoalOpen(true); }}><Trans>Goal</Trans></Button>
       {snapshot.busy ? (
         <button type="button" className="button" disabled={intent.trim() === '' || snapshot.providerName === null || runActionPending} onClick={steer}>
           <Trans>Steer</Trans>
@@ -474,11 +487,33 @@ export function AgentPanel({
       ) : null}
     </form>
   );
+  const closeGoal = (): void => {
+    setGoalLoaded(true);
+    setGoalOpen(false);
+    if (snapshot.goalDraft !== null) agent.clearGoalDraft(snapshot.goalDraft.id);
+  };
+  const goalComposer = goalLoaded || snapshot.goalDraft !== null ? <div id={goalComposerId} hidden={!goalShowing} className="goal-composer-slot"><Suspense fallback={<p role="status"><Trans>Loading the goal form…</Trans></p>}>
+      <GoalComposer
+        open={goalShowing}
+        session={session}
+        coherenceChecks={session.goalChecks()?.enabled ?? []}
+        draft={snapshot.goalDraft}
+        unavailable={snapshot.goalUnavailable ?? (snapshot.providerName === null ? t`Connect a provider in Settings before starting a goal.` : snapshot.sessionSave.failure ?? (snapshot.sessionLoad.kind === 'failed' || snapshot.sessionLoad.kind === 'loading' ? t`Wait for the conversation to load, or reopen the project to try again.` : null))}
+        busy={snapshot.busy || runActionPending}
+        onClose={closeGoal}
+        onStart={(goal, approvedLargeScope) => {
+          const running = agent.startGoal(goal, { approvedLargeScope });
+          if (agent.snapshot().activeGoalId === goal.id) closeGoal();
+          void running;
+        }}
+      />
+    </Suspense></div> : null;
+  const oneTurnComposer = <div className="agent-one-turn-composer" hidden={goalShowing}>{intentForm}{contextControls}</div>;
   // The drawer is a named region of its own; the window is inside Modern's `aside` "Agent", which names it.
   const Root = inWindow ? 'div' : 'section';
   return (
     <Root
-      className={`agent${open ? ' is-open' : ''}${inWindow ? ' is-window' : ''}`}
+      className={`agent${open ? ' is-open' : ''}${inWindow ? ' is-window' : ''}${goalShowing ? ' is-goal-setup' : ''}${snapshot.activeGoalId === null ? '' : ' is-goal-running'}`}
       aria-label={inWindow ? undefined : t`Agent`}
       data-testid="agent-panel"
       data-state={snapshot.phase}
@@ -531,7 +566,7 @@ export function AgentPanel({
             className="button is-danger agent-stop"
             data-testid="agent-stop"
             disabled={snapshot.stopping}
-            title={t`Stop the turn (${{ shortcut: shortcutLabel('agent-stop', keyboardLayout) }} with the Intent box empty)`}
+            title={snapshot.activeGoalId === null ? t`Stop the turn (${{ shortcut: shortcutLabel('agent-stop', keyboardLayout) }} with the Intent box empty)` : t`Stop the whole goal (${{ shortcut: shortcutLabel('agent-stop', keyboardLayout) }} with the Intent box empty)`}
             onClick={() => agent.stop()}
           >
             {snapshot.stopping ? t`Stopping…` : t`Stop`}
@@ -559,14 +594,16 @@ export function AgentPanel({
       <InterruptedRuns agent={agent} runs={snapshot.interrupted} busy={snapshot.busy} onResume={() => (open ? undefined : onToggle())} />
 
       {/* A goal the project was left with waits for the same answer (agent-harness §7.2): it never resumes on its own. */}
-      <GoalRecovery agent={agent} goals={snapshot.goals} unavailable={snapshot.goalUnavailable} />
+      <GoalRecovery agent={agent} goals={snapshot.goals.filter((goal) => !goalInConversation(goal))} unavailable={snapshot.goalUnavailable} activeGoalId={snapshot.activeGoalId} compact={!open} onResume={() => (open ? undefined : onToggle())} />
 
       {/* A task that is due waits for the writer's answer, so its offer is shown with the drawer closed too. */}
       <TaskOffers recurring={recurring} />
 
       {open ? (
         <div key={snapshot.sessionId} id="agent-body" className="agent-body">
-          {inWindow ? sessionUsage : <>{intentForm}{contextControls}{sessionUsage}</>}
+          {goalComposer}
+          {inWindow ? sessionUsage : <>{oneTurnComposer}{sessionUsage}</>}
+          <GoalRecovery agent={agent} goals={snapshot.goals.filter(goalInConversation)} unavailable={snapshot.goalUnavailable} activeGoalId={snapshot.activeGoalId} />
 
           {oldInstruction !== null ? (
             <p className="agent-old-instruction" data-testid="agent-old-instruction">
@@ -694,7 +731,7 @@ export function AgentPanel({
           ) : null}
         </div>
       ) : null}
-      {inWindow ? <footer className="agent-foot">{intentForm}{contextControls}</footer> : null}
+      {inWindow ? <footer className="agent-foot" hidden={goalShowing}>{oneTurnComposer}</footer> : null}
 
       <TranscriptionReviewDialog session={session} broker={session.transcriptionReviews} />
       <ConfirmDialog
