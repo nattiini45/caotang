@@ -187,6 +187,26 @@ export function isPublishInstant(value: string): boolean {
 }
 
 /**
+ * A `slug` the command will write: one address segment (web-publishing.md §2) the export also names
+ * its file for, so it must be a file name unchanged — no path separator, no character a file name
+ * forbids, no leading or trailing space, no trailing dot, no run of spaces, at most 120 characters,
+ * and no Windows device name before a first dot (`CON.txt` writes `_CON.txt`). Keep in step with
+ * `fileStem` in the exporter: a slug it would rewrite makes the file name disagree with the
+ * front-matter permalink.
+ */
+const PUBLISH_SLUG_FORBIDDEN = '<>:"/\\|?*';
+const PUBLISH_SLUG_DEVICE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+export function isPublishSlug(value: string): boolean {
+  if (value.length === 0 || value.length > 120) return false;
+  if (value !== value.trim() || value.endsWith('.') || value.includes('  ')) return false;
+  for (const ch of value) {
+    if (ch.charCodeAt(0) < 32 || PUBLISH_SLUG_FORBIDDEN.includes(ch)) return false;
+    if (ch !== ' ' && /\s/.test(ch)) return false;
+  }
+  return !PUBLISH_SLUG_DEVICE.test(value.split('.')[0] ?? value);
+}
+
+/**
  * A `canonical` the command will write: an absolute `https` address carrying no credentials — a
  * `user:pass@` inside the address would land in the manifest and every export that reads it.
  */
@@ -216,7 +236,7 @@ export function publishFieldValueOk(field: (typeof PUBLISH_FIELD_NAMES)[number],
         value.every((tag) => typeof tag === 'string' && tag.trim().length > 0)
       );
     case 'slug':
-      return typeof value === 'string' && [...value].length <= PUBLISH_TEXT_MAX && value.trim().length > 0;
+      return typeof value === 'string' && [...value].length <= PUBLISH_TEXT_MAX && isPublishSlug(value);
     case 'publishedAt':
       return typeof value === 'string' && [...value].length <= PUBLISH_TEXT_MAX && isPublishInstant(value);
     case 'canonical':
@@ -845,8 +865,12 @@ export const binderSetPublish: CommandDescriptor<BinderSetPublishParams> = {
       if (!field.ok) return field;
       if (field.value !== undefined) typed[key] = field.value;
     }
-    if (typeof typed.slug === 'string' && typed.slug.trim() === '') {
-      return invalid('a slug cannot be empty', 'type a slug like "first-post", or null to clear it', 'patch.slug');
+    if (typeof typed.slug === 'string' && !isPublishSlug(typed.slug)) {
+      return invalid(
+        `"${typed.slug}" is not a slug: a slug is one address segment a file is named for, so it cannot be empty, hold a character a file name forbids (\`< > : " / \\ | ? *\` or a control character), start or end with a space, end with a dot, run of spaces, pass 120 characters, or start as a device name like "CON"`,
+        'type a slug like "first-post", or null to clear it',
+        'patch.slug',
+      );
     }
     if (typeof typed.publishedAt === 'string' && !isPublishInstant(typed.publishedAt)) {
       return invalid(
@@ -1622,13 +1646,15 @@ export const EXPORT_FORMATS = [
   // The AV script's VO script (av-script.md §5), as CSV and as a spreadsheet. Appended as the twenty-fourth and twenty-fifth.
   'vo-script-csv',
   'vo-script-xlsx',
-  // The AV script's reading formats (av-script.md §5): show notes, the transcript and the teleprompter. Appended as the twenty-fourth to twenty-sixth.
+  // The AV script's reading formats (av-script.md §5): show notes, the transcript and the teleprompter. Appended as the twenty-sixth to twenty-eighth.
   'show-notes',
   'transcript-md',
   'teleprompter',
-  // The AV script's captions and chapters (av-script.md §5). Appended as the twenty-fourth and twenty-fifth.
+  // The AV script's captions and chapters (av-script.md §5). Appended as the twenty-ninth and thirtieth.
   'vtt',
   'chapters-json',
+  // The web publish targets (web-publishing.md §3): the HTML article, appended as the thirty-first.
+  'html',
 ] as const;
 
 function exportFormatRefusal(format: string): Result<never, CommandError> | undefined {

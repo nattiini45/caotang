@@ -30,7 +30,7 @@ import {
 } from '@caotang/exporter';
 import { loadComicPage } from '@caotang/comic';
 import { loadZipEngine } from '@caotang/store';
-import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type RecipeScriptFont, type SceneNumbersOption } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type HtmlModeOption, type RecipeScriptFont, type SceneNumbersOption } from '@caotang/bus';
 
 import { downloadBytes } from '../app/download.js';
 import { exportCompileMachine, exportReadinessMachine, type CompileEvent, type CompileState } from '../app/export-dialog-model.js';
@@ -79,6 +79,7 @@ function formatGroups(comicSelected: boolean): readonly { readonly name: string;
       { format: 'txt', label: t`Plain text (.txt)`, help: t`Chapter headings in capitals, scenes set apart by a line.` },
       { format: 'docx', label: t`Word (.docx)`, help: t`Styled headings, and a contents field Word can update.` },
       { format: 'epub', label: t`EPUB (.epub)`, help: t`A reading-system book, one file per chapter.` },
+      { format: 'html', label: t`Web article (.html)`, help: t`One HTML file per document: the article with its publish date, canonical link and description from the Publishing inspector section.` },
     ],
   },
   {
@@ -215,6 +216,10 @@ interface ShownOptions {
   readonly timelinePictures: boolean;
   /** The teleprompter's wrap width in characters; `undefined` is the compile's default (av-script.md §5). */
   readonly teleprompterWidth: number | undefined;
+  /** The HTML article's options (web-publishing.md §3); the dialog has no controls for them, so they are preserved as the recipe holds them. */
+  readonly frontMatter: boolean | undefined;
+  readonly htmlMode: HtmlModeOption | undefined;
+  readonly css: string | undefined;
   /** How the prose formats treat the pictures in the bodies: the mode, keeping their metadata, and the EPUB's WebP (pictures.md §4). */
   readonly pictures: ShownPictureOptions;
   /**
@@ -340,6 +345,9 @@ function shownOptionsOf(recipe: ExportRecipe | undefined): ShownOptions {
     cropMarks: recipe?.options?.cropMarks ?? false,
     timelinePictures: recipe?.options?.timelinePictures ?? false,
     teleprompterWidth: recipe?.options?.teleprompterWidth,
+    frontMatter: recipe?.options?.frontMatter,
+    htmlMode: recipe?.options?.htmlMode,
+    css: recipe?.options?.css,
     colourEmoji: recipe?.options?.colourEmoji,
     sceneNumbers: recipe?.options?.sceneNumbers ?? 'off',
     continued: recipe?.options?.continued ?? true,
@@ -478,6 +486,9 @@ export function ExportDialog({
         ...(next.cropMarks ? { cropMarks: true } : {}),
         ...(next.timelinePictures ? { timelinePictures: true } : {}),
         ...(next.teleprompterWidth === undefined ? {} : { teleprompterWidth: next.teleprompterWidth }),
+        ...(next.frontMatter === undefined ? {} : { frontMatter: next.frontMatter }),
+        ...(next.htmlMode === undefined ? {} : { htmlMode: next.htmlMode }),
+        ...(next.css === undefined ? {} : { css: next.css }),
         ...pictureOptionsOf(next.pictures),
         ...(next.colourEmoji === undefined ? {} : { colourEmoji: next.colourEmoji }),
         ...(next.notes === 'footnote' ? {} : { notes: next.notes }),
@@ -518,6 +529,9 @@ export function ExportDialog({
         ...(shown.cropMarks ? { cropMarks: true } : {}),
         ...(shown.timelinePictures ? { timelinePictures: true } : {}),
         ...(shown.teleprompterWidth === undefined ? {} : { teleprompterWidth: shown.teleprompterWidth }),
+        ...(shown.frontMatter === undefined ? {} : { frontMatter: shown.frontMatter }),
+        ...(shown.htmlMode === undefined ? {} : { htmlMode: shown.htmlMode }),
+        ...(shown.css === undefined ? {} : { css: shown.css }),
         ...pictureOptionsOf(shown.pictures),
         ...(shown.colourEmoji === undefined ? {} : { colourEmoji: shown.colourEmoji }),
         ...(shown.notes === 'footnote' ? {} : { notes: shown.notes }),

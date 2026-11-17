@@ -240,6 +240,7 @@ export type {
   ValidationSkillFile,
   ProjectRenameParams,
   ProjectSetMetadataParams,
+  HtmlModeOption,
   RecipeDeleteParams,
   RecipeOptionsParams,
   RecipePageSize,

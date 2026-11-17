@@ -179,6 +179,9 @@ describe('fileStem', () => {
     expect(fileStem('   \t\n ')).toBe('Untitled');
     expect(fileStem('. . . .')).toBe('Untitled');
     expect(fileStem('CON.')).toBe('_CON');
+    // Windows reserves the device name before the first dot too: `CON.txt` is still `CON`.
+    expect(fileStem('CON.txt')).toBe('_CON.txt');
+    expect(fileStem('com1.log')).toBe('_com1.log');
   });
 
   it('turns reserved, control and line-ending characters into one space, and keeps unicode', () => {

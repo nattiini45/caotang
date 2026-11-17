@@ -142,7 +142,7 @@ function isIsoDate(v: unknown): v is string {
 function publishFieldExpectation(field: (typeof PUBLISH_FIELD_NAMES)[number]): string {
   switch (field) {
     case 'slug':
-      return 'a non-empty slug';
+      return 'a non-empty slug of one address segment a file can be named for';
     case 'publishedAt':
       return 'an RFC 3339 instant';
     case 'canonical':
@@ -205,7 +205,10 @@ function isRecipeOptions(v: unknown): boolean {
     (o['epubKeepWebp'] === undefined || typeof o['epubKeepWebp'] === 'boolean') &&
     (o['keepPictureMetadata'] === undefined || typeof o['keepPictureMetadata'] === 'boolean') &&
     (o['timelinePictures'] === undefined || typeof o['timelinePictures'] === 'boolean') &&
-    (o['notes'] === undefined || o['notes'] === 'footnote' || o['notes'] === 'endnote')
+    (o['notes'] === undefined || o['notes'] === 'footnote' || o['notes'] === 'endnote') &&
+    (o['frontMatter'] === undefined || typeof o['frontMatter'] === 'boolean') &&
+    (o['htmlMode'] === undefined || o['htmlMode'] === 'standalone' || o['htmlMode'] === 'fragment') &&
+    (o['css'] === undefined || typeof o['css'] === 'string')
   );
 }
 
