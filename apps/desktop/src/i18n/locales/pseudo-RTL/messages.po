@@ -2772,6 +2772,10 @@ msgstr ""
 msgid "A name uses lower-case letters, digits and hyphens, up to {max} characters, and does not start or end with a hyphen."
 msgstr ""
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "A negative review can lead to another iteration. An unavailable review cannot complete the goal."
+msgstr ""
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "A new comic script is made from the panels and balloons on this book's pages and linked to the book. Pictures are never copied into it."
@@ -3340,6 +3344,10 @@ msgstr ""
 msgid "Add an entry expected here…"
 msgstr ""
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Add an independent review"
+msgstr ""
+
 #. Interpolated values: model, name, provider, total
 #: apps/desktop/src/components/ProviderSetup.tsx
 msgid "Add another provider"
@@ -3517,6 +3525,10 @@ msgstr ""
 msgid "Address"
 msgstr ""
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Adds up to one Background model call per completed iteration, within the shared limits above."
+msgstr ""
+
 #. Interpolated values: count, number, total
 #: apps/desktop/src/components/ProviderFormParts.tsx
 msgid "Advanced"
@@ -3525,6 +3537,14 @@ msgstr ""
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "Advanced request parameters"
+msgstr ""
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Advisory by default. Its verdict does not decide whether the goal passes."
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Advisory. This review does not decide whether the goal passes."
 msgstr ""
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
@@ -5178,6 +5198,11 @@ msgstr ""
 msgid "harness.progress.picturesAttach.content"
 msgstr ""
 
+#. count is the number of changed text fields left out of the bounded review.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Changed fields omitted: {count}."
+msgstr ""
+
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
 msgid "Changed in the last"
@@ -5565,6 +5590,10 @@ msgstr ""
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Choose a reason from the picker."
+msgstr ""
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Choose a required check, or require the independent review to pass."
 msgstr ""
 
 #. Dialogue coverage on a shot. Interpolated values: text is a passage of the writer's script; the count is a number.
@@ -6902,6 +6931,14 @@ msgstr ""
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.shotsDerive.active"
+msgstr ""
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Describe what the changed passages should satisfy."
+msgstr ""
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Describe what the changed passages should satisfy. Use at most 4,000 characters."
 msgstr ""
 
 #. Interpolated values: parent, title, amount
@@ -9428,6 +9465,18 @@ msgstr ""
 msgid "Includes scripts."
 msgstr ""
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Independent review"
+msgstr ""
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Independent review (optional)"
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Independent review is running"
+msgstr ""
+
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Info"
@@ -9676,6 +9725,11 @@ msgstr ""
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #: apps/desktop/src/components/Inspector.tsx
 msgid "Item"
+msgstr ""
+
+#. iteration is the actor iteration covered by this independent review.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Iteration {iteration}"
 msgstr ""
 
 #. Encoding conversion results. Interpolated values: name is a document title, codex entry name or file path of the writer's project; from and named are text encoding names; why and reason are failure messages; backup is a file path.
@@ -11409,6 +11463,10 @@ msgstr ""
 msgid "No cards yet"
 msgstr ""
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "No changed, readable passages were available to review."
+msgstr ""
+
 #. Interpolated values: source, summary
 #: apps/desktop/src/components/ActivityPanel.tsx
 msgid "No changes"
@@ -11461,6 +11519,10 @@ msgstr ""
 
 #: apps/desktop/src/components/InspectorDialogue.tsx
 msgid "No default speaker"
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "No deterministic checks were selected."
 msgstr ""
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
@@ -11777,6 +11839,10 @@ msgstr ""
 msgid "No reference is named, so the codex entries the action mentions send theirs."
 msgstr ""
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "No reliable verdict was saved. The request was not repeated."
+msgstr ""
+
 #: apps/desktop/src/components/TracePanel.tsx
 msgid "No reply recorded yet."
 msgstr ""
@@ -11813,6 +11879,10 @@ msgstr ""
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
 msgid "No saved filters yet"
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "No saved review yet"
 msgstr ""
 
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
@@ -11980,6 +12050,10 @@ msgstr ""
 #. The picture board's storage actions. count, removed and remaining are numbers; name and title are a picture's caption or a file name; reason and detail are a sentence a command or a browser wrote.
 #: apps/desktop/src/media/picture-storage-model.ts
 msgid "No unused picture file was found. Every file in the project belongs to a picture or is named by something the project keeps."
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "No usable independent review was saved."
 msgstr ""
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
@@ -13068,6 +13142,11 @@ msgstr ""
 #. passed and total count the saved goal check results.
 #: apps/desktop/src/components/GoalRecovery.tsx
 msgid "Passing checks: {passed} of {total}"
+msgstr ""
+
+#. passed and total count deterministic checks only, excluding the independent model review.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Passing deterministic checks: {passed} of {total}"
 msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
@@ -14887,6 +14966,14 @@ msgstr ""
 msgid "Requests, retries included. Nothing here holds a key or a message."
 msgstr ""
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Require this review to pass"
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Required for completion. A negative review can lead to another iteration."
+msgstr ""
+
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/components/Binder.tsx
@@ -15143,6 +15230,14 @@ msgstr ""
 msgid "Review complete: {findingCount, plural, one {# finding recorded.} other {# findings recorded.}}"
 msgstr ""
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Review criterion"
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Review criterion:"
+msgstr ""
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Review in progress"
@@ -15154,6 +15249,10 @@ msgstr ""
 msgid "Review Inbox"
 msgstr ""
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Review needs work"
+msgstr ""
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Review of {name}"
@@ -15162,6 +15261,10 @@ msgstr ""
 #. Interpolated values: done, intent, outdated, staged, total
 #: apps/desktop/src/app/task-model.ts
 msgid "Review partial: {count, plural, one {# finding} other {# findings}} published"
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Review passed"
 msgstr ""
 
 #. Background task and Inbox status. Counts describe drafts, calls, tokens or findings; titles and model labels are supplied text.
@@ -15208,6 +15311,10 @@ msgstr ""
 msgid "Review this skill first"
 msgstr ""
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Review unavailable"
+msgstr ""
+
 #. Background task and Inbox status. Counts describe drafts, calls, tokens or findings; titles and model labels are supplied text.
 #: apps/desktop/src/components/BackgroundTasks.tsx
 msgid "Review usage is incomplete: some request outcomes or token counts are unknown."
@@ -15246,6 +15353,10 @@ msgstr ""
 #. Interpolated values: done, intent, outdated, staged, total
 #: apps/desktop/src/app/task-model.ts
 msgid "Reviewing: verifying {doneCalls} of {totalCalls}"
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Reviews cover changed, readable passages, not the full manuscript."
 msgstr ""
 
 #. Interpolated values: calls
@@ -15732,6 +15843,10 @@ msgstr ""
 #. calls is the total model-call count saved for this goal.
 #: apps/desktop/src/components/GoalRecovery.tsx
 msgid "Saved model calls: {calls}"
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Saved spend"
 msgstr ""
 
 #. Interpolated values: name
@@ -18196,6 +18311,10 @@ msgstr ""
 msgid "The background preparation was cancelled."
 msgstr ""
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "The Background request could not complete. Check its provider and the current read rules before starting another goal."
+msgstr ""
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The background review preview could not load. Try preparing the review again."
@@ -18323,6 +18442,10 @@ msgstr ""
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "The check found no problem."
+msgstr ""
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "The check scope applies. Only changed, readable passages are reviewed, not the full manuscript."
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -19142,6 +19265,10 @@ msgstr ""
 msgid "The passage this finding quotes has changed, so it is not where the finding says. Run the scan again to find it."
 msgstr ""
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "The passages changed or became unreadable. Start a new goal to review the current text."
+msgstr ""
+
 #. A root of the picture sweep's inventory, named in the sentence that says why a sweep was refused. key is a document's journal key; root is the name of another root; reason is a sentence.
 #: apps/desktop/src/app/picture-retention-host.ts
 msgid "the pending journal"
@@ -19381,6 +19508,10 @@ msgstr ""
 msgid "The provider did not list its models just now, so the name stays as it is unless you change it."
 msgstr ""
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "The provider did not return a usable verdict. Start a new goal to try again."
+msgstr ""
+
 #. Interpolated values: tag
 #: apps/desktop/src/i18n/runtime.ts
 msgid "The pseudo catalogue \"{tag}\" is available only in development and tests."
@@ -19414,6 +19545,10 @@ msgstr ""
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "The report’s read marker could not be saved. It may appear unread after reload."
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "The request ended without a saved verdict. It will not be repeated."
 msgstr ""
 
 #. Interpolated values: error, name
@@ -19476,6 +19611,10 @@ msgstr ""
 msgid "The review could not be started: {error}"
 msgstr ""
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "The review did not complete because this goal was stopped or a deterministic check regressed."
+msgstr ""
+
 #. Interpolated values: done, intent, outdated, staged, total
 #: apps/desktop/src/app/task-model.ts
 msgid "The review did not publish. Its other steps are ready for review."
@@ -19499,6 +19638,10 @@ msgstr ""
 #. Interpolated values: calls, cap, error
 #: apps/desktop/src/app/task-queue.ts
 msgid "The review reached its approved limit of {cap} model calls."
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "The review used shortened excerpts."
 msgstr ""
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
@@ -19839,6 +19982,10 @@ msgstr ""
 #. Interpolated values: error
 #: apps/desktop/src/app/services.ts
 msgid "The settings could not be saved in this browser: {error}"
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "The shared run limits left no room for this review. Start a new goal with suitable limits."
 msgstr ""
 
 #. Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number.
@@ -20698,6 +20845,10 @@ msgstr ""
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "This request needs about {promptTokens} prompt tokens plus {reserveTokens} reserved tokens. The model window is {windowTokens} tokens. No request was sent."
+msgstr ""
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "This request’s usage is uncertain. A possibly sent request is not repeated; affected run limits are treated as spent on recovery."
 msgstr ""
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
@@ -21783,6 +21934,10 @@ msgstr ""
 
 #: apps/desktop/src/components/CardPictureDialog.tsx
 msgid "Use as card picture"
+msgstr ""
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Use at most 4,000 characters for the review criterion."
 msgstr ""
 
 #: apps/desktop/src/components/GoalComposer.tsx

@@ -36,3 +36,35 @@ it('keeps remeasured distances between iterations and at the final saved checkpo
   ] } as GoalCheckpoint;
   expect(goalWatchOf(saved).checks[0]?.history).toEqual([3, 1, 4, 2, 0]);
 });
+
+it('projects model judgments separately without fabricating deterministic measurements', () => {
+  const saved = checkpoint();
+  const verifier = { kind: 'verifier', scope: { mode: 'full' }, rubric: 'The departure is clear.', gate: false } as const;
+  const watch = goalWatchOf({ ...saved, goal: { ...saved.goal, checks: [spec, verifier] }, results: [result(0)], verification: {
+    key: canonicalJson(verifier), iteration: 1, status: 'complete', verdict: { pass: false, reasons: ['The departure still needs work.'] }, sources: [], omitted: 2, truncated: true,
+  } });
+  expect(watch.checks).toHaveLength(1);
+  expect(watch.checks[0]).toMatchObject({ kind: 'synopsis.filled', pass: true, distance: 0, history: [0] });
+  expect(watch.review).toEqual({ rubric: verifier.rubric, gate: false, status: 'complete', pass: false, reasons: ['The departure still needs work.'], iteration: 1, omitted: 2, truncated: true, uncertainUsage: false });
+  expect(watch.review).not.toHaveProperty('distance');
+  expect(watch.review).not.toHaveProperty('history');
+});
+
+it('retains unavailable and uncertain review outcomes without inventing a verdict', () => {
+  const saved = checkpoint();
+  const verifier = { kind: 'verifier', scope: { mode: 'full' }, rubric: 'The departure is clear.', gate: true } as const;
+  const watch = goalWatchOf({ ...saved, goal: { ...saved.goal, checks: [verifier] }, verification: {
+    key: canonicalJson(verifier), iteration: 1, status: 'unavailable', code: 'interrupted', sources: [], omitted: 0, truncated: false, uncertainUsage: true,
+  } });
+  expect(watch.checks).toEqual([]);
+  expect(watch.review).toMatchObject({ gate: true, status: 'unavailable', code: 'interrupted', pass: null, reasons: [], uncertainUsage: true });
+});
+
+it('does not invent a covered iteration for an unavailable no-turn review', () => {
+  const saved = checkpoint();
+  const verifier = { kind: 'verifier', scope: { mode: 'full' }, rubric: 'The departure is clear.' } as const;
+  const watch = goalWatchOf({ ...saved, goal: { ...saved.goal, checks: [spec, verifier] }, verification: {
+    key: canonicalJson(verifier), iteration: 0, status: 'unavailable', code: 'no-changes', sources: [], omitted: 0, truncated: false,
+  } });
+  expect(watch.review).toMatchObject({ status: 'unavailable', iteration: null, pass: null });
+});

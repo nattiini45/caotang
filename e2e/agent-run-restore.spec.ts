@@ -16,7 +16,8 @@ async function finishedRun(page: Page, name: string): Promise<void> {
   await page.keyboard.press('Enter');
   await waitForSaved(page);
   const toggle = page.getByRole('button', { name: 'Agent', exact: true });
-  if (await toggle.count() > 0) await toggle.click();
+  await expect(toggle).toBeVisible();
+  await toggle.click();
   await page.getByRole('combobox', { name: 'Intent' }).fill('Add two notes to Opening.');
   await page.getByRole('button', { name: 'Send', exact: true }).click();
   const card = page.getByTestId('plan-card');

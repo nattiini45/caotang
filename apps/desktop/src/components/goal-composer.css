@@ -153,6 +153,10 @@
   resize: vertical;
 }
 
+.goal-composer .goal-field[data-goal-field='rubric'] textarea {
+  border-color: var(--k-edge, var(--muted));
+}
+
 .goal-composer [data-slot='field-error'],
 .goal-field [aria-invalid='true'] {
   color: var(--danger);
@@ -272,7 +276,8 @@
   .goal-choice [data-slot='checkbox'],
   .goal-choice [data-slot='radio'],
   .goal-field input,
-  .goal-field textarea {
+  .goal-field textarea,
+  .goal-composer .goal-field[data-goal-field='rubric'] textarea {
     border-color: ButtonText;
   }
 

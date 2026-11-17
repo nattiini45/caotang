@@ -162,7 +162,10 @@ function keptReports(block: Block): LayerItemReport[] {
 }
 
 export function assemble(given: AgentTask, snapshot: AppSnapshot, config: ContextConfig = {}): AssembledPrompt {
-  const { task, app, drops: withheldDrops } = withhold(given, snapshot);
+  const request: AgentTask = given.tool === 'goal.verify'
+    ? { tool: given.tool, instruction: given.instruction, ...(given.params === undefined ? {} : { params: given.params }) }
+    : given;
+  const { task, app, drops: withheldDrops } = withhold(request, snapshot);
   const tree = indexTree(app.state.manifest.tree);
   const entries = app.state.manifest.codex ?? [];
   const codexPins = overrideIds(task.overrides, 'include', 'codex');
@@ -178,9 +181,9 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
   };
   const profile = { ...originalProfile, budgets: { ...originalProfile.budgets, ...addedBudgets } };
   const budgets = effectiveBudgets(profile, config, task.compact === true);
-  // LI is in every profile, but a project with no instructions and no memory index has no such layer: its prompt is the one it was before
+  // LI is in every ordinary profile, but a project with no instructions and no memory index has no such layer: its prompt is the one it was before
   // LI existed, and the cap of a layer that is not sent does not raise a tool's total.
-  const instructions = instructionsLayer(app, budgets.LI ?? 0);
+  const instructions = profile.layers.includes('LI') ? instructionsLayer(app, budgets.LI ?? 0) : undefined;
   const totalBudget = totalBudgetFor(profile, instructions === undefined ? { ...budgets, LI: 0 } : budgets, config);
   const continuationChars = Math.max(0, Math.floor(config.continuationChars ?? DEFAULT_CONTINUATION_CHARS));
   const baseOf = (id: LayerId): number => budgets[id] ?? 0;
@@ -211,7 +214,7 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
   const effective: Partial<Record<LayerId, number>> = {};
 
   // L0 and L7 are fixed text: never truncated, and outside every budget (§2).
-  const system = systemPrompt(app.tools, config.responseFormat);
+  const system = systemPrompt(task.tool === 'goal.verify' ? undefined : app.tools, config.responseFormat);
   const taskBody = taskText(task);
 
   // Step 2: the flow-up chain, L3 then L4 then L5.

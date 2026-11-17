@@ -126,7 +126,7 @@ import { computeReview, emptyCoherenceFile, emptyReviewCheckpoint, planReview, p
 import { goalWatchOf, type GoalWatchView } from './goal-watch.js';
 import { createMcpTransport } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
-import { createRunLogPort, getRevision, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot, readAgentSessions, saveAgentSession, settleAgentSessionTurn, removeAgentSession, pruneAgentSessions, agentSessionReferences, appendGoalCheckpoint, checkpointReadable, goalRowReadable, createGoalRun, deleteGoalRun, markGoalsInterrupted, openGoalRecovery, readGoalRuns, recordGoalIteration, resumeGoalRun, settleGoalRun, type AgentSessionRow, type AgentSessionTurnRef, type GoalRunRow, type SessionSummary } from '@caotang/store';
+import { createRunLogPort, getRevision, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot, readAgentSessions, saveAgentSession, settleAgentSessionTurn, removeAgentSession, pruneAgentSessions, agentSessionReferences, appendGoalCheckpoint, checkpointReadable, goalRowReadable, createGoalRun, deleteGoalRun, markGoalsInterrupted, openGoalRecovery, readGoalRun, readGoalRuns, recordGoalIteration, resumeGoalRun, settleGoalRun, type AgentSessionRow, type AgentSessionTurnRef, type GoalRunRow, type SessionSummary } from '@caotang/store';
 import { captureTextAnchor } from '@caotang/storyboard';
 
 import { registerAgent } from './agent-registry.js';
@@ -1864,18 +1864,21 @@ export class AgentController {
     let meter: BudgetMeter | null = null;
     try {
       signal.throwIfAborted();
-      if (options.uncertainUsage === true && options.checkpoint !== undefined) {
-        await appendGoalCheckpoint(store, goal.id, { checkpoint: options.checkpoint, at: this.clock() });
-        signal.throwIfAborted();
-      }
       const loop = await this.harnessLoop();
       signal.throwIfAborted();
-      meter = loop.createBudgetMeter(goal.limits, options.checkpoint === undefined ? {} : { restored: options.checkpoint.spend });
-      if (options.checkpoint !== undefined && goal.limits.maxModelCalls !== undefined && options.checkpoint.spend.modelCalls >= goal.limits.maxModelCalls) {
-        meter.stop({ dimension: 'model-calls', limit: goal.limits.maxModelCalls, spent: options.checkpoint.spend.modelCalls });
+      const recovered = options.checkpoint === undefined ? undefined : loop.recoverGoalVerifierCheckpoint(options.checkpoint);
+      const checkpoint = recovered?.checkpoint;
+      const uncertainUsage = options.uncertainUsage === true || recovered?.uncertainUsage === true;
+      if (checkpoint !== undefined && (uncertainUsage || checkpoint !== options.checkpoint)) {
+        await appendGoalCheckpoint(store, goal.id, { checkpoint, at: this.clock() });
+        signal.throwIfAborted();
       }
-      if (options.checkpoint !== undefined && options.uncertainUsage === true) {
-        const spend = options.checkpoint.spend;
+      meter = loop.createBudgetMeter(goal.limits, checkpoint === undefined ? {} : { restored: checkpoint.spend });
+      if (checkpoint !== undefined && goal.limits.maxModelCalls !== undefined && checkpoint.spend.modelCalls >= goal.limits.maxModelCalls) {
+        meter.stop({ dimension: 'model-calls', limit: goal.limits.maxModelCalls, spent: checkpoint.spend.modelCalls });
+      }
+      if (checkpoint !== undefined && uncertainUsage) {
+        const spend = checkpoint.spend;
         if (goal.limits.maxTokens !== undefined) meter.stop({ dimension: 'tokens', limit: goal.limits.maxTokens, spent: spend.promptTokens + spend.completionTokens });
         else if (goal.limits.maxCostUsd !== undefined) meter.stop({ dimension: 'cost', limit: goal.limits.maxCostUsd, spent: spend.costUsd ?? 0 });
         else if (goal.limits.maxActiveMs !== undefined) meter.stop({ dimension: 'active-time', limit: goal.limits.maxActiveMs, spent: spend.activeMs });
@@ -1886,21 +1889,66 @@ export class AgentController {
       this.goalRunning = goal.id;
       this.message = null;
       this.bump();
+      const owner = this.sessionId;
+      const state = this.session.state;
+      const runMeter = meter;
+      const ownershipFence = (): void => {
+        if (this.detached || this.goalRunning !== goal.id || this.sessionId !== owner || this.session.state !== state) throw new Error('The goal no longer owns this project and conversation.');
+        if (this.sessionSave.failure !== null) throw new loop.GoalVerifierPersistenceError('iteration');
+      };
       const run = await loop.createGoalRunner().start(goal, {
         session: {
           ...agent,
-          submit: async (intent) => {
-            const report = await this.turnWith(intent, {}, (session, turn) => session.submit(intent, { ...turn, signal: turn.signal === undefined ? signal : AbortSignal.any([turn.signal, signal]) }), true);
+          submit: async (intent, submitOptions) => {
+            const report = await this.turnWith(intent, {}, (session, turn) => session.submit(intent, { ...turn, ...submitOptions, signal: turn.signal === undefined ? signal : AbortSignal.any([turn.signal, signal]) }), true);
             if (report === null) throw new Error(this.message ?? 'The goal iteration could not start.');
             return report;
           },
         },
-        state: this.session.state,
+        state,
         meter,
         signal,
+        verifier: async (input, save, fence) => {
+          const savedIteration = async (phase: 'prepared' | 'reserved'): Promise<number> => {
+            const row = await readGoalRun(store, goal.id);
+            if (row === undefined || !goalRowReadable(row) || !checkpointReadable(row.checkpoint, goal.id) || row.status !== 'running' || row.sessionId !== owner || row.projectId !== this.session.projectId) throw new loop.GoalVerifierPersistenceError('iteration');
+            const saved = row.checkpoint as GoalCheckpoint;
+            const pending = saved.pendingVerification;
+            const iteration = saved.iterations.find(record => record.n === pending?.iteration);
+            const runId = iteration === undefined ? undefined : this.runForTurn.get(iteration.turnId);
+            if (pending === undefined || pending.phase !== phase || JSON.stringify(saved.goal) !== JSON.stringify(goal) || JSON.stringify(pending.input) !== JSON.stringify(input) || runId === undefined || !row.iterationRunIds.includes(runId)) throw new loop.GoalVerifierPersistenceError('iteration');
+            try {
+              const summary = await this.goalIterationSummary(runId, saved);
+              if (summary.reservedCalls !== 0) throw new Error('The actor usage was not saved.');
+            } catch {
+              throw new loop.GoalVerifierPersistenceError('iteration');
+            }
+            return pending.iteration;
+          };
+          let iteration: number;
+          try {
+            iteration = await savedIteration('prepared');
+          } catch (error) {
+            if (signal.aborted) return { kind: 'cancelled' };
+            throw error;
+          }
+          const port = loop.createGoalVerifierPort({
+            gateway: this.providers.gateway,
+            context: loop.createContextPort({ state, withheld: tool => this.session.harness.withheld(tool) }),
+            meter: runMeter, signal,
+            route: () => this.reviewRoute(),
+            sessionId: owner, turnId: `${owner}.goal-${goal.id}.verify-${iteration}`,
+            languages: () => this.languagePolicy(),
+            fence: ownershipFence,
+          });
+          return port(input, async admission => {
+            await save(admission);
+            if (admission.phase === 'reserved') await savedIteration('reserved');
+          }, fence);
+        },
         checks: this.session.goalChecks(),
         ...(options.approvedLargeScope === undefined ? {} : { approvedLargeScope: options.approvedLargeScope }),
-        ...(options.checkpoint === undefined ? {} : { checkpoint: options.checkpoint }),
+        ...(checkpoint === undefined ? {} : { checkpoint }),
         withheld: () => this.session.harness.withheldAnywhere(),
         recordCoherence: (file) => this.session.applyCoherenceFile(file),
         saveCheckpoint: async (checkpoint) => {

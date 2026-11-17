@@ -35,3 +35,27 @@ it('keeps all four kinds scoped and uses only the explicitly selected coherence 
   ] } });
   if (result.ok) expect(result.goal.checks.every((check) => check.scope.mode === 'doc')).toBe(true);
 });
+
+it('keeps independent review off by default and shares the existing scope and limits when enabled', () => {
+  expect(initialGoalForm()).toMatchObject({ review: false, reviewGate: false, calls: '8' });
+  const result = goalFromForm({ ...initialGoalForm(), intent: 'Clarify the departure.', synopses: true, review: true, rubric: 'The departure is clear.' }, context);
+  expect(result).toMatchObject({ ok: true, goal: { limits: { maxModelCalls: 8 }, checks: [
+    { kind: 'synopsis.filled', scope: context.scope },
+    { kind: 'verifier', scope: context.scope, rubric: 'The departure is clear.', gate: false },
+  ] } });
+});
+
+it('requires an explicit gate for review-only acceptance and ignores disabled review fields', () => {
+  const form = { ...initialGoalForm(), intent: 'Clarify the departure.', review: true, rubric: 'The departure is clear.' };
+  expect(goalFromForm(form, context)).toEqual({ ok: false, field: 'checks', code: 'advisory-only' });
+  expect(goalFromForm({ ...form, reviewGate: true }, context)).toMatchObject({ ok: true, goal: { checks: [{ kind: 'verifier', gate: true }] } });
+  expect(goalFromForm({ ...form, review: false, reviewGate: true, rubric: '', synopses: true }, context)).toMatchObject({ ok: true, goal: { checks: [{ kind: 'synopsis.filled' }] } });
+});
+
+it('refuses blank and oversized criteria without clipping valid Unicode criteria', () => {
+  const form = { ...initialGoalForm(), intent: 'Clarify the departure.', review: true, reviewGate: true };
+  expect(goalFromForm({ ...form, rubric: '  ' }, context)).toMatchObject({ ok: false, field: 'rubric', code: 'required' });
+  expect(goalFromForm({ ...form, rubric: 'x'.repeat(4001) }, context)).toMatchObject({ ok: false, field: 'rubric', code: 'length' });
+  const rubric = '🦊'.repeat(4000);
+  expect(goalFromForm({ ...form, rubric }, context)).toMatchObject({ ok: true, goal: { checks: [{ kind: 'verifier', rubric }] } });
+});

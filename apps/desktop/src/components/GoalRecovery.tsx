@@ -11,7 +11,7 @@ import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@ui-sdk/react
 import { isolate } from '@caotang/i18n';
 
 import type { AgentController, GoalRecoveryView } from '../app/agent.js';
-import type { GoalWatchCheck, GoalWatchView } from '../app/goal-watch.js';
+import type { GoalWatchCheck, GoalWatchReview, GoalWatchView } from '../app/goal-watch.js';
 import { formatCount } from '../i18n/locale.js';
 import { formatUsd } from '../app/plan-preview.js';
 import { UserText } from '../i18n/UserText.js';
@@ -106,10 +106,14 @@ function GoalWatch({ watch, status, intent, compact }: { watch: GoalWatchView; s
   const passed = watch.checks.filter((check) => check.pass === true).length;
   return <section className="goal-watch" aria-label={t({ message: `Goal progress: ${{ intent: isolate(intent) }}`, comment: "intent is the writer’s goal instruction, isolated for bidirectional text." })} data-status={status}>
     <p className="goal-watch-iteration">{watch.maxIterations === null ? t({ message: `Completed iterations: ${{ iterations: formatCount(watch.completedIterations) }}`, comment: "iterations is the number of completed goal iterations." }) : t({ message: `Completed iterations: ${{ iterations: formatCount(watch.completedIterations) }} of ${{ maximum: formatCount(watch.maxIterations) }}`, comment: "iterations is the completed count; maximum is the goal’s iteration limit." })}</p>
-    <p>{t({ message: `Passing checks: ${{ passed: formatCount(passed) }} of ${{ total: formatCount(watch.checks.length) }}`, comment: "passed and total count the saved goal check results." })}</p>
+    <p>{watch.review === undefined
+      ? t({ message: `Passing checks: ${{ passed: formatCount(passed) }} of ${{ total: formatCount(watch.checks.length) }}`, comment: "passed and total count the saved goal check results." })
+      : watch.checks.length === 0 ? t`No deterministic checks were selected.`
+      : t({ message: `Passing deterministic checks: ${{ passed: formatCount(passed) }} of ${{ total: formatCount(watch.checks.length) }}`, comment: 'passed and total count deterministic checks only, excluding the independent model review.' })}</p>
     <p className="muted">{t({ message: `Saved model calls: ${{ calls: formatCount(spend.modelCalls) }}`, comment: "calls is the total model-call count saved for this goal." })}{limits.maxModelCalls === undefined ? null : <> / {formatCount(limits.maxModelCalls)}</>}</p>
+    {watch.review === undefined ? null : <IndependentReview review={watch.review} running={status === 'running'} />}
     <Collapsible open={expanded ?? (!compact && status !== 'running' && status !== 'interrupted')} onOpenChange={setExpanded}>
-    <CollapsibleTrigger className="button is-quiet"><Trans>Saved checks and spend</Trans></CollapsibleTrigger>
+    <CollapsibleTrigger className="button is-quiet">{watch.checks.length === 0 ? t`Saved spend` : t`Saved checks and spend`}</CollapsibleTrigger>
     <CollapsiblePanel>
     <p className="muted"><Trans>Saved totals for the whole goal</Trans></p>
     <dl className="goal-watch-spend">
@@ -120,7 +124,7 @@ function GoalWatch({ watch, status, intent, compact }: { watch: GoalWatchView; s
       <div><dt><Trans>Active seconds</Trans></dt><dd>{limits.maxActiveMs === undefined ? formatCount(spend.activeMs / 1000) : t({ message: `${{ used: formatCount(spend.activeMs / 1000) }} of ${{ limit: formatCount(limits.maxActiveMs / 1000) }}`, comment: "used and limit are the recorded amount and its bound; the adjacent label names the unit." })}</dd></div>
     </dl>
     {spend.estimatedTokens === 0 ? null : <p className="muted">{t({ message: `Includes ${{ tokens: formatCount(spend.estimatedTokens) }} locally estimated tokens.`, comment: "tokens is the portion of saved token usage estimated locally." })}</p>}
-    <div className="goal-watch-table" tabIndex={0} role="region" aria-label={t`Saved goal checks`}>
+    {watch.checks.length === 0 ? null : <div className="goal-watch-table" tabIndex={0} role="region" aria-label={t`Saved goal checks`}>
       <table>
         <caption><Trans>Saved check results. Zero distance passes.</Trans></caption>
         <thead><tr><th scope="col"><Trans>Check</Trans></th><th scope="col"><Trans>Result and distance</Trans></th><th scope="col"><Trans>Recent distances</Trans></th></tr></thead>
@@ -140,7 +144,7 @@ function GoalWatch({ watch, status, intent, compact }: { watch: GoalWatchView; s
         </tr>;
         })}</tbody>
       </table>
-    </div>
+    </div>}
     {watch.checks.filter((check) => check.failures.length > 0 || check.history.length > 4).map((check) => <Collapsible key={check.key} className="goal-watch-details">
       <CollapsibleTrigger className="button is-quiet">{t({ message: `Details: ${{ check: checkLabel(check) }}`, comment: "check is the translated name of a deterministic goal check." })}</CollapsibleTrigger>
       <CollapsiblePanel>
@@ -151,4 +155,38 @@ function GoalWatch({ watch, status, intent, compact }: { watch: GoalWatchView; s
     </CollapsiblePanel>
     </Collapsible>
   </section>;
+}
+
+function reviewUnavailable(review: GoalWatchReview): string {
+  switch (review.code) {
+    case 'no-changes': return t`No changed, readable passages were available to review.`;
+    case 'route': return t`The Background request could not complete. Check its provider and the current read rules before starting another goal.`;
+    case 'reply': return t`The provider did not return a usable verdict. Start a new goal to try again.`;
+    case 'source': return t`The passages changed or became unreadable. Start a new goal to review the current text.`;
+    case 'budget': return t`The shared run limits left no room for this review. Start a new goal with suitable limits.`;
+    case 'interrupted': return t`No reliable verdict was saved. The request was not repeated.`;
+    case 'stopped': return t`The review did not complete because this goal was stopped or a deterministic check regressed.`;
+    default: return t`No usable independent review was saved.`;
+  }
+}
+
+function IndependentReview({ review, running }: { review: GoalWatchReview; running: boolean }): ReactNode {
+  const words = review.status === 'complete'
+    ? review.pass ? t`Review passed` : t`Review needs work`
+    : review.status === 'unavailable' ? t`Review unavailable`
+    : review.status === 'reserved' && running ? t`Independent review is running`
+    : t`No saved review yet`;
+  return <div className="goal-independent-review" data-testid="goal-independent-review" data-review-status={review.status}>
+    <h4><Trans>Independent review</Trans></h4>
+    <p><strong>{words}</strong>{review.iteration === null ? null : <> · {t({ message: `Iteration ${{ iteration: formatCount(review.iteration) }}`, comment: 'iteration is the actor iteration covered by this independent review.' })}</>}</p>
+    <p className="muted">{review.gate ? t`Required for completion. A negative review can lead to another iteration.` : t`Advisory. This review does not decide whether the goal passes.`}</p>
+    <p><Trans>Review criterion:</Trans> <UserText value={review.rubric} /></p>
+    {review.status === 'unavailable' ? <p>{reviewUnavailable(review)}</p> : null}
+    {review.status === 'settled' ? <p><Trans>The request ended without a saved verdict. It will not be repeated.</Trans></p> : null}
+    {review.reasons.length === 0 ? null : <ul>{[...new Set(review.reasons)].map(reason => <li key={reason}><UserText value={reason} /></li>)}</ul>}
+    <p className="muted"><Trans>Reviews cover changed, readable passages, not the full manuscript.</Trans></p>
+    {review.truncated ? <p className="muted"><Trans>The review used shortened excerpts.</Trans></p> : null}
+    {review.omitted === 0 ? null : <p className="muted">{t({ message: `Changed fields omitted: ${{ count: formatCount(review.omitted) }}.`, comment: 'count is the number of changed text fields left out of the bounded review.' })}</p>}
+    {review.uncertainUsage || review.status === 'reserved' && !running ? <p className="plan-notice is-warn"><Trans>This request’s usage is uncertain. A possibly sent request is not repeated; affected run limits are treated as spent on recovery.</Trans></p> : null}
+  </div>;
 }
