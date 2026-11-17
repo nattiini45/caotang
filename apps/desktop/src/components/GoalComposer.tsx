@@ -103,6 +103,7 @@ export default function GoalComposer({ open, session, coherenceChecks, draft, un
       const node = activeDoc ?? binderNodes.find((node) => node.type === 'document') ?? binderNodes[0];
       if (node === undefined) return;
       setScope({ mode: 'doc', docIds: [node.id] });
+      setWriteScope({ mode: 'doc', docIds: [node.id] });
     } else if (value === 'full' || value === 'changed') setScope({ mode: value });
     setApproval(null);
     setError(null);
@@ -190,7 +191,7 @@ export default function GoalComposer({ open, session, coherenceChecks, draft, un
           </Select>
         </Field> : null}
         {scope.mode === 'doc' ? <p className="goal-help"><Trans>Requested documents:</Trans> <bdi>{scope.docIds.map((docId) => session.state.manifest.tree.find((node) => node.id === docId)?.title ?? docId).join(', ')}</bdi></p> : null}
-        {scope.mode === 'doc' && activeDoc !== undefined && (scope.docIds.length !== 1 || scope.docIds[0] !== activeDoc.id) ? <Button className="button" onClick={() => changeScope('doc')}><Trans>Use the current document</Trans></Button> : null}
+        {scope.mode === 'doc' && activeDoc !== undefined && (scope.docIds.length !== 1 || scope.docIds[0] !== activeDoc.id) ? <Button className="button" onClick={() => { setScope({ mode: 'doc', docIds: [activeDoc.id] }); setApproval(null); setError(null); }}><Trans>Use the current document</Trans></Button> : null}
         {error?.field === 'scope' ? <p className="form-message is-error">{formError(error)}</p> : null}
       </fieldset>
       <fieldset data-goal-field="checks" tabIndex={-1}>

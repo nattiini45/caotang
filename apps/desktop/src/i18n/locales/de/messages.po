@@ -2672,6 +2672,8 @@ msgstr "Ein Ziel braucht eine ganze Zahl an Wörtern über null."
 msgid "A goal of this project."
 msgstr "Ein Ziel dieses Projekts."
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/GoalComposer.tsx
 msgid "A goal or turn is active. Wait for it to finish."
 msgstr "Ein Ziellauf oder eine Agentenrunde ist aktiv. Warten Sie, bis die Arbeit beendet ist."
@@ -19052,7 +19054,7 @@ msgstr "Die Datei des Bildes konnte nicht gelesen werden"
 #: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "the pictures"
-msgstr "Die Bilder"
+msgstr "Die Bilderansicht"
 
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
 #: apps/desktop/src/media/picture-board-model.ts

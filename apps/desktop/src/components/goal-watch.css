@@ -30,6 +30,7 @@
 
 .goal-watch-table {
   max-inline-size: 100%;
+  padding: var(--space-1);
   overflow: auto;
   overflow-wrap: normal;
   word-break: normal;
@@ -39,6 +40,7 @@
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  overflow: hidden;
   white-space: normal;
 }
 

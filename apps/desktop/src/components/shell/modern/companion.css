@@ -280,10 +280,6 @@
   min-block-size: var(--target-min);
 }
 
-:root[data-shell='modern'] .modern-companion .agent-body .goal-choice :is([data-slot='checkbox'], [data-slot='radio']) {
-  min-block-size: 1.2rem;
-}
-
 :root[data-shell='modern'] .modern-companion .agent-body summary {
   min-block-size: var(--target-min);
   align-content: center;

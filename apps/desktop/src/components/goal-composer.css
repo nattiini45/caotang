@@ -40,6 +40,10 @@
   padding: 3px;
 }
 
+.goal-composer-fields > * {
+  flex-shrink: 0;
+}
+
 .goal-composer fieldset {
   display: flex;
   flex-direction: column;
@@ -69,6 +73,14 @@
   min-block-size: var(--control-h, 24px);
   line-height: 1.5;
   cursor: pointer;
+}
+
+.goal-choice > span {
+  min-inline-size: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  overflow-wrap: normal;
 }
 
 .goal-choice [data-slot='checkbox'],
@@ -200,6 +212,14 @@
 :root[data-shell='modern'] .goal-choice {
   min-block-size: 44px;
   align-items: center;
+}
+
+:root[data-shell='modern'] #root .goal-composer .goal-choice :is([data-slot='checkbox'], [data-slot='radio']) {
+  box-sizing: border-box;
+  min-inline-size: 1.2rem;
+  min-block-size: 1.2rem;
+  margin-block-start: 0;
+  padding: 0;
 }
 
 :root[data-shell='modern'] .goal-field input,

@@ -34,8 +34,16 @@ for (const shell of ['classic', 'modern'] as const) {
     await expect(plan.getByRole('button', { name: 'Approve', exact: true })).toBeVisible();
     await expect(page.getByTestId('agent-step')).toContainText('Waiting for you');
     await expect(page.getByTestId('agent-step')).toContainText('Fill the synopsis');
-    await expect(page.getByTestId('agent-step')).toHaveCSS('-webkit-line-clamp', '2');
     await expect(page.getByTestId('agent-step')).toHaveCSS('white-space', 'normal');
+    await expect(page.getByTestId('agent-step')).toHaveCSS('overflow', 'hidden');
+    const chip = await page.getByTestId('agent-step').evaluate((node) => {
+      const style = getComputedStyle(node);
+      return {
+        contentHeight: node.getBoundingClientRect().height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth),
+        lineHeight: style.lineHeight === 'normal' ? parseFloat(style.fontSize) * 1.5 : parseFloat(style.lineHeight),
+      };
+    });
+    expect(chip.contentHeight).toBeLessThanOrEqual(chip.lineHeight * 2 + 1);
     await expect(page.getByTestId('agent-step')).toHaveAttribute('title', /Fill the synopsis/);
     const progress = page.getByRole('region', { name: /^Goal progress:/ });
     if (shell === 'modern') {
@@ -84,6 +92,58 @@ for (const shell of ['classic', 'modern'] as const) {
     expect((await projectTrace(page)).filter((name) => name === 'binder.setSynopsis')).toHaveLength(1);
     await waitForSaved(page);
     expect(errors).toEqual([]);
+  });
+
+  test(`goal setup leaves an ordinary turn's pending approval accessible (${shell})`, async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.addInitScript((shell) => localStorage.setItem('caotang.interface', shell), shell);
+    await fakeEndpoint(page, planThenAnswer({ steps: [{ tool: 'synopsis.fill', params: { docs: ['Opening'], source: 'text', max_words: 30 }, expect: 'Opening has a synopsis.' }] }));
+    await useFakeEndpoint(page);
+    await createGoalScene(page, 'Pending Approval Book', shell);
+    if (shell === 'modern') await page.keyboard.press('Control+j');
+    else await page.getByRole('button', { name: 'Agent', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Intent', exact: true }).fill('Fill the synopsis of Opening.');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    const approval = page.getByTestId('plan-card').getByRole('button', { name: 'Approve', exact: true });
+    await expect(approval).toBeVisible();
+    const goal = page.getByRole('button', { name: 'Goal', exact: true });
+    await expect(goal).toBeDisabled();
+    await goal.focus();
+    await page.keyboard.press('Enter');
+    await expect(approval).toBeVisible();
+    await expect(page.getByRole('form', { name: 'Run toward a goal', exact: true })).toHaveCount(0);
+    expect(await projectTrace(page)).not.toContain('binder.setSynopsis');
+    await page.getByTestId('agent-stop').click();
+  });
+
+  test(`a completed goal returns focus from Stop to Goal (${shell})`, async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.addInitScript((shell) => localStorage.setItem('caotang.interface', shell), shell);
+    await fakeEndpoint(page, () => 'No edit was made.');
+    await useFakeEndpoint(page);
+    await createGoalScene(page, 'Goal Focus Book', shell);
+    if (shell === 'modern') await page.keyboard.press('Control+j');
+    else await page.getByRole('button', { name: 'Agent', exact: true }).click();
+    await page.getByRole('button', { name: 'Goal', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Goal intent', exact: true }).fill('Fill every empty synopsis.');
+    await page.getByRole('checkbox', { name: 'Every synopsis is filled', exact: true }).check();
+    await page.getByRole('spinbutton', { name: 'Model-call limit', exact: true }).fill('1');
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    let requested = false;
+    await page.route('https://127.0.0.1:5999/**', async (route) => {
+      if (route.request().method() === 'POST') { requested = true; await held; }
+      await route.fallback();
+    });
+    try {
+      await page.getByRole('button', { name: 'Start the goal', exact: true }).focus();
+      await page.keyboard.press('Enter');
+      await expect(page.getByTestId('agent-stop')).toBeFocused();
+      await expect.poll(() => requested).toBe(true);
+    } finally { release(); }
+    await expect(page.getByTestId('goal-recovery-card')).toHaveAttribute('data-status', 'settled');
+    await expect(page.getByRole('button', { name: 'Goal', exact: true })).toBeFocused();
+    expect(await projectTrace(page)).not.toContain('binder.setSynopsis');
   });
 }
 
@@ -141,14 +201,17 @@ test('Findings offers its selected scope as a goal without running it', async ({
 });
 
 for (const shell of ['classic', 'modern'] as const) {
-  for (const locale of ['en', 'de'] as const) {
-    test(`the goal form fits and retains a no-turn result after reload (${shell}, ${locale})`, async ({ page }, testInfo) => {
+  for (const { locale, theme } of (shell === 'modern' ? [
+    { locale: 'en', theme: 'light' }, { locale: 'en', theme: 'dark' },
+    { locale: 'de', theme: 'light' }, { locale: 'de', theme: 'dark' },
+  ] as const : [{ locale: 'en', theme: 'light' }, { locale: 'de', theme: 'dark' }] as const)) {
+    test(`the goal form fits and retains a no-turn result after reload (${shell}, ${locale}, ${theme})`, async ({ page }, testInfo) => {
       test.setTimeout(60_000);
       let requests = 0;
-      await page.addInitScript(({ shell, locale }) => {
+      await page.addInitScript(({ shell, theme }) => {
         localStorage.setItem('caotang.interface', shell);
-        localStorage.setItem('caotang.theme', locale === 'de' ? 'dark' : 'light');
-      }, { shell, locale });
+        localStorage.setItem('caotang.theme', theme);
+      }, { shell, theme });
       await fakeEndpoint(page, () => { requests += 1; return 'No request should be sent.'; });
       await useFakeEndpoint(page);
       const title = `Saved Goal ${shell} ${locale}`;
@@ -204,6 +267,7 @@ for (const shell of ['classic', 'modern'] as const) {
         });
       }
       await page.setViewportSize({ width: 390, height: 844 });
+      if (shell === 'modern') await form.getByRole('radiogroup', { name: locale === 'de' ? 'Prüfbereich' : 'Check scope', exact: true }).scrollIntoViewIfNeeded();
       if (shell === 'modern' && locale === 'de') {
         try {
           await expect.poll(() => binderHeld).toBe(true);
@@ -211,6 +275,37 @@ for (const shell of ['classic', 'modern'] as const) {
           await page.screenshot({ path: testInfo.outputPath('binder-loading-modern-de.png') });
         } finally { releaseBinder(); }
         await expect(page.getByRole('status').filter({ hasText: 'Der Binder wird geladen …' })).toHaveCount(0);
+      }
+      if (shell === 'modern') {
+        const scopes = form.getByRole('radiogroup', { name: locale === 'de' ? 'Prüfbereich' : 'Check scope', exact: true });
+        await scopes.scrollIntoViewIfNeeded();
+        const radios = scopes.getByRole('radio');
+        await expect(radios).toHaveCount(3);
+        for (const radio of await radios.all()) {
+          await expect(radio).toBeInViewport({ ratio: 1 });
+          const geometry = await radio.evaluate((node) => {
+            const box = node.getBoundingClientRect();
+            const label = node.closest('label')!;
+            const text = label.querySelector(':scope > span')!.getBoundingClientRect();
+            return { width: box.width, height: box.height, offset: Math.abs(box.y + box.height / 2 - text.y - text.height / 2), targetHeight: label.getBoundingClientRect().height };
+          });
+          expect(geometry.width).toBeLessThanOrEqual(24);
+          expect(geometry.height).toBeLessThanOrEqual(24);
+          expect(geometry.offset).toBeLessThanOrEqual(2);
+          expect(geometry.targetHeight).toBeGreaterThanOrEqual(44);
+        }
+        await radios.first().focus();
+        await page.keyboard.press('ArrowDown');
+        await expect(radios.nth(1)).toBeChecked();
+        await page.keyboard.press('ArrowDown');
+        await expect(radios.nth(2)).toBeFocused();
+        await expect(radios.nth(2)).toBeChecked();
+        await expect(radios.nth(2)).toBeInViewport({ ratio: 1 });
+        await page.keyboard.press('ArrowDown');
+        await expect(radios.first()).toBeChecked();
+        await form.locator('[data-goal-field="intent"]').evaluate((node) => node.scrollIntoView({ block: 'start' }));
+        await expect(scopes).toBeInViewport({ ratio: 1 });
+        await page.screenshot({ path: testInfo.outputPath(`goal-scopes-modern-${locale}-${theme}.png`) });
       }
       if (shell === 'classic') await expect(page.locator('.rail.is-drawer')).toBeHidden();
       const start = page.getByRole('button', { name: locale === 'de' ? 'Das Ziel starten' : 'Start the goal', exact: true });
@@ -253,7 +348,18 @@ for (const shell of ['classic', 'modern'] as const) {
       else await page.getByRole('button', { name: 'Agent', exact: true }).click();
       await expect(progress).toHaveAttribute('data-status', 'passed');
       const passed = progress.getByRole('cell', { name: locale === 'de' ? /Bestanden/ : /Passed/ });
+      const saveCellBounds = async (name: string) => {
+        await writeFile(testInfo.outputPath(name), JSON.stringify(await passed.evaluate((node) => {
+          const ancestors = [];
+          for (let element: Element | null = node; element !== null; element = element.parentElement) {
+            const style = getComputedStyle(element);
+            ancestors.push({ tag: element.tagName, className: element.className, box: element.getBoundingClientRect().toJSON(), clientWidth: element.clientWidth, clientHeight: element.clientHeight, scrollWidth: element.scrollWidth, scrollHeight: element.scrollHeight, scrollLeft: element.scrollLeft, scrollTop: element.scrollTop, overflow: style.overflow });
+          }
+          return ancestors;
+        })));
+      };
       await passed.scrollIntoViewIfNeeded();
+      await saveCellBounds('goal-cell-wide.json');
       await expect(passed).toBeInViewport({ ratio: 1 });
       await expect(progress.getByRole('rowheader', { name: locale === 'de' ? 'Jede Synopsis ist ausgefüllt' : 'Every synopsis is filled', exact: true })).toBeInViewport({ ratio: 1 });
       if (shell === 'modern') {
@@ -271,6 +377,7 @@ for (const shell of ['classic', 'modern'] as const) {
       await testInfo.attach('Saved no-turn result', { path: watchImage, contentType: 'image/png' });
       await page.setViewportSize({ width: 390, height: 844 });
       await passed.scrollIntoViewIfNeeded();
+      await saveCellBounds('goal-cell-narrow.json');
       await expect(passed).toBeInViewport({ ratio: 1 });
       if (shell === 'modern') await expect(page.getByRole('status').filter({ hasText: /(?:Loading the binder|Der Binder wird geladen)/ })).toHaveCount(0);
       const brokenWords = await progress.getByRole('columnheader').evaluateAll((headers) => headers.flatMap((header) => {

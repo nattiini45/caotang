@@ -208,11 +208,18 @@ export function AgentPanel({
   const [goalLoaded, setGoalLoaded] = useState(false);
   const goalButtonRef = useRef<HTMLButtonElement>(null);
   const stopButtonRef = useRef<HTMLButtonElement>(null);
+  const goalStopFocused = useRef(false);
+  const previousGoal = useRef(snapshot.activeGoalId);
   const goalComposerId = useId();
-  const goalShowing = goalOpen || snapshot.goalDraft !== null;
+  const goalEntryBlocked = snapshot.busy || snapshot.pending !== null || snapshot.offer !== null;
+  const goalShowing = !goalEntryBlocked && (goalOpen || snapshot.goalDraft !== null);
   const goalWasShowing = useRef(goalShowing);
   useEffect(() => {
     if (goalWasShowing.current && !goalShowing) (snapshot.activeGoalId === null ? goalButtonRef : stopButtonRef).current?.focus();
+    const settled = previousGoal.current !== null && snapshot.activeGoalId === null;
+    if (settled && goalStopFocused.current && document.activeElement === document.body) goalButtonRef.current?.focus();
+    if (settled) goalStopFocused.current = false;
+    previousGoal.current = snapshot.activeGoalId;
     goalWasShowing.current = goalShowing;
   }, [goalShowing, snapshot.activeGoalId]);
   const [contextOverrides, setContextOverrides] = useState(() => memoryFor(agent).contextOverrides);
@@ -425,12 +432,13 @@ export function AgentPanel({
   const running = snapshot.turns[snapshot.turns.length - 1];
   const stepRef = running === undefined || isSettled(running) ? null : headerRefOf(running.tasks, (ref) => renderRef(ref, { userValues: WRITER_VALUE_KEYS }));
   const stepLine = stepRef !== null ? renderRef(stepRef) : running === undefined || isSettled(running) ? null : headerLineOf(running.tasks);
-  const stepStatus = snapshot.phase === 'starting' ? t`The agent is loading.`
+  const stepOverride = snapshot.phase === 'starting' ? t`The agent is loading.`
     : snapshot.phase === 'approving' ? t`Your approval is being processed.`
       : snapshot.phase === 'stopping' ? t`The agent is stopping.`
         : running?.compacting === true ? t`Summarising earlier conversation with Background…`
-          : stepLine ?? (snapshot.pending !== null || snapshot.offer !== null ? t`Waiting for you` : t`Working…`);
-  const goalWaiting = snapshot.activeGoalId !== null && (snapshot.pending !== null || snapshot.offer !== null) && snapshot.phase !== 'starting' && snapshot.phase !== 'approving' && snapshot.phase !== 'stopping';
+          : null;
+  const stepStatus = stepOverride ?? stepLine ?? (snapshot.pending !== null || snapshot.offer !== null ? t`Waiting for you` : t`Working…`);
+  const goalWaiting = stepOverride === null && snapshot.activeGoalId !== null && (snapshot.pending !== null || snapshot.offer !== null);
   const spend = running === undefined || isSettled(running) ? undefined : spendLine(running.run);
   const sessionUsage = <SessionUsage usage={snapshot.sessionUsage} names={new Map(snapshot.usageProfiles.map((profile) => [profile.id, profile.name]))} />;
   const choices = agent.contextChoices();
@@ -486,7 +494,7 @@ export function AgentPanel({
         </button>
         {snapshot.busy ? <small className="muted context-next"><Trans>For the next request</Trans></small> : null}
       </span>
-      {snapshot.activeGoalId === null ? <Button ref={goalButtonRef} type="button" className="button is-quiet goal-entry" aria-expanded={goalShowing} aria-controls={goalLoaded || snapshot.goalDraft !== null ? goalComposerId : undefined} title={t`Set up a goal run`} onClick={() => { setGoalLoaded(true); setGoalOpen(true); }}><Trans>Goal</Trans></Button> : null}
+      {snapshot.activeGoalId === null ? <Button ref={goalButtonRef} type="button" className="button is-quiet goal-entry" disabled={goalEntryBlocked} focusableWhenDisabled aria-expanded={goalShowing} aria-controls={goalLoaded || snapshot.goalDraft !== null ? goalComposerId : undefined} title={goalEntryBlocked ? t`A goal or turn is active. Wait for it to finish.` : t`Set up a goal run`} onClick={() => { setGoalLoaded(true); setGoalOpen(true); }}><Trans>Goal</Trans></Button> : null}
       {snapshot.busy ? (
         <button type="button" className="button" disabled={intent.trim() === '' || snapshot.providerName === null || runActionPending} onClick={steer}>
           <Trans>Steer</Trans>
@@ -570,6 +578,8 @@ export function AgentPanel({
             ref={stopButtonRef}
             data-testid="agent-stop"
             disabled={snapshot.stopping}
+            onFocus={() => { goalStopFocused.current = snapshot.activeGoalId !== null; }}
+            onBlur={(event) => { if (event.relatedTarget !== null) goalStopFocused.current = false; }}
             title={snapshot.activeGoalId === null ? t`Stop the turn (${{ shortcut: shortcutLabel('agent-stop', keyboardLayout) }} with the Intent box empty)` : t`Stop the whole goal (${{ shortcut: shortcutLabel('agent-stop', keyboardLayout) }} with the Intent box empty)`}
             onClick={() => agent.stop()}
           >

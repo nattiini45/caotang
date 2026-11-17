@@ -95,6 +95,18 @@ it('validates on submit and focuses the first invalid field without premature al
   expect(props.onStart).not.toHaveBeenCalled();
 });
 
+it('matches writes to the default named document without requiring another picker change', async () => {
+  await render();
+  await change('Goal intent', 'setValue', ['Fill this scene synopsis.']);
+  await change('Every synopsis is filled', 'setChecked', [true]);
+  await change('Check scope', 'setValue', ['doc']);
+  await submit();
+  expect(props.onStart).toHaveBeenCalledWith(expect.objectContaining({
+    checks: [{ kind: 'synopsis.filled', scope: { mode: 'doc', docIds: ['n_HARBOUR001'] } }],
+    writeScope: { mode: 'doc', docIds: ['n_HARBOUR001'] },
+  }), false);
+});
+
 it('selects a named binder folder with a matching explicit write scope', async () => {
   await render();
   await change('Goal intent', 'setValue', ['Fill synopses in this folder.']);
