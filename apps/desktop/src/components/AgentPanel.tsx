@@ -479,7 +479,7 @@ export function AgentPanel({
         </button>
         {snapshot.busy ? <small className="muted context-next"><Trans>For the next request</Trans></small> : null}
       </span>
-      <Button ref={goalButtonRef} type="button" className="button is-quiet goal-entry" aria-expanded={goalShowing} aria-controls={goalLoaded || snapshot.goalDraft !== null ? goalComposerId : undefined} title={t`Set up a goal run`} onClick={() => { setGoalLoaded(true); setGoalOpen(true); }}><Trans>Goal</Trans></Button>
+      {snapshot.activeGoalId === null ? <Button ref={goalButtonRef} type="button" className="button is-quiet goal-entry" aria-expanded={goalShowing} aria-controls={goalLoaded || snapshot.goalDraft !== null ? goalComposerId : undefined} title={t`Set up a goal run`} onClick={() => { setGoalLoaded(true); setGoalOpen(true); }}><Trans>Goal</Trans></Button> : null}
       {snapshot.busy ? (
         <button type="button" className="button" disabled={intent.trim() === '' || snapshot.providerName === null || runActionPending} onClick={steer}>
           <Trans>Steer</Trans>
@@ -508,7 +508,7 @@ export function AgentPanel({
         }}
       />
     </Suspense></div> : null;
-  const oneTurnComposer = <div className="agent-one-turn-composer" hidden={goalShowing}>{intentForm}{contextControls}</div>;
+  const oneTurnComposer = <div className="agent-one-turn-composer" hidden={goalShowing}>{intentForm}{inWindow && snapshot.activeGoalId !== null ? null : contextControls}</div>;
   // The drawer is a named region of its own; the window is inside Modern's `aside` "Agent", which names it.
   const Root = inWindow ? 'div' : 'section';
   return (
@@ -604,6 +604,7 @@ export function AgentPanel({
           {goalComposer}
           {inWindow ? sessionUsage : <>{oneTurnComposer}{sessionUsage}</>}
           <GoalRecovery agent={agent} goals={snapshot.goals.filter(goalInConversation)} unavailable={snapshot.goalUnavailable} activeGoalId={snapshot.activeGoalId} />
+          {inWindow && snapshot.activeGoalId !== null ? contextControls : null}
 
           {oldInstruction !== null ? (
             <p className="agent-old-instruction" data-testid="agent-old-instruction">

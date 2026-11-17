@@ -1,5 +1,4 @@
-import { canonicalJson } from '@caotang/ids';
-import type { BudgetSpend, CheckKind, GoalCheckpoint, RunLimits } from '@caotang/harness';
+import { checkKey, type BudgetSpend, type CheckKind, type GoalCheckpoint, type RunLimits } from '@caotang/harness';
 
 export interface GoalWatchCheck {
   readonly key: string;
@@ -26,6 +25,7 @@ export interface GoalWatchView {
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const amount = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+const readableKinds: Record<CheckKind, true> = { 'coherence.clean': true, 'words.between': true, 'status.all': true, 'synopsis.filled': true };
 
 function resultIn(values: unknown, key: string): Record<string, unknown> | undefined {
   return Array.isArray(values) ? values.find((value: unknown): value is Record<string, unknown> => record(value) && value['key'] === key && typeof value['pass'] === 'boolean' && amount(value['distance']) && value['pass'] === (value['distance'] === 0)) : undefined;
@@ -44,8 +44,8 @@ export function goalWatchOf(checkpoint: GoalCheckpoint): GoalWatchView {
       let kind: GoalWatchCheck['kind'] = 'unreadable';
       if (record(spec)) {
         try {
-          key = canonicalJson(spec);
-          if (spec.kind === 'coherence.clean' || spec.kind === 'words.between' || spec.kind === 'status.all' || spec.kind === 'synopsis.filled') kind = spec.kind;
+          key = checkKey(definition);
+          if (typeof spec.kind === 'string' && Object.hasOwn(readableKinds, spec.kind)) kind = spec.kind as CheckKind;
         } catch {
           kind = 'unreadable';
         }

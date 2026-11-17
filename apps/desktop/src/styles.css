@@ -2940,7 +2940,12 @@ label.settings-check {
 
 .agent.is-open.is-goal-setup,
 .agent.is-open.is-goal-running {
+  flex-shrink: 1;
   max-height: 70%;
+}
+
+.agent.is-open:has(.goal-recovery) {
+  flex-shrink: 1;
 }
 
 :root[data-shell] .agent.is-goal-setup .agent-body {
@@ -3049,6 +3054,7 @@ label.settings-check {
 
 .agent-intent {
   display: flex;
+  align-items: flex-start;
   gap: var(--space-4);
   margin: var(--space-3) 0 10px;
 }

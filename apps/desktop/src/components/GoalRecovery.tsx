@@ -4,7 +4,7 @@
  * never spends a writer's key on its own after a reload.
  */
 import { useId, useState, type ReactNode } from 'react';
-import { t } from '@lingui/core/macro';
+import { plural, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { Button } from '@ui-sdk/react/button';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@ui-sdk/react/collapsible';
@@ -124,23 +124,27 @@ function GoalWatch({ watch, status, intent, compact }: { watch: GoalWatchView; s
       <table>
         <caption><Trans>Saved check results. Zero distance passes.</Trans></caption>
         <thead><tr><th scope="col"><Trans>Check</Trans></th><th scope="col"><Trans>Result and distance</Trans></th><th scope="col"><Trans>Recent distances</Trans></th></tr></thead>
-        <tbody>{watch.checks.map((check) => <tr key={check.key}>
+        <tbody>{watch.checks.map((check) => {
+          const count = check.skipped;
+          return <tr key={check.key}>
           <th scope="row">{checkLabel(check)}
             {check.status === undefined ? null : <small><UserText value={check.status} /></small>}
             {check.min === undefined ? null : <small>{t({ message: `At least ${{ words: formatCount(check.min) }} words.`, comment: "words is the minimum word count for each document in this check." })}</small>}
             {check.max === undefined ? null : <small>{t({ message: `At most ${{ words: formatCount(check.max) }} words.`, comment: "words is the maximum word count for each document in this check." })}</small>}
             {check.maxWords === undefined ? null : <small>{t({ message: `At most ${{ words: formatCount(check.maxWords) }} words per synopsis.`, comment: "words is the maximum word count per synopsis in this check." })}</small>}
           </th>
-          <td>{check.pass === null ? t`Not measured` : check.pass ? t`Passed` : t`Needs work`}{check.distance === null ? null : <> · {formatCount(check.distance)}</>}</td>
+          <td>{check.pass === null ? t`Not measured` : check.pass ? t`Passed` : t`Needs work`}{check.distance === null ? null : <> · {formatCount(check.distance)}</>}
+            {count === 0 ? null : <p>{t({ message: `${plural(count, { one: '# check or document was skipped. It is not evidence of a pass.', other: '# checks or documents were skipped. They are not evidence of a pass.' })}`, comment: 'count is the number of skipped checks or documents in the saved result.' })}</p>}
+          </td>
           <td>{check.history.length === 0 ? '—' : <bdi dir="ltr">{check.history.length > 4 ? '… ' : ''}{check.history.slice(-4).map((distance) => formatCount(distance)).join(' → ')}</bdi>}</td>
-        </tr>)}</tbody>
+        </tr>;
+        })}</tbody>
       </table>
     </div>
-    {watch.checks.filter((check) => check.failures.length > 0 || check.skipped > 0 || check.history.length > 4).map((check) => <Collapsible key={check.key} className="goal-watch-details">
+    {watch.checks.filter((check) => check.failures.length > 0 || check.history.length > 4).map((check) => <Collapsible key={check.key} className="goal-watch-details">
       <CollapsibleTrigger className="button is-quiet">{t({ message: `Details: ${{ check: checkLabel(check) }}`, comment: "check is the translated name of a deterministic goal check." })}</CollapsibleTrigger>
       <CollapsiblePanel>
         {check.history.length <= 4 ? null : <p><Trans>All saved distances:</Trans> <bdi dir="ltr">{check.history.map((distance) => formatCount(distance)).join(' → ')}</bdi></p>}
-        {check.skipped === 0 ? null : <p>{t({ message: `${{ count: formatCount(check.skipped) }} checks or documents were skipped. They are not evidence of a pass.`, comment: "count is the number of skipped checks or documents in the saved result." })}</p>}
         <ul>{check.failures.map((failure, index) => <li key={index}><UserText value={failure.title} />: <UserText value={failure.detail} /></li>)}</ul>
       </CollapsiblePanel>
     </Collapsible>)}

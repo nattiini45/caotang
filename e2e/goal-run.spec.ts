@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
@@ -30,6 +31,16 @@ for (const shell of ['classic', 'modern'] as const) {
     const plan = page.getByTestId('plan-card');
     await expect(plan.getByRole('button', { name: 'Approve', exact: true })).toBeVisible();
     const progress = page.getByRole('region', { name: /^Goal progress:/ });
+    if (shell === 'modern') {
+      const frame = await page.getByTestId('agent-panel').boundingBox();
+      const footer = await page.locator('.agent-foot').boundingBox();
+      const body = await page.locator('.agent-body').boundingBox();
+      expect(frame).not.toBeNull();
+      expect(footer).not.toBeNull();
+      expect(body).not.toBeNull();
+      expect(footer!.y + footer!.height).toBeLessThanOrEqual(frame!.y + frame!.height + 1);
+      expect(body!.height).toBeGreaterThanOrEqual(80);
+    }
     await expect(page.getByTestId('goal-recovery-card')).toHaveAttribute('data-owned', 'true');
     await progress.getByRole('button', { name: 'Saved checks and spend', exact: true }).click();
     await progress.getByRole('rowheader', { name: 'Every synopsis is filled', exact: true }).scrollIntoViewIfNeeded();
@@ -37,6 +48,7 @@ for (const shell of ['classic', 'modern'] as const) {
     await page.screenshot({ path: testInfo.outputPath('goal-running-expanded.png') });
     await progress.getByRole('button', { name: 'Saved checks and spend', exact: true }).click();
     await expect(progress).toContainText('Passing checks: 0 of 1');
+    await progress.getByText('Completed iterations: 0 of 10', { exact: true }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath('goal-running.png') });
     expect(await projectTrace(page)).not.toContain('binder.setSynopsis');
     const beforeReload = requests;
@@ -156,6 +168,12 @@ for (const shell of ['classic', 'modern'] as const) {
       await synopses.focus();
       await page.keyboard.press('Space');
       await expect(synopses).toBeChecked();
+      if (shell === 'classic' && locale === 'en') {
+        await page.getByRole('radio', { name: 'A binder document or folder', exact: true }).click();
+        await page.getByRole('combobox', { name: 'Binder document or folder', exact: true }).click();
+        await page.getByRole('option', { name: 'Chapter 1', exact: true }).click();
+        await expect(page.getByRole('radio', { name: 'Only the named binder items', exact: true })).toBeChecked();
+      }
       await page.getByRole('spinbutton', { name: locale === 'de' ? 'Limit für Modellaufrufe' : 'Model-call limit', exact: true }).fill('0');
       await intent.focus();
       const form = page.getByRole('form', { name: locale === 'de' ? 'Auf ein Ziel hinarbeiten' : 'Run toward a goal', exact: true });
@@ -168,6 +186,17 @@ for (const shell of ['classic', 'modern'] as const) {
       const formImage = testInfo.outputPath(`goal-form-${shell}-${locale}.png`);
       await page.screenshot({ path: formImage });
       await testInfo.attach('Goal form', { path: formImage, contentType: 'image/png' });
+      await page.setViewportSize({ width: 390, height: 844 });
+      if (shell === 'classic') await expect(page.locator('.rail.is-drawer')).toBeHidden();
+      const narrowFormImage = testInfo.outputPath(`goal-form-narrow-${shell}-${locale}.png`);
+      await page.screenshot({ path: narrowFormImage });
+      await testInfo.attach('Narrow goal form', { path: narrowFormImage, contentType: 'image/png' });
+      const geometry = testInfo.outputPath('narrow-goal-bounds.json');
+      await writeFile(geometry, JSON.stringify(await page.locator('html, body, .workspace, .center, .goal-composer, .goal-composer-slot, .agent-body, .agent-head, .agent').evaluateAll((nodes) => nodes.map((node) => ({ className: node.className, box: node.getBoundingClientRect().toJSON(), scrollHeight: node.scrollHeight, scrollWidth: node.scrollWidth, scrollLeft: node.scrollLeft, minWidth: getComputedStyle(node).minWidth, overflow: getComputedStyle(node).overflow })))));
+      await testInfo.attach('Narrow goal bounds', { path: geometry, contentType: 'application/json' });
+      await expect(form).toBeInViewport({ ratio: 1 });
+      await expect(page.getByRole('button', { name: locale === 'de' ? 'Das Ziel starten' : 'Start the goal', exact: true })).toBeInViewport({ ratio: 1 });
+      await page.setViewportSize({ width: 1280, height: 720 });
       await page.getByRole('button', { name: locale === 'de' ? 'Das Ziel starten' : 'Start the goal', exact: true }).click();
       const progress = page.getByRole('region', { name: locale === 'de' ? /^Zielfortschritt:/ : /^Goal progress:/ });
       await expect(progress).toHaveAttribute('data-status', 'passed');
@@ -196,6 +225,12 @@ for (const shell of ['classic', 'modern'] as const) {
       const watchImage = testInfo.outputPath(`goal-watch-${shell}-${locale}.png`);
       await page.screenshot({ path: watchImage });
       await testInfo.attach('Saved no-turn result', { path: watchImage, contentType: 'image/png' });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await passed.scrollIntoViewIfNeeded();
+      await expect(passed).toBeInViewport({ ratio: 1 });
+      const narrowWatchImage = testInfo.outputPath(`goal-watch-narrow-${shell}-${locale}.png`);
+      await page.screenshot({ path: narrowWatchImage });
+      await testInfo.attach('Narrow saved result', { path: narrowWatchImage, contentType: 'image/png' });
       expect(requests).toBe(0);
     });
   }

@@ -122,7 +122,7 @@ export const BUDGET = {
   // the entry before the first paint (i18n.md §3.3). The Inbox UI itself is lazy. Optimisations checked: the Inbox components and their CSS load
   // on use, pseudo-locales do not ship, and the new helpers are single-use; the growth is the feature and its required catalogue. The ceiling is
   // that plus about 1%, rounded up to the thousand. [owner 2026-11-15]
-  // H5i measured 1,084,671 bytes gzip with the goal form and watch remaining on use; the new English catalogue must precede first paint.
+  // H5i measured 1,084,699 bytes gzip with the goal form and watch remaining on use; the new English catalogue must precede first paint.
   // The ceiling is the measurement plus about 1%, rounded up to the thousand. [owner 2026-11-17]
   initialGzip: 1_096_000,
   /** All JS, raw. */
@@ -179,9 +179,9 @@ export const BUDGET = {
   // queued path in the entry, the Inbox UI (BackgroundTasks, FindingsPanel, QueuedReviewDetails) and the German catalogue in lazy chunks.
   // Optimisations checked as for the first load above; no duplicated modules, pseudo-locales do not ship. The ceiling is that plus about 1%,
   // rounded up to the thousand. [owner 2026-11-15]
-  // H5i measured 8,457,297 bytes raw with no new dependency, duplicated SDK version or production pseudo-locale; form and watch code load on use.
+  // H5i measured 8,458,727 bytes raw with no new dependency, duplicated SDK version or production pseudo-locale; form and watch code load on use.
   // The ceiling is the measurement plus about 1%, rounded up to the thousand. [owner 2026-11-17]
-  totalJs: 8_542_000,
+  totalJs: 8_544_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

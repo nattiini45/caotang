@@ -29,7 +29,7 @@ beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
   const state = createProjectState(createEmptyManifest('The harbour', new Date(0)));
   addDocument(state, { parentId: 'manuscript', id: 'n_HARBOUR001', title: 'The landing', body: 'The boat arrived.', now: new Date(0) });
-  const session = { state, view: { activeDocId: 'n_HARBOUR001' }, subscribe: () => () => undefined, getVersion: () => 0 } as unknown as ProjectSession;
+  const session = { state, rulesNow: () => [], view: { activeDocId: 'n_HARBOUR001' }, subscribe: () => () => undefined, getVersion: () => 0 } as unknown as ProjectSession;
   props = { open: true, session, coherenceChecks: ['codex.alias-collisions'], draft: null, unavailable: null, busy: false, onStart: vi.fn(), onClose: vi.fn() };
   approve = false;
   host = document.createElement('div');
@@ -93,6 +93,26 @@ it('validates on submit and focuses the first invalid field without premature al
   await submit();
   expect(document.activeElement).toBe(host.querySelector('[data-goal-field="checks"] [role="checkbox"]'));
   expect(props.onStart).not.toHaveBeenCalled();
+});
+
+it('selects a named binder folder with a matching explicit write scope', async () => {
+  await render();
+  await change('Goal intent', 'setValue', ['Fill synopses in this folder.']);
+  await change('Every synopsis is filled', 'setChecked', [true]);
+  await change('Check scope', 'setValue', ['doc']);
+  await change('Binder document or folder', 'setValue', ['manuscript']);
+  await submit();
+  expect(props.onStart).toHaveBeenCalledWith(expect.objectContaining({
+    checks: [{ kind: 'synopsis.filled', scope: { mode: 'doc', docIds: ['manuscript'] } }],
+    writeScope: { mode: 'doc', docIds: ['manuscript'] },
+  }), false);
+});
+
+it('does not request large-scope consent for documents withheld from the goal', async () => {
+  for (let index = 0; index < 21; index += 1) addDocument(props.session.state, { parentId: 'manuscript', id: `held-${index}`, title: `Held scene ${index}`, body: 'A scene.', now: new Date(0) });
+  vi.spyOn(props.session, 'rulesNow').mockReturnValue([{ tool: '*', effect: 'deny', access: 'read', scope: { subtree: 'manuscript' }, source: 'app' }]);
+  await render({ draft: { id: 1, intent: 'Resolve the readable findings.', scope: { mode: 'full' }, coherenceChecks: ['codex.alias-collisions'] } });
+  expect(host.textContent).not.toContain('This coherence scope reads more than 20 documents.');
 });
 
 it('retains an unfinished draft while closed and applies only new prefill ids without execution', async () => {

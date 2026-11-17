@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 import type { AgentController, GoalRecoveryView } from '../src/app/agent.js';
 import { GoalRecovery } from '../src/components/GoalRecovery.js';
+import { activateEnglish } from '../src/i18n/runtime.js';
 
 const goal: GoalRecoveryView = {
   goalId: 'g_7QK4M2N8RT', intent: 'Keep every scene as it is.', status: 'interrupted', nextIteration: 2,
@@ -46,6 +47,17 @@ it('retains the saved terminal reason alongside the finished watch', () => {
   const html = render({ status: 'settled', outcome: 'passed', resumable: false, reason: 'passed: All checks passed.' }, null);
   expect(html).toContain('passed: All checks passed.');
   expect(html).toContain('Discard the goal record');
+});
+
+it.each([1, 2])('pluralizes %i skipped checks without claiming a pass', (skipped) => {
+  activateEnglish();
+  const html = render({ status: 'settled', outcome: 'refused', resumable: false, watch: {
+    nextIteration: 1, completedIterations: 0, maxIterations: 10, limits: { maxModelCalls: 8 },
+    spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 },
+    checks: [{ key: 'synopsis', kind: 'synopsis.filled', pass: null, distance: null, history: [], failures: [], skipped }],
+  } }, null);
+  expect(html).toContain(skipped === 1 ? '1 check or document was skipped.' : '2 checks or documents were skipped.');
+  expect(html).not.toContain('>Passed<');
 });
 
 it('keeps an inactive running record discardable when its interruption could not be saved', () => {

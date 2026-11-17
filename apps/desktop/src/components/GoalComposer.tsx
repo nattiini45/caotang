@@ -11,12 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@ui-sdk/react/textarea';
 import { BRANCH_CHECK_IDS, DETERMINISTIC_CHECK_IDS, SCAN_DOC_GUARD, type DeterministicCheckId, type ScopeSpec } from '@caotang/coherence';
 import { canonicalJson } from '@caotang/ids';
-import { coherenceScopeSize, type Goal, type WriteScope } from '@caotang/harness';
+import { coherenceScopeSize, withheldAnywhere, type Goal, type WriteScope } from '@caotang/harness';
 
 import { goalFromForm, initialGoalForm, type GoalFormResult, type GoalFormValues } from '../app/goal-form.js';
 import { checkLabelOf } from '../app/findings-model.js';
 import { furnitureId } from '../app/furniture-store.js';
 import type { ProjectSession } from '../app/session.js';
+import type { GoalDraft } from '../app/agent.js';
 import { formatCount } from '../i18n/locale.js';
 import { useComposingEnter } from './shared.js';
 import './goal-composer.css';
@@ -25,7 +26,7 @@ export interface GoalComposerProps {
   readonly open: boolean;
   readonly session: ProjectSession;
   readonly coherenceChecks: readonly DeterministicCheckId[];
-  readonly draft: { readonly id: number; readonly intent: string; readonly scope: ScopeSpec; readonly coherenceChecks: readonly DeterministicCheckId[] } | null;
+  readonly draft: GoalDraft | null;
   readonly unavailable: string | null;
   readonly busy: boolean;
   readonly onStart: (goal: Goal, approvedLargeScope: boolean) => void;
@@ -33,6 +34,7 @@ export interface GoalComposerProps {
 }
 
 type InvalidForm = Extract<GoalFormResult, { ok: false }>;
+const needsWholeManuscript = (check: DeterministicCheckId): boolean => (BRANCH_CHECK_IDS as readonly string[]).includes(check) || check === 'medium.speaker-parity';
 
 function formError(error: InvalidForm): string {
   if (error.code === 'checks-off') return t`Choose at least one coherence check that is enabled in Settings.`;
@@ -90,6 +92,7 @@ export default function GoalComposer({ open, session, coherenceChecks, draft, un
   }
 
   const activeDoc = session.state.manifest.tree.find((node) => node.id === session.view.activeDocId && node.type === 'document' && node.status !== 'archived');
+  const binderNodes = session.state.manifest.tree.filter((node) => node.type === 'folder' || (node.type === 'document' && node.status !== 'archived'));
   const update = <K extends keyof GoalFormValues>(key: K, value: GoalFormValues[K]): void => {
     setForm((previous) => ({ ...previous, [key]: value }));
     setError(null);
@@ -97,19 +100,20 @@ export default function GoalComposer({ open, session, coherenceChecks, draft, un
   };
   const changeScope = (value: string | null): void => {
     if (value === 'doc') {
-      if (activeDoc === undefined) return;
-      setScope({ mode: 'doc', docIds: [activeDoc.id] });
+      const node = activeDoc ?? binderNodes[0];
+      if (node === undefined) return;
+      setScope({ mode: 'doc', docIds: [node.id] });
     } else if (value === 'full' || value === 'changed') setScope({ mode: value });
     setApproval(null);
     setError(null);
   };
   const result = goalFromForm(form, { id: 'preview', scope, writeScope, coherenceChecks: selectedChecks });
   const definition = result.ok ? canonicalJson(result.goal.checks) : null;
-  const documents = form.clean ? coherenceScopeSize(session.state, scope) : 0;
+  const documents = form.clean ? coherenceScopeSize(session.state, scope, withheldAnywhere({ rules: session.rulesNow() }, session.state)) : 0;
   const overGuard = documents > SCAN_DOC_GUARD;
   const approved = definition !== null && approval === definition;
   const scopeDoc = scope.mode === 'doc' && scope.docIds.length === 1 ? session.state.manifest.tree.find((node) => node.id === scope.docIds[0]) : undefined;
-  const fullOnly = selectedChecks.filter((check) => (BRANCH_CHECK_IDS as readonly string[]).includes(check) || check === 'medium.speaker-parity');
+  const fullOnly = selectedChecks.filter(needsWholeManuscript);
   const settingsOff = selectedChecks.filter((check) => !coherenceChecks.includes(check));
   const coherenceProblem = !form.clean ? null
     : settingsOff.length > 0 ? t`A selected check is off in Settings. Deselect it here, or enable it there.`
@@ -117,7 +121,7 @@ export default function GoalComposer({ open, session, coherenceChecks, draft, un
     : scope.mode !== 'full' && fullOnly.length > 0 ? t`Some selected checks require the whole manuscript. Deselect those checks or explicitly choose the whole manuscript.`
     : selectedChecks.length === 0 ? t`Choose at least one enabled coherence check.`
     : null;
-  const writeProblem = writeScope.mode === 'doc' && !session.state.manifest.tree.some((node) => writeScope.docIds.includes(node.id) && node.type === 'document' && node.status !== 'archived')
+  const writeProblem = writeScope.mode === 'doc' && !session.state.manifest.tree.some((node) => writeScope.docIds.includes(node.id) && (node.type === 'folder' || (node.type === 'document' && node.status !== 'archived')))
     ? t`The write scope has no live document. Choose the current document or the whole project.` : null;
   const reason = unavailable ?? (busy ? t`A goal or turn is active. Wait for it to finish.` : null) ?? coherenceProblem ?? writeProblem ??
     (overGuard && result.ok && !approved ? t`Approve this large read scope, or narrow the checks before starting.` : null);
@@ -165,9 +169,26 @@ export default function GoalComposer({ open, session, coherenceChecks, draft, un
         <legend><Trans>Check scope</Trans></legend>
         <RadioGroup aria-label={t`Check scope`} name="goal-scope" value={scope.mode} onValueChange={changeScope}>
           <label className="goal-choice"><Radio value="full"><RadioIndicator /></Radio><span><Trans>Whole manuscript</Trans></span></label>
-          <label className="goal-choice"><Radio value="doc" disabled={activeDoc === undefined && scope.mode !== 'doc'}><RadioIndicator /></Radio><span>{scope.mode === 'doc' ? t`Named document scope` : t`Current document`}</span></label>
+          <label className="goal-choice"><Radio value="doc" disabled={binderNodes.length === 0 && scope.mode !== 'doc'}><RadioIndicator /></Radio><span><Trans>A binder document or folder</Trans></span></label>
           <label className="goal-choice"><Radio value="changed"><RadioIndicator /></Radio><span><Trans>Changed since the last review</Trans></span></label>
         </RadioGroup>
+        {scope.mode === 'doc' ? <Field name="goal-binder-scope" className="goal-field">
+          <FieldLabel><Trans>Binder document or folder</Trans></FieldLabel>
+          <Select name="goal-binder-scope" value={scope.docIds.length === 1 ? scope.docIds[0] : undefined}
+            items={binderNodes.map((node) => ({ value: node.id, label: node.title }))}
+            onValueChange={(value) => {
+              if (value === null) return;
+              setScope({ mode: 'doc', docIds: [value] });
+              setWriteScope({ mode: 'doc', docIds: [value] });
+              setApproval(null);
+              setError(null);
+            }}>
+            <SelectTrigger className="button"><SelectValue placeholder={t`Choose a binder document or folder`} /></SelectTrigger>
+            <SelectContent className="goal-status-options" container={typeof document === 'undefined' ? undefined : document.body}>
+              {binderNodes.map((node) => <SelectItem key={node.id} value={node.id}><bdi>{node.title}</bdi></SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field> : null}
         {scope.mode === 'doc' ? <p className="goal-help"><Trans>Requested documents:</Trans> <bdi>{scope.docIds.map((docId) => session.state.manifest.tree.find((node) => node.id === docId)?.title ?? docId).join(', ')}</bdi></p> : null}
         {scope.mode === 'doc' && activeDoc !== undefined && (scope.docIds.length !== 1 || scope.docIds[0] !== activeDoc.id) ? <Button className="button" onClick={() => changeScope('doc')}><Trans>Use the current document</Trans></Button> : null}
         {error?.field === 'scope' ? <p className="form-message is-error">{formError(error)}</p> : null}
@@ -179,7 +200,7 @@ export default function GoalComposer({ open, session, coherenceChecks, draft, un
           <legend><Trans>Coherence checks to include</Trans></legend>
           <p className="goal-help"><Trans>Your selection stays explicit when Settings change. Checks marked as off must be enabled there or deselected here.</Trans></p>
           {DETERMINISTIC_CHECK_IDS.filter((check) => coherenceChecks.includes(check) || selectedChecks.includes(check)).map((check) => {
-            const needsFull = (BRANCH_CHECK_IDS as readonly string[]).includes(check) || check === 'medium.speaker-parity';
+            const needsFull = needsWholeManuscript(check);
             const off = !coherenceChecks.includes(check);
             return <Choice key={check} name={`goal-check-${check}`} checked={selectedChecks.includes(check)} disabled={off && !selectedChecks.includes(check)}
               label={<>{checkLabelOf(check)}{off ? <span className="goal-help"> — <Trans>Off in Settings</Trans></span> : null}{needsFull ? <span className="goal-help"> — <Trans>Whole manuscript only</Trans></span> : null}</>}
@@ -212,9 +233,9 @@ export default function GoalComposer({ open, session, coherenceChecks, draft, un
           else if (value === 'doc' && activeDoc !== undefined) setWriteScope({ mode: 'doc', docIds: [activeDoc.id] });
         }}>
           <label className="goal-choice"><Radio value="full"><RadioIndicator /></Radio><span><Trans>Whole project</Trans></span></label>
-          <label className="goal-choice"><Radio value="doc" disabled={activeDoc === undefined && writeScope.mode !== 'doc'}><RadioIndicator /></Radio><span>{writeScope.mode === 'doc' ? t`Only the named document` : t`Only the current document`}</span></label>
+          <label className="goal-choice"><Radio value="doc" disabled={activeDoc === undefined && writeScope.mode !== 'doc'}><RadioIndicator /></Radio><span>{writeScope.mode === 'doc' ? t`Only the named binder items` : t`Only the current document`}</span></label>
         </RadioGroup>
-        {writeScope.mode === 'doc' ? <p className="goal-help"><Trans>Allowed document:</Trans> <bdi>{session.state.manifest.tree.find((node) => node.id === writeScope.docIds[0])?.title ?? writeScope.docIds[0]}</bdi></p> : null}
+        {writeScope.mode === 'doc' ? <p className="goal-help"><Trans>Allowed binder item:</Trans> <bdi>{session.state.manifest.tree.find((node) => node.id === writeScope.docIds[0])?.title ?? writeScope.docIds[0]}</bdi></p> : null}
         {writeScope.mode === 'doc' && activeDoc !== undefined && writeScope.docIds[0] !== activeDoc.id ? <Button className="button" onClick={() => setWriteScope({ mode: 'doc', docIds: [activeDoc.id] })}><Trans>Write only in the current document</Trans></Button> : null}
       </fieldset>
       <fieldset>

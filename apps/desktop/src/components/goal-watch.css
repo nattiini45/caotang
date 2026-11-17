@@ -7,6 +7,10 @@
   font-weight: 500;
 }
 
+.goal-watch > p {
+  margin-block: var(--space-1);
+}
+
 .goal-watch-spend {
   display: flex;
   flex-wrap: wrap;

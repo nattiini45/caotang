@@ -5,7 +5,7 @@ import { Trans } from '@lingui/react/macro';
 import { Button } from '@ui-sdk/react/button';
 import { SCAN_DOC_GUARD, validateDismissal, type CoherenceFile, type DeterministicCheckId, type ScopeSpec } from '@caotang/coherence';
 import { isolate } from '@caotang/i18n';
-import { agentFor } from '../app/agent-registry.js';
+import { agentFor, whenAgent } from '../app/agent-registry.js';
 import type { AgentController } from '../app/agent.js';
 import type { QueuedReviewPreview } from '../app/queued-review.js';
 import type { ProviderService } from '../app/providers.js';
@@ -424,19 +424,15 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
         <Button ref={scanButtonRef} className="button is-primary" onClick={() => scan(false)} disabled={running || scanBusy} focusableWhenDisabled={scanBusy} pendingAnnouncement=""><Trans>Scan the manuscript</Trans></Button>
         {approvalNeeded ? <Button className="button" onClick={() => scan(true)} disabled={running || scanBusy} focusableWhenDisabled={scanBusy} pendingAnnouncement="" onFocus={() => { transientScanFocusRef.current = true; }} onBlur={() => { transientScanFocusRef.current = false; }}><Trans>Scan it anyway</Trans></Button> : null}
         <Button className="button" onClick={planReviewNow} disabled={mockOnly || running || scanBusy || plan !== null || queuePlanning || queuePreview !== null}><Trans>Review with agent</Trans></Button>
-        <Button className="button" type="button" disabled={settings.enabledChecks.length === 0} focusableWhenDisabled aria-describedby={settings.enabledChecks.length === 0 ? goalCheckReasonId : undefined} onClick={() => {
+        <Button className="button" type="button" disabled={settings.enabledChecks.length === 0} focusableWhenDisabled aria-describedby={settings.enabledChecks.length === 0 ? goalCheckReasonId : undefined} onClick={async () => {
           const scope = scopeFor(scopeChoice, currentDocId);
           if (scope === undefined) {
             report({ text: t`Open a document or choose the whole manuscript before setting a goal.`, tone: 'info' });
             return;
           }
-          const agent = controller ?? agentFor(session);
-          if (agent === undefined) {
-            report({ text: t`Open the Agent panel, then set the goal again.`, tone: 'info' });
-            return;
-          }
-          agent.offerGoal({ intent: t`Fix the findings in this scope until the selected coherence checks pass.`, scope, coherenceChecks: settings.enabledChecks });
           onOpenAgent?.();
+          const agent = controller ?? await whenAgent(session);
+          agent.offerGoal({ intent: t`Fix the findings in this scope until the selected coherence checks pass.`, scope, coherenceChecks: settings.enabledChecks });
         }}><Trans>Fix all in scope until clean</Trans></Button>
         <Button ref={queueButtonRef} className="button" onClick={prepareQueuedReview} disabled={backgroundMockOnly || controller === null || controller === undefined || running || scanBusy || queuePreview !== null} pendingAnnouncement={t`Preparing the Background review preview`}><Trans>Queue a review</Trans></Button>
         <label className="findings-filter">
