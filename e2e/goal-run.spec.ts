@@ -32,6 +32,11 @@ for (const shell of ['classic', 'modern'] as const) {
     await expect(page.getByTestId('agent-stop')).toBeFocused();
     const plan = page.getByTestId('plan-card');
     await expect(plan.getByRole('button', { name: 'Approve', exact: true })).toBeVisible();
+    await expect(page.getByTestId('agent-step')).toContainText('Waiting for you');
+    await expect(page.getByTestId('agent-step')).toContainText('Fill the synopsis');
+    await expect(page.getByTestId('agent-step')).toHaveCSS('-webkit-line-clamp', '2');
+    await expect(page.getByTestId('agent-step')).toHaveCSS('white-space', 'normal');
+    await expect(page.getByTestId('agent-step')).toHaveAttribute('title', /Fill the synopsis/);
     const progress = page.getByRole('region', { name: /^Goal progress:/ });
     if (shell === 'modern') {
       const frame = await page.getByTestId('agent-panel').boundingBox();
@@ -188,8 +193,45 @@ for (const shell of ['classic', 'modern'] as const) {
       const formImage = testInfo.outputPath(`goal-form-${shell}-${locale}.png`);
       await page.screenshot({ path: formImage });
       await testInfo.attach('Goal form', { path: formImage, contentType: 'image/png' });
+      let releaseBinder: () => void = () => undefined;
+      let binderHeld = false;
+      if (shell === 'modern' && locale === 'de') {
+        const held = new Promise<void>((resolve) => { releaseBinder = resolve; });
+        await page.route(/\/src\/components\/shell\/modern\/narrow-panels\.(?:tsx|js)(?:\?|$)/, async (route) => {
+          binderHeld = true;
+          await held;
+          await route.continue();
+        });
+      }
       await page.setViewportSize({ width: 390, height: 844 });
+      if (shell === 'modern' && locale === 'de') {
+        try {
+          await expect.poll(() => binderHeld).toBe(true);
+          await expect(page.getByRole('status').filter({ hasText: 'Der Binder wird geladen …' })).toBeVisible();
+          await page.screenshot({ path: testInfo.outputPath('binder-loading-modern-de.png') });
+        } finally { releaseBinder(); }
+        await expect(page.getByRole('status').filter({ hasText: 'Der Binder wird geladen …' })).toHaveCount(0);
+      }
       if (shell === 'classic') await expect(page.locator('.rail.is-drawer')).toBeHidden();
+      const start = page.getByRole('button', { name: locale === 'de' ? 'Das Ziel starten' : 'Start the goal', exact: true });
+      await expect(start).toBeEnabled();
+      if (locale === 'de') {
+        const appearance = await start.evaluate((button) => {
+          const style = getComputedStyle(button);
+          const luminance = (color: string) => {
+            const channels = color.match(/[\d.]+/g)!.slice(0, 3).map((part) => Number(part) / 255).map((part) => part <= 0.04045 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4);
+            return channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722;
+          };
+          const foreground = luminance(style.color);
+          const background = luminance(style.backgroundColor);
+          return { color: style.color, background: style.backgroundColor, opacity: Number(style.opacity), weight: Number(style.fontWeight), contrast: (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05) };
+        });
+        expect(appearance.opacity).toBe(1);
+        expect(appearance.weight).toBeGreaterThanOrEqual(600);
+        expect(appearance.contrast).toBeGreaterThanOrEqual(4.5);
+        await writeFile(testInfo.outputPath('start-appearance.json'), JSON.stringify(appearance));
+        await testInfo.attach('Enabled dark Start contrast', { body: JSON.stringify(appearance), contentType: 'application/json' });
+      }
       const narrowFormImage = testInfo.outputPath(`goal-form-narrow-${shell}-${locale}.png`);
       await page.screenshot({ path: narrowFormImage });
       await testInfo.attach('Narrow goal form', { path: narrowFormImage, contentType: 'image/png' });
@@ -229,6 +271,25 @@ for (const shell of ['classic', 'modern'] as const) {
       await testInfo.attach('Saved no-turn result', { path: watchImage, contentType: 'image/png' });
       await page.setViewportSize({ width: 390, height: 844 });
       await passed.scrollIntoViewIfNeeded();
+      await expect(passed).toBeInViewport({ ratio: 1 });
+      if (shell === 'modern') await expect(page.getByRole('status').filter({ hasText: /(?:Loading the binder|Der Binder wird geladen)/ })).toHaveCount(0);
+      const brokenWords = await progress.getByRole('columnheader').evaluateAll((headers) => headers.flatMap((header) => {
+        const words: string[] = [];
+        const walker = document.createTreeWalker(header, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+          for (const match of node.textContent!.matchAll(/\S+/g)) {
+            const range = document.createRange();
+            range.setStart(node, match.index);
+            range.setEnd(node, match.index + match[0].length);
+            const rectangles = Array.from(range.getClientRects());
+            if (rectangles.some((rectangle) => Math.abs(rectangle.top - rectangles[0]!.top) > 0.5)) words.push(match[0]);
+          }
+        }
+        return words;
+      }));
+      expect(brokenWords).toEqual([]);
+      await progress.getByRole('table').scrollIntoViewIfNeeded();
+      await expect(progress.getByRole('columnheader', { name: locale === 'de' ? 'Letzte Abstände' : 'Recent distances', exact: true })).toBeInViewport({ ratio: 1 });
       await expect(passed).toBeInViewport({ ratio: 1 });
       const narrowWatchImage = testInfo.outputPath(`goal-watch-narrow-${shell}-${locale}.png`);
       await page.screenshot({ path: narrowWatchImage });

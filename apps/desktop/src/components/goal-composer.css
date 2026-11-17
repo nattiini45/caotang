@@ -175,6 +175,12 @@
   white-space: normal;
 }
 
+.goal-composer .goal-start:not(:disabled, [aria-disabled='true']) {
+  font-weight: 600;
+  border-width: 2px;
+  opacity: 1;
+}
+
 .goal-composer .goal-start[aria-disabled='true'],
 .goal-composer .goal-start[aria-disabled='true']:hover {
   background: var(--raised);

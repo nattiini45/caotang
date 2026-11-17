@@ -425,6 +425,12 @@ export function AgentPanel({
   const running = snapshot.turns[snapshot.turns.length - 1];
   const stepRef = running === undefined || isSettled(running) ? null : headerRefOf(running.tasks, (ref) => renderRef(ref, { userValues: WRITER_VALUE_KEYS }));
   const stepLine = stepRef !== null ? renderRef(stepRef) : running === undefined || isSettled(running) ? null : headerLineOf(running.tasks);
+  const stepStatus = snapshot.phase === 'starting' ? t`The agent is loading.`
+    : snapshot.phase === 'approving' ? t`Your approval is being processed.`
+      : snapshot.phase === 'stopping' ? t`The agent is stopping.`
+        : running?.compacting === true ? t`Summarising earlier conversation with Background…`
+          : stepLine ?? (snapshot.pending !== null || snapshot.offer !== null ? t`Waiting for you` : t`Working…`);
+  const goalWaiting = snapshot.activeGoalId !== null && (snapshot.pending !== null || snapshot.offer !== null) && snapshot.phase !== 'starting' && snapshot.phase !== 'approving' && snapshot.phase !== 'stopping';
   const spend = running === undefined || isSettled(running) ? undefined : spendLine(running.run);
   const sessionUsage = <SessionUsage usage={snapshot.sessionUsage} names={new Map(snapshot.usageProfiles.map((profile) => [profile.id, profile.name]))} />;
   const choices = agent.contextChoices();
@@ -547,12 +553,8 @@ export function AgentPanel({
         {/* The step line names where the turn is, with the drawer open or closed. It is a live region that polite-announces a change
             of step, not each streamed word: the line is derived from the task list and only moves when the step does. */}
         {snapshot.pending !== null || snapshot.busy ? (
-          <span className="agent-busy" role="status" aria-live="polite" data-testid="agent-step">
-            {snapshot.phase === 'starting' ? t`The agent is loading.`
-              : snapshot.phase === 'approving' ? t`Your approval is being processed.`
-                : snapshot.phase === 'stopping' ? t`The agent is stopping.`
-                  : running?.compacting === true ? t`Summarising earlier conversation with Background…`
-                    : stepLine ?? (snapshot.pending !== null || snapshot.offer !== null ? t`Waiting for you` : t`Working…`)}
+          <span className={goalWaiting ? 'agent-busy is-goal-waiting' : 'agent-busy'} role="status" aria-live="polite" data-testid="agent-step" title={stepStatus}>
+            {stepStatus}
           </span>
         ) : null}
         {/* What the run has used of the limits the writer set: tokens, cost, steps and time worked, after each model call. */}

@@ -177,6 +177,10 @@
   text-overflow: ellipsis;
 }
 
+:root[data-shell='modern'] .modern-companion .agent-head .agent-busy.is-goal-waiting {
+  white-space: normal;
+}
+
 :root[data-shell='modern'] .modern-companion .agent-head .agent-spend {
   flex: 1 1 0;
   min-inline-size: 0;

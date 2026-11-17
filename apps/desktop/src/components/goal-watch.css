@@ -31,6 +31,15 @@
 .goal-watch-table {
   max-inline-size: 100%;
   overflow: auto;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.agent .agent-head .agent-busy.is-goal-waiting {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
 }
 
 .goal-watch table {

@@ -10214,7 +10214,7 @@ msgstr "Wird geladen"
 #. Interpolated values: subject
 #: apps/desktop/src/components/lazy-view.tsx
 msgid "Loading {subject}…"
-msgstr "{subject} wird geladen…"
+msgstr "{subject} wird geladen …"
 
 #. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
 #: apps/desktop/src/components/editor-labels.ts
@@ -18098,7 +18098,7 @@ msgstr "Das Bearer-Token fehlt. Geben Sie es auf dieser Karte ein, speichern Sie
 #. Modern interface: the stage and the page.
 #: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "the binder"
-msgstr "der Binder"
+msgstr "Der Binder"
 
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
@@ -19052,7 +19052,7 @@ msgstr "Die Datei des Bildes konnte nicht gelesen werden"
 #: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "the pictures"
-msgstr "die Bilder"
+msgstr "Die Bilder"
 
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
 #: apps/desktop/src/media/picture-board-model.ts
@@ -19834,7 +19834,7 @@ msgstr "Der Text von {kind, select, document {dem Dokument „{name}“} codex {
 #: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "the timeline"
-msgstr "die Zeitachse"
+msgstr "Die Zeitachse"
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
