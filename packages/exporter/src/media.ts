@@ -1201,9 +1201,12 @@ function vttOutput(request: MediaRequest): MediaOutput {
         // a cue whose end is not after its start, which a player drops — so the interval is at least 1 ms.
         const startMs = Math.max(prevEndMs, Math.round(at * 1000));
         const endMs = Math.max(startMs + 1, Math.round((at + line.durationSec) * 1000));
-        // An unbounded `[Ns]` duration — or an `at` one already ran past the clock — reaches `Infinity`, and
-        // `vttTime` would emit it: `Infinity:NaN:NaN.NaN`. A cue that cannot be timed takes no cue.
-        if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+        // The clock advances on the declared duration even when the cue cannot be written — a line after
+        // one whose duration overflows sits at a time a timestamp cannot name either, and takes no cue.
+        at += line.durationSec;
+        // An unbounded `[Ns]` duration reaches `Infinity`; a duration past safe millisecond precision turns
+        // `startMs + 1` back into `startMs`; either would write a timestamp that is not one.
+        if (!Number.isSafeInteger(startMs) || !Number.isSafeInteger(endMs) || endMs <= startMs) {
           notes.push(`"${ep.node.title}" line ${line.line}: its timing overflows a WebVTT timestamp, so it takes no cue`);
           continue;
         }
@@ -1211,7 +1214,6 @@ function vttOutput(request: MediaRequest): MediaOutput {
         cues.push(`${vttTime(startMs)} --> ${vttTime(endMs)}\n<v ${vttEscape(speakerName(request, line))}>${vttEscape(line.text)}</v>`);
         cueCount += 1;
         wordCount += line.words;
-        at += line.durationSec;
       }
     }
     if (cues.length === 0) {
@@ -1246,16 +1248,17 @@ function chaptersJsonOutput(request: MediaRequest): MediaOutput {
         notes.push(`"${ep.node.title}": segment "${segment.title || 'the opening'}" is untimed, so it takes no chapter`);
         continue;
       }
-      // Rounded to centiseconds, a real but tiny `[0.0004s]` duration reads as zero — a chapter whose end is
-      // not after its start names nothing, and a non-finite one would serialize as `null`.
-      if (!(segment.durationSec > 0) || !Number.isFinite(segment.durationSec)) {
-        notes.push(`"${ep.node.title}": segment "${segment.title || 'the opening'}" has no positive duration, so it takes no chapter`);
+      // A chapter needs a real interval: a `[0.0004s]` duration rounds to zero at centisecond precision, and a
+      // non-finite start or end — a segment after one whose duration overflowed — serializes as `null`.
+      const endSec = segment.startSec + segment.durationSec;
+      if (!Number.isFinite(segment.startSec) || !Number.isFinite(endSec) || endSec <= segment.startSec) {
+        notes.push(`"${ep.node.title}": segment "${segment.title || 'the opening'}" has no positive finite duration, so it takes no chapter`);
         continue;
       }
       chapters.push({
         startTime: segment.startSec,
         title: segment.title !== '' ? segment.title : (ep.parsed.title ?? ep.node.title),
-        endTime: segment.startSec + segment.durationSec,
+        endTime: endSec,
       });
     }
     chapterCount += chapters.length;

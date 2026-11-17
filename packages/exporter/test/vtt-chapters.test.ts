@@ -143,17 +143,20 @@ describe('the WebVTT captions', () => {
     expect(text).toContain('00:00:00.001 --> 00:00:00.002\n<v HOST_A>Two.</v>');
   });
 
-  it('takes no cue for a line whose timing overflows a WebVTT timestamp', async () => {
+  it('takes no cue for a line whose timing overflows a WebVTT timestamp, or for a line after it', async () => {
     const state = makeShowProject({
       episode:
-        '## A\nHOST_A: Vast. [' + '9'.repeat(400) + 's] <!-- lineId: sl_1000000012 -->\nHOST_A: Still here. [1s] <!-- lineId: sl_1000000013 -->\n',
+        '## A\nHOST_A: Before. [0:10] <!-- lineId: sl_1000000011 -->\nHOST_A: Vast. [' + '9'.repeat(400) + 's] <!-- lineId: sl_1000000012 -->\nHOST_A: Still here. [1s] <!-- lineId: sl_1000000013 -->\n',
     });
     const result = await rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'vtt');
     const text = await result.files[0]!.blob.text();
     expect(text).not.toContain('Infinity');
     expect(text).not.toContain('Vast.');
-    expect(text).toContain('<v HOST_A>Still here.</v>');
-    expect(result.log.notes.some((n) => n.includes('overflows a WebVTT timestamp'))).toBe(true);
+    expect(text).toContain('<v HOST_A>Before.</v>');
+    // The clock still advances by the overflowing duration, so the next line sits at a time no
+    // timestamp can name — it takes no cue either rather than restarting at the old time.
+    expect(text).not.toContain('Still here.');
+    expect(result.log.notes.filter((n) => n.includes('overflows a WebVTT timestamp'))).toHaveLength(2);
   });
 
   it('refuses a selection with no episode, and an episode whose lines all lack a duration', async () => {
@@ -214,7 +217,26 @@ describe('the chapters document', () => {
     const doc = JSON.parse(await result.files[0]!.blob.text()) as { chapters: { startTime: number; title: string; endTime: number }[] };
     expect(doc.chapters.map((c) => c.title)).toEqual(['One', 'Three']);
     expect(doc.chapters.every((c) => c.endTime > c.startTime)).toBe(true);
-    expect(result.log.notes.some((n) => n.includes('Blink') && n.includes('no positive duration'))).toBe(true);
+    expect(result.log.notes.some((n) => n.includes('Blink') && n.includes('no positive finite duration'))).toBe(true);
+  });
+
+  it('writes no chapters document for an episode whose segments overflow a timestamp', async () => {
+    const state = makeShowProject();
+    const vast = addDocument(state, {
+      parentId: SHOW_ID,
+      title: 'Episode 2',
+      body:
+        '## Vast\nHOST_A: Hi. [' + '9'.repeat(400) + 's] <!-- lineId: sl_1000000014 -->\n## After\nHOST_A: Bye. [0:10] <!-- lineId: sl_1000000015 -->\n',
+      now: OPENED,
+      id: 'n_EPISODE003',
+    });
+    Object.assign(vast, { kind: 'av-script' });
+    const result = await rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'chapters-json');
+    // In Episode 2 the first segment's duration and the second's start both reach Infinity — each is
+    // skipped rather than serializing a `null` timestamp, so it writes no chapters document.
+    expect(result.files.length).toBe(1);
+    expect(result.log.notes.filter((n) => n.includes('no positive finite duration'))).toHaveLength(2);
+    expect(result.log.notes.some((n) => n.includes('Episode 2') && n.includes('no chapters document'))).toBe(true);
   });
 
   it('writes no chapters document for an episode with no timed segment', async () => {
