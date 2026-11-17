@@ -1314,6 +1314,16 @@ msgstr ""
 
 #. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
 #: apps/desktop/src/components/export-preview-model.ts
+msgid "{lines} {lineCount, plural, one {chapter} other {chapters}} in {scenes} {sceneCount, plural, one {episode} other {episodes}}"
+msgstr ""
+
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#: apps/desktop/src/components/export-preview-model.ts
+msgid "{lines} {lineCount, plural, one {cue} other {cues}} in {scenes} {sceneCount, plural, one {episode} other {episodes}}, {words} {wordCount, plural, one {word} other {words}}"
+msgstr ""
+
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#: apps/desktop/src/components/export-preview-model.ts
 msgid "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {container} other {containers}}, {words} {wordCount, plural, one {word} other {words}}"
 msgstr ""
 
@@ -5051,6 +5061,11 @@ msgstr ""
 msgid "Caption when there is no image"
 msgstr ""
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Captions (.vtt)"
+msgstr ""
+
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #: apps/desktop/src/components/CardPictureDialog.tsx
 #: apps/desktop/src/components/InspectorPictures.tsx
@@ -5267,6 +5282,11 @@ msgstr ""
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Chapter headings in capitals, scenes set apart by a line."
+msgstr ""
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Chapters (.json)"
 msgstr ""
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
@@ -19123,6 +19143,11 @@ msgstr ""
 msgid "The pictures could not be imported."
 msgstr ""
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "The Podcasting 2.0 chapters document — start, title and end per segment — the file a feed’s podcast:chapters points at."
+msgstr ""
+
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
 msgid "The preview could not be made: {message}"
@@ -21957,6 +21982,11 @@ msgstr ""
 #: apps/desktop/src/app/coherence-report-words.ts
 #: apps/desktop/src/app/findings-model.ts
 msgid "Warnings"
+msgstr ""
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "WebVTT captions — one cue per spoken line, each speaker in a voice span — to drop on a narrated video or an audio post."
 msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title

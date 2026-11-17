@@ -272,6 +272,10 @@ export function renderMedia(request: MediaRequest): MediaOutput {
       return transcriptOutput(request);
     case 'teleprompter':
       return teleprompterOutput(request);
+    case 'vtt':
+      return vttOutput(request);
+    case 'chapters-json':
+      return chaptersJsonOutput(request);
   }
 }
 
@@ -1013,11 +1017,38 @@ function speakableWords(episodes: readonly EpisodeRead[]): number {
 }
 
 /**
- * The name a file takes: the compile's base plus what the artifact is, and the episode's title when a selection holds
- * more than one, so two episodes never write to one name.
+ * The name a file takes: the compile's base plus what the artifact is and its extension, and the episode's title when
+ * a selection holds more than one, so two episodes never write to one name.
  */
-function episodeFileName(base: string, what: string, episodes: readonly EpisodeRead[], ep: EpisodeRead): string {
-  return episodes.length === 1 ? `${base} (${what}).md` : `${base} (${ep.node.title}, ${what}).md`;
+function episodeFileName(base: string, what: string, ext: string, episodes: readonly EpisodeRead[], ep: EpisodeRead): string {
+  if (episodes.length === 1) return `${base} (${what}).${ext}`;
+  // Two episodes may share a title; its node id keeps each file's name its own.
+  const title =
+    episodes.filter((other) => other.node.title === ep.node.title).length > 1
+      ? `${ep.node.title} ${ep.node.id}`
+      : ep.node.title;
+  return `${base} (${title}, ${what}).${ext}`;
+}
+
+/**
+ * The complete name list made distinct. A real title can still equal the `title id` spelling a
+ * duplicate got, so a name that survives `episodeFileName` colliding gets a ` (2)` before its
+ * extension — the first use keeps the clean name.
+ */
+function distinctFileNames(files: MediaFile[]): MediaFile[] {
+  const seen = new Map<string, number>();
+  return files.map((file) => {
+    const count = (seen.get(file.name) ?? 0) + 1;
+    seen.set(file.name, count);
+    if (count === 1) return file;
+    const stem = file.name.replace(/\.[^.]+$/, '');
+    return { ...file, name: `${stem} (${count})${file.name.slice(stem.length)}` };
+  });
+}
+
+/** The episode's display title: its `#` heading when it named one — a bare `#` parses to `''`. */
+function episodeTitle(ep: EpisodeRead): string {
+  return ep.parsed.title !== undefined && ep.parsed.title.trim() !== '' ? ep.parsed.title : ep.node.title;
 }
 
 /**
@@ -1033,7 +1064,7 @@ function youtubeChapters(ep: EpisodeRead): { readonly lines: readonly string[]; 
       if (segment.lines.length > 0 || segment.cues.length > 0) skipped.push(segment.title);
       continue;
     }
-    chapters.push({ at: segment.startSec, title: segment.title !== '' ? segment.title : (ep.parsed.title ?? ep.node.title) });
+    chapters.push({ at: segment.startSec, title: segment.title !== '' ? segment.title : episodeTitle(ep) });
   }
   if (skipped.length > 0) {
     return { lines: [], failure: `untimed segments have no timestamp (${skipped.map((t) => `"${t || 'the opening'}"`).join(', ')}), so the chapter list cannot cover them` };
@@ -1065,7 +1096,7 @@ function showNotesOutput(request: MediaRequest): MediaOutput {
   const notes = [...parseNotes];
   const files: MediaFile[] = [];
   for (const ep of episodes) {
-    const out: string[] = [`# ${ep.parsed.title ?? ep.node.title}`, ''];
+    const out: string[] = [`# ${episodeTitle(ep)}`, ''];
     if (typeof ep.show.description === 'string' && ep.show.description.trim() !== '') {
       out.push(ep.show.description.trim(), '');
     }
@@ -1079,9 +1110,9 @@ function showNotesOutput(request: MediaRequest): MediaOutput {
     } else {
       out.push('', '## Chapters', '', ...chapters.lines);
     }
-    files.push({ name: episodeFileName(request.base, 'show notes', episodes, ep), mimeType: 'text/markdown;charset=utf-8', text: out.join('\n') + '\n' });
+    files.push({ name: episodeFileName(request.base, 'show notes', 'md', episodes, ep), mimeType: 'text/markdown;charset=utf-8', text: out.join('\n') + '\n' });
   }
-  return { files, blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
+  return { files: distinctFileNames(files), blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
 }
 
 /** A speaker label as a reader sees it: the codex entry's display name when the speaker resolved to one, else the name as typed. */
@@ -1099,7 +1130,7 @@ function transcriptOutput(request: MediaRequest): MediaOutput {
   const { episodes, notes } = readEpisodes(request, 'transcript-md');
   const files: MediaFile[] = [];
   for (const ep of episodes) {
-    const out: string[] = [`# ${ep.parsed.title ?? ep.node.title}`];
+    const out: string[] = [`# ${episodeTitle(ep)}`];
     for (const segment of ep.parsed.segments) {
       if (segment.title !== '') out.push('', `## ${segment.title}`);
       for (const line of segment.lines) {
@@ -1107,9 +1138,9 @@ function transcriptOutput(request: MediaRequest): MediaOutput {
         out.push('', line.kind === 'narration' ? `_${line.text}_` : `**${speakerName(request, line)}:** ${line.text}`);
       }
     }
-    files.push({ name: episodeFileName(request.base, 'transcript', episodes, ep), mimeType: 'text/markdown;charset=utf-8', text: out.join('\n') + '\n' });
+    files.push({ name: episodeFileName(request.base, 'transcript', 'md', episodes, ep), mimeType: 'text/markdown;charset=utf-8', text: out.join('\n') + '\n' });
   }
-  return { files, blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
+  return { files: distinctFileNames(files), blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
 }
 
 /** One text line wrapped to `width` columns on word boundaries; a word longer than the width keeps its own line. */
@@ -1140,11 +1171,147 @@ function teleprompterOutput(request: MediaRequest): MediaOutput {
   const { episodes, notes } = readEpisodes(request, 'teleprompter');
   const width = request.teleprompterWidth ?? TELEPROMPTER_WIDTH_DEFAULT;
   const files: MediaFile[] = episodes.map((ep) => ({
-    name: episodeFileName(request.base, 'teleprompter', episodes, ep).replace(/\.md$/, '.txt'),
+    name: episodeFileName(request.base, 'teleprompter', 'txt', episodes, ep),
     mimeType: 'text/plain;charset=utf-8',
     text: speakableLines(ep.parsed).map(({ line }) => wrapLine(line.text, width).join('\n')).join('\n\n') + '\n',
   }));
-  return { files, blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
+  return { files: distinctFileNames(files), blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
+}
+
+/* ------------------------------------------------------------------ *
+ * The AV script's captions and chapters (av-script.md §5)
+ * ------------------------------------------------------------------ */
+
+/** Milliseconds as `hh:mm:ss.ttt` with the period separator WebVTT requires (av-script.md §5). */
+function vttTime(ms: number): string {
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  const t = ms % 1000;
+  const two = (n: number) => String(n).padStart(2, '0');
+  return `${two(h)}:${two(m)}:${two(s)}.${String(t).padStart(3, '0')}`;
+}
+
+/**
+ * WebVTT cue markup: `&`, `<` and `>` carry character references, so speech text and speaker names cannot close the
+ * voice span or the cue early (a literal `</v>` in a line would otherwise split the cue).
+ */
+function vttEscape(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * The WebVTT captions (av-script.md §5): one cue per speech line, timed from the durations §4 resolved, each speaker
+ * in the standardised `<v Speaker>` voice span. A line with no duration — nothing declared and nothing estimated —
+ * takes no cue and is named in the log, since a cue without times is one a player drops.
+ */
+function vttOutput(request: MediaRequest): MediaOutput {
+  const { episodes, notes: parseNotes } = readEpisodes(request, 'vtt');
+  const notes = [...parseNotes];
+  const files: MediaFile[] = [];
+  let cueCount = 0;
+  let wordCount = 0;
+  for (const ep of episodes) {
+    const cues: string[] = [];
+    // Cues must not overlap: a start rounded down to the millisecond can land inside the previous cue's
+    // rounded-up end — two consecutive sub-millisecond lines would otherwise share a timestamp.
+    let prevEndMs = 0;
+    for (const segment of ep.parsed.segments) {
+      let at = segment.startSec ?? 0;
+      for (const line of segment.lines) {
+        if (line.kind === 'text') continue;
+        if (line.durationSec === undefined) {
+          notes.push(`"${ep.node.title}" line ${line.line}: no duration, so it takes no cue`);
+          continue;
+        }
+        // Quantized to milliseconds here, not inside vttTime: a positive duration shorter than 1 ms would give
+        // a cue whose end is not after its start, which a player drops — so the interval is at least 1 ms.
+        const startMs = Math.max(prevEndMs, Math.round(at * 1000));
+        // The end is measured from the clamped start: the parser rounds a segment's start to hundredths
+        // while keeping the line's finer duration, so `at + duration` would shorten this cue at a boundary.
+        const endMs = Math.max(startMs + 1, Math.round(startMs + line.durationSec * 1000));
+        // The clock advances on the declared duration even when the cue cannot be written — a line after
+        // one whose duration overflows sits at a time a timestamp cannot name either, and takes no cue.
+        at += line.durationSec;
+        // An unbounded `[Ns]` duration reaches `Infinity`; a duration past safe millisecond precision turns
+        // `startMs + 1` back into `startMs`; either would write a timestamp that is not one.
+        if (!Number.isSafeInteger(startMs) || !Number.isSafeInteger(endMs) || endMs <= startMs) {
+          notes.push(`"${ep.node.title}" line ${line.line}: its timing overflows a WebVTT timestamp, so it takes no cue`);
+          continue;
+        }
+        prevEndMs = endMs;
+        cues.push(`${vttTime(startMs)} --> ${vttTime(endMs)}\n<v ${vttEscape(speakerName(request, line))}>${vttEscape(line.text)}</v>`);
+        cueCount += 1;
+        wordCount += line.words;
+      }
+    }
+    if (cues.length === 0) {
+      notes.push(`"${ep.node.title}": no speakable line could be written as a caption, so it writes no captions document`);
+      continue;
+    }
+    files.push({
+      name: episodeFileName(request.base, 'captions', 'vtt', episodes, ep),
+      mimeType: 'text/vtt;charset=utf-8',
+      text: `WEBVTT\n\n${cues.join('\n\n')}\n`,
+    });
+  }
+  if (files.length === 0) {
+    throw new MediaRefusedError('vtt', [
+      'no episode in the selection holds a cue whose timing writes a caption, so there is nothing to compile',
+      ...notes,
+    ]);
+  }
+  return { files: distinctFileNames(files), blockCount: cueCount, chapterCount: 0, sceneCount: episodes.length, wordCount, skippedDocs: [], notes };
+}
+
+/**
+ * The Podcasting 2.0 chapters document (av-script.md §5): `application/json+chapters`, `startTime`, `title` and
+ * `endTime` per segment, in seconds. An untimed segment takes no chapter and is named in the log.
+ */
+function chaptersJsonOutput(request: MediaRequest): MediaOutput {
+  const { episodes, notes: parseNotes } = readEpisodes(request, 'chapters-json');
+  const notes = [...parseNotes];
+  const files: MediaFile[] = [];
+  let chapterCount = 0;
+  for (const ep of episodes) {
+    const chapters: { startTime: number; title: string; endTime: number }[] = [];
+    for (const segment of ep.parsed.segments) {
+      if (segment.startSec === undefined || segment.durationSec === undefined) {
+        notes.push(`"${ep.node.title}": segment "${segment.title || 'the opening'}" is untimed, so it takes no chapter`);
+        continue;
+      }
+      // A chapter needs a real interval: a `[0.0004s]` duration rounds to zero at centisecond precision, and a
+      // non-finite start or end — a segment after one whose duration overflowed — serializes as `null`.
+      const endSec = segment.startSec + segment.durationSec;
+      if (!Number.isFinite(segment.startSec) || !Number.isFinite(endSec) || endSec <= segment.startSec) {
+        notes.push(`"${ep.node.title}": segment "${segment.title || 'the opening'}" has no positive finite duration, so it takes no chapter`);
+        continue;
+      }
+      chapters.push({
+        startTime: segment.startSec,
+        title: segment.title !== '' ? segment.title : episodeTitle(ep),
+        endTime: endSec,
+      });
+    }
+    chapterCount += chapters.length;
+    if (chapters.length === 0) {
+      notes.push(`"${ep.node.title}": no segment could be written as a chapter, so it writes no chapters document`);
+      continue;
+    }
+    files.push({
+      name: episodeFileName(request.base, 'chapters', 'json', episodes, ep),
+      mimeType: 'application/json+chapters',
+      text: JSON.stringify({ version: '1.2.0', chapters }, null, 2) + '\n',
+    });
+  }
+  if (chapterCount === 0) {
+    throw new MediaRefusedError('chapters-json', [
+      'no episode in the selection holds a segment whose timing writes a chapter, so there is nothing to compile',
+      ...notes,
+    ]);
+  }
+  const wordCount = episodes.reduce((sum, ep) => sum + speakableLines(ep.parsed).reduce((s, { line }) => s + line.words, 0), 0);
+  return { files: distinctFileNames(files), blockCount: chapterCount, chapterCount: 0, sceneCount: episodes.length, wordCount, skippedDocs: [], notes };
 }
 
 /**

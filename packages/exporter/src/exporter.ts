@@ -263,6 +263,8 @@ const EXTENSION: Record<ExportFormat, string> = {
   'show-notes': 'md',
   'transcript-md': 'md',
   teleprompter: 'txt',
+  vtt: 'vtt',
+  'chapters-json': 'json',
 };
 
 /**
@@ -298,6 +300,8 @@ export const EXPORT_MIME: Readonly<Record<ExportFormat, string>> = {
   'show-notes': 'text/markdown;charset=utf-8',
   'transcript-md': 'text/markdown;charset=utf-8',
   teleprompter: 'text/plain;charset=utf-8',
+  vtt: 'text/vtt;charset=utf-8',
+  'chapters-json': 'application/json+chapters',
 };
 
 const NO_ASSETS: ReadonlyMap<string, AssetRecord> = new Map();

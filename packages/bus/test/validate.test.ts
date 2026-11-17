@@ -939,6 +939,8 @@ describe('export.compile, export.compileSelection and project.deleteNode', () =>
       'show-notes',
       'transcript-md',
       'teleprompter',
+      'vtt',
+      'chapters-json',
     ]);
   });
 
