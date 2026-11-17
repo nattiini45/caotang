@@ -76,6 +76,7 @@ export function snapshotGoalVerifierState(state: ProjectState): ProjectState {
     ...state,
     manifest: { ...state.manifest, tree: state.manifest.tree.map(node => ({ ...node })) },
     documents: new Map([...state.documents].map(([id, record]) => [id, { ...record }])),
+    ...(state.coherence === undefined ? {} : { coherence: { ...state.coherence, reviewState: structuredClone(state.coherence.reviewState) } }),
   };
 }
 
@@ -85,7 +86,8 @@ export async function goalVerifierSources(
   state: ProjectState,
   withheld: () => ReadonlySet<string>,
 ): Promise<{ readonly sources: readonly GoalVerifierSource[]; readonly fence: () => void }> {
-  const nodes = documentsInScope(state, spec.scope, withheld()).nodes;
+  const scope = spec.scope.mode === 'changed' ? { mode: 'full' } as const : spec.scope;
+  const nodes = documentsInScope(state, scope, withheld()).nodes;
   const captured = [...new Set(ids)].map(docId => {
     const node = nodes.find(candidate => candidate.id === docId);
     if (node === undefined || !state.documents.has(docId)) throw new Error('The verifier passages are no longer readable in their scope.');
@@ -96,7 +98,7 @@ export async function goalVerifierSources(
     return { docId: value.docId, hash: [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('') };
   }));
   const fence = (): void => {
-    const current = documentsInScope(state, spec.scope, withheld()).nodes;
+    const current = documentsInScope(state, scope, withheld()).nodes;
     for (const value of captured) {
       const node = current.find(candidate => candidate.id === value.docId);
       if (node === undefined || !state.documents.has(value.docId) || node.title !== value.title || node.synopsis !== value.synopsis || node.status !== value.status || getBody(state, value.docId) !== value.body) {

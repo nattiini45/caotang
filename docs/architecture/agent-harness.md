@@ -387,6 +387,10 @@ A goal run works turn after turn until the checks the writer chose pass. The che
 
 #### Independent goal-verifier admission
 
+For a `changed` verifier scope, eligibility compares current document revisions against the independent pre-iteration review-state snapshot. A coherence scan in the actor turn cannot mark its own edits out of verification. Once selected, source fences retain those document ids and check current manuscript membership, content and read rules; a later review-state update alone does not invalidate them. Archived, missing or withheld documents remain excluded.
+
+Negative verifier reasons fed into a later actor intent use the shared untrusted-text spotlight envelope, explicitly labelled `goal-verifier`, with marker defusing and hidden-character revelation. They remain model-derived data, never new actor instructions.
+
 The lazy goal form adds an optional sibling fieldset after the shared limits, off by default, with a criterion and an unchecked explicit completion gate. It retains the existing eight-call default and uses the selected check scope. The criterion is required only while review is enabled and is refused above 4,000 code points, without clipping Unicode input. An advisory-only selection explains the missing acceptance condition rather than starting work. UI SDK owns the controls; submit-time validation focuses the invalid criterion, exposes its error and clears it on edits without premature invalid announcements.
 
 The watch keeps the independent verdict outside the saved deterministic table and distance history. It shows the criterion, advisory or required mode, covered iteration, reasons, shortened-excerpt and omission notes, localized unavailable codes and conservative-usage warning. A verifier-only goal has no invented deterministic rows or distance. The model is not shown as having passed when no usable verdict exists. An already-passing advisory goal reports unavailable/no changes without a paid verifier. Ordinary turn `goalId`/`iteration` metadata remains deferred.

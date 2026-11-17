@@ -2,6 +2,7 @@ import type { ScopeSpec } from '@caotang/coherence';
 import { GOAL_VERIFIER_LIMITS, getBody, type ProjectState, type TreeNode } from '@caotang/store';
 
 import { codePointLength, firstCodePoints, isRecord } from '../util.js';
+import { heldFile } from '../tools/coherence.js';
 import { documentsInScope } from './checks.js';
 import type { AssembledCall, ContextPort, LanguagePolicy } from './context.js';
 
@@ -97,7 +98,7 @@ export function prepareGoalVerifierInput(
   withheld: ReadonlySet<string>,
 ): GoalVerifierInput {
   const rubric = rubricOf(spec.rubric);
-  const { nodes } = documentsInScope(after, spec.scope, withheld);
+  const { nodes } = documentsInScope(spec.scope.mode === 'changed' ? { ...after, coherence: heldFile(before) } : after, spec.scope, withheld);
   const beforeNodes = new Map(before.manifest.tree.map(node => [node.id, node]));
   const excerpts: GoalVerifierExcerpt[] = [];
   let omitted = 0;

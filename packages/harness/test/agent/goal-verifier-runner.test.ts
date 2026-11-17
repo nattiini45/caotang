@@ -1,10 +1,12 @@
 import { expect, it } from 'vitest';
 
+import { emptyCoherenceFile, runDeterministic } from '@caotang/coherence';
 import { getBody, setBody, type ProjectState } from '@caotang/store';
 
 import { createBudgetMeter, createGoalRunner, recoverGoalVerifierCheckpoint, type AgentSession, type Goal, type GoalCheckpoint, type GoalVerifierPort, type TurnReport } from '../../src/index.js';
 import type { GoalVerifierInput } from '../../src/agent/goal-verifier.js';
 import type { GoalVerifierCallResult } from '../../src/agent/goal-verifier-call.js';
+import { countIn } from '../../src/tools/coherence.js';
 import { LANDING, makeState, STORM } from '../fixtures.js';
 
 const scope = { mode: 'doc', docIds: [LANDING] } as const;
@@ -42,6 +44,28 @@ function fixture(edit?: (state: ProjectState, n: number) => void) {
 }
 
 const verdict = (pass: boolean): GoalVerifierCallResult => ({ kind: 'complete', content: JSON.stringify({ pass, reasons: pass ? [] : ['The departure still needs work.'] }) });
+
+it.each(['replace', 'mutate'] as const)('reviews changed text when the actor also scans it (%s review state)', async mode => {
+  const scan = (state: ProjectState) => runDeterministic(state, emptyCoherenceFile(), { scope: { mode: 'full' }, checks: [], detector: countIn, now: new Date('2026-11-17T00:00:00Z') }).file;
+  const f = fixture(state => {
+    const reviewed = scan(state);
+    expect(reviewed.reviewState[LANDING]?.lastReviewedRevision).toBe(state.documents.get(LANDING)?.revision);
+    if (mode === 'mutate' && state.coherence !== undefined) Object.assign(state.coherence.reviewState, reviewed.reviewState);
+    else state.coherence = reviewed;
+  });
+  f.state.coherence = scan(f.state);
+  const definition: Goal = { ...goal(true), checks: [{ kind: 'synopsis.filled', scope }, { kind: 'verifier', scope: { mode: 'changed' }, rubric, gate: true }] };
+  let calls = 0;
+  const run = await createGoalRunner().start(definition, { ...f, verifier: async input => {
+    calls += 1;
+    expect(input.excerpts.map(excerpt => excerpt.docId)).toContain(LANDING);
+    expect(input.excerpts.find(excerpt => excerpt.field === 'body')?.after).toContain('Revision 1');
+    return verdict(true);
+  } });
+  expect(run.status).toBe('passed');
+  expect(calls).toBe(1);
+  expect(run.verification).toMatchObject({ status: 'complete', verdict: { pass: true } });
+});
 
 it('keeps an advisory failure out of deterministic results and goal acceptance', async () => {
   const f = fixture();

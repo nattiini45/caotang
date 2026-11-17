@@ -1,5 +1,7 @@
 # Decisions
 
+- Independent goal verification preserves changed-scope eligibility from the pre-iteration review baseline, even when the actor scans its edits, and later actor feedback carries the shared untrusted envelope with explicit verifier provenance. Source and read-rule fences remain live. [delegated 2026-11-17]
+
 - An optional goal verifier starts with only its rubric and bounded before/after excerpts in an isolated Background-role request. The internal context profile cannot inherit the actor's conversation, instructions, memory, tools or optional pins. Existing live read rules, shared goal limits and durable admission still apply; the verifier is advisory unless the writer explicitly opts into a gate. [delegated 2026-11-17]
 
 - The bundle ceilings rise for the goal Start/watch surface (#70): first load 1,084,703 bytes gzip to 1,096,000, and all JS 8,458,975 bytes raw to 8,544,000 (measured plus about 1%, rounded up to the thousand). Optimisations checked: the form is a lazy chunk, the watch stays in the on-use Agent panel, the runner retains its existing lazy boundary, UI SDK entry imports share the pinned version, and no production pseudo-locales or new dependencies ship. The remaining first-load increase is the required English catalogue before first paint (i18n.md §3.3); splitting the already lazy watch further cannot reduce it or total JavaScript. The contributor guide's stale 5% guidance is corrected to this standing 1% policy. No requested controls or explanatory text are removed to fit. [owner 2026-11-17]

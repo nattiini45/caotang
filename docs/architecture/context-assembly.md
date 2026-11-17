@@ -81,6 +81,8 @@ Coverage must match the readable prefix of this role's turns: the first id, last
 
 The current durable session supplies L6 after reload, switching and conversation-only forks. The planner explicitly requests conversation memory on its `meta` task (`conversation: true`) when at least one earlier turn is neither rewound nor hidden, with the same 1,500-token L6 cap and drops as drafting. With no eligible history, its request stays byte-identical to the smaller metadata profile rather than paying for an empty L6 section. Ordinary metadata calls retain their smaller profile; delegated calls never inherit the parent's conversation. Meter and preview count the actual added layer, not an unmetered message.
 
+Independent goal-verifier reasons carried into a later actor task are outside data, not the writer's instructions. They use the existing spotlight envelope with source `goal-verifier`, a stable goal/iteration-derived id, hidden-character revelation and marker defusing. The ordinary actor system rule applies; no verifier reason is promoted into a system message.
+
 ## 3. Budgets
 
 - Total default prompt budget: **12k tokens** (config `contextBudget` in settings; provider-gateway may override per call via `maxOutputTokens` complement — the gateway's `context_length` error names the lever, never silent truncation).
