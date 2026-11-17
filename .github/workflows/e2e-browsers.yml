@@ -6,6 +6,10 @@
 #     (#313) to that leg (CAOTANG_E2E_MODERN_GATE=skip), so no leg runs near its limit. They skip e2e/unit, the production smoke
 #     and the provider specs, and the specs that need File System Access skip themselves outside Chromium.
 #     e2e/non-chromium-storage.spec.ts covers the bundle-only path instead.
+#   - Firefox splits by test count, as Playwright's `--shard` does. WebKit splits by measured duration instead
+#     (`tools/ci/webkit-shards.mjs`, the planner Chromium's shards share): its specs differ by more than a hundredfold, so a
+#     count-based third leaves one leg with the slow ones, and that leg is the one that reached the 40-minute limit (#689).
+#     The tool falls back to `--shard=<n>/3` and says so when it cannot build a plan that covers every spec exactly once.
 #   - Each shard writes a blob report. One job merges them into a single HTML report, uploaded when any shard failed.
 #
 # Details that are load-bearing rather than tidy:
@@ -56,11 +60,22 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: End-to-end (${{ matrix.browser }}, shard ${{ matrix.shard }} of 3)
-        if: ${{ matrix.shard != 'modern' }}
-        run: pnpm exec playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/3 --workers=2 --reporter=blob,list
+      # GitHub's /github/home is owned by pwuser, but the container runs as root and Firefox checks HOME ownership, so every leg
+      # that starts a browser sets HOME to /root.
+      - name: End-to-end (firefox, shard ${{ matrix.shard }} of 3)
+        if: ${{ matrix.shard != 'modern' && matrix.browser == 'firefox' }}
+        run: pnpm exec playwright test --project=firefox --shard=${{ matrix.shard }}/3 --workers=2 --reporter=blob,list
         env:
-          # GitHub's /github/home is owned by pwuser, but this container runs as root and Firefox checks HOME ownership.
+          HOME: /root
+          CI: 'true'
+          CAOTANG_E2E_BROWSERS: all
+          CAOTANG_E2E_MODERN_GATE: skip
+
+      - name: End-to-end (webkit, duration-balanced shard)
+        if: ${{ matrix.shard != 'modern' && matrix.browser == 'webkit' }}
+        run: node tools/ci/webkit-shards.mjs "$SHARD"
+        env:
+          SHARD: ${{ matrix.shard }}
           HOME: /root
           CI: 'true'
           CAOTANG_E2E_BROWSERS: all
