@@ -131,8 +131,8 @@ const CODEX_BATCH_MAX = 20;
  */
 const PUBLISH_TEXT_MAX = 2000;
 const PUBLISH_TAGS_MAX = 64;
-/** The RFC 3339 shape §2 pins `publishedAt` to — a full instant, not a date. */
-const RFC3339 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-](\d{2}):(\d{2}))$/;
+/** The RFC 3339 shape §2 pins `publishedAt` to — a full instant, not a date. `t`/`z` may be lowercase. */
+const RFC3339 = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?([Zz]|[+-](\d{2}):(\d{2}))$/;
 const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
 /**
@@ -153,7 +153,7 @@ export function isPublishInstant(value: string): boolean {
   const minute = Number(m[5]);
   const second = Number(m[6]);
   if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return false;
-  if (m[7] !== 'Z' && (Number(m[8]) > 23 || Number(m[9]) > 59)) return false;
+  if (!/^[Zz]$/.test(m[7]) && (Number(m[8]) > 23 || Number(m[9]) > 59)) return false;
   const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
   const days = (DAYS_IN_MONTH[month - 1] ?? 0) + (month === 2 && leap ? 1 : 0);
   return day >= 1 && day <= days;

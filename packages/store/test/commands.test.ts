@@ -1683,6 +1683,10 @@ describe('binder.setPublish — a document’s publish metadata (web-publishing.
     // A leap day is a real instant — the range check refuses only what no calendar holds.
     h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { publishedAt: '2028-02-29T12:00:00Z' } } }));
     expect(node(h.state, LANDING).publish).toEqual({ publishedAt: '2028-02-29T12:00:00Z' });
+
+    // `t`/`z` are RFC 3339's other accepted spellings — the value stores as written.
+    h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { publishedAt: '2026-11-15t12:00:00z' } } }));
+    expect(node(h.state, LANDING).publish).toEqual({ publishedAt: '2026-11-15t12:00:00z' });
   });
 
   it('clears a field with null, keeps the keys it was not handed, and restores them on undo', () => {
