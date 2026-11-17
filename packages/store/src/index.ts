@@ -394,6 +394,7 @@ export {
   type GoalRunRow,
   type GoalRunStatus,
 } from './runtime/goal-run-store.js';
+export { GOAL_VERIFIER_LIMITS, GOAL_VERIFIER_UNAVAILABLE_CODES, goalVerifierDefinitionProblem } from './runtime/goal-verifier-data.js';
 
 export {
   AGENT_SESSION_PROJECT_INDEX,

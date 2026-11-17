@@ -83,6 +83,11 @@ describe('the inventory', () => {
     expect(scan.sites).toEqual([expect.objectContaining({ kind: 'template', text: '{…} turns completed.' })]);
   });
 
+  it('recognizes an independent verifier turn id without hiding neighboring review copy', () => {
+    const scan = scanSource('agent.ts', 'const turnId = `${owner}.goal-${goal.id}.verify-${iteration}`; const label = `${count} reviews completed.`;');
+    expect(scan.sites).toEqual([expect.objectContaining({ kind: 'template', text: '{…} reviews completed.' })]);
+  });
+
   it('treats CSS feature queries and matching selectors as technical without hiding nearby copy', () => {
     const scan = scanSource('picker.tsx', `
       const supported = CSS.supports('selector(:open)');

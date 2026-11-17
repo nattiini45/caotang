@@ -66,6 +66,17 @@ it('uses the existing shared budget rather than resetting a verifier allowance',
   expect(saved).toEqual([]);
 });
 
+it('returns a completed verdict on the last permitted call without exceeding its limit', async () => {
+  const f = await fixture(async function* (): AsyncGenerator<ChatChunk> {
+    yield { delta: '{"pass":true,"reasons":[]}' };
+    yield { finishReason: 'stop', usage: { promptTokens: 12, completionTokens: 8 } };
+  });
+  const meter = createBudgetMeter({ maxModelCalls: 1 }, { clock: createManualClock(0) });
+  const result = await runGoalVerifierCall({ gateway: f.gateway, meter, request, fence: () => undefined, save: async () => undefined });
+  expect(result).toEqual({ kind: 'complete', content: '{"pass":true,"reasons":[]}' });
+  expect(meter.spend().modelCalls).toBe(1);
+});
+
 it('rechecks the live boundary at dispatch and releases a call that was not sent', async () => {
   let sends = 0;
   const f = await fixture(async function* (): AsyncGenerator<ChatChunk> { sends += 1; yield { delta: '{}' }; });
@@ -96,6 +107,33 @@ it('counts estimated reasoning usage without returning private reasoning as verd
   expect(JSON.stringify(result)).not.toContain('PRIVATE_VERIFIER_REASONING');
   expect(f.meter.spend().estimatedTokens).toBeGreaterThan(0);
   expect(f.meter.spend().completionTokens).toBeGreaterThan(Math.ceil('{"pass":true,"reasons":[]}'.length / 4));
+});
+
+it.each(['length', 'tool_calls', undefined] as const)('does not accept a verdict without a successful terminal marker (%s)', async finishReason => {
+  const f = await fixture(async function* (): AsyncGenerator<ChatChunk> { yield { delta: '{}' }; });
+  const stream = vi.spyOn(f.gateway, 'complete').mockImplementation(async function* (_asked, _signal, beforeSend): AsyncGenerator<ChatChunk> {
+    beforeSend?.();
+    yield { delta: '{"pass":true,"reasons":[]}' };
+    if (finishReason !== undefined) yield { finishReason };
+  });
+  const result = await runGoalVerifierCall({ ...f, request, fence: () => undefined, save: async () => undefined });
+  stream.mockRestore();
+  expect(result.kind).toBe('failed');
+  expect(f.meter.spend()).toMatchObject({ modelCalls: 1, completionTokens: 64 });
+  expect(f.meter.spend().estimatedTokens).toBeGreaterThanOrEqual(64);
+});
+
+it('counts terminal-only reasoning in estimated usage but never returns it', async () => {
+  const f = await fixture(async function* (): AsyncGenerator<ChatChunk> { yield { delta: '{}' }; });
+  const stream = vi.spyOn(f.gateway, 'complete').mockImplementation(async function* (_asked, _signal, beforeSend): AsyncGenerator<ChatChunk> {
+    beforeSend?.();
+    yield { delta: '{"pass":true,"reasons":[]}' };
+    yield { finishReason: 'stop', reasoning: [{ text: 'PRIVATE_REASONING'.repeat(100) }] };
+  });
+  const result = await runGoalVerifierCall({ ...f, request, fence: () => undefined, save: async () => undefined });
+  stream.mockRestore();
+  expect(result).toEqual({ kind: 'complete', content: '{"pass":true,"reasons":[]}' });
+  expect(f.meter.spend().estimatedTokens).toBeGreaterThan(100);
 });
 
 it('honours Stop after admission without sending or retaining a reserved call', async () => {
@@ -185,6 +223,33 @@ it('rechecks the boundary inside the gateway before any provider request', async
   }, save: async admission => { saved.push(admission); } });
   expect(result.kind).toBe('failed');
   expect(fences).toBe(2);
+  expect(sends).toBe(0);
+  expect(f.meter.spend().modelCalls).toBe(0);
+  expect(saved.map(entry => entry.phase)).toEqual(['reserved', 'released']);
+});
+
+it.each([1, 2])('does not downgrade a required-log fence failure to advisory feedback (%s)', async throwsOn => {
+  let sends = 0;
+  let fences = 0;
+  const f = await fixture(async function* (): AsyncGenerator<ChatChunk> { sends += 1; yield { delta: '{}' }; });
+  const saved: GoalVerifierAdmission[] = [];
+  await expect(runGoalVerifierCall({ ...f, request, fence: () => { if (++fences === throwsOn) throw new GoalVerifierPersistenceError('iteration'); }, save: async admission => { saved.push(admission); } })).rejects.toBeInstanceOf(GoalVerifierPersistenceError);
+  expect(sends).toBe(0);
+  expect(f.meter.spend().modelCalls).toBe(0);
+  expect(saved.map(entry => entry.phase)).toEqual(['reserved', 'released']);
+});
+
+it('refuses changed route pricing after admission instead of sending an unaccounted call', async () => {
+  let sends = 0;
+  const f = await fixture(async function* (): AsyncGenerator<ChatChunk> { sends += 1; yield { delta: '{}' }; });
+  const profile = f.gateway.profiles.active();
+  if (profile === undefined) throw new Error('missing fixture profile');
+  const saved: GoalVerifierAdmission[] = [];
+  const result = await runGoalVerifierCall({ ...f, request, fence: () => undefined, save: async admission => {
+    saved.push(admission);
+    if (admission.phase === 'reserved') await f.gateway.profiles.update(profile.id, { pricePer1k: { prompt: 1, completion: 1 } });
+  } });
+  expect(result.kind).toBe('failed');
   expect(sends).toBe(0);
   expect(f.meter.spend().modelCalls).toBe(0);
   expect(saved.map(entry => entry.phase)).toEqual(['reserved', 'released']);

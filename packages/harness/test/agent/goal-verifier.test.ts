@@ -125,6 +125,21 @@ describe('prepareGoalVerifierInput', () => {
     expect(excerpt?.after).toBe(`${'a'.repeat(200)}NEW${'b'.repeat(200)}`);
   });
 
+  it('does not quote historical text from a missing or formerly archived document', () => {
+    for (const unavailable of ['missing-before', 'missing-after', 'archived-before'] as const) {
+      const { before, after } = snapshot();
+      setBody(before, LANDING, 'UNAVAILABLE_OLD_PASSAGE');
+      setBody(after, LANDING, 'A newly readable version.');
+      if (unavailable === 'missing-before') before.documents.delete(LANDING);
+      if (unavailable === 'missing-after') after.documents.delete(LANDING);
+      if (unavailable === 'archived-before') statusOf(before, LANDING, 'archived');
+      const input = prepareGoalVerifierInput(specOf(), before, after, new Set());
+      expect(input.excerpts).toEqual([]);
+      expect(JSON.stringify(input)).not.toContain(LANDING);
+      expect(JSON.stringify(input)).not.toContain('UNAVAILABLE_');
+    }
+  });
+
   it('caps each side at 2000 characters and each title at 160, and says so', () => {
     const { before, after } = snapshot();
     setBody(before, LANDING, `${'x'.repeat(1000)}A${'y'.repeat(3000)}`);

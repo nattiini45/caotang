@@ -94,11 +94,16 @@ test('the goal form and its saved no-turn result work under the production CSP',
   await page.getByRole('button', { name: 'Goal', exact: true }).click();
   await page.getByRole('textbox', { name: 'Goal intent', exact: true }).fill('Keep every synopsis filled.');
   await page.getByRole('checkbox', { name: 'Every synopsis is filled', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Add an independent review', exact: true }).check();
+  await page.getByRole('textbox', { name: 'Review criterion', exact: true }).fill('The synopsis names the departure.');
   await page.getByRole('spinbutton', { name: 'Model-call limit', exact: true }).fill('0');
   await page.getByRole('button', { name: 'Start the goal', exact: true }).click();
   const progress = page.getByRole('region', { name: /^Goal progress:/ });
   await expect(progress).toHaveAttribute('data-status', 'passed');
   await expect(progress).toContainText('Completed iterations: 0 of 10');
+  await expect(page.getByTestId('goal-independent-review')).toContainText('Review unavailable');
+  await expect(page.getByTestId('goal-independent-review')).toContainText('No changed, readable passages were available');
+  await expect(page.getByTestId('goal-independent-review')).not.toContainText('Iteration 0');
   await expect(progress.getByRole('cell', { name: /Passed/ })).toBeVisible();
   await expect(page.getByRole('combobox', { name: 'Intent', exact: true })).toHaveValue('Keep the ordinary draft.');
   expect(problems).toEqual([]);

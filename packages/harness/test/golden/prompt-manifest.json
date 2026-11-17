@@ -88,6 +88,14 @@
     "sha256": "84f3a6506b359d226f57b0b5c8b656784ce4b3616590cfdf33d589dd35236532"
   },
   {
+    "id": "review.goal.system",
+    "sha256": "c78962123c2fc855d94c4ce58c0b33788203ce729879a50e2b19bead27f110c0"
+  },
+  {
+    "id": "review.goal.task",
+    "sha256": "3b0a8a9099607e6493ae690f31a6b919c01cf773c7232ca34ff21bafda4fe06f"
+  },
+  {
     "id": "subagent.reader",
     "sha256": "32b747b1b506b680e774682c7b825e58fd4887e209fd8705f9f830fcc6f8e1d7",
     "descriptionVersion": 1

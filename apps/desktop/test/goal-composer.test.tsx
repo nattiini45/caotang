@@ -95,6 +95,49 @@ it('validates on submit and focuses the first invalid field without premature al
   expect(props.onStart).not.toHaveBeenCalled();
 });
 
+it('exposes optional review and its explicit gate through the SDK agent without raising shared limits', async () => {
+  await render();
+  const optional = [...host.querySelectorAll('label')].find(label => label.textContent === 'Add an independent review')?.querySelector('[role="checkbox"]');
+  expect(optional).not.toBeNull();
+  expect(optional?.getAttribute('aria-checked')).toBe('false');
+  await change('Goal intent', 'setValue', ['Clarify the departure.']);
+  await change('Every synopsis is filled', 'setChecked', [true]);
+  await change('Add an independent review', 'setChecked', [true]);
+  const entries = agent.snapshot().filter(entry => !entry.offPage && entry.component !== 'more');
+  for (const entry of entries) expect(entry.label, `${entry.component} is unnamed`).toBeTruthy();
+  for (const name of ['Add an independent review', 'Review criterion', 'Require this review to pass']) expect(entries.map(entry => entry.label)).toContain(name);
+  const rubric = host.querySelector<HTMLTextAreaElement>('[data-goal-field="rubric"] textarea');
+  expect(rubric?.getAttribute('aria-invalid')).not.toBe('true');
+  await change('Review criterion', 'setValue', ['The departure is clear.']);
+  await submit();
+  expect(props.onStart).toHaveBeenLastCalledWith(expect.objectContaining({ limits: { maxModelCalls: 8 }, checks: [
+    { kind: 'synopsis.filled', scope: { mode: 'full' } },
+    { kind: 'verifier', scope: { mode: 'full' }, rubric: 'The departure is clear.', gate: false },
+  ] }), false);
+  await change('Require this review to pass', 'setChecked', [true]);
+  await submit();
+  expect(props.onStart).toHaveBeenLastCalledWith(expect.objectContaining({ checks: expect.arrayContaining([expect.objectContaining({ kind: 'verifier', gate: true })]) }), false);
+});
+
+it('focuses a missing review criterion only after submission and clears its error on input', async () => {
+  await render();
+  await change('Goal intent', 'setValue', ['Clarify the departure.']);
+  await change('Add an independent review', 'setChecked', [true]);
+  await change('Require this review to pass', 'setChecked', [true]);
+  const rubric = host.querySelector<HTMLTextAreaElement>('[data-goal-field="rubric"] textarea');
+  expect(host.querySelector('[role="alert"]')).toBeNull();
+  expect(rubric?.getAttribute('aria-invalid')).toBe('false');
+  await submit();
+  expect(document.activeElement).toBe(rubric);
+  expect(rubric?.getAttribute('aria-invalid')).toBe('true');
+  expect(props.onStart).not.toHaveBeenCalled();
+  await change('Review criterion', 'setValue', ['The departure is clear.']);
+  expect(host.querySelector('[role="alert"]')).toBeNull();
+  expect(rubric?.getAttribute('aria-invalid')).toBe('false');
+  await submit();
+  expect(props.onStart).toHaveBeenCalledWith(expect.objectContaining({ checks: [{ kind: 'verifier', scope: { mode: 'full' }, rubric: 'The departure is clear.', gate: true }] }), false);
+});
+
 it('matches writes to the default named document without requiring another picker change', async () => {
   await render();
   await change('Goal intent', 'setValue', ['Fill this scene synopsis.']);

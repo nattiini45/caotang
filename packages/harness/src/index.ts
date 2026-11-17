@@ -227,6 +227,7 @@ export {
   writableNodes,
   writeScopeRules,
   type Goal,
+  type GoalCheckSpec,
   type GoalOptions,
   type GoalRun,
   type GoalCheckpoint,
@@ -238,6 +239,8 @@ export {
   type RestoredTurn,
   type WriteScope,
 } from './agent/goal.js';
+export { recoverGoalVerifierCheckpoint, type GoalVerificationResult, type GoalVerifierCheck, type GoalVerifierPort, type GoalVerifierSource, type GoalVerifierUnavailableCode, type PendingGoalVerification } from './agent/goal-verification.js';
+export { createGoalVerifierPort, GoalVerifierPersistenceError } from './agent/goal-verifier-call.js';
 // Background runs (agent-harness §2): the offer's threshold, what a plan costs in model calls, and which staged steps have gone stale.
 export {
   BACKGROUND_OFFER_MIN_CALLS,

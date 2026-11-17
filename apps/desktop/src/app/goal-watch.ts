@@ -1,4 +1,17 @@
-import { checkKey, type BudgetSpend, type CheckKind, type GoalCheckpoint, type RunLimits } from '@caotang/harness';
+import { checkKey, type BudgetSpend, type CheckKind, type GoalCheckpoint, type GoalVerifierUnavailableCode, type RunLimits } from '@caotang/harness';
+
+export interface GoalWatchReview {
+  readonly rubric: string;
+  readonly gate: boolean;
+  readonly status: 'waiting' | 'prepared' | 'reserved' | 'settled' | 'complete' | 'unavailable';
+  readonly pass: boolean | null;
+  readonly reasons: readonly string[];
+  readonly code?: GoalVerifierUnavailableCode;
+  readonly iteration: number | null;
+  readonly omitted: number;
+  readonly truncated: boolean;
+  readonly uncertainUsage: boolean;
+}
 
 export interface GoalWatchCheck {
   readonly key: string;
@@ -21,6 +34,7 @@ export interface GoalWatchView {
   readonly limits: RunLimits;
   readonly spend: BudgetSpend;
   readonly checks: readonly GoalWatchCheck[];
+  readonly review?: GoalWatchReview;
 }
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -32,13 +46,27 @@ function resultIn(values: unknown, key: string): Record<string, unknown> | undef
 }
 
 export function goalWatchOf(checkpoint: GoalCheckpoint): GoalWatchView {
+  const verifier = checkpoint.goal.checks.find(definition => definition?.kind === 'verifier');
+  const result = checkpoint.verification;
+  const pending = checkpoint.pendingVerification;
   return {
     nextIteration: checkpoint.nextIteration,
     completedIterations: checkpoint.iterations.filter((iteration: unknown) => record(iteration) && Number.isSafeInteger(iteration['n']) && Number(iteration['n']) > 0).length,
     maxIterations: checkpoint.goal.maxIterations ?? null,
     limits: { ...checkpoint.goal.limits },
     spend: { ...checkpoint.spend },
-    checks: checkpoint.goal.checks.map((definition, index) => {
+    ...(verifier === undefined ? {} : { review: {
+      rubric: verifier.rubric, gate: verifier.gate === true,
+      status: result?.status ?? pending?.phase ?? 'waiting',
+      pass: result?.verdict?.pass ?? null,
+      reasons: [...(result?.verdict?.reasons ?? [])],
+      ...(result?.code === undefined ? {} : { code: result.code }),
+      iteration: result?.iteration === 0 ? null : result?.iteration ?? pending?.iteration ?? null,
+      omitted: result?.omitted ?? pending?.input.omitted ?? 0,
+      truncated: result?.truncated ?? pending?.input.excerpts.some(excerpt => excerpt.truncated) ?? false,
+      uncertainUsage: result?.uncertainUsage === true || pending?.uncertainUsage === true,
+    } }),
+    checks: checkpoint.goal.checks.filter(definition => definition?.kind !== 'verifier').map((definition, index) => {
       const spec: unknown = definition;
       let key = `unreadable-${index}`;
       let kind: GoalWatchCheck['kind'] = 'unreadable';
