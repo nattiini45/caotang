@@ -1021,7 +1021,13 @@ function speakableWords(episodes: readonly EpisodeRead[]): number {
  * a selection holds more than one, so two episodes never write to one name.
  */
 function episodeFileName(base: string, what: string, ext: string, episodes: readonly EpisodeRead[], ep: EpisodeRead): string {
-  return episodes.length === 1 ? `${base} (${what}).${ext}` : `${base} (${ep.node.title}, ${what}).${ext}`;
+  if (episodes.length === 1) return `${base} (${what}).${ext}`;
+  // Two episodes may share a title; its node id keeps each file's name its own.
+  const title =
+    episodes.filter((other) => other.node.title === ep.node.title).length > 1
+      ? `${ep.node.title} ${ep.node.id}`
+      : ep.node.title;
+  return `${base} (${title}, ${what}).${ext}`;
 }
 
 /**
@@ -1227,7 +1233,10 @@ function vttOutput(request: MediaRequest): MediaOutput {
     });
   }
   if (files.length === 0) {
-    throw new MediaRefusedError('vtt', ['no episode in the selection holds a speakable line with a duration, so there is nothing to compile']);
+    throw new MediaRefusedError('vtt', [
+      'no episode in the selection holds a cue whose timing writes a caption, so there is nothing to compile',
+      ...notes,
+    ]);
   }
   return { files, blockCount: cueCount, chapterCount: 0, sceneCount: episodes.length, wordCount, skippedDocs: [], notes };
 }
@@ -1273,7 +1282,10 @@ function chaptersJsonOutput(request: MediaRequest): MediaOutput {
     });
   }
   if (chapterCount === 0) {
-    throw new MediaRefusedError('chapters-json', ['no episode in the selection holds a timed segment, so there is nothing to compile']);
+    throw new MediaRefusedError('chapters-json', [
+      'no episode in the selection holds a segment whose timing writes a chapter, so there is nothing to compile',
+      ...notes,
+    ]);
   }
   const wordCount = episodes.reduce((sum, ep) => sum + speakableLines(ep.parsed).reduce((s, { line }) => s + line.words, 0), 0);
   return { files, blockCount: chapterCount, chapterCount: 0, sceneCount: episodes.length, wordCount, skippedDocs: [], notes };

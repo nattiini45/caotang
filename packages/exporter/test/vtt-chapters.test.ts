@@ -165,8 +165,33 @@ describe('the WebVTT captions', () => {
     // A body of text lines only parses to segments with no speech and no timing.
     const textOnly = makeShowProject({ episode: '## A\nOnly a text line.\n' });
     await expect(rig({ state: textOnly }).exporter.compile({ includeRootIds: ['manuscript'] }, 'vtt')).rejects.toThrow(
-      /no episode in the selection holds a speakable line with a duration/,
+      /no episode in the selection holds a cue whose timing writes a caption/,
     );
+  });
+
+  it('names the cue it could not write when every timing overflows', async () => {
+    const state = makeShowProject({
+      episode: '## A\nHOST_A: Vast. [' + '9'.repeat(400) + 's] <!-- lineId: sl_1000000016 -->\n',
+    });
+    await expect(rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'vtt')).rejects.toThrow(
+      /overflows a WebVTT timestamp/,
+    );
+  });
+
+  it('gives two episodes of one title their own file names', async () => {
+    const state = makeShowProject();
+    const twin = addDocument(state, {
+      parentId: SHOW_ID,
+      title: 'Episode 1',
+      body: '## A\nHOST_A: Same name. [0:10] <!-- lineId: sl_1000000017 -->\n',
+      now: OPENED,
+      id: 'n_EPISODE004',
+    });
+    Object.assign(twin, { kind: 'av-script' });
+    const result = await rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'vtt');
+    expect(result.files.length).toBe(2);
+    expect(new Set(result.files.map((f) => f.fileName)).size).toBe(2);
+    expect(result.files.some((f) => f.fileName.includes('n_EPISODE004'))).toBe(true);
   });
 });
 
@@ -257,7 +282,7 @@ describe('the chapters document', () => {
   it('refuses an episode with no timed segment', async () => {
     const state = makeShowProject({ episode: '## A\nOnly a text line.\n' });
     await expect(rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'chapters-json')).rejects.toThrow(
-      /no timed segment|no episode in the selection holds a timed segment/,
+      /no episode in the selection holds a segment whose timing writes a chapter/,
     );
   });
 });
