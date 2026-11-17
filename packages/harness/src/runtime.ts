@@ -278,6 +278,7 @@ export interface ExternalHarness {
 
 export interface Harness {
   readonly state: ProjectState;
+  withRules(additional: RulesProvider): Harness;
   readonly registry: CommandRegistry;
   /** The undo store every call's effects are registered in. Undo replays through the bus. */
   readonly undo: UndoStore;
@@ -1627,6 +1628,15 @@ export function createHarness(options: HarnessOptions): Harness {
     loadedExternalTools: () => index().tools.filter((tool) => loaded.isLoaded(tool.qualifiedName)),
     withheld: withheldFor,
     readPolicy: () => memoryReadPolicy(currentRules(), state),
+    withRules: (additional) => createHarness({
+      ...options,
+      history: { undo, log },
+      rules: () => {
+        const base = currentRules();
+        const extra = additional();
+        return { rules: [...base.rules, ...extra.rules], ...((base.unreadable === true || extra.unreadable === true) ? { unreadable: true } : {}) };
+      },
+    }),
     lifecycleHooks: (input) => {
       const runs = hooks?.run(input) ?? [];
       recordHooks(input.turnId, runs, input.params);

@@ -203,6 +203,15 @@
   padding: var(--space-4) var(--space-5);
 }
 
+:root[data-shell='modern'] .modern-companion .goal-recovery {
+  flex-shrink: 0;
+}
+
+:root[data-shell='modern'] .modern-companion .agent:has(> .goal-recovery) .agent-body {
+  flex: 1 1 0;
+  min-block-size: 0;
+}
+
 :root[data-shell='modern'] .modern-companion .agent-foot {
   display: flex;
   flex-direction: column;

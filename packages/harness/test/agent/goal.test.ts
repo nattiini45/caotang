@@ -297,6 +297,21 @@ describe('a run that regresses', () => {
     const finished = await run(scripts, goalOf([SYNOPSES, LANDING_DRAFT]));
     expect(finished.status).toBe('regressed');
   });
+
+  it('protects checks that pass on resume as well as the saved passing checks', async () => {
+    const goal = goalOf([SYNOPSES, LANDING_DRAFT]);
+    const scripts = scripted(makeState(), breaks);
+    const finished = await run(scripts, goal, {
+      checkpoint: {
+        goal, iterations: [], results: [], nextIteration: 2,
+        spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 },
+        progress: { best: 2, sinceBest: 0, passed: [] },
+      },
+    });
+    expect(finished.status).toBe('regressed');
+    expect(finished.iterations.map((iteration) => iteration.n)).toEqual([2]);
+    expect(finished.askBack?.options).toEqual([...REGRESSION_OPTIONS]);
+  });
 });
 
 describe('a run that reaches a limit', () => {
@@ -692,6 +707,27 @@ describe('the write scope', () => {
     const cards: TurnReport['cards'] = [{ kind: 'confirm', tools: ['mcp__notes__append'], decision: 'approved', edits: 0, retries: 0 }];
     const finished = await run(scripted(makeState(), [() => ({ trace, cards })]), goalOf([SYNOPSES], { writeScope: { mode: 'doc', docIds: [root] } }));
     expect(finished.status).toBe('out-of-scope');
+  });
+
+  it('adds live goal rules in an isolated harness view without replacing base rules or shared history', () => {
+    const state = makeState();
+    const base = createHarness({ state, rules: () => ({ rules: [{ effect: 'deny', tool: 'meta.set', access: 'write', source: 'project' }] }) });
+    let scoped = false;
+    const view = base.withRules(() => scoped ? goalRules(undefined, { mode: 'doc', docIds: [STORM] }, state)() : { rules: [] });
+    expect(view.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeUndefined();
+    scoped = true;
+    expect(view.undo).toBe(base.undo);
+    expect(view.log).toBe(base.log);
+    expect(view.state).toBe(base.state);
+    expect(view.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeDefined();
+    expect(base.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeUndefined();
+    expect(view.ruleCheck('meta.set', { targets: [STORM], status: 'final' }).denied).toBeDefined();
+    const nested = view.withRules(() => ({ rules: [] }));
+    expect(nested.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeDefined();
+    scoped = false;
+    expect(view.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeUndefined();
+    expect(nested.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeUndefined();
+    expect(view.ruleCheck('meta.set', { targets: [STORM], status: 'final' }).denied).toBeDefined();
   });
 
   it('is judged against the tree as it was before the turn, so a rename does not hide the target', async () => {

@@ -2948,6 +2948,17 @@ label.settings-check {
   padding: 0 var(--space-6) var(--space-4);
 }
 
+:root[data-shell] .goal-recovery .button.is-primary[aria-disabled="true"],
+:root[data-shell] .goal-recovery .button.is-primary[aria-disabled="true"]:hover {
+  background: var(--k-fill, var(--panel));
+  border-color: var(--line-strong);
+  color: var(--muted);
+  cursor: not-allowed;
+  filter: none;
+  opacity: 1;
+  transform: none;
+}
+
 .activity-runs .agent-interrupted {
   max-height: none;
   overflow: visible;

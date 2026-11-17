@@ -1,5 +1,7 @@
 # Caotang
 
+Goals started through the app controller retain a local recovery record. Interrupted goals wait for **Resume the goal** or **Discard the goal record**; they never restart automatically. Goal controls need Web Locks to prevent concurrent runs in two tabs; ordinary projects remain usable without it. Recovery explains unrecorded model usage and conservatively consumes the affected limits. Stop remains available during setup. A goal-start interface is not yet built.
+
 The agent can find passages across manuscript text, synopses, notes and codex with local lexical search. Search makes no provider request; entries marked **Never** and read-denied text are excluded. Codex-only searches do not read manuscript text. It is an explicit agent tool, not automatic retrieval into every prompt.
 
 Agent runs retain a local restore point before their first writing step. Activity › Agent run logs offers confirmed restoration, JSONL/Markdown export and opt-in derived copies in an attached project folder. Restoring includes later edits; conversation, recorded spend and external side effects are kept. See [the writer’s guide](docs/USER-GUIDE.md) for the recovery limits.

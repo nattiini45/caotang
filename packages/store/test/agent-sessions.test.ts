@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { transact } from '../src/runtime/store.js';
 import {
   AGENT_SESSION_PROJECT_INDEX, AGENT_SESSION_STORE, DEFAULT_AGENT_SESSION_RETENTION,
-  DOCUMENT_STORE, PROJECT_STORE, RUNTIME_DB_VERSION, RUN_EVENT_STORE, RUN_STORE,
+  DOCUMENT_STORE, GOAL_RUN_STORE, PROJECT_STORE, RUNTIME_DB_VERSION, RUN_EVENT_STORE, RUN_STORE,
   SESSION_STORE, SNAPSHOT_STORE, MemoryIndexedDb, ProjectNotFoundError,
   agentSessionReferences, appendRunEvents, createEmptyManifest, createProjectState,
   createRun, deleteProject, deleteRun, openRuntimeStore, planAgentSessionEviction,
@@ -81,10 +81,10 @@ describe('additive v5 upgrade', () => {
     const store = await openRuntimeStore(factory, DB);
     opened.push(store);
     expect(changed).toBe(true);
-    expect(RUNTIME_DB_VERSION).toBe(5);
-    expect(store.db.version).toBe(5);
+    expect(RUNTIME_DB_VERSION).toBe(6);
+    expect(store.db.version).toBe(6);
     expect(Array.from(store.db.objectStoreNames).sort()).toEqual([
-      AGENT_SESSION_STORE, DOCUMENT_STORE, PROJECT_STORE, RUN_EVENT_STORE, RUN_STORE, SESSION_STORE, SNAPSHOT_STORE,
+      AGENT_SESSION_STORE, DOCUMENT_STORE, GOAL_RUN_STORE, PROJECT_STORE, RUN_EVENT_STORE, RUN_STORE, SESSION_STORE, SNAPSHOT_STORE,
     ].sort());
     for (const [name, { rows }] of Object.entries(records)) expect(factory.rawRecords(DB, name)).toEqual(rows);
     expect(await readAgentSessions(store, P)).toEqual([]);
@@ -116,7 +116,7 @@ describe('session metadata and settled presentation', () => {
     opened.push(reopened);
     expect(await readAgentSessions(reopened, P)).toContainEqual(row);
     expect((await readAgentSessions(reopened, P)).find((value) => value.sessionId === 'old')).not.toHaveProperty('summaries');
-    expect(reopened.db.version).toBe(5);
+    expect(reopened.db.version).toBe(6);
   });
 
   it.each([

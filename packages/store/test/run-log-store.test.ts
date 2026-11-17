@@ -80,8 +80,8 @@ const run = (runId: string, over: Partial<RunRow> = {}): RunRow => ({
 });
 
 describe('the v3 upgrade', () => {
-  it('is version 5, and keeps every record a version 3 database held', async () => {
-    expect(RUNTIME_DB_VERSION).toBe(5);
+  it('is version 6, and keeps every record a version 3 database held', async () => {
+    expect(RUNTIME_DB_VERSION).toBe(6);
     const factory = new MemoryIndexedDb();
     // A database as build 3 left it: the four stores, with a row in each.
     await new Promise<void>((resolve, reject) => {
@@ -110,8 +110,8 @@ describe('the v3 upgrade', () => {
 
     const store = await openRuntimeStore(factory, DB);
     opened.push(store);
-    expect(store.db.version).toBe(5);
-    for (const name of ['documents', 'projects', 'runEvents', 'runs', 'sessions', 'snapshots']) expect(store.db.objectStoreNames.contains(name)).toBe(true);
+    expect(store.db.version).toBe(6);
+    for (const name of ['documents', 'goalRuns', 'projects', 'runEvents', 'runs', 'sessions', 'snapshots']) expect(store.db.objectStoreNames.contains(name)).toBe(true);
     const state = await readProjectState(store, PROJECT);
     expect(state.manifest.project.name).toBe('Old');
     expect(state.documents.get('n_AAAAAAAAAA')?.revision).toBe(4);
