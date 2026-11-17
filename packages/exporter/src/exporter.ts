@@ -905,19 +905,27 @@ function htmlPlanOf(
     const slug = typeof publish?.['slug'] === 'string' && publish['slug'] !== '' ? publish['slug'] : undefined;
     // A front-matter slug is the route a static site serves the article under: two documents sharing
     // it would get distinct files but one permalink, so the compile refuses rather than diverging.
+    // Compared exactly — hosts that distinguish `Post` from `post` serve both routes.
     if (frontMatter && slug !== undefined) {
-      const owner = slugs.get(slug.toLowerCase());
+      const owner = slugs.get(slug);
       if (owner !== undefined) {
         throw new MediaRefusedError('html', [
           `"${owner}" and "${block.title}" share the slug "${slug}", so their front matter would publish the same permalink`,
         ]);
       }
-      slugs.set(slug.toLowerCase(), block.title);
+      slugs.set(slug, block.title);
     }
     const stem = fileStem(slug ?? block.title);
     let name = stem;
     // Compared without case: two stems that differ only in case share a file on a synced folder.
     for (let n = 2; taken.has(name.toLowerCase()); n += 1) name = `${stem}-${n}`;
+    // A synced folder holds a file name of at most 255 bytes: the stem, `.html` and a collision
+    // suffix must fit inside it — a name that cannot is refused rather than failing at write time.
+    if (new TextEncoder().encode(`${name}.html`).length > 255) {
+      throw new MediaRefusedError('html', [
+        `"${block.title}" asks for the file "${name}.html", which is more than a folder's 255-byte name limit — shorten the title or the slug`,
+      ]);
+    }
     taken.add(name.toLowerCase());
     articles.push({
       name,

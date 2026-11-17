@@ -113,6 +113,50 @@ describe('the html format', () => {
     expect(fs.snapshot()).toEqual({});
   });
 
+  it('serves case-distinct slugs — front matter refuses only an exact share', async () => {
+    const { state, exporter, fs } = rig();
+    await exporter.ready();
+    const landing = state.manifest.tree.find((node) => node.id === IDS.landing);
+    const storm = state.manifest.tree.find((node) => node.title === 'The Storm');
+    if (landing === undefined || storm === undefined) throw new Error('fixture lacks the nodes');
+    landing.publish = { slug: 'post' };
+    storm.publish = { slug: 'Post' };
+    state.manifest.recipes = [
+      { name: 'Site posts', includeRootIds: ['manuscript'], format: 'html', options: { frontMatter: true } },
+    ];
+    exporter.commandPort().compile(state, {
+      selection: { kind: 'manuscript' },
+      format: 'html',
+      recipeName: 'Site posts',
+      at: COMPILED_AT,
+    });
+    await exporter.idle();
+    // Two distinct permalinks; on a synced folder the files still cannot share a name.
+    const names = Object.keys(fs.snapshot()).filter((k) => k.includes('post') || k.includes('Post'));
+    expect(names.sort()).toEqual(['exports/Post-2.html', 'exports/post.html']);
+  });
+
+  it('refuses a name that would not fit a folder\'s 255-byte limit', async () => {
+    const { state, exporter, fs } = rig();
+    await exporter.ready();
+    const landing = state.manifest.tree.find((node) => node.id === IDS.landing);
+    if (landing === undefined) throw new Error('fixture lacks the node');
+    // 120 CJK characters pass the slug check at 120 characters but weigh 360 bytes.
+    landing.publish = { slug: String.fromCharCode(0x4e00).repeat(120) };
+    state.manifest.recipes = [
+      { name: 'Site posts', includeRootIds: ['manuscript'], format: 'html', options: {} },
+    ];
+    expect(() =>
+      exporter.commandPort().compile(state, {
+        selection: { kind: 'manuscript' },
+        format: 'html',
+        recipeName: 'Site posts',
+        at: COMPILED_AT,
+      }),
+    ).toThrow('255-byte');
+    expect(fs.snapshot()).toEqual({});
+  });
+
   it('refuses a selection with no document with a body, before anything is reserved', async () => {
     const { state, exporter, fs } = rig();
     await exporter.ready();
