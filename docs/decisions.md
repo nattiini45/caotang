@@ -1,5 +1,6 @@
 # Decisions
 
+- [delegated 2026-11-17] The import preview's reader host re-sends its cached `open` before a read whenever the Worker was terminated since the input was handed over (a timeout, the writer's Cancel, a Worker failure or a disposal). A fresh Worker holds no input, so without this every later option change failed with "the import reader was not opened" and the preview could never read again (#597 F4, found by review). Reads arriving together share one re-open; a failed re-open leaves the next read free to retry. The bytes were already cloned rather than transferred, so the host still holds them.
 - Independent goal verification preserves changed-scope eligibility from the pre-iteration review baseline, even when the actor scans its edits, and later actor feedback carries the shared untrusted envelope with explicit verifier provenance. Source and read-rule fences remain live. [delegated 2026-11-17]
 
 - An optional goal verifier starts with only its rubric and bounded before/after excerpts in an isolated Background-role request. The internal context profile cannot inherit the actor's conversation, instructions, memory, tools or optional pins. Existing live read rules, shared goal limits and durable admission still apply; the verifier is advisory unless the writer explicitly opts into a gate. [delegated 2026-11-17]
