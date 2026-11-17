@@ -143,7 +143,9 @@ const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
  */
 export function isPublishInstant(value: string): boolean {
   const m = RFC3339.exec(value);
-  if (!m) return false;
+  // `$` matches before a trailing line terminator, so `'…Z\n'` would pass the shape and store a string
+  // no instant was written as — a match that does not cover the whole string is not the shape.
+  if (!m || m[0] !== value) return false;
   const year = Number(m[1]);
   const month = Number(m[2]);
   const day = Number(m[3]);

@@ -1727,6 +1727,8 @@ describe('binder.setPublish — a document’s publish metadata (web-publishing.
     expect(refused({ publishedAt: '2026-11-15T24:00:00Z' }).code).toBe('invalid-params');
     expect(refused({ publishedAt: '2029-02-29T12:00:00Z' }).code).toBe('invalid-params');
     expect(refused({ publishedAt: '2026-11-15T12:00:00+25:00' }).code).toBe('invalid-params');
+    // A trailing line terminator slips past `$` — the match must cover the whole string.
+    expect(refused({ publishedAt: '2026-11-15T12:00:00Z\n' }).code).toBe('invalid-params');
     expect(refused({ bogus: 'x' }).code).toBe('invalid-params');
     expect(refused({}).code).toBe('invalid-params');
     const folder = refused({ slug: 'chapter-1' }, CHAPTER_ONE);
