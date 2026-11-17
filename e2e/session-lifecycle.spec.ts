@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
+import { test } from './test.js';
 import type * as SessionModule from '../apps/desktop/src/app/session.js';
 import { createProject, waitForSaved } from './support.js';
 
@@ -41,7 +42,7 @@ async function expectOpeningInViewport(page: Page, button: Locator): Promise<voi
 }
 
 for (const shell of ['classic', 'modern'] as const) {
-  test(`${shell}: a rejected close settle reports the failure and lets another tab open the project`, async ({ page, context }) => {
+  test(`${shell}: a rejected close settle reports the failure and lets another tab open the project`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page, context }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.addInitScript((value) => localStorage.setItem('caotang.interface', value), shell);
@@ -114,7 +115,7 @@ for (const shell of ['classic', 'modern'] as const) {
         }
       });
 
-      test('the pressed demo button keeps its visible progress inside the viewport', async ({ page }) => {
+      test('the pressed demo button keeps its visible progress inside the viewport', { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
         await holdOpening(page);
         const button = page.locator('.first-run-actions button').first();
         const label = await button.textContent();
@@ -125,7 +126,7 @@ for (const shell of ['classic', 'modern'] as const) {
         await expect(page.locator('.new-project button')).toBeDisabled();
       });
 
-      test('the pressed project button keeps its visible progress inside the viewport', async ({ page }) => {
+      test('the pressed project button keeps its visible progress inside the viewport', { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
         await page.locator('.new-project input').fill('Visible opening');
         await page.locator('.new-project button').click();
         await expect(page.locator('.home')).toHaveCount(0);

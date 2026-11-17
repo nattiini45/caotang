@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './test.js';
 
 import { NO_PIN } from './classic-pin.js';
 import { createProject, waitForSaved } from './support.js';
@@ -93,7 +94,7 @@ async function switchTo(page: Page, name: 'Classic' | 'Modern') {
   return settings;
 }
 
-test('choosing Modern shows the stage, the wallpaper and one page of paper with the scene on it; Classic comes back as it was', async ({ page }) => {
+test('choosing Modern shows the stage, the wallpaper and one page of paper with the scene on it; Classic comes back as it was', { tag: '@modern' }, async ({ page }) => {
   await watchCsp(page);
   // A fresh profile starts in Modern (#313): this writer starts from Classic, chosen once, and switches live.
   await page.addInitScript(() => {
@@ -149,7 +150,7 @@ test('choosing Modern shows the stage, the wallpaper and one page of paper with 
   expect(await cspViolations(page)).toEqual([]);
 });
 
-test('Reduce transparency and Reduce motion in Appearance make the glass solid and stop the motion, and are kept', async ({ page }) => {
+test('Reduce transparency and Reduce motion in Appearance make the glass solid and stop the motion, and are kept', { tag: '@modern' }, async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('caotang.interface', 'modern'));
   await page.goto('/');
   await createProject(page, 'Solid Book');
@@ -198,7 +199,7 @@ test.describe('the system’s preferences', () => {
     await page.addInitScript(() => localStorage.setItem('caotang.interface', 'modern'));
   });
 
-  test('reduced motion zeroes every duration but the 120 ms fade', async ({ page }) => {
+  test('reduced motion zeroes every duration but the 120 ms fade', { tag: '@modern' }, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
     await createProject(page, 'Still Book');
@@ -207,7 +208,7 @@ test.describe('the system’s preferences', () => {
     expect(await token(page, '--dur-fade')).toBe('120ms');
   });
 
-  test('forced colours: no wallpaper, system colours and a border on every container', async ({ page, browserName }) => {
+  test('forced colours: no wallpaper, system colours and a border on every container', { tag: '@modern' }, async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'Only Chromium emulates forced colours.');
     await page.emulateMedia({ forcedColors: 'active' });
     await page.goto('/');
@@ -219,7 +220,7 @@ test.describe('the system’s preferences', () => {
     expect(ornament.backdrop === '' || ornament.backdrop === 'none').toBe(true);
   });
 
-  test('more contrast puts thick glass and scrims at full opacity', async ({ page, browserName }) => {
+  test('more contrast puts thick glass and scrims at full opacity', { tag: '@modern' }, async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'The contrast preference is emulated here through Chromium’s DevTools protocol.');
     const session = await page.context().newCDPSession(page);
     await session.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-contrast', value: 'more' }] });
@@ -230,7 +231,7 @@ test.describe('the system’s preferences', () => {
     expect(isOpaque(scrim)).toBe(true);
   });
 
-  test('reduced transparency makes the glass solid', async ({ page, browserName }) => {
+  test('reduced transparency makes the glass solid', { tag: '@modern' }, async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'Reduced transparency is emulated through Chromium’s DevTools protocol.');
     const session = await page.context().newCDPSession(page);
     await session.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-transparency', value: 'reduce' }] });

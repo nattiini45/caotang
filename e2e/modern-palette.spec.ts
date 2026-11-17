@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
+import { test } from './test.js';
 
 import { composeAndConfirm, createProject, waitForSaved } from './support.js';
 
@@ -85,7 +86,7 @@ async function openWithKeys(page: Page): Promise<void> {
   await expect(field(page)).toBeFocused();
 }
 
-test('Ctrl+K opens a modal combobox over a grouped listbox; the arrow keys move, Enter opens the scene, and the rest is inert', async ({ page }) => {
+test('Ctrl+K opens a modal combobox over a grouped listbox; the arrow keys move, Enter opens the scene, and the rest is inert', { tag: '@modern' }, async ({ page }) => {
   await harbourInModern(page);
   const text = page.getByRole('main', { name: 'Harbour Book' }).getByRole('textbox', { name: 'Document text' });
   await text.click();
@@ -137,7 +138,7 @@ test('Ctrl+K opens a modal combobox over a grouped listbox; the arrow keys move,
   await expect(text).toHaveText('Lanterns on the water.');
 });
 
-test('Escape closes the palette and gives focus back to what had it', async ({ page }) => {
+test('Escape closes the palette and gives focus back to what had it', { tag: '@modern' }, async ({ page }) => {
   await harbourInModern(page);
   const more = page.getByTestId('modern-top-ornament').getByRole('button', { name: 'More' });
   await more.focus();
@@ -154,7 +155,7 @@ test('Escape closes the palette and gives focus back to what had it', async ({ p
   await expect(more).toBeFocused();
 });
 
-test('every shell action is reachable by its name, and Enter runs it', async ({ page }) => {
+test('every shell action is reachable by its name, and Enter runs it', { tag: '@modern' }, async ({ page }) => {
   await harbourInModern(page);
   const labels = ['Projects', 'Project details', 'Undo', 'Focus mode', 'Skills', 'Instructions', 'Compile…', 'Export bundle', 'Settings', 'Dark theme'];
   const folderPicker = await page.evaluate(() => 'showDirectoryPicker' in window);
@@ -183,14 +184,14 @@ test('every shell action is reachable by its name, and Enter runs it', async ({ 
   await settings.getByRole('button', { name: 'Close' }).click();
 });
 
-test('a codex entry is found by its name without the accent', async ({ page }) => {
+test('a codex entry is found by its name without the accent', { tag: '@modern' }, async ({ page }) => {
   await harbourInModern(page);
   await openWithKeys(page);
   await page.keyboard.type('zoe');
   await expect(palette(page).getByRole('group', { name: 'Codex' }).getByRole('option')).toContainText(['Zoë Hart']);
 });
 
-test('an input method’s composing Enter stays in the field, and a composing Ctrl+K opens nothing', async ({ page }) => {
+test('an input method’s composing Enter stays in the field, and a composing Ctrl+K opens nothing', { tag: '@modern' }, async ({ page }) => {
   await harbourInModern(page);
   const text = page.getByRole('main', { name: 'Harbour Book' }).getByRole('textbox', { name: 'Document text' });
   await text.click();
@@ -219,7 +220,7 @@ test('an input method’s composing Enter stays in the field, and a composing Ct
   await expect(palette(page)).toHaveCount(0);
 });
 
-test('with no match, Enter opens the agent with the words in the Intent box, not sent', async ({ page }) => {
+test('with no match, Enter opens the agent with the words in the Intent box, not sent', { tag: '@modern' }, async ({ page }) => {
   await harbourInModern(page);
   await openWithKeys(page);
   await page.keyboard.type('a storm that strands the ferry');
@@ -235,7 +236,7 @@ test('with no match, Enter opens the agent with the words in the Intent box, not
   await expect(page.getByTestId('agent-stop')).toHaveCount(0);
 });
 
-test('the palette offers the way back to Classic, and Classic has no palette', async ({ page }) => {
+test('the palette offers the way back to Classic, and Classic has no palette', { tag: '@modern' }, async ({ page }) => {
   await harbourInModern(page);
   await openWithKeys(page);
   await page.keyboard.type('classic');
@@ -253,7 +254,7 @@ test.describe('axe', () => {
   // axe-core is injected as an inline script, which the app's Content-Security-Policy refuses; the scanner is test tooling.
   test.use({ bypassCSP: true });
 
-  test('the open palette passes axe (contrast on glass is the computed test’s, §9.3)', async ({ page }) => {
+  test('the open palette passes axe (contrast on glass is the computed test’s, §9.3)', { tag: '@modern' }, async ({ page }) => {
     await harbourInModern(page);
     await openWithKeys(page);
     await page.keyboard.type('the');

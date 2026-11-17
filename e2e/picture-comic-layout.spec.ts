@@ -1,11 +1,12 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from './test.js';
 
 import { emptyComic, germanComic, pictureScene } from './picture-comic-support.js';
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
 for (const shell of ['classic', 'modern'] as const) {
-  test(`${shell}: Insert picture shares the manuscript start edge in both directions`, async ({ page }) => {
+  test(`${shell}: Insert picture shares the manuscript start edge in both directions`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
     await pictureScene(page, shell);
     for (const direction of ['ltr', 'rtl']) {
       await page.locator('html').evaluate((root, dir) => root.setAttribute('dir', dir), direction);

@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './test.js';
 import { fileURLToPath } from 'node:url';
 import type * as UiAgentModule from '../apps/desktop/test/ui-agent-fixture.js';
 import { endpointRoute, FAKE_ENDPOINT, fakeEndpoint, useFakeEndpoint as configureFakeEndpoint } from './endpoint.js';
@@ -172,7 +173,7 @@ for (const variant of [
   { shell: 'classic', language: 'en', width: 1280, height: 900, theme: 'light' },
   { shell: 'classic', language: 'de', width: 390, height: 844, theme: 'dark' },
 ]) {
-  test(`${variant.shell} ${variant.language} window recovery sends nothing and offers explicit actions at ${variant.width}px`, async ({ page }, testInfo) => {
+  test(`${variant.shell} ${variant.language} window recovery sends nothing and offers explicit actions at ${variant.width}px`, { tag: variant.shell === 'modern' ? '@modern' : [] }, async ({ page }, testInfo) => {
     const requests: string[] = [];
     await page.addInitScript(({ shell, theme }) => {
       localStorage.setItem('caotang.interface', shell);
@@ -244,7 +245,7 @@ for (const variant of [
     return { requests, panel, memory };
   };
 
-  test(`${variant.shell} ${variant.language} compaction summary editing and validation at ${variant.width}px`, async ({ page }, testInfo) => {
+  test(`${variant.shell} ${variant.language} compaction summary editing and validation at ${variant.width}px`, { tag: variant.shell === 'modern' ? '@modern' : [] }, async ({ page }, testInfo) => {
     const { requests, panel, memory } = await prepareMemorySession(page);
     await memory.locator('[data-slot="collapsible-trigger"]').click();
     const roles = memory.getByRole('radiogroup', { name: variant.language === 'de' ? 'Gesprächsrolle' : 'Conversation role', exact: true });
@@ -293,7 +294,7 @@ for (const variant of [
     expect(await memory.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   });
 
-  test(`${variant.shell} ${variant.language} edited compaction summary survives reload, activity and New session at ${variant.width}px`, async ({ page }, testInfo) => {
+  test(`${variant.shell} ${variant.language} edited compaction summary survives reload, activity and New session at ${variant.width}px`, { tag: variant.shell === 'modern' ? '@modern' : [] }, async ({ page }, testInfo) => {
     const { panel, memory } = await prepareMemorySession(page);
     await memory.locator('[data-slot="collapsible-trigger"]').click();
     await memory.getByLabel(variant.language === 'de' ? 'Schwerpunkt der Zusammenfassung (optional)' : 'Compaction focus (optional)').fill('Keep the lighthouse decision.');
@@ -365,7 +366,7 @@ for (const variant of [
     await picker.locator('li').filter({ hasText: variant.language === 'de' ? '· Abzweigung 1' : '· fork 1' }).getByRole('button', { name: variant.language === 'de' ? /^Sitzung .* öffnen$/ : /^Open session/ }).click();
   };
 
-  test(`${variant.shell} ${variant.language} sessions stay bounded and return focus at ${variant.width}px`, async ({ page }, testInfo) => {
+  test(`${variant.shell} ${variant.language} sessions stay bounded and return focus at ${variant.width}px`, { tag: variant.shell === 'modern' ? '@modern' : [] }, async ({ page }, testInfo) => {
     await prepareThreeSessions(page);
     const panel = page.getByTestId('agent-panel');
     await page.setViewportSize({ width: variant.width, height: variant.height });
@@ -426,7 +427,7 @@ for (const variant of [
     await expect(toggle).toBeFocused();
   });
 
-  test(`${variant.shell} ${variant.language} session Data fits at ${variant.width}px`, async ({ page }, testInfo) => {
+  test(`${variant.shell} ${variant.language} session Data fits at ${variant.width}px`, { tag: variant.shell === 'modern' ? '@modern' : [] }, async ({ page }, testInfo) => {
     await prepareThreeSessions(page);
     await openSettings(page, variant.shell, variant.language);
     const settings = page.getByTestId('settings');
@@ -437,7 +438,7 @@ for (const variant of [
     await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`sessions-${variant.shell}-${variant.language}-${variant.width}-data.png`) });
   });
 
-  test(`${variant.shell} ${variant.language} session turn actions and deletion fit at ${variant.width}px`, async ({ page }, testInfo) => {
+  test(`${variant.shell} ${variant.language} session turn actions and deletion fit at ${variant.width}px`, { tag: variant.shell === 'modern' ? '@modern' : [] }, async ({ page }, testInfo) => {
     await prepareThreeSessions(page);
     const panel = page.getByTestId('agent-panel');
     await page.setViewportSize({ width: variant.width, height: variant.height });

@@ -1,9 +1,10 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from './test.js';
 
 import { switchToModern } from './modern-walk.js';
 import { createProject, waitForShell } from './support.js';
 
-test('the committed shell waits for Modern’s code before Settings closes and shortcuts run', async ({ page }) => {
+test('the committed shell waits for Modern’s code before Settings closes and shortcuts run', { tag: '@modern' }, async ({ page }) => {
   await createProject(page, 'Shell state');
   let release: () => void = () => undefined;
   const held = new Promise<void>((resolve) => {
