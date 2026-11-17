@@ -193,6 +193,30 @@ describe('the WebVTT captions', () => {
     expect(new Set(result.files.map((f) => f.fileName)).size).toBe(2);
     expect(result.files.some((f) => f.fileName.includes('n_EPISODE004'))).toBe(true);
   });
+
+  it('keeps every file name its own when a real title equals a generated one', async () => {
+    const state = makeShowProject();
+    const twin = addDocument(state, {
+      parentId: SHOW_ID,
+      title: 'Episode 1',
+      body: '## A\nHOST_A: Same name. [0:10] <!-- lineId: sl_1000000020 -->\n',
+      now: OPENED,
+      id: 'n_EPISODE005',
+    });
+    Object.assign(twin, { kind: 'av-script' });
+    const lookalike = addDocument(state, {
+      parentId: SHOW_ID,
+      // This title is exactly the `title id` spelling the duplicate Episode 1s generate.
+      title: 'Episode 1 n_EPISODE001',
+      body: '## A\nHOST_A: Lookalike. [0:10] <!-- lineId: sl_1000000021 -->\n',
+      now: OPENED,
+      id: 'n_EPISODE006',
+    });
+    Object.assign(lookalike, { kind: 'av-script' });
+    const result = await rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'vtt');
+    expect(result.files.length).toBe(3);
+    expect(new Set(result.files.map((f) => f.fileName)).size).toBe(3);
+  });
 });
 
 describe('the chapters document', () => {
@@ -277,6 +301,16 @@ describe('the chapters document', () => {
     const result = await rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'chapters-json');
     expect(result.files.length).toBe(1);
     expect(result.log.notes.some((n) => n.includes('Episode 2') && n.includes('no chapters document'))).toBe(true);
+  });
+
+  it('titles a chapter after the document when the episode heading is bare', async () => {
+    const state = makeShowProject({
+      episode: '#\nHOST_A: Hi. [0:10] <!-- lineId: sl_1000000018 -->\n## Two\nHOST_A: Bye. [0:10] <!-- lineId: sl_1000000019 -->\n',
+    });
+    const result = await rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'chapters-json');
+    const doc = JSON.parse(await result.files[0]!.blob.text()) as { chapters: { title: string }[] };
+    // A bare `#` parses to an empty episode title — the chapter falls back to the document's title.
+    expect(doc.chapters.map((c) => c.title)).toEqual(['Episode 1', 'Two']);
   });
 
   it('refuses an episode with no timed segment', async () => {

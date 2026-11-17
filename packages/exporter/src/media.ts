@@ -1031,6 +1031,27 @@ function episodeFileName(base: string, what: string, ext: string, episodes: read
 }
 
 /**
+ * The complete name list made distinct. A real title can still equal the `title id` spelling a
+ * duplicate got, so a name that survives `episodeFileName` colliding gets a ` (2)` before its
+ * extension — the first use keeps the clean name.
+ */
+function distinctFileNames(files: MediaFile[]): MediaFile[] {
+  const seen = new Map<string, number>();
+  return files.map((file) => {
+    const count = (seen.get(file.name) ?? 0) + 1;
+    seen.set(file.name, count);
+    if (count === 1) return file;
+    const stem = file.name.replace(/\.[^.]+$/, '');
+    return { ...file, name: `${stem} (${count})${file.name.slice(stem.length)}` };
+  });
+}
+
+/** The episode's display title: its `#` heading when it named one — a bare `#` parses to `''`. */
+function episodeTitle(ep: EpisodeRead): string {
+  return ep.parsed.title !== undefined && ep.parsed.title.trim() !== '' ? ep.parsed.title : ep.node.title;
+}
+
+/**
  * YouTube's chapter gates (av-script.md §5): the first chapter at `00:00`, at least three chapters, at least 10 s
  * between them. The chapter lines come out only when every gate holds; the failure names the gate that did not,
  * for the compile log.
@@ -1043,7 +1064,7 @@ function youtubeChapters(ep: EpisodeRead): { readonly lines: readonly string[]; 
       if (segment.lines.length > 0 || segment.cues.length > 0) skipped.push(segment.title);
       continue;
     }
-    chapters.push({ at: segment.startSec, title: segment.title !== '' ? segment.title : (ep.parsed.title ?? ep.node.title) });
+    chapters.push({ at: segment.startSec, title: segment.title !== '' ? segment.title : episodeTitle(ep) });
   }
   if (skipped.length > 0) {
     return { lines: [], failure: `untimed segments have no timestamp (${skipped.map((t) => `"${t || 'the opening'}"`).join(', ')}), so the chapter list cannot cover them` };
@@ -1075,7 +1096,7 @@ function showNotesOutput(request: MediaRequest): MediaOutput {
   const notes = [...parseNotes];
   const files: MediaFile[] = [];
   for (const ep of episodes) {
-    const out: string[] = [`# ${ep.parsed.title ?? ep.node.title}`, ''];
+    const out: string[] = [`# ${episodeTitle(ep)}`, ''];
     if (typeof ep.show.description === 'string' && ep.show.description.trim() !== '') {
       out.push(ep.show.description.trim(), '');
     }
@@ -1091,7 +1112,7 @@ function showNotesOutput(request: MediaRequest): MediaOutput {
     }
     files.push({ name: episodeFileName(request.base, 'show notes', 'md', episodes, ep), mimeType: 'text/markdown;charset=utf-8', text: out.join('\n') + '\n' });
   }
-  return { files, blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
+  return { files: distinctFileNames(files), blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
 }
 
 /** A speaker label as a reader sees it: the codex entry's display name when the speaker resolved to one, else the name as typed. */
@@ -1109,7 +1130,7 @@ function transcriptOutput(request: MediaRequest): MediaOutput {
   const { episodes, notes } = readEpisodes(request, 'transcript-md');
   const files: MediaFile[] = [];
   for (const ep of episodes) {
-    const out: string[] = [`# ${ep.parsed.title ?? ep.node.title}`];
+    const out: string[] = [`# ${episodeTitle(ep)}`];
     for (const segment of ep.parsed.segments) {
       if (segment.title !== '') out.push('', `## ${segment.title}`);
       for (const line of segment.lines) {
@@ -1119,7 +1140,7 @@ function transcriptOutput(request: MediaRequest): MediaOutput {
     }
     files.push({ name: episodeFileName(request.base, 'transcript', 'md', episodes, ep), mimeType: 'text/markdown;charset=utf-8', text: out.join('\n') + '\n' });
   }
-  return { files, blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
+  return { files: distinctFileNames(files), blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
 }
 
 /** One text line wrapped to `width` columns on word boundaries; a word longer than the width keeps its own line. */
@@ -1154,7 +1175,7 @@ function teleprompterOutput(request: MediaRequest): MediaOutput {
     mimeType: 'text/plain;charset=utf-8',
     text: speakableLines(ep.parsed).map(({ line }) => wrapLine(line.text, width).join('\n')).join('\n\n') + '\n',
   }));
-  return { files, blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
+  return { files: distinctFileNames(files), blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
 }
 
 /* ------------------------------------------------------------------ *
@@ -1238,7 +1259,7 @@ function vttOutput(request: MediaRequest): MediaOutput {
       ...notes,
     ]);
   }
-  return { files, blockCount: cueCount, chapterCount: 0, sceneCount: episodes.length, wordCount, skippedDocs: [], notes };
+  return { files: distinctFileNames(files), blockCount: cueCount, chapterCount: 0, sceneCount: episodes.length, wordCount, skippedDocs: [], notes };
 }
 
 /**
@@ -1266,7 +1287,7 @@ function chaptersJsonOutput(request: MediaRequest): MediaOutput {
       }
       chapters.push({
         startTime: segment.startSec,
-        title: segment.title !== '' ? segment.title : (ep.parsed.title ?? ep.node.title),
+        title: segment.title !== '' ? segment.title : episodeTitle(ep),
         endTime: endSec,
       });
     }
@@ -1288,7 +1309,7 @@ function chaptersJsonOutput(request: MediaRequest): MediaOutput {
     ]);
   }
   const wordCount = episodes.reduce((sum, ep) => sum + speakableLines(ep.parsed).reduce((s, { line }) => s + line.words, 0), 0);
-  return { files, blockCount: chapterCount, chapterCount: 0, sceneCount: episodes.length, wordCount, skippedDocs: [], notes };
+  return { files: distinctFileNames(files), blockCount: chapterCount, chapterCount: 0, sceneCount: episodes.length, wordCount, skippedDocs: [], notes };
 }
 
 /**
