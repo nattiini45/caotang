@@ -19,7 +19,7 @@
  */
 
 import { ApplyRefusal, DEFAULT_RECIPE_NAME, type CommandError } from '@caotang/bus';
-import { ArtifactNotFoundError, identifierUrn, type ArtifactFs, type ProjectState } from '@caotang/store';
+import { ArtifactNotFoundError, EXPORTS_DIR, identifierUrn, type ArtifactFs, type ProjectState } from '@caotang/store';
 import { PDF_MIME } from '@caotang/screenplay';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
 import type { ComicLetteringFontLoader, FontLoader } from '@caotang/pdf-fonts';
@@ -797,6 +797,20 @@ export function createExporter(options: ExporterOptions): ExporterService {
 
     // The names are reserved together, and only after the plan has accepted the compile: a refused plan reserves nothing.
     const placed = emitter.reserveGroup(filesOf(compiled, `${base}.${EXTENSION[format]}`));
+    // A slugged article's file name IS its front-matter route: under `frontMatter` an occupied name
+    // cannot take a suffix — `post-2.html` would still declare `permalink: post`. Refuse the route's
+    // collision rather than write a second file claiming it.
+    if (compiled.kind === 'prose' && compiled.format === 'html' && compiled.html?.frontMatter === true) {
+      const articles = compiled.html.articles;
+      const occupied = placed.filter((file, i) => articles[i]?.slugged === true && file.path !== `${EXPORTS_DIR}/${file.name}`);
+      if (occupied.length > 0) {
+        emitter.restoreAll(placed.map((file) => file.path));
+        const names = occupied.slice(0, 3).map((file) => `"${file.name.replace(/\.html$/, '')}"`);
+        throw new MediaRefusedError('html', [
+          `the route ${names.join(', ')} is already taken by an export — a second file would publish the same permalink; remove the older export and compile again`,
+        ]);
+      }
+    }
     const paths = placed.map((file) => file.path);
     const job = emitter.publishFiles({
       files: placed.map((file) => ({ path: file.path, format, render: file.render })),
@@ -932,6 +946,7 @@ function htmlPlanOf(
       docId: block.docId,
       title: block.title,
       body: block.body,
+      slugged: slug !== undefined,
       ...(publish === undefined ? {} : { publish }),
     });
   }
@@ -1121,6 +1136,8 @@ interface HtmlArticlePlan {
   readonly docId: string;
   readonly title: string;
   readonly body: string;
+  /** A `publish.slug` set on the document — the article's file name is the route it publishes. */
+  readonly slugged: boolean;
   /** The document's `publish` record, when it has one (web-publishing.md §2). */
   readonly publish?: PublishMeta;
 }

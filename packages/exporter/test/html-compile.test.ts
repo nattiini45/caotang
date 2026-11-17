@@ -136,6 +136,29 @@ describe('the html format', () => {
     expect(names.sort()).toEqual(['exports/Post-2.html', 'exports/post.html']);
   });
 
+  it('refuses a second front-matter compile of a route that is already exported', async () => {
+    const { state, exporter, fs } = rig();
+    await exporter.ready();
+    const landing = state.manifest.tree.find((node) => node.id === IDS.landing);
+    if (landing === undefined) throw new Error('fixture lacks the node');
+    landing.publish = { slug: 'post' };
+    state.manifest.recipes = [
+      { name: 'Site posts', includeRootIds: ['manuscript'], format: 'html', options: { frontMatter: true } },
+    ];
+    const request = {
+      selection: { kind: 'manuscript' as const },
+      format: 'html',
+      recipeName: 'Site posts',
+      at: COMPILED_AT,
+    };
+    exporter.commandPort().compile(state, request);
+    await exporter.idle();
+    expect(fs.snapshot()['exports/post.html']).toBeDefined();
+    // The route is taken: `post-2.html` would still declare `permalink: post`, so the compile refuses.
+    expect(() => exporter.commandPort().compile(state, request)).toThrow('same permalink');
+    expect(fs.snapshot()['exports/post-2.html']).toBeUndefined();
+  });
+
   it('refuses a name that would not fit a folder\'s 255-byte limit', async () => {
     const { state, exporter, fs } = rig();
     await exporter.ready();
