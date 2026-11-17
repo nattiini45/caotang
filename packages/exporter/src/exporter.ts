@@ -891,8 +891,8 @@ export function createExporter(options: ExporterOptions): ExporterService {
             render: async () => {
               const rendered =
                 compiled.format === 'rss'
-                  ? renderRss({ siteUrl: feed.siteUrl, channelTitle: feed.channelTitle, ...(feed.channelDescription === undefined ? {} : { channelDescription: feed.channelDescription }), lang: feed.lang, at, items: feed.items })
-                  : renderAtom({ siteUrl: feed.siteUrl, channelTitle: feed.channelTitle, ...(feed.channelDescription === undefined ? {} : { channelDescription: feed.channelDescription }), lang: feed.lang, at, items: feed.items });
+                  ? renderRss({ siteUrl: feed.siteUrl, channelTitle: feed.channelTitle, ...(feed.channelDescription === undefined ? {} : { channelDescription: feed.channelDescription }), lang: feed.lang, author: feed.author, at, items: feed.items })
+                  : renderAtom({ siteUrl: feed.siteUrl, channelTitle: feed.channelTitle, ...(feed.channelDescription === undefined ? {} : { channelDescription: feed.channelDescription }), lang: feed.lang, author: feed.author, at, items: feed.items });
               return { contents: rendered.xml, notes: [...rendered.notes] };
             },
           },
@@ -1035,11 +1035,14 @@ function feedPlanOf(
       ...(publish === undefined ? {} : { publish }),
     });
   }
+  const channelTitle = root === undefined || rootIsFixed ? state.manifest.project.name : root.title;
   return {
     siteUrl,
-    channelTitle: root === undefined || rootIsFixed ? state.manifest.project.name : root.title,
+    channelTitle,
     ...(root !== undefined && root.synopsis !== '' ? { channelDescription: root.synopsis } : {}),
     lang: language ?? 'en',
+    // Atom requires a byline: the recipe's author override, the project's author, then the channel itself.
+    author: options.author ?? state.manifest.project.author ?? channelTitle,
     items,
   };
 }
@@ -1222,6 +1225,8 @@ interface FeedPlan {
   readonly channelTitle: string;
   readonly channelDescription?: string;
   readonly lang: string;
+  /** RFC 4287's required byline: the recipe's `author`, the project's author, or the channel title. */
+  readonly author: string;
   readonly items: readonly FeedItem[];
 }
 

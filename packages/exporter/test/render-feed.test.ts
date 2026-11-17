@@ -40,6 +40,7 @@ function feed(over: Partial<FeedInput> = {}): FeedInput {
     channelTitle: 'The Lighthouse Keeper',
     channelDescription: 'A keeper alone on the rock.',
     lang: 'en',
+    author: 'M. Author',
     at: Date.parse('2026-11-16T00:00:00Z'),
     items: ITEMS,
     ...over,
@@ -100,6 +101,8 @@ describe('the Atom feed', () => {
     expect(xml).toContain('<feed xmlns="http://www.w3.org/2005/Atom"');
     expect(xml).toContain('<id>https://example.com</id>');
     expect(xml).toContain('<title>The Lighthouse Keeper</title>');
+    // RFC 4287's required byline, once at the feed level.
+    expect(xml).toContain('<author><name>M. Author</name></author>');
     // The feed's updated is the newest entry's instant.
     expect(xml).toContain('<updated>2026-11-15T12:00:00.000Z</updated>');
     expect((xml.match(/<entry>/g) ?? []).length).toBe(2);

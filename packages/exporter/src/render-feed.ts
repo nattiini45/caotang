@@ -31,6 +31,8 @@ export interface FeedInput {
   /** The folder's synopsis, when it has one (RSS channel `<description>`). */
   readonly channelDescription?: string;
   readonly lang: string;
+  /** The feed's byline — the recipe or project author, or the channel title when neither names one. */
+  readonly author: string;
   /** The compile instant, for the Atom feed's `<updated>` when every item is a draft. */
   readonly at: number;
   readonly items: readonly FeedItem[];
@@ -140,6 +142,7 @@ export function renderAtom(input: FeedInput): RenderedFeed {
     `<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="${escapeXml(input.lang)}">`,
     `<id>${escapeXml(input.siteUrl)}</id>`,
     `<title>${escapeXml(input.channelTitle)}</title>`,
+    `<author><name>${escapeXml(input.author)}</name></author>`,
     `<updated>${feedUpdated(kept, input.at)}</updated>`,
   ];
   for (const { item, instant } of kept) {
