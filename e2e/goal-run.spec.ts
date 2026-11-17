@@ -303,7 +303,7 @@ for (const shell of ['classic', 'modern'] as const) {
         await expect(radios.nth(2)).toBeInViewport({ ratio: 1 });
         await page.keyboard.press('ArrowDown');
         await expect(radios.first()).toBeChecked();
-        await form.locator('[data-goal-field="intent"]').evaluate((node) => node.scrollIntoView({ block: 'start' }));
+        await scopes.scrollIntoViewIfNeeded();
         await expect(scopes).toBeInViewport({ ratio: 1 });
         await page.screenshot({ path: testInfo.outputPath(`goal-scopes-modern-${locale}-${theme}.png`) });
       }
