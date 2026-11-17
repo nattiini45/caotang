@@ -8,7 +8,7 @@
 
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { emptyCoherenceFile, type DeterministicCheckId } from '@caotang/coherence';
-import type { GoalCheckpoint } from '@caotang/harness';
+import type { Goal, GoalCheckpoint } from '@caotang/harness';
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore } from '@caotang/gateway';
 import { createMockProvider } from '@caotang/gateway/mock';
 import { addDocument, appendGoalCheckpoint, createGoalRun, createRunLogPort, deleteGoalRun, markGoalsInterrupted, openRuntimeStore, readGoalRun, readRun, recordGoalIteration, removeAgentSession, resumeGoalRun, writeProjectState, MemoryIndexedDb } from '@caotang/store';
@@ -110,6 +110,148 @@ it('keeps the final no-turn check table in the recovery view', async () => {
   await f.controller.loadGoals();
   await f.controller.resumeGoal(GOAL);
   expect(f.controller.snapshot().goals[0]).toMatchObject({ watch: { checks: [{ kind: 'synopsis.filled', pass: true, distance: 0 }] } });
+});
+
+it.each([false, true])('runs an isolated Background verifier through the production controller (gate %s)', async gate => {
+  const f = await fixture(true, { steps: [{ tool: 'synopsis.set', params: { doc: 'The Storm', synopsis: 'The ferry departs at dawn.' }, expect: 'The departure is named.' }] });
+  const node = f.session.state.manifest.tree.find(candidate => candidate.title === 'The Storm');
+  if (node === undefined) throw new Error('missing fixture document');
+  node.synopsis = '';
+  const reviewProfile = await f.providers.gateway.profiles.create({ name: 'Independent mock', kind: 'mock' });
+  f.providers.resolveForRole = role => role === 'background' ? { profile: reviewProfile, model: reviewProfile.defaultModel } : undefined;
+  const complete = f.providers.gateway.complete.bind(f.providers.gateway);
+  let reviews = 0;
+  let reserved: GoalCheckpoint | undefined;
+  let actorRunIds: readonly string[] = [];
+  const id = gate ? 'g_7QK4M2N8RX' : 'g_7QK4M2N8RZ';
+  vi.spyOn(f.providers.gateway, 'complete').mockImplementation(async function* (request, signal, beforeSend) {
+    if (request.role !== 'background') { yield* complete(request, signal, beforeSend); return; }
+    const row = await readGoalRun(f.store, id);
+    expect(row?.checkpoint).toMatchObject({ pendingVerification: { phase: 'reserved' } });
+    reserved = structuredClone(row!.checkpoint as GoalCheckpoint);
+    actorRunIds = [...row!.iterationRunIds];
+    expect(row?.iterationRunIds).toHaveLength(1);
+    expect((await readRun(f.store, row!.iterationRunIds[0]!))?.status).toBe('finished');
+    expect(request.profileId).toBe(reviewProfile.id);
+    expect(request.messages.map(message => message.role)).toEqual(['system', 'user']);
+    expect(request.tools).toBeUndefined();
+    expect(JSON.stringify(request.messages)).toContain('The ferry departs at dawn.');
+    expect(JSON.stringify(request.messages)).not.toContain(node.id);
+    beforeSend?.();
+    reviews += 1;
+    yield { delta: JSON.stringify({ pass: gate, reasons: gate ? [] : ['The wording could be clearer.'] }), finishReason: 'stop' as const };
+  });
+  f.controller.attach();
+  await when(f.controller, snapshot => snapshot.goals.length === 1);
+  const unsubscribe = f.controller.subscribe(() => { if (f.controller.snapshot().pending !== null) f.controller.answer({ action: 'approve' }); });
+  try {
+    const scope = { mode: 'doc', docIds: [node.id] } as const;
+    const goal: Goal = { ...passedGoal(), id, checks: [{ kind: 'synopsis.filled', scope }, { kind: 'verifier', scope, rubric: 'The synopsis names the departure time.', gate }] };
+    await f.controller.startGoal(goal);
+    const row = await readGoalRun(f.store, id);
+    expect(row?.result, JSON.stringify(row?.checkpoint)).toMatchObject({ status: 'passed' });
+    expect(row?.schema).toBe(2);
+    expect(row?.checkpoint).toMatchObject({ verification: { status: 'complete', verdict: { pass: gate } } });
+    expect(reviews).toBe(1);
+    expect((row!.checkpoint as GoalCheckpoint).spend.modelCalls).toBe(f.providers.gateway.ledger.turnRows().length + 1);
+    const savedReservation = reserved;
+    if (savedReservation?.pendingVerification?.reservation === undefined) throw new Error('missing saved verifier reservation');
+    const actorCalls = f.providers.gateway.ledger.turnRows().length;
+    for (const phase of ['prepared', 'reserved'] as const) {
+      const pending = savedReservation.pendingVerification;
+      const { reservation: _reservation, ...prepared } = pending;
+      const checkpoint: GoalCheckpoint = phase === 'reserved' ? structuredClone(savedReservation) : {
+        ...savedReservation, spend: { ...savedReservation.spend, modelCalls: savedReservation.spend.modelCalls - 1 }, pendingVerification: { ...prepared, phase: 'prepared' },
+      };
+      await deleteGoalRun(f.store, id);
+      await createGoalRun(f.store, { goalId: id, projectId: f.session.projectId, sessionId: f.controller.snapshot().sessionId, checkpoint, at: 500 });
+      for (const runId of actorRunIds) await recordGoalIteration(f.store, id, runId, 501);
+      await markGoalsInterrupted(f.store, f.session.projectId, 502);
+      await f.controller.resumeGoal(id);
+      const restored = await readGoalRun(f.store, id);
+      expect(restored?.result).toMatchObject({ status: phase === 'reserved' && gate ? 'failed' : 'passed' });
+      expect(f.providers.gateway.ledger.turnRows()).toHaveLength(actorCalls);
+      expect(reviews).toBe(2);
+      if (phase === 'reserved') {
+        expect(restored?.checkpoint).toMatchObject({ verification: { status: 'unavailable', code: 'interrupted', uncertainUsage: true } });
+        const spend = (restored!.checkpoint as GoalCheckpoint).spend;
+        expect(spend.modelCalls).toBe(savedReservation.spend.modelCalls);
+        expect(spend.estimatedTokens).toBeGreaterThanOrEqual(pending.reservation!.promptTokens + pending.reservation!.maxOutputTokens);
+      }
+    }
+  } finally {
+    unsubscribe();
+  }
+});
+
+it('forwards the prepared goal read boundary through asynchronous controller setup', async () => {
+  const f = await fixture(true);
+  await f.session.harnessReady();
+  const node = f.session.state.manifest.tree.find(candidate => candidate.title === 'The Storm');
+  if (node === undefined) throw new Error('missing fixture document');
+  let tightened = false;
+  let setups = 0;
+  const ready = f.session.harnessReady.bind(f.session);
+  vi.spyOn(f.session, 'harnessReady').mockImplementation(async () => {
+    await ready();
+    setups += 1;
+    if (setups === 2) tightened = true;
+  });
+  vi.spyOn(f.session.harness, 'withheldAnywhere').mockImplementation(() => new Set(tightened ? [node.id] : []));
+  f.controller.attach();
+  await when(f.controller, snapshot => snapshot.goals.length === 1);
+  const id = 'g_7QK4M2N8RZ';
+  const scope = { mode: 'doc', docIds: [node.id] } as const;
+  await f.controller.startGoal({ ...passedGoal(), id, checks: [{ kind: 'status.all', scope, status: 'final' }, { kind: 'verifier', scope, rubric: 'The departure is clear.', gate: true }] });
+  const row = await readGoalRun(f.store, id);
+  expect(row?.result).toMatchObject({ status: 'failed' });
+  expect((row!.checkpoint as GoalCheckpoint).iterations[0]?.report.askBack?.code).toBe('needs_input');
+  expect(f.providers.gateway.ledger.turnRows()).toEqual([]);
+});
+
+it('lets Stop settle an in-flight verifier without starting another actor or review', async () => {
+  const f = await fixture(true, { steps: [{ tool: 'synopsis.set', params: { doc: 'The Storm', synopsis: 'The ferry departs at dawn.' }, expect: 'The departure is named.' }] });
+  const node = f.session.state.manifest.tree.find(candidate => candidate.title === 'The Storm');
+  if (node === undefined) throw new Error('missing fixture document');
+  node.synopsis = '';
+  const complete = f.providers.gateway.complete.bind(f.providers.gateway);
+  let entered = () => {};
+  let reviews = 0;
+  const reviewing = new Promise<void>(resolve => { entered = resolve; });
+  vi.spyOn(f.providers.gateway, 'complete').mockImplementation(async function* (request, signal, beforeSend) {
+    if (request.role !== 'background') { yield* complete(request, signal, beforeSend); return; }
+    if (signal === undefined) throw new Error('missing verifier signal');
+    beforeSend?.();
+    reviews += 1;
+    entered();
+    await new Promise<void>(resolve => {
+      if (signal.aborted) resolve();
+      else signal.addEventListener('abort', () => resolve(), { once: true });
+    });
+    signal.throwIfAborted();
+  });
+  f.controller.attach();
+  await when(f.controller, snapshot => snapshot.goals.length === 1);
+  const unsubscribe = f.controller.subscribe(() => { if (f.controller.snapshot().pending !== null) f.controller.answer({ action: 'approve' }); });
+  const id = 'g_7QK4M2N8RZ';
+  const scope = { mode: 'doc', docIds: [node.id] } as const;
+  const work = f.controller.startGoal({ ...passedGoal(), id, checks: [{ kind: 'synopsis.filled', scope }, { kind: 'verifier', scope, rubric: 'The departure is clear.', gate: true }] });
+  try {
+    await Promise.race([reviewing, work]);
+    expect(reviews).toBe(1);
+    f.controller.stop();
+    await work;
+    const row = await readGoalRun(f.store, id);
+    expect(row?.result).toMatchObject({ status: 'cancelled' });
+    expect(row?.checkpoint).toMatchObject({ verification: { status: 'unavailable', code: 'stopped' }, spend: { modelCalls: 2 } });
+    expect((row!.checkpoint as GoalCheckpoint).spend.estimatedTokens).toBeGreaterThan(0);
+    expect(f.providers.gateway.ledger.turnRows()).toHaveLength(1);
+    expect(reviews).toBe(1);
+  } finally {
+    f.controller.stop();
+    await work;
+    unsubscribe();
+  }
 });
 
 it('offers a Findings goal draft without starting it or borrowing an approval', async () => {

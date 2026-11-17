@@ -454,6 +454,7 @@ export interface TurnOptions {
 
 /** What a UI action can tell a planner turn before it starts. */
 export interface SubmitOptions extends TurnOptions {
+  readonly preparedReadBoundary?: (hasSentRequest: boolean) => boolean;
   /** Deferred native rows the turn is about, loaded before the first request as if the planner had searched for them. */
   readonly preload?: readonly ToolName[];
   readonly writerSkill?: { readonly name: string; readonly pin: string; readonly body: string };
@@ -655,6 +656,8 @@ type SkillFence = { readonly kind: 'unlogged' } | { readonly kind: 'reading' } |
 interface Turn {
   readPolicy: string | undefined;
   readonly requestReadPolicy: string | undefined;
+  readonly preparedReadBoundary: ((hasSentRequest: boolean) => boolean) | undefined;
+  sentModelRequest: boolean;
   readonly contextOverrides?: ContextOverrides;
   plannerPrompt?: AssembledPrompt;
   readonly automaticRules: Map<PlanStep, SourcedRule>;
@@ -1511,6 +1514,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     let refused = false;
     const beforeSend = (): void => {
       try { guardRunLog(turn); guardReadBoundary(turn); } catch (error) { refused = !sent; throw error; }
+      turn.sentModelRequest = true;
       sent = true;
     };
     try {
@@ -1539,7 +1543,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   };
 
   const guardReadBoundary = (turn: Turn): void => {
-    if (harness.readPolicy() === turn.requestReadPolicy) return;
+    if (harness.readPolicy() === turn.requestReadPolicy && turn.preparedReadBoundary?.(turn.sentModelRequest) !== false) return;
     turn.readPolicy = undefined;
     throw new BudgetExceeded({
       code: 'needs_input',
@@ -4157,6 +4161,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       automaticRules: new Map(),
       readPolicy,
       requestReadPolicy: readPolicy,
+      preparedReadBoundary: turnOptions.preparedReadBoundary,
+      sentModelRequest: false,
       id,
       ...(overrides === undefined ? {} : { contextOverrides: {
         ...(overrides.include === undefined ? {} : { include: overrides.include.map(({ kind, id }) => ({ kind, id })) }),

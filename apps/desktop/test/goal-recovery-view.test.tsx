@@ -5,6 +5,7 @@ import { expect, it } from 'vitest';
 import type { AgentController, GoalRecoveryView } from '../src/app/agent.js';
 import { GoalRecovery } from '../src/components/GoalRecovery.js';
 import { activateEnglish } from '../src/i18n/runtime.js';
+import type { GoalWatchReview, GoalWatchView } from '../src/app/goal-watch.js';
 
 const goal: GoalRecoveryView = {
   goalId: 'g_7QK4M2N8RT', intent: 'Keep every scene as it is.', status: 'interrupted', nextIteration: 2,
@@ -101,4 +102,51 @@ it('renders recorded distances and an unpriced spend without inventing a trend o
   expect(html).toContain('3 → 1 → 0');
   expect(html).toContain('Not priced');
   expect(html).toContain('scope="row"');
+});
+
+function reviewWatch(change: Partial<GoalWatchReview> = {}): GoalWatchView {
+  return {
+    nextIteration: 2, completedIterations: 1, maxIterations: 10, limits: { maxModelCalls: 8 },
+    spend: { modelCalls: 2, promptTokens: 100, completionTokens: 50, estimatedTokens: 0, steps: 1, activeMs: 1000 },
+    checks: [{ key: 'synopsis', kind: 'synopsis.filled', pass: true, distance: 0, history: [1, 0], failures: [], skipped: 0 }],
+    review: { rubric: 'The departure is clear.', gate: false, status: 'complete', pass: false, reasons: ['<img src="untrusted">'], iteration: 1, omitted: 2, truncated: true, uncertainUsage: false, ...change },
+  };
+}
+
+it('shows advisory review separately from passing deterministic checks and escapes its reasons', () => {
+  activateEnglish();
+  const html = render({ status: 'settled', outcome: 'passed', resumable: false, watch: reviewWatch() }, null);
+  expect(html).toContain('Passing deterministic checks: 1 of 1');
+  expect(html).toContain('Review needs work');
+  expect(html).toContain('Advisory. This review does not decide whether the goal passes.');
+  expect(html).toContain('Changed fields omitted: 2.');
+  expect(html).toContain('The review used shortened excerpts.');
+  expect(html).toContain('&lt;img');
+  expect(html).not.toContain('<img');
+  const start = html.indexOf('data-testid="goal-independent-review"');
+  expect(start).toBeGreaterThan(0);
+  const block = html.slice(start, html.indexOf('</div>', start));
+  expect(block).not.toContain('distance');
+  expect(html.match(/scope="row"/g)).toHaveLength(1);
+});
+
+it.each([
+  ['no-changes', 'No changed, readable passages were available'], ['route', 'The Background request could not complete'],
+  ['reply', 'did not return a usable verdict'], ['source', 'changed or became unreadable'],
+  ['budget', 'shared run limits left no room'], ['interrupted', 'request was not repeated'], ['stopped', 'a deterministic check regressed'],
+] as const)('explains unavailable review code %s without claiming a verdict', (code, words) => {
+  activateEnglish();
+  const html = render({ status: 'settled', outcome: 'failed', resumable: false, watch: reviewWatch({ status: 'unavailable', pass: null, reasons: [], code, gate: true }) }, null);
+  expect(html).toContain('Review unavailable');
+  expect(html).toContain(words);
+  expect(html).toContain('Required for completion.');
+  expect(html).not.toContain('Review passed');
+});
+
+it('warns about an interrupted reserved review without claiming it is still running', () => {
+  activateEnglish();
+  const html = render({ watch: reviewWatch({ status: 'reserved', pass: null, reasons: [] }) }, null);
+  expect(html).toContain('No saved review yet');
+  expect(html).toContain('This request’s usage is uncertain.');
+  expect(html).not.toContain('Independent review is running');
 });

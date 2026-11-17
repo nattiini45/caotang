@@ -54,6 +54,7 @@ const DIALOGUE: AgentTask = { tool: 'dialogue.draft', instruction: 'Brief: A tha
  * the same invariants as the others, so it runs in both suites over its own container).
  */
 const TASKS: Readonly<Record<AssemblyTool, AgentTask>> = {
+  'goal.verify': { tool: 'goal.verify', instruction: 'Check the supplied before and after excerpts.' },
   'scene.draft': CONTINUE,
   'continuity.scan': { tool: 'continuity.scan', instruction: 'Find drift.', scope: [IDS.ch1, IDS.ch2, IDS.ch3] },
   'synopsis.fill': { tool: 'synopsis.fill', instruction: 'Summarise.', focus: FOCUS_ID },
@@ -140,8 +141,7 @@ describe('the layers each tool assembles (§3)', () => {
       const profile = profileFor(tool);
       const assembled = assemble(TASKS[tool], withInstructions(appFor(tool)));
       expect(included(assembled)).toEqual(LAYER_IDS.filter((id) => profile.layers.includes(id)));
-      // LI is in every profile, the metadata tools' included, and a project with no instructions has no such layer.
-      expect(profile.layers).toContain('LI');
+      expect(profile.layers.includes('LI')).toBe(tool !== 'goal.verify');
       expect(included(assemble(TASKS[tool], appFor(tool)))).toEqual(LAYER_IDS.filter((id) => id !== 'LI' && profile.layers.includes(id)));
     }
   });

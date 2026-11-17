@@ -13,10 +13,11 @@
  */
 
 import { AGENT_SESSION_STORE, GOAL_RUN_PROJECT_INDEX, GOAL_RUN_STORE, RUN_STORE, guarded, transact, type RuntimeStore } from './store.js';
+import { goalVerifierDataReadable, hasGoalVerifierData } from './goal-verifier-data.js';
 
 /** One goal's record. `schema` is the record's own version: a row this build does not know is not offered for recovery. */
 export interface GoalRunRow {
-  readonly schema: 1;
+  readonly schema: 1 | 2;
   readonly goalId: string;
   readonly projectId: string;
   /** The conversation the goal belongs to, so a resume lands in the turns the writer expects. */
@@ -90,13 +91,13 @@ export function checkpointReadable(value: unknown, goalId?: string): boolean {
   if (spend['costUsd'] !== undefined && !isAmount(spend['costUsd'])) return false;
   const progress = value['progress'];
   if (progress !== undefined && (!isRecord(progress) || !isAmount(progress['best']) || !isCount(progress['sinceBest']) || !Array.isArray(progress['passed']) || !progress['passed'].every(isId))) return false;
-  return iterations.every((iteration) => isRecord(iteration) && Number.isSafeInteger(iteration['n']));
+  return iterations.every((iteration) => isRecord(iteration) && Number.isSafeInteger(iteration['n'])) && goalVerifierDataReadable(value);
 }
 
 export function goalRowReadable(row: unknown): row is GoalRunRow {
   if (!isRecord(row)) return false;
   const result = row['result'];
-  return row['schema'] === 1 && isId(row['goalId']) && isId(row['projectId']) && isId(row['sessionId']) && isStatus(row['status']) &&
+  return row['schema'] === (hasGoalVerifierData(row['checkpoint']) ? 2 : 1) && isId(row['goalId']) && isId(row['projectId']) && isId(row['sessionId']) && isStatus(row['status']) &&
     isAmount(row['createdAt']) && isAmount(row['updatedAt']) && Array.isArray(row['iterationRunIds']) && row['iterationRunIds'].every(isId) &&
     (result === undefined || (isRecord(result) && typeof result['status'] === 'string' && typeof result['reason'] === 'string'));
 }
@@ -135,7 +136,7 @@ export function createGoalRun(
   run: { readonly goalId: string; readonly projectId: string; readonly sessionId: string; readonly checkpoint: unknown; readonly at: number },
 ): Promise<void> {
   const row: GoalRunRow = {
-    schema: 1, goalId: run.goalId, projectId: run.projectId, sessionId: run.sessionId, status: 'running',
+    schema: hasGoalVerifierData(run.checkpoint) ? 2 : 1, goalId: run.goalId, projectId: run.projectId, sessionId: run.sessionId, status: 'running',
     createdAt: run.at, updatedAt: run.at, checkpoint: run.checkpoint, iterationRunIds: [],
   };
   return transact<void>(store.db, [GOAL_RUN_STORE], 'readwrite', (tx, done, fail) => {
@@ -176,6 +177,10 @@ export function appendGoalCheckpoint(
       }
       if (!checkpointReadable(change.checkpoint, goalId)) {
         fail(new Error('the goal checkpoint cannot be read'));
+        return;
+      }
+      if (row.schema !== (hasGoalVerifierData(change.checkpoint) ? 2 : 1)) {
+        fail(new Error('the goal checkpoint does not match its record version'));
         return;
       }
       goals.put({ ...row, status: 'running', updatedAt: change.at, checkpoint: change.checkpoint,

@@ -4,7 +4,7 @@ import { Trans } from '@lingui/react/macro';
 import { useLingui } from '@lingui/react';
 import { Button } from '@ui-sdk/react/button';
 import { Checkbox, CheckboxIndicator } from '@ui-sdk/react/checkbox';
-import { Field, FieldError, FieldLabel } from '@ui-sdk/react/field';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@ui-sdk/react/field';
 import { Input } from '@ui-sdk/react/input';
 import { Radio, RadioGroup, RadioIndicator } from '@ui-sdk/react/radio';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@ui-sdk/react/select';
@@ -37,6 +37,8 @@ type InvalidForm = Extract<GoalFormResult, { ok: false }>;
 const needsWholeManuscript = (check: DeterministicCheckId): boolean => (BRANCH_CHECK_IDS as readonly string[]).includes(check) || check === 'medium.speaker-parity';
 
 function formError(error: InvalidForm): string {
+  if (error.code === 'advisory-only') return t`Choose a required check, or require the independent review to pass.`;
+  if (error.field === 'rubric') return error.code === 'length' ? t`Use at most 4,000 characters for the review criterion.` : t`Describe what the changed passages should satisfy.`;
   if (error.code === 'checks-off') return t`Choose at least one coherence check that is enabled in Settings.`;
   if (error.field === 'checks') return t`Choose at least one check for the goal to meet.`;
   if (error.field === 'limits') return t`Set at least one shared limit for the whole run.`;
@@ -248,6 +250,24 @@ export default function GoalComposer({ open, session, coherenceChecks, draft, un
         </div>
         {error?.field === 'limits' ? <p className="form-message is-error">{formError(error)}</p> : null}
         <div className="goal-number-row">{numeric('iterations', t`Maximum iterations (1–50)`, true, true)}{numeric('stall', t`Stop after iterations without progress`, true, true)}</div>
+      </fieldset>
+      <fieldset>
+        <legend><Trans>Independent review (optional)</Trans></legend>
+        <Choice name="goal-review" label={t`Add an independent review`} checked={form.review} onChange={(value) => update('review', value)} />
+        <p className="goal-help"><Trans>Adds up to one Background model call per completed iteration, within the shared limits above.</Trans></p>
+        {form.review ? <>
+          <Field name="rubric" className="goal-field" data-goal-field="rubric" invalid={error?.field === 'rubric'}>
+            <FieldLabel><Trans>Review criterion</Trans></FieldLabel>
+            <FieldDescription className="goal-help"><Trans>Describe what the changed passages should satisfy. Use at most 4,000 characters.</Trans></FieldDescription>
+            <Textarea rows={3} required aria-invalid={error?.field === 'rubric'} value={form.rubric} onValueChange={(value) => update('rubric', value)} />
+            {error?.field === 'rubric' ? <FieldError match>{formError(error)}</FieldError> : null}
+          </Field>
+          <Choice name="goal-review-gate" label={t`Require this review to pass`} checked={form.reviewGate} onChange={(value) => update('reviewGate', value)} />
+          <p className="goal-help">{form.reviewGate
+            ? t`A negative review can lead to another iteration. An unavailable review cannot complete the goal.`
+            : t`Advisory by default. Its verdict does not decide whether the goal passes.`}</p>
+          <p className="goal-help"><Trans>The check scope applies. Only changed, readable passages are reviewed, not the full manuscript.</Trans></p>
+        </> : null}
       </fieldset>
       {overGuard ? <div className="goal-scope-approval">
         <p><Trans>This coherence scope reads more than 20 documents.</Trans> <Trans>Documents in scope:</Trans> {formatCount(documents)}</p>
