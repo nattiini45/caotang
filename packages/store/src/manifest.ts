@@ -94,6 +94,12 @@ export interface ExportRecipeOptions {
   notes?: 'footnote' | 'endnote';
   /** The teleprompter's wrap width in characters per line (av-script.md §5). Absent = the compile's default. Only `teleprompter` reads it. */
   teleprompterWidth?: number;
+  /** The HTML article emits the YAML block a static-site generator reads (web-publishing.md §3). Absent = off. Only `html` reads it. */
+  frontMatter?: boolean;
+  /** The HTML article as a full document or as a fragment for a site template (web-publishing.md §3). Absent = standalone. Only `html` reads it. */
+  htmlMode?: 'standalone' | 'fragment';
+  /** The stylesheet the writer's site serves, emitted as the article's `<link rel="stylesheet">` (web-publishing.md §3). Only `html` reads it. */
+  css?: string;
 }
 
 /**
@@ -164,6 +170,12 @@ export interface TreeNode {
   showMeta?: Record<string, unknown>;
   /** An episode document's settings (av-script.md §2): the enclosure, episode and season numbers, and two feed URLs. */
   episodeMeta?: Record<string, unknown>;
+  /**
+   * A document's publish metadata (web-publishing.md §2): slug, `publishedAt`, tags, `canonical`, `description` and
+   * `layout`, tolerant of unknown keys. A document with no `publishedAt` is a draft; there is no separate flag. The
+   * store carries it as an object and does not read its fields: the web-publishing exports do.
+   */
+  publish?: Record<string, unknown>;
 }
 
 export interface VocabularyTerm {

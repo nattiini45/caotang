@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './test.js';
 import { readFileSync } from 'node:fs';
 import { sumUsage, type DayUsageRow } from '../packages/gateway/src/index.js';
 
@@ -822,7 +823,7 @@ test('the session total retains two real demo turns across reload and only New s
 });
 
 for (const locale of ['de', 'en-XA', 'ar-XB']) {
-  test(`usage exposes every labelled value in Modern at 390 px with ${locale} and no horizontal scrolling`, async ({ page }) => {
+  test(`usage exposes every labelled value in Modern at 390 px with ${locale} and no horizontal scrolling`, { tag: '@modern' }, async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('caotang.interface', 'modern');
       localStorage.setItem('caotang.pseudo', '1');
@@ -887,7 +888,7 @@ for (const locale of ['de', 'en-XA', 'ar-XB']) {
 }
 
 for (const locale of ['en', 'de', 'en-XA', 'ar-XB']) {
-  test(`desktop usage fits every cost and coverage note at 1280 px in ${locale}`, async ({ page }) => {
+  test(`desktop usage fits every cost and coverage note at 1280 px in ${locale}`, { tag: '@modern' }, async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('caotang.interface', 'modern');
       localStorage.setItem('caotang.pseudo', '1');

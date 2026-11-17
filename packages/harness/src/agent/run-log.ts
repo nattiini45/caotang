@@ -138,6 +138,7 @@ export interface RunLogPort {
 export interface RunLogOptions {
   readonly port: RunLogPort;
   readonly projectId: string;
+  readonly required?: () => boolean;
   /**
    * Resolves when everything the project holds in memory has reached the store. Awaited after each step and before its `step.applied`
    * is written, so an `applied` event means the write is on disk. A rejection means it could not be saved, and the run stops being
@@ -735,6 +736,7 @@ export interface RunSummary {
   readonly spend?: BudgetSpend;
   /** The spend a resumed turn's meter starts from: what was spent, and the model calls the stop lost counted as spent. */
   readonly restoredSpend: BudgetSpend;
+  readonly reservedCalls: number;
   /** Whether Resume is offered. */
   readonly resumable: boolean;
   /** Why not, or what to know first, in a sentence. */
@@ -752,6 +754,7 @@ export function summarizeRun(rows: readonly unknown[], revisions: (docId: string
     total: Math.max(replay.card?.steps.length ?? 0, replay.applied.length),
     ...(replay.spend === undefined ? {} : { spend: replay.spend }),
     restoredSpend: { ...(replay.spend ?? NO_SPEND), modelCalls: (replay.spend?.modelCalls ?? 0) + replay.reservedCalls },
+    reservedCalls: replay.reservedCalls,
   };
   if (!verdict.ok) return { ...base, resumable: false, note: `${verdict.detail}.` };
   const stale = replay.card === undefined ? 0 : replay.card.revisions.filter((read, index) => read !== undefined && !(replay.card?.completed ?? []).includes(index) && Object.entries(read).some(([id, revision]) => revisions(id) !== revision)).length;

@@ -179,6 +179,7 @@ export const OPTIONAL_NODE_FIELDS: readonly OptionalNodeField[] = [
   { key: 'comicPage', value: (node: TreeNode) => node.comicPage, write: (value) => criterion(value, 'node.comicPage') },
   { key: 'showMeta', value: (node: TreeNode) => node.showMeta, write: (value) => criterion(value, 'node.showMeta') },
   { key: 'episodeMeta', value: (node: TreeNode) => node.episodeMeta, write: (value) => criterion(value, 'node.episodeMeta') },
+  { key: 'publish', value: (node: TreeNode) => node.publish, write: (value) => criterion(value, 'node.publish') },
   { key: 'style', value: (node: TreeNode) => node.style, write: (value) => str(value as string, 'node.style') },
   { key: 'createdAt', value: (node: TreeNode) => node.createdAt, write: (value) => str(value as string, 'node.createdAt') },
   { key: 'updatedAt', value: (node: TreeNode) => node.updatedAt, write: (value) => str(value as string, 'node.updatedAt') },
@@ -187,7 +188,18 @@ export const OPTIONAL_NODE_FIELDS: readonly OptionalNodeField[] = [
 /** One optional node field: where its value is, and how it is written. */
 interface OptionalNodeField {
   /** The manifest key it is written under. */
-  readonly key: 'kind' | 'shot' | 'dialogue' | 'comic' | 'comicPage' | 'showMeta' | 'episodeMeta' | 'style' | 'createdAt' | 'updatedAt';
+  readonly key:
+    | 'kind'
+    | 'shot'
+    | 'dialogue'
+    | 'comic'
+    | 'comicPage'
+    | 'showMeta'
+    | 'episodeMeta'
+    | 'publish'
+    | 'style'
+    | 'createdAt'
+    | 'updatedAt';
   /** The node's value for it, or `undefined` when the node does not carry it. */
   readonly value: (node: TreeNode) => unknown;
   /** The text the serializer writes for it. */
@@ -547,6 +559,9 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
   if (typeof o.timelinePictures === 'boolean') pairs.push(['timelinePictures', String(o.timelinePictures)]);
   if (typeof o.colourEmoji === 'boolean') pairs.push(['colourEmoji', String(o.colourEmoji)]);
   if (o.notes === 'footnote' || o.notes === 'endnote') pairs.push(['notes', str(o.notes, 'recipe.options.notes')]);
+  if (typeof o.frontMatter === 'boolean') pairs.push(['frontMatter', String(o.frontMatter)]);
+  if (o.htmlMode === 'standalone' || o.htmlMode === 'fragment') pairs.push(['htmlMode', str(o.htmlMode, 'recipe.options.htmlMode')]);
+  if (typeof o.css === 'string') pairs.push(['css', str(o.css, 'recipe.options.css')]);
   return pairs.length === 0 ? '{}' : oneLine(pairs);
 }
 

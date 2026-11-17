@@ -125,6 +125,55 @@ describe('manifest serializer', () => {
     expect(back.project.author).toBe('Ada Writer');
   });
 
+  it('round-trips a document’s publish fields, keeps an unknown key and writes nothing when unset (web-publishing.md §2)', () => {
+    const m = rich();
+    m.tree[1]!.publish = {
+      slug: 'the-landing',
+      publishedAt: '2026-11-15T12:00:00Z',
+      tags: ['serial'],
+      canonical: 'https://example.com/posts/the-landing',
+      description: 'The ferry was late.',
+      layout: 'post',
+      customField: 'kept',
+    };
+
+    const back = JSON.parse(serializeManifest(m)) as Manifest;
+    expect(back.tree[1]!.publish).toEqual(m.tree[1]!.publish);
+    // The unknown key comes back untouched — unknown-tolerant means kept, not read.
+    expect(back.tree[1]!.publish?.['customField']).toBe('kept');
+
+    const r = validateManifest(back);
+    expect(r.ok).toBe(true);
+    if (r.ok && r.manifest !== undefined) {
+      expect(r.manifest.tree[1]!.publish).toEqual(m.tree[1]!.publish);
+    }
+
+    const bare = JSON.parse(serializeManifest(createEmptyManifest('Bare', T))) as Manifest;
+    expect(bare.tree[1]).not.toHaveProperty('publish');
+  });
+
+  it('drops a malformed named publish field with a warning and keeps the rest, so undo stays re-appliable', () => {
+    const m = rich();
+    m.tree[1]!.publish = {
+      slug: 'news/post',
+      publishedAt: '2026-02-30T00:00:00Z',
+      canonical: 'http://example.com/posts/x',
+      tags: 'serial',
+      layout: 'post',
+      // 1 500 code points but 3 000 UTF-16 units — inside the command's limit, so the load keeps it.
+      description: '🙂'.repeat(1500),
+      customField: 'kept',
+    } as unknown as Record<string, unknown>;
+
+    const r = validateManifest(m);
+    expect(r.ok).toBe(true);
+    const publish = r.manifest?.tree[1]!.publish as Record<string, unknown>;
+    expect(publish).toEqual({ layout: 'post', description: '🙂'.repeat(1500), customField: 'kept' });
+    for (const field of ['slug', 'publishedAt', 'canonical', 'tags']) {
+      expect(r.warnings.some((w) => w.path.includes(`publish.${field}`))).toBe(true);
+    }
+  });
+
   it('drops a malformed EPUB slot or recipe with a warning, and keeps the rest (load tolerance)', () => {
     const m = rich();
     (m.project as unknown as Record<string, unknown>)['language'] = '';

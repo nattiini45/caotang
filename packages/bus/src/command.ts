@@ -97,6 +97,7 @@ export const COMMAND_NAMES = [
   'binder.rename',
   'binder.setMeta',
   'binder.setSynopsis',
+  'binder.setPublish',
   'notes.set',
   'notes.append',
   'doc.write',
@@ -668,6 +669,7 @@ export interface CommandParams {
   'binder.rename': BinderRenameParams;
   'binder.setMeta': BinderSetMetaParams;
   'binder.setSynopsis': BinderSetSynopsisParams;
+  'binder.setPublish': BinderSetPublishParams;
   'notes.set': NotesSetParams;
   'notes.append': NotesAppendParams;
   'doc.write': DocWriteParams;
@@ -947,6 +949,24 @@ export type BinderSetMetaParams = { nodeId: string; patch: MetaPatch };
 
 export type BinderSetSynopsisParams = { nodeId: string; synopsis: string };
 
+/**
+ * The fields `binder.setPublish` patches (web-publishing.md §2). A named key sets the field; `null` clears it; a key
+ * left out is untouched — the same patch discipline as {@link MetaPatch}. A document with no `publishedAt` is a draft.
+ */
+export type PublishPatch = {
+  slug?: string | null;
+  publishedAt?: string | null;
+  tags?: string[] | null;
+  canonical?: string | null;
+  description?: string | null;
+  layout?: string | null;
+};
+
+/** The publish fields, in spec order — shared by the descriptor's validation and the store's apply. */
+export const PUBLISH_FIELD_NAMES = ['slug', 'publishedAt', 'tags', 'canonical', 'description', 'layout'] as const;
+
+export type BinderSetPublishParams = { nodeId: string; patch: PublishPatch };
+
 export type NotesSetParams = { nodeId: string; notes: string };
 
 export type NotesAppendParams = { nodeId: string; text: string; divider?: boolean };
@@ -1193,6 +1213,12 @@ export type RecipeOptionsParams = {
   colourEmoji?: boolean;
   /** Where the prose formats put a footnote's text (exporter.md §3). Absent: footnote — page foot in DOCX, chapter end in EPUB and plain text; endnote: document end, book end. */
   notes?: 'footnote' | 'endnote';
+  /** The HTML article emits the YAML block a static-site generator reads (web-publishing.md §3). Absent: off. Only `html` reads it. */
+  frontMatter?: boolean;
+  /** The HTML article as a full document or as a fragment for a site template (web-publishing.md §3). Absent: standalone. Only `html` reads it. */
+  htmlMode?: HtmlModeOption;
+  /** The stylesheet the writer's site serves, emitted as the article's `<link rel="stylesheet">` (web-publishing.md §3). Only `html` reads it. */
+  css?: string;
 };
 
 /**
@@ -1211,6 +1237,9 @@ export type { RecipeScriptFont, SceneNumbersOption };
 
 /** The paper of a PDF (screenplay.md §5.3, storyboard.md §6), a recipe option. */
 export type RecipePageSize = 'A4' | 'Letter';
+
+/** The HTML article's two shapes (web-publishing.md §3), a recipe option. */
+export type HtmlModeOption = 'standalone' | 'fragment';
 
 /** `recipe.save`: a named export configuration. Saving a name that exists replaces it. */
 export type RecipeSaveParams = {

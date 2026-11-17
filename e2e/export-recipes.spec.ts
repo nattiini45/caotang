@@ -44,7 +44,8 @@ test('the export dialog offers the prose formats, then the media formats, then t
 
   const prose = dialog.getByRole('group', { name: 'Prose' });
   const media = dialog.getByRole('group', { name: 'Media' });
-  await expect(prose.getByRole('radio')).toHaveCount(4);
+  await expect(prose.getByRole('radio')).toHaveCount(5);
+  await expect(prose.getByRole('radio', { name: /^Web article \(\.html\)/ })).toBeVisible();
   await expect(media.getByRole('radio')).toHaveCount(10);
   await expect(media.getByRole('radio', { name: /^Shot list \(\.xlsx\)/ })).toBeVisible();
   await expect(media.getByRole('radio', { name: /^Storyboard contact sheet \(\.pdf\)/ })).toBeVisible();

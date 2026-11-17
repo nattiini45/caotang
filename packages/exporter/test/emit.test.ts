@@ -64,6 +64,14 @@ describe('name reservation', () => {
     expect(emitter.reserve('Book', 'md')).toBe('exports/Book-2.md');
   });
 
+  it('respects a file already in exports/ under a different case — a synced folder cannot hold both', async () => {
+    const fs = new MemoryArtifactFs();
+    fs.putFile('exports/Post.html', 'old');
+    const emitter = createEmitter({ artifacts: fs });
+    await emitter.ready();
+    expect(emitter.reserve('post', 'html')).toBe('exports/post-2.html');
+  });
+
   it('respects a binary file in the byte binding, which the string folder cannot see', async () => {
     const bytesFiles = ['Book.docx'];
     const bytes: ByteArtifacts = {

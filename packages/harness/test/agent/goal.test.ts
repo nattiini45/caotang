@@ -25,6 +25,7 @@ import {
   type BudgetMeter,
   type CheckSpec,
   type Goal,
+  type GoalCheckpoint,
   type GoalOptions,
   type GoalRun,
   type RegressionChoice,
@@ -297,6 +298,21 @@ describe('a run that regresses', () => {
     const finished = await run(scripts, goalOf([SYNOPSES, LANDING_DRAFT]));
     expect(finished.status).toBe('regressed');
   });
+
+  it('protects checks that pass on resume as well as the saved passing checks', async () => {
+    const goal = goalOf([SYNOPSES, LANDING_DRAFT]);
+    const scripts = scripted(makeState(), breaks);
+    const finished = await run(scripts, goal, {
+      checkpoint: {
+        goal, iterations: [], results: [], nextIteration: 2,
+        spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 },
+        progress: { best: 2, sinceBest: 0, passed: [] },
+      },
+    });
+    expect(finished.status).toBe('regressed');
+    expect(finished.iterations.map((iteration) => iteration.n)).toEqual([2]);
+    expect(finished.askBack?.options).toEqual([...REGRESSION_OPTIONS]);
+  });
 });
 
 describe('a run that reaches a limit', () => {
@@ -556,6 +572,191 @@ describe('a goal that is refused', () => {
   });
 });
 
+describe('durable final goal results', () => {
+  it('saves already-passing results, shared spend, progress and approval without starting a turn', async () => {
+    const goal = goalOf([LANDING_DRAFT]);
+    const meter = createBudgetMeter(goal.limits);
+    meter.countStep(3);
+    const saved: GoalCheckpoint[] = [];
+    const scripts = scripted(makeState(), []);
+    const finished = await run(scripts, goal, {
+      meter,
+      approvedLargeScope: true,
+      saveCheckpoint: async (checkpoint) => { saved.push(checkpoint); },
+      saveIteration: async () => { throw new Error('there was no iteration'); },
+    });
+    expect(finished.status).toBe('passed');
+    expect(scripts.intents).toEqual([]);
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({
+      goal, results: finished.results, iterations: [], nextIteration: 1, approvedLargeScope: true,
+      spend: { steps: 3 }, progress: { best: 0, sinceBest: 0 },
+      outcome: { status: 'passed', reason: finished.reason },
+    });
+  });
+
+  it('fails closed when durable final results are refused', async () => {
+    const scripts = scripted(makeState(), []);
+    const finished = await run(scripts, goalOf([LANDING_DRAFT]), {
+      saveCheckpoint: async () => { throw new Error('disk full'); },
+    });
+    expect(finished.status).toBe('failed');
+    expect(finished.reason).toContain('final goal checkpoint could not be saved');
+    expect(finished.reason).toContain('disk full');
+    expect(finished.results.every((result) => result.pass)).toBe(true);
+    expect(scripts.intents).toEqual([]);
+  });
+
+  it('saves a no-turn failure with the latest evaluated results', async () => {
+    const saved: GoalCheckpoint[] = [];
+    const goal = goalOf([{ kind: 'coherence.clean', scope: FULL, checks: ['codex.never-mentioned'] }]);
+    const finished = await run(scripted(makeState(), []), goal, {
+      checks: { enabled: [] },
+      saveCheckpoint: async (checkpoint) => { saved.push(checkpoint); },
+    });
+    expect(finished.status).toBe('failed');
+    expect(finished.iterations).toEqual([]);
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ results: finished.results, outcome: { status: 'failed', reason: finished.reason }, approvedLargeScope: false });
+  });
+
+  it('keeps completed terminal iterations atomic without a duplicate final checkpoint save', async () => {
+    const saved: GoalCheckpoint[] = [];
+    const completed: GoalCheckpoint[] = [];
+    const scripts = scripted(makeState(), [(state) => {
+      synopsisOf(state, STORM, 'The storm arrives.');
+      synopsisOf(state, FRIEND, 'The friend returns.');
+    }]);
+    const finished = await run(scripts, goalOf([SYNOPSES]), {
+      saveCheckpoint: async (checkpoint) => { saved.push(checkpoint); },
+      saveIteration: async (checkpoint) => { completed.push(checkpoint); },
+    });
+    expect(finished.status).toBe('passed');
+    expect(saved).toHaveLength(1);
+    expect(saved[0]?.outcome).toBeUndefined();
+    expect(completed).toHaveLength(1);
+    expect(completed[0]).toMatchObject({ results: finished.results, outcome: { status: 'passed' }, approvedLargeScope: false });
+  });
+
+  it('saves the final outcome between iterations after the preceding completion was committed', async () => {
+    const saved: GoalCheckpoint[] = [];
+    const completed: GoalCheckpoint[] = [];
+    const controller = new AbortController();
+    const scripts = scripted(makeState(), [() => undefined]);
+    const finished = await run(scripts, goalOf([SYNOPSES]), {
+      signal: controller.signal,
+      saveCheckpoint: async (checkpoint) => { saved.push(checkpoint); },
+      saveIteration: async (checkpoint) => { completed.push(checkpoint); controller.abort(); },
+    });
+    expect(finished.status).toBe('cancelled');
+    expect(scripts.intents).toHaveLength(1);
+    expect(completed).toHaveLength(1);
+    expect(completed[0]?.outcome).toBeUndefined();
+    expect(saved).toHaveLength(2);
+    expect(saved[1]).toMatchObject({ nextIteration: 2, results: finished.results, outcome: { status: 'cancelled', reason: finished.reason } });
+  });
+
+  it('does not replace a refused atomic terminal completion with a checkpoint-only save', async () => {
+    const saved: GoalCheckpoint[] = [];
+    const scripts = scripted(makeState(), [(state) => {
+      synopsisOf(state, STORM, 'The storm arrives.');
+      synopsisOf(state, FRIEND, 'The friend returns.');
+    }]);
+    const finished = await run(scripts, goalOf([SYNOPSES]), {
+      saveCheckpoint: async (checkpoint) => { saved.push(checkpoint); },
+      saveIteration: async () => { throw new Error('atomic write refused'); },
+    });
+    expect(finished.status).toBe('failed');
+    expect(finished.reason).toContain('atomic write refused');
+    expect(saved).toHaveLength(1);
+    expect(saved[0]?.outcome).toBeUndefined();
+  });
+});
+
+describe('durable goal scope approval', () => {
+  const largeState = (): ProjectState => {
+    const state = makeState();
+    for (let index = 0; index < 20; index += 1) {
+      addDocument(state, { parentId: CHAPTER_TWO, title: `Extra ${index}`, body: `Words ${index}.`, now: OPENED, id: `n_EXTRA${String(index).padStart(5, '0')}` });
+    }
+    return state;
+  };
+  const coherence: CheckSpec = { kind: 'coherence.clean', scope: FULL, checks: ['codex.never-mentioned'] };
+
+  it('keeps explicit approval in admission and completed checkpoints so resume needs no new approval', async () => {
+    const goal = goalOf([coherence]);
+    const saved: GoalCheckpoint[] = [];
+    const completed: GoalCheckpoint[] = [];
+    const first = await run(scripted(largeState(), [() => undefined]), goal, {
+      approvedLargeScope: true,
+      saveCheckpoint: async (checkpoint) => { saved.push(checkpoint); },
+      saveIteration: async (checkpoint) => { completed.push(checkpoint); },
+    });
+    expect(first.status).toBe('stalled');
+    expect(saved.length).toBeGreaterThan(0);
+    expect(completed.length).toBeGreaterThan(0);
+    expect([...saved, ...completed].every((checkpoint) => checkpoint.approvedLargeScope === true)).toBe(true);
+    const checkpoint = saved[0];
+    expect(checkpoint).toBeDefined();
+    const resumed = await run(scripted(largeState(), [(state) => setBody(state, LANDING, 'Elena met Kestrel.')]), goal, { checkpoint });
+    expect(resumed.status).toBe('passed');
+  });
+
+  it.each([
+    { kind: 'coherence.clean', scope: { mode: 'changed' }, checks: ['codex.never-mentioned'] },
+    { kind: 'coherence.clean', scope: FULL, checks: ['codex.never-mentioned', 'codex.alias-collisions'] },
+  ] satisfies CheckSpec[])('does not borrow saved approval when the checks change: %j', async (changed) => {
+    const goal = goalOf([changed]);
+    const meter = createBudgetMeter(goal.limits);
+    const checkpoint = { goal: goalOf([coherence]), approvedLargeScope: true, iterations: [], results: [], nextIteration: 1, spend: meter.spend() };
+    const scripts = scripted(largeState(), []);
+    const saved: GoalCheckpoint[] = [];
+    let scans = 0;
+    const refused = await run(scripts, goal, {
+      checkpoint,
+      saveCheckpoint: async (value) => { saved.push(value); },
+      recordCoherence: () => { scans += 1; },
+    });
+    expect(refused.status).toBe('refused');
+    expect(refused.reason).toContain('over the guard');
+    expect(saved).toEqual([]);
+    expect(scans).toBe(0);
+    expect(scripts.intents).toEqual([]);
+  });
+
+  it('inherits approval for canonically equal checks and saves it in a no-turn finish', async () => {
+    const state = largeState();
+    setBody(state, LANDING, 'Elena met Kestrel.');
+    const goal = goalOf([coherence]);
+    const meter = createBudgetMeter(goal.limits);
+    const saved: GoalCheckpoint[] = [];
+    const resumed = await run(scripted(state, []), goal, {
+      approvedLargeScope: false,
+      checkpoint: {
+        goal: goalOf([{ checks: ['codex.never-mentioned'], scope: { mode: 'full' }, kind: 'coherence.clean' }]),
+        approvedLargeScope: true, iterations: [], results: [], nextIteration: 1, spend: meter.spend(),
+      },
+      saveCheckpoint: async (checkpoint) => { saved.push(checkpoint); },
+    });
+    expect(resumed.status).toBe('passed');
+    expect(resumed.iterations).toEqual([]);
+    expect(saved).toHaveLength(1);
+    expect(saved[0]?.approvedLargeScope).toBe(true);
+  });
+
+  it('saves approval as false when changed checks no longer need the guard', async () => {
+    const goal = goalOf([LANDING_DRAFT]);
+    const meter = createBudgetMeter(goal.limits);
+    const saved: GoalCheckpoint[] = [];
+    const finished = await run(scripted(makeState(), []), goal, {
+      checkpoint: { goal: goalOf([coherence]), approvedLargeScope: true, iterations: [], results: [], nextIteration: 1, spend: meter.spend() },
+      saveCheckpoint: async (checkpoint) => { saved.push(checkpoint); },
+    });
+    expect(finished.status).toBe('passed');
+    expect(saved[0]?.approvedLargeScope).toBe(false);
+  });
+});
+
 describe('the write scope', () => {
   it('ends a run whose iteration applied a write outside it, naming the document', async () => {
     const trace: TurnReport['trace'] = [{ tool: 'meta.set', callId: 'c1', outcome: 'ok', params: { targets: [FRIEND], status: 'final' } }];
@@ -692,6 +893,27 @@ describe('the write scope', () => {
     const cards: TurnReport['cards'] = [{ kind: 'confirm', tools: ['mcp__notes__append'], decision: 'approved', edits: 0, retries: 0 }];
     const finished = await run(scripted(makeState(), [() => ({ trace, cards })]), goalOf([SYNOPSES], { writeScope: { mode: 'doc', docIds: [root] } }));
     expect(finished.status).toBe('out-of-scope');
+  });
+
+  it('adds live goal rules in an isolated harness view without replacing base rules or shared history', () => {
+    const state = makeState();
+    const base = createHarness({ state, rules: () => ({ rules: [{ effect: 'deny', tool: 'meta.set', access: 'write', source: 'project' }] }) });
+    let scoped = false;
+    const view = base.withRules(() => scoped ? goalRules(undefined, { mode: 'doc', docIds: [STORM] }, state)() : { rules: [] });
+    expect(view.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeUndefined();
+    scoped = true;
+    expect(view.undo).toBe(base.undo);
+    expect(view.log).toBe(base.log);
+    expect(view.state).toBe(base.state);
+    expect(view.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeDefined();
+    expect(base.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeUndefined();
+    expect(view.ruleCheck('meta.set', { targets: [STORM], status: 'final' }).denied).toBeDefined();
+    const nested = view.withRules(() => ({ rules: [] }));
+    expect(nested.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeDefined();
+    scoped = false;
+    expect(view.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeUndefined();
+    expect(nested.ruleCheck('mcp__notes__append', {}, { writes: true }).denied).toBeUndefined();
+    expect(view.ruleCheck('meta.set', { targets: [STORM], status: 'final' }).denied).toBeDefined();
   });
 
   it('is judged against the tree as it was before the turn, so a rename does not hide the target', async () => {

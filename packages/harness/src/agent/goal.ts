@@ -6,11 +6,11 @@
  * `session.submit` turn, so it has its own cards, its own checkpoint and its own entry in the run log, and it is held to the mode, the
  * rules and the run limits the session carries. A goal adds no approval shortcut: every card the mode does not approve still asks.
  *
- * The record of a run (`GoalRun`) is held in memory. Nothing here survives a reload.
+ * A host can keep the checkpoint ahead of each iteration. The host owns its durable storage and explicit recovery.
  */
 
 import type { CommandError, Result, UndoOutcome } from '@caotang/bus';
-import { DETERMINISTIC_CHECK_IDS, runDeterministic, type DeterministicCheckId, type ScopeSpec } from '@caotang/coherence';
+import { DETERMINISTIC_CHECK_IDS, runDeterministic, type CoherenceFile, type DeterministicCheckId, type ScopeSpec } from '@caotang/coherence';
 import type { ProjectState, TreeNode } from '@caotang/store';
 
 import { metadataFor } from '../metadata.js';
@@ -20,7 +20,7 @@ import { NO_RULES, type RulesProvider, type SourcedRule } from '../rules.js';
 import { TOOL_TARGETS } from '../targets.js';
 import { countIn, heldFile } from '../tools/coherence.js';
 import { canonicalJson } from '../util.js';
-import type { BudgetMeter, BudgetStop, RunLimits } from './budget.js';
+import type { BudgetMeter, BudgetSpend, BudgetStop, RunLimits } from './budget.js';
 import { checkKey, checkLabel, checkSpecProblem, documentsInScope, evaluateChecks, excludedBy, largeScopes, type CheckOptions, type CheckResult, type CheckSpec } from './checks.js';
 import type { TurnReport } from './events.js';
 import type { AgentSession, SubmitOptions } from './loop.js';
@@ -94,6 +94,17 @@ export interface GoalRun {
   readonly notes: readonly string[];
 }
 
+export interface GoalCheckpoint {
+  readonly goal: Goal;
+  readonly approvedLargeScope?: boolean;
+  readonly iterations: readonly IterationRecord[];
+  readonly results: readonly CheckResult[];
+  readonly nextIteration: number;
+  readonly spend: BudgetSpend;
+  readonly progress?: { readonly best: number; readonly sinceBest: number; readonly passed: readonly string[] };
+  readonly outcome?: Pick<GoalRun, 'status' | 'reason' | 'askBack' | 'budgetStop'>;
+}
+
 /** A check that passed earlier and fails now. */
 export interface Regression {
   readonly iteration: number;
@@ -134,8 +145,11 @@ export interface GoalOptions {
   readonly onRegression?: (regression: Regression) => Promise<RegressionChoice> | RegressionChoice;
   /** Told after each iteration. The run waits for it; a throw or a rejection becomes a note and does not lose the run. */
   readonly onIteration?: (record: IterationRecord) => void | Promise<void>;
+  readonly saveCheckpoint?: (checkpoint: GoalCheckpoint) => Promise<void>;
+  readonly checkpoint?: GoalCheckpoint;
+  readonly saveIteration?: (checkpoint: GoalCheckpoint, record: IterationRecord) => Promise<void>;
   /** Where the one coherence run goes. Default: the project's held coherence file. */
-  readonly recordCoherence?: (file: NonNullable<ProjectState['coherence']>) => void;
+  readonly recordCoherence?: (file: CoherenceFile) => void;
 }
 
 export interface GoalRunner {
@@ -351,11 +365,13 @@ export function createGoalRunner(): GoalRunner {
       });
       const problem = goalProblem({ ...goal, checks }, meter);
       if (problem !== undefined) return refuse(problem);
+      const approvedLargeScope = options.approvedLargeScope === true ||
+        (options.checkpoint?.approvedLargeScope === true && canonicalJson(options.checkpoint.goal.checks) === canonicalJson(goal.checks));
 
       // The scope guard (coherence.md §6.2) is satisfied here, once. The scan the run ends with reads a scope too, so it counts.
       const plan = scanPlan(checks, options.checks?.enabled);
       const large = largeScopes(plan === undefined ? checks : [...checks, { kind: 'coherence.clean', scope: plan.scope }], state, options.withheld());
-      if (large.length > 0 && options.approvedLargeScope !== true) {
+      if (large.length > 0 && !approvedLargeScope) {
         return refuse(`a coherence scope of this goal reads ${large[0]?.documents} documents, over the guard that asks first; approve the scope when setting the goal, or narrow it`);
       }
       // A words, status or synopsis check over a scope that holds nothing would pass without measuring anything: the writer probably aimed
@@ -382,18 +398,41 @@ export function createGoalRunner(): GoalRunner {
       const writeScope: WriteScope = goal.writeScope ?? { mode: 'full' };
       const evaluate = (): readonly CheckResult[] => evaluateChecks(checks, state, { ...(options.checks ?? {}), now: now(), withheld: options.withheld() });
 
-      const iterations: IterationRecord[] = [];
+      const iterations: IterationRecord[] = structuredClone([...(options.checkpoint?.iterations ?? [])]);
       const notes: string[] = [];
       // Said once: a failure that recurs on every iteration is one clause in `notes` and in `reason`, not one per iteration.
       const note = (text: string): void => {
         if (!notes.includes(text)) notes.push(text);
       };
       let results = evaluate();
-      const passedBefore = new Set(results.filter((result) => result.pass).map((result) => result.key));
-      let best = sum(results);
-      let sinceBest = 0;
+      const passedBefore = new Set([...(options.checkpoint?.progress?.passed ?? []), ...results.filter((result) => result.pass).map((result) => result.key)]);
+      let best = options.checkpoint?.progress?.best ?? sum(iterations[0]?.before ?? results);
+      let sinceBest = options.checkpoint?.progress?.sinceBest ?? 0;
+      if (options.checkpoint?.progress === undefined) for (const iteration of iterations) {
+        if (iteration.distance.after < best) {
+          best = iteration.distance.after;
+          sinceBest = 0;
+        } else sinceBest += 1;
+      }
+      let nextIteration = options.checkpoint?.nextIteration ?? 1;
+      let completed: IterationRecord | undefined;
+      const checkpoint = (outcome?: GoalCheckpoint['outcome']): GoalCheckpoint => structuredClone({
+        goal, approvedLargeScope, iterations, results, nextIteration, spend: meter.spend(),
+        progress: { best, sinceBest, passed: [...passedBefore] }, ...(outcome === undefined ? {} : { outcome }),
+      });
+      const commitIteration = async (outcome?: GoalCheckpoint['outcome']): Promise<string | undefined> => {
+        const record = completed;
+        completed = undefined;
+        if (record === undefined || options.saveIteration === undefined) return undefined;
+        try {
+          await options.saveIteration(checkpoint(outcome), record);
+          return undefined;
+        } catch (error) {
+          return `the completed goal checkpoint could not be saved after iteration ${record.n}: ${error instanceof Error ? error.message : 'storage refused'}`;
+        }
+      };
 
-      const finish = (status: GoalStatus, reason: string, extra: Pick<GoalRun, 'askBack' | 'budgetStop'> = {}): GoalRun => {
+      const finish = async (status: GoalStatus, reason: string, extra: Pick<GoalRun, 'askBack' | 'budgetStop'> = {}): Promise<GoalRun> => {
         let scanRunId: string | undefined;
         if (plan !== undefined) {
           let scanned: ReturnType<typeof runDeterministic> | undefined;
@@ -420,7 +459,7 @@ export function createGoalRunner(): GoalRunner {
           // Recording is a second step with its own failure: the scan ran, but it is not the last scan in Findings.
           if (scanned !== undefined) {
             try {
-              const file = scanned.file as NonNullable<ProjectState['coherence']>;
+              const file = scanned.file;
               if (options.recordCoherence === undefined) state.coherence = file;
               else options.recordCoherence(file);
               scanRunId = scanned.run.id;
@@ -432,18 +471,42 @@ export function createGoalRunner(): GoalRunner {
           }
         }
         // The status stays what the checks say; the notes ride along in the one sentence the host shows the writer.
-        return { goal, status, reason: [reason, ...notes].join('; '), iterations, results, notes, ...extra, ...(scanRunId === undefined ? {} : { scanRunId }) };
+        const said = [reason, ...notes].join('; ');
+        const outcome = { status, reason: said, ...extra };
+        const savesIteration = completed !== undefined && options.saveIteration !== undefined;
+        let failed = await commitIteration(outcome);
+        if (!savesIteration && options.saveCheckpoint !== undefined) {
+          try {
+            await options.saveCheckpoint(checkpoint(outcome));
+          } catch (error) {
+            failed = `the final goal checkpoint could not be saved: ${error instanceof Error ? error.message : 'storage refused'}`;
+          }
+        }
+        return { goal, status: failed === undefined ? status : 'failed', reason: failed ?? said, iterations, results, notes, ...extra, ...(scanRunId === undefined ? {} : { scanRunId }) };
       };
 
+      if (options.checkpoint?.outcome !== undefined) return { goal, ...options.checkpoint.outcome, iterations, results, notes };
       if (results.every((result) => result.pass)) return finish('passed', 'every check already passes, so no turn was needed');
       if (onlyUnmeetable(results)) return finish('failed', unmeetableReason(results));
 
       for (;;) {
         if (options.signal?.aborted === true) return finish('cancelled', 'the writer stopped the run');
         const limit = meter.stopped();
-        if (limit !== undefined) return finish('budget', `the run reached its ${limit.dimension} limit before iteration ${iterations.length + 1}`, { budgetStop: limit });
+        if (limit !== undefined) return finish('budget', `the run reached its ${limit.dimension} limit before iteration ${nextIteration}`, { budgetStop: limit });
 
-        const n = iterations.length + 1;
+        const n = nextIteration;
+        if (n > maxIterations) return finish('max-iterations', `the run made its ${plural(maxIterations, 'iteration')} without every check passing (${sum(results)} left)`);
+        if (options.saveCheckpoint !== undefined) {
+          try {
+            await options.saveCheckpoint(checkpoint());
+          } catch (error) {
+            return { goal, status: 'failed', reason: `the goal checkpoint could not be saved before iteration ${n}: ${error instanceof Error ? error.message : 'storage refused'}`, iterations, results, notes };
+          }
+          const stoppedAfterSave = Boolean(options.signal?.aborted);
+          if (stoppedAfterSave) return finish('cancelled', 'the writer stopped the run');
+          const savedLimit = meter.stopped();
+          if (savedLimit !== undefined) return finish('budget', `the run reached its ${savedLimit.dimension} limit before iteration ${n}`, { budgetStop: savedLimit });
+        }
         const before = results;
         const intent = iterationIntent(goal, before, n);
         const treeBefore = state.manifest.tree.map((node) => ({ ...node }));
@@ -457,6 +520,17 @@ export function createGoalRunner(): GoalRunner {
         const breaches = scopeBreaches(report, state, treeBefore, writeScope);
         const record: IterationRecord = { n, turnId: report.turnId, intent, before, after: results, report, distance: { before: sum(before), after: sum(results) }, outOfScope: breaches };
         iterations.push(record);
+        nextIteration = n + 1;
+        completed = record;
+        const broken = results.filter((result) => !result.pass && passedBefore.has(result.key));
+        for (const result of results) if (result.pass) passedBefore.add(result.key);
+        const total = sum(results);
+        if (total < best) {
+          best = total;
+          sinceBest = 0;
+        } else {
+          sinceBest += 1;
+        }
         try {
           await options.onIteration?.(record);
         } catch (error) {
@@ -479,8 +553,6 @@ export function createGoalRunner(): GoalRunner {
         // What is left cannot be done by writing: another turn would be paid for and could not help.
         if (onlyUnmeetable(results)) return finish('failed', unmeetableReason(results));
 
-        const broken = results.filter((result) => !result.pass && passedBefore.has(result.key));
-        for (const result of results) if (result.pass) passedBefore.add(result.key);
         if (broken.length > 0) {
           const askBack: AskBack = {
             code: 'needs_input',
@@ -515,15 +587,10 @@ export function createGoalRunner(): GoalRunner {
           for (const result of broken) passedBefore.delete(result.key);
         }
 
-        const total = sum(results);
-        if (total < best) {
-          best = total;
-          sinceBest = 0;
-        } else {
-          sinceBest += 1;
-        }
         if (sinceBest >= stallAfter) return finish('stalled', `the checks are no closer after ${plural(stallAfter, 'iteration')} (${total} left), so the run stopped`);
         if (n >= maxIterations) return finish('max-iterations', `the run made its ${plural(maxIterations, 'iteration')} without every check passing (${total} left)`);
+        const failed = await commitIteration();
+        if (failed !== undefined) return finish('failed', failed);
       }
     },
   };

@@ -639,6 +639,11 @@ msgstr "{count, plural, one {{name}: von dieser Einstellung genannt, sendet # Re
 msgid "{count, plural, one {# change applied. Undo restores it.} other {# changes applied. Undo restores them.}}"
 msgstr "{count, plural, one {# Änderung angewendet. Rückgängig stellt sie wieder her.} other {# Änderungen angewendet. Rückgängig stellt sie wieder her.}}"
 
+#. count is the number of skipped checks or documents in the saved result.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "{count, plural, one {# check or document was skipped. It is not evidence of a pass.} other {# checks or documents were skipped. They are not evidence of a pass.}}"
+msgstr "{count, plural, one {# Prüfung oder Dokument wurde übersprungen. Das belegt kein Bestehen.} other {# Prüfungen oder Dokumente wurden übersprungen. Sie belegen kein Bestehen.}}"
+
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "{count, plural, one {# day} other {# days}}"
@@ -1307,6 +1312,16 @@ msgstr "{lines, plural, one {Ein Inhaltsverzeichnis (# Zeile) wird weggelassen.}
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "{lines, plural, one {Leave it out (# line)} other {Leave it out (# lines)}}"
 msgstr "{lines, plural, one {Weglassen (# Zeile)} other {Weglassen (# Zeilen)}}"
+
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#: apps/desktop/src/components/export-preview-model.ts
+msgid "{lines} {lineCount, plural, one {chapter} other {chapters}} in {scenes} {sceneCount, plural, one {episode} other {episodes}}"
+msgstr "{lines} {lineCount, plural, one {Kapitel} other {Kapitel}} in {scenes} {sceneCount, plural, one {Episode} other {Episoden}}"
+
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#: apps/desktop/src/components/export-preview-model.ts
+msgid "{lines} {lineCount, plural, one {cue} other {cues}} in {scenes} {sceneCount, plural, one {episode} other {episodes}}, {words} {wordCount, plural, one {word} other {words}}"
+msgstr "{lines} {lineCount, plural, one {Cue} other {Cues}} in {scenes} {sceneCount, plural, one {Episode} other {Episoden}}, {words} {wordCount, plural, one {Wort} other {Wörter}}"
 
 #. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
 #: apps/desktop/src/components/export-preview-model.ts
@@ -2152,6 +2167,15 @@ msgstr "{untimed, plural, one {{seconds} s Animatic, wobei # Einstellung wegen f
 msgid "{useCount, plural, one {Used in # place} other {Used in # places}}"
 msgstr "{useCount, plural, one {Verwendet an # Stelle} other {Verwendet an # Stellen}}"
 
+#. used and limit are the recorded amount and its bound; the adjacent label names the unit.
+#. used and limit are the recorded amount and its bound; the adjacent label names the unit.
+#. used and limit are the recorded amount and its bound; the adjacent label names the unit.
+#. used and limit are the recorded amount and its bound; the adjacent label names the unit.
+#. used and limit are the recorded amount and its bound; the adjacent label names the unit.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "{used} of {limit}"
+msgstr "{used} von {limit}"
+
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "{used} of {limit} characters"
@@ -2356,6 +2380,11 @@ msgstr "≈ {pace}/Tag, um diese Woche abzuschließen"
 msgid "1 item"
 msgstr "1 Element"
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "2026-11-15T12:00:00Z"
+msgstr "2026-11-15T12:00:00Z"
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "a “Chapter” line"
@@ -2453,6 +2482,10 @@ msgstr "Eine Sprechblase verwendet einen Geviertstrich statt eines Doppelstrichs
 msgid "a batch takes at most {TIMELINE_OPS_MAX} changes"
 msgstr "Ein Stapel umfasst höchstens {TIMELINE_OPS_MAX} Änderungen"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "A binder document or folder"
+msgstr "Ein Dokument oder Ordner im Binder"
+
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
 #: apps/desktop/src/components/AgentQueue.tsx
 msgid "A card is waiting for your decision. Your note: <0><1/></0>"
@@ -2506,6 +2539,11 @@ msgstr "Ein Comic mit seiner ersten Seite"
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "A comic page belongs to a comic book. Move it into one, or choose another item."
 msgstr "Eine Comic-Seite gehört zu einem Comicbuch. Verschieben Sie sie in eines oder wählen Sie einen anderen Eintrag."
+
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "A comma-separated list"
+msgstr "Eine durch Kommas getrennte Liste"
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -2596,6 +2634,11 @@ msgstr "ein Dokument, das nicht mehr im Projekt ist"
 msgid "A document that is no longer in the project"
 msgstr "Ein Dokument, das nicht mehr im Projekt ist"
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "A document with no publish date is a draft: it compiles into a preview but stays out of a feed."
+msgstr "Ein Dokument ohne Veröffentlichungsdatum ist ein Entwurf: Es wird in eine Vorschau kompiliert, bleibt aber aus einem Feed heraus."
+
 #. Interpolated values: what, who
 #: apps/desktop/src/app/knowledge-model.ts
 msgid "a fact that is gone"
@@ -2650,6 +2693,25 @@ msgstr "Ein Ziel braucht eine ganze Zahl an Zeichen über null."
 msgid "A goal needs a whole number of words above zero."
 msgstr "Ein Ziel braucht eine ganze Zahl an Wörtern über null."
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "A goal of this project."
+msgstr "Ein Ziel dieses Projekts."
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "A goal or turn is active. Wait for it to finish."
+msgstr "Ein Ziellauf oder eine Agentenrunde ist aktiv. Warten Sie, bis die Arbeit beendet ist."
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "A goal run is still marked as running"
+msgstr "Ein Ziellauf ist noch als laufend markiert"
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "A goal run was interrupted"
+msgstr "Ein Ziellauf wurde unterbrochen"
+
 #. Interpolated values: error, name, reason, refused
 #: apps/desktop/src/app/furniture-store.ts
 msgid "a goal: {reason}"
@@ -2700,6 +2762,11 @@ msgstr "Ein großer Sprung in den Epilog oder aus dem Prolog wird nie als Lücke
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "A mention inside one of these phrases is not counted."
 msgstr "Eine Erwähnung innerhalb einer dieser Phrasen wird nicht gezählt."
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "A model call’s usage was not recorded. Any token, cost or active-time limits are treated as spent."
+msgstr "Die Nutzung eines Modellaufrufs wurde nicht aufgezeichnet. Vorhandene Token-, Kosten- und Aktivzeitlimits gelten als ausgeschöpft."
 
 #. Interpolated values: bytes, folder, max, name, path, problem, size, taken
 #: apps/desktop/src/app/skills-model.ts
@@ -2887,6 +2954,10 @@ msgstr "Eine Skriptzeile auf Seite {page}, Panel {panel}, zeigt auf eine Sprechb
 msgid "a seed is a whole number from {first} to {last}"
 msgstr "Ein Seed ist eine ganze Zahl von {first} bis {last}"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "A selected check is off in Settings. Deselect it here, or enable it there."
+msgstr "Eine ausgewählte Prüfung ist in den Einstellungen ausgeschaltet. Wählen Sie sie hier ab oder schalten Sie sie dort ein."
+
 #. Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number.
 #: apps/desktop/src/media/prompt-pack-model.ts
 msgid "A shot"
@@ -2936,6 +3007,11 @@ msgstr "Eine Tabelle wurde zu Absätzen."
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "A tag may be at most {max} characters."
 msgstr "Ein Tag darf höchstens {max} Zeichen haben."
+
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "A template name, passed through"
+msgstr "Ein Vorlagenname, unverändert übernommen"
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
@@ -3132,6 +3208,14 @@ msgstr "Aktiv"
 #: apps/desktop/src/components/Settings.tsx
 msgid "Active profile"
 msgstr "Aktives Profil"
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Active seconds"
+msgstr "Aktive Sekunden"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Active-time limit (minutes)"
+msgstr "Limit für aktive Zeit (Minuten)"
 
 #. Interpolated values: source, summary
 #. Modern interface: the binder tab bar and the sidebar beside it.
@@ -3580,6 +3664,10 @@ msgstr "Alle"
 msgid "All changes saved in this browser"
 msgstr "Alle Änderungen in diesem Browser gespeichert"
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "All saved distances:"
+msgstr "Alle gespeicherten Abstände:"
+
 #. Words on the story timeline's axis and in a scene's accessible name. Interpolated values: days, count, n, text, span, anchor, lower, rest, dayLabel, endLabel, durationDays, openFindings, title, part, name, names, folder.
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "All scenes"
@@ -3605,6 +3693,10 @@ msgstr "Diese Aufgabe automatisch starten lassen?"
 #: apps/desktop/src/app/agent.ts
 msgid "Allow write access to the project folder, then retry the folder copy."
 msgstr "Erlauben Sie Schreibzugriff auf den Projektordner und versuchen Sie die Ordnerkopie erneut."
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Allowed binder item:"
+msgstr "Erlaubter Eintrag im Binder:"
 
 #. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx
@@ -3934,6 +4026,10 @@ msgstr "Die ausgewählten Seiten genehmigen"
 msgid "Approve these prompts and templates"
 msgstr "Diese Prompts und Vorlagen genehmigen"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Approve this large read scope, or narrow the checks before starting."
+msgstr "Stimmen Sie diesem großen Lesebereich zu oder grenzen Sie die Prüfungen vor dem Start ein."
+
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "Approve this skill"
@@ -4091,6 +4187,11 @@ msgstr "Seitenverhältnis"
 msgid "At least"
 msgstr "Mindestens"
 
+#. words is the minimum word count for each document in this check.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "At least {words} words."
+msgstr "Mindestens {words} Wörter."
+
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #: apps/desktop/src/components/InspectorGoals.tsx
 msgid "At most"
@@ -4100,6 +4201,16 @@ msgstr "Höchstens"
 #: apps/desktop/src/components/TaskAllowanceDialog.tsx
 msgid "At most {calls} model calls per run. A lower limit in Settings still applies."
 msgstr "Höchstens {calls} Modellaufrufe pro Durchlauf. Eine niedrigere Grenze in den Einstellungen gilt weiterhin."
+
+#. words is the maximum word count per synopsis in this check.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "At most {words} words per synopsis."
+msgstr "Höchstens {words} Wörter je Synopsis."
+
+#. words is the maximum word count for each document in this check.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "At most {words} words."
+msgstr "Höchstens {words} Wörter."
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -4290,6 +4401,10 @@ msgstr "Anhang"
 #: apps/desktop/src/components/ProviderSetup.tsx
 msgid "Back to a key from a provider"
 msgstr "Zurück zu einem Schlüssel von einem Anbieter"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Back to one turn"
+msgstr "Zur Einzelrunde"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
@@ -4495,6 +4610,10 @@ msgstr "Binder"
 #: apps/desktop/src/components/Binder.tsx
 msgid "Binder actions"
 msgstr "Binder-Aktionen"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Binder document or folder"
+msgstr "Dokument oder Ordner im Binder"
 
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
@@ -4826,6 +4945,11 @@ msgstr "Wird abgebrochen…"
 msgid "Cannot resume: "
 msgstr "Fortsetzen nicht möglich: "
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "Canonical address"
+msgstr "Kanonische Adresse"
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Caotang"
@@ -4937,6 +5061,11 @@ msgstr "Bildunterschrift"
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "Caption when there is no image"
 msgstr "Bildunterschrift, wenn es kein Bild gibt"
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Captions (.vtt)"
+msgstr "Untertitel (.vtt)"
 
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #: apps/desktop/src/components/CardPictureDialog.tsx
@@ -5065,6 +5194,10 @@ msgstr "Seit der Prüfung geändert"
 msgid "Changed since review"
 msgstr "Seit der Überprüfung geändert"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Changed since the last review"
+msgstr "Seit der letzten Prüfung geändert"
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "Changed since the last scan"
@@ -5152,6 +5285,11 @@ msgstr "Kapitel {number}"
 msgid "Chapter headings in capitals, scenes set apart by a line."
 msgstr "Kapitelüberschriften in Großbuchstaben, Szenen durch eine Zeile getrennt."
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Chapters (.json)"
+msgstr "Kapitel (.json)"
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Chapters are found by more than one kind of line: {families}."
@@ -5238,6 +5376,7 @@ msgstr "Chat"
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/GoalRecovery.tsx
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Check"
 msgstr "Prüfung"
@@ -5270,6 +5409,10 @@ msgstr "Schlüssel prüfen"
 #: apps/desktop/src/app/activity-model.ts
 msgid "Check run discarded"
 msgstr "Prüflauf verworfen"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Check scope"
+msgstr "Prüfbereich"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
@@ -5338,6 +5481,10 @@ msgstr "Prüfungen für {vendor}"
 msgid "Checks for this pack"
 msgstr "Prüfungen für dieses Pack"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Checks that must pass"
+msgstr "Prüfungen, die bestehen müssen"
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "checks, encoding work and plans sent to the background"
@@ -5354,6 +5501,10 @@ msgstr "Prüfpunkte: {categories}. Höchstens {findings} Feststellungen werden b
 msgid "Choices"
 msgstr "Auswahl"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Choose a binder document or folder"
+msgstr "Ein Dokument oder einen Ordner im Binder wählen"
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Choose a character…"
@@ -5368,6 +5519,10 @@ msgstr "Einen Kodexeintrag oder ein Bild wählen"
 #: apps/desktop/src/components/Inspector.tsx
 msgid "Choose a document in the binder to see and edit its synopsis, notes and keywords."
 msgstr "Wählen Sie ein Dokument im Binder, um seine Zusammenfassung, Notizen und Stichwörter zu sehen und zu bearbeiten."
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Choose a document, or change the check scope."
+msgstr "Wählen Sie ein Dokument oder ändern Sie den Prüfbereich."
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -5423,6 +5578,10 @@ msgstr "Wählen Sie eine Szene oder ein Dokument, markieren Sie die Wörter, die
 msgid "Choose a scene…"
 msgstr "Eine Szene wählen…"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Choose a status"
+msgstr "Status auswählen"
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Choose a vendor template"
@@ -5477,6 +5636,18 @@ msgstr "Einen anderen Ordner wählen…"
 msgid "Choose another status to see the findings in it."
 msgstr "Einen anderen Status wählen, um die Feststellungen darin zu sehen."
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Choose at least one check for the goal to meet."
+msgstr "Wählen Sie mindestens eine Prüfung, die das Ziel erfüllen soll."
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Choose at least one coherence check that is enabled in Settings."
+msgstr "Wählen Sie mindestens eine Kohärenzprüfung, die in den Einstellungen eingeschaltet ist."
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Choose at least one enabled coherence check."
+msgstr "Wählen Sie mindestens eine eingeschaltete Kohärenzprüfung."
+
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
 msgid "Choose cover…"
@@ -5512,6 +5683,10 @@ msgstr "Die fotografierten Seiten wählen"
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "Choose the values sent"
 msgstr "Gesendete Werte selbst festlegen"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Choose what must pass. Each turn keeps your permission mode and approval cards."
+msgstr "Wählen Sie, was bestehen muss. Ihr Berechtigungsmodus und die Freigabekarten gelten in jeder Runde weiter."
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
@@ -5712,6 +5887,14 @@ msgstr "Kodex einbezogen"
 #: apps/desktop/src/components/Settings.tsx
 msgid "Coherence"
 msgstr "Kohärenz"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Coherence checks to include"
+msgstr "Einzubeziehende Kohärenzprüfungen"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Coherence needs exactly one live document here. Choose the current document or adjust the scope."
+msgstr "Kohärenz benötigt hier genau ein aktives Dokument. Wählen Sie das aktuelle Dokument oder passen Sie den Bereich an."
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -5985,6 +6168,20 @@ msgstr "abgeschlossen"
 msgid "Complete before and after values"
 msgstr "Vor- und Nachwerte vervollständigen"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Complete the required goal fields before approving this read scope."
+msgstr "Füllen Sie die erforderlichen Zielfelder aus, bevor Sie diesem Lesebereich zustimmen."
+
+#. iterations is the number of completed goal iterations.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Completed iterations: {iterations}"
+msgstr "Abgeschlossene Durchläufe: {iterations}"
+
+#. iterations is the completed count; maximum is the goal’s iteration limit.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Completed iterations: {iterations} of {maximum}"
+msgstr "Abgeschlossene Durchläufe: {iterations} von {maximum}"
+
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #: apps/desktop/src/app/mcp-model.ts
 msgid "Configured"
@@ -5999,6 +6196,11 @@ msgstr "Hinzufügen von Zeilen-IDs bestätigen"
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Connect"
 msgstr "Verbinden"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Connect a provider in Settings before starting a goal."
+msgstr "Verbinden Sie in den Einstellungen einen Anbieter, bevor Sie ein Ziel starten."
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -6183,9 +6385,14 @@ msgstr "Pinnwand-Bereich geändert"
 
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/GoalRecovery.tsx
 #: apps/desktop/src/components/UsagePanel.tsx
 msgid "Cost"
 msgstr "Kosten"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Cost limit (USD)"
+msgstr "Kostenlimit (USD)"
 
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
@@ -6699,10 +6906,12 @@ msgid "harness.progress.shotsDerive.active"
 msgstr "Einstellungen werden abgeleitet"
 
 #. Interpolated values: parent, title, amount
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/CodexPanel.tsx
+#: apps/desktop/src/components/InspectorSections.tsx
 msgid "Description"
 msgstr "Beschreibung"
 
@@ -6738,6 +6947,11 @@ msgstr "Von einem entfernten Element lösen"
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Details of {title}"
 msgstr "Details zu {title}"
+
+#. check is the translated name of a deterministic goal check.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Details: {check}"
+msgstr "Details: {check}"
 
 #: apps/desktop/src/app/codex-model.ts
 msgid "Detected"
@@ -6844,6 +7058,10 @@ msgstr "Lauf von {at} verwerfen"
 msgid "Discard the changes and leave"
 msgstr "Die Änderungen verwerfen und gehen"
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Discard the goal record"
+msgstr "Den Zieleintrag verwerfen"
+
 #. Interpolated values: count, stamp, titles
 #: apps/desktop/src/components/UnsentWords.tsx
 msgid "Discard them"
@@ -6870,6 +7088,10 @@ msgstr "{run} verworfen"
 #: packages/store/src/commands-coherence.ts
 msgid "store.coherence.discardRunWithFindings"
 msgstr "{run} verworfen und {count} unberührte {count, plural, one {Feststellung} other {Feststellungen}}, die er erstellt hat"
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Discarding the goal…"
+msgstr "Zieldatensatz wird verworfen…"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
@@ -6994,6 +7216,10 @@ msgstr "Dokumenttext"
 #: apps/desktop/src/app/integrity-model.ts
 msgid "Documents"
 msgstr "Dokumente"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Documents in scope:"
+msgstr "Dokumente im Bereich:"
 
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
@@ -7519,6 +7745,11 @@ msgstr "Aktivieren"
 msgid "Enable {name}"
 msgstr "{name} aktivieren"
 
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Enable at least one coherence check in Settings before setting a clean-scope goal."
+msgstr "Schalten Sie in den Einstellungen mindestens eine Kohärenzprüfung ein, bevor Sie ein Ziel für einen fehlerfreien Bereich setzen."
+
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
@@ -7556,6 +7787,18 @@ msgstr "Engine-Ziel"
 msgctxt "keyboard key"
 msgid "Enter"
 msgstr "Eingabe"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Enter a finite, non-negative number, or leave this optional limit empty."
+msgstr "Geben Sie eine endliche Zahl ab null ein oder lassen Sie dieses optionale Limit leer."
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Enter a non-negative whole number."
+msgstr "Geben Sie eine ganze Zahl ab null ein."
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Enter a whole number greater than zero."
+msgstr "Geben Sie eine ganze Zahl größer als null ein."
 
 #: apps/desktop/src/app/keymap.ts
 msgid "Enter or Space"
@@ -7635,6 +7878,22 @@ msgstr "Ereignisse"
 msgid "Every card of the agent’s own tools is approved as shown, inside the turn’s budgets."
 msgstr "Jede Karte der eigenen Werkzeuge des Agenten wird wie gezeigt genehmigt, innerhalb der Budgets der Runde."
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Every document has a status"
+msgstr "Jedes Dokument hat einen Status"
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Every document has the target status"
+msgstr "Jedes Dokument hat den Zielstatus"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Every document meets a word range"
+msgstr "Jedes Dokument liegt im Wortbereich"
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Every document meets its word bounds"
+msgstr "Jedes Dokument hält seine Wortgrenzen ein"
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Every quick check is off in Settings, so this run would check nothing. Turn checks on in Settings › Coherence."
@@ -7654,6 +7913,11 @@ msgstr "Jede Schnellprüfung ist in den Einstellungen ausgeschaltet, daher würd
 #: apps/desktop/src/media/prompt-edit-model.ts
 msgid "every reference names a codex entry or a project image, or is taken out"
 msgstr "jede Referenz nennt einen Kodex-Eintrag oder ein Projektbild, oder sie wird entfernt"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Every synopsis is filled"
+msgstr "Jede Synopsis ist ausgefüllt"
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -8003,6 +8267,10 @@ msgstr "Füllen Sie beide Felder aus, um die Kosten eines Schritts zu sehen. Lee
 msgid "Fill in the synopses"
 msgstr "Zusammenfassungen ausfüllen"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Fill in this field before starting the goal."
+msgstr "Füllen Sie dieses Feld aus, bevor Sie das Ziel starten."
+
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.synopsisFill.none.content"
@@ -8182,10 +8450,20 @@ msgstr "Erste Lesung:"
 msgid "Fit all"
 msgstr "Alles einpassen"
 
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Fix all in scope until clean"
+msgstr "Alle Befunde im Bereich beheben"
+
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
 #: apps/desktop/src/media/PromptPackPanel.tsx
 msgid "Fix on the board"
 msgstr "Auf dem Board beheben"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Fix the findings in this scope until the selected coherence checks pass."
+msgstr "Beheben Sie die Befunde in diesem Bereich, bis die ausgewählten Kohärenzprüfungen bestehen."
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -8497,6 +8775,11 @@ msgstr "Dorthin springen"
 msgid "Go to the field"
 msgstr "Zum Feld springen"
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Goal"
+msgstr "Ziel"
+
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Goal changed"
@@ -8506,6 +8789,28 @@ msgstr "Ziel geändert"
 #: apps/desktop/src/app/activity-model.ts
 msgid "Goal deleted"
 msgstr "Ziel gelöscht"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Goal intent"
+msgstr "Zielauftrag"
+
+#. intent is the writer’s goal instruction, isolated for bidirectional text.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Goal progress: {intent}"
+msgstr "Zielfortschritt: {intent}"
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Goal run finished"
+msgstr "Ziellauf beendet"
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Goal run in progress"
+msgstr "Ziellauf läuft"
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Goal runs need Web Locks to prevent two tabs from running the same goal."
+msgstr "Zielläufe benötigen Web Locks, damit nicht zwei Tabs dasselbe Ziel ausführen."
 
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
@@ -8740,6 +9045,15 @@ msgstr "Hooks"
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Hooks check this project at selected events. They can warn or stop an action, but never approve it, change your text or call a provider."
 msgstr "Hooks prüfen dieses Projekt bei ausgewählten Ereignissen. Sie können warnen oder eine Aktion stoppen, aber niemals eine Aktion genehmigen, deinen Text ändern oder einen Anbieter aufrufen."
+
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "https://example.com/post"
+msgstr "https://example.com/post"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "I approve reading this large scope for these checks"
+msgstr "Ich stimme dem Lesen dieses großen Bereichs für diese Prüfungen zu"
 
 #: apps/desktop/src/app/agent-model.ts
 msgid "Idle"
@@ -9100,6 +9414,11 @@ msgstr "Einbezogener Kontext"
 msgid "Included in drafting"
 msgstr "In den Entwurf einbezogen"
 
+#. tokens is the portion of saved token usage estimated locally.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Includes {tokens} locally estimated tokens."
+msgstr "Enthält {tokens} lokal geschätzte Tokens."
+
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "Includes scripts"
@@ -9290,6 +9609,10 @@ msgstr "Ausgelöst von"
 msgid "It also takes back these later changes, oldest first:"
 msgstr "Es macht auch diese späteren Änderungen rückgängig, die ältesten zuerst:"
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "It has finished."
+msgstr "Er ist beendet."
+
 #. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportProofView.tsx
 msgid "It is a binary file that Caotang cannot draw here, and a look-alike drawn in its place could differ from the real file. The Draft shows what goes in; compile and open the file to see its pages. Markdown, plain text and the other text formats (Fountain, Final Draft, the Ink story, the CSV tables, the prompt pack and the coherence report) have a Proof."
@@ -9326,10 +9649,19 @@ msgstr "Es ist keine RTF-Datei."
 msgid "It is only replaced if it is still at revision {revision}, the one read for this question. If you or the agent changed it since, nothing is written and you can ask again."
 msgstr "Es wird nur ersetzt, wenn es noch die Revision {revision} hat, die für diese Frage gelesen wurde. Wenn Sie oder der Agent es inzwischen geändert haben, wird nichts geschrieben und Sie können erneut fragen."
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "It may still be running in another tab."
+msgstr "Er läuft möglicherweise noch in einem anderen Tab."
+
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "It must follow {names}, which moved."
 msgstr "Es muss {names} folgen, die verschoben wurden."
+
+#. iteration is the number of the next iteration in the interrupted goal run.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "It was on iteration {iteration} when the tab closed, and it has not continued on its own."
+msgstr "Beim Schließen des Tabs war er bei Durchlauf {iteration}. Er wurde nicht von selbst fortgesetzt."
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -9687,7 +10019,9 @@ msgstr "Später im Panel"
 msgid "Layers"
 msgstr "Ebenen"
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Layout"
 msgstr "Layout"
@@ -9943,7 +10277,7 @@ msgstr "Wird geladen"
 #. Interpolated values: subject
 #: apps/desktop/src/components/lazy-view.tsx
 msgid "Loading {subject}…"
-msgstr "{subject} wird geladen…"
+msgstr "{subject} wird geladen …"
 
 #. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
 #: apps/desktop/src/components/editor-labels.ts
@@ -9963,6 +10297,11 @@ msgstr "Sitzungen werden geladen…"
 #: apps/desktop/src/app/agent.ts
 msgid "Loading the context preview…"
 msgstr "Die Kontextvorschau wird geladen…"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Loading the goal form…"
+msgstr "Zielformular wird geladen…"
 
 #: apps/desktop/src/components/InkGate.tsx
 msgid "Loading the Ink compiler…"
@@ -10264,6 +10603,10 @@ msgstr "Max. Token"
 msgid "Max words"
 msgstr "Max. Wörter"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Maximum iterations (1–50)"
+msgstr "Maximale Anzahl Durchläufe (1–50)"
+
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
 msgid "Maximum words"
@@ -10273,6 +10616,14 @@ msgstr "Maximale Wörter"
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Maximum words (optional)"
 msgstr "Höchste Wortanzahl (optional)"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Maximum words per document"
+msgstr "Höchstwortzahl je Dokument"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Maximum words per synopsis (optional)"
+msgstr "Höchstwortzahl je Synopsis (optional)"
 
 #. Interpolated values: calls
 #: apps/desktop/src/components/TaskAllowanceDialog.tsx
@@ -10400,6 +10751,10 @@ msgstr "Minimale Wörter"
 msgid "Minimum words (optional)"
 msgstr "Niedrigste Wortanzahl (optional)"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Minimum words per document"
+msgstr "Mindestwortzahl je Dokument"
+
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "Minutes"
@@ -10454,6 +10809,10 @@ msgstr "Modell"
 #: apps/desktop/src/components/TracePanel.tsx
 msgid "Model call failed"
 msgstr "Modellaufruf fehlgeschlagen"
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Model calls"
+msgstr "Modellaufrufe"
 
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
@@ -10513,6 +10872,10 @@ msgstr "Modellfenster: {window} Token."
 #: apps/desktop/src/components/RequestContext.tsx
 msgid "Model window: unknown."
 msgstr "Modellfenster: unbekannt."
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Model-call limit"
+msgstr "Limit für Modellaufrufe"
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
@@ -10798,6 +11161,10 @@ msgstr "native tools"
 #: apps/desktop/src/components/RequestContext.tsx
 msgid "Near capacity"
 msgstr "Nahe der Kapazitätsgrenze"
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Needs work"
+msgstr "Überarbeitung nötig"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -11280,6 +11647,10 @@ msgstr "Kein Modell passt zu diesem Filter."
 msgid "No one learns it yet."
 msgstr "Noch erfährt es niemand."
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "No open coherence findings"
+msgstr "Keine offenen Kohärenzbefunde"
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "No open findings"
@@ -11714,9 +12085,22 @@ msgstr "nicht gruppiert"
 msgid "Not in the project yet"
 msgstr "Noch nicht im Projekt"
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Not measured"
+msgstr "Nicht gemessen"
+
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Not placed on the project or a binder item."
 msgstr "Nicht auf dem Projekt oder einem Binder-Eintrag platziert."
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Not priced"
+msgstr "Nicht bepreist"
+
+#. limit is the formatted US-dollar cost bound; recorded usage has no known price.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Not priced; limit {limit}"
+msgstr "Nicht bepreist; Limit {limit}"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -11999,6 +12383,10 @@ msgstr "Aus"
 msgid "Off (strict: false)"
 msgstr "Aus (strict: false)"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Off in Settings"
+msgstr "In den Einstellungen ausgeschaltet"
+
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "Off, underlined text is kept without its underline."
@@ -12028,6 +12416,11 @@ msgstr "An (strict: true)"
 #: apps/desktop/src/components/McpSection.tsx
 msgid "On. The servers below may be connected. Their tools are searchable only once their tool list has been reviewed."
 msgstr "An. Die Server unten können verbunden werden. Ihre Werkzeuge sind erst durchsuchbar, sobald ihre Werkzeugliste geprüft wurde."
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "One HTML file per document: the article with its publish date, canonical link and description from the Publishing inspector section."
+msgstr ""
 
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/text-source.ts
@@ -12098,10 +12491,18 @@ msgstr "Nur ein gespeicherter, abgeschlossener Durchgang kann abgezweigt werden.
 msgid "Only an eligible plan set to start by itself can be allowed. Model plans also need a call limit."
 msgstr "Nur ein geeigneter Plan, der automatisch starten soll, kann erlaubt werden. Pläne mit Modellaufrufen brauchen außerdem eine Aufrufgrenze."
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Only the current document"
+msgstr "Nur das aktuelle Dokument"
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "Only the dialogue has this speaker"
 msgstr "Nur der Dialog hat diesen Sprecher"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Only the named binder items"
+msgstr "Nur die benannten Einträge im Binder"
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
@@ -12151,6 +12552,11 @@ msgstr "Öffnen Sie “{title}”, um den Entwurf für Schritt {number} zu lesen
 #: apps/desktop/src/components/InspectorPictures.tsx
 msgid "Open {title} on the board"
 msgstr "{title} auf dem Board öffnen"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Open a document or choose the whole manuscript before setting a goal."
+msgstr "Öffnen Sie ein Dokument oder wählen Sie das ganze Manuskript, bevor Sie ein Ziel setzen."
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
@@ -12655,9 +13061,15 @@ msgid "Parts"
 msgstr "Teile"
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/GoalRecovery.tsx
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Passed"
 msgstr "Bestanden"
+
+#. passed and total count the saved goal check results.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Passing checks: {passed} of {total}"
+msgstr "Bestandene Prüfungen: {passed} von {total}"
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
@@ -13486,6 +13898,22 @@ msgstr "Provider: {provider}"
 msgid "Providers"
 msgstr "Provider"
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "Publish date"
+msgstr "Veröffentlichungsdatum"
+
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
+#: apps/desktop/src/app/activity-model.ts
+msgid "Publish fields changed"
+msgstr "Veröffentlichungsfelder geändert"
+
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "Publishing"
+msgstr "Veröffentlichung"
+
 #. Interpolated values: done, intent, outdated, staged, total
 #: apps/desktop/src/app/task-model.ts
 msgid "Publishing the review…"
@@ -13983,6 +14411,10 @@ msgstr "Dieses Projekt aus seinen Dokumenten neu aufbauen?"
 msgid "Rebuilding loses:"
 msgstr "Der Neuaufbau verliert:"
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Recent distances"
+msgstr "Letzte Abstände"
+
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
 msgid "Recent scenes"
@@ -14436,6 +14868,10 @@ msgstr "Anfragekontext"
 msgid "Request log"
 msgstr "Anfrageprotokoll"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Requested documents:"
+msgstr "Angefragte Dokumente:"
+
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #: apps/desktop/src/components/UsagePanel.tsx
@@ -14607,6 +15043,10 @@ msgstr "Binder wird umstrukturiert ({count, plural, one {# Änderung} other {# �
 msgid "Result"
 msgstr "Ergebnis"
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Result and distance"
+msgstr "Ergebnis und Abstand"
+
 #. Modern interface: the search and commands palette (Ctrl+K).
 #: apps/desktop/src/components/shell/modern/palette.tsx
 msgid "Results"
@@ -14621,10 +15061,18 @@ msgstr "Ergebnisse"
 msgid "Resume"
 msgstr "Fortsetzen"
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Resume the goal"
+msgstr "Das Ziel fortsetzen"
+
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Resuming the run."
 msgstr "Der Lauf wird fortgesetzt."
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Resuming…"
+msgstr "Wird fortgesetzt…"
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
@@ -14995,6 +15443,10 @@ msgstr "Den ausgewählten Prompt des verbundenen Servers ausführen."
 msgid "Run this plan"
 msgstr "Diesen Plan ausführen"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Run toward a goal"
+msgstr "Auf ein Ziel hinarbeiten"
+
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Running"
@@ -15247,6 +15699,14 @@ msgstr "„{profile}“ gespeichert."
 msgid "Saved agent sessions"
 msgstr "Gespeicherte Agent-Sitzungen"
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Saved check results. Zero distance passes."
+msgstr "Gespeicherte Prüfergebnisse. Abstand null bedeutet bestanden."
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Saved checks and spend"
+msgstr "Gespeicherte Prüfungen und Verbrauch"
+
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Saved filter changed"
@@ -15265,6 +15725,15 @@ msgstr "Gespeicherter Filter gelöscht"
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "Saved filters"
 msgstr "Gespeicherte Filter"
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Saved goal checks"
+msgstr "Gespeicherte Zielprüfungen"
+
+#. calls is the total model-call count saved for this goal.
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Saved model calls: {calls}"
+msgstr "Gespeicherte Modellaufrufe: {calls}"
 
 #. Interpolated values: name
 #: apps/desktop/src/components/VocabularyEditor.tsx
@@ -15300,6 +15769,10 @@ msgstr "Aufgabenrollen gespeichert."
 #: apps/desktop/src/components/timeline/TimelineView.tsx
 msgid "Saved the timeline image as “{name}”."
 msgstr "Zeitachsenbild als „{name}“ gespeichert."
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Saved totals for the whole goal"
+msgstr "Gespeicherte Summen für das ganze Ziel"
 
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/media/StoryboardView.tsx
@@ -15418,6 +15891,10 @@ msgstr "Beim Speichern überschreibt die Version dieses Tabs sie. Die Version de
 #: apps/desktop/src/media/screenplay-model.ts
 msgid "Saving…"
 msgstr "Speichern…"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Say what you want the agent to do."
+msgstr "Beschreiben Sie, was der Agent tun soll."
 
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
@@ -15967,6 +16444,14 @@ msgstr "Ziel für „{node}“ setzen"
 msgid "harness.progress.synopsisSet.bare.content"
 msgstr "Synopsis setzen"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Set at least one limit. Empty limits are unlimited; zero allows no use. Model calls may incur provider charges."
+msgstr "Setzen Sie mindestens ein Limit. Leere Limits sind unbegrenzt; null erlaubt keinen Verbrauch. Modellaufrufe können beim Anbieter Kosten verursachen."
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Set at least one shared limit for the whole run."
+msgstr "Setzen Sie mindestens ein gemeinsames Limit für den ganzen Lauf."
+
 #. Changes a timeline scene can be given from the keyboard. Interpolated values: title, name, count, delta, other, part, day are scene titles, part words or numbers.
 #: apps/desktop/src/components/timeline/SceneChanges.tsx
 msgid "Set day…"
@@ -15981,6 +16466,11 @@ msgstr "Tagesziel setzen"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.synopsisSet.content"
 msgstr "Synopsis von „{doc}“ setzen"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Set up a goal run"
+msgstr "Einen Ziellauf einrichten"
 
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -16047,6 +16537,10 @@ msgstr "Einstellungsbereiche"
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "Settings, one key: value per line"
 msgstr "Einstellungen, ein Schlüssel: Wert pro Zeile"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Shared limits for the whole run"
+msgstr "Gemeinsame Limits für den ganzen Lauf"
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
@@ -16435,6 +16929,11 @@ msgstr "Übersprungen"
 msgid "Skipped {skippedText} empty {skippedCount, plural, one {document} other {documents}}."
 msgstr "{skippedText} {skippedCount, plural, one {leeres Dokument} other {leere Dokumente}} übersprungen."
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "Slug"
+msgstr "Slug"
+
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "Small cards, number and picture only"
@@ -16502,6 +17001,10 @@ msgstr "Ein Teil der Prüfarbeit ist nicht abgeschlossen. Sehen Sie sich den Fes
 #: apps/desktop/src/app/furniture-store.ts
 msgid "Some saved filters or goals could not be moved into the project, so they are kept in this browser and will be tried again on the next open. {refused}"
 msgstr "Einige gespeicherte Filter oder Ziele konnten nicht ins Projekt übernommen werden, daher bleiben sie in diesem Browser und werden beim nächsten Öffnen erneut versucht. {refused}"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Some selected checks require the whole manuscript. Deselect those checks or explicitly choose the whole manuscript."
+msgstr "Einige ausgewählte Prüfungen benötigen das ganze Manuskript. Wählen Sie diese Prüfungen ab oder wählen Sie ausdrücklich das ganze Manuskript."
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -16586,6 +17089,10 @@ msgstr "Mit einem Beispiel beginnen"
 msgid "Start sprint"
 msgstr "Sprint starten"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Start the goal"
+msgstr "Das Ziel starten"
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Start the review"
@@ -16600,6 +17107,10 @@ msgstr "Beginnen Sie die Szene. Ihre Wörter werden währenddessen in diesem Bro
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Starts a new conversation through this turn. The manuscript stays as it is now."
 msgstr "Beginnt ein neues Gespräch einschließlich dieses Durchgangs. Das Manuskript bleibt auf seinem jetzigen Stand."
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Starts an agent goal that may call your model provider and change this project under your permission mode"
+msgstr "Startet ein Agentenziel, das Ihren Modellanbieter aufrufen und dieses Projekt unter Ihrem Berechtigungsmodus ändern kann"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -16707,10 +17218,15 @@ msgstr "Schritt {number}: {tool} — {status}{detail}"
 msgid "harness.progress.header.step"
 msgstr "Schritt {step} von {total} · {activeForm}"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Step limit"
+msgstr "Schrittlimit"
+
 #. Interpolated values: calls, cap
 #. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/app/run-log-export.ts
+#: apps/desktop/src/components/GoalRecovery.tsx
 #: apps/desktop/src/components/PlanCard.tsx
 #: apps/desktop/src/components/PlanOfferCard.tsx
 msgid "Steps"
@@ -16743,6 +17259,10 @@ msgstr "Zusammenfügen"
 msgid "Stop"
 msgstr "Stopp"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Stop after iterations without progress"
+msgstr "Nach Durchläufen ohne Fortschritt stoppen"
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Stop declaring {words} under Knows"
@@ -16774,6 +17294,11 @@ msgstr "Prüfung stoppen"
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Stop the turn ({shortcut} with the Intent box empty)"
 msgstr "Durchlauf stoppen ({shortcut}, wenn das Intent-Feld leer ist)"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Stop the whole goal ({shortcut} with the Intent box empty)"
+msgstr "Das ganze Ziel stoppen ({shortcut} bei leerem Auftragsfeld)"
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
@@ -17052,6 +17577,8 @@ msgstr "Tag"
 msgid "Tag selected"
 msgstr "Tag ausgewählt"
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Tags"
 msgstr "Tags"
@@ -17135,6 +17662,10 @@ msgstr "Entfernt von <0/>"
 #: apps/desktop/src/media/PromptPackPanel.tsx
 msgid "Target model"
 msgstr "Zielmodell"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Target status"
+msgstr "Zielstatus"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -17324,6 +17855,17 @@ msgstr "Diese Feststellung ist nicht mehr in der Feststellungsdatei, daher gibt 
 msgid "That folder is not empty"
 msgstr "Dieser Ordner ist nicht leer"
 
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "That goal can no longer be resumed."
+msgstr "Dieses Ziel kann nicht mehr fortgesetzt werden."
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "That goal’s conversation is no longer saved. Discard the goal record."
+msgstr "Die Unterhaltung dieses Ziels ist nicht mehr gespeichert. Verwerfen Sie den Zieldatensatz."
+
 #. Interpolated values: refusal
 #: apps/desktop/src/app/binder-model.ts
 msgid "That is already where it is."
@@ -17477,6 +18019,11 @@ msgstr "Der 1. (die Standardeinstellung)"
 msgid "The action did not finish: {reason}"
 msgstr "Die Aktion wurde nicht abgeschlossen: {reason}"
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "The address segment"
+msgstr "Das Adresssegment"
+
 #. Modern interface: the agent's companion window.
 #. Modern interface: the stage and the page.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
@@ -17532,6 +18079,7 @@ msgid "The agent is loading."
 msgstr "Der Agent wird geladen."
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The agent is not ready for this project yet. Open the agent panel, then try again."
 msgstr "Der Agent ist für dieses Projekt noch nicht bereit. Öffnen Sie das Agenten-Panel und versuchen Sie es erneut."
@@ -17558,8 +18106,18 @@ msgstr "Der Agent arbeitet an einem anderen Durchlauf. Öffnen Sie diese Aufgabe
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
+msgid "The agent is working on another turn. Resume the goal when it has finished."
+msgstr "Der Agent arbeitet an einem anderen Durchlauf. Setzen Sie das Ziel fort, wenn er fertig ist."
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
 msgid "The agent is working on another turn. Resume the run when it has finished."
 msgstr "Der Agent arbeitet an einem anderen Durchlauf. Setzen Sie den Lauf fort, wenn er fertig ist."
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The agent is working on another turn. Start the goal when it has finished."
+msgstr "Der Agent arbeitet an einem anderen Durchlauf. Starten Sie das Ziel, wenn er fertig ist."
 
 #: apps/desktop/src/components/AgentRulesSettings.tsx
 msgid "The agent may skip approval in Ask mode"
@@ -17657,7 +18215,7 @@ msgstr "Das Bearer-Token fehlt. Geben Sie es auf dieser Karte ein, speichern Sie
 #. Modern interface: the stage and the page.
 #: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "the binder"
-msgstr "der Binder"
+msgstr "Der Binder"
 
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
@@ -18187,6 +18745,46 @@ msgstr "Der Vorausblick ist ausgeschaltet."
 msgid "The Fountain source, edited as text"
 msgstr "Die Fountain-Quelle, als Text bearbeitet"
 
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The goal could not be resumed: {reason}"
+msgstr "Das Ziel konnte nicht fortgesetzt werden: {reason}"
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The goal could not be saved, so it was not started: {reason}"
+msgstr "Das Ziel konnte nicht gespeichert werden und wurde deshalb nicht gestartet: {reason}"
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The goal iteration already completed an MCP action. Discard the goal record rather than repeating it."
+msgstr "In diesem Zieldurchlauf wurde bereits eine MCP-Aktion abgeschlossen. Verwerfen Sie den Zieldatensatz, statt die Aktion zu wiederholen."
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "The goal starts only when you choose Start the goal."
+msgstr "Das Ziel beginnt erst, wenn Sie „Das Ziel starten“ wählen."
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The goal stopped unexpectedly: {error}"
+msgstr "Der Ziellauf wurde unerwartet beendet: {error}"
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The goal was stopped."
+msgstr "Das Ziel wurde gestoppt."
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The goal’s conversation could not be checked. Reopen the project to try again, or discard the goal record."
+msgstr "Die Unterhaltung dieses Ziels konnte nicht geprüft werden. Öffnen Sie das Projekt erneut, um es noch einmal zu versuchen, oder verwerfen Sie den Zieldatensatz."
+
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The goal’s interruption could not be saved. Reopen the project to try again, or discard the goal record."
+msgstr "Die Unterbrechung dieses Ziels konnte nicht gespeichert werden. Öffnen Sie das Projekt erneut, um es noch einmal zu versuchen, oder verwerfen Sie den Zieldatensatz."
+
 #. Interpolated values: count, number, total
 #: apps/desktop/src/components/ProviderFormParts.tsx
 msgid "the header’s value"
@@ -18357,6 +18955,10 @@ msgstr "Das Protokoll kann Manuskript- und Gesprächstext enthalten. Exportieren
 #: apps/desktop/src/components/Binder.tsx
 msgid "The manuscript is empty"
 msgstr "Das Manuskript ist leer"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "The maximum must be at least the minimum."
+msgstr "Das Maximum muss mindestens dem Minimum entsprechen."
 
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #: apps/desktop/src/app/mcp-model.ts
@@ -18585,12 +19187,17 @@ msgstr "Die Datei des Bildes konnte nicht gelesen werden"
 #: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "the pictures"
-msgstr "die Bilder"
+msgstr "Die Bilderansicht"
 
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "The pictures could not be imported."
 msgstr "Die Bilder konnten nicht importiert werden."
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "The Podcasting 2.0 chapters document — start, title and end per segment — the file a feed’s podcast:chapters points at."
+msgstr "Das Kapiteldokument nach Podcasting 2.0 — Anfang, Titel und Ende je Segment — die Datei, auf die podcast:chapters eines Feeds zeigt."
 
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
@@ -19131,6 +19738,10 @@ msgstr "Das Skript wurde aus den Seiten geschrieben. Rückgängig stellt es so w
 msgid "The second read says {second}"
 msgstr "Die zweite Lesung ergibt {second}"
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "The selected coherence checks pass"
+msgstr "Die ausgewählten Kohärenzprüfungen bestehen"
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "The selected item (select one in the binder)"
@@ -19294,6 +19905,11 @@ msgstr "Die gesprochenen Zeilen mit dem Anzeigenamen des Sprechers, Segment für
 msgid "The stream stopped before it finished ({reason}). The text above is partial; Retry or Discard."
 msgstr "Der Stream wurde vor dem Ende abgebrochen ({reason}). Der Text oben ist unvollständig; „Erneut versuchen“ oder „Verwerfen“."
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "The summary a feed item shows"
+msgstr "Die Zusammenfassung, die ein Feed-Eintrag anzeigt"
+
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The summary changed while you were editing it. Read the current summary before replacing it."
@@ -19373,7 +19989,7 @@ msgstr "Der Text von {kind, select, document {dem Dokument „{name}“} codex {
 #: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "the timeline"
-msgstr "die Zeitachse"
+msgstr "Die Zeitachse"
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -19515,6 +20131,10 @@ msgstr "Die aufbewahrten Wörter wurden in diesem Browser in {count, plural, one
 #: apps/desktop/src/app/picture-retention-host.ts
 msgid "the words kept from a stopped tab"
 msgstr "die von einem angehaltenen Tab aufbewahrten Wörter"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "The write scope has no live binder item. Choose another binder item or the whole project."
+msgstr "Der Schreibbereich enthält keinen aktiven Eintrag im Binder. Wählen Sie einen anderen Eintrag oder das ganze Projekt."
 
 #. Interpolated values: count, day, days, error
 #: apps/desktop/src/components/WritingHistory.tsx
@@ -19772,6 +20392,14 @@ msgstr "Das kann nach einem Update passieren oder wenn die Verbindung abbricht. 
 msgid "This changed since it was proposed, so it is not applied. Read it again, or remove it."
 msgstr "Dies hat sich geändert, seit es vorgeschlagen wurde, daher wird es nicht angewendet. Lesen Sie es erneut oder entfernen Sie es."
 
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "This check cannot be read"
+msgstr "Diese Prüfung kann nicht gelesen werden"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "This coherence scope reads more than 20 documents."
+msgstr "Dieser Kohärenzbereich liest mehr als 20 Dokumente."
+
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -19874,6 +20502,14 @@ msgstr "Die caotang.json dieses Ordners wurde entfernt"
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
 msgid "This format is not built from a block list, so there is none to show. Its counts are the compile’s own."
 msgstr "Dieses Format wird nicht aus einer Blockliste gebaut, daher gibt es keine zu zeigen. Seine Zahlen sind die des Kompilierens selbst."
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "This goal cannot be resumed"
+msgstr "Dieses Ziel kann nicht fortgesetzt werden"
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "This goal’s saved progress cannot be read by this version of Caotang."
+msgstr "Der gespeicherte Fortschritt dieses Ziels kann von dieser Version von Caotang nicht gelesen werden."
 
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #: apps/desktop/src/components/UsagePanel.tsx
@@ -20287,6 +20923,12 @@ msgstr "Diese Aufgabe darf nicht mehr automatisch starten. Prüfen Sie ihre Erla
 msgid "This tests the form above, including unsaved changes. It reads only local project state and the text below. No action runs, no file is written and no provider is called."
 msgstr "Dieser Test prüft das Formular oben, einschließlich ungespeicherter Änderungen. Er liest nur den lokalen Projektzustand und den Text unten. Es wird keine Aktion ausgeführt, keine Datei geschrieben und kein Anbieter aufgerufen."
 
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "This turn belongs to a goal. Resume the goal instead."
+msgstr "Dieser Durchlauf gehört zu einem Ziel. Setzen Sie stattdessen das Ziel fort."
+
 #: apps/desktop/src/components/RestoreResult.tsx
 msgid "This turn’s project changes were taken back."
 msgstr "Die Projektänderungen dieses Durchlaufs wurden zurückgenommen."
@@ -20500,6 +21142,10 @@ msgstr "Tokenaufteilung"
 msgid "Token entered in this browser."
 msgstr "Token in diesem Browser eingegeben."
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Token limit"
+msgstr "Tokenlimit"
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Token missing. Enter it again."
@@ -20509,6 +21155,10 @@ msgstr "Token fehlt. Geben Sie es erneut ein."
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Token saved. Check the connection again to confirm it."
 msgstr "Token gespeichert. Prüfen Sie die Verbindung erneut, um dies zu bestätigen."
+
+#: apps/desktop/src/components/GoalRecovery.tsx
+msgid "Tokens"
+msgstr "Tokens"
 
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #. Interpolated values: cost, prompt, completion, requestsTotal
@@ -21136,6 +21786,10 @@ msgstr "Geben Sie eine ganze Sitzungsanzahl von 1 bis {count} und eine Tagesanza
 msgid "Use as card picture"
 msgstr "Als Kartenbild verwenden"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Use at most 50 iterations."
+msgstr "Verwenden Sie höchstens 50 Durchläufe."
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Use external tool servers"
@@ -21145,6 +21799,10 @@ msgstr "Externe Tool-Server verwenden"
 #: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Use the Classic interface"
 msgstr "Klassische Oberfläche verwenden"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Use the current document"
+msgstr "Das aktuelle Dokument verwenden"
 
 #. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
 #: apps/desktop/src/app/shell-actions.ts
@@ -21315,6 +21973,11 @@ msgstr "VO-Skript (.csv)"
 msgid "VO script (.xlsx)"
 msgstr "VO-Skript (.xlsx)"
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Wait for the conversation to load, or reopen the project to try again."
+msgstr "Warten Sie, bis das Gespräch geladen ist, oder öffnen Sie das Projekt erneut."
+
 #: apps/desktop/src/app/persistence.ts
 msgid "Wait for the project to finish saving before restoring it."
 msgstr "Warten Sie, bis das Projekt vollständig gespeichert ist, bevor Sie es wiederherstellen."
@@ -21381,6 +22044,16 @@ msgstr "Warnung"
 #: apps/desktop/src/app/findings-model.ts
 msgid "Warnings"
 msgstr "Warnungen"
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Web article (.html)"
+msgstr ""
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "WebVTT captions — one cue per spoken line, each speaker in a voice span — to drop on a narrated video or an audio post."
+msgstr "WebVTT-Untertitel — ein Cue pro gesprochener Zeile, jeder Sprecher in einer Voice-Markierung — zum Ablegen auf einem vertonten Video oder einem Audiobeitrag."
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
@@ -21518,6 +22191,10 @@ msgstr "Wo „{fact}“ erfahren wird"
 msgid "Where each item sits now, and where this step puts it"
 msgstr "Wo jeder Eintrag jetzt sitzt und wohin dieser Schritt ihn setzt"
 
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Where the agent may write"
+msgstr "Wo der Agent schreiben darf"
+
 #. Interpolated values: name
 #: apps/desktop/src/components/VocabularyEditor.tsx
 msgid "Which list to edit"
@@ -21541,9 +22218,18 @@ msgstr "Flüstern"
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
+#: apps/desktop/src/components/GoalComposer.tsx
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
 msgid "Whole manuscript"
 msgstr "Ganzes Manuskript"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Whole manuscript only"
+msgstr "Nur ganzes Manuskript"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Whole project"
+msgstr "Ganzes Projekt"
 
 #. Interpolated values: count, layerId, max, min
 #: apps/desktop/src/components/ContextSection.tsx
@@ -21718,6 +22404,14 @@ msgstr "Entworfenen Dialog schreiben"
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Write it back"
 msgstr "Zurückschreiben"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Write only in the current document"
+msgstr "Nur im aktuellen Dokument schreiben"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Write scope"
+msgstr "Schreibbereich"
 
 #. Interpolated values: doc
 #. js-lingui-explicit-id
@@ -21909,6 +22603,10 @@ msgstr "Ihre Anbieterprofile konnten nicht gelesen werden: {error}"
 #: apps/desktop/src/app/providers.ts
 msgid "Your provider settings could not be saved in this browser: {error}"
 msgstr "Ihre Anbietereinstellungen konnten in diesem Browser nicht gespeichert werden: {error}"
+
+#: apps/desktop/src/components/GoalComposer.tsx
+msgid "Your selection stays explicit when Settings change. Checks marked as off must be enabled there or deselected here."
+msgstr "Ihre Auswahl bleibt bei geänderten Einstellungen ausdrücklich erhalten. Ausgeschaltete Prüfungen müssen dort eingeschaltet oder hier abgewählt werden."
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts

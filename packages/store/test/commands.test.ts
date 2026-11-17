@@ -1620,8 +1620,9 @@ describe('the bus/store split these applies depend on', () => {
     // store's own, and `asset.sweep`, `asset.relink` and `asset.storeWorkingCopies` register only with the host's asset port: 77 names, 61 implemented.
     // The seven comic commands need no port: 84 names, 68 implemented.
     // The import preview's commit adds `binder.importTree`, which registers only with the asset port: 85 names, 68 implemented.
-    expect(Object.keys(registry)).toHaveLength(86);
-    expect(implemented).toHaveLength(68);
+    // The publish field patch adds `binder.setPublish`, with an apply of the store's own: 86 names, 69 implemented.
+    expect(Object.keys(registry)).toHaveLength(87);
+    expect(implemented).toHaveLength(69);
   });
 });
 
@@ -1655,5 +1656,115 @@ describe('notes.append — one call repeated under one key', () => {
     h.run(cmd({ name: 'notes.append', params, issuedBy: 'agent', turnId: 'turn-a', callId: 'call-a' }));
     h.run(cmd({ name: 'notes.append', params, issuedBy: 'agent', turnId: 'turn-b', callId: 'call-b' }));
     expect(node(h.state, LANDING).notes.split('The tide table was wrong.')).toHaveLength(3);
+  });
+});
+
+describe('binder.setPublish — a document’s publish metadata (web-publishing.md §2)', () => {
+  it('sets every field and undoes to the prior absence', () => {
+    const h = harness();
+    const patch = {
+      slug: 'the-landing',
+      publishedAt: '2026-11-15T12:00:00Z',
+      tags: ['serial', 'lighthouse'],
+      canonical: 'https://example.com/posts/the-landing',
+      description: 'The ferry was late.',
+      layout: 'post',
+    };
+    const outcome = h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch } }));
+    expect(node(h.state, LANDING).publish).toEqual(patch);
+    // The inverse names every key the dispatch wrote, each with the value it held before — null where it held none.
+    expect(inverseOf(h, outcome.undoGroupId).params).toEqual({
+      nodeId: LANDING,
+      patch: { slug: null, publishedAt: null, tags: null, canonical: null, description: null, layout: null },
+    });
+    h.undoGroup(outcome.undoGroupId!);
+    expect('publish' in node(h.state, LANDING)).toBe(false);
+
+    // A leap day is a real instant — the range check refuses only what no calendar holds.
+    h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { publishedAt: '2028-02-29T12:00:00Z' } } }));
+    expect(node(h.state, LANDING).publish).toEqual({ publishedAt: '2028-02-29T12:00:00Z' });
+    // A real leap second, written in UTC and in its offset-shifted spelling, is a valid instant.
+    h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { publishedAt: '2016-12-31T23:59:60Z' } } }));
+    expect(node(h.state, LANDING).publish).toEqual({ publishedAt: '2016-12-31T23:59:60Z' });
+    h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { publishedAt: '2017-01-01T01:59:60+02:00' } } }));
+    expect(node(h.state, LANDING).publish).toEqual({ publishedAt: '2017-01-01T01:59:60+02:00' });
+
+    // `t`/`z` are RFC 3339's other accepted spellings — the value stores as written.
+    h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { publishedAt: '2026-11-15t12:00:00z' } } }));
+    expect(node(h.state, LANDING).publish).toEqual({ publishedAt: '2026-11-15t12:00:00z' });
+  });
+
+  it('clears a field with null, keeps the keys it was not handed, and restores them on undo', () => {
+    const h = harness();
+    node(h.state, LANDING).publish = { slug: 'old-slug', customField: 'kept' };
+    const outcome = h.run(
+      cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { slug: null, tags: ['serial'] } } }),
+    );
+    // The merge keeps `customField`: the record is unknown-tolerant, and a command drops no key it does not name.
+    expect(node(h.state, LANDING).publish).toEqual({ customField: 'kept', tags: ['serial'] });
+    expect(inverseOf(h, outcome.undoGroupId).params).toEqual({
+      nodeId: LANDING,
+      patch: { slug: 'old-slug', tags: null },
+    });
+    h.undoGroup(outcome.undoGroupId!);
+    expect(node(h.state, LANDING).publish).toEqual({ slug: 'old-slug', customField: 'kept' });
+  });
+
+  it('is idempotent: a field set to the value the node already holds writes and stamps nothing', () => {
+    const h = harness();
+    node(h.state, LANDING).publish = { slug: 'the-landing', tags: ['serial'] };
+    const before = node(h.state, LANDING).updatedAt;
+    const same = h.run(
+      cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { slug: 'the-landing', tags: ['serial'] } } }),
+    );
+    expect(node(h.state, LANDING).updatedAt).toBe(before);
+    expect(inverseOf(h, same.undoGroupId).params).toEqual({ nodeId: LANDING, patch: {} });
+  });
+
+  it('refuses a relative canonical, a bad instant, an unknown field, an empty patch and a non-document', () => {
+    const h = harness();
+    const registry = createProjectCommandRegistry({ clock });
+    const refused = (patch: Record<string, unknown>, nodeId = LANDING) =>
+      refusalOf(execute(cmd({ name: 'binder.setPublish', params: { nodeId, patch } }), h.bus, registry));
+
+    expect(refused({ canonical: '/posts/the-landing' }).code).toBe('invalid-params');
+    expect(refused({ canonical: 'https://user:pass@example.com/posts/x' }).code).toBe('invalid-params');
+    expect(refused({ canonical: 'http://example.com/posts/x' }).code).toBe('invalid-params');
+    // WHATWG's URL parser strips the `\n` — the stored string must be the address that was validated.
+    expect(refused({ canonical: 'https://exa\nmple.com/posts/x' }).code).toBe('invalid-params');
+    expect(refused({ publishedAt: '2026-11-15' }).code).toBe('invalid-params');
+    expect(refused({ publishedAt: '2026-13-40T99:99:99Z' }).code).toBe('invalid-params');
+    // Calendar overflows the shape alone admits — `Date.parse` even normalizes `24:00` into the next day.
+    expect(refused({ publishedAt: '2026-11-15T24:00:00Z' }).code).toBe('invalid-params');
+    expect(refused({ publishedAt: '2029-02-29T12:00:00Z' }).code).toBe('invalid-params');
+    expect(refused({ publishedAt: '2026-11-15T12:00:00+25:00' }).code).toBe('invalid-params');
+    // A slug is one address segment — a `/` would name an address the export's file name disagrees with.
+    expect(refused({ slug: 'news/post' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'a\\b' }).code).toBe('invalid-params');
+    expect(refused({ slug: '' }).code).toBe('invalid-params');
+    // It also names the file: anything `fileStem` would rewrite would split the name from the permalink.
+    expect(refused({ slug: 'a<b' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'post ' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'a  b' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'post.' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'a\tb' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'x'.repeat(121) }).code).toBe('invalid-params');
+    expect(refused({ slug: 'CON' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'com1.log' }).code).toBe('invalid-params');
+    // A trailing line terminator slips past `$` — the match must cover the whole string.
+    expect(refused({ publishedAt: '2026-11-15T12:00:00Z\n' }).code).toBe('invalid-params');
+    // `:60` is a leap second only at the IERS instants — an ordinary second past 59 is not a real instant.
+    expect(refused({ publishedAt: '2026-11-15T12:00:60Z' }).code).toBe('invalid-params');
+    expect(refused({ publishedAt: '2017-06-30T23:59:60Z' }).code).toBe('invalid-params');
+    // `Date.UTC` reads year 72 as 1972 — `0072` never had a leap second, the check must not remap it.
+    expect(refused({ publishedAt: '0072-06-30T23:59:60Z' }).code).toBe('invalid-params');
+    expect(refused({ bogus: 'x' }).code).toBe('invalid-params');
+    expect(refused({}).code).toBe('invalid-params');
+    const folder = refused({ slug: 'chapter-1' }, CHAPTER_ONE);
+    expect(folder.code).toBe('invalid-params');
+    expect(folder.message).toContain('only a document carries publish metadata');
+
+    expect('publish' in node(h.state, LANDING)).toBe(false);
+    expect(h.undo.groups()).toHaveLength(0);
   });
 });

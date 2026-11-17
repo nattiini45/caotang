@@ -165,6 +165,7 @@
 }
 
 :root[data-shell='modern'] .modern-companion .agent-head .agent-busy {
+  flex: 1 1 0;
   min-inline-size: 0;
   padding: var(--space-2) var(--space-5);
   border-radius: var(--radius-pill);
@@ -174,6 +175,10 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-head .agent-busy.is-goal-waiting {
+  white-space: normal;
 }
 
 :root[data-shell='modern'] .modern-companion .agent-head .agent-spend {
@@ -201,6 +206,20 @@
   min-block-size: 14rem;
   overflow-y: auto;
   padding: var(--space-4) var(--space-5);
+}
+
+:root[data-shell='modern'] .modern-companion .goal-recovery {
+  flex: 0 1 auto;
+  min-block-size: 0;
+}
+
+:root[data-shell='modern'] .modern-companion .agent:has(.goal-recovery) .agent-foot {
+  flex-shrink: 0;
+}
+
+:root[data-shell='modern'] .modern-companion .agent:has(.goal-recovery) .agent-body {
+  flex: 1 1 0;
+  min-block-size: 0;
 }
 
 :root[data-shell='modern'] .modern-companion .agent-foot {
@@ -313,6 +332,10 @@
 :root[data-shell='modern'] .modern-companion .agent-body > * {
   flex: none;
   margin-block: 0;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-body > .goal-composer-slot {
+  flex: 1 1 auto;
 }
 
 :root[data-shell='modern'] .modern-companion .agent-body > .recurring {

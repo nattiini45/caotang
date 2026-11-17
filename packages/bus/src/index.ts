@@ -1,6 +1,7 @@
 export {
   COMMAND_NAMES,
   FIXED_ROOT_IDS,
+  PUBLISH_FIELD_NAMES,
   SCENE_STYLES,
   VIEW_COMMAND_NAMES,
   isFixedRootId,
@@ -11,7 +12,9 @@ export type {
   BinderMoveParams,
   BinderRenameParams,
   BinderSetMetaParams,
+  BinderSetPublishParams,
   BinderSetSynopsisParams,
+  PublishPatch,
   CodexAttachParams,
   CodexSourceCitation,
   CodexUpsertOp,
@@ -237,6 +240,7 @@ export type {
   ValidationSkillFile,
   ProjectRenameParams,
   ProjectSetMetadataParams,
+  HtmlModeOption,
   RecipeDeleteParams,
   RecipeOptionsParams,
   RecipePageSize,
@@ -475,6 +479,11 @@ export {
   EXPORT_FORMATS,
   // The chapter rule's sentence: the binder's drop refusal and the bus's create refusal say the same words.
   CHAPTERLESS_DOCUMENT_REFUSAL,
+  // web-publishing.md §2's field rules, shared with the store's load so a stored publish field is
+  // always one binder.setPublish could write — an undo inverse never holds a value it cannot re-apply.
+  isPublishCanonical,
+  isPublishInstant,
+  publishFieldValueOk,
 } from './descriptors.js';
 
 // The shapes a tool package declares its tools with, so a media module needs no import of the harness

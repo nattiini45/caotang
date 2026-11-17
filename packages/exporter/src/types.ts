@@ -60,6 +60,12 @@ export const EXPORT_FORMATS = [
   'show-notes',
   'transcript-md',
   'teleprompter',
+  // The AV script's captions and chapters (av-script.md §5): WebVTT and the Podcasting 2.0 chapters document. Appended, so the order above holds.
+  'vtt',
+  'chapters-json',
+  // The web publish targets (web-publishing.md §3): a self-contained HTML article per document, appended
+  // after the AV formats so the order above holds.
+  'html',
 ] as const;
 
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
@@ -94,6 +100,8 @@ export const MEDIA_FORMATS = [
   'show-notes',
   'transcript-md',
   'teleprompter',
+  'vtt',
+  'chapters-json',
 ] as const satisfies readonly ExportFormat[];
 
 export type MediaFormat = (typeof MEDIA_FORMATS)[number];
@@ -362,6 +370,10 @@ export const TEXT_PROOF_FORMATS = [
   'show-notes',
   'transcript-md',
   'teleprompter',
+  'vtt',
+  'chapters-json',
+  // The HTML article is text, so it has a Proof (web-publishing.md §3).
+  'html',
 ] as const satisfies readonly ExportFormat[];
 
 /** Whether a format has a Proof: it is listed in {@link TEXT_PROOF_FORMATS}. A format added without being listed has none. */

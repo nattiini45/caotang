@@ -19,7 +19,7 @@ import { resizePictureInBrowser } from './picture-transcoder.js';
 import { activeCoherenceModel } from './coherence-review.js';
 import { createTextSearchWorker } from './text-search-worker.js';
 
-export { createAgentSession, createBudgetMeter, createContextPort, preloadFor, summaryPrefix } from '@caotang/harness';
+export { createAgentSession, createBudgetMeter, createContextPort, createGoalRunner, goalRules, preloadFor, summaryPrefix } from '@caotang/harness';
 
 /** What a session lends its harness: the project, the registry and history it already runs, and the stores the picture tools reach. */
 export interface HarnessHost {

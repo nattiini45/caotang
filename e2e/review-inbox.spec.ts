@@ -1,11 +1,13 @@
 import { fileURLToPath } from 'node:url';
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from './test.js';
 import type * as UiAgentModule from '../apps/desktop/test/ui-agent-fixture.js';
 import type * as TaskStoreModule from '../apps/desktop/src/app/task-store.js';
 import type * as AgentModule from '../apps/desktop/src/app/agent.js';
 import type { PlanStep } from '../packages/harness/src/index.js';
 
 import { holdCancellingTask, releaseTaskStartup } from './task-cancellation.js';
+import { openSaveSettings } from './save-channel-fixture.js';
 import { idOf, projectTrace } from './support.js';
 import { openReviewInbox, queuedReviewProject, storedReviewTasks } from './queued-review.js';
 
@@ -300,9 +302,13 @@ test('separate review steps have scope-named prompt controls before either revie
 test.describe('the localized touch Inbox', () => {
   test.use({ hasTouch: true, viewport: { width: 1280, height: 900 } });
 
-  test('Modern keeps a German review and its return action usable in a narrow dark window', async ({ page }) => {
+  test('Modern keeps a German review and its return action usable in a narrow dark window', { tag: '@modern' }, async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('caotang.interface', 'modern');
+      localStorage.setItem('caotang.theme', 'dark');
+    });
     const { requests } = await queuedReviewProject(page);
-    await page.getByTestId('open-settings').click();
+    await openSaveSettings(page);
     const settings = page.getByTestId('settings');
     await settings.locator('[data-section="appearance"]').click();
     await settings.locator('input[name="shell"]').nth(1).check();
