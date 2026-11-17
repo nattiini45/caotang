@@ -1003,7 +1003,21 @@ function feedPlanOf(
   language: string | undefined,
 ): FeedPlan {
   const siteUrl = options.siteUrl;
-  if (typeof siteUrl !== 'string' || !siteUrl.startsWith('https://')) {
+  // The same bar `binder.setPublish` holds a canonical to: a string the WHATWG parser would rewrite
+  // (a control character or space) is refused, then the address must parse as https with a host and
+  // no credentials — the feed's <link> and every entry id are built on it verbatim.
+  const siteOk =
+    typeof siteUrl === 'string' &&
+    ![...siteUrl].some((ch) => ch <= ' ') &&
+    (() => {
+      try {
+        const url = new URL(siteUrl);
+        return url.protocol === 'https:' && url.hostname !== '' && url.username === '' && url.password === '';
+      } catch {
+        return false;
+      }
+    })();
+  if (!siteOk) {
     throw new MediaRefusedError(format, [
       'the recipe needs the siteUrl option: the site\'s absolute https address, like https://example.com — set it on the recipe and compile again',
     ]);

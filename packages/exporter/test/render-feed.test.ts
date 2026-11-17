@@ -71,11 +71,26 @@ describe('the RSS feed', () => {
     expect(storm.slice(0, storm.indexOf('</item>'))).not.toContain('<link>');
   });
 
-  it('escapes text and never writes a second title when the channel has no synopsis', () => {
+  it('still writes the channel description RSS 2.0 requires when the show has no synopsis', () => {
     const { xml } = renderRss(feed({ channelDescription: undefined }));
-    expect(xml).not.toContain('<description>A keeper');
-    const { xml: angled } = renderRss(feed({ channelTitle: 'A <Keeper> & sons' }));
+    expect(xml).toContain('<description>The Lighthouse Keeper</description>');
+    const { xml: angled } = renderRss(feed({ channelTitle: 'A <Keeper> & sons', channelDescription: undefined }));
     expect(angled).toContain('<title>A &lt;Keeper&gt; &amp; sons</title>');
+    expect(angled).toContain('<description>A &lt;Keeper&gt; &amp; sons</description>');
+  });
+
+  it('publishes a leap-second instant — valid per the publish command — as the first instant of the next second', () => {
+    const leap: FeedItem = {
+      docId: 'n_LEAP0001',
+      title: 'Leap Day',
+      body: 'At the leap.',
+      publish: { publishedAt: '2016-12-31T23:59:60Z' },
+    };
+    const { xml, notes } = renderRss(feed({ items: [leap] }));
+    expect(xml).toContain('<pubDate>Sun, 01 Jan 2017 00:00:00 GMT</pubDate>');
+    expect(notes).toEqual([]);
+    const { xml: atom } = renderAtom(feed({ items: [leap] }));
+    expect(atom).toContain('<updated>2017-01-01T00:00:00.000Z</updated>');
   });
 });
 

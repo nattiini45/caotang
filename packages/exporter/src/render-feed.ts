@@ -48,13 +48,27 @@ interface KeptItem {
   readonly instant: string;
 }
 
+/**
+ * A publish instant as milliseconds, or `undefined` when it cannot be read. `Date.parse` rejects the
+ * leap second `binder.setPublish` accepts (`…:59:60Z`), so a `:60` reads as the first millisecond of
+ * the next second — the same instant an NTP clock names.
+ */
+function instantMs(instant: string): number | undefined {
+  const direct = Date.parse(instant);
+  if (!Number.isNaN(direct)) return direct;
+  const leap = /^(\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}):60(.+)$/.exec(instant);
+  if (leap === null) return undefined;
+  const base = Date.parse(`${leap[1]}:59${leap[2]}`);
+  return Number.isNaN(base) ? undefined : base + 1000;
+}
+
 /** The non-draft items, and a skip line for each draft, in binder order. */
 function keptOf(items: readonly FeedItem[]): { readonly kept: readonly KeptItem[]; readonly notes: readonly string[] } {
   const kept: KeptItem[] = [];
   const notes: string[] = [];
   for (const item of items) {
     const instant = publishString(item.publish, 'publishedAt');
-    if (instant === undefined || Number.isNaN(Date.parse(instant))) {
+    if (instant === undefined || instantMs(instant) === undefined) {
       notes.push(`skipped: ${item.title} — a draft (no publish date), omitted from the feed`);
       continue;
     }
@@ -65,7 +79,7 @@ function keptOf(items: readonly FeedItem[]): { readonly kept: readonly KeptItem[
 
 /** RSS 2.0's `<pubDate>`: RFC 822, which `toUTCString` writes. */
 function rfc822(instant: string): string {
-  return new Date(instant).toUTCString();
+  return new Date(instantMs(instant) ?? Date.parse(instant)).toUTCString();
 }
 
 /** An Atom id for an entry: the site's address and the document's stable node id (WD5). */
@@ -76,7 +90,7 @@ function entryId(siteUrl: string, docId: string): string {
 /** The newest `updated` instant the kept items carry; the compile instant when there are none. */
 function feedUpdated(kept: readonly KeptItem[], at: number): string {
   let newest = Number.NEGATIVE_INFINITY;
-  for (const { instant } of kept) newest = Math.max(newest, Date.parse(instant));
+  for (const { instant } of kept) newest = Math.max(newest, instantMs(instant) ?? Number.NEGATIVE_INFINITY);
   return newest === Number.NEGATIVE_INFINITY ? new Date(at).toISOString() : new Date(newest).toISOString();
 }
 
@@ -94,9 +108,10 @@ export function renderRss(input: FeedInput): RenderedFeed {
     `<title>${escapeXml(input.channelTitle)}</title>`,
     `<link>${escapeXml(input.siteUrl)}</link>`,
   ];
-  if (input.channelDescription !== undefined && input.channelDescription !== '') {
-    lines.push(`<description>${escapeXml(input.channelDescription)}</description>`);
-  }
+  // RSS 2.0 requires the channel's <description>: the show's synopsis, or its title when it has none.
+  const channelDescription =
+    input.channelDescription === undefined || input.channelDescription === '' ? input.channelTitle : input.channelDescription;
+  lines.push(`<description>${escapeXml(channelDescription)}</description>`);
   for (const { item, instant } of kept) {
     lines.push(`<item>`);
     lines.push(`<title>${escapeXml(item.title)}</title>`);

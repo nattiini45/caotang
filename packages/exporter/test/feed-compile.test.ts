@@ -112,4 +112,24 @@ describe('the feed formats', () => {
     ).toThrow('siteUrl');
     expect(fs.snapshot()).toEqual({});
   });
+
+  it('refuses a siteUrl that is not a clean absolute https address', async () => {
+    const { state, exporter, fs } = rig();
+    await exporter.ready();
+    publishAll(state);
+    for (const bad of ['https://', 'https://user:pass@example.com', 'ht tps://example.com', 'example.com', 'https://example.com\n']) {
+      state.manifest.recipes = [
+        { name: 'Bad site', includeRootIds: ['manuscript'], format: 'rss', options: { siteUrl: bad } },
+      ];
+      expect(() =>
+        exporter.commandPort().compile(state, {
+          selection: { kind: 'manuscript' },
+          format: 'rss',
+          recipeName: 'Bad site',
+          at: COMPILED_AT,
+        }),
+      ).toThrow('siteUrl');
+    }
+    expect(fs.snapshot()).toEqual({});
+  });
 });
