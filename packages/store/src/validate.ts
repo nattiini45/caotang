@@ -208,7 +208,8 @@ function isRecipeOptions(v: unknown): boolean {
     (o['notes'] === undefined || o['notes'] === 'footnote' || o['notes'] === 'endnote') &&
     (o['frontMatter'] === undefined || typeof o['frontMatter'] === 'boolean') &&
     (o['htmlMode'] === undefined || o['htmlMode'] === 'standalone' || o['htmlMode'] === 'fragment') &&
-    (o['css'] === undefined || typeof o['css'] === 'string')
+    (o['css'] === undefined || typeof o['css'] === 'string') &&
+    (o['siteUrl'] === undefined || typeof o['siteUrl'] === 'string')
   );
 }
 

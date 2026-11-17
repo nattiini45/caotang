@@ -2,10 +2,10 @@
   "sourceLocale": "en",
   "locales": {
     "de": {
-      "total": 4382,
-      "translated": 4380,
-      "untranslated": 2,
-      "missing": 2,
+      "total": 4388,
+      "translated": 4388,
+      "untranslated": 0,
+      "missing": 0,
       "fuzzy": 0,
       "sameAsEnglish": 101,
       "completion": 100

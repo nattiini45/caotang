@@ -19,7 +19,7 @@
  */
 
 import { ApplyRefusal, DEFAULT_RECIPE_NAME, type CommandError } from '@caotang/bus';
-import { ArtifactNotFoundError, EXPORTS_DIR, identifierUrn, type ArtifactFs, type ProjectState } from '@caotang/store';
+import { ArtifactNotFoundError, EXPORTS_DIR, FIXED_ROOT_IDS, identifierUrn, type ArtifactFs, type ProjectState } from '@caotang/store';
 import { PDF_MIME } from '@caotang/screenplay';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
 import type { ComicLetteringFontLoader, FontLoader } from '@caotang/pdf-fonts';
@@ -49,6 +49,7 @@ import { renderDocx, DOCX_MIME } from './render-docx.js';
 import { renderEpub, EPUB_MIME, type EpubCover, type EpubInput } from './render-epub.js';
 import { XLSX_MIME } from './render-xlsx.js';
 import { renderHtmlArticle, type PublishMeta } from './render-html.js';
+import { renderAtom, renderRss, type FeedItem } from './render-feed.js';
 import { renderMarkdown, renderText } from './render-text.js';
 import type { RenderInput } from './render-input.js';
 import { DEFAULT_TEMPLATE_ID, fileStem, resolveTemplate, type ExportTemplate } from './template.js';
@@ -268,6 +269,8 @@ const EXTENSION: Record<ExportFormat, string> = {
   vtt: 'vtt',
   'chapters-json': 'json',
   html: 'html',
+  rss: 'rss.xml',
+  atom: 'atom.xml',
 };
 
 /**
@@ -306,6 +309,8 @@ export const EXPORT_MIME: Readonly<Record<ExportFormat, string>> = {
   vtt: 'text/vtt;charset=utf-8',
   'chapters-json': 'application/json+chapters',
   html: 'text/html;charset=utf-8',
+  rss: 'application/rss+xml',
+  atom: 'application/atom+xml',
 };
 
 const NO_ASSETS: ReadonlyMap<string, AssetRecord> = new Map();
@@ -459,6 +464,14 @@ export function createExporter(options: ExporterOptions): ExporterService {
       throw new MediaRefusedError('html', ['the selection holds no document with a body, so there is no article to write']);
     }
 
+    // A feed is one file for the whole selection (web-publishing.md §3): its channel is the recipe's folder, its
+    // items every document the flatten kept, drafts among them (the render skips and names them). Its `siteUrl` is
+    // required — RSS's channel link and Atom's feed id — and absent or not absolute https it refuses here, before
+    // anything is reserved.
+    const feed = request.format === 'rss' || request.format === 'atom'
+      ? feedPlanOf(state, request.format, flat.blocks, request.options, request.selection.includeRootIds, metadata.language)
+      : undefined;
+
     // The pictures the bodies place (pictures.md §4): the mode, the assets folder a copy writes beside the file, and the
     // resolution plan (the host, the target's profile and the placements) the render runs.
     const pictures = picturesPlanOf(state, request, flat.blocks, request.base);
@@ -492,7 +505,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
       notes,
     };
 
-    return { kind: 'prose', format: request.format, input, flat, entry, title, epub, html, at: request.at, base: request.base, pictures: pictures.plan };
+    return { kind: 'prose', format: request.format, input, flat, entry, title, epub, html, feed, at: request.at, base: request.base, pictures: pictures.plan };
   };
 
   /**
@@ -868,6 +881,23 @@ export function createExporter(options: ExporterOptions): ExporterService {
           },
         }));
       }
+      if ((compiled.format === 'rss' || compiled.format === 'atom') && compiled.feed !== undefined) {
+        const feed = compiled.feed;
+        const at = compiled.at;
+        return [
+          {
+            name: proseName,
+            mimeType: EXPORT_MIME[compiled.format],
+            render: async () => {
+              const rendered =
+                compiled.format === 'rss'
+                  ? renderRss({ siteUrl: feed.siteUrl, channelTitle: feed.channelTitle, ...(feed.channelDescription === undefined ? {} : { channelDescription: feed.channelDescription }), lang: feed.lang, author: feed.author, at, items: feed.items })
+                  : renderAtom({ siteUrl: feed.siteUrl, channelTitle: feed.channelTitle, ...(feed.channelDescription === undefined ? {} : { channelDescription: feed.channelDescription }), lang: feed.lang, author: feed.author, at, items: feed.items });
+              return { contents: rendered.xml, notes: [...rendered.notes] };
+            },
+          },
+        ];
+      }
       const files: RenderedFile[] = [{ name: proseName, mimeType: EXPORT_MIME[compiled.format], render: () => renderProse(compiled) }];
       if (compiled.format === 'md' && compiled.pictures?.mode === 'copy') {
         for (const file of usedAssetFilesOf(compiled.flat.blocks)) {
@@ -956,6 +986,64 @@ function htmlPlanOf(
     ...(options.css === undefined || options.css === '' ? {} : { css: options.css }),
     lang: language ?? 'en',
     articles,
+  };
+}
+
+/**
+ * A feed compile's shape (web-publishing.md §3): the recipe's `siteUrl`, checked to be an absolute `https` address or
+ * the compile is refused; the channel from the folder the selection names (the project's name for a fixed root); and
+ * every document the flatten kept, drafts among them, in binder order.
+ */
+function feedPlanOf(
+  state: ProjectState,
+  format: 'rss' | 'atom',
+  blocks: readonly FlatBlock[],
+  options: CompileOptions,
+  includeRootIds: readonly string[],
+  language: string | undefined,
+): FeedPlan {
+  const siteUrl = options.siteUrl;
+  // The same bar `binder.setPublish` holds a canonical to: a string the WHATWG parser would rewrite
+  // (a control character or space) is refused, then the address must parse as https with a host and
+  // no credentials — the feed's <link> and every entry id are built on it verbatim.
+  const siteOk =
+    typeof siteUrl === 'string' &&
+    ![...siteUrl].some((ch) => ch <= ' ') &&
+    (() => {
+      try {
+        const url = new URL(siteUrl);
+        return url.protocol === 'https:' && url.hostname !== '' && url.username === '' && url.password === '';
+      } catch {
+        return false;
+      }
+    })();
+  if (!siteOk) {
+    throw new MediaRefusedError(format, [
+      'the recipe needs the siteUrl option: the site\'s absolute https address, like https://example.com — set it on the recipe and compile again',
+    ]);
+  }
+  const root = includeRootIds[0] === undefined ? undefined : state.manifest.tree.find((node) => node.id === includeRootIds[0]);
+  const rootIsFixed = root !== undefined && (FIXED_ROOT_IDS as readonly string[]).includes(root.id);
+  const items: FeedItem[] = [];
+  for (const block of blocks) {
+    if (block.kind !== 'scene') continue;
+    const publish = state.manifest.tree.find((node) => node.id === block.docId)?.publish;
+    items.push({
+      docId: block.docId,
+      title: block.title,
+      body: block.body,
+      ...(publish === undefined ? {} : { publish }),
+    });
+  }
+  const channelTitle = root === undefined || rootIsFixed ? state.manifest.project.name : root.title;
+  return {
+    siteUrl,
+    channelTitle,
+    ...(root !== undefined && root.synopsis !== '' ? { channelDescription: root.synopsis } : {}),
+    lang: language ?? 'en',
+    // Atom requires a byline: the recipe's author override, the project's author, then the channel itself.
+    author: options.author ?? state.manifest.project.author ?? channelTitle,
+    items,
   };
 }
 
@@ -1127,6 +1215,19 @@ interface ProsePlan extends PlanCommon {
   readonly epub?: EpubFacts;
   /** Present for the HTML article only: the documents it writes a file each for, and its recipe options (web-publishing.md §3). */
   readonly html?: HtmlPlan;
+  /** Present for the feeds only: the channel facts and every document the selection holds, drafts included (web-publishing.md §3). */
+  readonly feed?: FeedPlan;
+}
+
+/** One feed's shape: the channel facts and the candidate items, drafts among them (the render skips and names them). */
+interface FeedPlan {
+  readonly siteUrl: string;
+  readonly channelTitle: string;
+  readonly channelDescription?: string;
+  readonly lang: string;
+  /** RFC 4287's required byline: the recipe's `author`, the project's author, or the channel title. */
+  readonly author: string;
+  readonly items: readonly FeedItem[];
 }
 
 /** One document's article file, as the html compile knows it from the flat blocks and the manifest. */

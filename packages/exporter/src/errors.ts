@@ -54,8 +54,10 @@ const MEDIA_FORMAT_NAMES: Readonly<Record<string, string>> = {
   vtt: 'the captions',
   'chapters-json': 'the chapters document',
   promptpack: 'the prompt pack',
-  // `html` is a prose format, but its per-document gate refuses through this class too: an empty selection names it.
+  // `html` and the feeds are prose formats, but their gates refuse through this class too: an empty selection or a missing siteUrl names them.
   html: 'the HTML article',
+  rss: 'the RSS feed',
+  atom: 'the Atom feed',
 };
 
 /**

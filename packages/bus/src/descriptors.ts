@@ -1653,8 +1653,10 @@ export const EXPORT_FORMATS = [
   // The AV script's captions and chapters (av-script.md §5). Appended as the twenty-ninth and thirtieth.
   'vtt',
   'chapters-json',
-  // The web publish targets (web-publishing.md §3): the HTML article, appended as the thirty-first.
+  // The web publish targets (web-publishing.md §3): the HTML article and the two feeds, appended as the last three.
   'html',
+  'rss',
+  'atom',
 ] as const;
 
 function exportFormatRefusal(format: string): Result<never, CommandError> | undefined {

@@ -4236,6 +4236,11 @@ msgstr "At most {words} words."
 msgid "At the end of the book"
 msgstr "At the end of the book"
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Atom feed (.atom.xml)"
+msgstr "Atom feed (.atom.xml)"
+
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
 #: apps/desktop/src/media/PromptPackPanel.tsx
 msgid "Attach"
@@ -12492,6 +12497,16 @@ msgstr "On. The servers below may be connected. Their tools are searchable only 
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
+msgid "One feed file for the selection: an entry per published document, with the article as its content. Needs the recipe's Site address (https)."
+msgstr "One feed file for the selection: an entry per published document, with the article as its content. Needs the recipe's Site address (https)."
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "One feed file for the selection: an item per published document. Needs the recipe's Site address (https)."
+msgstr "One feed file for the selection: an item per published document. Needs the recipe's Site address (https)."
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
 msgid "One HTML file per document: the article with its publish date, canonical link and description from the Publishing inspector section."
 msgstr "One HTML file per document: the article with its publish date, canonical link and description from the Publishing inspector section."
 
@@ -15418,6 +15433,11 @@ msgstr "Risk"
 msgid "Role"
 msgstr "Role"
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "RSS feed (.rss.xml)"
+msgstr "RSS feed (.rss.xml)"
+
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
 msgid "RTF file"
@@ -16958,6 +16978,11 @@ msgstr "simultaneous"
 #: apps/desktop/src/app/findings-model.ts
 msgid "Simultaneous"
 msgstr "Simultaneous"
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Site address"
+msgstr "Site address"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: size and budget are formatted sizes; count is a number.
@@ -18681,6 +18706,11 @@ msgstr "The export could not be made: {reason}"
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the export dialog"
 msgstr "the export dialog"
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "The feed's address — where the site serves it. A compile refuses without it."
+msgstr "The feed's address — where the site serves it. A compile refuses without it."
 
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
 #: apps/desktop/src/media/PromptPackPanel.tsx

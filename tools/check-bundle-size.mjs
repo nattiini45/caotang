@@ -184,10 +184,10 @@ export const BUDGET = {
   // rounded up to the thousand. [owner 2026-11-15]
   // H5i measured 8,458,975 bytes raw with no new dependency, duplicated SDK version or production pseudo-locale; form and watch code load on use.
   // The ceiling is the measurement plus about 1%, rounded up to the thousand. [owner 2026-11-17]
-  // The import reader Worker (#283, #274, #390) on main at 2e89c059: 8,546,656 bytes measured against main's own 8,517,313, so +29,343.
+  // The import reader Worker (#283, #274, #390) on main at 907394a7: 8,553,612 bytes measured against main's own 8,524,053, so +29,559.
   // Named: the Worker's shared reader chunk +31,505 and the new lazy `text` (+10,824), `zip` (+7,393) and `reader.worker` (+2,187) chunks,
   // while the main-thread `rtf-source` shrinks 29,266 and `text-source` 3,380 because those readers moved into the Worker; the entry gains
-  // 1,184 for the command's lazy loader and the catalogues 980. First load 1,089,769 gzip (+506 on main), under its ceiling, which does not move.
+  // 1,184 for the command's lazy loader and the catalogues 980. First load 1,090,061 gzip (+517 on main), under its ceiling, which does not move.
   // No new dependency, no duplicated SDK version, no production pseudo-locale; every reader and the Worker itself load on use. The ceiling is
   // the measurement plus about 1%, rounded up to the thousand. [delegated 2026-11-17]
   totalJs: 8_633_000,
