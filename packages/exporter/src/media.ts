@@ -1810,13 +1810,22 @@ function timelinePdfOutput(request: MediaRequest): MediaOutput {
 
 /**
  * The podcast feed: one file for the selection's episodes, RSS 2.0 with the itunes and podcastindex namespaces.
- * The channel is the first episode's show (a selection that spans shows feeds one channel — the writer compiles
- * one show at a time). A selection with no episode is refused, as the other media formats refuse an empty read.
+ * The channel is the episodes' single show — a selection spanning more than one show is refused, as is one with
+ * no episode, since the other media formats refuse an empty read.
  */
 function podcastRssOutput(request: MediaRequest): MediaOutput {
   const nodes = selectedNodes(request.state, request.includeRootIds).filter((node) => isEpisodeDocument(node));
   if (nodes.length === 0) {
     throw new MediaRefusedError('podcast-rss', ['the selection holds no episode, so there is nothing to compile']);
+  }
+  const shows = new Map<string | undefined, ReturnType<typeof showFolderOf>>();
+  for (const node of nodes) {
+    const show = showFolderOf(request.state, node.id);
+    shows.set(show?.id, show);
+  }
+  if (shows.size > 1) {
+    const names = [...shows.values()].map((show) => (show === undefined ? 'no show folder' : `"${show.title}"`)).join(' and ');
+    throw new MediaRefusedError('podcast-rss', [`the selection's episodes sit in more than one show (${names}) — a feed is one show's channel, so compile one show's episodes at a time`]);
   }
   const notes: string[] = [];
   const episodes: PodcastEpisode[] = [];
@@ -1839,10 +1848,13 @@ function podcastRssOutput(request: MediaRequest): MediaOutput {
       meta: metaRead.meta,
     });
   }
-  const firstShow = showFolderOf(request.state, nodes[0]!.id);
+  const firstShow = shows.values().next().value;
   const channelRead = firstShow === undefined ? { meta: {} as ShowMeta, notices: [] as readonly string[] } : readShowMeta(firstShow.showMeta);
   notes.push(...channelRead.notices.map((note) => `"${firstShow!.title}": ${note}`));
   const description = channelRead.meta.description ?? (firstShow !== undefined && firstShow.synopsis !== '' ? firstShow.synopsis : undefined);
+  if (channelRead.meta.link === undefined) {
+    throw new MediaRefusedError('podcast-rss', ['the show names no home link — RSS 2.0 needs the channel\'s <link>, so set one on the show (script.setShowMeta) and compile again']);
+  }
   const rendered = renderPodcastRss({
     channel: {
       title: channelRead.meta.feedTitle ?? firstShow?.title ?? request.title,

@@ -12,6 +12,7 @@
  */
 
 import { escapeXml } from './render-epub.js';
+import { instantMs } from './render-feed.js';
 import { publishString, type PublishMeta } from './render-html.js';
 import type { EpisodeMeta } from '@caotang/script';
 
@@ -52,9 +53,32 @@ export interface RenderedPodcastFeed {
 /** The enclosure fields an item needs, in `episodeMeta`'s order (av-script.md §5). */
 const ENCLOSURE_KEYS = ['audioUrl', 'audioBytes', 'audioMime'] as const;
 
-/** RSS 2.0's `<pubDate>`: RFC 822. */
+/** RSS 2.0's `<pubDate>`: RFC 822. A leap second reads as the first millisecond of the next second. */
 function rfc822(instant: string): string {
-  return new Date(instant).toUTCString();
+  return new Date(instantMs(instant) ?? Date.parse(instant)).toUTCString();
+}
+
+/** The transcript MIME types an episode's URL extension names (Podcasting 2.0's `type`, required on the tag). */
+const TRANSCRIPT_TYPES: Readonly<Record<string, string>> = {
+  '.vtt': 'text/vtt',
+  '.srt': 'application/x-subrip',
+  '.json': 'application/json',
+  '.htm': 'text/html',
+  '.html': 'text/html',
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+  '.pdf': 'application/pdf',
+};
+
+/** The transcript's `type` from its URL's extension, or `undefined` when the address names no known transcript file. */
+function transcriptTypeOf(url: string): string | undefined {
+  try {
+    const path = new URL(url).pathname.toLowerCase();
+    const dot = path.lastIndexOf('.');
+    return dot === -1 ? undefined : TRANSCRIPT_TYPES[path.slice(dot)];
+  } catch {
+    return undefined;
+  }
 }
 
 /** The channel lines and the checklist notes for the six tags Apple requires (av-script.md §5). */
@@ -64,6 +88,7 @@ function channelLines(channel: PodcastChannel): { readonly lines: readonly strin
   const missing = (tag: string, why: string) => notes.push(`channel missing ${tag} — Apple requires it: ${why}`);
   if (channel.title.trim() === '') missing('title', 'the show needs a title');
   else lines.push(`<title>${escapeXml(channel.title)}</title>`);
+  // RSS 2.0 needs the channel's <link>; podcastRssOutput refuses the compile when the show names none.
   if (channel.link !== undefined) lines.push(`<link>${escapeXml(channel.link)}</link>`);
   if (channel.description === undefined || channel.description.trim() === '') {
     missing('description', 'set the show description or the folder synopsis');
@@ -95,7 +120,7 @@ function keptEpisodes(episodes: readonly PodcastEpisode[]): { readonly kept: rea
   const notes: string[] = [];
   for (const ep of episodes) {
     const instant = publishString(ep.publish, 'publishedAt');
-    if (instant === undefined || Number.isNaN(Date.parse(instant))) {
+    if (instant === undefined || instantMs(instant) === undefined) {
       notes.push(`skipped: ${ep.title} — a draft (no publish date), omitted from the feed`);
       continue;
     }
@@ -110,7 +135,7 @@ function keptEpisodes(episodes: readonly PodcastEpisode[]): { readonly kept: rea
 }
 
 /** One `<item>`: title, enclosure, guid, pubDate, then the itunes and podcast tags the episode holds. */
-function itemLines(ep: PodcastEpisode, instant: string, channel: PodcastChannel): string[] {
+function itemLines(ep: PodcastEpisode, instant: string, channel: PodcastChannel, notes: string[]): string[] {
   const m = ep.meta;
   const lines: string[] = [
     `<item>`,
@@ -125,10 +150,12 @@ function itemLines(ep: PodcastEpisode, instant: string, channel: PodcastChannel)
   if (m.episode !== undefined) lines.push(`<itunes:episode>${m.episode}</itunes:episode>`);
   if (m.season !== undefined) lines.push(`<itunes:season>${m.season}</itunes:season>`);
   if (m.episodeType !== undefined) lines.push(`<itunes:episodeType>${m.episodeType}</itunes:episodeType>`);
-  if (m.transcriptUrl !== undefined && channel.language !== undefined) {
-    lines.push(`<podcast:transcript url="${escapeXml(m.transcriptUrl)}" language="${escapeXml(channel.language)}"/>`);
+  const transcriptType = m.transcriptUrl === undefined ? undefined : transcriptTypeOf(m.transcriptUrl);
+  if (transcriptType !== undefined) {
+    const language = channel.language === undefined ? '' : ` language="${escapeXml(channel.language)}"`;
+    lines.push(`<podcast:transcript url="${escapeXml(m.transcriptUrl as string)}"${language} type="${transcriptType}"/>`);
   } else if (m.transcriptUrl !== undefined) {
-    lines.push(`<podcast:transcript url="${escapeXml(m.transcriptUrl)}"/>`);
+    notes.push(`skipped podcast:transcript on "${ep.title}" — its address names no transcript type the feed can declare (a .vtt, .srt, .json, .html, .txt, .md or .pdf path)`);
   }
   if (m.chaptersUrl !== undefined) {
     lines.push(`<podcast:chapters url="${escapeXml(m.chaptersUrl)}" type="application/json+chapters"/>`);
@@ -147,13 +174,14 @@ function itemLines(ep: PodcastEpisode, instant: string, channel: PodcastChannel)
 export function renderPodcastRss(input: PodcastFeedInput): RenderedPodcastFeed {
   const channel = channelLines(input.channel);
   const { kept, notes: skipNotes } = keptEpisodes(input.episodes);
+  const itemNotes: string[] = [];
   const lines: string[] = [
     '<?xml version="1.0" encoding="utf-8"?>',
     `<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:podcast="https://podcastindex.org/namespace/1.0">`,
     `<channel>`,
     ...channel.lines,
   ];
-  for (const { ep, instant } of kept) lines.push(...itemLines(ep, instant, input.channel));
+  for (const { ep, instant } of kept) lines.push(...itemLines(ep, instant, input.channel, itemNotes));
   lines.push(`</channel>`, `</rss>`, '');
-  return { xml: lines.join('\n'), notes: [...channel.notes, ...skipNotes] };
+  return { xml: lines.join('\n'), notes: [...channel.notes, ...skipNotes, ...itemNotes] };
 }

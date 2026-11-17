@@ -99,7 +99,7 @@ describe('the podcast feed', () => {
     expect(xml).toContain('<itunes:episode>4</itunes:episode>');
     expect(xml).toContain('<itunes:season>2</itunes:season>');
     expect(xml).toContain('<itunes:episodeType>full</itunes:episodeType>');
-    expect(xml).toContain('<podcast:transcript url="https://example.com/ep1.md" language="en"/>');
+    expect(xml).toContain('<podcast:transcript url="https://example.com/ep1.md" language="en" type="text/markdown"/>');
     expect(xml).toContain('<podcast:chapters url="https://example.com/ep1.json" type="application/json+chapters"/>');
     const log = JSON.parse(fs.snapshot()['exports/compile-log.json'] ?? '[]') as Array<{ notes?: string[] }>;
     const notes = log.at(-1)?.notes ?? [];
@@ -113,7 +113,7 @@ describe('the podcast feed', () => {
     await exporter.ready();
     const show = state.manifest.tree.find((n) => n.id === SHOW);
     if (show === undefined) throw new Error('no show');
-    show.showMeta = undefined;
+    show.showMeta = { link: 'https://example.com/show' };
     show.synopsis = '';
     state.manifest.recipes = [{ name: 'Podcast', includeRootIds: [SHOW], format: 'podcast-rss' }];
     exporter.commandPort().compile(state, {
@@ -130,6 +130,67 @@ describe('the podcast feed', () => {
     expect(notes.some((n) => n.includes('itunes:image'))).toBe(true);
     expect(notes.some((n) => n.includes('itunes:category'))).toBe(true);
     expect(notes.some((n) => n.includes('itunes:explicit'))).toBe(true);
+  });
+
+  it('refuses a compile when the show names no home link', async () => {
+    const { state, exporter } = showRig();
+    await exporter.ready();
+    const show = state.manifest.tree.find((n) => n.id === SHOW);
+    if (show === undefined) throw new Error('no show');
+    show.showMeta = { description: 'No link here.' };
+    state.manifest.recipes = [{ name: 'Podcast', includeRootIds: [SHOW], format: 'podcast-rss' }];
+    expect(() =>
+      exporter.commandPort().compile(state, {
+        selection: { kind: 'nodes', includeRootIds: [SHOW] },
+        format: 'podcast-rss',
+        recipeName: 'Podcast',
+        at: COMPILED_AT,
+      }),
+    ).toThrow('no home link');
+  });
+
+  it('refuses a selection whose episodes sit in more than one show', async () => {
+    const { state, exporter } = showRig();
+    await exporter.ready();
+    addFolder(state, { parentId: 'manuscript', title: 'Second Show', now: OPENED, id: 'n_SHOW00002' });
+    const second = state.manifest.tree.find((n) => n.id === 'n_SHOW00002');
+    if (second === undefined) throw new Error('no second show');
+    second.kind = 'show';
+    second.showMeta = { link: 'https://example.com/two' };
+    addDocument(state, { parentId: 'n_SHOW00002', title: 'Elsewhere', body: EP2_BODY, now: OPENED, id: 'n_EPISODE99', kind: 'av-script' });
+    state.manifest.recipes = [{ name: 'Podcast', includeRootIds: ['manuscript'], format: 'podcast-rss' }];
+    expect(() =>
+      exporter.commandPort().compile(state, {
+        selection: { kind: 'nodes', includeRootIds: ['manuscript'] },
+        format: 'podcast-rss',
+        recipeName: 'Podcast',
+        at: COMPILED_AT,
+      }),
+    ).toThrow('more than one show');
+  });
+
+  it('keeps a leap-second publish date and skips a transcript whose address names no type', async () => {
+    const { state, exporter, fs } = showRig();
+    await exporter.ready();
+    const ep1 = state.manifest.tree.find((n) => n.id === EP1);
+    if (ep1 === undefined) throw new Error('no ep');
+    ep1.publish = { publishedAt: '2016-12-31T23:59:60Z' };
+    ep1.episodeMeta = { ...ep1.episodeMeta, transcriptUrl: 'https://example.com/transcript' };
+    state.manifest.recipes = [{ name: 'Podcast', includeRootIds: [SHOW], format: 'podcast-rss' }];
+    exporter.commandPort().compile(state, {
+      selection: { kind: 'nodes', includeRootIds: [SHOW] },
+      format: 'podcast-rss',
+      recipeName: 'Podcast',
+      at: COMPILED_AT,
+    });
+    await exporter.idle();
+    const xml = fs.snapshot()['exports/The Rock Hour.rss.xml'];
+    if (xml === undefined) throw new Error('no feed written');
+    expect(xml).toContain('<pubDate>Sun, 01 Jan 2017 00:00:00 GMT</pubDate>');
+    expect(xml).not.toContain('podcast:transcript');
+    const log = JSON.parse(fs.snapshot()['exports/compile-log.json'] ?? '[]') as Array<{ notes?: string[] }>;
+    const notes = log.at(-1)?.notes ?? [];
+    expect(notes.some((n) => n.includes('podcast:transcript') && n.includes('The Ferry'))).toBe(true);
   });
 
   it('refuses a selection with no episode', async () => {
