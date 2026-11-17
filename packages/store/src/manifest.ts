@@ -94,6 +94,12 @@ export interface ExportRecipeOptions {
   notes?: 'footnote' | 'endnote';
   /** The teleprompter's wrap width in characters per line (av-script.md §5). Absent = the compile's default. Only `teleprompter` reads it. */
   teleprompterWidth?: number;
+  /** The HTML article emits the YAML block a static-site generator reads (web-publishing.md §3). Absent = off. Only `html` reads it. */
+  frontMatter?: boolean;
+  /** The HTML article as a full document or as a fragment for a site template (web-publishing.md §3). Absent = standalone. Only `html` reads it. */
+  htmlMode?: 'standalone' | 'fragment';
+  /** The stylesheet the writer's site serves, emitted as the article's `<link rel="stylesheet">` (web-publishing.md §3). Only `html` reads it. */
+  css?: string;
 }
 
 /**

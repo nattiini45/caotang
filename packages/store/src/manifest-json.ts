@@ -559,6 +559,9 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
   if (typeof o.timelinePictures === 'boolean') pairs.push(['timelinePictures', String(o.timelinePictures)]);
   if (typeof o.colourEmoji === 'boolean') pairs.push(['colourEmoji', String(o.colourEmoji)]);
   if (o.notes === 'footnote' || o.notes === 'endnote') pairs.push(['notes', str(o.notes, 'recipe.options.notes')]);
+  if (typeof o.frontMatter === 'boolean') pairs.push(['frontMatter', String(o.frontMatter)]);
+  if (o.htmlMode === 'standalone' || o.htmlMode === 'fragment') pairs.push(['htmlMode', str(o.htmlMode, 'recipe.options.htmlMode')]);
+  if (typeof o.css === 'string') pairs.push(['css', str(o.css, 'recipe.options.css')]);
   return pairs.length === 0 ? '{}' : oneLine(pairs);
 }
 

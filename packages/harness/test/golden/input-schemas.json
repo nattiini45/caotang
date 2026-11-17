@@ -534,7 +534,8 @@
           "transcript-md",
           "teleprompter",
           "vtt",
-          "chapters-json"
+          "chapters-json",
+          "html"
         ],
         "description": "The output format."
       },

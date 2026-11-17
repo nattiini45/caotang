@@ -941,6 +941,8 @@ describe('export.compile, export.compileSelection and project.deleteNode', () =>
       'teleprompter',
       'vtt',
       'chapters-json',
+      // The web publish targets (web-publishing.md §3): the HTML article, the thirty-first.
+      'html',
     ]);
   });
 
