@@ -26,7 +26,12 @@ The walker turns the page into the import block list (`import-core`) with the si
   The body walk never reaches the head, so counting only what it drops would report nothing for the usual export. The report says the
   stylesheet was not kept and that only alignment, bold and page breaks come through, since those are the signals `classStyles` reads.
 - Links pass the safe-href rule (http(s), mailto, or a relative target); a `javascript:` or other scheme keeps its text and is counted.
-- Images: a `data:` URI is decoded and a relative path resolved from the zip; both become picture refs. A remote http(s) image is
+- Images: a `data:` URI is decoded and a relative path resolved from the zip; both become picture refs. A relative path reaches the
+  page's own folder first and then the archive root, with `./` and `../` climbing (a path that would leave the archive is refused).
+  A picture the file names but the import cannot read — a target the archive does not carry, or any relative target in a lone page,
+  which has no archive to resolve against — **keeps its alt text** in the block or the sentence that named it and is counted as one
+  `image-unreadable` loss naming up to twenty targets and the count of the rest. A ref with no bytes behind it is never written into
+  the writer's manuscript. A remote http(s) image is
   **listed and never downloaded**: this source offers no network option, so the import makes no request at all. Decision 10's opt-in
   is the preview's seam (`PreviewOption.network`); wiring a download for HTML is not built.
 

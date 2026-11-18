@@ -735,6 +735,10 @@ describe('the import preview (#267)', () => {
     expect(read('apps/desktop/src/components/ScriptImport.tsx')).toContain('inklewriterPreviewSource');
     expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
     expect(guide).toContain('**Import HTML…** reads a saved HTML page');
+    expect(guide).toContain('this import has no download switch and makes no request at all');
+    expect(guide).toContain('a picture the file names but does not carry keeps the words beside it and is listed');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('dieser Import hat keinen Download-Schalter');
+    expect(read('docs/architecture/import-html.md')).toContain('A ref with no bytes behind it is never written into');
     expect(guide).toContain('in the background, so a long file does not hold the page while it is read');
     const manuscript = read('apps/desktop/src/components/ManuscriptImport.tsx');
     expect(manuscript).toContain("await import('../import-preview/text-source.js')");

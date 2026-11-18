@@ -82,6 +82,39 @@ describe('the HTML reader (#299)', () => {
     expect(bytes[1]).toEqual(new Uint8Array([2]));
   });
 
+  it('resolves ../ and ./ to the archive’s own folders, and names a picture the archive does not carry', async () => {
+    const read = await readHtmlArchive(archiveOf({
+      'docs/page.html': '<html><body><p>One. <img src="images/missing.png" alt="the missing map"/></p><p>Two. <img src="../images/present.png" alt="the lamp"/></p><p>Three. <img src="./images/present.png" alt="again"/></p></body></html>',
+      'images/present.png': new Uint8Array([7, 8]),
+    }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    // The picture the archive carries is found through `../` and `./`, and the one it does not is named.
+    expect(read.value.document.assets?.map((asset) => asset.name)).toEqual(['present.png', 'present.png']);
+    const loss = read.value.document.losses?.find((held) => held.code === 'image-unreadable');
+    expect(loss?.message).toContain('images/missing.png');
+    expect(loss?.count).toBe(1);
+    // No block or inline target keeps a ref with no bytes behind it.
+    const md = read.value.document.blocks.map((block) => (block.kind === 'image' ? block.assetRef : 'md' in block ? block.md : '')).join('\n');
+    expect(md).toContain('the missing map');
+    expect(md).not.toContain('import:html-image-0-0');
+  });
+
+  it('a lone page keeps the words of every relative picture it cannot resolve, and names them', () => {
+    const read = readHtmlFile(enc('<html><body><p>One. <img src="images/missing.png" alt="the map"/></p><img src="other.png" alt="the lamp"/></body></html>'), 'page.html');
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.document.blocks.some((block) => block.kind === 'image')).toBe(false);
+    const md = read.value.document.blocks.map((block) => ('md' in block ? block.md : '')).join('\n');
+    expect(md).toContain('One. the map');
+    expect(md).toContain('the lamp');
+    expect(md).not.toContain('import:html-image-');
+    const loss = read.value.document.losses?.find((held) => held.code === 'image-unreadable');
+    expect(loss?.count).toBe(2);
+    expect(loss?.message).toContain('images/missing.png');
+    expect(loss?.message).toContain('other.png');
+  });
+
   it('refuses an archive with no HTML page', async () => {
     const read = await readHtmlArchive(archiveOf({ 'readme.txt': 'nothing' }));
     expect(read.ok).toBe(false);

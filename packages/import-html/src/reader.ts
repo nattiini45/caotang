@@ -9,6 +9,7 @@ import type { ImportDocument, ImportAsset } from '@caotang/import-core';
 import { decodePlainText } from '@caotang/import-read/text';
 import { openZip, isArchiveResidue, type ImportArchive } from '@caotang/import-read/zip';
 import { htmlToBlocks, type HtmlDropped } from './walker.js';
+import { dropUnresolvedPictures, relativeCandidates } from './pictures.js';
 
 export interface HtmlImport {
   document: ImportDocument;
@@ -38,8 +39,6 @@ const titleOf = (html: string, fallback: string): string => {
   const text = (match?.[1] ?? '').replace(/\s+/g, ' ').trim();
   return text !== '' ? text : fallback.replace(HTML_EXT, '');
 };
-
-const dirOf = (path: string): string => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
 
 /** Decode a `data:` image URI to bytes, or null when it is not a base64 image we can read. */
 function dataUriBytes(target: string): Uint8Array | null {
@@ -75,8 +74,10 @@ export function readHtmlFile(bytes: Uint8Array, fileName: string): HtmlResult {
     assets.push({ ref, name: ref, bytes: data.length });
   }
 
+  // A picture with no bytes behind it keeps its alt text and is named, rather than leaving a ref that resolves to nothing.
+  const kept = dropUnresolvedPictures(blocks, new Set(assetData.keys()), images);
   const title = titleOf(decoded.text, fileName);
-  const document: ImportDocument = { blocks, losses, assets, metadata: { title } };
+  const document: ImportDocument = { blocks: kept.blocks, losses: [...losses, ...kept.losses], assets, metadata: { title } };
   return { ok: true, value: { document, title, assetData, remoteImages, dropped } };
 }
 
@@ -96,6 +97,7 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
   const losses: NonNullable<ImportDocument['losses']> = [];
   const assetData = new Map<string, Uint8Array>();
   const assets = new Map<string, ImportAsset>();
+  const targets = new Map<string, string>();
   const remoteImages: string[] = [];
   const dropped: HtmlDropped = { ...EMPTY_DROPPED };
   let title: string | undefined;
@@ -123,8 +125,9 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
     dropped.eventAttrs += walked.value.dropped.eventAttrs;
     dropped.unsafeLinks += walked.value.dropped.unsafeLinks;
 
-    // Resolve each image: a data: URI decodes; a relative path reads from the zip near the page.
+    // Resolve each image: a data: URI decodes; a relative path reads from the zip near the page, `./` and `../` included.
     for (const [ref, target] of walked.value.images) {
+      targets.set(ref, target);
       const data = dataUriBytes(target);
       if (data !== null) {
         assetData.set(ref, data);
@@ -132,10 +135,7 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
         continue;
       }
       if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('//')) continue; // remote: listed, not fetched
-      const clean = target.replace(/^\.\//, '');
-      const dir = dirOf(path);
-      const candidate = dir === '' ? clean : `${dir}/${clean}`;
-      const resolved = archive.entry(candidate) !== undefined ? candidate : archive.entry(clean) !== undefined ? clean : null;
+      const resolved = relativeCandidates(path, target).find((candidate) => archive.entry(candidate) !== undefined) ?? null;
       if (resolved === null) continue;
       const imageRead = await archive.read(resolved);
       if (!imageRead.ok) continue;
@@ -144,6 +144,8 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
     }
   }
 
-  const document: ImportDocument = { blocks, losses, assets: [...assets.values()], ...(title === undefined ? {} : { metadata: { title } }) };
+  // Every picture the pages name but the archive does not carry keeps its alt text and is named once for the whole import.
+  const kept = dropUnresolvedPictures(blocks, new Set(assetData.keys()), targets);
+  const document: ImportDocument = { blocks: kept.blocks, losses: [...losses, ...kept.losses], assets: [...assets.values()], ...(title === undefined ? {} : { metadata: { title } }) };
   return { ok: true, value: { document, title: title ?? '', assetData, remoteImages, dropped } };
 }
