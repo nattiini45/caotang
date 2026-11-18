@@ -204,13 +204,13 @@ describe('the XHTML walker (#299)', () => {
     // 40,000 dots with no brace inside a stylesheet: a regex that scans from every position would take minutes.
     const started = Date.now();
     const out = htmlToBlocks(page(`<style>${'.-'.repeat(40_000)} .c1 { text-align: center; }</style><p class="c1">A centred line.</p>`));
-    expect(Date.now() - started).toBeLessThan(10_000);
+    expect(Date.now() - started).toBeLessThan(1_000);
     if (!out.ok) throw new Error(out.error.message);
     const para = out.value.blocks.find((block) => block.kind === 'para');
     expect(para?.kind === 'para' && para.src?.align).toBe('center');
     // Unclosed <style> tags are not well-formed markup, but the class scan runs before the parse and must still return at once.
     const unclosed = Date.now();
     htmlToBlocks(page('<style>'.repeat(40_000)));
-    expect(Date.now() - unclosed).toBeLessThan(10_000);
+    expect(Date.now() - unclosed).toBeLessThan(1_000);
   });
 });
