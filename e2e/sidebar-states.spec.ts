@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
 import { test } from './test.js';
 
-import { createProject, idOf, waitForSaved } from './support.js';
+import { createProject, idOf, waitForSaved, chooseInterfaceLanguage} from './support.js';
 import { showBinder, switchToModern } from './modern-walk.js';
 import { fakeEndpoint, useFakeEndpoint } from './endpoint.js';
 
@@ -64,7 +64,7 @@ test('empty sidebar actions and trace guidance follow a German interface', async
   await page.getByTestId('open-settings').click();
   const settings = page.getByTestId('settings');
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await expect(settings.locator('input[name="interface-language"][value="de"]')).toBeChecked();
   await settings.getByRole('button', { name: 'Schließen', exact: true }).click();
   await expect(page.getByRole('treeitem', { name: 'Manuskript', exact: true })).toBeVisible();

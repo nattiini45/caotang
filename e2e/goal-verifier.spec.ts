@@ -2,7 +2,7 @@ import { expect, type Locator } from '@playwright/test';
 import { test } from './test.js';
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
 import { createGoalScene } from './goal-scene-flow.js';
-import { waitForSaved } from './support.js';
+import { waitForSaved, chooseInterfaceLanguage} from './support.js';
 
 async function controlContrast(control: Locator) {
   return control.evaluate(node => {
@@ -77,7 +77,7 @@ for (const shell of ['classic', 'modern'] as const) {
           } else await page.getByTestId('open-settings').click();
           const settings = page.getByTestId('settings');
           await settings.locator('[data-section="appearance"]').click();
-          await settings.locator('input[name="interface-language"][value="de"]').click();
+          await chooseInterfaceLanguage(page, settings, 'de');
           await expect(page.locator('html')).toHaveAttribute('lang', 'de');
           await page.keyboard.press('Escape');
           await expect(settings).toBeHidden();

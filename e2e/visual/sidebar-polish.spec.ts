@@ -1,3 +1,4 @@
+import { chooseInterfaceLanguage } from '../support.js';
 import { expect, test } from '@playwright/test';
 
 import { NO_PIN } from '../classic-pin.js';
@@ -43,7 +44,7 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     const settings = page.getByTestId('settings');
     await settings.locator('[data-section="appearance"]').click();
-    await settings.locator('input[name="interface-language"][value="de"]').click();
+    await chooseInterfaceLanguage(page, settings, 'de');
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
     await page.keyboard.press('Escape');
     await page.getByLabel('Projektname', { exact: true }).fill('Der Leuchtturmwärter');

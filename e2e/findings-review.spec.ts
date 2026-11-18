@@ -2,7 +2,7 @@ import { expect } from '@playwright/test';
 import { test } from './test.js';
 import { planHeldReview, startHeldReview, stopHeldReview, type ReviewWindow } from './findings-review.js';
 import { holdFolderSave, releaseFolderPicker, releaseFolderWrite } from './folder-save-support.js';
-import { FOLDER_ACCESS_ONLY } from './support.js';
+import { FOLDER_ACCESS_ONLY, chooseInterfaceLanguage} from './support.js';
 
 test('two synchronous Start clicks start only one model review', async ({ page }) => {
   await planHeldReview(page);
@@ -44,7 +44,7 @@ test('a stopped review outcome follows the interface language', async ({ page })
   await page.getByTestId('open-settings').click();
   const settings = page.getByTestId('settings');
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
   await page.keyboard.press('Escape');
   await expect(outcome).toContainText('Die Modellprüfung wurde gestoppt.');
@@ -142,7 +142,7 @@ for (const { shell, rtl } of [{ shell: 'Classic', rtl: false }, { shell: 'Modern
         await page.getByTestId('open-settings').click();
         const settings = page.getByTestId('settings');
         await settings.locator('[data-section="appearance"]').click();
-        await settings.locator('input[name="interface-language"][value="ar-XB"]').click();
+        await chooseInterfaceLanguage(page, settings, 'ar-XB');
         await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
         await page.keyboard.press('Escape');
       }

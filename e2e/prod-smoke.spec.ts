@@ -8,7 +8,7 @@ import { createGoalScene } from './goal-scene-flow.js';
 import { searchWhileTyping } from './text-search-flow.js';
 import { scanStartupCancellation } from './harness-worker-flow.js';
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
-import { binderTitle, createProject, firstChapter, waitForSaved, writerText } from './support.js';
+import { binderTitle, createProject, firstChapter, waitForSaved, writerText, chooseInterfaceLanguage} from './support.js';
 
 /**
  * The production build, smoke-tested. This spec runs only in the `production-preview` project (playwright.config.ts), against
@@ -174,7 +174,7 @@ test('the built app lazy-loads German under its policy and restores the saved ch
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByTestId('settings');
   await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
-  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await expect(settings.locator('input[name="interface-language"][value="de"]')).toBeChecked();
   await expect(settings.locator('h2')).toHaveText('Einstellungen');
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');

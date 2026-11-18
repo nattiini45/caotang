@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { binderRow, binderTitle, createProject, waitForSaved } from './support.js';
+import { binderRow, binderTitle, createProject, waitForSaved, chooseInterfaceLanguage} from './support.js';
 
 /**
  * The right-to-left shell (i18n.md §5, §8.3; I9 / #199). The shell mirrors with the interface language, the tree and the tabs read
@@ -26,7 +26,7 @@ async function openSettings(page: Page): Promise<Locator> {
 async function switchToRtl(page: Page): Promise<void> {
   const settings = await openSettings(page);
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="ar-XB"]').click();
+  await chooseInterfaceLanguage(page, settings, 'ar-XB');
   await expect.poll(() => page.evaluate(() => document.documentElement.dir)).toBe('rtl');
   await settings.locator('.settings-head button').click();
 }

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { holdFolderSave, releaseFolderPicker } from '../folder-save-support.js';
-import { createProject, waitForSaved } from '../support.js';
+import { createProject, waitForSaved, chooseInterfaceLanguage} from '../support.js';
 
 for (const locale of ['en', 'de'] as const) {
   for (const shell of ['classic', 'modern'] as const) {
@@ -23,7 +23,7 @@ for (const locale of ['en', 'de'] as const) {
         }
         const settings = page.getByTestId('settings');
         await settings.locator('[data-section="appearance"]').click();
-        await settings.locator('input[name="interface-language"][value="de"]').click();
+        await chooseInterfaceLanguage(page, settings, 'de');
         await expect(page.locator('html')).toHaveAttribute('lang', 'de');
         await page.keyboard.press('Escape');
         await expect(settings).toBeHidden();

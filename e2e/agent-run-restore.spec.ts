@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 import { test } from './test.js';
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint as pointAtFakeEndpoint } from './endpoint.js';
-import { bodyOf, createProject, idOf, projectTrace, waitForSaved } from './support.js';
+import { bodyOf, createProject, idOf, projectTrace, waitForSaved, chooseInterfaceLanguage} from './support.js';
 
 async function finishedRun(page: Page, name: string): Promise<void> {
   await fakeEndpoint(page, planThenAnswer({ steps: [
@@ -130,7 +130,7 @@ for (const shell of ['classic', 'modern'] as const) {
       await settings.getByTestId('interface-choice').getByRole('radio', { name: 'Modern', exact: true }).check();
       await expect(page.getByTestId('shell')).toHaveAttribute('data-state', 'modern');
     }
-    await settings.locator('input[name="interface-language"][value="de"]').click();
+    await chooseInterfaceLanguage(page, settings, 'de');
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
     await settings.locator('.settings-head button').click();
     if (shell === 'modern') await page.locator('#modern-binder-agent').click();
