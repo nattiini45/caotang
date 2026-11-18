@@ -232,15 +232,18 @@ export async function projectIdOf(page: Page): Promise<string | null> {
  * failed load. Specs that intercept the catalogue route call the radio's click directly.
  */
 export async function chooseInterfaceLanguage(page: Page, scope: Page | Locator, tag: string): Promise<void> {
-  await page.evaluate(async (t) => {
-    try {
-      const runtimeUrl = '/src/i18n/runtime.ts';
-      const runtime = (await import(runtimeUrl)) as { loadMessages: (tag: string) => Promise<unknown> };
-      await runtime.loadMessages(t);
-    } catch {
-      /* the switch surfaces a failed catalogue load itself */
-    }
-  }, tag);
+  const runtimeUrl = `${new URL(page.url()).origin}/src/i18n/runtime.ts`;
+  if ((await page.context().request.get(runtimeUrl)).ok()) {
+    await page.evaluate(async (t) => {
+      try {
+        const specifier = '/src/i18n/runtime.ts';
+        const runtime = (await import(specifier)) as { loadMessages: (tag: string) => Promise<unknown> };
+        await runtime.loadMessages(t);
+      } catch {
+        /* the switch surfaces a failed catalogue load itself */
+      }
+    }, tag);
+  }
   await scope.locator(`input[name="interface-language"][value="${tag}"]`).click();
 }
 
