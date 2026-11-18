@@ -3,7 +3,7 @@ import type * as RecurringModule from '../apps/desktop/src/app/recurring-tasks.j
 import type { TaskRecord } from '../apps/desktop/src/app/task-store.js';
 
 import { fakeEndpoint, useFakeEndpoint, type FakeReply } from './endpoint.js';
-import { binderTitle, createProject, waitForSaved } from './support.js';
+import { binderTitle, createProject, waitForSaved, chooseInterfaceLanguage} from './support.js';
 import { projectTrace } from './support.js';
 
 /**
@@ -262,7 +262,7 @@ for (const language of ['en', 'de'] as const) {
       await page.getByRole('button', { name: 'Settings', exact: true }).click();
       const settings = page.getByTestId('settings');
       await settings.locator('[data-section="appearance"]').click();
-      await settings.locator('input[name="interface-language"][value="de"]').click();
+      await chooseInterfaceLanguage(page, settings, 'de');
       await expect(page.locator('html')).toHaveAttribute('lang', 'de');
       await settings.locator('.settings-head button').click();
     }
@@ -366,7 +366,7 @@ for (const [shell, language] of [['classic', 'en'], ['modern', 'de']] as const) 
       await page.getByRole('button', { name: 'Settings', exact: true }).click();
       const settings = page.getByTestId('settings');
       await settings.locator('[data-section="appearance"]').click();
-      await settings.locator('input[name="interface-language"][value="de"]').click();
+      await chooseInterfaceLanguage(page, settings, 'de');
       await expect(page.locator('html')).toHaveAttribute('lang', 'de');
       await settings.locator('.settings-head button').click();
     }

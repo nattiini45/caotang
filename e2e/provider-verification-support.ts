@@ -1,3 +1,4 @@
+import { chooseInterfaceLanguage } from './support.js';
 import { expect, type Page } from '@playwright/test';
 
 import { addCustomEndpoint } from './provider-setup-support.js';
@@ -33,7 +34,7 @@ export async function openVerification(page: Page, locale: 'en' | 'de', shell: '
   await expect(settings.locator('[data-profile="Schreibmodell"]')).toHaveAttribute('data-state', 'verified');
   if (locale === 'de') {
     await settings.locator('[data-section="appearance"]').click();
-    await settings.locator('input[name="interface-language"][value="de"]').click();
+    await chooseInterfaceLanguage(page, settings, 'de');
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
     await settings.locator('[data-section="providers"]').click();
   }

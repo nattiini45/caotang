@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint as addFakeProvider, type FakeRequest } from './endpoint.js';
-import { binderRow } from './support.js';
+import { binderRow, chooseInterfaceLanguage} from './support.js';
 
 async function sample(page: Page, seen: FakeRequest[]): Promise<void> {
   await fakeEndpoint(page, (request) => { seen.push(request); return request.tools === undefined ? JSON.stringify({ reply: 'Done.' }) : { text: 'Done.' }; });
@@ -79,7 +79,7 @@ test('the inline argument form and save action render in German without overflow
   await page.getByTestId('open-settings').click();
   const settings = page.getByTestId('settings');
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
   await page.keyboard.press('Escape');
   await page.getByRole('combobox', { name: 'Absicht' }).fill('/fokus');
@@ -158,7 +158,7 @@ test('a skill’s held plan explains that its restrictions require a fresh invoc
   await page.getByTestId('open-settings').click();
   const settings = page.getByTestId('settings');
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await page.keyboard.press('Escape');
   await expect(held).toContainText('Wechseln Sie zu „Fragen“');
   for (const width of [960, 1100, 1280]) {

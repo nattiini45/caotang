@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { createProject, waitForSaved } from './support.js';
+import { createProject, waitForSaved, chooseInterfaceLanguage} from './support.js';
 
 /**
  * The shell, home and settings surfaces under a padded pseudo catalogue (i18n.md §8.1, §8.3; I5 / #196).
@@ -33,7 +33,7 @@ async function openSettings(page: Page): Promise<ReturnType<Page['getByTestId']>
 async function switchToPseudo(page: Page, settings: ReturnType<Page['getByTestId']>): Promise<void> {
   await settings.locator('[data-section="appearance"]').click();
   // Async radios need `click`, not `check`: the input's change is handled by the switcher.
-  await settings.locator('input[name="interface-language"][value="en-XA"]').click();
+  await chooseInterfaceLanguage(page, settings, 'en-XA');
   await expect.poll(() => page.evaluate(() => document.documentElement.lang)).toBe('en-XA');
 }
 

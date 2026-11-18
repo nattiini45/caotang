@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
-import { bodyOf, idOf, projectTrace, waitForSaved } from './support.js';
+import { bodyOf, idOf, projectTrace, waitForSaved, chooseInterfaceLanguage} from './support.js';
 
 /**
  * The agent panel on a model that answers through an endpoint: a plan card that is reordered and edited before it is
@@ -56,7 +56,7 @@ test('an open agent plan switches language without losing edits or changing appr
   await page.getByTestId('open-settings').click();
   const settings = page.getByTestId('settings');
   await settings.getByRole('button', { name: 'Appearance' }).click();
-  await settings.locator('input[name="interface-language"][value="en-XA"]').click();
+  await chooseInterfaceLanguage(page, settings, 'en-XA');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en-XA');
   await settings.locator('.settings-head button').click();
   const panel = page.getByTestId('agent-panel');
@@ -71,7 +71,7 @@ test('an open agent plan switches language without losing edits or changing appr
   await expect(panel.locator('.agent-intent-text').last()).toHaveText('Add two notes.');
   await page.getByTestId('open-settings').click();
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="en"]').click();
+  await chooseInterfaceLanguage(page, settings, 'en');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await settings.locator('.settings-head button').click();
   await expect(card.getByRole('textbox', { name: 'text of step 1' })).toHaveValue('Edited note.');
