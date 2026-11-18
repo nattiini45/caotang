@@ -43,6 +43,12 @@ Each folder holding an `entry.md` is one codex entry. Its type comes from the ty
 The research page carries the description, Connections, notes and custom fields, so nothing is dropped silently. The entry cites its
 own research page when the manuscript does not name it, so a codex-only export still commits its entries.
 
+**A codex-only export brings one empty chapter with it.** With no manuscript Markdown the reader returns no blocks, and the splitter's
+fallback is one empty chapter named "Manuscript"; `binder.importTree` requires a non-empty `nodes` array, so that placeholder is what
+lets the entries and their pages commit at all. The writer sees one empty "Manuscript" folder beside the new Research pages and can
+delete it; one Undo takes the whole import back. Importing entries with no node at all would need a command that takes codex alone
+(the same contract gap as #289's shot list).
+
 ## 4. What is lost
 
 NovelCrafter's progressions, chats, snippets and prompts are not part of the export; the report lists them as staying in NovelCrafter.

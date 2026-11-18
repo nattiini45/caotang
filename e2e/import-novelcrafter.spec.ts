@@ -104,3 +104,48 @@ test('a NovelCrafter export opens with its manuscript and a codex row, and Impor
   // The codex entry the manuscript does not name is kept as a research page of its own.
   expect(tree.some((node) => node.type === 'document' && node.title === 'Elena')).toBe(true);
 });
+test('a codex-only export commits its entries as Research pages, with one empty manuscript chapter beside them', async ({ page }) => {
+  await createProject(page, 'NovelCrafter Codex');
+  const codexOnly: Record<string, string> = {
+    'characters/Elena/entry.md': '---\nname: Elena\naliases: [El]\n---\nElena is the ferry captain.\n',
+    'places/The Rock/entry.md': '---\nname: The Rock\n---\nGrey stone above the harbour.\n',
+  };
+  await page.locator('input[type="file"][aria-label="NovelCrafter export zip"]').setInputFiles({ name: 'codex.zip', mimeType: 'application/zip', buffer: storedZip(codexOnly) });
+
+  const dialog = page.getByRole('dialog', { name: 'Import “codex.zip”' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('.import-preview-detected')).toContainText('2 codex rows');
+  await expect(dialog.getByRole('combobox', { name: 'What to do with Elena', exact: true })).toBeVisible();
+
+  // The entries land as Research pages. The splitter's empty "Manuscript" chapter comes with them: `binder.importTree` needs a node,
+  // and that placeholder is what lets a codex-only export commit at all (import-novelcrafter.md §3).
+  await dialog.getByRole('button', { name: /Import/ }).last().click();
+  await expect(dialog).toBeHidden();
+  await waitForSaved(page);
+  expect((await traceNames(page)).filter((name) => name === 'binder.importTree')).toHaveLength(1);
+  const tree = await treeOf(page);
+  expect(tree.filter((node) => node.parentId === 'research' && node.type === 'document').map((node) => node.title)).toEqual(['Elena', 'The Rock']);
+  const chapters = tree.filter((node) => node.parentId === 'manuscript' && node.type === 'folder');
+  expect(chapters.map((node) => node.title)).toEqual(['Manuscript']);
+  expect(tree.some((node) => node.parentId === chapters[0]?.id)).toBe(false);
+  expect(await bodyOf(page, tree.find((node) => node.title === 'Elena')?.id ?? '')).toContain('Elena is the ferry captain.');
+});
+
+test('one Undo takes back the whole export, its codex entry and its research page included', async ({ page }) => {
+  await createProject(page, 'NovelCrafter Undo');
+  const before = await treeOf(page);
+  await choose(page);
+  const dialog = page.getByRole('dialog', { name: 'Import “export.zip”' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Import 2 chapters' }).click();
+  await expect(dialog).toBeHidden();
+  await waitForSaved(page);
+  const after = await treeOf(page);
+  expect(after.length).toBeGreaterThan(before.length);
+
+  await page.getByRole('tab', { name: 'Activity' }).click();
+  const newest = page.getByRole('list', { name: 'Activity' }).getByRole('listitem').first();
+  await newest.getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(async () => (await treeOf(page)).map((node) => node.id).sort()).toEqual(before.map((node) => node.id).sort());
+});
+
