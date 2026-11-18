@@ -526,7 +526,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
         ...(options.loadColourEmoji === undefined ? {} : { colourEmoji: options.loadColourEmoji }),
         ...(options.loadArabicFont === undefined ? {} : { arabic: options.loadArabicFont }),
         ...(options.loadHebrewFont === undefined ? {} : { hebrew: options.loadHebrewFont }),
-        ...(options.loadDevanagariFont === undefined ? {} : { devanagari: options.loadDevanagariFont }),
+        ...(options.loadIndicFonts === undefined ? {} : { indic: options.loadIndicFonts }),
       };
       prosePdf = { opts: pdfOpts, layout, loaders };
     }
