@@ -15,6 +15,13 @@ codex entry's `entry.md` is Markdown with front matter. No DOM, no third-party d
 A NovelCrafter export zip may hold the codex alone, or the codex and the manuscript together. The reader reads both when both are
 there: the codex folders become codex entries, and every Markdown file outside a codex folder becomes the manuscript.
 
+**The two exports picked together.** NovelCrafter exports the manuscript and the codex separately, so **Import NovelCrafter zip…**
+accepts more than one file: one `.zip` and at most one manuscript (`.md`, `.markdown`, `.mdown`, `.mkd`, `.txt`). The picked file is
+the manuscript — `readNovelCrafterExport(archive, manuscript?)` reads it through the same Markdown reader, keyed by its own name so
+its front matter attaches to its scenes — and the zip still supplies the codex and any picture the manuscript references. Any
+Markdown of the export's own is then left out and **named** in the report (`leftOut`), never dropped in silence. A pick with no zip,
+or with two manuscripts, is refused on the status line before anything is read. The zip alone works exactly as before.
+
 ## 2. The manuscript
 
 The manuscript is read by the Markdown reader (`@caotang/import-markdown`) and split by the shared splitter: the heading ladder
@@ -23,7 +30,7 @@ front-matter `synopsis`/`summary`/`description` becomes its synopsis, and every 
 manuscript's pictures resolve from the export when their bytes are there.
 
 The DOCX manuscript variant is not in this build; it needs the DOCX reader (#279). A writer with a DOCX manuscript exports it as
-Markdown from NovelCrafter, or imports the codex here and the manuscript later.
+Markdown from NovelCrafter and picks it beside the codex zip.
 
 ## 3. The codex
 

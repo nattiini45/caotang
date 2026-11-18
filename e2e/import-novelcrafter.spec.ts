@@ -149,3 +149,60 @@ test('one Undo takes back the whole export, its codex entry and its research pag
   await expect.poll(async () => (await treeOf(page)).map((node) => node.id).sort()).toEqual(before.map((node) => node.id).sort());
 });
 
+test('a manuscript picked beside the codex zip imports with it, in one step', async ({ page }) => {
+  await createProject(page, 'NovelCrafter Pair');
+  const codexOnly: Record<string, string> = {
+    'characters/Elena/entry.md': '---\nname: Elena\naliases: [El]\n---\nElena is the ferry captain.\n',
+  };
+  const novel = '# Chapter One\n\nThe ferry came at noon.\n\n# Chapter Two\n\nThe letter arrived on a Tuesday.\n';
+  await page.locator('input[type="file"][aria-label="NovelCrafter export zip"]').setInputFiles([
+    { name: 'codex.zip', mimeType: 'application/zip', buffer: storedZip(codexOnly) },
+    { name: 'novel.md', mimeType: 'text/markdown', buffer: Buffer.from(novel) },
+  ]);
+
+  const dialog = page.getByRole('dialog', { name: 'Import “codex.zip”' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('.import-preview-detected')).toContainText('2 chapters');
+  await expect(dialog.locator('.import-preview-detected')).toContainText('1 codex row');
+
+  await dialog.getByRole('button', { name: 'Import 2 chapters' }).click();
+  await expect(dialog).toBeHidden();
+  await waitForSaved(page);
+  expect((await traceNames(page)).filter((name) => name === 'binder.importTree')).toHaveLength(1);
+  const tree = await treeOf(page);
+  const chapters = tree.filter((node) => node.parentId === 'manuscript' && node.type === 'folder').map((node) => node.title);
+  expect(chapters).toEqual(['Chapter One', 'Chapter Two']);
+  const one = tree.find((node) => node.title === 'Chapter One');
+  const scenes = tree.filter((node) => node.parentId === one?.id && node.type === 'document');
+  expect(await bodyOf(page, scenes[0]?.id ?? '')).toContain('The ferry came at noon.');
+  expect(await bodyOf(page, tree.find((node) => node.title === 'Elena')?.id ?? '')).toContain('Elena is the ferry captain.');
+});
+
+test('the export’s own manuscript is named when a file is picked beside it', async ({ page }) => {
+  await createProject(page, 'NovelCrafter Both');
+  const withBoth: Record<string, string> = {
+    'characters/Elena/entry.md': '---\nname: Elena\n---\nElena is the ferry captain.\n',
+    'old-novel.md': '# An Earlier Draft\n\nThis one is not the manuscript.\n',
+  };
+  const novel = '# Chapter One\n\nThe ferry came at noon.\n';
+  await page.locator('input[type="file"][aria-label="NovelCrafter export zip"]').setInputFiles([
+    { name: 'codex.zip', mimeType: 'application/zip', buffer: storedZip(withBoth) },
+    { name: 'novel.md', mimeType: 'text/markdown', buffer: Buffer.from(novel) },
+  ]);
+
+  const dialog = page.getByRole('dialog', { name: 'Import “codex.zip”' });
+  await expect(dialog).toBeVisible();
+  const leftOut = dialog.getByRole('list', { name: 'Left out for the manuscript you chose' });
+  await expect(leftOut).toContainText('old-novel.md');
+
+  await dialog.getByRole('button', { name: /Import/ }).last().click();
+  await expect(dialog).toBeHidden();
+  await waitForSaved(page);
+  const tree = await treeOf(page);
+  expect(tree.some((node) => node.title === 'An Earlier Draft')).toBe(false);
+  const bodies: string[] = [];
+  for (const node of tree.filter((held) => held.type === 'document')) bodies.push((await bodyOf(page, node.id)) ?? '');
+  expect(bodies.join('\n')).toContain('The ferry came at noon.');
+  expect(bodies.join('\n')).not.toContain('This one is not the manuscript.');
+});
+

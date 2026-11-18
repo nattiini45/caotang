@@ -29,7 +29,13 @@ export type ReaderOpen =
   | { readonly kind: 'open'; readonly reader: 'obsidian-folder'; readonly files: readonly { readonly path: string; readonly size: number; readonly bytes: Uint8Array }[] }
   | { readonly kind: 'open'; readonly reader: 'obsidian-zip'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'novelcrafter-folder'; readonly files: readonly { readonly path: string; readonly size: number; readonly bytes: Uint8Array }[] }
-  | { readonly kind: 'open'; readonly reader: 'novelcrafter-zip'; readonly bytes: Uint8Array };
+  | {
+      readonly kind: 'open';
+      readonly reader: 'novelcrafter-zip';
+      readonly bytes: Uint8Array;
+      /** A manuscript picked beside the zip, since NovelCrafter exports the manuscript and the codex separately (#292). */
+      readonly manuscript?: { readonly path: string; readonly bytes: Uint8Array };
+    };
 
 /** Reads the cached input again with these options. A text read decodes and builds blocks; an RTF read parses. */
 export type ReaderRead =

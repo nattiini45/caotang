@@ -141,3 +141,71 @@ describe('the NovelCrafter export reader (#292)', () => {
     expect(read.error.kind).toBe('empty');
   });
 });
+
+/** NovelCrafter exports the manuscript and the codex separately, so the writer picks the two together. */
+const CODEX_ONLY = {
+  'characters/Elena/entry.md': ELENA_ENTRY,
+  'characters/Elena/metadata.json': JSON.stringify({ relations: [{ name: 'Mara', type: 'first mate' }] }),
+};
+
+const picked = (path: string, text: string) => ({ path, bytes: new TextEncoder().encode(text) });
+
+describe('a manuscript picked beside the codex zip (#292)', () => {
+  it('imports the picked manuscript and the zip’s codex as one read', async () => {
+    const read = await readNovelCrafterExport(
+      exportOf(CODEX_ONLY),
+      picked('novel.md', '# Chapter 1: The Landing\n\nThe ferry came at noon.\n\n# Chapter 2: Salt\n\nNight fell.'),
+    );
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.codex).toHaveLength(1);
+    expect(read.value.document.blocks.map((block) => block.text ?? '').join(' ')).toContain('The ferry came at noon.');
+    expect(read.value.document.blocks.filter((block) => block.kind === 'heading')).toHaveLength(2);
+    expect(read.value.leftOut).toEqual([]);
+  });
+
+  it('keeps the picked file’s front matter under its own name', async () => {
+    const read = await readNovelCrafterExport(
+      exportOf(CODEX_ONLY),
+      picked('novel.md', '---\nsynopsis: The ferry comes in.\nstatus: Draft\n---\n# Chapter 1\n\nThe ferry came at noon.'),
+    );
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.frontMatter['novel.md']?.scene.synopsis).toBe('The ferry comes in.');
+    expect(read.value.frontMatter['novel.md']?.scene.status).toBe('Draft');
+  });
+
+  it('names the export’s own manuscript instead of dropping it silently', async () => {
+    const read = await readNovelCrafterExport(
+      exportOf({ ...CODEX_ONLY, 'old-novel.md': '# Old\n\nAn earlier draft.' }),
+      picked('novel.md', '# Chapter 1\n\nThe ferry came at noon.'),
+    );
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.leftOut).toEqual(['old-novel.md']);
+    const text = read.value.document.blocks.map((block) => block.text ?? '').join(' ');
+    expect(text).toContain('The ferry came at noon.');
+    expect(text).not.toContain('An earlier draft.');
+  });
+
+  it('still resolves a picture the manuscript references from the export', async () => {
+    const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const read = await readNovelCrafterExport(
+      exportOf({ ...CODEX_ONLY, 'images/harbour.png': png }),
+      picked('novel.md', '# Chapter 1\n\n![The harbour](images/harbour.png)'),
+    );
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const image = read.value.document.blocks.find((block) => block.kind === 'image');
+    expect(image).toBeDefined();
+    expect(read.value.assetData.size).toBeGreaterThan(0);
+  });
+
+  it('reads the export’s own manuscript when no file is picked beside it', async () => {
+    const read = await readNovelCrafterExport(exportOf({ ...CODEX_ONLY, 'novel.md': '# Chapter 1\n\nThe ferry came at noon.' }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.leftOut).toEqual([]);
+    expect(read.value.document.blocks.map((block) => block.text ?? '').join(' ')).toContain('The ferry came at noon.');
+  });
+});

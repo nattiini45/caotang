@@ -1200,6 +1200,11 @@ msgstr "{field}: {to}"
 msgid "{fields, plural, one {# custom field kept in the research text} other {# custom fields kept in the research text}}"
 msgstr "{fields, plural, one {# benutzerdefiniertes Feld im Recherchetext behalten} other {# benutzerdefinierte Felder im Recherchetext behalten}}"
 
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
+msgid "{file} — the export’s own text; the file you picked is the manuscript."
+msgstr "{file} — der eigene Text des Exports; die Datei, die Sie gewählt haben, ist das Manuskript."
+
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
 msgid "{file} could not be read: {problem}"
@@ -5227,6 +5232,11 @@ msgstr "Titelbild wählen…"
 msgid "Choose how the timeline names the days of your story. The days you set on scenes stay as they are, whichever you choose."
 msgstr "Wählen Sie, wie die Zeitachse die Tage Ihrer Geschichte benennt. Die Tage, die Sie für Szenen festlegen, bleiben so, wie sie sind, egal wofür Sie sich entscheiden."
 
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Choose one manuscript file beside the codex zip."
+msgstr "Wählen Sie eine Manuskriptdatei neben dem Kodex-Zip."
+
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #: apps/desktop/src/media/PictureBoard.tsx
@@ -5237,6 +5247,11 @@ msgstr "Bilder wählen…"
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "Choose PNG, JPEG or WebP pictures, drop them here, or paste them. They stay in this project, on your machine."
 msgstr "Wählen Sie Bilder im Format PNG, JPEG oder WebP, legen Sie sie hier ab oder fügen Sie sie ein. Sie bleiben in diesem Projekt, auf Ihrem Rechner."
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Choose the NovelCrafter codex zip. A manuscript file beside it is imported with it."
+msgstr "Wählen Sie das NovelCrafter-Kodex-Zip. Eine Manuskriptdatei daneben wird mit ihm importiert."
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
@@ -9370,6 +9385,11 @@ msgstr "Linker Rand"
 msgid "Left out"
 msgstr "Ausgelassen"
 
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
+msgid "Left out for the manuscript you chose"
+msgstr "Ausgelassen für das Manuskript, das Sie gewählt haben"
+
 #. Names of codex entries or blocks the prompt budget left out; the value is writer content.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "Left out of its prompt: {names}"
@@ -11240,6 +11260,7 @@ msgstr "nicht gruppiert"
 msgid "Not in the project yet"
 msgstr "Noch nicht im Projekt"
 
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/novelcrafter-source.ts
 msgid "Not in this import"

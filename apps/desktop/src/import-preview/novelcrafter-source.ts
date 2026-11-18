@@ -129,8 +129,17 @@ function makeNovelCrafterSource(fileName: string, openReq: ReaderOpen): ImportPr
     pictures,
     report: () => {
       const read = current;
-      if (read === null || read.codex.length === 0) return [];
+      if (read === null) return [];
       const lists = [];
+      // A manuscript picked beside the zip wins, so the export's own Markdown is named rather than dropped in silence.
+      if (read.leftOut.length > 0) {
+        lists.push({
+          heading: t`Not in this import`,
+          label: t`Left out for the manuscript you chose`,
+          lines: read.leftOut.map((path) => t`${{ file: path }} — the export’s own text; the file you picked is the manuscript.`),
+        });
+      }
+      if (read.codex.length === 0) return lists;
       const kept: string[] = [];
       const relations = read.codex.reduce((sum, entry) => sum + entry.relations.length, 0);
       if (relations > 0) kept.push(plural(relations, { one: '# relation listed as a Connection', other: '# relations listed as Connections' }));
@@ -168,6 +177,15 @@ export function novelcrafterFolderPreviewSource(fileName: string, files: readonl
 }
 
 /** A zipped NovelCrafter export (the codex, and the manuscript when it is there). */
-export function novelcrafterZipPreviewSource(fileName: string, bytes: Uint8Array): ImportPreviewSource {
-  return makeNovelCrafterSource(fileName, { kind: 'open', reader: 'novelcrafter-zip', bytes });
+export function novelcrafterZipPreviewSource(
+  fileName: string,
+  bytes: Uint8Array,
+  manuscript?: { readonly path: string; readonly bytes: Uint8Array },
+): ImportPreviewSource {
+  return makeNovelCrafterSource(fileName, {
+    kind: 'open',
+    reader: 'novelcrafter-zip',
+    bytes,
+    ...(manuscript === undefined ? {} : { manuscript }),
+  });
 }

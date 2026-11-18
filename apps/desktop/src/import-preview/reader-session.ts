@@ -19,7 +19,7 @@ type State =
   | { readonly reader: 'markdown'; readonly bytes: Uint8Array; readonly fileName: string }
   | { readonly reader: 'markdown-archive'; readonly archive: ImportArchive }
   | { readonly reader: 'obsidian'; readonly archive: ImportArchive }
-  | { readonly reader: 'novelcrafter'; readonly archive: ImportArchive };
+  | { readonly reader: 'novelcrafter'; readonly archive: ImportArchive; readonly manuscript?: { readonly path: string; readonly bytes: Uint8Array } };
 
 /** Flattens an RTF or archive refusal to a code and a message, so it survives the structured clone (an Error's own `code` does not). */
 function serialiseRtf(result: RtfReadResult | RtfdReadResult): SerializableRtfResult {
@@ -50,7 +50,10 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
       return;
     }
     if (req.reader === 'novelcrafter-folder' || req.reader === 'novelcrafter-zip') {
-      state = { reader: 'novelcrafter', archive: archive.value };
+      state =
+        req.reader === 'novelcrafter-zip' && req.manuscript !== undefined
+          ? { reader: 'novelcrafter', archive: archive.value, manuscript: req.manuscript }
+          : { reader: 'novelcrafter', archive: archive.value };
       return;
     }
     state =
@@ -94,7 +97,7 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
     if (req.reader === 'novelcrafter') {
       if (state.reader !== 'novelcrafter') throw new Error('The import reader is not a NovelCrafter reader.');
       const { readNovelCrafterExport } = await import('@caotang/import-novelcrafter');
-      return { kind: 'novelcrafter', result: await readNovelCrafterExport(state.archive) };
+      return { kind: 'novelcrafter', result: await readNovelCrafterExport(state.archive, state.manuscript) };
     }
     const { readRtf, readRtfd } = await import('@caotang/import-rtf');
     const options = {

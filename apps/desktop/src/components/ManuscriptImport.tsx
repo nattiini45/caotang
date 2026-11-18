@@ -171,13 +171,28 @@ export function ManuscriptImportActions(): ReactNode {
     }
   };
 
-  const openNovelCrafterZip = async (file: File): Promise<void> => {
+  // NovelCrafter exports the manuscript and the codex separately, so the zip may be picked together with the manuscript file
+  // beside it (#292). One zip and at most one text file; the zip alone still works, and its own manuscript is used when it has one.
+  const openNovelCrafterZip = async (files: readonly File[]): Promise<void> => {
+    const list = [...files];
+    const zip = list.find((file) => /\.zip$/i.test(file.name));
+    const texts = list.filter((file) => /\.(md|markdown|mdown|mkd|txt)$/i.test(file.name));
+    if (zip === undefined) {
+      report({ text: t`Choose the NovelCrafter codex zip. A manuscript file beside it is imported with it.`, tone: 'error' });
+      return;
+    }
+    if (texts.length > 1) {
+      report({ text: t`Choose one manuscript file beside the codex zip.`, tone: 'error' });
+      return;
+    }
+    const file = texts[0];
     try {
       const { novelcrafterZipPreviewSource } = await import('../import-preview/novelcrafter-source.js');
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      openImportPreview({ source: novelcrafterZipPreviewSource(file.name, bytes) });
+      const bytes = new Uint8Array(await zip.arrayBuffer());
+      const manuscript = file === undefined ? undefined : { path: file.name, bytes: new Uint8Array(await file.arrayBuffer()) };
+      openImportPreview({ source: novelcrafterZipPreviewSource(zip.name, bytes, manuscript) });
     } catch (failure) {
-      failed(file, failure);
+      failed(zip, failure);
     }
   };
 
@@ -332,13 +347,15 @@ export function ManuscriptImportActions(): ReactNode {
       <input
         ref={novelcrafterZip}
         type="file"
+        multiple
         hidden
-        accept=".zip"
+        accept=".zip,.md,.markdown,.mdown,.mkd,.txt"
         aria-label={t`NovelCrafter export zip`}
         onChange={(event) => {
-          const file = event.currentTarget.files?.[0];
+          const files = event.currentTarget.files;
+          const list = files === null ? [] : [...files];
           event.currentTarget.value = '';
-          if (file !== undefined) void openNovelCrafterZip(file);
+          if (list.length > 0) void openNovelCrafterZip(list);
         }}
       />
       <input

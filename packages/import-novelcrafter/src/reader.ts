@@ -28,12 +28,28 @@ export interface NovelCrafterImport {
   codex: readonly NovelCrafterCodexEntry[];
   /** What NovelCrafter keeps that the export does not carry. */
   lost: { progressions: number };
+  /**
+   * Markdown in the export that was left out because the writer picked a manuscript file beside the zip. Named, never
+   * dropped silently: the picked file is the manuscript, and the export's own is reported.
+   */
+  leftOut: readonly string[];
+}
+
+/**
+ * A manuscript the writer picked beside the codex zip. NovelCrafter exports the two separately, so a full project arrives as
+ * `novel.md` and `codex.zip`; the picked file becomes the manuscript and the zip still supplies the codex and any pictures.
+ */
+export interface NovelCrafterManuscript {
+  /** The file's name as picked; it is the manuscript's source unit, so its front matter keys on it. */
+  readonly path: string;
+  readonly bytes: Uint8Array;
 }
 
 export type NovelCrafterError = { kind: 'empty' } | { kind: 'archive'; message: string };
 export type NovelCrafterResult = { ok: true; value: NovelCrafterImport } | { ok: false; error: NovelCrafterError };
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|svg|webp|bmp|avif|tiff?)$/i;
+const MARKDOWN_EXT = /\.(md|markdown|mdown|mkd|txt)$/i;
 const ENTRY_MD = /(^|\/)entry\.md$/i;
 /** Front-matter keys that name the entry or map to a codex slot, rather than a custom field. */
 const KNOWN_ENTRY_KEYS = new Set(['name', 'title', 'aliases', 'tags', 'type', 'category', 'synopsis', 'summary', 'description']);
@@ -42,7 +58,7 @@ const dirOf = (path: string): string => (path.includes('/') ? path.slice(0, path
 const baseOf = (path: string): string => path.split('/').pop() ?? path;
 
 /** Read a NovelCrafter export: its codex entries and any manuscript Markdown outside the codex folders. */
-export async function readNovelCrafterExport(archive: ImportArchive): Promise<NovelCrafterResult> {
+export async function readNovelCrafterExport(archive: ImportArchive, manuscript?: NovelCrafterManuscript): Promise<NovelCrafterResult> {
   const paths = archive.entries.map((entry) => entry.path).filter((path) => !isArchiveResidue(path));
   const entryMdPaths = paths.filter((path) => ENTRY_MD.test(path)).sort(naturalCompare);
   const codexDirs = new Set(entryMdPaths.map(dirOf));
@@ -57,22 +73,27 @@ export async function readNovelCrafterExport(archive: ImportArchive): Promise<No
     progressions += read.progressions;
   }
 
-  // The manuscript is every Markdown file outside a codex folder, read by the Markdown reader.
-  const manuscript = await readMarkdownArchive(withoutCodex(archive, codexDirs));
+  // The manuscript is every Markdown file outside a codex folder, read by the Markdown reader — or the one file the writer
+  // picked beside the zip, in which case the export's own Markdown is left out and named.
+  const outside = withoutCodex(archive, codexDirs);
+  const leftOut =
+    manuscript === undefined ? [] : outside.entries.map((entry) => entry.path).filter((path) => MARKDOWN_EXT.test(path) && path !== manuscript.path);
+  const manuscriptView = manuscript === undefined ? outside : withPickedManuscript(outside, manuscript);
+  const read = await readMarkdownArchive(manuscriptView);
   let document: ImportDocument;
   let frontMatter: Record<string, MarkdownFileFacts>;
   let title: string;
-  if (manuscript.ok) {
-    document = manuscript.value.document;
-    frontMatter = manuscript.value.frontMatter;
-    title = manuscript.value.title;
-    for (const [ref, bytes] of manuscript.value.assetData) assetData.set(ref, bytes);
-  } else if (manuscript.error.kind === 'no-markdown') {
+  if (read.ok) {
+    document = read.value.document;
+    frontMatter = read.value.frontMatter;
+    title = read.value.title;
+    for (const [ref, bytes] of read.value.assetData) assetData.set(ref, bytes);
+  } else if (read.error.kind === 'no-markdown') {
     document = { blocks: [] };
     frontMatter = {};
     title = '';
   } else {
-    return { ok: false, error: { kind: 'archive', message: manuscriptMessage(manuscript.error) } };
+    return { ok: false, error: { kind: 'archive', message: manuscriptMessage(read.error) } };
   }
 
   // Codex thumbnails are assets too, so the preview counts them and the commit keeps them.
@@ -82,7 +103,7 @@ export async function readNovelCrafterExport(archive: ImportArchive): Promise<No
   if (thumbnails.length > 0) document.assets = [...(document.assets ?? []), ...thumbnails];
 
   if (codex.length === 0 && document.blocks.length === 0) return { ok: false, error: { kind: 'empty' } };
-  return { ok: true, value: { document, frontMatter, title, assetData, codex, lost: { progressions } } };
+  return { ok: true, value: { document, frontMatter, title, assetData, codex, lost: { progressions }, leftOut } };
 }
 
 function manuscriptMessage(error: MarkdownError): string {
@@ -216,5 +237,37 @@ function withoutCodex(archive: ImportArchive, codexDirs: ReadonlySet<string>): I
     entry: (path) => (underCodex(path) ? undefined : archive.entry(path)),
     read: async (path) => (underCodex(path) ? { ok: false, error: new ImportArchiveError('not-found', `${path} is a codex entry`, path) } : archive.read(path)),
     readMany: async (paths) => archive.readMany(paths.filter((path) => !underCodex(path))),
+  };
+}
+
+/**
+ * The same view with the writer's picked manuscript as its only Markdown: the export's other Markdown is hidden (and named in
+ * `leftOut`), while its pictures stay readable so a manuscript that references them still resolves. The picked file's bytes
+ * come from the pick, not the archive, and its size is the Markdown reader's own cap to judge.
+ */
+function withPickedManuscript(archive: ImportArchive, file: NovelCrafterManuscript): ImportArchive {
+  const entry = { path: file.path, size: file.bytes.length, compressedSize: file.bytes.length };
+  const hidden = (path: string): boolean => path !== file.path && MARKDOWN_EXT.test(path);
+  const entries = [...archive.entries.filter((held) => !hidden(held.path) && held.path !== file.path), entry];
+  const notFound = (path: string): { ok: false; error: ImportArchiveError } => ({
+    ok: false,
+    error: new ImportArchiveError('not-found', `${path} was left out for the picked manuscript`, path),
+  });
+  return {
+    kind: archive.kind,
+    entries,
+    ignored: archive.ignored,
+    entry: (path) => (path === file.path ? entry : hidden(path) ? undefined : archive.entry(path)),
+    read: async (path) => (path === file.path ? { ok: true, value: file.bytes } : hidden(path) ? notFound(path) : archive.read(path)),
+    readMany: async (paths) => {
+      const own = paths.filter((path) => path === file.path);
+      const rest = paths.filter((path) => path !== file.path);
+      if (rest.some(hidden)) return notFound(rest.find(hidden) ?? file.path);
+      const read = rest.length === 0 ? { ok: true as const, value: new Map<string, Uint8Array>() } : await archive.readMany(rest);
+      if (!read.ok) return read;
+      const merged = new Map(read.value);
+      if (own.length > 0) merged.set(file.path, file.bytes);
+      return { ok: true as const, value: merged };
+    },
   };
 }
