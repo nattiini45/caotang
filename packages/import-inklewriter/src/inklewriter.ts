@@ -186,16 +186,24 @@ function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
   // Every name the converter keeps as it is: a stitch key becomes a knot or stitch name unchanged, a usable page label and a
   // usable declared flag name become their slugs. A generated name that landed on one of these would be suffixed by the
   // converter (`section_1_2`), so the preview would report a name the story does not use — or, for two flags, merge their logic.
-  const taken = new Set<string>();
+  //
+  // The converter also suffixes when two of its own names fold to one (`createIdentifierFromString`: `section`, then `section_2`,
+  // `section_3`, …). Those suffixes are names the story will use too, so each base is counted and its suffixes reserved as well.
+  // A stitch may be named by its key or by its label depending on where it lands in the reading order, so both are counted.
+  const bases = new Map<string, number>();
+  const note = (name: string): void => {
+    if (name !== '') bases.set(name, (bases.get(name) ?? 0) + 1);
+  };
   for (const name of stitchNames) {
-    taken.add(name);
-    taken.add(inkIdentifier(name));
+    for (const possible of new Set([name, inkIdentifier(name)])) note(possible);
   }
   const unusableFlags: string[] = [];
+  /** Names the converter can make from the story: their text is never rewritten, so one flag cannot become another. */
+  const usableFlags: string[] = [];
   let emptyFlags = 0;
   for (const item of items) {
     const label = item['pageLabel'];
-    if (typeof label === 'string' && label !== '') taken.add(inkIdentifier(label));
+    if (typeof label === 'string' && label !== '') note(inkIdentifier(label));
     const declared = item['flagName'];
     if (typeof declared !== 'string') continue;
     const { name } = declaredFlag(declared);
@@ -206,7 +214,15 @@ function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
     const id = inkIdentifier(name);
     if (id === '') {
       if (!unusableFlags.includes(name)) unusableFlags.push(name);
-    } else taken.add(id);
+    } else {
+      note(id);
+      if (!usableFlags.includes(name)) usableFlags.push(name);
+    }
+  }
+  const taken = new Set<string>();
+  for (const [base, count] of bases) {
+    taken.add(base);
+    for (let n = 2; n <= count; n += 1) taken.add(`${base}_${n}`);
   }
 
   const flags = new Map<string, string>();
@@ -243,14 +259,35 @@ function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
     renames.push({ kind: 'flag', from: '', to });
   }
 
-  // Longest first, so a name that contains another (`开关门` over `开关`) is replaced whole.
-  const ordered = [...flags.keys()].sort((a, b) => b.length - a.length);
+  // Longest first, so a name that contains another (`开关门` over `开关`) is replaced whole. A name the converter can use is
+  // protected: `door开关` is a flag of its own, and rewriting the `开关` inside it would turn it into `doorflag_1` — the name of
+  // another flag, merging two flags' logic into one variable. The converter looks a declaration up by its whole name, so a
+  // protected name is copied exactly and only the unusable names around it are renamed.
+  const renamed = [...flags.keys()].sort((a, b) => b.length - a.length);
+  const protectedNames = [...usableFlags].sort((a, b) => b.length - a.length);
   const renameChunk = (chunk: string): string => {
-    let out = chunk;
-    for (const from of ordered) out = out.split(from).join(flags.get(from) as string);
+    if (renamed.length === 0) return chunk;
+    let out = '';
+    let at = 0;
+    while (at < chunk.length) {
+      const keep = protectedNames.find((name) => chunk.startsWith(name, at));
+      if (keep !== undefined) {
+        out += keep;
+        at += keep.length;
+        continue;
+      }
+      const from = renamed.find((name) => chunk.startsWith(name, at));
+      if (from !== undefined) {
+        out += flags.get(from) as string;
+        at += from.length;
+        continue;
+      }
+      out += chunk[at];
+      at += 1;
+    }
     return out;
   };
-  const renameIn = (expression: string): string => (ordered.length === 0 ? expression : outsideLiterals(expression, renameChunk));
+  const renameIn = (expression: string): string => (renamed.length === 0 ? expression : outsideLiterals(expression, renameChunk));
 
   let emptyAt = 0;
   for (const item of items) {

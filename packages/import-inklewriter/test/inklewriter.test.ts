@@ -438,3 +438,82 @@ describe('a story that cannot be converted', () => {
     if (!result.ok) expect(result.error.code).toBe('initial-missing');
   });
 });
+
+describe('a renamed name stays a name of its own', () => {
+  it('a usable flag that contains an unusable name keeps its own variable', () => {
+    const story = withContent({
+      start: {
+        content: [
+          { flagName: '开关' },
+          { flagName: 'door开关 = 9' },
+          { flagName: 'doorflag_1 = 3' },
+          { option: 'Go', linkPath: 'end', ifConditions: [{ ifCondition: 'door开关 > 3' }], notIfConditions: null },
+        ],
+      },
+      end: { content: ['The end.'] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const ink = result.value.ink;
+    // Three flags declared, three variables: rewriting the unusable name inside `door开关` would have merged it with `doorflag_1`.
+    expect(ink).toContain('VAR flag_1 = false');
+    expect(ink).toContain('VAR door = 0');
+    expect(ink).toContain('VAR doorflag_1 = 0');
+    expect(ink).toContain('~ door = 9');
+    expect(ink).toContain('~ doorflag_1 = 3');
+    expect(ink).toContain('{door > 3}');
+    expect(result.value.renames).toEqual([{ kind: 'flag', from: '开关', to: 'flag_1' }]);
+  });
+
+  it('an unusable name inside a quoted literal is left exactly as written', () => {
+    const story = withContent({
+      start: { content: [{ flagName: '开关' }, { flagName: 'say = "开关 门"' }] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.ink).toContain('~ say = "开关 门"');
+  });
+
+  it('the reported section name is the knot the converter actually writes, suffixes and all', () => {
+    const story = withContent({
+      start: { content: [{ pageLabel: '第一章' }, 'One.', { divert: 'a' }] },
+      a: { content: [{ pageLabel: 'section' }, 'A label named section.', { divert: 'b' }] },
+      b: { content: [{ pageLabel: 'section!' }, 'Another label that folds to section.', { divert: 'end' }] },
+      end: { content: [{ pageLabel: '第二章' }, 'Two.'] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // `section` and `section!` fold to one name, so the converter writes `section` and `section_2`.
+    const ink = result.value.ink;
+    expect(ink).toContain('==== section ====');
+    expect(ink).toContain('==== section_2 ====');
+    for (const rename of result.value.renames) {
+      expect(rename.kind).toBe('section');
+      expect(ink).toContain(`==== ${rename.to} ====`);
+    }
+    expect(result.value.renames.map((r) => r.to)).toEqual(['section_1', 'section_3']);
+    // Every divert lands on a knot that is there.
+    const knots = new Set([...ink.matchAll(/^==== ([A-Za-z0-9_]+) ====$/gm)].map((m) => m[1] as string));
+    for (const divert of ink.matchAll(/^-> ([A-Za-z0-9_]+)$/gm)) {
+      const target = divert[1] as string;
+      if (target !== 'END') expect(knots.has(target)).toBe(true);
+    }
+  });
+
+  it('a generated flag name does not land on a variable the converter suffixed', () => {
+    const story = withContent({
+      start: { content: [{ flagName: '开关' }, { flagName: 'flag' }, { flagName: 'flag!' }] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const ink = result.value.ink;
+    expect(ink).toContain('VAR flag = false');
+    expect(ink).toContain('VAR flag_2 = false');
+    for (const rename of result.value.renames) expect(ink).toContain(`VAR ${rename.to} = `);
+    expect(result.value.renames.map((r) => r.to)).toEqual(['flag_1']);
+  });
+});
