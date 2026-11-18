@@ -1,0 +1,20 @@
+{
+  "name": "@caotang/import-highland",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "The Highland 2 / Pro .highland reader: a zip of a customised TextBundle, unzipped through the shared archive reader and routed to the Fountain importer, with its assets and a list of what it cannot bring in (issue #284). No DOM; runs in a Worker and in Node.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@caotang/import-read": "workspace:*",
+    "@caotang/screenplay": "workspace:*"
+  }
+}
