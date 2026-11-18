@@ -125,30 +125,35 @@ const CONDITION_LISTS = [
 ] as const;
 
 /**
- * The names in a flag expression or a condition. Inklewriter's flags are expressions (`myFlag = 9`, `myFlag + 1`), and a
- * condition can be one too (`count > 3`), so a name is a run between ink's operators and whitespace rather than the whole
- * string. A quoted literal is not a name: `name = "第一章"` compares text and must keep it.
+ * A quoted literal, whole: paired quotes with escapes, or an unclosed quote to the end of the string. Ink conditions compare
+ * text (`name = "the harbour master"`), and a literal may hold spaces and characters the name rule drops, so it is opaque —
+ * never read for names and never rewritten.
  */
-const NAME_RUN = /[^\s+\-*/=<>!&|(),]+/g;
-const isLiteral = (token: string): boolean => token.startsWith('"') || token.startsWith("'");
+const LITERAL = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|["'][\s\S]*$/g;
 
-/** Every flag expression of an item, including the two lists a choice carries. */
-function flagExpressionsOf(item: Record<string, unknown>): string[] {
-  const values: string[] = [];
-  for (const field of FLAG_FIELDS) {
-    const value = item[field];
-    if (typeof value === 'string') values.push(value);
+/**
+ * The name a flag declaration names, parsed as the converter's own `Flag` class does: the text before an assignment, else
+ * before a maths operator, else the whole text, trimmed. A flag name may contain spaces (`harbour master`), which the
+ * converter folds to underscores, so it is not a whitespace-delimited token.
+ */
+function declaredFlagName(text: string): string {
+  const assign = text.indexOf('=');
+  if (assign !== -1) return text.slice(0, assign).trim();
+  const math = text.search(/[+\-*/]/);
+  if (math !== -1) return text.slice(0, math).trim();
+  return text.trim();
+}
+
+/** Runs `rename` over the parts of an expression that are not quoted literals, leaving every literal exactly as written. */
+function outsideLiterals(text: string, rename: (chunk: string) => string): string {
+  let out = '';
+  let at = 0;
+  for (const match of text.matchAll(LITERAL)) {
+    const start = match.index ?? 0;
+    out += rename(text.slice(at, start)) + match[0];
+    at = start + match[0].length;
   }
-  for (const [list, field] of CONDITION_LISTS) {
-    const held = item[list];
-    if (!Array.isArray(held)) continue;
-    for (const entry of held) {
-      if (entry !== null && typeof entry === 'object' && typeof (entry as Record<string, unknown>)[field] === 'string') {
-        values.push((entry as Record<string, string>)[field] as string);
-      }
-    }
-  }
-  return values;
+  return out + rename(text.slice(at));
 }
 
 /**
@@ -156,9 +161,10 @@ function flagExpressionsOf(item: Record<string, unknown>): string[] {
  * renames. A label written only in characters the rule drops — `第一章`, `开关` — otherwise becomes a nameless knot
  * (`====  ====`), a nameless `VAR` and empty conditions: invalid Ink that the planner stores as one container. Naming them
  * here keeps the vendored converter untouched, and a flag is renamed everywhere it is declared **and** tested, since the
- * converter maps conditions by the original name. Two rules keep the new names honest: a generated name never collides with a
- * name the story already uses (two flags sharing one `VAR` would merge their logic), and a name inside an expression is
- * replaced as a whole token, so `计数 > 3` becomes `flag_1 > 3` while `name = "第一章"` keeps its quoted text.
+ * converter maps conditions by the original name. Three rules keep the new names honest: a generated name never collides with a
+ * name the story already uses (two flags sharing one `VAR` would merge their logic), names are the **declared** flag names — which
+ * may contain spaces, as the converter's own parser reads them — replaced by substring exactly as the converter replaces them, so
+ * `计数 > 3` becomes `flag_1 > 3`; and a quoted literal is opaque, so `name = "第一 章"` keeps every character it compares.
  */
 function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
   const items: Record<string, unknown>[] = [];
@@ -170,27 +176,23 @@ function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
     }
   }
 
-  // Every name the converter can already make, so a generated one never lands on it.
+  // Every name the converter can already make, so a generated one never lands on it. A declared flag name is read whole
+  // (`harbour master` is one name, not two), and a quoted literal names nothing.
   const taken = new Set<string>();
   const unusableSections: string[] = [];
   const unusableFlags: string[] = [];
+  const note = (name: string, into: string[]): void => {
+    if (name === '') return;
+    const id = inkIdentifier(name);
+    if (id === '') {
+      if (!into.includes(name)) into.push(name);
+    } else taken.add(id);
+  };
   for (const item of items) {
     const label = item['pageLabel'];
-    if (typeof label === 'string' && label !== '') {
-      const id = inkIdentifier(label);
-      if (id === '') {
-        if (!unusableSections.includes(label)) unusableSections.push(label);
-      } else taken.add(id);
-    }
-    for (const expression of flagExpressionsOf(item)) {
-      for (const token of expression.match(NAME_RUN) ?? []) {
-        if (isLiteral(token)) continue;
-        const id = inkIdentifier(token);
-        if (id === '') {
-          if (!unusableFlags.includes(token)) unusableFlags.push(token);
-        } else taken.add(id);
-      }
-    }
+    if (typeof label === 'string') note(label, unusableSections);
+    const declared = item['flagName'];
+    if (typeof declared === 'string') note(declaredFlagName(declared), unusableFlags);
   }
 
   // One new name per original, in story order, each free of every name already used or generated. A word used as both a
@@ -216,8 +218,14 @@ function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
     renames.push({ kind: 'flag', from: name, to });
   }
 
-  const renameIn = (expression: string): string =>
-    expression.replace(NAME_RUN, (token) => (isLiteral(token) ? token : (flags.get(token) ?? token)));
+  // Longest first, so a name that contains another (`开关门` over `开关`) is replaced whole.
+  const ordered = [...flags.keys()].sort((a, b) => b.length - a.length);
+  const renameChunk = (chunk: string): string => {
+    let out = chunk;
+    for (const from of ordered) out = out.split(from).join(flags.get(from) as string);
+    return out;
+  };
+  const renameIn = (expression: string): string => (ordered.length === 0 ? expression : outsideLiterals(expression, renameChunk));
 
   for (const item of items) {
     for (const field of FLAG_FIELDS) {

@@ -253,6 +253,57 @@ describe('names the converter cannot make', () => {
     expect(result.value.renames).toEqual([{ kind: 'flag', from: '开关', to: 'flag_1' }]);
   });
 
+  it('leaves a quoted literal with spaces and escaped quotes whole', () => {
+    const story = withContent({
+      start: { content: ['Start.', { flagName: '开关' }, { divert: 'end' }] },
+      end: {
+        content: [
+          { ifCondition: 'name = "第一 章"' },
+          'Named.',
+          { ifCondition: 'title = "say \\"第一 章\\" now"' },
+          'Said.',
+          { ifCondition: '开关' },
+          'Open.',
+        ],
+      },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.ink).toContain('name == "第一 章"');
+    expect(result.value.ink).toContain('title == "say \\"第一 章\\" now"');
+    expect(result.value.renames).toEqual([{ kind: 'flag', from: '开关', to: 'flag_1' }]);
+  });
+
+  it('reads a flag name with a space as one name, so a generated one cannot merge with it', () => {
+    const story = withContent({
+      start: { content: ['Start.', { flagName: 'flag 1' }, { flagName: '开关' }, { divert: 'end' }] },
+      end: { content: [{ ifCondition: 'flag 1' }, 'One.', { ifCondition: '开关' }, 'Two.'] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.ink).toContain('VAR flag_1 = false');
+    expect(result.value.ink).toContain('VAR flag_2 = false');
+    expect(result.value.ink).toContain('{ flag_1 and flag_2:');
+    expect(result.value.renames).toEqual([{ kind: 'flag', from: '开关', to: 'flag_2' }]);
+  });
+
+  it('replaces a longer name whole rather than the shorter name inside it', () => {
+    const story = withContent({
+      start: { content: ['Start.', { flagName: '开关' }, { flagName: '开关门' }, { divert: 'end' }] },
+      end: { content: [{ ifCondition: '开关门' }, 'The door.', { ifCondition: '开关' }, 'The switch.'] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.renames).toEqual([
+      { kind: 'flag', from: '开关', to: 'flag_1' },
+      { kind: 'flag', from: '开关门', to: 'flag_2' },
+    ]);
+    expect(result.value.ink).toContain('{ flag_2 and flag_1:');
+  });
+
   it('gives a word used as both a section label and a flag one name of each', () => {
     const story = withContent({
       start: { content: [{ pageLabel: '开关' }, 'Start.', { flagName: '开关' }, { divert: 'end' }] },
