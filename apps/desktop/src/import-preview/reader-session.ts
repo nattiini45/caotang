@@ -5,9 +5,9 @@
  *
  * The readers are imported on first use: the plain-text reader (`@caotang/import-read/text`), the captions reader
  * (`@caotang/import-captions`, which takes the text the plain-text reader decoded), the RTF and `.rtfd` readers
- * (`@caotang/import-rtf`), the archive reader (`@caotang/import-read/zip`) for a zipped `.rtfd`, and the Inklewriter reader
- * (`@caotang/import-inklewriter`, issue #286). None needs a DOM. fflate is reached only through the archive reader's `unzipSync`,
- * never its async blob workers.
+ * (`@caotang/import-rtf`), the archive reader (`@caotang/import-read/zip`) for a zipped `.rtfd`, the Inklewriter reader
+ * (`@caotang/import-inklewriter`, issue #286) and the Highland reader (`@caotang/import-highland`, issue #284). None needs a DOM.
+ * fflate is reached only through the archive reader's `unzipSync`, never its async blob workers.
  */
 
 import type { ImportArchive } from '@caotang/import-read/zip';
@@ -16,7 +16,7 @@ import type { RtfReadResult, RtfdReadResult } from '@caotang/import-rtf';
 import type { ReaderOpen, ReaderRead, ReaderResult, SerializableRtfResult } from './reader-protocol.js';
 
 type State =
-  | { readonly reader: 'text' | 'captions' | 'rtf' | 'inklewriter'; readonly bytes: Uint8Array }
+  | { readonly reader: 'text' | 'captions' | 'rtf' | 'inklewriter' | 'highland'; readonly bytes: Uint8Array }
   | { readonly reader: 'rtfd'; readonly archive: ImportArchive }
   | { readonly reader: 'html'; readonly bytes: Uint8Array; readonly fileName: string }
   | { readonly reader: 'html-archive'; readonly archive: ImportArchive };
@@ -31,7 +31,7 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
   let state: State | null = null;
 
   const open = async (req: ReaderOpen): Promise<void> => {
-    if (req.reader === 'text' || req.reader === 'captions' || req.reader === 'rtf' || req.reader === 'inklewriter') {
+    if (req.reader === 'text' || req.reader === 'captions' || req.reader === 'rtf' || req.reader === 'inklewriter' || req.reader === 'highland') {
       state = { reader: req.reader, bytes: req.bytes };
       return;
     }
@@ -85,6 +85,11 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
       if (state.reader === 'html') return { kind: 'html', result: readHtmlFile(state.bytes, state.fileName) };
       if (state.reader === 'html-archive') return { kind: 'html', result: await readHtmlArchive(state.archive) };
       throw new Error('The import reader is not an HTML reader.');
+    }
+    if (req.reader === 'highland') {
+      if (state.reader !== 'highland') throw new Error('The import reader is not a Highland reader.');
+      const { readHighland } = await import('@caotang/import-highland');
+      return { kind: 'highland', result: await readHighland(state.bytes, req.fileName ?? '') };
     }
     const { readRtf, readRtfd } = await import('@caotang/import-rtf');
     const options = {

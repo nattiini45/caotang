@@ -13,6 +13,7 @@
 import type { ParagraphMode, PlainTextRead } from '@caotang/import-read/text';
 import type { CaptionsResult } from '@caotang/import-captions';
 import type { InklewriterResult } from '@caotang/import-inklewriter';
+import type { HighlandResult } from '@caotang/import-highland';
 import type { RtfImport } from '@caotang/import-rtf';
 import type { HtmlResult } from '@caotang/import-html';
 import type { DecodableEncoding } from '@caotang/store/encoding';
@@ -26,7 +27,8 @@ export type ReaderOpen =
   | { readonly kind: 'open'; readonly reader: 'rtfd-zip'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'inklewriter'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'html'; readonly bytes: Uint8Array; readonly fileName: string }
-  | { readonly kind: 'open'; readonly reader: 'html-zip'; readonly bytes: Uint8Array };
+  | { readonly kind: 'open'; readonly reader: 'html-zip'; readonly bytes: Uint8Array }
+  | { readonly kind: 'open'; readonly reader: 'highland'; readonly bytes: Uint8Array };
 
 /** Reads the cached input again with these options. A text read decodes and builds blocks; an RTF read parses. */
 export type ReaderRead =
@@ -34,7 +36,8 @@ export type ReaderRead =
   | { readonly kind: 'read'; readonly reader: 'captions'; readonly encoding?: DecodableEncoding }
   | { readonly kind: 'read'; readonly reader: 'rtf' | 'rtfd'; readonly underlineAs?: 'italic' | 'none'; readonly assetPrefix?: string }
   | { readonly kind: 'read'; readonly reader: 'inklewriter'; readonly fileName?: string }
-  | { readonly kind: 'read'; readonly reader: 'html' };
+  | { readonly kind: 'read'; readonly reader: 'html' }
+  | { readonly kind: 'read'; readonly reader: 'highland'; readonly fileName?: string };
 
 /** An RTF or `.rtfd` read's result, with its error flattened to a code and a message so it survives the clone. */
 export type SerializableRtfResult =
@@ -47,7 +50,8 @@ export type ReaderResult =
   | { readonly kind: 'captions'; readonly result: CaptionsReadResult }
   | { readonly kind: 'rtf'; readonly result: SerializableRtfResult }
   | { readonly kind: 'inklewriter'; readonly result: InklewriterResult }
-  | { readonly kind: 'html'; readonly result: HtmlResult };
+  | { readonly kind: 'html'; readonly result: HtmlResult }
+  | { readonly kind: 'highland'; readonly result: HighlandResult };
 
 /**
  * A captions read: the decode's own answer and the parse of its text, or the decode's refusal unchanged (the encoding ask, the size
@@ -78,13 +82,14 @@ export function dedicatedBuffer(bytes: Uint8Array): ArrayBuffer | null {
  * in the transfer list makes `postMessage` throw, and the cloned views keep sharing the one transferred buffer (#597 F1).
  */
 export function resultTransferList(result: ReaderResult): Transferable[] {
-  let assetData: ReadonlyMap<string, Uint8Array> | null = null;
-  if (result.kind === 'rtf' && result.result.ok) assetData = result.result.value.assetData;
-  else if (result.kind === 'html' && result.result.ok) assetData = result.result.value.assetData;
-  if (assetData === null) return [];
+  let pictures: Iterable<Uint8Array>;
+  if (result.kind === 'rtf' && result.result.ok) pictures = result.result.value.assetData.values();
+  else if (result.kind === 'highland' && result.result.ok) pictures = result.result.value.assets.map((asset) => asset.bytes);
+  else if (result.kind === 'html' && result.result.ok) pictures = result.result.value.assetData.values();
+  else return [];
   const seen = new Set<ArrayBuffer>();
   const buffers: Transferable[] = [];
-  for (const bytes of assetData.values()) {
+  for (const bytes of pictures) {
     const buffer = dedicatedBuffer(bytes);
     if (buffer !== null && !seen.has(buffer)) {
       seen.add(buffer);

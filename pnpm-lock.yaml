@@ -318,6 +318,9 @@ importers:
       '@caotang/import-core':
         specifier: workspace:*
         version: link:../../packages/import-core
+      '@caotang/import-highland':
+        specifier: workspace:*
+        version: link:../../packages/import-highland
       '@caotang/import-html':
         specifier: workspace:*
         version: link:../../packages/import-html
@@ -957,6 +960,15 @@ importers:
         version: link:../script
 
   packages/import-core: {}
+
+  packages/import-highland:
+    dependencies:
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../import-read
+      '@caotang/screenplay':
+        specifier: workspace:*
+        version: link:../screenplay
 
   packages/import-html:
     dependencies:

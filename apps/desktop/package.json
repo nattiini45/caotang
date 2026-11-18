@@ -42,6 +42,7 @@
     "@caotang/ids": "workspace:*",
     "@caotang/import-core": "workspace:*",
     "@caotang/import-inklewriter": "workspace:*",
+    "@caotang/import-highland": "workspace:*",
     "@caotang/import-html": "workspace:*",
     "@caotang/import-read": "workspace:*",
     "@caotang/import-captions": "workspace:*",
