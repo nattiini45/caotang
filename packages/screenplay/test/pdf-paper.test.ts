@@ -73,13 +73,13 @@ describe('the page size', () => {
 
   it('keeps every xref offset exact on A4, with an embedded font', async () => {
     const { bytes } = renderPdf(blocksOf(SCRIPT_ONE_ACT), { title: 'T', pageSize: 'A4' }, await loadCousine());
-    const pdf = decode(bytes);
-    const xref = Number(/startxref\n(\d+)\n/.exec(pdf)?.[1]);
-    const lines = pdf.slice(xref).split('\n');
-    const objects = Number(/^0 (\d+)$/m.exec(pdf.slice(xref, xref + 40))?.[1]) - 1;
+    // The table's offsets count bytes, not decoded characters — slice the bytes, then decode.
+    const xref = Number(/startxref\n(\d+)\n/.exec(decode(bytes))?.[1]);
+    const lines = decode(bytes.slice(xref)).split('\n');
+    const objects = Number(/^0 (\d+)$/m.exec(decode(bytes.slice(xref, xref + 40)))?.[1]) - 1;
     expect(objects).toBeGreaterThan(5);
     for (let object = 1; object <= objects; object++) {
-      expect(pdf.slice(Number(lines[2 + object]?.slice(0, 10))).startsWith(`${object} 0 obj\n`), `object ${object}`).toBe(true);
+      expect(decode(bytes.slice(Number(lines[2 + object]?.slice(0, 10)))).startsWith(`${object} 0 obj\n`), `object ${object}`).toBe(true);
     }
   });
 
@@ -118,14 +118,15 @@ describe('the Latin face', () => {
   });
 
   it('writes a Latin-only Letter file byte for byte as it was written before the paper and the face were options', async () => {
-    // The SHA-256 of what origin/main wrote for these scripts, with and without the embedded font.
+    // The SHA-256 of what origin/main wrote for these scripts, with and without the embedded font,
+    // re-based once for the binary comment line the header gained for PDF/A.
     const font = await loadCourierPrime();
     const titled = blocksOf(SCRIPT_WITH_TITLE_PAGE);
     const titledOptions = { title: 'T', author: 'A. Writer', sceneNumbers: 'both' as const };
-    expect(sha256(renderPdf(blocks, { title: 'T' }, font).bytes)).toBe('8f0629151ccf1d6f024642987c72df99d3b52c6229a659f7977f7bdfd34baffd');
-    expect(sha256(renderPdf(titled, titledOptions, font).bytes)).toBe('441af499c617eb370ee4eebd2383782f5796489dc024a4cda9966ae8d4f30fe0');
-    expect(sha256(renderPdf(blocks, { title: 'T' }).bytes)).toBe('097de4446d3c09b25d1597f164ba7f227d38a617fc624a2be5d72b3459edce4f');
-    expect(sha256(renderPdf(titled, titledOptions).bytes)).toBe('9ac89faca84eb1423b6ac891a5b3af30dbcc3717d05ac3f22fdf47c4ac454300');
+    expect(sha256(renderPdf(blocks, { title: 'T' }, font).bytes)).toBe('739160e4390bf6f80e7354cbc37c5dbb5cda6c83504113250f6556d5918e9a13');
+    expect(sha256(renderPdf(titled, titledOptions, font).bytes)).toBe('2c61e3c955e1753df94456a9f10907a320b7d417033b83f5fa6457c728ec7d16');
+    expect(sha256(renderPdf(blocks, { title: 'T' }).bytes)).toBe('9724998dde7185a4b8cbef7ec17896a85f02484eab76512ef5fd0ffd6b555c00');
+    expect(sha256(renderPdf(titled, titledOptions).bytes)).toBe('06b21880977ee27470fbbcb4966d11202a9c0d2855067b83c8fe32ede187f9a6');
   });
 
   it('names the base-14 Courier and embeds nothing for courier', async () => {
