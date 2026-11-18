@@ -190,7 +190,13 @@ export const BUDGET = {
   // 1,184 for the command's lazy loader and the catalogues 980. First load 1,090,061 gzip (+517 on main), under its ceiling, which does not move.
   // No new dependency, no duplicated SDK version, no production pseudo-locale; every reader and the Worker itself load on use. The ceiling is
   // the measurement plus about 1%, rounded up to the thousand. [delegated 2026-11-17]
-  totalJs: 8_633_000,
+  // The Highland import (#284) on main at 0649cd2a: 8,649,679 bytes measured against main's own 8,630,973, so +18,706. Named: the
+  // Highland reader's `src` chunk (+9,682), the new lazy `highland-source` (+4,718), the catalogues (+1,243 German, +1,097 English),
+  // the entry's lazy loader (+931), the reader Worker (+358), the store's document kind (+338), the archive reader (+303) and the
+  // preview dialog (+36). First load 1,092,634 gzip (+596 on main), under its ceiling, which does not move. No new dependency, no
+  // duplicated SDK version, no production pseudo-locale; the reader, its source and the Worker load on use. The ceiling is the
+  // measurement plus about 1%, rounded up to the thousand. [delegated 2026-11-18]
+  totalJs: 8_737_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
