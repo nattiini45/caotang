@@ -188,6 +188,67 @@ describe('prose-pdf — the layout', () => {
     // The footnote pass does not run: no page holds the rule.
     expect(texts).not.toContain('—'.repeat(20));
   });
+
+  it('continues a note that fills more than a page at the next pages’ feet, its marker where it was written', () => {
+    const note = Array.from({ length: 60 }, (_, i) => `The note goes on for line ${i + 1} with more words to keep it long.`).join(' ');
+    const body = `A line with a note.[^1] And more after it.\n\n[^1]: ${note}`;
+    const layout = layoutProsePdf(inputOf(body), {});
+    const scripts = layout.pages.filter((page) => page.kind === 'script');
+    // The marker stays on the first page, and the note's continuation reaches the pages after.
+    expect(scripts[0]?.lines.some((line) => line.text.startsWith('A line with a note.[1]'))).toBe(true);
+    expect(scripts.length).toBeGreaterThan(1);
+    // The continuation keeps going at the next pages' feet: the rule repeats and the note's last words print.
+    const ruled = scripts.filter((page) => page.lines.some((line) => line.text === '—'.repeat(20)));
+    expect(ruled.length).toBeGreaterThan(1);
+    const feet = scripts.flatMap((page) => page.lines.filter((line) => line.row === null).map((line) => line.text));
+    expect(feet.join(' ')).toContain('line 60');
+    // No page is drawn with more body rows than a page holds.
+    for (const page of scripts) expect(page.lines.filter((line) => line.row !== null).length).toBeLessThanOrEqual(27);
+  });
+
+  it('keeps a moved body row within the next page’s rows', () => {
+    // A full page whose note pushes two rows onto an already-full next page: nothing overflows.
+    const paragraphs = Array.from({ length: 30 }, (_, i) => `Paragraph ${i + 1} fills a row of the manuscript with words.[^1]`).join('\n\n');
+    const body = `${paragraphs}\n\n[^1]: A short note.`;
+    const layout = layoutProsePdf(inputOf(body), {});
+    for (const page of layout.pages.filter((candidate) => candidate.kind === 'script')) {
+      expect(page.lines.filter((line) => line.row !== null).length).toBeLessThanOrEqual(27);
+    }
+  });
+
+  it('numbers a note whose first block is a list', () => {
+    const body = 'A line with a note.[^1]\n\n[^1]: - the first point\n  - the second';
+    const layout = layoutProsePdf(inputOf(body), {});
+    const texts = layout.pages.flatMap((page) => page.lines.map((line) => line.text));
+    expect(texts.some((text) => text.startsWith('[1] •'))).toBe(true);
+  });
+
+  it('lays a right-to-left note out right-aligned, as the body is', () => {
+    const body = 'A line with a note.[^1]\n\n[^1]: הערה בעברית לבדיקה';
+    const layout = layoutProsePdf(inputOf(body), { language: 'he' });
+    const foot = layout.pages.flatMap((page) => page.lines).find((line) => line.text.includes('הערה'));
+    expect(foot?.rtl).toBe(true);
+    expect(foot?.x).toBeGreaterThan(72);
+  });
+
+  it('never opens a wrapped line with a CJK stop or closer', () => {
+    const body = 'これは日本語の文です。次の文もあります。さらに長い文が続きます。行の折り返しを試すための文です。';
+    const layout = layoutProsePdf(inputOf(body), {});
+    const texts = layout.pages.flatMap((page) => page.lines.map((line) => line.text)).filter((text) => text !== '');
+    for (const text of texts.slice(1)) expect('。、，．；：？！）］｝》」』').not.toContain(text[0] ?? '');
+  });
+
+  it('wraps a long title-page field inside the column width', () => {
+    const input = inputOf('Body.', {
+      title: 'A'.repeat(150),
+      blocks: [{ kind: 'frontmatter', fmKind: 'titlepage' }, { kind: 'scene', docId: 'n1', body: 'Body.', title: 'A Scene', number: 1 }],
+    });
+    const layout = layoutProsePdf(input, {});
+    const title = layout.pages.find((page) => page.kind === 'title');
+    const texts = (title?.lines ?? []).map((line) => line.text);
+    expect(texts.filter((text) => text.startsWith('A')).length).toBeGreaterThan(1);
+    for (const line of title?.lines ?? []) expect(line.x).toBeGreaterThanOrEqual(72);
+  });
 });
 
 describe('prose-pdf — through the bus', () => {

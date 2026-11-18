@@ -213,6 +213,9 @@ interface WrappedLine {
   readonly notes: readonly number[];
 }
 
+/** Characters that may not open a wrapped line — the CJK stops and closers (kinsoku); they overhang the line before instead. */
+const NO_LINE_START = /^[。、，．；：？！）］｝》」』〉—―〜…‥]/u;
+
 /**
  * The lines a token stream wraps to at `width` columns, breaking at its spaces and, inside a
  * word longer than a line, between its units (`splitColumns`). `indents` is the left column of
@@ -245,8 +248,14 @@ function wrapTokens(tokens: readonly Token[], width: number, indents: readonly n
         col += space + textColumns(piece);
         break;
       }
-      const [head, rest] = splitColumns(piece, Math.max(1, width - col - space));
+      let [head, rest] = splitColumns(piece, Math.max(1, width - col - space));
       if (head !== '' && head !== piece) {
+        // A CJK closer never opens a line: it overhangs this line's last column instead.
+        if (rest !== '' && NO_LINE_START.test(rest)) {
+          const cp = String.fromCodePoint(rest.codePointAt(0) ?? 0);
+          head += cp;
+          rest = rest.slice(cp.length);
+        }
         current += (space === 1 ? ' ' : '') + head;
         // The word's notes stay with the line its head broke on.
         notes.push(...pieceNotes);
@@ -354,6 +363,7 @@ function noteLines(
   number: (defs: ParsedProse['notes'], noteId: string) => number | undefined,
   separator: string,
   pictures: 'placeholder' | 'drop',
+  neutral: Direction,
   discovered: number[],
 ): FlowLine[] {
   const mark = (noteId: string): number | undefined => {
@@ -363,46 +373,52 @@ function noteLines(
   };
   const out: FlowLine[] = [];
   let first = true;
+  /** The `[n]` prefix of the note's first line — gone once a line has printed, and unused inside a quote. */
+  const numPrefix = (indents: readonly number[]): string => (first && (indents[0] ?? 0) === 0 ? `[${num}] ` : '');
   const paragraph = (runs: readonly Run[], indents: readonly number[], prefix?: string): void => {
     let tokens = tokensOf(runs, mark);
     if (prefix !== undefined && tokens.length > 0) {
       const [head, ...rest] = tokens;
       if (head !== undefined && head.br !== true) tokens = [{ text: `${prefix}${head.text}`, notes: head.notes }, ...rest];
     }
+    const dir = paragraphDirection(tokens.map((token) => token.text).join(' '), neutral);
     for (const wrapped of wrapTokens(tokens, PROSE_LAYOUT.columns, indents)) {
-      out.push({ kind: 'line', text: wrapped.text, col: wrapped.col, notes: wrapped.notes, foot: true });
+      out.push({ kind: 'line', text: wrapped.text, col: wrapped.col, notes: wrapped.notes, foot: true, ...(dir === 'rtl' ? { rtl: true as const } : {}) });
     }
     first = false;
   };
   const blocksFlow = (items: readonly ProseBlock[], indents: readonly number[]): void => {
     for (const block of items) {
+      const before = out.length;
+      const prefix = numPrefix(indents);
       switch (block.kind) {
         case 'paragraph':
         case 'heading':
-          paragraph(block.runs, indents, first && (indents[0] ?? 0) === 0 ? `[${num}] ` : undefined);
+          paragraph(block.runs, indents, prefix !== '' ? prefix : undefined);
           break;
         case 'break':
-          out.push({ kind: 'line', text: separator, col: 0, centred: true, notes: [], foot: true });
+          out.push({ kind: 'line', text: `${prefix}${separator}`, col: 0, centred: true, notes: [], foot: true });
           break;
         case 'quote':
           blocksFlow(block.blocks, indents.map((n) => n + 4));
           break;
         case 'list':
           block.items.forEach((item, i) => {
-            const marker = block.ordered ? `${i + 1}.` : '•';
+            const marker = `${i === 0 ? prefix : ''}${block.ordered ? `${i + 1}.` : '•'}`;
             for (const sub of item) {
               if (sub.kind === 'paragraph') {
                 const tokens = [{ text: marker, notes: [] }, ...tokensOf(sub.runs, mark)];
+                const dir = paragraphDirection(tokens.map((token) => token.text).join(' '), neutral);
                 for (const wrapped of wrapTokens(tokens, PROSE_LAYOUT.columns, indents.map((n) => n + 4))) {
-                  out.push({ kind: 'line', text: wrapped.text, col: wrapped.col, notes: wrapped.notes, foot: true });
+                  out.push({ kind: 'line', text: wrapped.text, col: wrapped.col, notes: wrapped.notes, foot: true, ...(dir === 'rtl' ? { rtl: true as const } : {}) });
                 }
               }
             }
           });
           break;
         case 'code':
-          for (const row of block.text.split('\n')) {
-            let rest = row;
+          for (const [index, row] of block.text.split('\n').entries()) {
+            let rest = `${index === 0 ? prefix : ''}${row}`;
             while (rest !== '') {
               const [head, tail] = splitColumns(rest, PROSE_LAYOUT.columns - (indents[0] ?? 0) - 4);
               out.push({ kind: 'line', text: head, col: (indents[0] ?? 0) + 4, notes: [], foot: true });
@@ -413,10 +429,11 @@ function noteLines(
         case 'figure':
           if (pictures === 'placeholder') {
             const caption = placementCaptionOf(block.image.title);
-            out.push({ kind: 'line', text: `[Picture: ${caption !== '' ? caption : block.image.alt}]`, col: (indents[0] ?? 0) + 4, notes: [], foot: true });
+            out.push({ kind: 'line', text: `${prefix}[Picture: ${caption !== '' ? caption : block.image.alt}]`, col: (indents[0] ?? 0) + 4, notes: [], foot: true });
           }
           break;
       }
+      if (out.length > before) first = false;
     }
   };
   blocksFlow(blocks, [0, 4]);
@@ -561,6 +578,7 @@ function footnoteLines(
   number: NoteNumbers['number'],
   separator: string,
   pictures: 'placeholder' | 'drop',
+  neutral: Direction,
 ): FlowLine[] {
   const lines = [...carried];
   const nums = [...new Set(pageRows.flatMap((row) => row.notes))];
@@ -573,7 +591,7 @@ function footnoteLines(
     const body = book.bodies[num - 1];
     if (body === undefined) continue;
     const discovered: number[] = [];
-    lines.push(...noteLines(num, body.blocks, body.defs, number, separator, pictures, discovered));
+    lines.push(...noteLines(num, body.blocks, body.defs, number, separator, pictures, neutral, discovered));
     for (const next of discovered) if (!emitted.has(next)) queue.push(next);
   }
   return lines;
@@ -623,24 +641,41 @@ export function layoutProsePdf(input: RenderInput, opts: ProsePdfOptions, measur
   // at the next page's foot.
   if ((opts.notes ?? 'footnote') === 'footnote') {
     const carried = new Map<number, FlowLine[]>();
+    // Rows pushed past a page's row limit move on to the page that follows, so no page is drawn
+    // with more rows than it has. A page past the end is made when it is needed.
+    const pushForward = (index: number): void => {
+      const over = pages[index];
+      if (over === undefined || over.rows.length <= PROSE_LAYOUT.rows) return;
+      const spill = over.rows.splice(PROSE_LAYOUT.rows);
+      const next = index + 1 < pages.length ? (pages[index + 1] ?? openPage()) : openPage();
+      next.rows.unshift(...spill);
+      pushForward(index + 1);
+    };
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i] ?? { rows: [] };
-      let lines = footnoteLines(page.rows, carried.get(i) ?? [], book, noteNumber, input.template.separator.plain, input.pictures === 'drop' ? 'drop' : 'placeholder');
-      let guard = page.rows.length + 4;
+      let lines = footnoteLines(page.rows, carried.get(i) ?? [], book, noteNumber, input.template.separator.plain, input.pictures === 'drop' ? 'drop' : 'placeholder', neutral);
       const need = (): number => (lines.length === 0 ? 0 : lines.length * PROSE_LAYOUT.noteLeading + PROSE_LAYOUT.leading);
-      while (need() > footRoom(page.rows.length) && guard > 0) {
-        const last = page.rows.findLastIndex((row) => row.foot !== true && row.text !== '');
+      // A row that marks no note is movable to the next page. A marker row is movable only while
+      // the page's notes still fit on an otherwise-empty page: a note bigger than that is split
+      // (the marker stays, the note continues at the next pages' feet) rather than its marker
+      // pushed to a new page again and again.
+      const fitsEmpty = need() <= footRoom(0);
+      while (need() > footRoom(page.rows.length)) {
+        const last = page.rows.findLastIndex((row) => row.foot !== true && row.text !== '' && (fitsEmpty || row.notes.length === 0));
         if (last === -1) break;
         const moved = page.rows.splice(last);
         const next = i + 1 < pages.length ? (pages[i + 1] ?? openPage()) : openPage();
         next.rows.unshift(...moved);
-        lines = footnoteLines(page.rows, carried.get(i) ?? [], book, noteNumber, input.template.separator.plain, input.pictures === 'drop' ? 'drop' : 'placeholder');
-        guard -= 1;
+        pushForward(i + 1);
+        lines = footnoteLines(page.rows, carried.get(i) ?? [], book, noteNumber, input.template.separator.plain, input.pictures === 'drop' ? 'drop' : 'placeholder', neutral);
       }
       const room = Math.max(0, Math.floor((footRoom(page.rows.length) - PROSE_LAYOUT.leading) / PROSE_LAYOUT.noteLeading));
       const placed = lines.slice(0, room).map((row) => ({ ...row, foot: true as const }));
       const rest = lines.slice(room);
-      if (rest.length > 0) carried.set(i + 1, [...rest, ...(carried.get(i + 1) ?? [])]);
+      if (rest.length > 0) {
+        if (i + 1 >= pages.length) openPage();
+        carried.set(i + 1, [...rest, ...(carried.get(i + 1) ?? [])]);
+      }
       page.rows.push(...placed);
     }
   }
@@ -648,11 +683,23 @@ export function layoutProsePdf(input: RenderInput, opts: ProsePdfOptions, measur
   // The drawn pages: the title page, then the script pages with their headers and footnotes.
   const layoutPages: LayoutPage[] = [];
   if (input.blocks.some((block) => block.kind === 'frontmatter' && block.fmKind === 'titlepage')) {
-    const rows: { row: number; text: string }[] = [
+    // A field wraps inside the rows before the next one's, never past the column width.
+    const fields: readonly { row: number; text: string }[] = [
       { row: 9, text: input.title },
       { row: 11, text: input.author },
       { row: 15, text: input.date },
     ];
+    const rows: { row: number; text: string }[] = fields.flatMap((field, i) => {
+      const room = (fields[i + 1]?.row ?? 25) - field.row;
+      const wrapped: string[] = [];
+      let rest = field.text;
+      while (rest !== '' && wrapped.length < room) {
+        const [head, tail] = splitColumns(rest, PROSE_LAYOUT.columns);
+        wrapped.push(head);
+        rest = tail;
+      }
+      return wrapped.map((text, j) => ({ row: field.row + j, text }));
+    });
     layoutPages.push({
       number: 0,
       kind: 'title',
@@ -700,7 +747,7 @@ export function layoutProsePdf(input: RenderInput, opts: ProsePdfOptions, measur
     for (let i = 0; i < book.bodies.length; i++) {
       const body = book.bodies[i];
       if (body === undefined) continue;
-      endLines.push(...noteLines(i + 1, body.blocks, body.defs, noteNumber, input.template.separator.plain, input.pictures === 'drop' ? 'drop' : 'placeholder', discovered));
+      endLines.push(...noteLines(i + 1, body.blocks, body.defs, noteNumber, input.template.separator.plain, input.pictures === 'drop' ? 'drop' : 'placeholder', neutral, discovered));
       endLines.push({ kind: 'line', text: '', col: 0, notes: [] });
     }
     // A note can mark a note of its own: those are appended at the end, numbered in turn.
@@ -711,7 +758,7 @@ export function layoutProsePdf(input: RenderInput, opts: ProsePdfOptions, measur
       endDone.add(num);
       const body = book.bodies[num - 1];
       if (body === undefined) continue;
-      endLines.push(...noteLines(num, body.blocks, body.defs, noteNumber, input.template.separator.plain, input.pictures === 'drop' ? 'drop' : 'placeholder', discovered));
+      endLines.push(...noteLines(num, body.blocks, body.defs, noteNumber, input.template.separator.plain, input.pictures === 'drop' ? 'drop' : 'placeholder', neutral, discovered));
       endLines.push({ kind: 'line', text: '', col: 0, notes: [] });
     }
     for (let start = 0; start < endLines.length; start += PROSE_LAYOUT.rows) {

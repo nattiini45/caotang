@@ -921,8 +921,8 @@ export function ExportDialog({
                     value={shown.pageSize ?? 'Letter'}
                     onChange={(event) => saveOptions({ ...shown, pageSize: event.target.value === 'A4' ? 'A4' : undefined })}
                   >
-                    <option value="Letter">US Letter</option>
-                    <option value="A4">A4</option>
+                    <option value="Letter"><Trans>US Letter</Trans></option>
+                    <option value="A4"><Trans>A4</Trans></option>
                   </select>
                 </label>
                 <label className="export-field">
