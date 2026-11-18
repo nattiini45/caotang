@@ -56,6 +56,7 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
   const inkFile = useRef<HTMLInputElement>(null);
   const tweeFile = useRef<HTMLInputElement>(null);
   const inklewriterFile = useRef<HTMLInputElement>(null);
+  const highlandFile = useRef<HTMLInputElement>(null);
   const [addIds, setAddIds] = useState(false);
   const [pendingTwee, setPendingTwee] = useState<{ readonly fileName: string; readonly plan: TweeImportPlan; readonly scan: string[] } | null>(null);
   const [pendingFdx, setPendingFdx] = useState<{
@@ -121,6 +122,23 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
     const { fileName, text, scan } = pendingFdx;
     setPendingFdx(null);
     writeScript(fileName, 'fdx', text, scan, seeds);
+  };
+
+  // A Highland package is unzipped and parsed in the preview's Worker, and the shared preview shows the screenplay it makes
+  // before anything is written (issue #284). The source and its reader host load on first use.
+  const importHighland = async (file: File): Promise<void> => {
+    try {
+      const { highlandPreviewSource, highlandSizeRefusal } = await import('../import-preview/highland-source.js');
+      const refusal = highlandSizeRefusal(file.name, file.size);
+      if (refusal !== undefined) {
+        report({ text: refusal, tone: 'error' });
+        return;
+      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      openImportPreview({ source: highlandPreviewSource(file.name, bytes) });
+    } catch {
+      report({ text: t`${{ file: isolate(file.name) }} could not be read as a Highland script.`, tone: 'error' });
+    }
   };
 
   const importInk = async (file: File): Promise<void> => {
@@ -224,7 +242,7 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
       <More summary={t`Import…`} className="binder-import">
         <div className="k-more-body">
           {children}
-          <div className="script-import" role="group" aria-label={t`Import a script, an Ink story or a Twee story`}>
+          <div className="script-import" role="group" aria-label={t`Import a script, an Ink story, a Twee story or a Highland script`}>
             <button type="button" className="button is-quiet" onClick={() => scriptFile.current?.click()}>
               <Trans>Import script</Trans>
             </button>
@@ -236,6 +254,9 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
             </button>
             <button type="button" className="button is-quiet" onClick={() => inklewriterFile.current?.click()}>
               <Trans>Import Inklewriter</Trans>
+            </button>
+            <button type="button" className="button is-quiet" onClick={() => highlandFile.current?.click()}>
+              <Trans>Import Highland</Trans>
             </button>
             <label className="script-import-ids">
               <input type="checkbox" role="switch" className="k-switch" checked={addIds} onChange={(event) => setAddIds(event.currentTarget.checked)} />
@@ -287,6 +308,18 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
                 const file = event.currentTarget.files?.[0];
                 event.currentTarget.value = '';
                 if (file !== undefined) void openInklewriter(file);
+              }}
+            />
+            <input
+              ref={highlandFile}
+              type="file"
+              hidden
+              accept=".highland"
+              aria-label={t`Highland script file`}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = '';
+                if (file !== undefined) void importHighland(file);
               }}
             />
           </div>
