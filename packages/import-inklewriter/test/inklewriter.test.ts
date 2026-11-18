@@ -212,6 +212,63 @@ describe('names the converter cannot make', () => {
     expect(result.value.ink).toContain('VAR ready = false');
     expect(result.value.renames).toEqual([]);
   });
+
+  it('never gives a flag a name the story already uses', () => {
+    const story = withContent({
+      start: { content: ['Start.', { flagName: 'flag_1' }, { flagName: '开关' }, { divert: 'end' }] },
+      end: { content: [{ ifCondition: 'flag_1' }, 'One.', { notIfCondition: '开关' }, 'Two.'] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.ink).toContain('VAR flag_1 = false');
+    expect(result.value.ink).toContain('VAR flag_2 = false');
+    expect(result.value.ink).toContain('{ flag_1 and not flag_2:');
+    expect(result.value.renames).toEqual([{ kind: 'flag', from: '开关', to: 'flag_2' }]);
+  });
+
+  it('renames a flag inside an expression, where it is declared and where it is tested', () => {
+    const story = withContent({
+      start: { content: ['Start.', { flagName: '计数 = 9' }, { divert: 'end' }] },
+      end: { content: [{ ifCondition: '计数 > 3' }, 'Big.', { notIfCondition: '计数 = 0' }, 'Zero.'] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.ink).toContain('VAR flag_1 = 0');
+    expect(result.value.ink).toContain('~ flag_1 = 9');
+    expect(result.value.ink).toContain('{ flag_1 > 3 and not flag_1 == 0:');
+    expect(result.value.renames).toEqual([{ kind: 'flag', from: '计数', to: 'flag_1' }]);
+  });
+
+  it('leaves a quoted literal in a condition as the text it compares', () => {
+    const story = withContent({
+      start: { content: ['Start.', { flagName: '开关' }, { divert: 'end' }] },
+      end: { content: [{ ifCondition: 'name = "第一章"' }, 'Named.', { ifCondition: '开关' }, 'Open.'] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.ink).toContain('{ name == "第一章" and flag_1:');
+    expect(result.value.renames).toEqual([{ kind: 'flag', from: '开关', to: 'flag_1' }]);
+  });
+
+  it('gives a word used as both a section label and a flag one name of each', () => {
+    const story = withContent({
+      start: { content: [{ pageLabel: '开关' }, 'Start.', { flagName: '开关' }, { divert: 'end' }] },
+      end: { content: [{ ifCondition: '开关' }, 'Open.'] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.ink).toContain('==== section_1 ====');
+    expect(result.value.ink).toContain('VAR flag_1 = false');
+    expect(result.value.ink).toContain('{ flag_1:');
+    expect(result.value.renames).toEqual([
+      { kind: 'section', from: '开关', to: 'section_1' },
+      { kind: 'flag', from: '开关', to: 'flag_1' },
+    ]);
+  });
 });
 
 describe('names that are also Object members', () => {

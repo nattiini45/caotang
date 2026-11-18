@@ -118,26 +118,37 @@ function inkIdentifier(label: string): string {
 /** Every string field of a content item that names a flag, whether it declares one or tests one. */
 const FLAG_FIELDS = ['flagName', 'ifCondition', 'notIfCondition'] as const;
 
-/** The flag names an item declares or tests, including the two lists a choice carries. */
-function flagNamesOf(item: Record<string, unknown>): string[] {
-  const names: string[] = [];
+/** The two condition lists a choice carries, and the field each entry holds. */
+const CONDITION_LISTS = [
+  ['ifConditions', 'ifCondition'],
+  ['notIfConditions', 'notIfCondition'],
+] as const;
+
+/**
+ * The names in a flag expression or a condition. Inklewriter's flags are expressions (`myFlag = 9`, `myFlag + 1`), and a
+ * condition can be one too (`count > 3`), so a name is a run between ink's operators and whitespace rather than the whole
+ * string. A quoted literal is not a name: `name = "第一章"` compares text and must keep it.
+ */
+const NAME_RUN = /[^\s+\-*/=<>!&|(),]+/g;
+const isLiteral = (token: string): boolean => token.startsWith('"') || token.startsWith("'");
+
+/** Every flag expression of an item, including the two lists a choice carries. */
+function flagExpressionsOf(item: Record<string, unknown>): string[] {
+  const values: string[] = [];
   for (const field of FLAG_FIELDS) {
     const value = item[field];
-    if (typeof value === 'string') names.push(value);
+    if (typeof value === 'string') values.push(value);
   }
-  for (const [list, field] of [
-    ['ifConditions', 'ifCondition'],
-    ['notIfConditions', 'notIfCondition'],
-  ] as const) {
+  for (const [list, field] of CONDITION_LISTS) {
     const held = item[list];
     if (!Array.isArray(held)) continue;
     for (const entry of held) {
       if (entry !== null && typeof entry === 'object' && typeof (entry as Record<string, unknown>)[field] === 'string') {
-        names.push((entry as Record<string, string>)[field] as string);
+        values.push((entry as Record<string, string>)[field] as string);
       }
     }
   }
-  return names;
+  return values;
 }
 
 /**
@@ -145,7 +156,9 @@ function flagNamesOf(item: Record<string, unknown>): string[] {
  * renames. A label written only in characters the rule drops — `第一章`, `开关` — otherwise becomes a nameless knot
  * (`====  ====`), a nameless `VAR` and empty conditions: invalid Ink that the planner stores as one container. Naming them
  * here keeps the vendored converter untouched, and a flag is renamed everywhere it is declared **and** tested, since the
- * converter maps conditions by the original name.
+ * converter maps conditions by the original name. Two rules keep the new names honest: a generated name never collides with a
+ * name the story already uses (two flags sharing one `VAR` would merge their logic), and a name inside an expression is
+ * replaced as a whole token, so `计数 > 3` becomes `flag_1 > 3` while `name = "第一章"` keeps its quoted text.
  */
 function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
   const items: Record<string, unknown>[] = [];
@@ -157,47 +170,71 @@ function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
     }
   }
 
-  // One new name per original flag name, in story order, so every reference to it gets the same one.
-  const flags = new Map<string, string>();
+  // Every name the converter can already make, so a generated one never lands on it.
+  const taken = new Set<string>();
+  const unusableSections: string[] = [];
+  const unusableFlags: string[] = [];
   for (const item of items) {
-    for (const name of flagNamesOf(item)) {
-      if (name !== '' && inkIdentifier(name) === '' && !flags.has(name)) flags.set(name, `flag_${flags.size + 1}`);
+    const label = item['pageLabel'];
+    if (typeof label === 'string' && label !== '') {
+      const id = inkIdentifier(label);
+      if (id === '') {
+        if (!unusableSections.includes(label)) unusableSections.push(label);
+      } else taken.add(id);
+    }
+    for (const expression of flagExpressionsOf(item)) {
+      for (const token of expression.match(NAME_RUN) ?? []) {
+        if (isLiteral(token)) continue;
+        const id = inkIdentifier(token);
+        if (id === '') {
+          if (!unusableFlags.includes(token)) unusableFlags.push(token);
+        } else taken.add(id);
+      }
     }
   }
 
+  // One new name per original, in story order, each free of every name already used or generated. A word used as both a
+  // section label and a flag gets one of each, since a knot and a variable are different things.
+  const flags = new Map<string, string>();
   const renames: InklewriterRename[] = [];
   let sections = 0;
+  let flagCount = 0;
+  const freeName = (prefix: string, next: () => number): string => {
+    let candidate = `${prefix}_${next()}`;
+    while (taken.has(candidate)) candidate = `${prefix}_${next()}`;
+    taken.add(candidate);
+    return candidate;
+  };
+  for (const name of unusableSections) {
+    const to = freeName('section', () => (sections += 1));
+    renames.push({ kind: 'section', from: name, to });
+    for (const item of items) if (item['pageLabel'] === name) item['pageLabel'] = to;
+  }
+  for (const name of unusableFlags) {
+    const to = freeName('flag', () => (flagCount += 1));
+    flags.set(name, to);
+    renames.push({ kind: 'flag', from: name, to });
+  }
+
+  const renameIn = (expression: string): string =>
+    expression.replace(NAME_RUN, (token) => (isLiteral(token) ? token : (flags.get(token) ?? token)));
+
   for (const item of items) {
-    const label = item['pageLabel'];
-    if (typeof label === 'string' && label !== '' && inkIdentifier(label) === '') {
-      sections += 1;
-      const to = `section_${sections}`;
-      item['pageLabel'] = to;
-      renames.push({ kind: 'section', from: label, to });
-    }
     for (const field of FLAG_FIELDS) {
       const value = item[field];
-      if (typeof value !== 'string') continue;
-      const to = flags.get(value);
-      if (to !== undefined) item[field] = to;
+      if (typeof value === 'string') item[field] = renameIn(value);
     }
-    for (const [list, field] of [
-      ['ifConditions', 'ifCondition'],
-      ['notIfConditions', 'notIfCondition'],
-    ] as const) {
+    for (const [list, field] of CONDITION_LISTS) {
       const held = item[list];
       if (!Array.isArray(held)) continue;
       for (const entry of held) {
         if (entry === null || typeof entry !== 'object') continue;
         const record = entry as Record<string, unknown>;
         const value = record[field];
-        if (typeof value !== 'string') continue;
-        const to = flags.get(value);
-        if (to !== undefined) record[field] = to;
+        if (typeof value === 'string') record[field] = renameIn(value);
       }
     }
   }
-  for (const [from, to] of flags) renames.push({ kind: 'flag', from, to });
   return renames;
 }
 
