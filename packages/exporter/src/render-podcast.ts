@@ -18,6 +18,8 @@ import type { EpisodeMeta } from '@caotang/script';
 
 /** The channel, resolved: the show's own values where it holds them, the folder's title or synopsis where it does not. */
 export interface PodcastChannel {
+  /** The show folder's node id, written as `podcast:guid` — a re-export names the same show. Absent when no show folder holds the episodes. */
+  readonly id?: string;
   readonly title: string;
   readonly description?: string;
   readonly language?: string;
@@ -91,7 +93,8 @@ function channelLines(channel: PodcastChannel): { readonly lines: readonly strin
   // RSS 2.0 needs the channel's <link>; podcastRssOutput refuses the compile when the show names none.
   if (channel.link !== undefined) lines.push(`<link>${escapeXml(channel.link)}</link>`);
   if (channel.description === undefined || channel.description.trim() === '') {
-    missing('description', 'set the show description or the folder synopsis');
+    missing('description', 'set the show description or the folder synopsis — the channel title stands in');
+    lines.push(`<description>${escapeXml(channel.title)}</description>`);
   } else lines.push(`<description>${escapeXml(channel.description)}</description>`);
   if (channel.language === undefined || channel.language.trim() === '') {
     missing('language', 'set the show language (script.setShowMeta), or the project language');
@@ -104,6 +107,7 @@ function channelLines(channel: PodcastChannel): { readonly lines: readonly strin
   else lines.push(`<itunes:category text="${escapeXml(channel.category)}"/>`);
   if (channel.explicit === undefined) missing('itunes:explicit', 'set the show explicit flag (script.setShowMeta)');
   else lines.push(`<itunes:explicit>${channel.explicit ? 'true' : 'false'}</itunes:explicit>`);
+  if (channel.id !== undefined) lines.push(`<podcast:guid>${escapeXml(channel.id)}</podcast:guid>`);
   if (channel.fundingUrl !== undefined) {
     lines.push(`<podcast:funding url="${escapeXml(channel.fundingUrl)}">Support the show</podcast:funding>`);
   }

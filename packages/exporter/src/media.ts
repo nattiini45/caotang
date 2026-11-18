@@ -1855,11 +1855,20 @@ function podcastRssOutput(request: MediaRequest): MediaOutput {
   if (channelRead.meta.link === undefined) {
     throw new MediaRefusedError('podcast-rss', ['the show names no home link — RSS 2.0 needs the channel\'s <link>, so set one on the show (script.setShowMeta) and compile again']);
   }
+  let language = channelRead.meta.language ?? request.language;
+  const wellFormed = (tag: string | undefined): tag is string => {
+    try { new Intl.Locale(tag as string); return true; } catch { return false; }
+  };
+  if (language !== undefined && !wellFormed(language)) {
+    notes.push(`language ${JSON.stringify(language)} is not a well-formed tag, so the channel's <language> falls back to the project's language`);
+    language = wellFormed(request.language) ? request.language : undefined;
+  }
   const rendered = renderPodcastRss({
     channel: {
+      ...(firstShow === undefined ? {} : { id: firstShow.id }),
       title: channelRead.meta.feedTitle ?? firstShow?.title ?? request.title,
       ...(description === undefined ? {} : { description }),
-      language: channelRead.meta.language ?? request.language,
+      ...(language === undefined ? {} : { language }),
       ...(channelRead.meta.link === undefined ? {} : { link: channelRead.meta.link }),
       ...(channelRead.meta.category === undefined ? {} : { category: channelRead.meta.category }),
       ...(channelRead.meta.explicit === undefined ? {} : { explicit: channelRead.meta.explicit }),

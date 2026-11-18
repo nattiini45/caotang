@@ -101,6 +101,7 @@ describe('the podcast feed', () => {
     expect(xml).toContain('<itunes:episodeType>full</itunes:episodeType>');
     expect(xml).toContain('<podcast:transcript url="https://example.com/ep1.md" language="en" type="text/markdown"/>');
     expect(xml).toContain('<podcast:chapters url="https://example.com/ep1.json" type="application/json+chapters"/>');
+    expect(xml).toContain('<podcast:guid>n_SHOW00001</podcast:guid>');
     const log = JSON.parse(fs.snapshot()['exports/compile-log.json'] ?? '[]') as Array<{ notes?: string[] }>;
     const notes = log.at(-1)?.notes ?? [];
     expect(notes.some((n) => n.includes('itunes:image'))).toBe(true);
@@ -123,6 +124,10 @@ describe('the podcast feed', () => {
       at: COMPILED_AT,
     });
     await exporter.idle();
+    const xml = fs.snapshot()['exports/The Rock Hour.rss.xml'];
+    if (xml === undefined) throw new Error('no feed written');
+    // RSS 2.0 requires <description>; the channel title stands in.
+    expect(xml).toContain('<description>The Rock Hour</description>');
     const log = JSON.parse(fs.snapshot()['exports/compile-log.json'] ?? '[]') as Array<{ notes?: string[] }>;
     const notes = log.at(-1)?.notes ?? [];
     expect(notes.some((n) => n.includes('description'))).toBe(true);
@@ -130,6 +135,28 @@ describe('the podcast feed', () => {
     expect(notes.some((n) => n.includes('itunes:image'))).toBe(true);
     expect(notes.some((n) => n.includes('itunes:category'))).toBe(true);
     expect(notes.some((n) => n.includes('itunes:explicit'))).toBe(true);
+  });
+
+  it('falls back to the project language when the show language is not a well-formed tag', async () => {
+    const { state, exporter, fs } = showRig();
+    await exporter.ready();
+    const show = state.manifest.tree.find((n) => n.id === SHOW);
+    if (show === undefined) throw new Error('no show');
+    show.showMeta = { ...show.showMeta, language: 'english please' };
+    state.manifest.recipes = [{ name: 'Podcast', includeRootIds: [SHOW], format: 'podcast-rss' }];
+    exporter.commandPort().compile(state, {
+      selection: { kind: 'nodes', includeRootIds: [SHOW] },
+      format: 'podcast-rss',
+      recipeName: 'Podcast',
+      at: COMPILED_AT,
+    });
+    await exporter.idle();
+    const xml = fs.snapshot()['exports/The Rock Hour.rss.xml'];
+    if (xml === undefined) throw new Error('no feed written');
+    expect(xml).not.toContain('english please');
+    const log = JSON.parse(fs.snapshot()['exports/compile-log.json'] ?? '[]') as Array<{ notes?: string[] }>;
+    const notes = log.at(-1)?.notes ?? [];
+    expect(notes.some((n) => n.includes('not a well-formed tag'))).toBe(true);
   });
 
   it('refuses a compile when the show names no home link', async () => {
