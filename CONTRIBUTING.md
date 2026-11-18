@@ -75,10 +75,10 @@ CI's `pdf-validate` job checks both PDFs the app writes with tools other than th
 ```sh
 CAOTANG_PDF_OUT=/tmp/pdfs pnpm exec vitest run packages/exporter/test/pdf-write-corpus.test.ts   # writes the corpus and expected.json
 node tools/pdf-validate/check.mjs /tmp/pdfs                                                       # structure, fonts and pdf.js
-node tools/pdf-validate/check.mjs /tmp/pdfs --external                                            # also qpdf, Poppler, Ghostscript and MuPDF
+node tools/pdf-validate/check.mjs /tmp/pdfs --external                                            # also qpdf, Poppler, Ghostscript, MuPDF and veraPDF
 ```
 
-The corpus test writes nothing without `CAOTANG_PDF_OUT`, so `pnpm verify` is unchanged. The external tools are CI-only (`apt-get install qpdf poppler-utils ghostscript mupdf-tools`) and never ship; a tool that is not installed fails the run, and `--external=pdftotext,qpdf` runs just those named. None of this is a check in Acrobat or on paper.
+The corpus test writes nothing without `CAOTANG_PDF_OUT`, so `pnpm verify` is unchanged. The external tools are CI-only (`apt-get install qpdf poppler-utils ghostscript mupdf-tools`, and veraPDF from its own release) and never ship; a tool that is not installed fails the run, and `--external=pdftotext,qpdf` runs just those named. veraPDF needs a Java runtime: CI installs the pinned release with `bash tools/ci/verapdf-install.sh <version> <sha256> <dir>` and puts that directory on `PATH`. None of this is a check in Acrobat or on paper: the validators in CI are the check.
 
 ### XLSX interop
 

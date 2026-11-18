@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "description": "Caotang as an MCP server — the harness registry over Streamable HTTP on 127.0.0.1, read-only by default (extensibility.md §9)",
+  "description": "Caotang as an MCP server \u2014 the harness registry over Streamable HTTP on 127.0.0.1, read-only by default (extensibility.md \u00a79)",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
@@ -14,19 +14,26 @@
     "caotang-mcp": "./dist/caotang-mcp.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/node": "2.1.1",
-    "@modelcontextprotocol/server": "2.3.1",
     "@caotang/bus": "workspace:*",
     "@caotang/coherence": "workspace:*",
     "@caotang/context": "workspace:*",
     "@caotang/exporter": "workspace:*",
     "@caotang/font-comic-lettering": "workspace:*",
     "@caotang/font-noto-arabic": "workspace:*",
+    "@caotang/font-noto-bengali": "workspace:*",
     "@caotang/font-noto-cjk": "workspace:*",
     "@caotang/font-noto-color-emoji": "workspace:*",
     "@caotang/font-noto-devanagari": "workspace:*",
     "@caotang/font-noto-emoji": "workspace:*",
+    "@caotang/font-noto-gujarati": "workspace:*",
+    "@caotang/font-noto-gurmukhi": "workspace:*",
     "@caotang/font-noto-hebrew": "workspace:*",
+    "@caotang/font-noto-kannada": "workspace:*",
+    "@caotang/font-noto-malayalam": "workspace:*",
+    "@caotang/font-noto-oriya": "workspace:*",
+    "@caotang/font-noto-sinhala": "workspace:*",
+    "@caotang/font-noto-tamil": "workspace:*",
+    "@caotang/font-noto-telugu": "workspace:*",
     "@caotang/harness": "workspace:*",
     "@caotang/ids": "workspace:*",
     "@caotang/machine": "workspace:*",
@@ -34,7 +41,9 @@
     "@caotang/sdk": "workspace:*",
     "@caotang/store": "workspace:*",
     "@caotang/timeline": "workspace:*",
-    "@jsquash/webp": "1.5.0"
+    "@jsquash/webp": "1.5.0",
+    "@modelcontextprotocol/node": "2.1.1",
+    "@modelcontextprotocol/server": "2.3.1"
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "2.1.2",

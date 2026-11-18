@@ -70,6 +70,8 @@ export const EXPORT_FORMATS = [
   'atom',
   // The AV script's feed (av-script.md §5): a podcast RSS over the feed writer, appended after the web feeds.
   'podcast-rss',
+  // The prose PDF (exporter.md §3): the manuscript paginated through the screenplay PDF's engine. Appended, so the order above holds.
+  'prose-pdf',
 ] as const;
 
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
@@ -112,7 +114,7 @@ export const MEDIA_FORMATS = [
 export type MediaFormat = (typeof MEDIA_FORMATS)[number];
 
 /** Formats whose artifact is a binary container, which `ArtifactFs` (string-only) cannot hold. The SVG is text, so it is not here. */
-export const BINARY_FORMATS: readonly ExportFormat[] = ['docx', 'epub', 'dialogue-xlsx', 'shot-list-xlsx', 'pdf', 'contact-sheet-pdf', 'comic-pdf', 'timeline-xlsx', 'timeline-pdf', 'cbz', 'comic-epub', 'vo-script-xlsx'];
+export const BINARY_FORMATS: readonly ExportFormat[] = ['docx', 'epub', 'dialogue-xlsx', 'shot-list-xlsx', 'pdf', 'contact-sheet-pdf', 'comic-pdf', 'timeline-xlsx', 'timeline-pdf', 'cbz', 'comic-epub', 'vo-script-xlsx', 'prose-pdf'];
 
 export function isExportFormat(value: string): value is ExportFormat {
   return (EXPORT_FORMATS as readonly string[]).includes(value);

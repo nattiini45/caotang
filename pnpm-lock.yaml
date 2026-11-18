@@ -255,6 +255,9 @@ importers:
       '@caotang/font-noto-arabic':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-arabic
+      '@caotang/font-noto-bengali':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-bengali
       '@caotang/font-noto-cjk':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-cjk
@@ -267,9 +270,33 @@ importers:
       '@caotang/font-noto-emoji':
         specifier: workspace:*
         version: link:../../vendor/noto-emoji
+      '@caotang/font-noto-gujarati':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-gujarati
+      '@caotang/font-noto-gurmukhi':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-gurmukhi
       '@caotang/font-noto-hebrew':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-hebrew
+      '@caotang/font-noto-kannada':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-kannada
+      '@caotang/font-noto-malayalam':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-malayalam
+      '@caotang/font-noto-oriya':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-oriya
+      '@caotang/font-noto-sinhala':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-sinhala
+      '@caotang/font-noto-tamil':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-tamil
+      '@caotang/font-noto-telugu':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-telugu
       '@caotang/furniture':
         specifier: workspace:*
         version: link:../../packages/furniture
@@ -397,6 +424,9 @@ importers:
       '@caotang/font-noto-arabic':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-arabic
+      '@caotang/font-noto-bengali':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-bengali
       '@caotang/font-noto-cjk':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-cjk
@@ -409,9 +439,33 @@ importers:
       '@caotang/font-noto-emoji':
         specifier: workspace:*
         version: link:../../vendor/noto-emoji
+      '@caotang/font-noto-gujarati':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-gujarati
+      '@caotang/font-noto-gurmukhi':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-gurmukhi
       '@caotang/font-noto-hebrew':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-hebrew
+      '@caotang/font-noto-kannada':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-kannada
+      '@caotang/font-noto-malayalam':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-malayalam
+      '@caotang/font-noto-oriya':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-oriya
+      '@caotang/font-noto-sinhala':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-sinhala
+      '@caotang/font-noto-tamil':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-tamil
+      '@caotang/font-noto-telugu':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-telugu
       '@caotang/gateway':
         specifier: workspace:*
         version: link:../gateway
@@ -969,6 +1023,9 @@ importers:
       '@caotang/font-noto-arabic':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-arabic
+      '@caotang/font-noto-bengali':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-bengali
       '@caotang/font-noto-cjk':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-cjk
@@ -981,9 +1038,33 @@ importers:
       '@caotang/font-noto-emoji':
         specifier: workspace:*
         version: link:../../vendor/noto-emoji
+      '@caotang/font-noto-gujarati':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-gujarati
+      '@caotang/font-noto-gurmukhi':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-gurmukhi
       '@caotang/font-noto-hebrew':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-hebrew
+      '@caotang/font-noto-kannada':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-kannada
+      '@caotang/font-noto-malayalam':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-malayalam
+      '@caotang/font-noto-oriya':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-oriya
+      '@caotang/font-noto-sinhala':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-sinhala
+      '@caotang/font-noto-tamil':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-tamil
+      '@caotang/font-noto-telugu':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-telugu
       '@caotang/harness':
         specifier: workspace:*
         version: link:../harness
@@ -1030,6 +1111,9 @@ importers:
       '@caotang/font-noto-arabic':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-arabic
+      '@caotang/font-noto-bengali':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-bengali
       '@caotang/font-noto-cjk':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-cjk
@@ -1042,9 +1126,33 @@ importers:
       '@caotang/font-noto-emoji':
         specifier: workspace:*
         version: link:../../vendor/noto-emoji
+      '@caotang/font-noto-gujarati':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-gujarati
+      '@caotang/font-noto-gurmukhi':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-gurmukhi
       '@caotang/font-noto-hebrew':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-hebrew
+      '@caotang/font-noto-kannada':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-kannada
+      '@caotang/font-noto-malayalam':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-malayalam
+      '@caotang/font-noto-oriya':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-oriya
+      '@caotang/font-noto-sinhala':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-sinhala
+      '@caotang/font-noto-tamil':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-tamil
+      '@caotang/font-noto-telugu':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-telugu
       '@pdf-lib/fontkit':
         specifier: 1.1.1
         version: 1.1.1
@@ -1310,11 +1418,29 @@ importers:
 
   vendor/noto-sans-arabic: {}
 
+  vendor/noto-sans-bengali: {}
+
   vendor/noto-sans-cjk: {}
 
   vendor/noto-sans-devanagari: {}
 
+  vendor/noto-sans-gujarati: {}
+
+  vendor/noto-sans-gurmukhi: {}
+
   vendor/noto-sans-hebrew: {}
+
+  vendor/noto-sans-kannada: {}
+
+  vendor/noto-sans-malayalam: {}
+
+  vendor/noto-sans-oriya: {}
+
+  vendor/noto-sans-sinhala: {}
+
+  vendor/noto-sans-tamil: {}
+
+  vendor/noto-sans-telugu: {}
 
 packages:
 

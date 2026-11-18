@@ -33,14 +33,13 @@
  */
 
 import {
-  devanagariRuns,
+  indicRuns,
   emojiFontMaps,
   fallbackCovers,
   graphemesOf,
   hasBidiControl,
   hasExtendedPictographic,
   hasBrahmic,
-  hasDevanagari,
   hasRtlScript,
   inRanges,
   isBidiControl,
@@ -199,22 +198,22 @@ export function withMeasure<T>(measure: MeasureRun | undefined, work: () => T): 
   }
 }
 
-/** The columns of text that holds no Arabic, Hebrew or bidirectional control character: its units, a Devanagari word measured whole. */
+/** The columns of text that holds no Arabic, Hebrew or bidirectional control character: its units, an Indic word measured whole. */
 function unitsColumns(text: string): number {
   const units = textUnits(text);
   let n = 0;
-  if (!hasDevanagari(text)) {
+  if (!hasBrahmic(text)) {
     for (const unit of units) n += unitColumns(unit);
     return n;
   }
-  for (const run of devanagariRuns(units)) {
+  for (const run of indicRuns(units)) {
     if (run.kind === 'other') for (const unit of textUnits(run.text)) n += unitColumns(unit);
     else n += measureRun !== undefined ? measureRun(run.text) : textUnits(run.text).length;
   }
   return n;
 }
 
-/** The columns a run of text takes on the grid. For text with no wide character, no emoji, no Arabic, Hebrew or Devanagari this is its length in code points. */
+/** The columns a run of text takes on the grid. For text with no wide character, no emoji, no Arabic, Hebrew or Indic letter this is its length in code points. */
 export function textColumns(text: string): number {
   if (!hasRtlScript(text) && !hasBidiControl(text)) return unitsColumns(text);
   let n = 0;
@@ -275,8 +274,8 @@ export function breakPieces(word: string): string[] {
 export function splitColumns(text: string, width: number): readonly [string, string] {
   let cols = 0;
   let head = '';
-  // A word of Arabic, Hebrew or Devanagari is as wide as its shaped form, which is not the sum of its letters: the head is measured whole.
-  const whole = hasRtlScript(text) || hasDevanagari(text);
+  // A word of Arabic, Hebrew or Indic text is as wide as its shaped form, which is not the sum of its letters: the head is measured whole.
+  const whole = hasRtlScript(text) || hasBrahmic(text);
   for (const ch of textUnits(text)) {
     const c = whole ? textColumns(head + ch) - cols : unitColumns(ch);
     if (head !== '' && cols + c > width) break;

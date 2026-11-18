@@ -4,7 +4,7 @@
  */
 
 /** The formats that read the option. Every other format ignores it. */
-export const COLOUR_EMOJI_FORMATS = ['pdf', 'contact-sheet-pdf'] as const;
+export const COLOUR_EMOJI_FORMATS = ['pdf', 'contact-sheet-pdf', 'prose-pdf'] as const;
 
 /**
  * Whether a format prints emoji in colour when the recipe does not say: the contact sheet does (a visual document), the screenplay PDF does
@@ -22,4 +22,6 @@ export const COLOUR_EMOJI_HINT = {
   pdf: 'Scripts are usually printed in black and white, so this is off unless you turn it on. Without colour a skin tone prints as the plain figure; colour is how to get skin tones.',
   'contact-sheet-pdf':
     'On by default, because a contact sheet is a picture to look at. Turn it off for black and white, where a skin tone prints as the plain figure; colour is how to get skin tones.',
+  'prose-pdf':
+    'Manuscripts print like scripts — black and white — so this is off unless you turn it on. Without colour a skin tone prints as the plain figure; colour is how to get skin tones.',
 } as const;

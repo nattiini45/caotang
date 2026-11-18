@@ -123,8 +123,9 @@ const scenarios: Scenario[] = [
       // every wired tool was listed). Merge: the comic and timeline formats joined export.compile's enum (on each of the two planner
       // calls), measured at 10178, so the ceiling was 10200. Merge: the AV script's show and VO formats joined the same
       // enum, measured at 10218, so the ceiling was 10250. Merge: the AV script's captions and chapters formats joined the
-      // same enum, measured at 10212, so the ceiling is 10250.
-      maxTokens: 10250,
+      // same enum, measured at 10212, so the ceiling was 10250. Merge: the prose PDF format joined the same enum,
+      // measured at 10252, so the ceiling is 10300.
+      maxTokens: 10300,
       maxModelCalls: 3,
       state: (state) => {
         const node = state.manifest.tree.find((candidate) => candidate.id === STORM);

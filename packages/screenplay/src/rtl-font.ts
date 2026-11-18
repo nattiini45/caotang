@@ -34,16 +34,20 @@
 import {
   CidNumbering,
   cutCidSubset,
-  devanagariFontPrints,
-  devanagariRuns,
-  hasDevanagari,
+  hasBrahmic,
+  INDIC_SCRIPTS,
+  INDIC_SCRIPT_NAMES,
+  indicFontPrints,
+  indicRuns,
   loadFont,
   loadFontWithBytes,
   needsBidi,
   rtlFontPrints,
   withoutMarks,
+  type CidSubset,
   type CidUnit,
   type FontLoader,
+  type IndicScript,
   type ShapedScript,
 } from '@caotang/pdf-fonts';
 import { visualRuns } from '@caotang/pdf-fonts/bidi';
@@ -60,20 +64,26 @@ const POSTSCRIPT_NAMES: Readonly<Record<ShapedScript, string>> = {
   arabic: 'NotoSansArabic-Regular',
   hebrew: 'NotoSansHebrew-Regular',
   devanagari: 'NotoSansDevanagari-Regular',
+  bengali: 'NotoSansBengali-Regular',
+  gurmukhi: 'NotoSansGurmukhi-Regular',
+  gujarati: 'NotoSansGujarati-Regular',
+  oriya: 'NotoSansOriya-Regular',
+  tamil: 'NotoSansTamil-Regular',
+  telugu: 'NotoSansTelugu-Regular',
+  kannada: 'NotoSansKannada-Regular',
+  malayalam: 'NotoSansMalayalam-Regular',
+  sinhala: 'NotoSansSinhala-Regular',
 };
 
 /** The size the script fonts are set in, the grid's own: 12 points. */
 const SIZE = 12;
 
-/** The OpenType script tag Devanagari is shaped under, and the id the shaper knows its font by. */
-const DEVANAGARI_TAG = 'deva';
-const DEVANAGARI_ID = 'devanagari';
-
-/** The loaders of the three fonts. A script without one is not loaded, and its text prints as "?". */
+/** The loaders of the script fonts. A script without one is not loaded, and its text prints as "?". */
 export interface RtlFontLoaders {
   readonly arabic?: FontLoader;
   readonly hebrew?: FontLoader;
-  readonly devanagari?: FontLoader;
+  /** The Indic fonts' loaders, keyed by script, so each loads only when its text appears. */
+  readonly indic?: Partial<Record<IndicScript, FontLoader>>;
 }
 
 /** The parsed fonts and the shapers, ready to measure and to plan. */
@@ -108,10 +118,10 @@ function columnsOf(advance: number, unitsPerEm: number): number {
   return Math.max(1, Math.ceil((advance * SIZE) / (unitsPerEm * LAYOUT.charWidth) - 1e-9));
 }
 
-/** The Devanagari word shaped in the project's language, or undefined when no Devanagari font is loaded. */
-function shapeDevanagari(support: Pick<RtlSupport, 'indic' | 'language'>, word: string): ShapedWord | undefined {
+/** The Indic word shaped in its script in the project's language, or undefined when no Indic font is loaded. */
+function shapeIndic(support: Pick<RtlSupport, 'indic' | 'language'>, word: string, script: IndicScript): ShapedWord | undefined {
   if (support.indic === undefined) return undefined;
-  return shapeWord(support.indic, word, { fontId: DEVANAGARI_ID, script: DEVANAGARI_TAG, ...(support.language === undefined ? {} : { lang: support.language }) });
+  return shapeWord(support.indic, word, { fontId: script, script: INDIC_SCRIPTS[script].tag, ...(support.language === undefined ? {} : { lang: support.language }) });
 }
 
 /**
@@ -125,29 +135,33 @@ export async function loadRtlSupport(
   options: { readonly language?: string } = {},
 ): Promise<RtlSupport> {
   const fonts: Partial<Record<ShapedScript, Font>> = {};
-  let indic: BrahmicShaper | undefined;
+  const indicBytes: Partial<Record<IndicScript, Uint8Array>> = {};
   await Promise.all(
     scripts.map(async (script) => {
-      const load = loaders[script];
+      const isIndic = script !== 'arabic' && script !== 'hebrew';
+      const load = isIndic ? loaders.indic?.[script as IndicScript] : loaders[script];
       if (load === undefined) return;
-      if (script === 'devanagari') {
+      if (isIndic) {
         // @pdf-lib/fontkit cuts the subset, and upstream fontkit shapes from the same bytes.
-        const { font, bytes } = await loadFontWithBytes(load, 'the Devanagari font');
-        fonts.devanagari = font;
-        indic = await createFontkitShaper({ [DEVANAGARI_ID]: bytes });
+        const { font, bytes } = await loadFontWithBytes(load, `the ${script} font`);
+        fonts[script] = font;
+        indicBytes[script as IndicScript] = bytes;
         return;
       }
       fonts[script] = await loadRtlFont(load, script === 'arabic' ? 'the Arabic font' : 'the Hebrew font');
     }),
   );
+  const indic =
+    Object.keys(indicBytes).length === 0 ? undefined : await createFontkitShaper(indicBytes as Record<IndicScript, Uint8Array>);
   const base = { fonts, shape, ...(indic === undefined ? {} : { indic }), ...(options.language === undefined ? {} : { language: options.language }) };
   const cache = new Map<string, number>();
   const measure: MeasureRun = (run) => {
     let columns = cache.get(run);
     if (columns === undefined) {
-      if (devanagariFontPrints(String.fromCodePoint(run.codePointAt(0) ?? 0))) {
-        const font = fonts.devanagari;
-        const word = font === undefined ? undefined : shapeDevanagari(base, run);
+      const indicScript = indicFontPrints(String.fromCodePoint(run.codePointAt(0) ?? 0));
+      if (indicScript !== undefined) {
+        const font = fonts[indicScript];
+        const word = font === undefined ? undefined : shapeIndic(base, run, indicScript);
         // A word that cannot be shaped prints as "?", a column for each cluster.
         columns = font === undefined || word === undefined || word.failed !== undefined ? textUnits(run).length : columnsOf(word.advance, font.unitsPerEm);
       } else {
@@ -192,9 +206,9 @@ function placeGlyphs(glyphs: readonly ShapedGlyph[], font: Font, start: number, 
 }
 
 /**
- * Plans one text that may hold Devanagari into `items`: its Devanagari words shaped, each at its column, and the rest plain. `text`
- * is what is drawn and `source` its logical text, which differ only where the algorithm mirrored a character. False when a word
- * needs the Devanagari font and it is not loaded.
+ * Plans one text that may hold Indic script into `items`: its Indic words shaped, each at its column, and the rest plain. `text`
+ * is what is drawn and `source` its logical text, which differ only where the algorithm mirrored a character. A run whose script
+ * has no loaded font stays plain and prints as "?", while the runs whose fonts are loaded still shape.
  */
 function planText(
   text: string,
@@ -204,26 +218,32 @@ function planText(
   collected: Record<ShapedScript, Collected>,
   items: PdfRtlItem[],
 ): boolean {
-  if (!hasDevanagari(text)) {
+  if (!hasBrahmic(text)) {
     items.push({ kind: 'plain', column: at.column, text, source, order: at.order });
     for (const unit of textUnits(text)) at.column += unitColumns(unit);
     return true;
   }
-  const font = support.fonts.devanagari;
-  if (font === undefined) return false;
-  for (const run of devanagariRuns(textUnits(text))) {
-    if (run.kind === 'other') {
+  for (const run of indicRuns(textUnits(text))) {
+    const script = run.script;
+    if (run.kind === 'other' || script === undefined) {
       items.push({ kind: 'plain', column: at.column, text: run.text, source: run.text, order: at.order });
       for (const unit of textUnits(run.text)) at.column += unitColumns(unit);
       continue;
     }
-    const word = shapeDevanagari(support, run.text);
+    const font = support.fonts[script];
+    if (font === undefined) {
+      // The map is partial: a script with no loaded font falls back and prints as "?", the others still shape.
+      items.push({ kind: 'plain', column: at.column, text: run.text, source: run.text, order: at.order });
+      at.column += support.measure(run.text);
+      continue;
+    }
+    const word = shapeIndic(support, run.text, script);
     if (word === undefined || word.failed !== undefined || word.glyphs.length === 0) {
       // The engine could not shape the word: it prints as "?", the columns the layout counted.
       items.push({ kind: 'plain', column: at.column, text: run.text, source: run.text, order: at.order });
     } else {
-      const glyphs = placeGlyphs(word.glyphs, font, 0, collected.devanagari);
-      items.push({ kind: 'shaped', font: 'devanagari', column: at.column, glyphs, source: run.text, order: at.order });
+      const glyphs = placeGlyphs(word.glyphs, font, 0, collected[script]);
+      items.push({ kind: 'shaped', font: script, column: at.column, glyphs, source: run.text, order: at.order });
     }
     at.column += support.measure(run.text);
   }
@@ -265,8 +285,8 @@ function planLine(text: string, rtl: boolean, support: RtlSupport, collected: Re
   return items;
 }
 
-/** The plan of a left-to-right line with Devanagari and no Arabic or Hebrew: no algorithm is needed, the line is its own visual order. */
-function planDevanagariLine(text: string, support: RtlSupport, collected: Record<ShapedScript, Collected>): PdfRtlItem[] | undefined {
+/** The plan of a left-to-right line with Indic text and no Arabic or Hebrew: no algorithm is needed, the line is its own visual order. */
+function planIndicLine(text: string, support: RtlSupport, collected: Record<ShapedScript, Collected>): PdfRtlItem[] | undefined {
   const items: PdfRtlItem[] = [];
   return planText(text, text, { column: 0, order: 0 }, support, collected, items) ? items : undefined;
 }
@@ -276,21 +296,22 @@ function planDevanagariLine(text: string, support: RtlSupport, collected: Record
  * paragraph. A font that is not loaded is not cut, and the lines that need it are left unplanned.
  */
 export async function subsetRtl(pages: readonly LayoutPage[], support: RtlSupport): Promise<PdfRtlFonts> {
-  const collected: Record<ShapedScript, Collected> = {
-    // A glyph with no text takes a CID pdf.js skips in the two scripts that carry no /ActualText (cid-font.ts CidNumbering).
-    arabic: { units: [], cids: new Map(), numbering: new CidNumbering(true) },
-    hebrew: { units: [], cids: new Map(), numbering: new CidNumbering(true) },
-    devanagari: { units: [], cids: new Map(), numbering: new CidNumbering(false) },
-  };
+  // A glyph with no text takes a CID pdf.js skips in the two scripts that carry no /ActualText (cid-font.ts CidNumbering).
+  const collected = Object.fromEntries(
+    (['arabic', 'hebrew', ...INDIC_SCRIPT_NAMES] as ShapedScript[]).map((script) => [
+      script,
+      { units: [], cids: new Map<string, number>(), numbering: new CidNumbering(script === 'arabic' || script === 'hebrew') },
+    ]),
+  ) as unknown as Record<ShapedScript, Collected>;
   const lines = new Map<string, readonly PdfRtlItem[]>();
   for (const page of pages) {
     for (const line of page.lines) {
       const rtl = line.rtl === true;
       const bidi = rtl || needsBidi(line.text);
-      if (!bidi && !hasDevanagari(line.text)) continue;
+      if (!bidi && !hasBrahmic(line.text)) continue;
       const key = rtlLineKey(line.text, rtl);
       if (lines.has(key)) continue;
-      const plan = bidi ? planLine(line.text, rtl, support, collected) : planDevanagariLine(line.text, support, collected);
+      const plan = bidi ? planLine(line.text, rtl, support, collected) : planIndicLine(line.text, support, collected);
       if (plan !== undefined) lines.set(key, plan);
     }
   }
@@ -299,11 +320,16 @@ export async function subsetRtl(pages: readonly LayoutPage[], support: RtlSuppor
     const { units } = collected[script];
     return font === undefined || units.length === 0 ? undefined : cutCidSubset(font, units, POSTSCRIPT_NAMES[script]);
   };
-  const [arabic, hebrew, devanagari] = await Promise.all([cut('arabic'), cut('hebrew'), cut('devanagari')]);
+  const [arabic, hebrew, ...indicSubsets] = await Promise.all([cut('arabic'), cut('hebrew'), ...INDIC_SCRIPT_NAMES.map(cut)]);
+  const indic: Partial<Record<IndicScript, CidSubset>> = {};
+  INDIC_SCRIPT_NAMES.forEach((script, i) => {
+    const subset = indicSubsets[i];
+    if (subset !== undefined) indic[script] = subset;
+  });
   return {
     ...(arabic === undefined ? {} : { arabic }),
     ...(hebrew === undefined ? {} : { hebrew }),
-    ...(devanagari === undefined ? {} : { devanagari }),
+    ...(Object.keys(indic).length === 0 ? {} : { indic }),
     lines,
   };
 }

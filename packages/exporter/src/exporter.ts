@@ -20,11 +20,12 @@
 
 import { ApplyRefusal, DEFAULT_RECIPE_NAME, type CommandError } from '@caotang/bus';
 import { ArtifactNotFoundError, EXPORTS_DIR, FIXED_ROOT_IDS, identifierUrn, type ArtifactFs, type ProjectState } from '@caotang/store';
-import { PDF_MIME } from '@caotang/screenplay';
+import { PDF_MIME, type PdfFontLoaders } from '@caotang/screenplay';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
 import type { ComicLetteringFontLoader, FontLoader } from '@caotang/pdf-fonts';
 import { extensionOfMime, isAssetId, planPicture, finishPassthrough, sniffPicture, PictureRefusal, type ProcessPicture, type PictureBytes } from '@caotang/pictures';
 import type { PictureTranscoder } from './render-contact-sheet.js';
+import type { IndicFontLoaders } from './indic-font.js';
 import { CBZ_MIME, type ComicRasterizer } from './comic-raster.js';
 import { parseProse, type ImageRef } from './prose.js';
 import { figureSourcesOf, formatBytes, resolveFigures, usedAssetFilesOf, type FigureHost, type FigurePack, type FigureRecord } from './figures.js';
@@ -52,6 +53,7 @@ import { renderHtmlArticle, type PublishMeta } from './render-html.js';
 import { renderAtom, renderRss, type FeedItem } from './render-feed.js';
 import { renderMarkdown, renderText } from './render-text.js';
 import type { RenderInput } from './render-input.js';
+import { drawProsePdf, layoutProsePdf, prepareProsePdf, type ProsePdfOptions } from './render-prose-pdf.js';
 import { DEFAULT_TEMPLATE_ID, fileStem, resolveTemplate, type ExportTemplate } from './template.js';
 import {
   hasTextProof,
@@ -115,7 +117,7 @@ export interface ExporterOptions {
   readonly loadFallbackFont?: FontLoader;
   /**
    * Reads the Bold of the PDF fallback font (Noto Sans Mono CJK SC Bold, `@caotang/font-noto-cjk`), the same way, for text the CJK
-   * font sets (Han, kana, Hangul, Greek, Cyrillic) in a bold place; Arabic, Hebrew, Devanagari and emoji keep their own fonts there.
+   * font sets (Han, kana, Hangul, Greek, Cyrillic) in a bold place; Arabic, Hebrew, the Indic scripts and emoji keep their own fonts there.
    * The contact sheet reads it only when its title, page label or a number chip holds such text; the screenplay PDF draws nothing in
    * bold and does not read it. Without it, that text is the regular weight thickened by a stroke, and the compile log says so.
    */
@@ -133,13 +135,19 @@ export interface ExporterOptions {
    */
   readonly loadColourEmoji?: FontLoader;
   /**
-   * Reads Noto Sans Arabic (`@caotang/font-noto-arabic`), Noto Sans Hebrew (`@caotang/font-noto-hebrew`) and Noto Sans Devanagari
-   * (`@caotang/font-noto-devanagari`) for both PDFs' Arabic, Persian, Urdu, Hebrew, Hindi, Marathi, Nepali and Sanskrit text, the
-   * same way. Each is called only when a file holds its script. Without one, that script is drawn as `?`, and the compile log says so.
+   * Reads Noto Sans Arabic (`@caotang/font-noto-arabic`) and Noto Sans Hebrew (`@caotang/font-noto-hebrew`) for both PDFs' Arabic,
+   * Persian, Urdu and Hebrew text, the same way. Each is called only when a file holds its script. Without one, that script is drawn
+   * as `?`, and the compile log says so.
    */
   readonly loadArabicFont?: FontLoader;
   readonly loadHebrewFont?: FontLoader;
-  readonly loadDevanagariFont?: FontLoader;
+  /**
+   * Reads the Indic Noto Sans fonts (`@caotang/font-noto-devanagari` and the other `@caotang/font-noto-*` script packages), one loader
+   * per script (`indic-font.ts`), for the Indic text the PDFs draw: Devanagari (Hindi, Marathi, Nepali, Sanskrit), Bengali, Gurmukhi,
+   * Gujarati, Odia, Tamil, Telugu, Kannada, Malayalam and Sinhala. A script's loader is called only when a file holds it. Without
+   * one, that script is drawn as `?`, and the compile log says so.
+   */
+  readonly loadIndicFonts?: IndicFontLoaders;
   /**
    * Reads Comic Neue and Bangers (`@caotang/font-comic-lettering`) for the comic PDF's lettering, one face at a time. The app fetches
    * them from its own origin; Node reads them from the package (`@caotang/pdf-fonts/node-loader`). Called only when a balloon has text.
@@ -272,6 +280,7 @@ const EXTENSION: Record<ExportFormat, string> = {
   rss: 'rss.xml',
   atom: 'atom.xml',
   'podcast-rss': 'rss.xml',
+  'prose-pdf': 'pdf',
 };
 
 /**
@@ -313,6 +322,7 @@ export const EXPORT_MIME: Readonly<Record<ExportFormat, string>> = {
   rss: 'application/rss+xml',
   atom: 'application/atom+xml',
   'podcast-rss': 'application/rss+xml',
+  'prose-pdf': PDF_MIME,
 };
 
 const NO_ASSETS: ReadonlyMap<string, AssetRecord> = new Map();
@@ -494,6 +504,33 @@ export function createExporter(options: ExporterOptions): ExporterService {
       ...(pictures.assetsDir === undefined ? {} : { assetsDir: pictures.assetsDir }),
     };
 
+    // The prose PDF (exporter.md §3): laid out at plan time, so a compile that prints nothing is refused
+    // before anything is reserved, and the fonts are loaded when the file renders, not before.
+    let prosePdf: ProsePdfPlan | undefined;
+    if (request.format === 'prose-pdf') {
+      const pdfOpts: ProsePdfOptions = {
+        ...(metadata.language === undefined ? {} : { language: metadata.language }),
+        ...(request.options.pageSize === undefined ? {} : { pageSize: request.options.pageSize }),
+        ...(request.options.scriptFont === undefined ? {} : { scriptFont: request.options.scriptFont }),
+        ...(request.options.colourEmoji === undefined ? {} : { colourEmoji: request.options.colourEmoji }),
+        ...(request.options.notes === undefined ? {} : { notes: request.options.notes }),
+      };
+      const layout = layoutProsePdf(input, pdfOpts);
+      if (layout.scriptPageCount === 0) {
+        throw new MediaRefusedError('prose-pdf', ['the selection holds no text that prints, so there is nothing to print']);
+      }
+      notes.push(...layout.notes);
+      const loaders: PdfFontLoaders = {
+        ...(options.loadFallbackFont === undefined ? {} : { cjk: options.loadFallbackFont }),
+        ...(options.loadEmojiFont === undefined ? {} : { emoji: options.loadEmojiFont }),
+        ...(options.loadColourEmoji === undefined ? {} : { colourEmoji: options.loadColourEmoji }),
+        ...(options.loadArabicFont === undefined ? {} : { arabic: options.loadArabicFont }),
+        ...(options.loadHebrewFont === undefined ? {} : { hebrew: options.loadHebrewFont }),
+        ...(options.loadIndicFonts === undefined ? {} : { indic: options.loadIndicFonts }),
+      };
+      prosePdf = { opts: pdfOpts, layout, loaders };
+    }
+
     const entry: Omit<CompileLogEntry, 'output'> = {
       at: at.toISOString(),
       recipe: request.recipe,
@@ -507,7 +544,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
       notes,
     };
 
-    return { kind: 'prose', format: request.format, input, flat, entry, title, epub, html, feed, at: request.at, base: request.base, pictures: pictures.plan };
+    return { kind: 'prose', format: request.format, input, flat, entry, title, epub, html, feed, prosePdf, at: request.at, base: request.base, pictures: pictures.plan };
   };
 
   /**
@@ -593,7 +630,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
       ...(options.loadColourEmoji === undefined ? {} : { loadColourEmoji: options.loadColourEmoji }),
       ...(options.loadArabicFont === undefined ? {} : { loadArabicFont: options.loadArabicFont }),
       ...(options.loadHebrewFont === undefined ? {} : { loadHebrewFont: options.loadHebrewFont }),
-      ...(options.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: options.loadDevanagariFont }),
+      ...(options.loadIndicFonts === undefined ? {} : { loadIndicFonts: options.loadIndicFonts }),
       ...(options.transcodePicture === undefined ? {} : { transcodePicture: options.transcodePicture }),
       ...(common.language === undefined ? {} : { language: common.language }),
       ...(options.reportWords === undefined ? {} : { reportWords: options.reportWords() }),
@@ -1083,9 +1120,19 @@ async function renderProse(compiled: ProsePlan): Promise<RenderedContents> {
       return { contents: await renderDocx(input), notes };
     case 'epub':
       return renderEpubArtifactFor(compiled, input, notes);
+    case 'prose-pdf':
+      return renderProsePdfFor(compiled, input, notes);
     default:
       throw new Error(`"${compiled.format}" is not a prose format, so it has no prose renderer`);
   }
+}
+
+/** The prose PDF's render: the fonts load now, the layout the plan kept is recomputed against the measured text. */
+async function renderProsePdfFor(compiled: ProsePlan, input: RenderInput, notes: string[]): Promise<{ readonly contents: Uint8Array; readonly notes: readonly string[] }> {
+  if (compiled.prosePdf === undefined) throw new Error('a prose PDF reached the renderer without its plan');
+  const prepared = await prepareProsePdf(input, compiled.prosePdf.opts, compiled.prosePdf.loaders);
+  notes.push(...prepared.colourNotes);
+  return { contents: drawProsePdf(prepared), notes };
 }
 
 async function renderEpubArtifactFor(compiled: ProsePlan, input: RenderInput, notes: string[]): Promise<{ readonly contents: Uint8Array; readonly notes: readonly string[] }> {
@@ -1219,6 +1266,16 @@ interface ProsePlan extends PlanCommon {
   readonly html?: HtmlPlan;
   /** Present for the feeds only: the channel facts and every document the selection holds, drafts included (web-publishing.md §3). */
   readonly feed?: FeedPlan;
+  /** Present for the prose PDF only: its recipe options and the layout the plan computed (exporter.md §3). */
+  readonly prosePdf?: ProsePdfPlan;
+}
+
+/** The prose PDF's planned half: the recipe options it reads and the layout the plan's gate refused or accepted. */
+interface ProsePdfPlan {
+  readonly opts: ProsePdfOptions;
+  readonly layout: ReturnType<typeof layoutProsePdf>;
+  /** The host's font loaders, from the service options — the same fields `preparePdf` reads for the screenplay PDF. */
+  readonly loaders: PdfFontLoaders;
 }
 
 /** One feed's shape: the channel facts and the candidate items, drafts among them (the render skips and names them). */

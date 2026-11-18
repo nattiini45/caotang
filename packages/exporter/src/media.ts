@@ -93,9 +93,10 @@ import {
   type CoherenceReportWords,
 } from './coherence-report.js';
 import type { RenderedContents } from './emit.js';
+import { INDIC_FONT_INFO, type IndicFontLoaders } from './indic-font.js';
 import { flatten, type FlattenResult } from './flatten.js';
 import { renderPodcastRss, type PodcastEpisode } from './render-podcast.js';
-import type { ComicLetteringFontLoader, FontLoader } from '@caotang/pdf-fonts';
+import type { ComicLetteringFontLoader, FontLoader, IndicScript } from '@caotang/pdf-fonts';
 import { selectComic } from './comic-book.js';
 import type { ComicPdfPageInput } from './render-comic-pdf.js';
 import { drawContactSheet, type PictureTranscoder } from './render-contact-sheet.js';
@@ -191,8 +192,8 @@ export interface MediaRequest {
   readonly loadArabicFont?: FontLoader;
   /** Reads Noto Sans Hebrew (`@caotang/font-noto-hebrew`). The screenplay PDF and the contact sheet read it, and only when the file holds Hebrew text. */
   readonly loadHebrewFont?: FontLoader;
-  /** Reads Noto Sans Devanagari (`@caotang/font-noto-devanagari`). The screenplay PDF and the contact sheet read it, and only when the file holds Devanagari text. */
-  readonly loadDevanagariFont?: FontLoader;
+  /** The Indic fonts (`@caotang/font-noto-*`), by script. The screenplay PDF, the contact sheet, the comic PDF and the timeline PDF read each, and only when the file holds its script's text. */
+  readonly loadIndicFonts?: IndicFontLoaders;
   /** Decodes a WebP picture to PNG (`@jsquash/webp` in Node, a canvas in the app). Only the contact sheet reads it. Without it, a WebP picture shows its card's caption. */
   readonly transcodePicture?: PictureTranscoder;
   /** The project's language (a BCP 47 tag), when it has one. In a right-to-left language the screenplay PDF lays out a paragraph with no strong character right to left. */
@@ -411,7 +412,7 @@ function fountainOutput(request: MediaRequest): MediaOutput {
 /**
  * The screenplay PDF (screenplay.md §5.3). The selection, the gate and the pagination are the plan's, so a refusal writes
  * nothing and the log row can give the page count. The file is drawn in the queue, with Courier Prime (or the recipe font, Cousine) embedded, and the CJK, emoji,
- * Arabic, Hebrew and Devanagari fonts when the script needs them. A script with any of them is laid out twice: here, before any font is
+ * Arabic, Hebrew and the Indic fonts when the script needs them. A script with any of them is laid out twice: here, before any font is
  * read, with a column for each letter of a word, which is what the gate and the page count in the log are made of; and again when the
  * file is drawn, with the words measured in their fonts (screenplay.md §5.3). When the measured layout has another page count, the
  * log says so.
@@ -460,13 +461,13 @@ function pdfOutput(request: MediaRequest): MediaOutput {
             ...(request.loadColourEmoji === undefined ? {} : { colourEmoji: request.loadColourEmoji }),
             ...(request.loadArabicFont === undefined ? {} : { arabic: request.loadArabicFont }),
             ...(request.loadHebrewFont === undefined ? {} : { hebrew: request.loadHebrewFont }),
-            ...(request.loadDevanagariFont === undefined ? {} : { devanagari: request.loadDevanagariFont }),
+            ...(request.loadIndicFonts === undefined ? {} : { indic: request.loadIndicFonts }),
           });
           const bytes = drawPdf(prepared.layout, prepared.font, prepared.cjk, prepared.emoji, prepared.rtl, prepared.colour);
           const counted = prepared.layout.scriptPageCount;
           const notes = [
             ...prepared.colourNotes,
-            ...(counted === pages ? [] : [`pdf: with the words of Arabic, Hebrew and Devanagari measured in their fonts the script is ${counted} ${counted === 1 ? 'page' : 'pages'}, not ${pages}`]),
+            ...(counted === pages ? [] : [`pdf: with the words of Arabic, Hebrew and the Indic scripts measured in their fonts the script is ${counted} ${counted === 1 ? 'page' : 'pages'}, not ${pages}`]),
           ];
           return notes.length === 0 ? bytes : { contents: bytes, notes };
         },
@@ -501,7 +502,9 @@ function unloadedFontNotes(layout: PdfLayout, request: MediaRequest): string[] {
       : []),
     ...(request.loadArabicFont === undefined && layout.shapedScripts.includes('arabic') ? ['pdf: this compile has no Arabic font, so the Arabic text is printed as "?"'] : []),
     ...(request.loadHebrewFont === undefined && layout.shapedScripts.includes('hebrew') ? ['pdf: this compile has no Hebrew font, so the Hebrew text is printed as "?"'] : []),
-    ...(request.loadDevanagariFont === undefined && layout.shapedScripts.includes('devanagari') ? ['pdf: this compile has no Devanagari font, so the Devanagari text is printed as "?"'] : []),
+    ...layout.shapedScripts
+      .filter((script) => script !== 'arabic' && script !== 'hebrew' && request.loadIndicFonts?.[script as IndicScript] === undefined)
+      .map((script) => `pdf: this compile has no ${INDIC_FONT_INFO[script as IndicScript].name} font, so the ${INDIC_FONT_INFO[script as IndicScript].name.split(' ').slice(2).join(' ')} text is printed as "?"`),
   ];
 }
 
@@ -1410,7 +1413,7 @@ function contactSheetOutput(request: MediaRequest): MediaOutput {
             ...(colour && request.loadColourEmoji !== undefined ? { loadColourEmoji: request.loadColourEmoji } : {}),
             ...(request.loadArabicFont === undefined ? {} : { loadArabicFont: request.loadArabicFont }),
             ...(request.loadHebrewFont === undefined ? {} : { loadHebrewFont: request.loadHebrewFont }),
-            ...(request.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: request.loadDevanagariFont }),
+            ...(request.loadIndicFonts === undefined ? {} : { loadIndicFonts: request.loadIndicFonts }),
             ...(request.transcodePicture === undefined ? {} : { transcodePicture: request.transcodePicture }),
             ...(request.language === undefined ? {} : { language: request.language }),
             at,
@@ -1473,7 +1476,7 @@ function comicPdfOutput(request: MediaRequest): MediaOutput {
             ...(request.loadEmojiFont === undefined ? {} : { loadEmojiFont: request.loadEmojiFont }),
             ...(request.loadArabicFont === undefined ? {} : { loadArabicFont: request.loadArabicFont }),
             ...(request.loadHebrewFont === undefined ? {} : { loadHebrewFont: request.loadHebrewFont }),
-            ...(request.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: request.loadDevanagariFont }),
+            ...(request.loadIndicFonts === undefined ? {} : { loadIndicFonts: request.loadIndicFonts }),
             ...(request.transcodePicture === undefined ? {} : { transcodePicture: request.transcodePicture }),
             ...(request.language === undefined ? {} : { language: request.language }),
           });
@@ -1789,7 +1792,7 @@ function timelinePdfOutput(request: MediaRequest): MediaOutput {
             ...(request.loadEmojiFont === undefined ? {} : { loadEmojiFont: request.loadEmojiFont }),
             ...(request.loadArabicFont === undefined ? {} : { loadArabicFont: request.loadArabicFont }),
             ...(request.loadHebrewFont === undefined ? {} : { loadHebrewFont: request.loadHebrewFont }),
-            ...(request.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: request.loadDevanagariFont }),
+            ...(request.loadIndicFonts === undefined ? {} : { loadIndicFonts: request.loadIndicFonts }),
           });
           return { contents: drawn.contents, notes: drawn.notes };
         },
