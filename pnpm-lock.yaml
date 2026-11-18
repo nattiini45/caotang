@@ -288,6 +288,9 @@ importers:
       '@caotang/import-core':
         specifier: workspace:*
         version: link:../../packages/import-core
+      '@caotang/import-inklewriter':
+        specifier: workspace:*
+        version: link:../../packages/import-inklewriter
       '@caotang/import-read':
         specifier: workspace:*
         version: link:../../packages/import-read

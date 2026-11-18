@@ -598,6 +598,11 @@ msgstr ""
 msgid "{completedCalls, plural, one {# model call completed.} other {# model calls completed.}}"
 msgstr ""
 
+#. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in)
+#: apps/desktop/src/import-preview/inklewriter-source.ts
+msgid "{containers, plural, one {Import # container} other {Import # containers}}"
+msgstr ""
+
 #. Live USD spend against its USD limit; values include the currency sign.
 #: apps/desktop/src/app/agent-model.ts
 msgid "{cost} of {costLimit}"
@@ -1172,8 +1177,10 @@ msgstr ""
 msgid "{field}: {to}"
 msgstr ""
 
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
+#: apps/desktop/src/components/ScriptImport.tsx
 msgid "{file} could not be read: {problem}"
 msgstr ""
 
@@ -2159,6 +2166,11 @@ msgstr ""
 #. The animatic line. Interpolated values: seconds is the total length in seconds; untimed counts shots left out.
 #: apps/desktop/src/media/board-model.ts
 msgid "{untimed, plural, one {{seconds} s of animatic, with # shot left out for want of a duration} other {{seconds} s of animatic, with # shots left out for want of a duration}}"
+msgstr ""
+
+#. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in)
+#: apps/desktop/src/import-preview/inklewriter-source.ts
+msgid "{url} (in “{stitch}”)"
 msgstr ""
 
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
@@ -3381,6 +3393,11 @@ msgstr ""
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #: apps/desktop/src/components/Inspector.tsx
 msgid "Add keyword"
+msgstr ""
+
+#. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in)
+#: apps/desktop/src/import-preview/inklewriter-source.ts
+msgid "Add line ids"
 msgstr ""
 
 #: apps/desktop/src/components/InspectorDialogue.tsx
@@ -7539,6 +7556,11 @@ msgstr ""
 msgid "Each change, from its value now to its value after this step"
 msgstr ""
 
+#. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in)
+#: apps/desktop/src/import-preview/inklewriter-source.ts
+msgid "Each choice and divert gets a stable id, so a later import can find the same line."
+msgstr ""
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Each file ({count})"
@@ -9163,7 +9185,9 @@ msgid "Image to video"
 msgstr ""
 
 #. Interpolated values: completion, count, levels, prompt, window
+#. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in)
 #: apps/desktop/src/app/provider-details.ts
+#: apps/desktop/src/import-preview/inklewriter-source.ts
 msgid "Images"
 msgstr ""
 
@@ -9172,12 +9196,19 @@ msgstr ""
 msgid "Images added to shots"
 msgstr ""
 
+#. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in)
+#: apps/desktop/src/import-preview/inklewriter-source.ts
+msgid "Images, listed by address; the import does not download them"
+msgstr ""
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Import"
 msgstr ""
 
+#. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in)
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/inklewriter-source.ts
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Import “{file}”"
 msgstr ""
@@ -9243,6 +9274,11 @@ msgstr ""
 msgid "Import Ink"
 msgstr ""
 
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Import Inklewriter"
+msgstr ""
+
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #: apps/desktop/src/components/InspectorPictures.tsx
 msgid "Import pictures here…"
@@ -9295,6 +9331,7 @@ msgstr ""
 msgid "Imported “{file}”."
 msgstr ""
 
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Imported {containers, plural, one {# dialogue container} other {# dialogue containers}} from {file}."
@@ -9539,6 +9576,11 @@ msgstr ""
 
 #: apps/desktop/src/components/InspectorDialogue.tsx
 msgid "Ink, compiled to JSON"
+msgstr ""
+
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Inklewriter story file"
 msgstr ""
 
 #. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
@@ -12300,6 +12342,8 @@ msgstr ""
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
+#. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in)
+#. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in)
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
@@ -12309,6 +12353,7 @@ msgstr ""
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
 #: apps/desktop/src/components/Inspector.tsx
+#: apps/desktop/src/import-preview/inklewriter-source.ts
 msgid "Notes"
 msgstr ""
 
@@ -14291,8 +14336,10 @@ msgstr ""
 msgid "harness.progress.docRead.active"
 msgstr ""
 
+#. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/inklewriter-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 #: apps/desktop/src/import-preview/text-source.ts
 msgid "Reading {file}…"
@@ -18728,6 +18775,11 @@ msgstr ""
 msgid "The file cannot be read as {encoding}. Choose another encoding."
 msgstr ""
 
+#. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in)
+#: apps/desktop/src/import-preview/inklewriter-source.ts
+msgid "The file could not be read as an Inklewriter story."
+msgstr ""
+
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/text-source.ts
 msgid "The file could not be read as plain text."
@@ -19048,6 +19100,11 @@ msgstr ""
 #. Interpolated values: error, name
 #: apps/desktop/src/app/providers.ts
 msgid "The key for “{name}” is no longer in this browser, so the profile was not restored. Add it again in Settings."
+msgstr ""
+
+#. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in)
+#: apps/desktop/src/import-preview/inklewriter-source.ts
+msgid "the knot “{name}”"
 msgstr ""
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
@@ -20700,6 +20757,11 @@ msgstr ""
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #: apps/desktop/src/components/UsagePanel.tsx
 msgid "This history stays in this browser. The CSV contains daily accounting, not prompts, replies or keys."
+msgstr ""
+
+#. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in)
+#: apps/desktop/src/import-preview/inklewriter-source.ts
+msgid "This Inklewriter story becomes one dialogue container for each knot-cluster. Read what the import does not keep first."
 msgstr ""
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
