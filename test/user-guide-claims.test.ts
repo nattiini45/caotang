@@ -755,8 +755,7 @@ describe('the import preview (#267)', () => {
     expect(manuscript).toContain('htmlZipPreviewSource');
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<ManuscriptImportActions />');
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD and captions imports open the preview');
-    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD and HTML imports open the preview');
+    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, captions and HTML imports open the preview');
     expect(notYet).not.toContain('There is no **Import RTF** command yet');
     expect(changelog).toContain('**One import preview for every structured import.**');
     expect(read('docs/architecture/import-preview.md')).toContain('## 5. The commit: `binder.importTree`');
