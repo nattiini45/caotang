@@ -2,7 +2,8 @@
  * Highland 2 / Pro's native `.highland` file is a zip of a customised TextBundle (issue #284). This reader unzips it through
  * the shared archive reader (its size, entry, ratio and path caps), routes the script to the Fountain importer, reads the
  * title from `info.json`, collects the `assets/` pictures and lists what it cannot bring in. Nothing is dropped silently:
- * the bin, the revisions and the planning metadata are named in `losses`. DOM-free, so it runs on the main thread, in the
+ * the bin, the revisions, the planning metadata, an empty file in `assets/` and every other file in the package are named in
+ * `losses`. DOM-free, so it runs on the main thread, in the
  * import Worker and in Node; the preview source and command wire it to the dialog later.
  */
 
@@ -34,6 +35,9 @@ export type HighlandResult =
 
 /** The script file a TextBundle carries, in the order Highland writes them. */
 const SCRIPT_PATHS = ['text.fountain', 'text.markdown', 'text.txt'] as const;
+
+/** How many other files the report names before it counts the rest, so a package of hundreds still reads. */
+const NAMED_LIMIT = 20;
 
 const decoder = new TextDecoder();
 
@@ -108,6 +112,21 @@ export async function readHighland(bytes: Uint8Array, fileName = ''): Promise<Hi
   if (revisions.length > 0) losses.push(`revisions/ (${revisions.length} file${revisions.length === 1 ? '' : 's'}) not imported`);
   const planning = ['sprints', 'milestones'].filter((key) => metadata[key] !== undefined);
   if (planning.length > 0) losses.push(`${planning.join(' and ')} not imported`);
+
+  // An empty file in assets/ carries no picture, so it is left out and said so rather than passed to the picture pipeline.
+  const empty = archive.entries.filter((entry) => entry.path.startsWith('assets/') && entry.size === 0 && !entry.path.endsWith('/'));
+  if (empty.length > 0) losses.push(`assets/ (${empty.length} empty file${empty.length === 1 ? '' : 's'}) not imported`);
+
+  // Any other file in the package is named too: a Highland package may carry a writer's own notes, styles or a second script,
+  // and a report that said nothing would leave the writer to guess where they went.
+  const known = (path: string): boolean =>
+    path === scriptPath || path === 'info.json' || path.startsWith('assets/') || path.startsWith('bin/') || path.startsWith('revisions/');
+  const other = archive.entries.filter((entry) => entry.size > 0 && !known(entry.path));
+  if (other.length > 0) {
+    const named = other.slice(0, NAMED_LIMIT).map((entry) => entry.path);
+    const rest = other.length - named.length;
+    losses.push(`${named.join(', ')}${rest > 0 ? ` and ${rest} more file${rest === 1 ? '' : 's'}` : ''} not imported`);
+  }
 
   return { ok: true, value: { script, fountainText: degraded.text, title, assets, losses, notices } };
 }

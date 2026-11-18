@@ -143,4 +143,34 @@ describe('readHighland', () => {
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value.title).toBe('From the Title Page');
   });
+
+  it('names every other file in the package and an empty asset, so nothing is dropped silently', async () => {
+    const result = await readHighland(
+      packageZip({ 'notes.md': 'a writer note', 'styles/custom.css': 'body{}', 'text.markdown': FOUNTAIN, 'assets/empty.png': new Uint8Array(0) }),
+      'x.highland',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.assets).toEqual([{ path: 'assets/lighthouse.png', bytes: PNG }]);
+    expect(result.value.losses).toContain('assets/ (1 empty file) not imported');
+    expect(result.value.losses).toContain('notes.md, styles/custom.css, text.markdown not imported');
+  });
+
+  it('names twenty other files and counts the rest', async () => {
+    const extra: Record<string, string> = {};
+    for (let i = 0; i < 25; i += 1) extra[`notes/n${i}.md`] = 'a note';
+    const result = await readHighland(packageZip(extra), 'x.highland');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const line = result.value.losses.find((loss) => loss.startsWith('notes/'));
+    expect(line).toBeDefined();
+    expect(line).toContain('and 5 more files not imported');
+    expect(line?.split(', ')).toHaveLength(20);
+  });
+
+  it('says nothing extra for a package that carries only what it imports', async () => {
+    const result = await readHighland(storedZip({ 'text.fountain': FOUNTAIN, 'info.json': '{"title":"X"}', 'assets/a.png': PNG }), 'x.highland');
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.losses).toEqual([]);
+  });
 });

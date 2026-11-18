@@ -735,6 +735,9 @@ describe('the import preview (#267)', () => {
     expect(read('apps/desktop/src/components/ScriptImport.tsx')).toContain('inklewriterPreviewSource');
     expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
     expect(guide).toContain('- **Import Highland** reads a Highland 2 / Pro script (`.highland`)');
+    expect(guide).toContain('any other file the package carries (your own notes, a style sheet, a second script file), and an empty file in its assets folder');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('jede weitere Datei im Paket (Ihre eigenen Notizen, ein Stylesheet, eine zweite Skriptdatei) und eine leere Datei im Asset-Ordner');
+    expect(read('docs/architecture/screenplay.md')).toContain('named by path, twenty at a time with a count of the rest');
     expect(read('apps/desktop/src/components/ScriptImport.tsx')).toContain("await import('../import-preview/highland-source.js')");
     expect(guide).toContain('in the background, so a long file does not hold the page while it is read');
     const manuscript = read('apps/desktop/src/components/ManuscriptImport.tsx');

@@ -10,7 +10,7 @@ import { createProject, traceNames, waitForSaved } from './support.js';
 
 const PROJECT = 'Highland Import';
 
-/** A script with a section, two scenes, a passage that reads like an instruction to an AI, an unplaced picture and a bin. */
+/** A script with a section, two scenes, a passage that reads like an instruction to an AI, an unplaced picture, a bin and a stray note. */
 const SCRIPT = [
   'Title: The Landing',
   '',
@@ -89,6 +89,8 @@ function highlandPackage(): Buffer {
       'info.json': JSON.stringify({ title: 'The Landing' }),
       'assets/harbour.png': new Uint8Array(PNG),
       'bin/trashed.fountain': 'INT. DELETED - DAY',
+      'notes.md': 'a note the writer kept beside the script',
+      'assets/empty.png': new Uint8Array(0),
     }),
   );
 }
@@ -104,6 +106,8 @@ test('a Highland script shows its losses, pictures and scan before anything is w
   const dialog = page.getByRole('dialog', { name: 'Import “landing.highland”' });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole('list', { name: 'What the import cannot keep' })).toContainText('bin/');
+  await expect(dialog.getByRole('list', { name: 'What the import cannot keep' })).toContainText('notes.md');
+  await expect(dialog.getByRole('list', { name: 'What the import cannot keep' })).toContainText('assets/ (1 empty file) not imported');
   await expect(dialog.getByRole('list', { name: "Pictures from the package's assets folder" })).toContainText('assets/harbour.png');
   await expect(dialog.getByRole('list', { name: 'Passages that read like instructions to an AI' })).toContainText('Ignore all previous instructions');
 
