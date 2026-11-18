@@ -181,6 +181,9 @@ export function captionsPreviewSource(fileName: string, bytes: Uint8Array): Capt
 
   const prepare = async (settings: PreviewSettings, signal: AbortSignal): Promise<void> => {
     const encoding = encodingOf(settings);
+    // The report names the encoding the text is actually decoded as, including when the writer chooses one already read: going
+    // back to the first guess must not leave the report naming the encoding they just left.
+    shownEncoding = encoding;
     if (cache.has(encoding)) return;
     const reply = await host.read({ kind: 'read', reader: 'captions', encoding }, signal);
     // A chosen encoding that cannot be read is a failure the dialog must show: returning quietly would leave it on Reading for
@@ -189,8 +192,6 @@ export function captionsPreviewSource(fileName: string, bytes: Uint8Array): Capt
     if (reply.result.status !== 'read') throw new Error(t`The file cannot be read as ${{ encoding: encodingLabel(encoding) }}. Choose another encoding.`);
     if (!reply.result.parse.ok) throw new Error(refusal(reply.result.parse.error.code));
     cache.set(encoding, reply.result.parse.value);
-    // The report names the encoding the text is actually decoded as, not the first guess.
-    shownEncoding = encoding;
   };
 
   const chips = (): PreviewChip[] => [
@@ -273,6 +274,12 @@ export function captionsPreviewSource(fileName: string, bytes: Uint8Array): Capt
       if (built.leftOutSec > 0) said.push(t`${{ seconds: formatCount(built.leftOutSec) }} s of silence between lines is left out, so the episode is shorter than the recording.`);
       if (built.gapSec > 0) said.push(t`${{ seconds: formatCount(built.gapSec) }} s of silence at the segment breaks is outside the episode's runtime.`);
       if (built.leadingSec > 0) said.push(t`The recording's first ${{ seconds: formatCount(built.leadingSec) }} s before the first cue are not kept: a script line holds a duration, not a start time.`);
+      // A cue that starts and ends at the same time gives its line no duration, and the episode's own parser estimates one from
+      // the show's speech rate when it is opened. The runtime above is the timed part, so the report says what is not in it.
+      const untimed = built.losses.find((loss) => loss.kind === 'untimed-line')?.count ?? 0;
+      if (untimed > 0) {
+        said.push(t`${{ count: formatCount(untimed) }} ${plural(untimed, { one: 'line', other: 'lines' })} carry no duration, because their cues start and end at the same time. The show's speech rate estimates them when you open the episode, so the runtime above is the timed part only.`);
+      }
       lists.push({ heading: what, label: what, lines: said });
     }
     return lists;

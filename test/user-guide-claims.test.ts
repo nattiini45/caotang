@@ -767,7 +767,9 @@ describe('the captions import (#287)', () => {
     const german = read('docs/i18n/de/USER-GUIDE.md');
     expect(german).toContain('- **Untertitel importieren…** liest eine SRT- (`.srt`) oder WebVTT-Datei (`.vtt`)');
     expect(german).toContain('**eine Episode als AV-Skript in einem Sendungsordner**');
-    expect(german).toContain('Jeder Cue wird eine Sprechzeile');
+    expect(german).toContain('Jeder Cue mit Wörtern wird eine Sprechzeile');
+    expect(german).toContain('ein Cue ohne Wörter wird ausgelassen und gezählt');
+    expect(german).toContain('sie landet also in einem Kapitel mit ihrem eigenen Namen');
     expect(german).toContain('eine Pause von mindestens drei Sekunden beginnt ein neues Segment');
     expect(german).toContain('**Außen vor lassen**');
     expect(german).toContain('**Die Episode in einen Sendungsordner legen**');

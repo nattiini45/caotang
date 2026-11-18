@@ -107,7 +107,10 @@ const ALLOWED = /[^\p{L}\p{N} _.'-]/gu;
 export function speakerLabel(raw: string | undefined, vocabulary: readonly string[] = DEFAULT_CUE_VOCABULARY): { readonly label: string; readonly loss?: EpisodeLoss } {
   const name = (raw ?? '').trim();
   if (name === '') return { label: NARRATION_LABEL };
-  let label = name.replace(ALLOWED, ' ').replace(/\s{2,}/g, ' ').trim().replace(/^[^\p{L}]+/u, '').slice(0, 40).trim();
+  // The label holds forty characters, and the grammar counts them as code points (`SCRIPT_LABEL_PATTERN` is a `u` pattern), so a
+  // name in a supplementary plane is cut between whole letters. Cutting UTF-16 units could leave half a letter, which no label
+  // can hold, and the speaker would become narration instead of keeping its own name.
+  let label = [...name.replace(ALLOWED, ' ').replace(/\s{2,}/g, ' ').trim().replace(/^[^\p{L}]+/u, '')].slice(0, 40).join('').trim();
   const unusable = label === '' || !SCRIPT_LABEL_PATTERN.test(label);
   if (unusable) label = NARRATION_LABEL;
   // The script's parser reads the narration label case-insensitively as the show's own narration, so a caption speaker actually
@@ -157,7 +160,7 @@ export function buildEpisode(read: CaptionsRead, options: EpisodeOptions = {}): 
     notesBefore.set(note.beforeCue, at);
   }
 
-  interface Draft { speaker: string; text: string; startSec: number; endSec: number; cues: number; notes: string[] }
+  interface Draft { speaker: string; text: string; startSec: number; endSec: number; ownSec: number; cues: number; notes: string[] }
   const segments: { startSec: number; lines: Draft[]; notes: string[] }[] = [];
   let current: { startSec: number; lines: Draft[]; notes: string[] } | null = null;
   let merged = 0;
@@ -185,9 +188,17 @@ export function buildEpisode(read: CaptionsRead, options: EpisodeOptions = {}): 
     const last = current.lines[current.lines.length - 1];
     // A note sits at a cue boundary, so merging across one would move it ahead of the words it followed. The note ends the line.
     if (merge && last !== undefined && last.speaker === label && !breaks && notes.length === 0) {
-      // One speaker continuing: the words join, the span runs to the later cue, and the small gap inside is part of the line.
+      // One speaker continuing: the words join and the line's wall-clock span runs to the later cue. The gap inside the line is
+      // silence like any other, so "Leave it out" leaves it out here too: the line's own duration counts only the spoken parts.
       const inner = rounded(cue.startSec - last.endSec);
-      if (inner > 0) foldedSec += inner;
+      if (inner > 0) {
+        if (silence === 'fold') {
+          foldedSec += inner;
+          last.ownSec = rounded(last.ownSec + inner);
+        } else leftOutSec += inner;
+      }
+      // Only the time this cue adds beyond what the line already covers, so overlapping cues of one speaker are not counted twice.
+      last.ownSec = rounded(last.ownSec + Math.max(0, cue.endSec - Math.max(cue.startSec, last.endSec)));
       last.text = `${last.text} ${cue.text}`.trim();
       last.endSec = Math.max(last.endSec, cue.endSec);
       last.cues += 1;
@@ -201,7 +212,7 @@ export function buildEpisode(read: CaptionsRead, options: EpisodeOptions = {}): 
         if (silence === 'fold' && lastOwn > 0) foldedSec += gap;
         else leftOutSec += gap;
       }
-      current.lines.push({ speaker: label, text: cue.text, startSec: cue.startSec, endSec: cue.endSec, cues: 1, notes: [...notes] });
+      current.lines.push({ speaker: label, text: cue.text, startSec: cue.startSec, endSec: cue.endSec, ownSec: rounded(Math.max(0, cue.endSec - cue.startSec)), cues: 1, notes: [...notes] });
     }
     previousEnd = Math.max(previousEnd ?? 0, cue.endSec);
   });
@@ -222,7 +233,7 @@ export function buildEpisode(read: CaptionsRead, options: EpisodeOptions = {}): 
     const lines: EpisodeLine[] = [];
     segment.lines.forEach((draft, at) => {
       const next = segment.lines[at + 1];
-      const own = rounded(Math.max(0, draft.endSec - draft.startSec));
+      const own = draft.ownSec;
       const after = next === undefined ? 0 : rounded(Math.max(0, next.startSec - draft.endSec));
       // A cue with no span of its own takes no duration bracket, silence or no silence.
       const declared = rounded(own + (silence === 'fold' && own > 0 ? after : 0));

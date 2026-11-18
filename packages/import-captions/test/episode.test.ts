@@ -142,6 +142,19 @@ describe('the speaker label the grammar can hold', () => {
     expect(speakerLabel('x'.repeat(60)).label.length).toBe(40);
   });
 
+  it('cuts a long name between whole letters, so a name in a supplementary plane keeps forty of them', () => {
+    // The grammar's own pattern counts code points, so cutting UTF-16 units would keep only twenty letters here.
+    const long = speakerLabel('𐐀'.repeat(45));
+    expect([...long.label]).toHaveLength(40);
+    expect(long.label).toBe('𐐀'.repeat(40));
+    expect(long.loss?.kind).toBe('speaker-renamed');
+    // A cut that lands inside a surrogate pair used to leave half a letter, which no label holds: the speaker became narration.
+    const odd = speakerLabel(`A${'𐐀'.repeat(45)}`);
+    expect(odd.label).not.toBe('NARRATION');
+    expect([...odd.label]).toHaveLength(40);
+    expect(odd.label).toBe(`A${'𐐀'.repeat(39)}`);
+  });
+
   it('never lets a speaker be one of the show’s cue words, which would make the line a cue', () => {
     const collision = speakerLabel('Music');
     expect(collision.label).toBe('Music_');
@@ -160,6 +173,26 @@ describe('the speaker label the grammar can hold', () => {
     const line = speech(parseEpisode(built.body).segments[0]!.lines)[0]!;
     expect(line.text).toBe('It said [12s]');
     expect(line.durationSec).toBe(2);
+  });
+
+  it('“Leave it out” keeps a merged line to its spoken length, and counts the gap inside it as left out', () => {
+    const read = cuesOf([
+      'WEBVTT', '',
+      '00:00:00.000 --> 00:00:01.000', '<v Ada>One.</v>', '',
+      '00:00:02.000 --> 00:00:03.000', '<v Ada>Two.</v>', '',
+    ].join('\n'));
+    const left = buildEpisode(read, { silence: 'leave' });
+    expect(left.merged).toBe(1);
+    expect(left.body).toContain('Ada: One. Two. [2s]');
+    expect(left.foldedSec).toBe(0);
+    expect(left.leftOutSec).toBe(1);
+    expect(left.seconds).toBe(2);
+    // Folding still adds the gap inside the merged line, so the episode matches the recording's span.
+    const folded = buildEpisode(read, { silence: 'fold' });
+    expect(folded.body).toContain('Ada: One. Two. [3s]');
+    expect(folded.foldedSec).toBe(1);
+    expect(folded.leftOutSec).toBe(0);
+    expect(folded.seconds).toBe(3);
   });
 
   it('a cue with no span takes no duration, and the silence after it is left out rather than folded onto it', () => {

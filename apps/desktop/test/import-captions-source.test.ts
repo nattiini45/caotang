@@ -298,5 +298,28 @@ describe('a guessed encoding the writer changes', () => {
     opened.source.plan(other, NO_OVERRIDES);
     expect(lineOf()).toContain('ISO-8859-15');
     expect(lineOf()).not.toContain('Windows-1252');
+    // Choosing the first encoding again reads it from the cache; the report must follow the choice back.
+    const back = withSettings(settings, { [CAPTIONS_CHIPS.encoding]: 'windows-1252' });
+    await opened.source.prepare?.(back, new AbortController().signal);
+    opened.source.plan(back, NO_OVERRIDES);
+    expect(lineOf()).toContain('Windows-1252');
+    expect(lineOf()).not.toContain('ISO-8859-15');
+  });
+});
+
+describe('a cue that starts and ends at the same time', () => {
+  it('the report says which lines carry no duration and that the show’s speech rate estimates them', async () => {
+    const source = await open([
+      'WEBVTT', '',
+      '00:00:01.000 --> 00:00:01.000', '<v Ada>No span.</v>', '',
+      '00:00:02.000 --> 00:00:04.000', '<v Ada>Two seconds.</v>', '',
+    ].join('\n'));
+    const settings = withSettings(initialSettings(source.chips(), source.options()), {}, { [CAPTIONS_OPTIONS.merge]: false });
+    source.plan(settings, NO_OVERRIDES);
+    const said = source.report().find((list) => list.heading === 'What the import does')?.lines ?? [];
+    expect(said.join(' ')).toContain('1 line carry no duration');
+    expect(said.join(' ')).toContain("The show's speech rate estimates them");
+    // The runtime named beside it is the timed part alone.
+    expect(said.join(' ')).toContain('The episode runs 2 s as imported.');
   });
 });

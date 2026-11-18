@@ -884,6 +884,11 @@ msgstr "{count} {perDay, plural, one {character} other {characters}}"
 msgid "{count} {perDay, plural, one {word} other {words}}"
 msgstr "{count} {perDay, plural, one {word} other {words}}"
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "{count} {untimed, plural, one {line} other {lines}} carry no duration, because their cues start and end at the same time. The show's speech rate estimates them when you open the episode, so the runtime above is the timed part only."
+msgstr "{count} {untimed, plural, one {line} other {lines}} carry no duration, because their cues start and end at the same time. The show's speech rate estimates them when you open the episode, so the runtime above is the timed part only."
+
 #. Interpolated values: count, target, words
 #: apps/desktop/src/app/session-progress.ts
 msgid "{count} {words, plural, one {word} other {words}} today"
