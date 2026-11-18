@@ -3342,7 +3342,7 @@ msgstr "Legen Sie zuerst eine Figur im Kodex an."
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Add a document to this project before testing a hook."
-msgstr "Füge diesem Projekt ein Dokument hinzu, bevor du einen Hook testest."
+msgstr "Fügen Sie diesem Projekt ein Dokument hinzu, bevor Sie einen Hook testen."
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -7097,7 +7097,7 @@ msgstr "„{title}“ gelöscht. Strg+Z macht das sofort rückgängig."
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Deleted the hook. Undo brings it back."
-msgstr "Der Hook wurde gelöscht. Mit Rückgängig stellst du ihn wieder her."
+msgstr "Der Hook wurde gelöscht. Mit „Rückgängig“ stellen Sie ihn wieder her."
 
 #. Read-only MCP hooks in project Settings.
 #: apps/desktop/src/components/McpHookSettings.tsx
@@ -9329,7 +9329,7 @@ msgstr "Hooks"
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Hooks check this project at selected events. They can warn or stop an action, but never approve it, change your text or call a provider."
-msgstr "Hooks prüfen dieses Projekt bei ausgewählten Ereignissen. Sie können warnen oder eine Aktion stoppen, aber niemals eine Aktion genehmigen, deinen Text ändern oder einen Anbieter aufrufen."
+msgstr "Hooks prüfen dieses Projekt bei ausgewählten Ereignissen. Sie können warnen oder eine Aktion stoppen, aber niemals eine Aktion genehmigen, Ihren Text ändern oder einen Anbieter aufrufen."
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -10428,7 +10428,7 @@ msgstr "Lassen Sie sie aus und behalten Sie ihren Text"
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Leave tools blank to match every tool. Use * for a wildcard. Export events use export.compile; save and turn events have no tool."
-msgstr "Lass die Werkzeuge leer, damit alle Werkzeuge erfasst werden. Verwende * als Platzhalter. Exportereignisse verwenden export.compile; Speicher- und Rundenereignisse haben kein Werkzeug."
+msgstr "Lassen Sie das Feld leer, um alle Werkzeuge zu erfassen. Verwenden Sie * als Platzhalter. Exportereignisse verwenden export.compile; Speicher- und Rundenereignisse haben kein Werkzeug."
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
@@ -12981,7 +12981,7 @@ msgstr "Ordner öffnen…"
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Open a project to manage its hooks."
-msgstr "Öffne ein Projekt, um seine Hooks zu verwalten."
+msgstr "Öffnen Sie ein Projekt, um seine Hooks zu verwalten."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -21284,7 +21284,7 @@ msgstr "Dieses Projekt enthält einen Hook. Prüfe ihn unter Einstellungen › H
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "This project has no hooks yet. Add one to check a word, a word count, a status or continuity."
-msgstr "Dieses Projekt hat noch keine Hooks. Füge einen hinzu, um ein Wort, eine Wortanzahl, einen Status oder die Kontinuität zu prüfen."
+msgstr "Dieses Projekt hat noch keine Hooks. Fügen Sie einen hinzu, um ein Wort, eine Wortanzahl, einen Status oder die Kontinuität zu prüfen."
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -21294,7 +21294,7 @@ msgstr "Dieses Projekt hat noch keine Skills."
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "This project has reached its hook limit. Delete a hook before adding another."
-msgstr "Dieses Projekt hat die Höchstzahl an Hooks erreicht. Lösche einen Hook, bevor du einen weiteren hinzufügst."
+msgstr "Dieses Projekt hat die Höchstzahl an Hooks erreicht. Löschen Sie einen Hook, bevor Sie einen weiteren hinzufügen."
 
 #: apps/desktop/src/components/StaleTabNotice.tsx
 msgid "This project is open in another tab"

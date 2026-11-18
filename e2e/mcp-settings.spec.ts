@@ -40,6 +40,11 @@ for (const locale of ['en', 'de'] as const) {
       await chooseInterfaceLanguage(page, settings, 'de');
     }
     await settings.locator('[data-section="hooks"]').click();
+    if (de) {
+      await expect(settings.getByText(/Ihren Text ändern/)).toBeVisible();
+      await expect(settings.getByText(/Fügen Sie einen hinzu/)).toBeVisible();
+      await expect(settings.getByText(/dem Sie Lesezugriffe erlauben/)).toBeVisible();
+    }
     const add = settings.getByRole('button', { name: de ? 'MCP-Hook hinzufügen' : 'Add MCP hook', exact: true });
     await add.focus();
     await page.keyboard.press('Enter');
