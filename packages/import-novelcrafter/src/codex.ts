@@ -108,7 +108,7 @@ export interface NovelCrafterCodexEntry {
   readonly relations: readonly CodexRelation[];
   /** The `notes.md` body. */
   readonly notes: string;
-  /** The thumbnail's path in the export, when the entry has one. */
+  /** The thumbnail's import token (`import:novelcrafter-thumb-N`), when the entry has one. Its archive path is the picture's name. */
   readonly thumbnail?: string;
 }
 

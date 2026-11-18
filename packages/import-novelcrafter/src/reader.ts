@@ -65,9 +65,10 @@ export async function readNovelCrafterExport(archive: ImportArchive, manuscript?
 
   const codex: NovelCrafterCodexEntry[] = [];
   const assetData = new Map<string, Uint8Array>();
+  const thumbnails: { ref: string; name: string; bytes: number }[] = [];
   let progressions = 0;
   for (const entryMdPath of entryMdPaths) {
-    const read = await readCodexEntry(archive, entryMdPath, paths, assetData);
+    const read = await readCodexEntry(archive, entryMdPath, paths, assetData, thumbnails);
     if (read === null) continue;
     codex.push(read.entry);
     progressions += read.progressions;
@@ -97,9 +98,6 @@ export async function readNovelCrafterExport(archive: ImportArchive, manuscript?
   }
 
   // Codex thumbnails are assets too, so the preview counts them and the commit keeps them.
-  const thumbnails = [...assetData.entries()]
-    .filter(([ref]) => ref.startsWith('novelcrafter:thumbnail:'))
-    .map(([ref, bytes]) => ({ ref, name: baseOf(ref.slice('novelcrafter:thumbnail:'.length)), bytes: bytes.length }));
   if (thumbnails.length > 0) document.assets = [...(document.assets ?? []), ...thumbnails];
 
   if (codex.length === 0 && document.blocks.length === 0) return { ok: false, error: { kind: 'empty' } };
@@ -127,6 +125,7 @@ async function readCodexEntry(
   entryMdPath: string,
   paths: readonly string[],
   assetData: Map<string, Uint8Array>,
+  thumbnails: { ref: string; name: string; bytes: number }[],
 ): Promise<{ entry: NovelCrafterCodexEntry; progressions: number } | null> {
   const read = await archive.read(entryMdPath);
   if (!read.ok) return null;
@@ -180,7 +179,7 @@ async function readCodexEntry(
   if (notesRead.ok) notes = splitFrontMatter(new TextDecoder().decode(notesRead.value)).body.trim();
 
   // A thumbnail: one metadata.json names, else the first image in the entry folder.
-  const thumbnail = await readThumbnail(archive, entryDir, paths, metaWord('thumbnail'), assetData);
+  const thumbnail = await readThumbnail(archive, entryDir, paths, metaWord('thumbnail'), assetData, thumbnails);
 
   const entry: NovelCrafterCodexEntry = {
     path: entryDir === '' ? folderName : entryDir,
@@ -197,13 +196,20 @@ async function readCodexEntry(
   return { entry, progressions: countProgressions(metadata) };
 }
 
-/** Resolve a thumbnail to an asset ref and read its bytes, or undefined when the entry has none. */
+/**
+ * Resolve a thumbnail to an asset ref and read its bytes, or undefined when the entry has none.
+ *
+ * The ref is a token of this source's own numbering, never the archive path: the commit replaces `](import:…)` only
+ * (`rewritePictureRefs`, pictures.md D5) and its whole-batch validation refuses a ref with a space, so a path-shaped ref would
+ * leave the research page pointing at nothing. The path stays the picture's display name.
+ */
 async function readThumbnail(
   archive: ImportArchive,
   entryDir: string,
   paths: readonly string[],
   named: string,
   assetData: Map<string, Uint8Array>,
+  thumbnails: { ref: string; name: string; bytes: number }[],
 ): Promise<string | undefined> {
   const inFolder = paths.filter((path) => dirOf(path) === entryDir && IMAGE_EXT.test(path));
   let target: string | undefined;
@@ -215,8 +221,9 @@ async function readThumbnail(
   if (target === undefined) return undefined;
   const read = await archive.read(target);
   if (!read.ok) return undefined;
-  const ref = `novelcrafter:thumbnail:${target}`;
+  const ref = `import:novelcrafter-thumb-${thumbnails.length + 1}`;
   assetData.set(ref, read.value);
+  thumbnails.push({ ref, name: baseOf(target), bytes: read.value.length });
   return ref;
 }
 

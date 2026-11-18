@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ImportArchiveError, type ImportArchive } from '@caotang/import-read/zip';
+import { rewritePictureRefs } from '@caotang/store';
 import { readNovelCrafterExport } from '../src/reader.js';
 import { buildResearchPage } from '../src/codex.js';
 
@@ -101,11 +102,11 @@ describe('the NovelCrafter export reader (#292)', () => {
     expect(facts?.scene.synopsis).toBe('The crossing begins.');
   });
 
-  it('resolves a codex thumbnail into the picture bytes', async () => {
+  it('resolves a codex thumbnail into the picture bytes, under a token the commit really replaces', async () => {
     const png = new Uint8Array([137, 80, 78, 71, 1, 2, 3]);
     const read = await readNovelCrafterExport(exportOf({
-      'characters/Elena/entry.md': ELENA_ENTRY,
-      'characters/Elena/thumbnail.png': png,
+      'characters/Elena Vance/entry.md': ELENA_ENTRY,
+      'characters/Elena Vance/Elena portrait.png': png,
     }));
     expect(read.ok).toBe(true);
     if (!read.ok) return;
@@ -113,6 +114,13 @@ describe('the NovelCrafter export reader (#292)', () => {
     expect(entry?.thumbnail).toBeDefined();
     expect(read.value.assetData.get(entry?.thumbnail ?? '')).toEqual(png);
     expect(buildResearchPage(entry!)).toContain(`![Elena](${entry?.thumbnail})`);
+    // The archive path stays the picture's name; the ref is a token, so a folder or file name with a space is no obstacle.
+    expect(entry?.thumbnail).toMatch(/^import:[A-Za-z0-9._/-]{1,120}$/);
+    expect(read.value.document.assets?.map((asset) => asset.name)).toContain('Elena portrait.png');
+    // The store's own commit rewrite, not this reader's idea of it: the research page must end up pointing at the stored picture.
+    const stored = rewritePictureRefs(buildResearchPage(entry!), new Map([[entry?.thumbnail ?? '', 'assets/elena-portrait.png']]));
+    expect(stored.body).toContain('![Elena](assets/elena-portrait.png)');
+    expect(stored.body).not.toContain('import:');
   });
 
   it('renders the research page with description, Connections, notes and fields', async () => {

@@ -45,7 +45,10 @@ Each folder holding an `entry.md` is one codex entry. Its type comes from the ty
 - `metadata.json` relations are kept and rendered as a **Connections** list in the research page (the codex relation target, #223);
   they are listed, not dropped. A `progressions` array is counted and reported as staying in NovelCrafter.
 - `notes.md` becomes the entry's research notes, appended to the research page.
-- A thumbnail (an image in the entry folder, or one `metadata.json` names) is imported as the entry's picture when present.
+- A thumbnail (an image in the entry folder, or one `metadata.json` names) is imported as the entry's picture when present. Its ref is a
+  token of this source's own numbering, `import:novelcrafter-thumb-N`, and the archive path stays the picture's display name: the commit
+  replaces `](import:…)` only (`rewritePictureRefs`, pictures.md D5) and its whole-batch validation refuses a ref with a space, so a
+  path-shaped ref would leave the research page pointing at a file that is not there.
 
 The research page carries the description, Connections, notes and custom fields, so nothing is dropped silently. The entry cites its
 own research page when the manuscript does not name it, so a codex-only export still commits its entries.
