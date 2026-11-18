@@ -6,9 +6,13 @@
  * Copyright (c) 2018 inkle. The full MIT notice travels beside this file as LICENSE-INKLEWRITER and is
  * reproduced in THIRD-PARTY-NOTICES.md (tools/third-party-notices.mjs, BUNDLED_ASSETS).
  *
- * The body below is upstream's, kept as written so it can be diffed against the source. The two
- * directives above exempt this one vendored file from the repo's ESLint and strict type-check: it
- * predates noUncheckedIndexedAccess and uses var/any. The typed, checked surface is inklewriter.ts,
+ * The body below is upstream's, kept as written so it can be diffed against the source, with one deviation: the seven
+ * dictionaries keyed by a name that came out of the imported JSON are `Object.create(null)` rather than `{}`. Upstream
+ * (checked at master, unchanged since that commit) writes `this.stitchesByName[stitchName] = stitch` with a name from the
+ * file, so a stitch called `__proto__` writes to the prototype, and one called `toString` or `constructor` is read back as
+ * an inherited member — a skipped stitch, or a function used as a name. A null prototype makes every imported name an
+ * ordinary key. Nothing else is changed. The two directives above exempt this one vendored file from the repo's ESLint and
+ * strict type-check: it predates noUncheckedIndexedAccess and uses var/any. The typed, checked surface is inklewriter.ts,
  * which calls convert() and never lets its throws escape. Issue #286; docs/architecture/dialogue-narrative.md.
  */
 
@@ -314,7 +318,7 @@ class Story {
 
         this.initialStitchName = data.initial;
 
-        this.stitchesByName = {};
+        this.stitchesByName = Object.create(null);
         this.orderedStitches = [];
         
         for(let stitchName in data.stitches) {
@@ -478,8 +482,8 @@ export function convert(sourceJSON : InklewriterJSON, terminateAllLooseEnds : bo
     let inkLines : string[] = [];
 
     // Create ink-specific stitch/knot name mappings out of the inklewriter content
-    let inklewriterStitchToInkNames : { [inklewriterName:string]: string} = {};
-    let inkNamesUsage : { [inkName:string]: true } = {};
+    let inklewriterStitchToInkNames : { [inklewriterName:string]: string} = Object.create(null);
+    let inkNamesUsage : { [inkName:string]: true } = Object.create(null);
     for(let stitch of story.orderedStitches) {
 
         let inkName = stitch.name;
@@ -502,10 +506,10 @@ export function convert(sourceJSON : InklewriterJSON, terminateAllLooseEnds : bo
 
     // Convert flag names to VAR names:
     // Flag names can have spaces, so we need to cover them all to proper identifiers
-    let flagNamesToVarNames : { [flagName:string]: string } = {};
-    let varNamesToFlagNames : { [varName:string]: string } = {};
+    let flagNamesToVarNames : { [flagName:string]: string } = Object.create(null);
+    let varNamesToFlagNames : { [varName:string]: string } = Object.create(null);
     let orderedVarNames : string[] = [];
-    let defaultValuesByVarName : { [varName:string]: any } = {};
+    let defaultValuesByVarName : { [varName:string]: any } = Object.create(null);
     for(let s of story.orderedStitches) {
         for(let flag of s.flags) {
 
@@ -557,7 +561,7 @@ export function convert(sourceJSON : InklewriterJSON, terminateAllLooseEnds : bo
     // directly linked stitches we allow them to be "inlined" so that
     // you don't need to use explicit stitch names for them all. Keep
     // track of which ones have already been processed here.
-    let processedStitchNames : { [name:string]: true } = {};
+    let processedStitchNames : { [name:string]: true } = Object.create(null);
 
     // Main conversion function for a single Stitch.
     function processStitch(stitch : Stitch, stitchIdx : number) {

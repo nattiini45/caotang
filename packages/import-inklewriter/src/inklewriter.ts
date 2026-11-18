@@ -2,10 +2,11 @@
  * The Inklewriter JSON reader (issue #286). Inklewriter stories export as JSON; inkle's MIT converter (vendored as
  * inklewriter-convert.ts) turns one into Ink, and the shared whole-story planner (`planInkImport`, `@caotang/dialogue`)
  * turns that Ink into containers. This wrapper is the typed, checked surface over the vendored converter: it parses the
- * JSON, refuses anything that is not a story, never lets the converter's throws escape, lists the stitch images by URL
- * (the import never fetches them; downloading is opt-in, Decision 10) and names the editor data it cannot bring in.
- * DOM-free, no eval and no network, so it runs on the main thread, in the import Worker and in Node; the preview source
- * and command wire it to the dialog later.
+ * JSON, refuses anything that is not a story or whose first stitch is missing, gives a usable name to every section label
+ * and flag name the converter would leave empty (reporting each rename), never lets the converter's throws escape, lists
+ * the stitch images by URL (the import never fetches them; it offers no download control) and names the editor data it
+ * cannot bring in. DOM-free, no eval and no network, so it runs on the main thread, in the import Worker and in Node; the
+ * preview source and command wire it to the dialog later.
  */
 
 import { planInkImport, type InkImportPlan } from '@caotang/dialogue';
@@ -20,6 +21,16 @@ export interface InklewriterImage {
   readonly stitch: string;
 }
 
+/**
+ * A section label or flag name the converter cannot turn into a name, and the name it was given instead. The writer sees
+ * the new name in the imported dialogue, so the rename is reported rather than made silently.
+ */
+export interface InklewriterRename {
+  readonly kind: 'section' | 'flag';
+  readonly from: string;
+  readonly to: string;
+}
+
 /** An Inklewriter story read: the Ink import plan, the Ink text, its title, its images, and what was left behind. */
 export interface InklewriterImport {
   readonly plan: InkImportPlan;
@@ -29,6 +40,7 @@ export interface InklewriterImport {
   /** The parts not imported, each named for the losses report. */
   readonly losses: readonly string[];
   readonly notices: readonly string[];
+  readonly renames: readonly InklewriterRename[];
 }
 
 /** A read, or a refusal flattened to a code and a message so it survives a Worker clone. */
@@ -69,6 +81,126 @@ function collectImages(json: InklewriterJSON): InklewriterImage[] {
   return images;
 }
 
+/**
+ * Why the stitch map cannot be converted, or null when it can. The converter diverts to `data.initial` by name, so a map
+ * that is empty, or that does not hold that stitch, makes it write `-> undefined` — text the planner would then store as a
+ * container. Refused here instead, where the writer is told what is wrong with the file.
+ */
+function stitchMapProblem(json: InklewriterJSON): { readonly code: string; readonly message: string } | null {
+  const names = Object.keys(json.data.stitches);
+  if (names.length === 0) {
+    return { code: 'no-stitches', message: 'the story holds no stitches, so there is nothing to import' };
+  }
+  const first = json.data.stitches[json.data.initial];
+  if (first === undefined || !Array.isArray(first.content)) {
+    return {
+      code: 'initial-missing',
+      message: 'the stitch the story starts at is not in the file, so the import cannot tell where it begins',
+    };
+  }
+  return null;
+}
+
+/**
+ * The converter's own identifier rule (`createIdentifierFromString` in the vendored file): ASCII letters, digits and
+ * underscores kept, a run of spaces or tabs folded to one underscore, everything else dropped, and a trailing underscore
+ * removed. Written out here so a label can be tested against it before the converter runs.
+ */
+function inkIdentifier(label: string): string {
+  let id = '';
+  for (const c of label) {
+    if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_') id += c;
+    else if ((c === ' ' || c === '\t') && id.length > 0 && id[id.length - 1] !== '_') id += '_';
+  }
+  return id.endsWith('_') ? id.slice(0, -1) : id;
+}
+
+/** Every string field of a content item that names a flag, whether it declares one or tests one. */
+const FLAG_FIELDS = ['flagName', 'ifCondition', 'notIfCondition'] as const;
+
+/** The flag names an item declares or tests, including the two lists a choice carries. */
+function flagNamesOf(item: Record<string, unknown>): string[] {
+  const names: string[] = [];
+  for (const field of FLAG_FIELDS) {
+    const value = item[field];
+    if (typeof value === 'string') names.push(value);
+  }
+  for (const [list, field] of [
+    ['ifConditions', 'ifCondition'],
+    ['notIfConditions', 'notIfCondition'],
+  ] as const) {
+    const held = item[list];
+    if (!Array.isArray(held)) continue;
+    for (const entry of held) {
+      if (entry !== null && typeof entry === 'object' && typeof (entry as Record<string, unknown>)[field] === 'string') {
+        names.push((entry as Record<string, string>)[field] as string);
+      }
+    }
+  }
+  return names;
+}
+
+/**
+ * Gives a usable name to every section label and flag name the converter would turn into the empty string, and returns the
+ * renames. A label written only in characters the rule drops — `第一章`, `开关` — otherwise becomes a nameless knot
+ * (`====  ====`), a nameless `VAR` and empty conditions: invalid Ink that the planner stores as one container. Naming them
+ * here keeps the vendored converter untouched, and a flag is renamed everywhere it is declared **and** tested, since the
+ * converter maps conditions by the original name.
+ */
+function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
+  const items: Record<string, unknown>[] = [];
+  for (const name of Object.keys(json.data.stitches)) {
+    const stitch = json.data.stitches[name];
+    if (stitch === undefined || !Array.isArray(stitch.content)) continue;
+    for (const item of stitch.content) {
+      if (item !== null && typeof item === 'object') items.push(item as unknown as Record<string, unknown>);
+    }
+  }
+
+  // One new name per original flag name, in story order, so every reference to it gets the same one.
+  const flags = new Map<string, string>();
+  for (const item of items) {
+    for (const name of flagNamesOf(item)) {
+      if (name !== '' && inkIdentifier(name) === '' && !flags.has(name)) flags.set(name, `flag_${flags.size + 1}`);
+    }
+  }
+
+  const renames: InklewriterRename[] = [];
+  let sections = 0;
+  for (const item of items) {
+    const label = item['pageLabel'];
+    if (typeof label === 'string' && label !== '' && inkIdentifier(label) === '') {
+      sections += 1;
+      const to = `section_${sections}`;
+      item['pageLabel'] = to;
+      renames.push({ kind: 'section', from: label, to });
+    }
+    for (const field of FLAG_FIELDS) {
+      const value = item[field];
+      if (typeof value !== 'string') continue;
+      const to = flags.get(value);
+      if (to !== undefined) item[field] = to;
+    }
+    for (const [list, field] of [
+      ['ifConditions', 'ifCondition'],
+      ['notIfConditions', 'notIfCondition'],
+    ] as const) {
+      const held = item[list];
+      if (!Array.isArray(held)) continue;
+      for (const entry of held) {
+        if (entry === null || typeof entry !== 'object') continue;
+        const record = entry as Record<string, unknown>;
+        const value = record[field];
+        if (typeof value !== 'string') continue;
+        const to = flags.get(value);
+        if (to !== undefined) record[field] = to;
+      }
+    }
+  }
+  for (const [from, to] of flags) renames.push({ kind: 'flag', from, to });
+  return renames;
+}
+
 /** Reads an Inklewriter JSON export. Never throws for anything about the input: a refusal is `{ ok: false, error }`. */
 export function readInklewriter(bytes: Uint8Array, fileName = ''): InklewriterResult {
   let parsed: unknown;
@@ -80,6 +212,10 @@ export function readInklewriter(bytes: Uint8Array, fileName = ''): InklewriterRe
   if (!isInklewriter(parsed)) {
     return refusal({ code: 'not-inklewriter', message: 'the JSON is not an Inklewriter story: it has no title, data.initial and stitches' });
   }
+  const problem = stitchMapProblem(parsed);
+  if (problem !== null) return refusal(problem);
+
+  const renames = nameUnusableLabels(parsed);
 
   let ink: string;
   try {
@@ -96,9 +232,6 @@ export function readInklewriter(bytes: Uint8Array, fileName = ''): InklewriterRe
   // Inklewriter keeps the editor's layout (where each stitch sat on the page); Caotang has no place for it.
   const losses = ['Inklewriter editor data (stitch positions) not imported'];
   const notices: string[] = [];
-  if (images.length > 0) {
-    notices.push(`${images.length} image${images.length === 1 ? '' : 's'} listed by URL; downloading is opt-in`);
-  }
 
-  return { ok: true, value: { plan, ink, title, images, losses, notices } };
+  return { ok: true, value: { plan, ink, title, images, losses, notices, renames } };
 }
