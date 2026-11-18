@@ -36,7 +36,7 @@ function para4Tag(g: number, a: number, b: number, c: number, d: number, e: numb
 function mlucTag(text: string): number[] {
   const utf16: number[] = [];
   for (const ch of text) utf16.push(...u16(ch.charCodeAt(0)));
-  return [...fourcc('mluc'), 0, 0, 0, 0, ...u32(1), ...u32(12), ...fourcc('en'), ...fourcc('US'), ...u32(utf16.length), ...u32(28), ...utf16];
+  return [...fourcc('mluc'), 0, 0, 0, 0, ...u32(1), ...u32(12), ...'enUS'.split('').map((ch) => ch.charCodeAt(0)), ...u32(utf16.length), ...u32(28), ...utf16];
 }
 
 /**

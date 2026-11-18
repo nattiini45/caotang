@@ -515,9 +515,21 @@ function infoString(text: string): string {
   return `<FEFF${utf16Hex(text)}>`;
 }
 
-/** One XML character escaped for a text node or attribute. */
+/**
+ * One XML character escaped for a text node or attribute, and every non-ASCII code point a numeric
+ * character reference: the writer's offsets are character counts, so the packet stays ASCII byte for byte.
+ */
 function xmlText(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  let out = '';
+  for (const ch of text) {
+    if (ch === '&') out += '&amp;';
+    else if (ch === '<') out += '&lt;';
+    else if (ch === '>') out += '&gt;';
+    else if (ch === '"') out += '&quot;';
+    else if (ch.codePointAt(0)! > 0x7f) out += `&#x${ch.codePointAt(0)!.toString(16).toUpperCase()};`;
+    else out += ch;
+  }
+  return out;
 }
 
 /**
@@ -706,7 +718,7 @@ export function writePdf(
     const rootId = elem;
     const parentTreeId = elem + 1;
     bodies[docElemId - 1] = `<< /Type /StructElem /S /Document /P ${rootId} 0 R /K [${markRefs.map((id) => `${id} 0 R`).join(' ')}] >>`;
-    bodies[rootId - 1] = `<< /Type /StructTreeRoot /K ${docElemId} 0 R /ParentTree ${parentTreeId} 0 R /ParentTreeNextKey ${written.length} >>`;
+    bodies[rootId - 1] = `<< /Type /StructTreeRoot /K ${docElemId} 0 R /ParentTree ${parentTreeId} 0 R /ParentTreeNextKey ${written.length} /RoleMap << /Title /H1 >> >>`;
     bodies[parentTreeId - 1] = `<< /Nums [${nums.join(' ')}] >>`;
     bodies[0] =
       `<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> ` +

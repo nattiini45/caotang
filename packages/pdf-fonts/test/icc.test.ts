@@ -43,4 +43,22 @@ describe('srgbIccProfile', () => {
     }
     expect(names.sort()).toEqual(['bTRC', 'bXYZ', 'cprt', 'desc', 'gTRC', 'gXYZ', 'rTRC', 'rXYZ', 'wtpt'].sort());
   });
+
+  it('carries well-formed mluc records: two-byte language and country, UTF-16BE text', () => {
+    // The desc tag's body: 'mluc', reserved, record count, then 12-byte records (lang, country, length, offset).
+    const desc = u32(profile, 132 + 4);
+    expect(text(profile, desc)).toBe('mluc');
+    expect(u32(profile, desc + 8)).toBe(1);
+    const record = desc + 16;
+    expect(u32(profile, record + 8)).toBe(12);
+    expect(text(profile, record + 12, 2)).toBe('en');
+    expect(text(profile, record + 14, 2)).toBe('US');
+    const length = u32(profile, record + 16);
+    const offset = u32(profile, record + 20);
+    expect(offset).toBe(28);
+    expect(length % 2).toBe(0);
+    const units: number[] = [];
+    for (let i = 0; i < length; i += 2) units.push((profile[desc + offset + i]! << 8) | profile[desc + offset + i + 1]!);
+    expect(String.fromCharCode(...units)).toBe('sRGB IEC61966-2.1');
+  });
 });

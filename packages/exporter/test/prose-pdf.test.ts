@@ -24,7 +24,7 @@ import {
 import { createProjectCommandRegistry, MemoryArtifactFs, type ProjectState } from '@caotang/store';
 import { PDFDocument } from 'pdf-lib';
 import { createExporter, EXPORT_MIME, isBinaryFormat, isMediaFormat, MediaRefusedError, type ByteArtifacts, type ExporterService } from '../src/index.js';
-import { layoutProsePdf } from '../src/render-prose-pdf.js';
+import { drawProsePdf, layoutProsePdf, prepareProsePdf } from '../src/render-prose-pdf.js';
 import { COMPILED_AT, IDS, PROJECT_NAME, makeProject } from './fixture.js';
 import type { RenderInput } from '../src/render-input.js';
 import { boilerplateFor } from '../src/boilerplate.js';
@@ -341,6 +341,30 @@ describe('prose-pdf — the PDF/A profile', () => {
     expect(pdf).not.toContain('/StructTreeRoot');
     expect(pdf).not.toContain('/OutputIntents');
     expect(pdf).not.toContain(' /ID [<');
+  });
+
+  it('maps the title page’s nonstandard Title role to H1 for a reader of the structure tree', async () => {
+    const r = rig();
+    r.state.manifest.recipes = [
+      ...(r.state.manifest.recipes ?? []),
+      { name: 'Filing', includeRootIds: ['manuscript'], format: 'prose-pdf', options: { pdfProfile: 'pdfa-2u' } },
+    ];
+    await r.exporter.ready();
+    const digest = okValue(r.run('export.compile', { format: 'prose-pdf', recipeName: 'Filing' })).result as { output: string };
+    await r.exporter.idle();
+    const pdf = ascii(r.bytes.get(digest.output) ?? new Uint8Array());
+    expect(pdf).toContain('/RoleMap << /Title /H1 >>');
+    expect(pdf).toContain('/Title << /MCID');
+  });
+
+  it('keeps a non-ASCII title inside the ASCII file, as a numeric character reference', async () => {
+    const prepared = await prepareProsePdf(inputOf('A line.', { title: 'Café éphémère' } as Partial<RenderInput>), { profile: 'pdfa-2u' });
+    const bytes = drawProsePdf(prepared);
+    const pdf = ascii(bytes);
+    expect(pdf).toContain('Caf&#xE9; &#xE9;ph&#xE9;m&#xE8;re');
+    expect([...bytes].every((byte) => byte < 0x80)).toBe(true);
+    const doc = await PDFDocument.load(bytes);
+    expect(doc.getPageCount()).toBeGreaterThan(0);
   });
 
   it('a chapter heading carries the H1 mark a filing can read aloud', async () => {
