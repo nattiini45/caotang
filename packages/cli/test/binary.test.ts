@@ -37,14 +37,14 @@ const FONTS = [
   'NotoSansHebrew-Regular.ttf',
   'NotoSansKannada-Regular.ttf',
   'NotoSansMalayalam-Regular.ttf',
-  'NotoSansOriya-Regular.ttf',
-  'NotoSansSinhala-Regular.ttf',
-  'NotoSansTamil-Regular.ttf',
-  'NotoSansTelugu-Regular.ttf',
   'NotoSansMonoCJKsc-Bold-common.woff',
   'NotoSansMonoCJKsc-Bold.woff',
   'NotoSansMonoCJKsc-Regular-common.woff',
   'NotoSansMonoCJKsc-Regular.woff',
+  'NotoSansOriya-Regular.ttf',
+  'NotoSansSinhala-Regular.ttf',
+  'NotoSansTamil-Regular.ttf',
+  'NotoSansTelugu-Regular.ttf',
 ];
 
 interface Ran {
