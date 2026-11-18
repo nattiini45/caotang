@@ -538,7 +538,8 @@
           "html",
           "rss",
           "atom",
-          "podcast-rss"
+          "podcast-rss",
+          "prose-pdf"
         ],
         "description": "The output format."
       },

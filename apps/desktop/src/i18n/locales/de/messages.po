@@ -3068,6 +3068,7 @@ msgid "A writing studio that keeps your work on this device."
 msgstr "Ein Schreibstudio, das Ihre Arbeit auf diesem Gerät aufbewahrt."
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "A4"
 msgstr "A4"
@@ -21948,6 +21949,7 @@ msgstr "Dokumentdetails werden aktualisiert"
 msgid "harness.progress.picturesAnnotate.active"
 msgstr "Die Bilddetails werden aktualisiert"
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "US Letter"
