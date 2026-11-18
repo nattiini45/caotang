@@ -24,7 +24,7 @@ import {
 import { createProjectCommandRegistry, MemoryArtifactFs, type ProjectState } from '@caotang/store';
 import { PDFDocument } from 'pdf-lib';
 import { createExporter, EXPORT_MIME, isBinaryFormat, isMediaFormat, MediaRefusedError, type ByteArtifacts, type ExporterService } from '../src/index.js';
-import { layoutProsePdf } from '../src/render-prose-pdf.js';
+import { drawProsePdf, layoutProsePdf, prepareProsePdf } from '../src/render-prose-pdf.js';
 import { COMPILED_AT, IDS, PROJECT_NAME, makeProject } from './fixture.js';
 import type { RenderInput } from '../src/render-input.js';
 import { boilerplateFor } from '../src/boilerplate.js';
@@ -296,5 +296,103 @@ describe('prose-pdf — through the bus', () => {
     const boxes = new Set([...pdf.matchAll(/\/MediaBox \[([^\]]+)\]/g)].map((match) => match[1]));
     expect(boxes).toEqual(new Set(['0 0 595.28 841.89']));
     expect(pdf).toContain('/BaseFont /Cousine-Regular');
+  });
+});
+
+describe('prose-pdf — the PDF/A profile', () => {
+  it('a pdfa-2u recipe writes a PDF/A file: XMP, an output intent, structure and a file id', async () => {
+    const r = rig();
+    r.state.manifest.recipes = [
+      ...(r.state.manifest.recipes ?? []),
+      { name: 'Filing', includeRootIds: ['manuscript'], format: 'prose-pdf', options: { pdfProfile: 'pdfa-2u' } },
+    ];
+    await r.exporter.ready();
+    const digest = okValue(r.run('export.compile', { format: 'prose-pdf', recipeName: 'Filing' })).result as { output: string };
+    await r.exporter.idle();
+    const pdf = ascii(r.bytes.get(digest.output) ?? new Uint8Array());
+    // The claim: PDF 1.7, the XMP conformance, the sRGB output intent and a trailer id.
+    expect(pdf.startsWith('%PDF-1.7\n')).toBe(true);
+    expect(pdf).toContain('<pdfaid:part>2</pdfaid:part>');
+    expect(pdf).toContain('<pdfaid:conformance>U</pdfaid:conformance>');
+    expect(pdf).toContain('/S /GTS_PDFA1');
+    expect(pdf).toContain('/OutputIntents [');
+    expect(pdf).toContain(' /ID [<');
+    // The structure: a marked file, a structure tree and Unicode maps on the fonts.
+    expect(pdf).toContain('/MarkInfo << /Marked true >>');
+    expect(pdf).toContain('/StructTreeRoot');
+    expect(pdf).toContain('/ParentTree');
+    expect(pdf).toContain('/ToUnicode');
+    // And the page's marks: roles and artifacts wrapped in BDC/BMC … EMC.
+    expect(pdf).toMatch(/\/(P|H1|H2) << \/MCID \d+ >> BDC/);
+    expect(pdf).toContain('/Artifact BMC');
+    expect(pdf).toContain('EMC');
+    const doc = await PDFDocument.load(r.bytes.get(digest.output) ?? new Uint8Array());
+    expect(doc.getPageCount()).toBeGreaterThan(0);
+  });
+
+  it('a plain recipe still writes the unprofiled file: no marks, no metadata, PDF 1.4', async () => {
+    const r = rig();
+    await r.exporter.ready();
+    const digest = okValue(r.run('export.compile', { format: 'prose-pdf' })).result as { output: string };
+    await r.exporter.idle();
+    const pdf = ascii(r.bytes.get(digest.output) ?? new Uint8Array());
+    expect(pdf.startsWith('%PDF-1.4\n')).toBe(true);
+    expect(pdf).not.toContain('BMC');
+    expect(pdf).not.toContain('/StructTreeRoot');
+    expect(pdf).not.toContain('/OutputIntents');
+    expect(pdf).not.toContain(' /ID [<');
+  });
+
+  it('maps the title page’s nonstandard Title role to H1 for a reader of the structure tree', async () => {
+    const r = rig();
+    r.state.manifest.recipes = [
+      ...(r.state.manifest.recipes ?? []),
+      { name: 'Filing', includeRootIds: ['manuscript'], format: 'prose-pdf', options: { pdfProfile: 'pdfa-2u' } },
+    ];
+    await r.exporter.ready();
+    const digest = okValue(r.run('export.compile', { format: 'prose-pdf', recipeName: 'Filing' })).result as { output: string };
+    await r.exporter.idle();
+    const pdf = ascii(r.bytes.get(digest.output) ?? new Uint8Array());
+    expect(pdf).toContain('/RoleMap << /Title /H1 >>');
+    expect(pdf).toContain('/Title << /MCID');
+  });
+
+  it('keeps a non-ASCII title inside the ASCII file, as a numeric character reference', async () => {
+    const prepared = await prepareProsePdf(inputOf('A line.', { title: 'Café éphémère' } as Partial<RenderInput>), { profile: 'pdfa-2u' });
+    const bytes = drawProsePdf(prepared);
+    const pdf = ascii(bytes);
+    expect(pdf).toContain('Caf&#xE9; &#xE9;ph&#xE9;m&#xE8;re');
+    expect([...bytes].every((byte) => byte < 0x80)).toBe(true);
+    const doc = await PDFDocument.load(bytes);
+    expect(doc.getPageCount()).toBeGreaterThan(0);
+  });
+
+  it('a chapter heading carries the H1 mark a filing can read aloud', async () => {
+    const layout = layoutProsePdf(
+      inputOf('', {
+        blocks: [
+          { kind: 'frontmatter', fmKind: 'titlepage' },
+          { kind: 'chapter', docId: 'n1', title: 'The Hall', number: 1 },
+          { kind: 'scene', docId: 'n2', body: 'A line.', title: 'A Scene', number: 1 },
+        ],
+      } as Partial<RenderInput>),
+      { profile: 'pdfa-2u' },
+    );
+    const tags = layout.pages.flatMap((page) => page.lines.map((line) => line.tag));
+    expect(tags).toContain('H1');
+    expect(tags).toContain('P');
+    expect(tags).toContain('Title');
+  });
+
+  it('refuses the Courier face: PDF/A embeds every font it names, and the Courier is not embeddable', async () => {
+    const r = rig();
+    r.state.manifest.recipes = [
+      ...(r.state.manifest.recipes ?? []),
+      { name: 'Courier filing', includeRootIds: ['manuscript'], format: 'prose-pdf', options: { pdfProfile: 'pdfa-2u', scriptFont: 'courier' } },
+    ];
+    await r.exporter.ready();
+    const outcome = r.run('export.compile', { format: 'prose-pdf', recipeName: 'Courier filing' });
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(outcome.error.message).toContain('Courier');
   });
 });

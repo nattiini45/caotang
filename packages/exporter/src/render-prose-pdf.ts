@@ -70,6 +70,7 @@ import {
 } from '@caotang/screenplay';
 import { placementCaptionOf } from '@caotang/pictures';
 
+import type { LineTag } from '@caotang/screenplay';
 import { generatedChapterHeading } from './boilerplate.js';
 import { parseProse, type ParsedProse, type ProseBlock, type Run } from './prose.js';
 import { boilerplateOf, headingsByBlock, sectionTitle, type RenderInput } from './render-input.js';
@@ -85,6 +86,8 @@ export type ProsePdfOptions = {
   readonly colourEmoji?: boolean;
   /** Where a footnote's text goes: `footnote` (absent = this) at the page's foot, `endnote` on pages of their own at the book's end. */
   readonly notes?: 'footnote' | 'endnote';
+  /** `pdfa-2u` writes the file as PDF/A-2u (exporter.md §3): metadata, output intent, Unicode maps and a structure tree. */
+  readonly profile?: 'pdfa-2u';
 };
 
 /**
@@ -122,6 +125,8 @@ interface FlowLine {
   readonly notes: readonly number[];
   /** A footnote-area line, placed at the page's foot in the footnote pass — never a body row. */
   readonly foot?: true;
+  /** The structure role the line takes when the file is written tagged (PDF/A). Absent: an artifact. */
+  readonly tag?: LineTag;
 }
 
 type Flow = FlowLine | { readonly kind: 'blank' } | { readonly kind: 'page' };
@@ -384,7 +389,7 @@ function noteLines(
     }
     const dir = paragraphDirection(tokens.map((token) => token.text).join(' '), neutral);
     for (const wrapped of wrapTokens(tokens, PROSE_LAYOUT.columns, indents)) {
-      out.push({ kind: 'line', text: wrapped.text, col: wrapped.col, notes: wrapped.notes, foot: true, ...(dir === 'rtl' ? { rtl: true as const } : {}) });
+      out.push({ kind: 'line', text: wrapped.text, col: wrapped.col, notes: wrapped.notes, foot: true, tag: 'Note', ...(dir === 'rtl' ? { rtl: true as const } : {}) });
     }
     first = false;
   };
@@ -398,7 +403,7 @@ function noteLines(
           paragraph(block.runs, indents, prefix !== '' ? prefix : undefined);
           break;
         case 'break':
-          out.push({ kind: 'line', text: `${prefix}${separator}`, col: 0, centred: true, notes: [], foot: true });
+          out.push({ kind: 'line', text: `${prefix}${separator}`, col: 0, centred: true, notes: [], foot: true, tag: 'Note' });
           break;
         case 'quote':
           blocksFlow(block.blocks, indents.map((n) => n + 4));
@@ -411,7 +416,7 @@ function noteLines(
                 const tokens = [{ text: marker, notes: [] }, ...tokensOf(sub.runs, mark)];
                 const dir = paragraphDirection(tokens.map((token) => token.text).join(' '), neutral);
                 for (const wrapped of wrapTokens(tokens, PROSE_LAYOUT.columns, indents.map((n) => n + 4))) {
-                  out.push({ kind: 'line', text: wrapped.text, col: wrapped.col, notes: wrapped.notes, foot: true, ...(dir === 'rtl' ? { rtl: true as const } : {}) });
+                  out.push({ kind: 'line', text: wrapped.text, col: wrapped.col, notes: wrapped.notes, foot: true, tag: 'Note', ...(dir === 'rtl' ? { rtl: true as const } : {}) });
                 }
               }
             }
@@ -422,7 +427,7 @@ function noteLines(
             let rest = `${index === 0 ? prefix : ''}${row}`;
             while (rest !== '') {
               const [head, tail] = splitColumns(rest, PROSE_LAYOUT.columns - (indents[0] ?? 0) - 4);
-              out.push({ kind: 'line', text: head, col: (indents[0] ?? 0) + 4, notes: [], foot: true });
+              out.push({ kind: 'line', text: head, col: (indents[0] ?? 0) + 4, notes: [], foot: true, tag: 'Note' });
               rest = tail;
             }
           }
@@ -430,7 +435,7 @@ function noteLines(
         case 'figure':
           if (pictures === 'placeholder') {
             const caption = placementCaptionOf(block.image.title);
-            out.push({ kind: 'line', text: `${prefix}[Picture: ${caption !== '' ? caption : block.image.alt}]`, col: (indents[0] ?? 0) + 4, notes: [], foot: true });
+            out.push({ kind: 'line', text: `${prefix}[Picture: ${caption !== '' ? caption : block.image.alt}]`, col: (indents[0] ?? 0) + 4, notes: [], foot: true, tag: 'Note' });
           }
           break;
       }
@@ -466,31 +471,31 @@ function flowOf(input: RenderInput, neutral: Direction, number: NoteNumbers['num
   const separator = input.template.separator.plain;
   const columns = PROSE_LAYOUT.columns;
 
-  const para = (runs: readonly Run[], defs: ParsedProse['notes'], indents: readonly number[], centred = false): void => {
+  const para = (runs: readonly Run[], defs: ParsedProse['notes'], indents: readonly number[], centred = false, tag?: LineTag): void => {
     const tokens = tokensOf(runs, (noteId) => number(defs, noteId));
     const text = tokens.map((token) => token.text).join(' ');
     const dir = paragraphDirection(text, neutral);
     for (const wrapped of wrapTokens(tokens, columns, indents)) {
-      line({ kind: 'line', text: wrapped.text, col: wrapped.col, ...(centred ? { centred: true as const } : {}), ...(dir === 'rtl' ? { rtl: true as const } : {}), notes: wrapped.notes });
+      line({ kind: 'line', text: wrapped.text, col: wrapped.col, ...(centred ? { centred: true as const } : {}), ...(dir === 'rtl' ? { rtl: true as const } : {}), ...(tag === undefined ? {} : { tag }), notes: wrapped.notes });
     }
   };
 
-  const blocksFlow = (blocks: readonly ProseBlock[], defs: ParsedProse['notes'], indent: number): void => {
+  const blocksFlow = (blocks: readonly ProseBlock[], defs: ParsedProse['notes'], indent: number, tag?: LineTag): void => {
     for (const block of blocks) {
       switch (block.kind) {
         case 'paragraph':
-          para(block.runs, defs, [indent + 5, indent]);
+          para(block.runs, defs, [indent + 5, indent], false, tag ?? 'P');
           break;
         case 'heading':
           blank();
-          para(block.runs, defs, [0], true);
+          para(block.runs, defs, [0], true, 'H2');
           blank();
           break;
         case 'break':
           line({ kind: 'line', text: separator, col: 0, centred: true, notes: [] });
           break;
         case 'quote':
-          blocksFlow(block.blocks, defs, indent + 5);
+          blocksFlow(block.blocks, defs, indent + 5, 'Quote');
           break;
         case 'list':
           block.items.forEach((item, index) => {
@@ -501,7 +506,7 @@ function flowOf(input: RenderInput, neutral: Direction, number: NoteNumbers['num
                 const tokens = [{ text: markerOn ? `${marker} ` : '', notes: [] }, ...tokensOf(sub.runs, (noteId) => number(defs, noteId))].filter((t) => t.text !== '');
                 for (const wrapped of wrapTokens(tokens, columns, [indent + 4, indent + 4])) {
                   const dir = paragraphDirection(wrapped.text, neutral);
-                  line({ kind: 'line', text: wrapped.text, col: wrapped.col, ...(dir === 'rtl' ? { rtl: true as const } : {}), notes: wrapped.notes });
+                  line({ kind: 'line', text: wrapped.text, col: wrapped.col, ...(dir === 'rtl' ? { rtl: true as const } : {}), tag: 'LI', notes: wrapped.notes });
                 }
                 markerOn = false;
               } else {
@@ -519,7 +524,7 @@ function flowOf(input: RenderInput, neutral: Direction, number: NoteNumbers['num
             }
             while (rest !== '') {
               const [head, tail] = splitColumns(rest, columns - indent - 5);
-              line({ kind: 'line', text: head, col: indent + 5, notes: [] });
+              line({ kind: 'line', text: head, col: indent + 5, tag: 'Code', notes: [] });
               rest = tail;
             }
           }
@@ -527,7 +532,7 @@ function flowOf(input: RenderInput, neutral: Direction, number: NoteNumbers['num
         case 'figure':
           if (pictures === 'placeholder') {
             const caption = placementCaptionOf(block.image.title);
-            line({ kind: 'line', text: `[Picture: ${caption !== '' ? caption : block.image.alt}]`, col: 0, centred: true, notes: [] });
+            line({ kind: 'line', text: `[Picture: ${caption !== '' ? caption : block.image.alt}]`, col: 0, centred: true, tag: 'Figure', notes: [] });
           }
           break;
       }
@@ -545,7 +550,7 @@ function flowOf(input: RenderInput, neutral: Direction, number: NoteNumbers['num
         for (let i = 0; i < PROSE_LAYOUT.chapterRow; i++) blank();
         const heading = byBlock.get(index)?.label ?? block.title;
         const text = block.part === true || block.title.trim() === '' ? heading.toUpperCase() : `${generatedChapterHeading(words, block.number)}. ${block.title.trim()}`.toUpperCase();
-        para([{ text }], new Map(), [0], true);
+        para([{ text }], new Map(), [0], true, 'H1');
         blank();
         break;
       }
@@ -553,7 +558,7 @@ function flowOf(input: RenderInput, neutral: Direction, number: NoteNumbers['num
         const section = sectionTitle(block, words.untitled);
         if (section !== undefined) {
           blank();
-          para([{ text: section.toUpperCase() }], new Map(), [0], true);
+          para([{ text: section.toUpperCase() }], new Map(), [0], true, 'H2');
           blank();
         }
         const parsed = parseProse(block.body);
@@ -713,6 +718,7 @@ export function layoutProsePdf(input: RenderInput, opts: ProsePdfOptions, measur
           y: PROSE_LAYOUT.marginTop + row.row * PROSE_LAYOUT.leading + BODY_BASELINE,
           row: null,
           scene: null, source: null,
+          tag: row.row < 11 ? ('Title' as const) : ('P' as const),
         })),
     });
   }
@@ -730,12 +736,13 @@ export function layoutProsePdf(input: RenderInput, opts: ProsePdfOptions, measur
       row: rowIndex,
       scene: null, source: null,
       ...(row.rtl === true ? { rtl: true as const } : {}),
+      ...(row.tag === undefined ? {} : { tag: row.tag }),
     }));
     if (foot.length > 0) {
       const firstY = pageHeight - geometry.marginBottom - foot.length * PROSE_LAYOUT.noteLeading;
       drawn.push({ kind: 'action', text: '—'.repeat(20), x: PROSE_LAYOUT.marginLeft, y: firstY - 2, row: null, scene: null, source: null });
       foot.forEach((row, i) => {
-        drawn.push({ kind: 'action', text: row.text, x: lineX(row), y: firstY + i * PROSE_LAYOUT.noteLeading + BODY_BASELINE - 2, row: null, scene: null, source: null, ...(row.rtl === true ? { rtl: true as const } : {}) });
+        drawn.push({ kind: 'action', text: row.text, x: lineX(row), y: firstY + i * PROSE_LAYOUT.noteLeading + BODY_BASELINE - 2, row: null, scene: null, source: null, tag: 'Note', ...(row.rtl === true ? { rtl: true as const } : {}) });
       });
     }
     layoutPages.push({ number: pageNum, kind: 'script', lines: pageNum >= 2 ? [headerLine(pageNum), ...drawn] : drawn });
@@ -744,7 +751,7 @@ export function layoutProsePdf(input: RenderInput, opts: ProsePdfOptions, measur
   // Endnotes: pages of their own at the book's end, headed NOTES in the project's language.
   if (opts.notes === 'endnote' && book.bodies.length > 0) {
     const discovered: number[] = [];
-    const endLines: FlowLine[] = [{ kind: 'line', text: wordsOf(input).toUpperCase(), col: 0, centred: true, notes: [] }];
+    const endLines: FlowLine[] = [{ kind: 'line', text: wordsOf(input).toUpperCase(), col: 0, centred: true, notes: [], tag: 'H1' }];
     for (let i = 0; i < book.bodies.length; i++) {
       const body = book.bodies[i];
       if (body === undefined) continue;
@@ -772,6 +779,7 @@ export function layoutProsePdf(input: RenderInput, opts: ProsePdfOptions, measur
         row: rowIndex,
         scene: null, source: null,
         ...(row.rtl === true ? { rtl: true as const } : {}),
+        ...(row.tag === undefined ? {} : { tag: row.tag }),
       }));
       layoutPages.push({ number: pageNum, kind: 'script', lines: pageNum >= 2 ? [headerLine(pageNum), ...drawn] : drawn });
     }
@@ -837,6 +845,8 @@ export async function prepareProsePdf(
   loaders: PdfFontLoaders = {},
 ): Promise<{
   readonly layout: PdfLayout;
+  /** The options the layout was made with, for {@link drawProsePdf}'s profile and language. */
+  readonly opts: ProsePdfOptions;
   readonly font?: PdfFont;
   readonly cjk?: PdfCidFont;
   readonly emoji?: PdfEmojiFont;
@@ -870,12 +880,13 @@ export async function prepareProsePdf(
     loadEmojiFallback(layout, loaders.emoji),
     loadRtlFallback(layout, support),
   ]);
-  return { layout, ...(font === undefined ? {} : { font }), ...(cjk === undefined ? {} : { cjk }), ...(emoji === undefined ? {} : { emoji }), ...(rtl === undefined ? {} : { rtl }), ...(colour === undefined ? {} : { colour }), colourNotes };
+  return { layout, opts, ...(font === undefined ? {} : { font }), ...(cjk === undefined ? {} : { cjk }), ...(emoji === undefined ? {} : { emoji }), ...(rtl === undefined ? {} : { rtl }), ...(colour === undefined ? {} : { colour }), colourNotes };
 }
 
-/** Writes a prepared layout as a PDF, the way the screenplay's `drawPdf` writes its own. */
+/** Writes a prepared layout as a PDF, the way the screenplay's `drawPdf` writes its own — PDF/A-2u, tagged, when `profile` asks. */
 export function drawProsePdf(prepared: Awaited<ReturnType<typeof prepareProsePdf>>): Uint8Array<ArrayBuffer> {
-  return drawPdf(prepared.layout, prepared.font, prepared.cjk, prepared.emoji, prepared.rtl, prepared.colour);
+  const profile = prepared.opts.profile;
+  return drawPdf(prepared.layout, prepared.font, prepared.cjk, prepared.emoji, prepared.rtl, prepared.colour, profile === undefined ? undefined : { profile, ...(prepared.opts.language === undefined ? {} : { lang: prepared.opts.language }) });
 }
 
 export { PDF_MIME };
