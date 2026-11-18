@@ -735,6 +735,11 @@ describe('the import preview (#267)', () => {
     expect(read('apps/desktop/src/components/ScriptImport.tsx')).toContain('inklewriterPreviewSource');
     expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
     expect(guide).toContain('**Import HTML…** reads a saved HTML page');
+    // One bullet per import, in both guides and the changelog: a merge that keeps both sides leaves three of them behind.
+    const bullets = (text: string, prefix: string): number => text.split('\n').filter((line) => line.startsWith(prefix)).length;
+    expect(bullets(guide, '- **Import HTML')).toBe(1);
+    expect(bullets(read('docs/i18n/de/USER-GUIDE.md'), '- **HTML importieren')).toBe(1);
+    expect(bullets(read('CHANGELOG.md'), '- **Import HTML.**')).toBe(1);
     expect(guide).toContain('No import fetches anything from the internet today.');
     expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('Kein Import holt heute etwas aus dem Internet.');
     expect(guide).toContain('this import has no download switch and makes no request at all');
