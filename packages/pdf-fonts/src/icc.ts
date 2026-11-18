@@ -1,6 +1,6 @@
 /**
  * The sRGB ICC profile a PDF/A output intent names (screenplay.md §5.3): the standard profile, written byte for byte
- * rather than vendored, so the file carries the 540 bytes a conforming reader needs and nothing else. ICC v4.3
+ * rather than vendored, so the file carries the 532 bytes a conforming reader needs and nothing else. ICC v4.3
  * (ISO 15076-1): a matrix/TRC display profile with the sRGB colorants adapted to the D50 connection space and the
  * sRGB tone curve as a parametric type-4 curve in each channel.
  */

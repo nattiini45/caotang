@@ -18,7 +18,7 @@ describe('srgbIccProfile', () => {
   const profile = srgbIccProfile();
 
   it('is a complete ICC v4.3 profile: acsp signature, its declared size its real size', () => {
-    expect(profile.length).toBe(540);
+    expect(profile.length).toBe(532);
     expect(u32(profile, 0)).toBe(profile.length);
     expect(text(profile, 36)).toBe('acsp');
     expect(profile[8]).toBe(0x04);
@@ -49,12 +49,12 @@ describe('srgbIccProfile', () => {
     const desc = u32(profile, 132 + 4);
     expect(text(profile, desc)).toBe('mluc');
     expect(u32(profile, desc + 8)).toBe(1);
+    expect(u32(profile, desc + 12)).toBe(12);
     const record = desc + 16;
-    expect(u32(profile, record + 8)).toBe(12);
-    expect(text(profile, record + 12, 2)).toBe('en');
-    expect(text(profile, record + 14, 2)).toBe('US');
-    const length = u32(profile, record + 16);
-    const offset = u32(profile, record + 20);
+    expect(text(profile, record, 2)).toBe('en');
+    expect(text(profile, record + 2, 2)).toBe('US');
+    const length = u32(profile, record + 4);
+    const offset = u32(profile, record + 8);
     expect(offset).toBe(28);
     expect(length % 2).toBe(0);
     const units: number[] = [];
