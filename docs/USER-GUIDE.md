@@ -580,6 +580,8 @@ A macro is kept in the project, so a project folder and a `.caotang` bundle carr
 
 ## Hooks
 
+**Read-only MCP hooks.** In **Settings › MCP & tools**, connect and review a server, then trust it for reads. With a project open, go to **Settings › Hooks › Add MCP hook**. Choose the built-in agent tool to watch, whether the hook runs before or after it, and a reviewed read-only MCP tool that takes no required arguments. The request sends no manuscript or tool arguments. A before hook can block if its MCP call cannot run; otherwise the agent reports a warning. The hook never grants permission. These definitions stay in this browser, not in your project files or bundle. If a tool's review changes, review it again and reselect it in the hook.
+
 A hook is a check you write for the agent. It looks at what a step is about to write, or at what it just did, and can warn you, stop the step or leave the agent a note. It is for rules that are yours: never write *suddenly*, never touch a scene marked *Final*, tell me when a draft breaks a codex alias.
 
 - **What a hook can check.** *Words*: a word or phrase must not appear in the text the step would write. The match is a whole word or phrase, in any capitals and any script, and it is not a pattern language. *Status*: the documents a step touches must have one of the statuses you name. *Length*: the text a step would write, or a touched document, must be within a minimum or maximum number of words. *Continuity*: the continuity checks you name must find nothing open in the documents the step touches. When the check fails, the hook warns (the default), or stops the step if you set it to, or, after the step, leaves the agent a note.
