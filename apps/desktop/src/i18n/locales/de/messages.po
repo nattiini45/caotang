@@ -800,7 +800,9 @@ msgstr "{count, plural, one {# Zeilen-ID hinzufügen} other {# Zeilen-IDs hinzuf
 msgid "{count, plural, one {An image was dropped when the project opened, because its file is not in the project.} other {# images were dropped when the project opened, because their files are not in the project.}}"
 msgstr "{count, plural, one {Ein Bild wurde beim Öffnen des Projekts verworfen, weil seine Datei nicht im Projekt ist.} other {# Bilder wurden beim Öffnen des Projekts verworfen, weil ihre Dateien nicht im Projekt sind.}}"
 
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "{count, plural, one {Import # picture} other {Import # pictures}}"
 msgstr "{count, plural, one {# Bild importieren} other {# Bilder importieren}}"
@@ -854,6 +856,11 @@ msgstr "{count, plural, one {# Arbeitskopie gespeichert. Rückgängig stellt das
 #: apps/desktop/src/media/TranscriptionReviewDialog.tsx
 msgid "{count, plural, one {The second read differs on # word: } other {The second read differs on # words: }}"
 msgstr "{count, plural, one {Die zweite Lesung weicht bei # Wort ab: } other {Die zweite Lesung weicht bei # Wörtern ab: }}"
+
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#: apps/desktop/src/import-preview/highland-source.ts
+msgid "{count} {leftOut, plural, one {picture is} other {pictures are}} left out, as you chose; the words beside each one are kept."
+msgstr "{count} {leftOut, plural, one {Bild wird} other {Bilder werden}} wie von Ihnen gewählt ausgelassen; die Wörter daneben bleiben erhalten."
 
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #: apps/desktop/src/import-preview/captions-source.ts
@@ -1199,6 +1206,11 @@ msgid "{file} becomes one AV script episode. Read what the import changes first;
 msgstr "{file} wird eine Episode als AV-Skript. Lesen Sie zuerst, was der Import ändert; Sendung und Episode können Sie hier umbenennen."
 
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "{file} could not be read as a Highland script."
+msgstr "{file} konnte nicht als Highland-Skript gelesen werden."
+
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
 #: apps/desktop/src/components/ScriptImport.tsx
@@ -1249,6 +1261,11 @@ msgstr "{file} enthält keinen Cue mit einer Zeit, also gibt es nichts zu import
 #: apps/desktop/src/import-preview/captions-source.ts
 msgid "{file} is too large to import as captions: the import reads files up to {limit} MB."
 msgstr "{file} ist zu groß für einen Untertitel-Import: Der Import liest Dateien bis {limit} MB."
+
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#: apps/desktop/src/import-preview/highland-source.ts
+msgid "{file} is too large to import as Highland: the import reads files up to {size} MB."
+msgstr "{file} ist zu groß für den Highland-Import: Der Import liest Dateien bis zu {size} MB."
 
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/text-source.ts
@@ -1652,6 +1669,16 @@ msgstr "{part}: {title}"
 msgid "{parts, plural, one {# part has no folder: each of its chapters keeps it in its keywords.} other {# parts have no folder: each chapter keeps its part in its keywords.}}"
 msgstr "{parts, plural, one {# Teil hat keinen Ordner: Jedes seiner Kapitel behält ihn in seinen Stichwörtern.} other {# Teile haben keinen Ordner: Jedes Kapitel behält seinen Teil in seinen Stichwörtern.}}"
 
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#: apps/desktop/src/import-preview/highland-source.ts
+msgid "{paths} {total, plural, one {is named} other {are named}} in the script but not carried in the package; the words beside each one are kept."
+msgstr "{paths} {total, plural, one {wird} other {werden}} im Skript genannt, {total, plural, one {ist} other {sind}} aber nicht im Paket; die Wörter daneben bleiben erhalten."
+
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#: apps/desktop/src/import-preview/highland-source.ts
+msgid "{paths} and {count} more {total, plural, one {picture is named} other {pictures are named}} in the script but not carried in the package; the words beside each one are kept."
+msgstr "{paths} und {count} weitere {total, plural, one {Bild wird} other {Bilder werden}} im Skript genannt, {total, plural, one {ist} other {sind}} aber nicht im Paket; die Wörter daneben bleiben erhalten."
+
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "{placed, plural, one {Placed # picture.} other {Placed # pictures.}}"
@@ -1838,6 +1865,11 @@ msgstr "{runCount, plural, one {# Laufprotokoll} other {# Laufprotokolle}}"
 #: apps/desktop/src/app/coherence-report-words.ts
 msgid "{runs, plural, one {# run recorded; the latest is {at} ({status}).} other {# runs recorded; the latest is {at} ({status}).}}"
 msgstr "{runs, plural, one {# Lauf aufgezeichnet; der neueste ist {at} ({status}).} other {# Läufe aufgezeichnet; der neueste ist {at} ({status}).}}"
+
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#: apps/desktop/src/import-preview/highland-source.ts
+msgid "{scenes, plural, one {Import # scene} other {Import # scenes}}"
+msgstr "{scenes, plural, one {# Szene importieren} other {# Szenen importieren}}"
 
 #. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
 #: apps/desktop/src/components/export-preview-model.ts
@@ -3232,7 +3264,9 @@ msgstr "Etwa {extractCalls, plural, one {# Modellaufruf} other {# Modellaufrufe}
 msgid "about {size}"
 msgstr "etwa {size}"
 
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "About {size} MB."
 msgstr "Etwa {size} MB."
@@ -9292,6 +9326,11 @@ msgstr "Den Prompt für eine Szene ausblenden"
 msgid "High"
 msgstr "Hoch"
 
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Highland script file"
+msgstr "Highland-Skriptdatei"
+
 #. Interpolated values: count, day, days, error
 #: apps/desktop/src/components/WritingHistory.tsx
 msgid "History"
@@ -9428,8 +9467,10 @@ msgstr "Bilder, nach Adresse aufgelistet; der Import lädt sie nicht herunter"
 msgid "Import"
 msgstr "Import"
 
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Import “{file}”"
@@ -9473,8 +9514,8 @@ msgstr "Eine Bilddatei importieren…"
 
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
-msgid "Import a script, an Ink story or a Twee story"
-msgstr "Ein Drehbuch, eine Ink-Geschichte oder eine Twee-Geschichte importieren"
+msgid "Import a script, an Ink story, a Twee story or a Highland script"
+msgstr "Ein Skript, eine Ink-Geschichte, eine Twee-Geschichte oder ein Highland-Skript importieren"
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -9500,6 +9541,11 @@ msgstr "Untertitel importieren…"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.codexImport.none.content"
 msgstr "Kodex-Einträge importieren"
+
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Import Highland"
+msgstr "Highland importieren"
 
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
@@ -9609,6 +9655,11 @@ msgstr "ein {format}-Drehbuch importiert: {scenes, plural, one {# Szene} other {
 #: apps/desktop/src/app/activity-model.ts
 msgid "Imported into the binder"
 msgstr "In den Binder importiert"
+
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#: apps/desktop/src/import-preview/highland-source.ts
+msgid "Imported scenes"
+msgstr "Importierte Szenen"
 
 #. Interpolated values: bytes, folder, max, name, path, problem, size, taken
 #: apps/desktop/src/app/skills-model.ts
@@ -12624,6 +12675,8 @@ msgstr "Notiz: <0/>"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
@@ -12635,6 +12688,7 @@ msgstr "Notiz: <0/>"
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
 #: apps/desktop/src/components/Inspector.tsx
+#: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 msgid "Notes"
 msgstr "Notizen"
@@ -13619,6 +13673,10 @@ msgstr "Bild: {text}"
 
 #. Interpolated values: size and budget are formatted sizes; count is a number.
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
@@ -13629,6 +13687,7 @@ msgstr "Bild: {text}"
 #: apps/desktop/src/components/PictureStorageMeter.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/components/shell/modern/top-ornament.tsx
+#: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "Pictures"
 msgstr "Bilder"
@@ -13658,6 +13717,11 @@ msgstr "In diesem Build können keine Bilder zu einer Einstellung hinzugefügt w
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "Pictures dropped on the board"
 msgstr "Auf dem Board abgelegte Bilder"
+
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#: apps/desktop/src/import-preview/highland-source.ts
+msgid "Pictures from the package's assets folder"
+msgstr "Bilder aus dem assets-Ordner des Pakets"
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
@@ -14641,11 +14705,13 @@ msgstr "Lese-Agent"
 msgid "harness.progress.docRead.active"
 msgstr "“{doc}” wird gelesen"
 
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/captions-source.ts
+#: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 #: apps/desktop/src/import-preview/text-source.ts
@@ -19136,6 +19202,11 @@ msgstr "Die Felder, die {vendor} erhält"
 msgid "The file cannot be read as {encoding}. Choose another encoding."
 msgstr "Die Datei kann nicht als {encoding} gelesen werden. Wählen Sie eine andere Kodierung."
 
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#: apps/desktop/src/import-preview/highland-source.ts
+msgid "The file could not be read as a Highland script."
+msgstr "Die Datei konnte nicht als Highland-Skript gelesen werden."
+
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 msgid "The file could not be read as an Inklewriter story."
@@ -20268,6 +20339,11 @@ msgstr "Die Szene „{title}“ ist {words} Wörter lang. Prüfen Sie, ob kein S
 msgid "The scene did not save when its view closed. Your words are in this tab; they will be written again on the next change."
 msgstr "Die Szene wurde beim Schließen ihrer Ansicht nicht gespeichert. Ihre Wörter befinden sich in diesem Tab; sie werden bei der nächsten Änderung erneut geschrieben."
 
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#: apps/desktop/src/import-preview/highland-source.ts
+msgid "the scene heading “{name}”"
+msgstr "die Szenenüberschrift „{name}“"
+
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
 #: apps/desktop/src/components/timeline/TimelineView.tsx
@@ -20355,6 +20431,11 @@ msgstr "Die zweite Lesung ergibt {second}"
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 msgid "The section “{from}” has no letters or digits ink can use in a name, so it is imported as “{to}”."
 msgstr "Der Abschnitt „{from}“ enthält keine Buchstaben oder Ziffern, die ink in einem Namen verwenden kann, daher wird er als „{to}“ importiert."
+
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#: apps/desktop/src/import-preview/highland-source.ts
+msgid "the section “{name}”"
+msgstr "der Abschnitt „{name}“"
 
 #: apps/desktop/src/components/GoalRecovery.tsx
 msgid "The selected coherence checks pass"
@@ -21152,6 +21233,11 @@ msgstr "Dieses Ziel kann nicht fortgesetzt werden"
 #: apps/desktop/src/components/GoalRecovery.tsx
 msgid "This goal’s saved progress cannot be read by this version of Caotang."
 msgstr "Der gespeicherte Fortschritt dieses Ziels kann von dieser Version von Caotang nicht gelesen werden."
+
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#: apps/desktop/src/import-preview/highland-source.ts
+msgid "This Highland script becomes screenplay documents under its sections. Read what the import does not keep first."
+msgstr "Dieses Highland-Skript wird zu Drehbuch-Dokumenten unter seinen Abschnitten. Lesen Sie zuerst, was der Import nicht übernimmt."
 
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #: apps/desktop/src/components/UsagePanel.tsx
