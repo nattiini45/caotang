@@ -55,7 +55,7 @@ interface KeptItem {
  * leap second `binder.setPublish` accepts (`…:59:60Z`), so a `:60` reads as the first millisecond of
  * the next second — the same instant an NTP clock names.
  */
-function instantMs(instant: string): number | undefined {
+export function instantMs(instant: string): number | undefined {
   const direct = Date.parse(instant);
   if (!Number.isNaN(direct)) return direct;
   const leap = /^(\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}):60(.+)$/.exec(instant);

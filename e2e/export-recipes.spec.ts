@@ -48,7 +48,8 @@ test('the export dialog offers the prose formats, then the media formats, then t
   await expect(prose.getByRole('radio', { name: /^Web article \(\.html\)/ })).toBeVisible();
   await expect(prose.getByRole('radio', { name: /^RSS feed \(\.rss\.xml\)/ })).toBeVisible();
   await expect(prose.getByRole('radio', { name: /^Atom feed \(\.atom\.xml\)/ })).toBeVisible();
-  await expect(media.getByRole('radio')).toHaveCount(10);
+  await expect(media.getByRole('radio')).toHaveCount(11);
+  await expect(media.getByRole('radio', { name: /^Podcast feed \(.rss.xml\)/ })).toBeVisible();
   await expect(media.getByRole('radio', { name: /^Shot list \(\.xlsx\)/ })).toBeVisible();
   await expect(media.getByRole('radio', { name: /^Storyboard contact sheet \(\.pdf\)/ })).toBeVisible();
   await expect(media.getByRole('radio', { name: /^Fountain \(\.fountain\)/ })).toBeVisible();

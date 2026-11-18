@@ -58,6 +58,7 @@ const MEDIA_FORMAT_NAMES: Readonly<Record<string, string>> = {
   html: 'the HTML article',
   rss: 'the RSS feed',
   atom: 'the Atom feed',
+  'podcast-rss': 'the podcast feed',
 };
 
 /**

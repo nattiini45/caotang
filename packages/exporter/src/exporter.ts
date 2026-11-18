@@ -271,6 +271,7 @@ const EXTENSION: Record<ExportFormat, string> = {
   html: 'html',
   rss: 'rss.xml',
   atom: 'atom.xml',
+  'podcast-rss': 'rss.xml',
 };
 
 /**
@@ -311,6 +312,7 @@ export const EXPORT_MIME: Readonly<Record<ExportFormat, string>> = {
   html: 'text/html;charset=utf-8',
   rss: 'application/rss+xml',
   atom: 'application/atom+xml',
+  'podcast-rss': 'application/rss+xml',
 };
 
 const NO_ASSETS: ReadonlyMap<string, AssetRecord> = new Map();

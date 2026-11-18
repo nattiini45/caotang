@@ -68,6 +68,8 @@ export const EXPORT_FORMATS = [
   'html',
   'rss',
   'atom',
+  // The AV script's feed (av-script.md §5): a podcast RSS over the feed writer, appended after the web feeds.
+  'podcast-rss',
 ] as const;
 
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
@@ -104,6 +106,7 @@ export const MEDIA_FORMATS = [
   'teleprompter',
   'vtt',
   'chapters-json',
+  'podcast-rss',
 ] as const satisfies readonly ExportFormat[];
 
 export type MediaFormat = (typeof MEDIA_FORMATS)[number];
@@ -378,6 +381,8 @@ export const TEXT_PROOF_FORMATS = [
   'html',
   'rss',
   'atom',
+  // The podcast feed is text too (av-script.md §5).
+  'podcast-rss',
 ] as const satisfies readonly ExportFormat[];
 
 /** Whether a format has a Proof: it is listed in {@link TEXT_PROOF_FORMATS}. A format added without being listed has none. */
