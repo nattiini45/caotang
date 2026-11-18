@@ -81,7 +81,7 @@ export const METADATA_PATCH_KEYS = ['author', 'language', 'isbn', 'coverAssetId'
  * `teleprompterWidth` the teleprompter's wrap, av-script.md §5; `frontMatter`, `htmlMode` and `css` are the
  * HTML article's options, web-publishing.md §3).
  */
-const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued', 'pageSize', 'scriptFont', 'paperFrames', 'colourEmoji', 'bleed', 'cropMarks', 'contentsLabel', 'pictures', 'epubImageMaxPx', 'epubKeepWebp', 'keepPictureMetadata', 'timelinePictures', 'notes', 'teleprompterWidth', 'frontMatter', 'htmlMode', 'css', 'siteUrl'] as const;
+const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued', 'pageSize', 'scriptFont', 'paperFrames', 'colourEmoji', 'bleed', 'cropMarks', 'contentsLabel', 'pictures', 'epubImageMaxPx', 'epubKeepWebp', 'keepPictureMetadata', 'timelinePictures', 'notes', 'teleprompterWidth', 'frontMatter', 'htmlMode', 'css', 'siteUrl', 'pdfProfile'] as const;
 
 /** The HTML article's two shapes (web-publishing.md §3): a full document, or the fragment a site template hosts. */
 export const HTML_MODES = ['standalone', 'fragment'] as const;
@@ -322,6 +322,13 @@ function recipeOptionsOf(value: unknown): Result<RecipeOptionsParams | undefined
       return invalid(`params.options.siteUrl is longer than ${CSS_MAX} characters`, 'shorten the site address', 'options.siteUrl');
     }
     typed.siteUrl = siteUrl.trim();
+  }
+  const pdfProfile = value['pdfProfile'];
+  if (pdfProfile !== undefined) {
+    if (pdfProfile !== 'pdfa-2u') {
+      return invalid(`params.options.pdfProfile must be "pdfa-2u", got ${showValue(pdfProfile)}`, undefined, 'options.pdfProfile');
+    }
+    typed.pdfProfile = pdfProfile;
   }
   return ok(typed);
 }

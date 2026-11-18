@@ -2835,6 +2835,11 @@ msgstr "Ein Bild, das nicht mehr im Projekt ist"
 msgid "A picture the project holds"
 msgstr "Ein Bild, das das Projekt enthält"
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "A plain PDF"
+msgstr "Ein einfaches PDF"
+
 #. Background review approval. Counts are documents, findings, calls or estimated tokens; titles and model labels are supplied text; money uses the interface locale.
 #: apps/desktop/src/components/QueuedReviewDetails.tsx
 msgid "A price estimate is unavailable. These model calls may still incur charges."
@@ -13207,6 +13212,11 @@ msgstr "Muster verwenden diesen Beispieltext. Wortzählungen verwenden ihn vor e
 msgid "Pause"
 msgstr "Pausieren"
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "PDF/A-2u, for filing and archives"
+msgstr "PDF/A-2u, für Einreichungen und Archive"
+
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Permission mode"
@@ -13686,6 +13696,8 @@ msgstr "Preise sind Dollar pro 1.000 Token, als Zahl ab 0 angegeben."
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #. Interpolated values: cost, prompt, completion, requestsTotal
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
 #: apps/desktop/src/components/Settings.tsx
 #: apps/desktop/src/components/UsagePanel.tsx
 msgid "Profile"

@@ -507,7 +507,12 @@ export function createExporter(options: ExporterOptions): ExporterService {
         ...(request.options.scriptFont === undefined ? {} : { scriptFont: request.options.scriptFont }),
         ...(request.options.colourEmoji === undefined ? {} : { colourEmoji: request.options.colourEmoji }),
         ...(request.options.notes === undefined ? {} : { notes: request.options.notes }),
+        ...(request.options.pdfProfile === undefined ? {} : { profile: request.options.pdfProfile }),
       };
+      // PDF/A embeds every font it names, so the base-14 Courier cannot write it (exporter.md §3).
+      if (pdfOpts.profile !== undefined && pdfOpts.scriptFont === 'courier') {
+        throw new MediaRefusedError('prose-pdf', ['pdf: PDF/A embeds every font it names, so the Courier face cannot write it — pick Courier Prime or Cousine']);
+      }
       const layout = layoutProsePdf(input, pdfOpts);
       if (layout.scriptPageCount === 0) {
         throw new MediaRefusedError('prose-pdf', ['the selection holds no text that prints, so there is nothing to print']);

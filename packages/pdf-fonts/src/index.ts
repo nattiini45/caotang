@@ -101,6 +101,7 @@ export {
   type RtlScript,
   type ScriptRun,
 } from './rtl-script.js';
+export { srgbIccProfile } from './icc.js';
 export {
   clustersOf,
   devanagariFontPrints,

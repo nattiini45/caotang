@@ -239,6 +239,8 @@ interface ShownOptions {
   readonly colourEmoji: boolean | undefined;
   /** Where the prose formats put a footnote's text; `footnote` is the default (exporter.md §3). */
   readonly notes: 'footnote' | 'endnote';
+  /** The prose PDF's conformance profile; `undefined` is a plain PDF (exporter.md §3). */
+  readonly pdfProfile: 'pdfa-2u' | undefined;
 }
 
 /** The picture modes, in the words the dialog shows. */
@@ -364,6 +366,7 @@ function shownOptionsOf(recipe: ExportRecipe | undefined): ShownOptions {
     continued: recipe?.options?.continued ?? true,
     pictures: shownPictureOptionsOf(recipe?.options),
     notes: recipe?.options?.notes ?? 'footnote',
+    pdfProfile: recipe?.options?.pdfProfile,
   };
 }
 
@@ -504,6 +507,7 @@ export function ExportDialog({
         ...pictureOptionsOf(next.pictures),
         ...(next.colourEmoji === undefined ? {} : { colourEmoji: next.colourEmoji }),
         ...(next.notes === 'footnote' ? {} : { notes: next.notes }),
+        ...(next.pdfProfile === undefined ? {} : { pdfProfile: next.pdfProfile }),
       },
     });
     if (outcome.ok) setNotice(null);
@@ -548,6 +552,7 @@ export function ExportDialog({
         ...pictureOptionsOf(shown.pictures),
         ...(shown.colourEmoji === undefined ? {} : { colourEmoji: shown.colourEmoji }),
         ...(shown.notes === 'footnote' ? {} : { notes: shown.notes }),
+        ...(shown.pdfProfile === undefined ? {} : { pdfProfile: shown.pdfProfile }),
       },
     });
     if (outcome.ok) {
@@ -939,6 +944,16 @@ export function ExportDialog({
                   </select>
                 </label>
                 <ColourEmojiControl format="prose-pdf" shown={shown} onChange={(colourEmoji) => saveOptions({ ...shown, colourEmoji })} />
+                <label className="export-field">
+                  <span className="export-option-label"><Trans>Profile</Trans></span>
+                  <select
+                    value={shown.pdfProfile ?? 'plain'}
+                    onChange={(event) => saveOptions({ ...shown, pdfProfile: event.target.value === 'pdfa-2u' ? 'pdfa-2u' : undefined })}
+                  >
+                    <option value="plain"><Trans>A plain PDF</Trans></option>
+                    <option value="pdfa-2u"><Trans>PDF/A-2u, for filing and archives</Trans></option>
+                  </select>
+                </label>
               </>
             ) : null}
             {format === 'comic-pdf' ? (
