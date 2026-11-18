@@ -41,11 +41,11 @@ function mlucTag(text: string): number[] {
 
 /**
  * The sRGB profile's bytes. The colorants are the standard D50-adapted sRGB primaries every reader knows; the curve is
- * the sRGB transfer function — (X/1.055 + 0.055/1.055)^2.4 − 0.055 above 0.04045, X/12.92 below it — in parametric
- * type-4 form (g, a, b, c, d, e, f = 2.4, 1/1.055, 0.055/1.055, 1/12.92, 0.04045, −0.055, 0).
+ * the sRGB transfer function — ((X + 0.055)/1.055)^2.4 above 0.04045, X/12.92 below it — in parametric
+ * type-4 form (g, a, b, c, d, e, f = 2.4, 1/1.055, 0.055/1.055, 1/12.92, 0.04045, 0, 0).
  */
 export function srgbIccProfile(): Uint8Array {
-  const trc = para4Tag(2.4, 1 / 1.055, 0.055 / 1.055, 1 / 12.92, 0.04045, -0.055, 0);
+  const trc = para4Tag(2.4, 1 / 1.055, 0.055 / 1.055, 1 / 12.92, 0.04045, 0, 0);
   const tags: readonly [string, number[]][] = [
     ['desc', mlucTag('sRGB')],
     ['cprt', mlucTag('Public domain')],

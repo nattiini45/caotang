@@ -44,6 +44,27 @@ describe('srgbIccProfile', () => {
     expect(names.sort()).toEqual(['bTRC', 'bXYZ', 'cprt', 'desc', 'gTRC', 'gXYZ', 'rTRC', 'rXYZ', 'wtpt'].sort());
   });
 
+  it('writes the sRGB transfer curve: white maps to white, the branches meet at the threshold', () => {
+    // The rTRC tag: 'para' type 4, parameters g, a, b, c, d, e, f as s15Fixed16.
+    const entry = 132 + 7 * 12; // rTRC is the eighth tag.
+    expect(text(profile, entry)).toBe('rTRC');
+    const trc = u32(profile, entry + 4);
+    expect(text(profile, trc)).toBe('para');
+    expect(profile.slice(trc + 8, trc + 12)).toEqual(new Uint8Array([0, 4, 0, 0]));
+    const params: number[] = [];
+    for (let i = 0; i < 7; i += 1) {
+      const at = trc + 12 + i * 4;
+      params.push(((profile[at]! << 24) | (profile[at + 1]! << 16) | (profile[at + 2]! << 8) | profile[at + 3]!) / 65536);
+    }
+    const [g, a, b, c, d, e, f] = params as [number, number, number, number, number, number, number];
+    const curve = (x: number): number => (x >= d ? (a * x + b) ** g + e : c * x + f);
+    expect(e).toBe(0);
+    expect(f).toBe(0);
+    expect(curve(1)).toBeCloseTo(1, 4);
+    expect(curve(d + 1e-9)).toBeCloseTo(curve(d - 1e-9), 3);
+    expect(curve(0.18)).toBeCloseTo(0.0272, 3);
+  });
+
   it('carries well-formed mluc records: two-byte language and country, UTF-16BE text', () => {
     // The desc tag's body: 'mluc', reserved, record count, then 12-byte records (lang, country, length, offset).
     const desc = u32(profile, 132 + 4);
