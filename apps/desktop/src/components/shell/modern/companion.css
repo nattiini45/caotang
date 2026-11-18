@@ -121,7 +121,7 @@
 /* The header (#363): the agent name, provider and Close (×), then Mode. A running turn adds the lifecycle and Stop, with spend below. */
 :root[data-shell='modern'] .modern-companion .agent-head {
   flex-wrap: wrap;
-  gap: var(--space-4) var(--space-5);
+  gap: var(--space-2) var(--space-5);
   padding-block: 0;
   padding-inline: var(--space-5) 0;
   color: var(--on-glass);
@@ -172,9 +172,10 @@
   color: var(--ink);
   font-size: 13px;
   overflow-wrap: anywhere;
+  overflow: hidden;
 }
 
-:root[data-shell='modern'] .modern-companion .agent-head .agent-spend {
+:root[data-shell='modern'] .modern-companion .agent-spend {
   order: 4;
   flex: 0 0 100%;
   white-space: normal;
@@ -182,7 +183,7 @@
   font-size: 12px;
 }
 
-:root[data-shell='modern'] .modern-companion .agent-head .agent-stop {
+:root[data-shell='modern'] .modern-companion .agent-stop {
   flex: none;
 }
 
