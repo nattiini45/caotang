@@ -50,7 +50,9 @@ back, and every imported text goes through `scanImport`.
 
 The workbook is opened by the shared zip reader inside the preview's `'self'` Worker, under its caps (archive size, entry count,
 entry size, total size, compression ratio) with a timeout and Cancel. A worksheet is refused above **100,000 rows** or **2,000,000
-cells**, and a cell is cut at Excel's own 32,768 characters. A zip that is no workbook, a workbook with no sheets, and a sheet name
+cells**, and a cell is cut at Excel's own 32,768 characters. A cell whose reference names a column beyond Excel's last (XFD,
+16,384 columns) refuses the sheet: the reference places the cell, so an invented one like `AAAAAAAA1` would ask the grid for 8.35
+billion columns. A zip that is no workbook, a workbook with no sheets, and a sheet name
 the workbook does not hold are refused in the writer's words. There is no `eval`, `new Function` or WebAssembly in the chain.
 
 Not read: charts, pivot tables, cell comments, pictures, conditional formatting, data validation, defined names and macros. A

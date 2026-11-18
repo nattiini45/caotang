@@ -207,6 +207,17 @@ describe('readXlsx — the workbook reader', () => {
     if (!read.ok) expect(read.error.kind).toBe('too-many-rows');
   });
 
+  it('refuses a cell whose reference names a column beyond Excel’s last, instead of allocating it', async () => {
+    // `AAAA1` is column 18,279 and `AAAAAAAA1` is 8,353,082,582: the grid would try to make that many columns from one cell.
+    const beyond = await readXlsx(xlsx([{ name: 'Crafted', rows: [['<c r="AAAA1" t="inlineStr"><is><t>x</t></is></c>']] }]));
+    expect(beyond.ok).toBe(false);
+    if (!beyond.ok) expect(beyond.error.kind).toBe('too-many-columns');
+    // Excel's own last column is still read: the sheet answers, and its one cell sits at the far end of the row.
+    const last = await readXlsx(xlsx([{ name: 'Last', rows: [['<c r="XFD1" t="inlineStr"><is><t>x</t></is></c>']] }]));
+    expect(last.ok).toBe(true);
+    if (last.ok) expect(last.value.sheet).toBe('Last');
+  });
+
   it('reads a workbook and its CSV twin to the same rows, dates included', async () => {
     const rows = [
       ['Title', 'Start', 'Duration', 'POV', 'Summary'],

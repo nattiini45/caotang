@@ -44,6 +44,8 @@ export function xlsxErrorText(error: XlsxError): string {
       return t`This worksheet has more rows than the import reads. Split it and import the parts.`;
     case 'too-many-cells':
       return t`This worksheet has more cells than the import reads. Split it and import the parts.`;
+    case 'too-many-columns':
+      return t`This worksheet names a column beyond the last one Excel has (XFD). Save it again from Excel, or export it as CSV and import that.`;
     case 'archive':
     case 'not-xml':
       return t`This workbook could not be opened: ${{ reason: error.message }}`;

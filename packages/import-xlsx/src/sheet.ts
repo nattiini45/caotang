@@ -9,10 +9,14 @@ import { attr, readXml, textOf, type XmlElement } from '@caotang/import-read/xml
 
 import { isDateStyle, type XlsxWorkbook } from './workbook.js';
 
-/** The most rows, cells and characters one worksheet may hold. Excel's own row limit is 1,048,576; a story bible is far smaller. */
-export const SHEET_LIMITS = Object.freeze({ maxRows: 100_000, maxCells: 2_000_000, maxCellChars: 32_768 });
+/**
+ * The most rows, columns, cells and characters one worksheet may hold. Excel's own row limit is 1,048,576 and its last column is
+ * XFD (16,384 columns); a story bible is far smaller. The column cap is a safety bound, not a convenience: a cell's reference places
+ * it, so an invented one like `AAAAAAAA1` asks for 8.35 billion columns and the grid would try to allocate them.
+ */
+export const SHEET_LIMITS = Object.freeze({ maxRows: 100_000, maxColumns: 16_384, maxCells: 2_000_000, maxCellChars: 32_768 });
 
-export type SheetError = { kind: 'not-xml'; message: string } | { kind: 'too-many-rows' } | { kind: 'too-many-cells' };
+export type SheetError = { kind: 'not-xml'; message: string } | { kind: 'too-many-rows' } | { kind: 'too-many-columns' } | { kind: 'too-many-cells' };
 
 export interface SheetReading {
   grid: CsvGrid;
@@ -89,6 +93,7 @@ export function sheetGrid(bytes: Uint8Array, workbook: XlsxWorkbook, path: strin
       const reference = attr(cell, 'r') ?? '';
       const column = columnIndex(reference);
       const slot = column >= 0 ? column : next;
+      if (slot >= SHEET_LIMITS.maxColumns) return { ok: false, error: { kind: 'too-many-columns' } };
       next = slot + 1;
       while (cellsOfRow.length <= slot) cellsOfRow.push('');
       const type = attr(cell, 't') ?? 'n';

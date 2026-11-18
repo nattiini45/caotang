@@ -850,7 +850,11 @@ describe('the import preview (#267)', () => {
     expect(source).toContain('label: t`Worksheet`');
     expect(source).toContain('Read from the worksheet');
     const sheet = read('packages/import-xlsx/src/sheet.ts');
-    expect(sheet).toContain('maxRows: 100_000, maxCells: 2_000_000, maxCellChars: 32_768');
+    expect(sheet).toContain('maxRows: 100_000, maxColumns: 16_384, maxCells: 2_000_000, maxCellChars: 32_768');
+    expect(sheet).toContain("if (slot >= SHEET_LIMITS.maxColumns) return { ok: false, error: { kind: 'too-many-columns' } };");
+    expect(source).toContain('beyond the last one Excel has (XFD)');
+    expect(guide).toContain("A cell naming a column beyond Excel's last (XFD) is refused too");
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('eine Spalte hinter der letzten von Excel (XFD)');
     expect(sheet).toContain('whole < 60 ? whole : whole - 1');
     expect(read('packages/import-xlsx/src/reader.ts')).toContain('readGrid(reading.value.grid, options, ');
     const spec = read('docs/architecture/import-xlsx.md');
