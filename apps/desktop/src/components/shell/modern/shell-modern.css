@@ -669,42 +669,8 @@
   color: var(--muted);
 }
 
-/* The five views keep their icons where the full row of labels will not fit. */
-@media (min-width: 960px) and (max-width: 1280px) {
-  :root[data-shell='modern'] .modern-stage:has(> .modern-binder.is-open) > .modern-ornament.is-bottom .modern-capsule {
-    flex: none;
-  }
-
-  :root[data-shell='modern'] .modern-stage:has(> .modern-binder.is-open) > .modern-ornament.is-bottom .modern-view .modern-label {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-}
-
 @media (min-width: 960px) and (max-width: 1179px) {
   :root[data-shell='modern'] .modern-view .modern-label {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-}
-
-@media (min-width: 960px) and (max-width: 1140px) {
-  :root[data-shell='modern'] .modern-stage:has(> .modern-binder.is-open) > .modern-ornament.is-bottom > .modern-capsule {
-    flex-direction: column;
-    gap: var(--space-1);
-    padding-inline: var(--space-2);
-    font-size: var(--text-xs);
-  }
-
-  :root[data-shell='modern'] .modern-stage:has(> .modern-binder.is-open) > .modern-ornament.is-bottom .modern-kbd {
     display: none;
   }
 }

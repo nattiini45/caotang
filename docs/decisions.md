@@ -6,7 +6,7 @@
 
 - The Modern companion gives agent resource use its own wrapping row, leaving the lifecycle label readable beside Stop instead of ellipsizing the two readouts against each other (#572). [delegated 2026-11-18]
 
-- Beside an open Modern Binder from 960 to 1280 px, the view radios use the compact icon treatment without reducing target size or removing their names. At 1140 px and narrower, Ask and Search stack their labels below the icons and leave the shortcut in the tooltip (#505). [delegated 2026-11-18]
+- Beside an open Modern Binder from 960 to 1280 px, the view radios use the compact icon treatment without reducing target size or removing their names. Ask and Search stack their labels below the icons and leave the shortcut in the tooltip (#505). [delegated 2026-11-18]
 
 - A visible storage warning in the narrow Modern empty editor takes its actual space in the layout rather than overlaying the empty-state heading or its next action (#647). [delegated 2026-11-18]
 
