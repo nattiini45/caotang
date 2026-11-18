@@ -233,7 +233,8 @@ export async function projectIdOf(page: Page): Promise<string | null> {
  */
 export async function chooseInterfaceLanguage(page: Page, scope: Page | Locator, tag: string): Promise<void> {
   const runtimeUrl = `${new URL(page.url()).origin}/src/i18n/runtime.ts`;
-  if ((await page.context().request.get(runtimeUrl)).ok()) {
+  const runtimeProbe = await page.context().request.get(runtimeUrl);
+  if (runtimeProbe.ok() && (runtimeProbe.headers()['content-type'] ?? '').includes('javascript')) {
     await page.evaluate(async (t) => {
       try {
         const specifier = '/src/i18n/runtime.ts';
