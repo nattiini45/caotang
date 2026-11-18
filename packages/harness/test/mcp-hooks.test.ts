@@ -279,4 +279,18 @@ describe('read-only MCP runtime hooks', () => {
     expect(await harness.callAsync(CALL, TURN)).toEqual(await first);
     expect(responses).toEqual(['mcp', 'port']);
   });
+
+  it('keeps hook dispatch IDs separate from ordinary external calls in the same turn', async () => {
+    const { harness, hook, client, responses } = await setup();
+    expect((await harness.callAsync(CALL, TURN)).ok).toBe(true);
+    expect(harness.call({ name: 'tool.search', callId: 'search', params: { query: NAME } }, TURN).ok).toBe(true);
+    const name = client.describe(KEY, NAME)!.qualifiedName;
+    expect(harness.loadedExternalTools().map(tool => tool.qualifiedName)).toContain(name);
+    const callId = JSON.stringify(['mcp-hook', CALL.callId, hook.event, hook.id]);
+    expect(await harness.callExternal({ name, callId, params: {} }, TURN)).toMatchObject({
+      ok: true, value: { data: { untrusted: true, content: [{ type: 'text', text: REMOTE_TEXT }] } },
+    });
+    expect(responses).toEqual(['mcp', 'port', 'mcp']);
+    expect(harness.log.entries().filter(row => row.command === 'mcp.invoke').map(row => row.turnId)).toEqual([TURN.turnId, TURN.turnId]);
+  });
 });

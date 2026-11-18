@@ -829,6 +829,7 @@ export function createHarness(options: HarnessOptions): Harness {
   const view: ViewState = createViewState();
   const log = options.history?.log ?? createActivityLog();
   const idempotency = createIdempotencyCache();
+  const mcpHookIdempotency = createIdempotencyCache();
   const entries = buildEntries();
 
   // The writer's hooks (hooks.md). Read at each call, like the rules; a hook only ever refuses, warns or notes, and it runs after the gate.
@@ -1383,6 +1384,7 @@ export function createHarness(options: HarnessOptions): Harness {
     callCache.endTurn(turnId);
     planCache.endTurn(turnId);
     idempotency.endTurn(turnId);
+    mcpHookIdempotency.endTurn(turnId);
     undo.endTurn(turnId);
     skillLoads.forget(turnId);
     hookRuns.delete(turnId);
@@ -1631,7 +1633,7 @@ export function createHarness(options: HarnessOptions): Harness {
           return verdict.effect !== 'deny' && verdict.effect !== 'ask';
         };
         const start = clock();
-        const report = await invokeMcpReadHook(mcpClient, hook, busFor(), registry, turn.turnId, call.callId, start, allowed, turn.signal);
+        const report = await invokeMcpReadHook(mcpClient, hook, { ...busFor(), idempotency: mcpHookIdempotency }, registry, turn.turnId, call.callId, start, allowed, turn.signal);
         attempted ||= report.attempted;
         if (!active() || report.reason === undefined || !current()) continue;
         const run: HookRun = {
