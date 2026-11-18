@@ -6,14 +6,15 @@
  * Copyright (c) 2018 inkle. The full MIT notice travels beside this file as LICENSE-INKLEWRITER and is
  * reproduced in THIRD-PARTY-NOTICES.md (tools/third-party-notices.mjs, BUNDLED_ASSETS).
  *
- * The body below is upstream's, kept as written so it can be diffed against the source, with one deviation: the seven
- * dictionaries keyed by a name that came out of the imported JSON are `Object.create(null)` rather than `{}`. Upstream
- * (checked at master, unchanged since that commit) writes `this.stitchesByName[stitchName] = stitch` with a name from the
- * file, so a stitch called `__proto__` writes to the prototype, and one called `toString` or `constructor` is read back as
- * an inherited member — a skipped stitch, or a function used as a name. A null prototype makes every imported name an
- * ordinary key. Nothing else is changed. The two directives above exempt this one vendored file from the repo's ESLint and
- * strict type-check: it predates noUncheckedIndexedAccess and uses var/any. The typed, checked surface is inklewriter.ts,
- * which calls convert() and never lets its throws escape. Issue #286; docs/architecture/dialogue-narrative.md.
+ * The body below is upstream's, kept as written so it can be diffed against the source, with two deviations, both about names
+ * that came out of the imported JSON. Upstream (checked at master, unchanged since that commit) writes
+ * `this.stitchesByName[stitchName] = stitch` with a name from the file, so a stitch called `__proto__` writes to the prototype,
+ * and one called `toString` or `constructor` is read back as an inherited member — a skipped stitch, or a function used as a
+ * name. So (1) `stitchesByName` is a `Map`, which keeps every imported name an ordinary key and is the form CodeQL's
+ * `js/remote-property-injection` accepts, and (2) the six other dictionaries keyed by imported names are `Object.create(null)`
+ * rather than `{}`, for the same reason. Nothing else is changed. The two directives above exempt this one vendored file from
+ * the repo's ESLint and strict type-check: it predates noUncheckedIndexedAccess and uses var/any. The typed, checked surface is
+ * inklewriter.ts, which calls convert() and never lets its throws escape. Issue #286; docs/architecture/dialogue-narrative.md.
  */
 
 
@@ -256,13 +257,13 @@ class Stitch {
 
     eachLinkedStitch(func : (s : Stitch) => void) {
         if( this.divert !== null ) {
-            let divertTarget = this.owner.stitchesByName[this.divert];
+            let divertTarget = this.owner.stitchesByName.get(this.divert);
             func(divertTarget);
         }
 
         for(let c of this.choices) {
             if( c.linkPath === null ) continue;
-            var choiceTarget = this.owner.stitchesByName[c.linkPath];
+            var choiceTarget = this.owner.stitchesByName.get(c.linkPath);
             func(choiceTarget);
         }
     }
@@ -273,7 +274,7 @@ class Stitch {
 
     get divertTarget() : Stitch | null {
         if( this.divert )
-            return this.owner.stitchesByName[this.divert];
+            return this.owner.stitchesByName.get(this.divert);
         else
             return null;
     }
@@ -306,7 +307,7 @@ class Story {
 
     initialStitchName : string
 
-    stitchesByName : { [name: string]: Stitch }
+    stitchesByName : Map<string, Stitch>
     orderedStitches : Stitch[];
 
     constructor(json : InklewriterJSON) {
@@ -318,14 +319,14 @@ class Story {
 
         this.initialStitchName = data.initial;
 
-        this.stitchesByName = Object.create(null);
+        this.stitchesByName = new Map();
         this.orderedStitches = [];
         
         for(let stitchName in data.stitches) {
             let stitchData = data.stitches[stitchName];
             let stitch = new Stitch(stitchName, stitchData, this);
 
-            this.stitchesByName[stitchName] = stitch;
+            this.stitchesByName.set(stitchName, stitch);
             this.orderedStitches.push(stitch);
         }
 
@@ -333,7 +334,7 @@ class Story {
     }
 
     get firstStitch() : Stitch {
-        return this.stitchesByName[this.initialStitchName];
+        return this.stitchesByName.get(this.initialStitchName);
     }
 
     // We use the section labelling in inklewriter to construct
@@ -428,7 +429,7 @@ class Story {
 
             for(let choice of stitch.choices) {
                 if( choice.linkPath === null ) continue;
-                let choiceTarget = this.stitchesByName[choice.linkPath];
+                let choiceTarget = this.stitchesByName.get(choice.linkPath);
                 if( choiceTarget )
                     choiceTarget.choiceBackLinks.push(stitch);
             }
@@ -699,7 +700,7 @@ export function convert(sourceJSON : InklewriterJSON, terminateAllLooseEnds : bo
         // Resolve so it's either a simple name or a dot.separated name depending on whether
         // we need to jump between ink knots (inklewriter sections).
         function resolveDivertTargetStr(stitchName : string, relativeStitch : Stitch) : string {
-            let targetStitch = story.stitchesByName[stitchName];
+            let targetStitch = story.stitchesByName.get(stitchName);
             let targetName = inklewriterStitchToInkNames[targetStitch.name];
             if( !targetStitch.isHeader && targetStitch.header !== relativeStitch.header ) {
                 let targetHeaderName = inklewriterStitchToInkNames[targetStitch.header!.name];
