@@ -1,6 +1,6 @@
 import { ApplyRefusal, err, executeAsync, ok, type BusContext, type CommandError, type CommandRegistry, type Result } from '@caotang/bus';
 import { newId } from '@caotang/ids';
-import { createMcpTransport, mcpInvokeRegistration, validateArguments, type ExternalToolDescriptor, type McpClient, type UntrustedCallResult } from '@caotang/mcp-client';
+import { createMcpTransport, mcpInvokeRegistration, prepareInvoke, type ExternalToolDescriptor, type McpClient, type UntrustedCallResult } from '@caotang/mcp-client';
 import type { ProjectState } from '@caotang/store';
 
 export type McpReadHook = {
@@ -27,7 +27,7 @@ export function validateMcpReadHook(
 ): Result<ExternalToolDescriptor, CommandError> {
   const server = client?.serverFor(hook.serverKey);
   const health = client?.healthOf(hook.serverKey);
-  if (server?.enabled !== true || (health?.state !== 'connected' && health?.state !== 'healthy')) {
+  if (client === undefined || server?.enabled !== true || (health?.state !== 'connected' && health?.state !== 'healthy')) {
     return invalidHook('The MCP hook server is not connected.');
   }
   const tool = client?.describe(hook.serverKey, hook.toolName);
@@ -37,7 +37,11 @@ export function validateMcpReadHook(
   if (!server.trustReads || tool.effectiveRisk !== 'read-auto') {
     return invalidHook('The MCP hook tool is not a trusted, reviewed read.');
   }
-  if (!validateArguments(tool.inputSchema, {}).ok) return invalidHook('The MCP hook tool does not accept empty arguments.');
+  const invocation = prepareInvoke(
+    { client, loaded: { isLoaded: (name) => name === tool.qualifiedName } },
+    { serverKey: hook.serverKey, toolName: hook.toolName, args: {}, expectedPins: [hook.pin] },
+  );
+  if (!invocation.ok) return invalidHook('The MCP hook tool does not accept empty arguments.');
   return ok(tool);
 }
 

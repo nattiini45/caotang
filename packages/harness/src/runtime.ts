@@ -1581,7 +1581,7 @@ export function createHarness(options: HarnessOptions): Harness {
       const port = asyncPort && entry.kind === 'port' ? asyncPorts[entry.port] : undefined;
       boundary?.beforeApply?.();
       const ran = port !== undefined && entry.kind === 'port'
-        ? await runAsyncPort(call, turn, entry, params, port)
+        ? await runAsyncPort(call, given, entry, params, port)
         : runPreparedSync(call, turn, prep);
       const outcome = hooksAfter({ ...call, params: asyncPort ? params : call.params as CallParams }, turn.turnId, withNotes(ran.outcome, notes));
       const saved = boundary?.afterApply(outcome);
