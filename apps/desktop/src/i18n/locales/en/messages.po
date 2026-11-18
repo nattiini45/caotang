@@ -861,6 +861,11 @@ msgstr "{count, plural, one {The second read differs on # word: } other {The sec
 msgid "{count} {leftOut, plural, one {picture is} other {pictures are}} left out, as you chose; the words beside each one are kept."
 msgstr "{count} {leftOut, plural, one {picture is} other {pictures are}} left out, as you chose; the words beside each one are kept."
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "{count} {merged, plural, one {cue} other {cues}} joined an earlier line, because one speaker continued."
+msgstr "{count} {merged, plural, one {cue} other {cues}} joined an earlier line, because one speaker continued."
+
 #. Interpolated values: count, n
 #: apps/desktop/src/app/counts.ts
 msgid "{count} {n, plural, one {word} other {words}}"
@@ -885,6 +890,11 @@ msgstr "{count} {perDay, plural, one {character} other {characters}}"
 #: apps/desktop/src/app/footer-model.ts
 msgid "{count} {perDay, plural, one {word} other {words}}"
 msgstr "{count} {perDay, plural, one {word} other {words}}"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "{count} {untimed, plural, one {line} other {lines}} carry no duration, because their cues start and end at the same time. The show's speech rate estimates them when you open the episode, so the runtime above is the timed part only."
+msgstr "{count} {untimed, plural, one {line} other {lines}} carry no duration, because their cues start and end at the same time. The show's speech rate estimates them when you open the episode, so the runtime above is the timed part only."
 
 #. Interpolated values: count, target, words
 #: apps/desktop/src/app/session-progress.ts
@@ -973,6 +983,11 @@ msgstr "{coveredTurns, plural, one {# earlier turn summarised} other {# earlier 
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "{created, plural, one {Imported # picture.} other {Imported # pictures.}}"
 msgstr "{created, plural, one {Imported # picture.} other {Imported # pictures.}}"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "{cues} {cues, plural, one {cue} other {cues}} become {lines} {lines, plural, one {speech line} other {speech lines}} in {segments} {segments, plural, one {segment} other {segments}}. Every duration comes from the file's own timings."
+msgstr "{cues} {cues, plural, one {cue} other {cues}} become {lines} {lines, plural, one {speech line} other {speech lines}} in {segments} {segments, plural, one {segment} other {segments}}. Every duration comes from the file's own timings."
 
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
@@ -1184,6 +1199,11 @@ msgstr "{field}: {message}"
 msgid "{field}: {to}"
 msgstr "{field}: {to}"
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "{file} becomes one AV script episode. Read what the import changes first; rename the show and the episode here if you like."
+msgstr "{file} becomes one AV script episode. Read what the import changes first; rename the show and the episode here if you like."
+
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "{file} could not be read as a Highland script."
@@ -1206,6 +1226,16 @@ msgstr "{file} could not be read: {problem}."
 msgid "{file} has {tokens} tokens; the first {sent} were sent."
 msgstr "{file} has {tokens} tokens; the first {sent} were sent."
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "{file} has more cues than one import reads. Split the recording and import it in parts."
+msgstr "{file} has more cues than one import reads. Split the recording and import it in parts."
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "{file} has more lines than a captions import reads: at most {limit}."
+msgstr "{file} has more lines than a captions import reads: at most {limit}."
+
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/text-source.ts
 msgid "{file} has more lines than a plain-text import splits: at most {limit}."
@@ -1220,6 +1250,16 @@ msgstr "{file} has no knot to import. An Ink story makes one container for each 
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "{file} has no passage to import. A Twee story makes one knot for each passage."
 msgstr "{file} has no passage to import. A Twee story makes one knot for each passage."
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "{file} holds no timed cue, so there is nothing to import. A captions file needs lines like \"00:00:01,000 --> 00:00:04,000\"."
+msgstr "{file} holds no timed cue, so there is nothing to import. A captions file needs lines like \"00:00:01,000 --> 00:00:04,000\"."
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "{file} is too large to import as captions: the import reads files up to {limit} MB."
+msgstr "{file} is too large to import as captions: the import reads files up to {limit} MB."
 
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #: apps/desktop/src/import-preview/highland-source.ts
@@ -1841,8 +1881,10 @@ msgid "{scenes} {sceneCount, plural, one {scene} other {scenes}} in {sections} {
 msgstr "{scenes} {sceneCount, plural, one {scene} other {scenes}} in {sections} {sectionCount, plural, one {section} other {sections}}, {words} {wordCount, plural, one {word} other {words}}"
 
 #. Elapsed seconds, with one decimal place; s is the unit abbreviation.
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
 #: apps/desktop/src/app/agent-model.ts
+#: apps/desktop/src/import-preview/captions-source.ts
 #: apps/desktop/src/media/PromptPackPanel.tsx
 msgid "{seconds} s"
 msgstr "{seconds} s"
@@ -1851,6 +1893,21 @@ msgstr "{seconds} s"
 #: apps/desktop/src/media/board-model.ts
 msgid "{seconds} s of animatic"
 msgstr "{seconds} s of animatic"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "{seconds} s of silence at the segment breaks is outside the episode's runtime."
+msgstr "{seconds} s of silence at the segment breaks is outside the episode's runtime."
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "{seconds} s of silence between lines is left out, so the episode is shorter than the recording."
+msgstr "{seconds} s of silence between lines is left out, so the episode is shorter than the recording."
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "{seconds} s of silence is added to the line before it, so those lines are longer than they were spoken. Choose \"Leave it out\" to keep each line exact."
+msgstr "{seconds} s of silence is added to the line before it, so those lines are longer than they were spoken. Choose \"Leave it out\" to keep each line exact."
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -2854,6 +2911,11 @@ msgstr "A panel of “{title}”"
 msgid "A part declared here covers the scenes inside, unless a scene declares its own. A long jump into the epilogue or out of the prologue is never reported as a gap."
 msgstr "A part declared here covers the scenes inside, unless a scene declares its own. A long jump into the epilogue or out of the prologue is never reported as a gap."
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "a period before the milliseconds, which WebVTT writes and SRT does not; read all the same. First: {sample}"
+msgstr "a period before the milliseconds, which WebVTT writes and SRT does not; read all the same. First: {sample}"
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "A picture could not be read."
@@ -3006,6 +3068,11 @@ msgstr "A script line on page {page}, panel {panel} points at a balloon that is 
 msgid "a seed is a whole number from {first} to {last}"
 msgstr "a seed is a whole number from {first} to {last}"
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "a segment of the episode"
+msgstr "a segment of the episode"
+
 #: apps/desktop/src/components/GoalComposer.tsx
 msgid "A selected check is off in Settings. Deselect it here, or enable it there."
 msgstr "A selected check is off in Settings. Deselect it here, or enable it there."
@@ -3024,6 +3091,11 @@ msgstr "A shot lost its picture because the file is not in the project. The stor
 #: apps/desktop/src/media/storyboard-model.ts
 msgid "A shot moves to a position from 1 to {count} in its storyboard"
 msgstr "A shot moves to a position from 1 to {count} in its storyboard"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "A show holds the speech rate and the cue words its episodes share."
+msgstr "A show holds the speech rate and the cue words its episodes share."
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -3429,6 +3501,11 @@ msgstr "Add goal"
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Add hook"
 msgstr "Add hook"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "Add it to the line before"
+msgstr "Add it to the line before"
 
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #: apps/desktop/src/components/Inspector.tsx
@@ -5057,7 +5134,9 @@ msgstr "Caotang cannot read the text of “{title}”, so it opens empty. Its fi
 msgid "Caotang cannot tell what encoding it is."
 msgstr "Caotang cannot tell what encoding it is."
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/captions-source.ts
 #: apps/desktop/src/import-preview/text-source.ts
 msgid "Caotang cannot tell which encoding {file} is in, so it cannot import it."
 msgstr "Caotang cannot tell which encoding {file} is in, so it cannot import it."
@@ -5138,6 +5217,11 @@ msgstr "CAOTANG.md, your standing instructions, and the notes the agent keeps"
 msgid "Caption"
 msgstr "Caption"
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "caption styling (bold, italic, colour) left out: a script line holds words, not styling. First: {sample}"
+msgstr "caption styling (bold, italic, colour) left out: a script line holds words, not styling. First: {sample}"
+
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "Caption when there is no image"
@@ -5147,6 +5231,11 @@ msgstr "Caption when there is no image"
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Captions (.vtt)"
 msgstr "Captions (.vtt)"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Captions file"
+msgstr "Captions file"
 
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #: apps/desktop/src/components/CardPictureDialog.tsx
@@ -6616,15 +6705,55 @@ msgctxt "keyboard key"
 msgid "Ctrl"
 msgstr "Ctrl"
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "cue identifiers left out; the script mints its own line ids on save. First: {sample}"
+msgstr "cue identifiers left out; the script mints its own line ids on save. First: {sample}"
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "Cue matches no codex entry"
 msgstr "Cue matches no codex entry"
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "cue positions and alignments left out: a script has no screen position. First: {sample}"
+msgstr "cue positions and alignments left out: a script has no screen position. First: {sample}"
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "Cue spelled two ways"
 msgstr "Cue spelled two ways"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "cues naming two speakers, kept as one line under the first. First: {sample}"
+msgstr "cues naming two speakers, kept as one line under the first. First: {sample}"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "cues that end when they start or earlier, so their line has no duration of its own. First: {sample}"
+msgstr "cues that end when they start or earlier, so their line has no duration of its own. First: {sample}"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "cues that overlap the cue before them, both kept, so the lines may add up to more than the recording. First: {sample}"
+msgstr "cues that overlap the cue before them, both kept, so the lines may add up to more than the recording. First: {sample}"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "cues that start before the cue before them, kept in the file's order. First: {sample}"
+msgstr "cues that start before the cue before them, kept in the file's order. First: {sample}"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "cues with a timing that cannot be read (minutes and seconds must be under 60) left out. First: {sample}"
+msgstr "cues with a timing that cannot be read (minutes and seconds must be under 60) left out. First: {sample}"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "cues with no words left out. First: {sample}"
+msgstr "cues with no words left out. First: {sample}"
 
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
 #: apps/desktop/src/components/AgentSessions.tsx
@@ -7859,8 +7988,11 @@ msgstr "Enable at least one coherence check in Settings before setting a clean-s
 msgid "Enabled"
 msgstr "Enabled"
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/captions-source.ts
 #: apps/desktop/src/import-preview/text-source.ts
 msgid "Encoding"
 msgstr "Encoding"
@@ -9316,6 +9448,16 @@ msgstr "Import a zip…"
 msgid "Import bundle (.caotang)"
 msgstr "Import bundle (.caotang)"
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "Import captions?"
+msgstr "Import captions?"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import captions…"
+msgstr "Import captions…"
+
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.codexImport.none.content"
@@ -9360,6 +9502,11 @@ msgstr "Import RTFD…"
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Import script"
 msgstr "Import script"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "Import the episode"
+msgstr "Import the episode"
 
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -10218,7 +10365,9 @@ msgstr "Leave focus mode"
 msgid "Leave it as it is — the file is not changed."
 msgstr "Leave it as it is — the file is not changed."
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/captions-source.ts
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Leave it out"
 msgstr "Leave it out"
@@ -10399,6 +10548,16 @@ msgstr "linear"
 #: apps/desktop/src/app/findings-model.ts
 msgid "Linear (the default)"
 msgstr "Linear (the default)"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "lines ending with a bracket of numbers, which stays part of the words rather than a timing. First: {sample}"
+msgstr "lines ending with a bracket of numbers, which stays part of the words rather than a timing. First: {sample}"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "lines with no duration of their own, which the script estimates from the show's speech rate. First: {sample}"
+msgstr "lines with no duration of their own, which the script estimates from the show's speech rate. First: {sample}"
 
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #: apps/desktop/src/components/InspectorPictures.tsx
@@ -10876,6 +11035,11 @@ msgstr "Mentioned codex entries"
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Mentioned in this document"
 msgstr "Mentioned in this document"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "Merge consecutive cues of one speaker"
+msgstr "Merge consecutive cues of one speaker"
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
@@ -11365,6 +11529,11 @@ msgstr "Never send"
 msgid "Never sent. Use it for private notes and spoilers."
 msgstr "Never sent. Use it for private notes and spoilers."
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "Never: one segment"
+msgstr "Never: one segment"
+
 #. Modern interface, the + New menu in the top ornament.
 #. Modern interface, the + New menu in the top ornament.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
@@ -11492,6 +11661,11 @@ msgstr "New research note"
 #: apps/desktop/src/media/create-menu.ts
 msgid "New screenplay scene here"
 msgstr "New screenplay scene here"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "New segment at a gap of"
+msgstr "New segment at a gap of"
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
@@ -14155,6 +14329,11 @@ msgstr "Publishing the review…"
 msgid "Put ‘{title}’ before ‘{other}’ in the binder to match the days"
 msgstr "Put ‘{title}’ before ‘{other}’ in the binder to match the days"
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "Put the episode in a show folder"
+msgstr "Put the episode in a show folder"
+
 #. Interpolated values: count, stamp, titles
 #: apps/desktop/src/components/UnsentWords.tsx
 msgid "Put them back as new documents"
@@ -14427,7 +14606,9 @@ msgstr "Reading “{doc}”"
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/captions-source.ts
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
@@ -14751,6 +14932,11 @@ msgstr "Refused"
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Refused entries"
 msgstr "Refused entries"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "REGION blocks left out; they place captions on a screen."
+msgstr "REGION blocks left out; they place captions on a screen."
 
 #. Interpolated values: subject
 #: apps/desktop/src/components/InkGate.tsx
@@ -17111,6 +17297,11 @@ msgstr "Sign-in: bearer token."
 msgid "Sign-in: none needed."
 msgstr "Sign-in: none needed."
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "Silence between lines"
+msgstr "Silence between lines"
+
 #. Words on the story timeline's axis and in a scene's accessible name. Interpolated values: days, count, n, text, span, anchor, lower, rest, dayLabel, endLabel, durationDays, openFindings, title, part, name, names, folder.
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "simultaneous"
@@ -17320,6 +17511,16 @@ msgstr "Source: {source}"
 msgid "Speaker matches two entries"
 msgstr "Speaker matches two entries"
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "speaker names shortened to what a script label can hold. First: {sample}"
+msgstr "speaker names shortened to what a script label can hold. First: {sample}"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "speaker names that are also cue words (music, sfx, ambience, ad, pause, sting), given an underscore to stay speech. First: {sample}"
+msgstr "speaker names that are also cue words (music, sfx, ambience, ad, pause, sting), given an underscore to stay speech. First: {sample}"
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "Speaker spelled differently"
@@ -17354,6 +17555,11 @@ msgstr "Sprint length in minutes"
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "Sprint timer"
 msgstr "Sprint timer"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "SRT cue coordinates left out: a script has no screen position. First: {sample}"
+msgstr "SRT cue coordinates left out: a script has no screen position. First: {sample}"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -17720,6 +17926,11 @@ msgstr "Storyboard view"
 msgid "Storyboard: {title}"
 msgstr "Storyboard: {title}"
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "stretches of text belonging to no cue, left out. First: {sample}"
+msgstr "stretches of text belonging to no cue, left out. First: {sample}"
+
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "Strict tool schemas"
@@ -17758,6 +17969,11 @@ msgstr "style “{name}”"
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Style “{name}” ({count})"
 msgstr "Style “{name}” ({count})"
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "STYLE blocks left out; they style captions on a screen."
+msgstr "STYLE blocks left out; they style captions on a screen."
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -18839,6 +19055,11 @@ msgstr "The entry uses Manual policy and is not attached to the focus."
 msgid "The entry's include policy is Never."
 msgstr "The entry's include policy is Never."
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "The episode runs {seconds} s as imported."
+msgstr "The episode runs {seconds} s as imported."
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "The export could not be made: {reason}"
@@ -18859,8 +19080,11 @@ msgstr "The feed's address — where the site serves it. A compile refuses witho
 msgid "The fields {vendor} receives"
 msgstr "The fields {vendor} receives"
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/captions-source.ts
 #: apps/desktop/src/import-preview/text-source.ts
 msgid "The file cannot be read as {encoding}. Choose another encoding."
 msgstr "The file cannot be read as {encoding}. Choose another encoding."
@@ -18874,6 +19098,12 @@ msgstr "The file could not be read as a Highland script."
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 msgid "The file could not be read as an Inklewriter story."
 msgstr "The file could not be read as an Inklewriter story."
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "The file could not be read as captions."
+msgstr "The file could not be read as captions."
 
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/text-source.ts
@@ -18910,7 +19140,9 @@ msgstr "The file has a field Caotang keeps but does not use: {fields}. It is dro
 msgid "The file is empty."
 msgstr "The file is empty."
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/captions-source.ts
 #: apps/desktop/src/import-preview/text-source.ts
 msgid "The file is read as {encoding}, a guess. If letters look wrong in the text, choose another encoding."
 msgstr "The file is read as {encoding}, a guess. If letters look wrong in the text, choose another encoding."
@@ -19728,6 +19960,11 @@ msgstr "The reader kept these as written"
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "The reading direction is the book’s own setting, so a recipe does not change it."
 msgstr "The reading direction is the book’s own setting, so a recipe does not change it."
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "The recording's first {seconds} s before the first cue are not kept: a script line holds a duration, not a start time."
+msgstr "The recording's first {seconds} s before the first cue are not kept: a script line holds a duration, not a start time."
 
 #. Interpolated values: count, path, reason
 #: apps/desktop/src/app/lifecycle.ts
@@ -21473,6 +21710,11 @@ msgstr "Timeline table (.xlsx)"
 msgid "Timeline, {axis}, {group}"
 msgstr "Timeline, {axis}, {group}"
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "timestamps inside the words (karaoke timing) left out; the cue's own start and end are kept. First: {sample}"
+msgstr "timestamps inside the words (karaoke timing) left out; the cue's own start and end are kept. First: {sample}"
+
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
 msgid "Title"
@@ -22481,6 +22723,11 @@ msgstr "What should Caotang do with it?"
 #: apps/desktop/src/components/ContextSection.tsx
 msgid "What the agent may send the model in one request, in tokens. An empty field keeps the default of the profile and the spec. A change applies from the agent’s next request."
 msgstr "What the agent may send the model in one request, in tokens. An empty field keeps the default of the profile and the spec. A change applies from the agent’s next request."
+
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "What the import does"
+msgstr "What the import does"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.

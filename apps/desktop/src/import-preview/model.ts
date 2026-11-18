@@ -48,8 +48,8 @@ export interface PreviewNode {
   readonly notes?: string;
   readonly synopsis?: string;
   readonly keywords?: readonly string[];
-  /** A document's kind: a screenplay, an AV script or a comic script. Absent: a prose document. A folder takes no kind. */
-  readonly kind?: 'screenplay' | 'av-script' | 'comic-script';
+  /** The node's kind: a document is a screenplay, an AV script or a comic script; a folder is a show or a storyboard. Absent: prose, or a plain folder. */
+  readonly kind?: 'screenplay' | 'av-script' | 'comic-script' | 'show' | 'storyboard';
   /** Front and back matter only: where it goes. `skip` keeps it out (and the report says so). */
   readonly place?: 'manuscript' | 'research' | 'skip';
   /** The source's own fields (front-matter keys, CSV columns), mapped by the writer in the Fields section. */
@@ -673,7 +673,7 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
       return;
     }
     if (isFolder) {
-      nodes.push({ type: 'folder', title: node.title, ...(parent === undefined ? {} : { parent }), ...(place === undefined ? {} : { place }), ...metaOf(node) });
+      nodes.push({ type: 'folder', title: node.title, ...(node.kind === undefined ? {} : { kind: node.kind }), ...(parent === undefined ? {} : { parent }), ...(place === undefined ? {} : { place }), ...metaOf(node) });
       folders += 1;
       const at = nodes.length - 1;
       indexOf.set(node.id, at);

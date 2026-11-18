@@ -38,6 +38,8 @@ proposed tree?* A source gives:
 | `scanExtra()` | Text the reader kept out of the tree (RTF hidden text, deleted revisions, field codes, link targets) that the injection scan reads too; its hits are listed by what they are, with no node. |
 | `report(plan)`, `importLabel(plan)`, `commit`, `readOnly` | For a source whose import is not a binder tree (the Twee import: one dialogue container, written with `dialogue.importInk`). |
 
+The sources built on this contract: the splitter source (`splitter-source.ts`) with the plain-text and RTF/RTFD readers on it (#283, #274, #390), the Twee source (`twee-source.ts`, a custom commit), and the captions source (`captions-source.ts`, #287), which proposes **one AV script episode in a show folder** instead of chapters and scenes and carries the node kinds `binder.create` takes ([import-captions.md](import-captions.md) §5).
+
 ## 3. Rules first, manual edits second
 
 A chip change re-runs `plan`. The manual edits are kept apart from the rules, so the re-run can keep them: splits by block index

@@ -84,6 +84,7 @@ packages/machine/       pure lifecycle steps and typed transition tables; exhaus
 packages/import-read/   the readers every import shares: a namespace-aware XML reader (no DOMParser) and a zip/folder reader over fflate's unzipSync with caps; main thread, Worker and Node; and the plain-text reader (any common encoding, to import blocks)
 packages/i18n/          interface locale, formatter locale, cached Intl formatters, collation, bidi isolation, MessageRef (no React, no Lingui)
 packages/import-core/   the import block model and the pure chapter and scene splitter every document reader shares (no DOM, no dependencies)
+packages/import-captions/ the SRT and WebVTT reader: timed text → cues → one AV script episode with declared durations and its losses (no DOM, no third-party dependencies)
 packages/mcp-client/     MCP client (Streamable HTTP)
 packages/mcp-server/     Caotang as an MCP server (@caotang/mcp-server)
 packages/pdf-fonts/      what both PDFs share for their fallback fonts (byte checks, fontkit, CID writer, emoji)

@@ -11,6 +11,7 @@
  */
 
 import type { ParagraphMode, PlainTextRead } from '@caotang/import-read/text';
+import type { CaptionsResult } from '@caotang/import-captions';
 import type { InklewriterResult } from '@caotang/import-inklewriter';
 import type { HighlandResult } from '@caotang/import-highland';
 import type { RtfImport } from '@caotang/import-rtf';
@@ -19,6 +20,7 @@ import type { DecodableEncoding } from '@caotang/store/encoding';
 /** Opens a reader with its input. The bytes (or folder files) are transferred to the Worker and cached there. */
 export type ReaderOpen =
   | { readonly kind: 'open'; readonly reader: 'text'; readonly bytes: Uint8Array }
+  | { readonly kind: 'open'; readonly reader: 'captions'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'rtf'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'rtfd'; readonly files: readonly { readonly path: string; readonly size: number; readonly bytes: Uint8Array }[] }
   | { readonly kind: 'open'; readonly reader: 'rtfd-zip'; readonly bytes: Uint8Array }
@@ -28,6 +30,7 @@ export type ReaderOpen =
 /** Reads the cached input again with these options. A text read decodes and builds blocks; an RTF read parses. */
 export type ReaderRead =
   | { readonly kind: 'read'; readonly reader: 'text'; readonly encoding?: DecodableEncoding; readonly paragraphs?: ParagraphMode | 'auto'; readonly fileName?: string }
+  | { readonly kind: 'read'; readonly reader: 'captions'; readonly encoding?: DecodableEncoding }
   | { readonly kind: 'read'; readonly reader: 'rtf' | 'rtfd'; readonly underlineAs?: 'italic' | 'none'; readonly assetPrefix?: string }
   | { readonly kind: 'read'; readonly reader: 'inklewriter'; readonly fileName?: string }
   | { readonly kind: 'read'; readonly reader: 'highland'; readonly fileName?: string };
@@ -40,9 +43,19 @@ export type SerializableRtfResult =
 export type ReaderResult =
   | { readonly kind: 'opened' }
   | { readonly kind: 'text'; readonly result: PlainTextRead }
+  | { readonly kind: 'captions'; readonly result: CaptionsReadResult }
   | { readonly kind: 'rtf'; readonly result: SerializableRtfResult }
   | { readonly kind: 'inklewriter'; readonly result: InklewriterResult }
   | { readonly kind: 'highland'; readonly result: HighlandResult };
+
+/**
+ * A captions read: the decode's own answer and the parse of its text, or the decode's refusal unchanged (the encoding ask, the size
+ * and line caps). The cues are plain data, so they survive the clone; the episode body is built on the main thread from them, where
+ * the writer's three choices re-run without reading the file again (import-captions.md §4).
+ */
+export type CaptionsReadResult =
+  | { readonly status: 'read'; readonly encoding: DecodableEncoding; readonly guessed: boolean; readonly candidates: Extract<PlainTextRead, { status: 'read' }>['candidates']; readonly parse: CaptionsResult }
+  | { readonly status: 'undecoded'; readonly decode: Exclude<PlainTextRead, { status: 'read' }> };
 
 /** The envelope the Worker posts back: the request's id, and its result or a failure message. */
 export interface ReaderReply {
