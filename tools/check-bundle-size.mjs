@@ -124,7 +124,12 @@ export const BUDGET = {
   // that plus about 1%, rounded up to the thousand. [owner 2026-11-15]
   // H5i measured 1,084,703 bytes gzip with the goal form and watch remaining on use; the new English catalogue must precede first paint.
   // The ceiling is the measurement plus about 1%, rounded up to the thousand. [owner 2026-11-17]
-  initialGzip: 1_096_000,
+  // The HTML import (#299) on main at 5b605e6a: 1,096,076 bytes gzip measured against main's own 1,095,467, so +609, which put it 76
+  // bytes over the old ceiling. Named: the compiled English catalogue's HTML messages (+1,373 raw), which must precede first paint
+  // (i18n.md §3.3), and the entry's lazy loader for the command (+777 raw). The XHTML walker, the reader, its preview source and the
+  // Worker stay on use; all JS is 8,685,826 against the 8,745,000 ceiling, which does not move. The ceiling is the measurement plus about
+  // 1%, rounded up to the thousand. [delegated 2026-11-18]
+  initialGzip: 1_108_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
