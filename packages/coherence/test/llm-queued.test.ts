@@ -883,3 +883,100 @@ describe('a recovered checkpoint must prove every pair it claims verified', () =
     expect(await reviewCheckpointEvidenceOk(plan, bodies, forged)).toBe(false);
   });
 });
+
+describe('a checkpoint keeps evidence only for the documents it evaluated', () => {
+  /** The invariant a stored checkpoint carries: every span, and every verdict's two spans, belongs to a document it evaluated. */
+  function expectNoUnevaluatedEvidence(checkpoint: ReviewCheckpoint): void {
+    const evaluated = new Set(checkpoint.evaluated);
+    for (const span of checkpoint.spans) expect(evaluated.has(span.docId)).toBe(true);
+    const pairs = new Map([...pairSequence(checkpoint.spans)].map((pair) => [pair.pairId, pair] as const));
+    for (const verdict of checkpoint.verdicts) {
+      const pair = pairs.get(verdict.pairId);
+      expect(pair, `verdict ${verdict.pairId} names a pair its spans form`).toBeDefined();
+      for (const span of [pair?.a, pair?.b]) if (span !== undefined) expect(evaluated.has(span.docId)).toBe(true);
+    }
+  }
+
+  const spanOf = (docId: string, body: string, quote: string) => {
+    const from = body.indexOf(quote);
+    return { docId, from, to: from + quote.length, quote, category: 'characterization' as const, note: '' };
+  };
+
+  it('a checkpoint with a span for a document it never evaluated drops that span and extracts the document again', async () => {
+    const state = twoDocs();
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const bodies = new Map([['sA', 'Elena is thirty-four.'], ['sB', 'Elena is forty-one.']]);
+    const checkpoint: ReviewCheckpoint = {
+      extractedDocIds: ['sA'],
+      spans: [spanOf('sA', bodies.get('sA')!, 'is thirty-four.')],
+      verifiedBatches: 0,
+      verdicts: [],
+      usageByPair: {},
+      promptTokens: 100,
+      completionTokens: 20,
+      notes: [],
+      status: 'partial',
+      evaluated: [],
+    };
+    expect(await reviewCheckpointEvidenceOk(plan, bodies, checkpoint)).toBe(true);
+
+    const checkpoints: ReviewCheckpoint[] = [];
+    const resumed = reviewing();
+    const again = await computeReview(state, emptyCoherenceFile(), plan, {
+      model: resumed,
+      approved: true,
+      resumeFrom: checkpoint,
+      onCheckpoint: (next) => { checkpoints.push(structuredClone(next)); },
+    });
+    const extractions = resumed.calls.filter((call) => call.system.includes('continuity extractor'));
+    expect(extractions.map((call) => docIdOf(call.user))).toEqual(['sA', 'sB']);
+    expect(again.status).toBe('complete');
+    expect(again.notes.some((note) => note.includes('never evaluated'))).toBe(true);
+    expect(again.drafts).toHaveLength(1);
+    expect(again.drafts[0]?.evidence.map((passage) => passage.quote)).toEqual(['Elena is thirty-four.', 'Elena is forty-one.']);
+    expect(again.promptTokens).toBeGreaterThan(checkpoint.promptTokens);
+    for (const next of checkpoints) expectNoUnevaluatedEvidence(next);
+  });
+
+  it('a mixed checkpoint keeps the evaluated document and drops the unevaluated one, with its verdict and progress', async () => {
+    const state = twoDocs();
+    const plan = planReview(state, emptyCoherenceFile(), { scope: { mode: 'full' } });
+    const bodies = new Map([['sA', 'Elena is thirty-four.'], ['sB', 'Elena is forty-one.']]);
+    const kept = spanOf('sA', bodies.get('sA')!, 'Elena is thirty-four.');
+    const stale = spanOf('sB', bodies.get('sB')!, 'is forty-one.');
+    const stalePair = [...pairSequence([kept, stale])][0]!;
+    const checkpoint: ReviewCheckpoint = {
+      extractedDocIds: ['sA', 'sB'],
+      spans: [kept, stale],
+      verifiedBatches: 1,
+      verifiedPairs: [pairKey(stalePair)],
+      verdicts: [{ pairId: stalePair.pairId, verdict: 'contradictory', reasoning: 'the earlier pass judged these contradictory', entity: 'Elena', attribute: 'age' }],
+      usageByPair: { [stalePair.pairId]: { promptTokens: 100, completionTokens: 20 } },
+      promptTokens: 300,
+      completionTokens: 60,
+      notes: [],
+      status: 'complete',
+      evaluated: ['sA'],
+    };
+    expect(await reviewCheckpointEvidenceOk(plan, bodies, checkpoint)).toBe(true);
+
+    const checkpoints: ReviewCheckpoint[] = [];
+    const resumed = reviewing();
+    const again = await computeReview(state, emptyCoherenceFile(), plan, {
+      model: resumed,
+      approved: true,
+      resumeFrom: checkpoint,
+      onCheckpoint: (next) => { checkpoints.push(structuredClone(next)); },
+    });
+    const extractions = resumed.calls.filter((call) => call.system.includes('continuity extractor'));
+    expect(extractions.map((call) => docIdOf(call.user))).toEqual(['sB']);
+    expect(checkpoints[0]?.spans.map((span) => span.quote)).toEqual(['Elena is thirty-four.', 'Elena is forty-one.']);
+    expect(checkpoints[0]?.verifiedBatches).toBe(0);
+    expect(resumed.calls[1]?.user.match(/\[pair p\d+\]/g)).toEqual(['[pair p1]']);
+    expect(again.status).toBe('complete');
+    expect(again.drafts).toHaveLength(1);
+    expect(again.drafts[0]?.reasoning).toBe('Elena is thirty-four in one and forty-one in the other.');
+    expect(again.drafts[0]?.evidence.map((passage) => passage.quote)).toEqual(['Elena is thirty-four.', 'Elena is forty-one.']);
+    for (const next of checkpoints) expectNoUnevaluatedEvidence(next);
+  });
+});
