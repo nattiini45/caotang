@@ -36,8 +36,12 @@ test('the German storage warning leaves the empty editor heading readable at 390
   await settings.getByRole('button', { name: 'Schreib-Einstellungen speichern', exact: true }).click();
   await expect(page.getByTestId('save-state')).toHaveAttribute('data-state', 'failed');
   await settings.getByRole('button', { name: 'Schließen', exact: true }).click();
-  const top = (await page.getByTestId('modern-top-ornament').boundingBox())!;
-  expect((await banner.boundingBox())!.y).toBeGreaterThanOrEqual(top.y + top.height);
+  await expect(page.getByTestId('modern-notices')).toHaveAttribute('data-state', 'visible');
+  await expect.poll(() => banner.evaluate((element) => {
+    const top = document.querySelector('[data-testid="modern-top-ornament"]')!.getBoundingClientRect();
+    const notice = element.getBoundingClientRect();
+    return notice.top - top.bottom;
+  })).toBeGreaterThanOrEqual(0);
   await page.setViewportSize({ width: 390, height: 500 });
   await expect(heading).toBeInViewport();
   await banner.getByRole('button').last().click();

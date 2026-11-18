@@ -147,7 +147,7 @@
     inset-block-start: calc(var(--page-top) + var(--document-mode-row, 0px) + var(--n-top));
   }
 
-  :root[data-shell='modern'] .modern-stage:has(> .modern-notices[data-state='visible'] .storage-banner):has(> .modern-page-area .editor-pane.is-empty:not([hidden])) {
+  :root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner):has(> .modern-page-area .editor-pane.is-empty:not([hidden])) {
     display: grid;
     grid-template-rows: fit-content(50%) minmax(0, 1fr);
     gap: var(--space-3);
@@ -155,21 +155,21 @@
     padding-inline: var(--safe-side);
   }
 
-  :root[data-shell='modern'] .modern-stage:has(> .modern-notices[data-state='visible'] .storage-banner):has(> .modern-page-area .editor-pane.is-empty:not([hidden])) > :is(.modern-notices, .modern-page-area) {
+  :root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner):has(> .modern-page-area .editor-pane.is-empty:not([hidden])) > :is(.modern-notices, .modern-page-area) {
     position: relative;
     inset: auto;
   }
 
-  :root[data-shell='modern'] .modern-stage:has(> .modern-notices[data-state='visible'] .storage-banner):has(> .modern-page-area .editor-pane.is-empty:not([hidden])) > .modern-notices {
+  :root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner):has(> .modern-page-area .editor-pane.is-empty:not([hidden])) > .modern-notices {
     min-block-size: 0;
     overflow-y: auto;
   }
 
-  :root[data-shell='modern'] .modern-stage:has(> .modern-notices[data-state='visible'] .storage-banner):has(> .modern-page-area .editor-pane.is-empty:not([hidden])) .modern-toast {
+  :root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner):has(> .modern-page-area .editor-pane.is-empty:not([hidden])) .modern-toast {
     flex: none;
   }
 
-  :root[data-shell='modern'] .modern-stage:has(> .modern-notices[data-state='visible'] .storage-banner) .editor-pane.is-empty {
+  :root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner) .editor-pane.is-empty {
     justify-content: safe center;
   }
 
