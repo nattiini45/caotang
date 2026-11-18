@@ -67,6 +67,7 @@ const EXPORT: Record<string, string | Buffer> = {
     '<h1>Chapter Two</h1><p>The letter arrived on a Tuesday.</p>' +
     '<script>alert(1)</script>' +
     '<p><img src="images/cover.png" alt="cover"/><img src="https://example.com/x.png" alt="remote"/></p>' +
+    '<p>The chart was lost. <img src="images/not-carried.png" alt="the chart"/></p>' +
     '</body></html>',
   'images/cover.png': PNG,
 };
@@ -106,4 +107,10 @@ test('a web-page zip opens with its script removed and remote picture listed, an
   const body = await bodyOf(page, scenes[0]?.id ?? '');
   expect(body).toContain('The ferry came at noon.');
   expect(body).not.toContain('alert');
+  // A picture the page names but the zip does not carry keeps its words, and no ref that resolves to nothing is written.
+  const two = tree.find((node) => node.title === 'Chapter Two');
+  const later = tree.filter((node) => node.parentId === two?.id && node.type === 'document');
+  const last = await bodyOf(page, later[later.length - 1]?.id ?? '');
+  expect(last).toContain('The chart was lost. the chart');
+  expect(last).not.toContain('import:html-image-');
 });
