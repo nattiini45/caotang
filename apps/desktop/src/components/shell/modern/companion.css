@@ -90,10 +90,6 @@
     backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
   }
 
-  /* As a sheet over the page it stays in the overlay band, between the ornaments, so it covers neither end of either (#363). */
-  :root[data-shell='modern'] .modern-companion {
-    inset-block: var(--overlay-top) var(--overlay-bottom);
-  }
 }
 
 /* A short window (a tablet with its keyboard up) has no room for the band: the sheet takes the height, over the ornaments as the narrow
@@ -219,6 +215,10 @@
 
 :root[data-shell='modern'] .modern-companion .agent:has(.goal-recovery) .agent-body {
   flex: 1 1 0;
+  min-block-size: 0;
+}
+
+:root[data-shell='modern'] .modern-companion .agent.is-goal-running .agent-body {
   min-block-size: 5.25rem;
 }
 
