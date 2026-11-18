@@ -856,6 +856,11 @@ msgstr ""
 msgid "{count, plural, one {The second read differs on # word: } other {The second read differs on # words: }}"
 msgstr ""
 
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#: apps/desktop/src/import-preview/highland-source.ts
+msgid "{count} {leftOut, plural, one {picture is} other {pictures are}} left out, as you chose; the words beside each one are kept."
+msgstr ""
+
 #. Interpolated values: count, n
 #: apps/desktop/src/app/counts.ts
 msgid "{count} {n, plural, one {word} other {words}}"

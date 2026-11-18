@@ -16,13 +16,28 @@ import { ARCHIVE_LIMITS } from '@caotang/import-read/zip';
 import type { ImportedScript } from '@caotang/screenplay';
 
 import { formatCount } from '../i18n/locale.js';
-import type { ImportPreviewSource, PreviewBlock, PreviewMarker, PreviewNode, PreviewOption, PreviewPicture, PreviewPlan } from './model.js';
+import type { ImportPreviewSource, PreviewBlock, PreviewMarker, PreviewNode, PreviewOption, PreviewPicture, PreviewPlan, PreviewSettings } from './model.js';
 import { ReaderHost } from './reader-host.js';
 
 export const HIGHLAND_OPTIONS = { pictures: 'pictures' } as const;
 
-/** The refs the source gives its pictures: `import:` tokens over the package's `assets/` paths (import-preview.md §5). */
+/**
+ * The refs the source gives its pictures: `import:` tokens of its own numbering (import-preview.md §5). A package's path may hold
+ * spaces or other characters the command's ref alphabet does not allow (`IMPORT_TREE_REF_PATTERN`), and a long path may pass its
+ * length limit, so the token never carries the path: the path stays the picture's display name.
+ */
 const ASSET_PREFIX = 'import:';
+
+/** One asset's token, its path inside the package and the name the report shows. */
+interface AssetToken {
+  readonly path: string;
+  readonly ref: string;
+  readonly name: string;
+}
+
+function tokensOf(assets: readonly HighlandAsset[]): AssetToken[] {
+  return assets.map((asset, index) => ({ path: asset.path, ref: `${ASSET_PREFIX}highland-image-${index}`, name: asset.path.slice('assets/'.length) }));
+}
 
 /** Why a file of this size is not read at all, before its bytes are loaded; undefined when the archive reader takes it. */
 export function highlandSizeRefusal(fileName: string, size: number): string | undefined {
@@ -41,16 +56,19 @@ const NAMED_LIMIT = 20;
 const ASSET_IMAGE = /!\[([^\]]*)\]\((?:\.{1,2}\/)*assets\/([^)]+)\)/g;
 
 /**
- * A scene's body with the package's picture references rewritten to the import's `import:` refs. A picture the package does not
- * carry keeps its alt text and is named as a loss: leaving `import:assets/…` behind would put a token that resolves to nothing in
- * the writer's screenplay.
+ * A scene's body with the package's picture references rewritten to the import's own tokens. A picture the package does not carry,
+ * and every picture when the writer leaves them out, keeps its alt text: an `import:` ref with no picture behind it would be a
+ * token that resolves to nothing in the writer's screenplay.
  */
-function rewriteAssetRefs(body: string, carried: ReadonlySet<string>, missing: Map<string, string>): string {
+function rewriteAssetRefs(body: string, byPath: ReadonlyMap<string, AssetToken>, missing: Map<string, string>, pictures: boolean): string {
   return body.replace(ASSET_IMAGE, (_whole, alt: string, name: string) => {
     const path = `assets/${name}`;
-    if (carried.has(path)) return `![${alt}](${ASSET_PREFIX}${path})`;
-    missing.set(path, alt);
-    return alt;
+    const held = byPath.get(path);
+    if (held === undefined) {
+      missing.set(path, alt);
+      return alt;
+    }
+    return pictures ? `![${alt}](${held.ref})` : alt;
   });
 }
 
@@ -69,7 +87,7 @@ interface DraftNode {
 }
 
 /** The Fountain structure as the preview's tree: sections nest by depth, each scene is a screenplay document under its section. */
-function scriptPlan(script: ImportedScript, assets: readonly HighlandAsset[]): {
+function scriptPlan(script: ImportedScript, tokens: readonly AssetToken[], pictures: boolean): {
   readonly blocks: PreviewBlock[];
   readonly markers: PreviewMarker[];
   readonly tree: PreviewNode[];
@@ -83,7 +101,7 @@ function scriptPlan(script: ImportedScript, assets: readonly HighlandAsset[]): {
   const markers: PreviewMarker[] = [];
   const root: DraftNode[] = [];
   const open: { readonly depth: number; readonly node: DraftNode }[] = [];
-  const carried = new Set(assets.map((asset) => asset.path));
+  const byPath = new Map(tokens.map((token) => [token.path, token]));
   const missing = new Map<string, string>();
   let loose: DraftNode | null = null;
   let scenes = 0;
@@ -134,7 +152,7 @@ function scriptPlan(script: ImportedScript, assets: readonly HighlandAsset[]): {
       }
       siblings = loose.children;
     }
-    const body = rewriteAssetRefs(node.body, carried, missing);
+    const body = rewriteAssetRefs(node.body, byPath, missing, pictures);
     bodyText += `${body}\n`;
     const startBlock = blocks.length;
     const lines = body.split('\n').filter((line) => line.trim() !== '');
@@ -160,13 +178,14 @@ function scriptPlan(script: ImportedScript, assets: readonly HighlandAsset[]): {
     scenes += 1;
   }
 
-  // The pictures the script does not place: a chapter of their own, so they ride along too (the keep-everything rule).
-  const unplaced = assets.filter((asset) => !bodyText.includes(`](${ASSET_PREFIX}${asset.path})`));
+  // The pictures the script does not place: a chapter of their own, so they ride along too (the keep-everything rule). With the
+  // pictures left out there is nothing to place, so the chapter is not made at all.
+  const unplaced = pictures ? tokens.filter((token) => !bodyText.includes(`](${token.ref})`)) : [];
   if (unplaced.length > 0) {
     const startBlock = blocks.length;
     blocks.push({ kind: 'heading', text: t`Pictures` });
-    for (const asset of unplaced) blocks.push({ kind: 'image', text: asset.path.slice('assets/'.length) });
-    const body = unplaced.map((asset) => `![${asset.path.slice('assets/'.length)}](${ASSET_PREFIX}${asset.path})`).join('\n\n');
+    for (const token of unplaced) blocks.push({ kind: 'image', text: token.name });
+    const body = unplaced.map((token) => `![${token.name}](${token.ref})`).join('\n\n');
     const scene: DraftNode = { id: 'pictures-scene', role: 'scene', title: t`Pictures`, startBlock, endBlock: Math.max(startBlock, blocks.length - 1), words: 0, children: [], body, kind: 'screenplay' };
     root.push({ id: 'pictures', role: 'chapter', title: t`Pictures`, startBlock, endBlock: Math.max(startBlock, blocks.length - 1), words: 0, children: [scene] });
     chapters += 1;
@@ -177,13 +196,20 @@ function scriptPlan(script: ImportedScript, assets: readonly HighlandAsset[]): {
   const rest = missing.size - named.length;
   const total = missing.size;
   const paths = named.join(', ');
-  const pictureLosses = total === 0
-    ? []
-    : [
-        rest > 0
-          ? t`${{ paths }} and ${{ count: formatCount(rest) }} more ${plural(total, { one: 'picture is named', other: 'pictures are named' })} in the script but not carried in the package; the words beside each one are kept.`
-          : t`${{ paths }} ${plural(total, { one: 'is named', other: 'are named' })} in the script but not carried in the package; the words beside each one are kept.`
-      ];
+  const leftOut = tokens.length;
+  const pictureLosses = [
+    ...(total === 0
+      ? []
+      : [
+          rest > 0
+            ? t`${{ paths }} and ${{ count: formatCount(rest) }} more ${plural(total, { one: 'picture is named', other: 'pictures are named' })} in the script but not carried in the package; the words beside each one are kept.`
+            : t`${{ paths }} ${plural(total, { one: 'is named', other: 'are named' })} in the script but not carried in the package; the words beside each one are kept.`
+        ]),
+    // Leaving the pictures out takes their references out of the bodies too, so no scene keeps a link to a picture that is not there.
+    ...(!pictures && leftOut > 0
+      ? [t`${{ count: formatCount(leftOut) }} ${plural(leftOut, { one: 'picture is', other: 'pictures are' })} left out, as you chose; the words beside each one are kept.`]
+      : []),
+  ];
 
   return { blocks, markers, tree: root, scenes, chapters, parts, words, pictureLosses };
 }
@@ -196,11 +222,11 @@ export function highlandPreviewSource(fileName: string, bytes: Uint8Array): Impo
   const pictures = (): PreviewPicture[] => {
     const imported = read;
     if (imported === null) return [];
-    return imported.assets.map((asset) => ({
-      ref: `${ASSET_PREFIX}${asset.path}`,
-      name: asset.path.slice('assets/'.length),
-      bytes: asset.bytes.length,
-      data: () => asset.bytes,
+    return tokensOf(imported.assets).map((token, index) => ({
+      ref: token.ref,
+      name: token.name,
+      bytes: (imported.assets[index] as HighlandAsset).bytes.length,
+      data: () => (imported.assets[index] as HighlandAsset).bytes,
     }));
   };
 
@@ -213,15 +239,17 @@ export function highlandPreviewSource(fileName: string, bytes: Uint8Array): Impo
       : [{ id: HIGHLAND_OPTIONS.pictures, label: plural(count, { one: 'Import # picture', other: 'Import # pictures' }), checked: true, detail: t`About ${{ size: formatCount(Math.max(0.1, Math.round(megabytes * 10) / 10)) }} MB.` }];
   };
 
-  const plan = (): PreviewPlan => {
+  const plan = (settings: PreviewSettings): PreviewPlan => {
     const imported = read;
     if (imported === null) return { blocks: [], markers: [], tree: [], counts: { words: 0, parts: 0, chapters: 0, scenes: 0, images: 0, comments: 0, footnotes: 0 }, losses: [], flags: [] };
-    const built = scriptPlan(imported.script, imported.assets);
+    // The writer's pictures choice changes the tree itself: with the pictures left out, their references leave the bodies too.
+    const withPictures = settings.options[HIGHLAND_OPTIONS.pictures] !== false;
+    const built = scriptPlan(imported.script, tokensOf(imported.assets), withPictures);
     return {
       blocks: built.blocks,
       markers: built.markers,
       tree: built.tree,
-      counts: { words: built.words, parts: built.parts, chapters: built.chapters, scenes: built.scenes, images: imported.assets.length, comments: 0, footnotes: 0 },
+      counts: { words: built.words, parts: built.parts, chapters: built.chapters, scenes: built.scenes, images: withPictures ? imported.assets.length : 0, comments: 0, footnotes: 0 },
       losses: [...imported.losses.map((message) => ({ message })), ...built.pictureLosses.map((message) => ({ message }))],
       flags: [],
     };
@@ -243,7 +271,7 @@ export function highlandPreviewSource(fileName: string, bytes: Uint8Array): Impo
     dispose: () => host.dispose(),
     chips: () => [],
     options,
-    plan: () => plan(),
+    plan: (settings) => plan(settings),
     picturesOption: HIGHLAND_OPTIONS.pictures,
     pictures,
     metadata: () => ({ title: read?.title ?? '' }),

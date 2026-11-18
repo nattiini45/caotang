@@ -119,6 +119,21 @@ test('a Highland script shows its losses, pictures and scan before anything is w
   expect(await traceNames(page)).not.toContain('binder.importTree');
 });
 
+test('leaving the pictures out takes their references out of the text, and the report says how many', async ({ page }) => {
+  await createProject(page, PROJECT);
+  await chooseScript(page, 'landing.highland');
+
+  const dialog = page.getByRole('dialog', { name: 'Import “landing.highland”' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('checkbox', { name: /Import \d+ picture/ }).uncheck();
+  await expect(dialog.getByRole('list', { name: 'What the import cannot keep' })).toContainText('left out, as you chose');
+  await dialog.getByRole('button', { name: /^Import \d+ scene/ }).click();
+  await expect(dialog).toBeHidden();
+
+  await waitForSaved(page);
+  expect((await traceNames(page)).filter((name) => name === 'binder.importTree')).toHaveLength(1);
+});
+
 test('confirming the preview makes the screenplay scenes and their pictures in one step', async ({ page }) => {
   await createProject(page, PROJECT);
   await chooseScript(page, 'landing.highland');

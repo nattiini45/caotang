@@ -741,6 +741,9 @@ describe('the import preview (#267)', () => {
     expect(guide).toContain('a picture the script names but the file does not carry keeps the words beside it and is listed');
     expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('behält die Wörter daneben und wird aufgelistet');
     expect(read('docs/architecture/screenplay.md')).toContain('an `import:` ref that resolves to nothing is never written into a screenplay');
+    expect(guide).toContain('an option leaves them out, and then their references leave the text too, keeping the words beside them');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('und dann verschwinden auch ihre Verweise aus dem Text');
+    expect(read('docs/architecture/screenplay.md')).toContain('never its archive path');
     expect(read('apps/desktop/src/components/ScriptImport.tsx')).toContain("await import('../import-preview/highland-source.js')");
     expect(guide).toContain('in the background, so a long file does not hold the page while it is read');
     const manuscript = read('apps/desktop/src/components/ManuscriptImport.tsx');
