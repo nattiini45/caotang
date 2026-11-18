@@ -1624,6 +1624,16 @@ msgstr "{part}: {title}"
 msgid "{parts, plural, one {# part has no folder: each of its chapters keeps it in its keywords.} other {# parts have no folder: each chapter keeps its part in its keywords.}}"
 msgstr "{parts, plural, one {# Teil hat keinen Ordner: Jedes seiner Kapitel behält ihn in seinen Stichwörtern.} other {# Teile haben keinen Ordner: Jedes Kapitel behält seinen Teil in seinen Stichwörtern.}}"
 
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#: apps/desktop/src/import-preview/highland-source.ts
+msgid "{paths} {total, plural, one {is named} other {are named}} in the script but not carried in the package; the words beside each one are kept."
+msgstr "{paths} {total, plural, one {wird} other {werden}} im Skript genannt, {total, plural, one {ist} other {sind}} aber nicht im Paket; die Wörter daneben bleiben erhalten."
+
+#. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
+#: apps/desktop/src/import-preview/highland-source.ts
+msgid "{paths} and {count} more {total, plural, one {picture is named} other {pictures are named}} in the script but not carried in the package; the words beside each one are kept."
+msgstr "{paths} und {count} weitere {total, plural, one {Bild wird} other {Bilder werden}} im Skript genannt, {total, plural, one {ist} other {sind}} aber nicht im Paket; die Wörter daneben bleiben erhalten."
+
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "{placed, plural, one {Placed # picture.} other {Placed # pictures.}}"

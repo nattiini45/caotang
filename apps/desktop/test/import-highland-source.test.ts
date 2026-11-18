@@ -131,6 +131,22 @@ describe('the Highland preview source', () => {
     expect(bodies).not.toContain('](assets/');
   });
 
+  it('keeps the words of a picture the package does not carry, names it, and leaves no import token behind', async () => {
+    const script = ['INT. ROOM - DAY', '', 'Mara looks. ![the map](assets/missing.png)', '', 'She waits. ![the lamp](../assets/referenced.png)'].join('\n');
+    const source = await loaded(textZip({ 'text.fountain': script, 'assets/referenced.png': 'placed-picture-bytes' }));
+    const plan = planOf(source);
+    const commit = commitOf(source, plan);
+    const bodies = commit.params.nodes.map((node) => node.body ?? '').join('\n');
+    // The missing picture's alt text stays; no ref that resolves to nothing is written into the screenplay.
+    expect(bodies).toContain('Mara looks. the map');
+    expect(bodies).not.toContain('import:assets/missing.png');
+    expect(plan.losses.some((loss) => loss.message.includes('assets/missing.png'))).toBe(true);
+    // `../assets/` reaches the same folder, so that picture is placed in its scene rather than treated as unplaced.
+    expect(bodies).toContain('She waits. ![the lamp](import:assets/referenced.png)');
+    expect(bodies).not.toContain('../assets/');
+    expect(commit.params.nodes.some((node) => node.title === 'Pictures')).toBe(false);
+  });
+
   it('leaves the pictures out when the pictures option is off', async () => {
     const source = await loaded(package_());
     const plan = planOf(source);

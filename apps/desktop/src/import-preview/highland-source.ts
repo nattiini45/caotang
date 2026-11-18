@@ -34,9 +34,24 @@ function wordsIn(text: string): number {
   return text.split(/\s+/).filter((word) => word !== '').length;
 }
 
-/** A scene's body with the package's `assets/` picture references rewritten to the import's `import:` refs. */
-function rewriteAssetRefs(body: string): string {
-  return body.replace(/\]\((?:\.\/)?assets\//g, `](${ASSET_PREFIX}assets/`);
+/** How many missing pictures the report names before it counts the rest. */
+const NAMED_LIMIT = 20;
+
+/** An image whose path points into the package's `assets/` folder, with `./` or `../` in front of it as Highland writes them. */
+const ASSET_IMAGE = /!\[([^\]]*)\]\((?:\.{1,2}\/)*assets\/([^)]+)\)/g;
+
+/**
+ * A scene's body with the package's picture references rewritten to the import's `import:` refs. A picture the package does not
+ * carry keeps its alt text and is named as a loss: leaving `import:assets/…` behind would put a token that resolves to nothing in
+ * the writer's screenplay.
+ */
+function rewriteAssetRefs(body: string, carried: ReadonlySet<string>, missing: Map<string, string>): string {
+  return body.replace(ASSET_IMAGE, (_whole, alt: string, name: string) => {
+    const path = `assets/${name}`;
+    if (carried.has(path)) return `![${alt}](${ASSET_PREFIX}${path})`;
+    missing.set(path, alt);
+    return alt;
+  });
 }
 
 /** A node while the tree is being built; the finished tree is handed over as `PreviewNode`s. */
@@ -62,11 +77,14 @@ function scriptPlan(script: ImportedScript, assets: readonly HighlandAsset[]): {
   readonly chapters: number;
   readonly parts: number;
   readonly words: number;
+  readonly pictureLosses: readonly string[];
 } {
   const blocks: PreviewBlock[] = [];
   const markers: PreviewMarker[] = [];
   const root: DraftNode[] = [];
   const open: { readonly depth: number; readonly node: DraftNode }[] = [];
+  const carried = new Set(assets.map((asset) => asset.path));
+  const missing = new Map<string, string>();
   let loose: DraftNode | null = null;
   let scenes = 0;
   let chapters = 0;
@@ -116,7 +134,7 @@ function scriptPlan(script: ImportedScript, assets: readonly HighlandAsset[]): {
       }
       siblings = loose.children;
     }
-    const body = rewriteAssetRefs(node.body);
+    const body = rewriteAssetRefs(node.body, carried, missing);
     bodyText += `${body}\n`;
     const startBlock = blocks.length;
     const lines = body.split('\n').filter((line) => line.trim() !== '');
@@ -155,7 +173,19 @@ function scriptPlan(script: ImportedScript, assets: readonly HighlandAsset[]): {
     scenes += 1;
   }
 
-  return { blocks, markers, tree: root, scenes, chapters, parts, words };
+  const named = [...missing.keys()].slice(0, NAMED_LIMIT);
+  const rest = missing.size - named.length;
+  const total = missing.size;
+  const paths = named.join(', ');
+  const pictureLosses = total === 0
+    ? []
+    : [
+        rest > 0
+          ? t`${{ paths }} and ${{ count: formatCount(rest) }} more ${plural(total, { one: 'picture is named', other: 'pictures are named' })} in the script but not carried in the package; the words beside each one are kept.`
+          : t`${{ paths }} ${plural(total, { one: 'is named', other: 'are named' })} in the script but not carried in the package; the words beside each one are kept.`
+      ];
+
+  return { blocks, markers, tree: root, scenes, chapters, parts, words, pictureLosses };
 }
 
 /** The Highland file in the preview, read in the Worker. */
@@ -192,7 +222,7 @@ export function highlandPreviewSource(fileName: string, bytes: Uint8Array): Impo
       markers: built.markers,
       tree: built.tree,
       counts: { words: built.words, parts: built.parts, chapters: built.chapters, scenes: built.scenes, images: imported.assets.length, comments: 0, footnotes: 0 },
-      losses: imported.losses.map((message) => ({ message })),
+      losses: [...imported.losses.map((message) => ({ message })), ...built.pictureLosses.map((message) => ({ message }))],
       flags: [],
     };
   };
