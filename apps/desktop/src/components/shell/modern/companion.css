@@ -118,8 +118,7 @@
   background: transparent;
 }
 
-/* The header (#363): "Agent", the provider in a quiet line and Close (×) on one row; Mode as a segmented control under it; the step
-   line, the spend and Stop on a third row only while a turn runs. Nothing wraps alone. */
+/* The header (#363): the agent name, provider and Close (×), then Mode. A running turn adds the lifecycle and Stop, with spend below. */
 :root[data-shell='modern'] .modern-companion .agent-head {
   flex-wrap: wrap;
   gap: var(--space-4) var(--space-5);
@@ -160,7 +159,7 @@
   margin-inline-end: var(--space-5);
 }
 
-:root[data-shell='modern'] .modern-companion .agent-head :is(.agent-busy, .agent-spend, .agent-stop) {
+:root[data-shell='modern'] .modern-companion .agent-head :is(.agent-busy, .agent-stop) {
   order: 3;
 }
 
@@ -172,19 +171,19 @@
   background: var(--m-solid);
   color: var(--ink);
   font-size: 13px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-:root[data-shell='modern'] .modern-companion .agent-head .agent-busy.is-goal-waiting {
-  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 :root[data-shell='modern'] .modern-companion .agent-head .agent-spend {
-  flex: 1 1 0;
-  min-inline-size: 0;
+  order: 4;
+  flex: 0 0 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
   font-size: 12px;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-head .agent-stop {
+  flex: none;
 }
 
 :root[data-shell='modern'] .modern-companion .agent-head .button {

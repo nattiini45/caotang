@@ -93,6 +93,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- The Modern agent window keeps its resource-use line readable while a turn works or waits for approval (#572).
+
 - The Modern bottom bar keeps its views, Ask and Search separate beside an open Binder on smaller desktops (#505).
 
 - The Modern storage warning on a phone no longer covers the empty editor heading (#647).
