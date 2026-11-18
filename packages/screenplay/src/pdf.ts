@@ -622,10 +622,17 @@ export function writePdf(
   bodies[1] = `<< /Type /Pages /Kids [${written.map((_, i) => `${pageId(i)} 0 R`).join(' ')}] /Count ${written.length} >>`;
   const arabic = rtlFonts?.arabic === undefined || rtlFonts.arabic.entries.length === 0 ? undefined : rtlFonts.arabic;
   const hebrew = rtlFonts?.hebrew === undefined || rtlFonts.hebrew.entries.length === 0 ? undefined : rtlFonts.hebrew;
+  const indicSubsets = new Map<IndicScript, CidSubset>();
+  INDIC_SCRIPT_NAMES.forEach((script) => {
+    const subset = rtlFonts?.indic?.[script];
+    if (subset !== undefined && subset.entries.length > 0) indicSubsets.set(script, subset);
+  });
   const fallbackId = pageId(written.length) + (font === undefined ? 0 : 2);
   const emojiId = fallbackId + (fallback === undefined ? 0 : CID_FONT_OBJECTS);
   const arabicId = emojiId + (emoji === undefined ? 0 : CID_FONT_OBJECTS);
   const hebrewId = arabicId + (arabic === undefined ? 0 : CID_FONT_OBJECTS);
+  const indicIdBase = hebrewId + (hebrew === undefined ? 0 : CID_FONT_OBJECTS);
+  const colourId = indicIdBase + indicSubsets.size * CID_FONT_OBJECTS;
   // PDF/A-2u objects, numbered after the colour fonts: a ToUnicode on the WinAnsi font, the XMP packet, the sRGB
   // output intent, then the structure tree — the document element, one element per marked line, the tree's root and
   // the parent tree last (their ids are set once the marks are counted).
@@ -666,13 +673,8 @@ export function writePdf(
       bodies[hebrewId - 1 + i] = body;
     });
   }
-  const indicSubsets = new Map<IndicScript, CidSubset>();
-  INDIC_SCRIPT_NAMES.forEach((script) => {
-    const subset = rtlFonts?.indic?.[script];
-    if (subset !== undefined && subset.entries.length > 0) indicSubsets.set(script, subset);
-  });
   const indicIds = new Map<IndicScript, number>();
-  let nextIndicId = hebrewId + (hebrew === undefined ? 0 : CID_FONT_OBJECTS);
+  let nextIndicId = indicIdBase;
   for (const [script, subset] of indicSubsets) {
     const id = nextIndicId;
     indicIds.set(script, id);
@@ -681,7 +683,6 @@ export function writePdf(
     });
     nextIndicId += CID_FONT_OBJECTS;
   }
-  const colourId = nextIndicId;
   if (colour !== undefined) {
     objectsText(colour.fonts.objects, colourId, colour.deflate).forEach((body, i) => {
       bodies[colourId - 1 + i] = body;
