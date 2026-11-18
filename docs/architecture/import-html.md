@@ -22,6 +22,9 @@ The walker turns the page into the import block list (`import-core`) with the si
   a whole paragraph is `allBold`; `page-break-before` / `break-before: page` is `pageBreakBefore`.
 - `<script>`, `<style>`, `<iframe>`, `<noscript>`, `<template>`, the `<head>` and form controls are dropped and counted; event
   attributes (`on…`) are counted. Nothing dropped is ever executed.
+- **Stylesheets are counted over the whole document**, head included: every `<style>` element and every `<link rel="stylesheet">`.
+  The body walk never reaches the head, so counting only what it drops would report nothing for the usual export. The report says the
+  stylesheet was not kept and that only alignment, bold and page breaks come through, since those are the signals `classStyles` reads.
 - Links pass the safe-href rule (http(s), mailto, or a relative target); a `javascript:` or other scheme keeps its text and is counted.
 - Images: a `data:` URI is decoded and a relative path resolved from the zip; both become picture refs. A remote http(s) image is
   listed as not downloaded unless the writer opts in (decision 10).

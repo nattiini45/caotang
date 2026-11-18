@@ -99,6 +99,23 @@ export interface HtmlWalkOptions {
 const BLOCK_TAGS = new Set(['p', 'div', 'section', 'article', 'header', 'footer', 'main', 'aside', 'blockquote', 'ul', 'ol', 'li', 'pre', 'table', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'figure', 'figcaption']);
 const DROP_TAGS = new Set(['script', 'style', 'iframe', 'noscript', 'template', 'head', 'object', 'embed', 'form', 'input', 'button', 'select', 'textarea', 'link', 'meta']);
 
+/**
+ * Every stylesheet the document carries: each `<style>` element and each `<link rel="stylesheet">`, in the head as well as the body.
+ * The import keeps only what `classStyles` reads (alignment, bold, page breaks), so the rest is dropped and must be counted (#299).
+ */
+function stylesheetsIn(root: XmlNode): number {
+  let count = 0;
+  const walk = (node: XmlNode): void => {
+    if (node.type !== 'element') return;
+    const tag = node.local.toLowerCase();
+    if (tag === 'style') count += 1;
+    else if (tag === 'link' && (attr(node, 'rel') ?? '').toLowerCase().split(/\s+/).includes('stylesheet')) count += 1;
+    for (const child of node.children) walk(child);
+  };
+  walk(root);
+  return count;
+}
+
 /** Walk an XHTML page into the import block list. */
 export function htmlToBlocks(html: string, options: HtmlWalkOptions = {}): HtmlWalkOutput {
   const styles = classStyles(html);
@@ -112,7 +129,7 @@ export function htmlToBlocks(html: string, options: HtmlWalkOptions = {}): HtmlW
     losses: [],
     images: new Map(),
     remoteImages: [],
-    dropped: { scripts: 0, styles: 0, iframes: 0, eventAttrs: 0, unsafeLinks: 0 },
+    dropped: { scripts: 0, styles: stylesheetsIn(root), iframes: 0, eventAttrs: 0, unsafeLinks: 0 },
     styles,
     unit: options.unit ?? '',
     refPrefix: options.refPrefix ?? 'import:html-image-',
@@ -179,11 +196,10 @@ function signalsOf(style: { align?: Align; bold?: boolean; pageBreak?: boolean }
   return Object.keys(signals).length === 0 ? undefined : signals;
 }
 
-/** Count and skip the elements that must never run or show. */
+/** Count and skip the elements that must never run or show. Stylesheets are counted once over the whole document, head included. */
 function dropElement(element: XmlElement, state: WalkState): void {
   const tag = element.local.toLowerCase();
   if (tag === 'script') state.dropped.scripts += 1;
-  else if (tag === 'style') state.dropped.styles += 1;
   else if (tag === 'iframe') state.dropped.iframes += 1;
   for (const attribute of element.attributes) {
     if (/^on/i.test(attribute.local)) state.dropped.eventAttrs += 1;

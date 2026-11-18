@@ -70,6 +70,20 @@ describe('the XHTML walker (#299)', () => {
     expect(text).not.toContain('color:red');
   });
 
+  it('counts a linked stylesheet and one in the head, which the body walk never reaches', () => {
+    const html = [
+      '<html><head><style>p{color:red}</style><link rel="stylesheet" href="book.css"/><link rel="icon" href="f.png"/></head>',
+      '<body><p>Safe text.</p><style>span{color:blue}</style></body></html>',
+    ].join('');
+    const { blocks, dropped } = walk(html);
+    // Two <style> elements and one linked stylesheet; the icon link is not a stylesheet.
+    expect(dropped.styles).toBe(3);
+    const text = JSON.stringify(blocks);
+    expect(text).toContain('Safe text.');
+    expect(text).not.toContain('color:red');
+    expect(text).not.toContain('book.css');
+  });
+
   it('counts event attributes on kept elements', () => {
     const { dropped } = walk('<p onclick="evil()">Text.</p>');
     expect(dropped.eventAttrs).toBe(1);

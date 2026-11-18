@@ -104,7 +104,7 @@ function makeHtmlSource(fileName: string, openReq: ReaderOpen): ImportPreviewSou
       const eventAttrs = read.dropped.eventAttrs;
       const unsafeLinks = read.dropped.unsafeLinks;
       if (scripts > 0) dropped.push(plural(scripts, { one: '# script was removed', other: '# scripts were removed' }));
-      if (styles > 0) dropped.push(plural(styles, { one: '# stylesheet was removed', other: '# stylesheets were removed' }));
+      if (styles > 0) dropped.push(plural(styles, { one: '# stylesheet was not kept; only alignment, bold and page breaks come through', other: '# stylesheets were not kept; only alignment, bold and page breaks come through' }));
       if (iframes > 0) dropped.push(plural(iframes, { one: '# iframe was removed', other: '# iframes were removed' }));
       if (eventAttrs > 0) dropped.push(plural(eventAttrs, { one: '# event handler was removed', other: '# event handlers were removed' }));
       if (unsafeLinks > 0) dropped.push(plural(unsafeLinks, { one: '# unsafe link kept its text only', other: '# unsafe links kept their text only' }));
