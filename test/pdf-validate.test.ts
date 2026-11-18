@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   EXTERNAL_TOOLS,
+  VERAPDF_UNCLAIMED_RULES,
   checkStructure,
   checkWithPdfjs,
   compareFonts,
@@ -15,6 +16,7 @@ import {
   mutoolComplaints,
   parsePdffonts,
   unsubset,
+  veraPdfProblems,
   withoutNoText,
   type ExpectedFile,
 } from '../tools/pdf-validate/check.mjs';
@@ -165,19 +167,32 @@ describe('the pdf-validate job in ci.yml', () => {
   const start = ci.indexOf('\n  pdf-validate:');
   const job = start < 0 ? '' : ci.slice(start);
 
-  it('exists, and installs the package of every external tool the gate runs', () => {
+  /** The tools whose package apt installs, and the package for each. veraPDF has no Ubuntu package: the job pins a release. */
+  const APT_PACKAGES: Record<string, string> = {
+    qpdf: 'qpdf',
+    pdffonts: 'poppler-utils',
+    pdftotext: 'poppler-utils',
+    pdftoppm: 'poppler-utils',
+    gs: 'ghostscript',
+    mutool: 'mupdf-tools',
+  };
+
+  it('exists, and installs every external tool the gate runs', () => {
     expect(job).not.toBe('');
-    const packages: Record<string, string> = {
-      qpdf: 'qpdf',
-      pdffonts: 'poppler-utils',
-      pdftotext: 'poppler-utils',
-      pdftoppm: 'poppler-utils',
-      gs: 'ghostscript',
-      mutool: 'mupdf-tools',
-    };
-    expect([...EXTERNAL_TOOLS].sort()).toEqual(Object.keys(packages).sort());
+    expect([...EXTERNAL_TOOLS].sort()).toEqual([...Object.keys(APT_PACKAGES), 'verapdf'].sort());
     const install = job.split('\n').find((line) => line.includes('bash tools/ci/apt-install.sh')) ?? '';
-    for (const tool of EXTERNAL_TOOLS) expect(install, tool).toContain(packages[tool]);
+    for (const tool of Object.keys(APT_PACKAGES)) expect(install, tool).toContain(APT_PACKAGES[tool]);
+    expect(job).toContain('bash tools/ci/verapdf-install.sh');
+  });
+
+  it('pins veraPDF by version and installer checksum, and keeps the installed tree in a cache the pin keys', () => {
+    expect(job).toMatch(/VERAPDF_VERSION: \d+\.\d+\.\d+/);
+    expect(job).toMatch(/VERAPDF_SHA256: [0-9a-f]{64}/);
+    expect(job).toContain('uses: actions/cache@v6');
+    expect(job).toContain('key: verapdf-${{ env.VERAPDF_VERSION }}');
+    expect(job).toContain("if: steps.verapdf.outputs.cache-hit != 'true'");
+    // A cache hit skips the installer, so the pin is read back from what is on disk before the gate runs.
+    expect(job).toContain('"$VERAPDF_HOME/verapdf" --version');
   });
 
   it('writes the corpus, runs the gate with every external tool, and uploads the corpus and logs on failure', () => {
@@ -198,6 +213,50 @@ describe('the pdf-validate job in ci.yml', () => {
   it('keeps the workflow-wide read-only token', () => {
     expect(ci).toContain('permissions:\n  contents: read');
     expect(job).not.toContain('permissions:');
+  });
+});
+
+describe('veraPdfProblems', () => {
+  const rule = (clause: string, testNumber: number, errorMessage: string) => ({
+    ruleStatus: 'FAILED',
+    status: 'failed',
+    clause,
+    testNumber,
+    description: 'what the rule asks for',
+    checks: [{ status: 'failed', errorMessage }],
+  });
+  const result = (profileName: string, rules: object[]) => ({ profileName, compliant: rules.length === 0, jobEndStatus: 'normal', details: { ruleSummaries: rules } });
+  const job = (file: string, body: object) => ({ itemDetails: { name: `/corpus/${file}` }, ...body });
+  const problemsFor = (jobs: object[], files = ['script.pdf']) => veraPdfProblems(JSON.stringify({ report: { jobs } }), files).get(files[0]) ?? [];
+
+  it('says nothing about a file veraPDF finds compliant', () => {
+    expect(problemsFor([job('script.pdf', { validationResult: [result('PDF/A-1b validation profile', [])] })])).toEqual([]);
+  });
+
+  it('excuses the PDF/A-1b rules a file that claims no conformance cannot satisfy, and nothing else', () => {
+    for (const id of Object.keys(VERAPDF_UNCLAIMED_RULES)) {
+      const [clause, testNumber] = id.split('-');
+      const excused = problemsFor([job('script.pdf', { validationResult: [result('PDF/A-1b validation profile', [rule(clause!, Number(testNumber), 'broken')])] })]);
+      expect(excused, id).toEqual([]);
+    }
+    const kept = problemsFor([job('script.pdf', { validationResult: [result('PDF/A-1b validation profile', [rule('6.3.7', 1, 'no Unicode map')])] })]);
+    expect(kept).toEqual(['PDF/A-1b validation profile rule 6.3.7-1: no Unicode map']);
+  });
+
+  it('holds a file to every rule of the profile it declares', () => {
+    const declared = problemsFor([job('script.pdf', { validationResult: [result('PDF/A-2u validation profile', [rule('6.7.2', 1, 'no metadata')])] })]);
+    expect(declared).toEqual(['PDF/A-2u validation profile rule 6.7.2-1: no metadata']);
+  });
+
+  it('names a file veraPDF cannot read at all', () => {
+    const unreadable = problemsFor([job('script.pdf', { taskException: { type: 'PARSE', exception: 'Couldn’t parse stream' } })]);
+    expect(unreadable).toEqual(['veraPDF could not read the file (PARSE): Couldn’t parse stream']);
+  });
+
+  it('fails a file the report names no result for, and a report it cannot read', () => {
+    expect(problemsFor([])).toEqual(['veraPDF gave no result for the file']);
+    expect(problemsFor([job('other.pdf', { validationResult: [result('PDF/A-1b validation profile', [])] })])).toEqual(['veraPDF gave no result for the file']);
+    expect(veraPdfProblems('not json', ['script.pdf']).get('script.pdf')).toEqual(['veraPDF did not give a report this check can read']);
   });
 });
 

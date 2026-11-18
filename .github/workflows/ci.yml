@@ -31,8 +31,11 @@
 #     install. It is not a check in Excel, Numbers, Word, Pages or Google Docs (docs/testing/office-interop.md).
 #   - `pdf-validate` writes the PDF corpus through the exporter (packages/exporter/test/pdf-write-corpus.test.ts, which writes only when
 #     CAOTANG_PDF_OUT is set, so `pnpm verify` is unchanged) and checks every file with tools/pdf-validate/check.mjs: pdf.js in Node,
-#     then qpdf, Poppler, Ghostscript and MuPDF. Those are installed from apt for this job alone; they never ship, and a tool that is
-#     missing fails the job rather than being skipped.
+#     then qpdf, Poppler, Ghostscript, MuPDF and veraPDF. qpdf, Poppler, Ghostscript and MuPDF are installed from apt, and veraPDF
+#     from a pinned release download kept in its own cache (it has no Ubuntu package and is a Java program, so the job uses the
+#     runner's Java); all of them are CI-only for this job alone and never ship. A tool that is missing fails the job rather than
+#     being skipped. The PDFs claim no PDF/A conformance, so veraPDF's PDF/A-1b fallback is checked only for the rules a file makes
+#     no claim to be bound by (tools/pdf-validate/check.mjs); a file whose metadata names a flavour is held to every rule of it.
 #
 # Details that are load-bearing rather than tidy:
 #   - permissions stay `contents: read`: the workflow needs no write token, so a pull request from a fork cannot use it to
@@ -421,6 +424,11 @@ jobs:
     timeout-minutes: 20
     env:
       CAOTANG_PDF_OUT: ${{ github.workspace }}/pdfs
+      # veraPDF has no Ubuntu package: the pin is the release version and the installer's SHA-256, and the installed tree is kept
+      # in its own cache, so a run with the same pin downloads and installs nothing. tools/ci/verapdf-install.sh checks both.
+      VERAPDF_VERSION: 1.30.4
+      VERAPDF_SHA256: 04415ef3f149526a3048b9889723e81320ddf013bd891bcc7f0f297f3eadcc23
+      VERAPDF_HOME: ${{ github.workspace }}/.verapdf
     steps:
       - uses: actions/checkout@v7
 
@@ -446,13 +454,29 @@ jobs:
         # tools/ci/apt-install.sh retries a slow mirror within a time limit instead of letting it run out the job's time.
         run: APT_ARCHIVES="$GITHUB_WORKSPACE/.apt-archives" APT_DOWNLOAD_SECONDS=180 bash tools/ci/apt-install.sh qpdf poppler-utils ghostscript mupdf-tools
 
+      - name: Restore the installed veraPDF (one tree per pin)
+        id: verapdf
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.VERAPDF_HOME }}
+          key: verapdf-${{ env.VERAPDF_VERSION }}-${{ runner.os }}
+
+      - name: Install veraPDF (CI only; it never ships)
+        if: steps.verapdf.outputs.cache-hit != 'true'
+        run: bash tools/ci/verapdf-install.sh "$VERAPDF_VERSION" "$VERAPDF_SHA256" "$VERAPDF_HOME"
+
+      - name: Put veraPDF on PATH and check the pin it unpacked as
+        run: |
+          echo "$VERAPDF_HOME" >> "$GITHUB_PATH"
+          test "$("$VERAPDF_HOME/verapdf" --version | head -1)" = "veraPDF $VERAPDF_VERSION"
+
       - name: Install
         run: pnpm install --frozen-lockfile
 
       - name: Write the PDF corpus
         run: pnpm exec vitest run packages/exporter/test/pdf-write-corpus.test.ts
 
-      - name: Validate the corpus (pdf.js, qpdf, Poppler, Ghostscript, MuPDF)
+      - name: Validate the corpus (pdf.js, qpdf, Poppler, Ghostscript, MuPDF, veraPDF)
         run: node tools/pdf-validate/check.mjs "$CAOTANG_PDF_OUT" --external
 
       - name: Upload the corpus and the tool logs on failure

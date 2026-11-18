@@ -20,21 +20,109 @@
  *   - pdftoppm -r 72 -png: no `Syntax Error` or `Syntax Warning` on stderr;
  *   - gs -dPDFSTOPONERROR, nullpage: exit 0 and no `**** Error` / `**** Warning`;
  *   - mutool draw: no `error:` or `warning:` line.
- * Each tool's raw output is written to <dir>/logs for CI to upload on a failure.
+ * Each per-file tool's raw output is written to <dir>/logs for CI to upload on a failure.
+ *
+ * veraPDF runs the profile a file's own metadata names, and PDF/A-1b when it names none (that is veraPDF's auto-detect and its
+ * default flavour). The corpus is ordinary PDFs that claim no PDF/A or PDF/UA conformance, so the PDF/A-1b fallback is a profile
+ * no Caotang file has ever claimed: the rules in {@link VERAPDF_UNCLAIMED_RULES} are the ones a file that makes no such claim
+ * cannot satisfy, and they are excused only under that fallback. Every other rule the file breaks is a problem, and so is a file
+ * veraPDF cannot read at all. Its report is one file, logs/verapdf.txt, because it validates the whole corpus in one run.
  */
 
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const exporterDir = fileURLToPath(new URL('../../packages/exporter/', import.meta.url));
 const requireFromExporter = createRequire(join(exporterDir, 'package.json'));
 
 /** Every external tool this script can run, in the order it runs them. */
-export const EXTERNAL_TOOLS = ['qpdf', 'pdffonts', 'pdftotext', 'pdftoppm', 'gs', 'mutool'];
+export const EXTERNAL_TOOLS = ['qpdf', 'pdffonts', 'pdftotext', 'pdftoppm', 'gs', 'mutool', 'verapdf'];
+
+/** The profile veraPDF runs when a file's metadata names no PDF/A flavour, and the only one whose rules can be excused. */
+const PDFA_1B_PROFILE = 'PDF/A-1b validation profile';
+
+/**
+ * The PDF/A-1b rules a Caotang PDF cannot satisfy while it claims no conformance, and why. Each is a rule about the claim itself
+ * (an XMP packet, a trailer /ID, an OutputIntent for a device colour space, an embedded device font, a CIDSet, and PDF/A-1's ban on
+ * transparency, which PDF/A-2 lifts), or about something the writers do on purpose (a fallback character states its cell on the
+ * grid, 600 to a column, rather than its glyph's advance: `subsetNotoCjk` in packages/screenplay/src/cjk-font.ts).
+ *
+ * They are excused only while veraPDF ran {@link PDFA_1B_PROFILE}, which it does for a file that names no flavour. A file whose
+ * metadata names one is validated against that profile and held to every rule of it, so the PDF/A-2u files #445 will write are
+ * checked as the PDF/A they claim to be.
+ */
+export const VERAPDF_UNCLAIMED_RULES = {
+  '6.1.2-2': 'the file header carries no binary marker: the writer keeps the file all-ASCII',
+  '6.1.3-1': 'the trailer carries no /ID',
+  '6.2.3.3-1': 'DeviceRGB is used with no OutputIntent',
+  '6.2.3.3-3': 'an uncalibrated colour space is used with no OutputIntent',
+  '6.3.4-1': 'Latin text of a contact sheet is set in Helvetica, which PDF/A requires embedded (the font expectations here and pdffonts still check embedding)',
+  '6.3.5-3': 'the CIDFont subsets carry no /CIDSet',
+  '6.3.6-1': 'a fallback character states its grid cell, not its glyph advance (cjk-font.ts)',
+  '6.4-1': 'PDF/A-1 forbids the transparency of the colour emoji',
+  '6.4-2': 'PDF/A-1 forbids the transparency of the colour emoji',
+  '6.4-4': 'PDF/A-1 forbids the soft-light blend of the colour emoji',
+  '6.4-6': 'PDF/A-1 forbids the transparency of the colour emoji',
+  '6.7.2-1': 'the file carries no XMP metadata',
+  '6.7.3-1': 'the document information has no XMP property to agree with',
+  '6.7.3-2': 'the document information has no XMP property to agree with',
+  '6.7.3-3': 'the document information has no XMP property to agree with',
+  '6.7.3-6': 'the document information has no XMP property to agree with',
+  '6.7.3-7': 'the document information has no XMP property to agree with',
+  '6.7.3-8': 'the document information has no XMP property to agree with',
+};
+
+/**
+ * What a veraPDF JSON report says is wrong, file by file: a file it could not read, or a rule it broke that it is held to. A rule
+ * in {@link VERAPDF_UNCLAIMED_RULES} is excused only under the PDF/A-1b fallback; under any other profile every failed rule counts.
+ *
+ * `files` are the corpus's names, one entry per row the gate reports. A file the report names no result for is a problem of its
+ * own, because a gate that checks nothing is the failure it exists to prevent. veraPDF echoes the path it was given, so a job is
+ * matched by its file name.
+ */
+export function veraPdfProblems(reportText, files) {
+  const byFile = new Map(files.map((file) => [file, []]));
+  const wholeRun = (problem) => {
+    for (const problems of byFile.values()) problems.push(problem);
+    return byFile;
+  };
+  let report;
+  try {
+    report = JSON.parse(reportText);
+  } catch {
+    return wholeRun('veraPDF did not give a report this check can read');
+  }
+  const answered = new Set();
+  for (const job of report?.report?.jobs ?? []) {
+    const name = basename(job.itemDetails?.name ?? '');
+    const problems = byFile.get(name);
+    if (problems === undefined) continue;
+    answered.add(name);
+    if (job.taskException !== undefined) {
+      const { type, exception, exceptionMessage } = job.taskException;
+      problems.push(`veraPDF could not read the file (${type ?? 'unknown'}): ${exceptionMessage ?? exception ?? 'no message'}`);
+      continue;
+    }
+    for (const result of job.validationResult ?? []) {
+      const profile = result.profileName ?? 'unknown profile';
+      for (const rule of result.details?.ruleSummaries ?? []) {
+        if (rule.status !== 'failed' && rule.ruleStatus !== 'FAILED') continue;
+        const id = `${rule.clause}-${rule.testNumber}`;
+        if (profile === PDFA_1B_PROFILE && Object.hasOwn(VERAPDF_UNCLAIMED_RULES, id)) continue;
+        const failed = (rule.checks ?? []).find((check) => check.status === 'failed');
+        problems.push(`${profile} rule ${id}: ${failed?.errorMessage ?? rule.description ?? 'failed'}`);
+      }
+    }
+  }
+  for (const file of files) {
+    if (!answered.has(file)) byFile.get(file).push('veraPDF gave no result for the file');
+  }
+  return byFile;
+}
 
 /** Whether a character is a line end. */
 const isEol = (char) => char === '\r' || char === '\n';
@@ -346,9 +434,13 @@ function externalCheck(tool, file, expected, tmp, log) {
 /**
  * Checks every file expected.json lists. Returns `{ file, problems }` rows. A file expected.json lists but the directory lacks is a
  * problem of its own, and so is a PDF in the directory that expected.json does not list.
+ *
+ * The per-file tools run once for each file; veraPDF runs once for the corpus, which is one Java start instead of one for each
+ * file, and its report names every file's result.
  */
 export async function checkCorpus(dir, options = {}) {
   const tools = options.tools ?? [];
+  const perFile = tools.filter((tool) => tool !== 'verapdf');
   const logDir = options.logDir ?? join(dir, 'logs');
   const expected = JSON.parse(readFileSync(join(dir, 'expected.json'), 'utf8'));
   const rows = [];
@@ -369,7 +461,7 @@ export async function checkCorpus(dir, options = {}) {
       add('fonts', [`pdf-lib could not read the file: ${error instanceof Error ? error.message : String(error)}`]);
     }
     add('pdf.js', await checkWithPdfjs(bytes, entry));
-    for (const tool of tools) {
+    for (const tool of perFile) {
       const tmp = mkdtempSync(join(tmpdir(), 'pdf-validate-'));
       let raw = '';
       try {
@@ -381,7 +473,29 @@ export async function checkCorpus(dir, options = {}) {
     }
     rows.push({ file: entry.file, problems });
   }
+  if (tools.includes('verapdf')) {
+    const present = new Set(rows.filter((row) => existsSync(join(dir, row.file))).map((row) => row.file));
+    const byFile = veraPdfBatch([...present].map((file) => join(dir, file)), logDir);
+    for (const row of rows) {
+      if (!present.has(row.file)) continue;
+      row.problems.push(...(byFile.get(row.file) ?? []).map((problem) => `verapdf: ${problem}`));
+    }
+  }
   return rows;
+}
+
+/**
+ * Every file through veraPDF in one run, and the report written to <logDir>/verapdf.txt for the failure artifact. A run that
+ * cannot start at all is every file's problem: a gate that quietly checks nothing is the failure it exists to prevent.
+ */
+function veraPdfBatch(paths, logDir) {
+  const result = run('verapdf', ['--format', 'json', ...paths]);
+  writeFileSync(join(logDir, 'verapdf.txt'), `${result.stdout}${result.stderr}`);
+  const files = paths.map((path) => basename(path));
+  if (result.missing) return new Map(files.map((file) => [file, ['veraPDF is not installed']]));
+  // veraPDF writes the report to stdout and its own warnings to stderr, and exits 1 for a file it finds non-compliant. The report
+  // is what this check reads: the exit code says nothing the rules do not, so it is not one of the signals.
+  return veraPdfProblems(result.stdout, files);
 }
 
 // Run directly: `node tools/pdf-validate/check.mjs <dir> [--external[=tool,tool]]`.
