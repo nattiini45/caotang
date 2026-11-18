@@ -93,6 +93,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- Provider setup and editing fit in narrow Settings in both shells, including the longer German action labels (#659).
+
 - Workspace errors stay readable until dismissed or replaced by another error, even if an informational notice arrives later (#563).
 
 - The Modern agent window keeps its resource-use line readable while a turn works or waits for approval (#572).

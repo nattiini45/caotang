@@ -1,5 +1,7 @@
 # Decisions
 
+- The shared provider forms size their field tracks to the Settings content box, and longer button labels and help wrap there instead of setting a wider intrinsic minimum (#659). [delegated 2026-11-18]
+
 - In both shells, a workspace error stays until dismissed or replaced by a newer error. Informational reports cannot silently overwrite it, and closing a modal acknowledges nothing (#563). [delegated 2026-11-18]
 
 - The Modern companion gives agent resource use its own wrapping row, leaving the lifecycle label readable beside Stop instead of ellipsizing the two readouts against each other (#572). [delegated 2026-11-18]
