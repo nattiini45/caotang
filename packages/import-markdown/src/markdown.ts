@@ -60,9 +60,10 @@ function interruptsParagraph(line: string): boolean {
 
 /**
  * Parse a Markdown body into blocks. `sourceUnit` names the file the body came
- * from, so the splitter can treat a change of file as a boundary.
+ * from, so the splitter can treat a change of file as a boundary. `tokenNamespace` keeps picture tokens apart when several files
+ * are merged into one document: without it two files' first picture would share one token and one file's bytes.
  */
-export function parseMarkdownBody(body: string, sourceUnit?: string): MarkdownBody {
+export function parseMarkdownBody(body: string, sourceUnit?: string, tokenNamespace?: string): MarkdownBody {
   const lines = body.replace(/\r\n?/g, '\n').split('\n');
   const blocks: ImportBlock[] = [];
   const footnotes: ImportFootnote[] = [];
@@ -77,7 +78,7 @@ export function parseMarkdownBody(body: string, sourceUnit?: string): MarkdownBo
   const registerImage = (target: string): string => {
     const held = tokenOf.get(target);
     if (held !== undefined) return held;
-    const token = `import:markdown-image-${imageRefs.length + 1}`;
+    const token = `import:markdown-image-${tokenNamespace === undefined ? '' : `${tokenNamespace}-`}${imageRefs.length + 1}`;
     tokenOf.set(target, token);
     imageRefs.push(token);
     imageTargets.set(token, target);

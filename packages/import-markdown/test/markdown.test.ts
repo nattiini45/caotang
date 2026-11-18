@@ -221,8 +221,28 @@ describe('archive read', () => {
     const result = await readMarkdownArchive(opened.value);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const asset = result.value.document.assets?.find((a) => a.ref === 'import:markdown-image-1');
+    const asset = result.value.document.assets?.find((a) => a.ref === 'import:markdown-image-0-1');
     expect(asset?.bytes).toBe('fake-png-bytes'.length);
-    expect(new TextDecoder().decode(result.value.assetData.get('import:markdown-image-1'))).toBe('fake-png-bytes');
+    expect(new TextDecoder().decode(result.value.assetData.get('import:markdown-image-0-1'))).toBe('fake-png-bytes');
+  });
+
+  it('keeps two files’ pictures apart: each keeps its own bytes', async () => {
+    const zip = textZip({
+      'one.md': '![first](assets/one.png)',
+      'two.md': '![second](assets/two.png)',
+      'assets/one.png': 'the-first-picture',
+      'assets/two.png': 'the-second-picture-longer',
+    });
+    const opened = await openZip(zip);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    const result = await readMarkdownArchive(opened.value);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const assets = result.value.document.assets ?? [];
+    expect(assets).toHaveLength(2);
+    const bytes = assets.map((asset) => new TextDecoder().decode(result.value.assetData.get(asset.ref)));
+    expect(bytes).toEqual(['the-first-picture', 'the-second-picture-longer']);
+    expect(assets.map((asset) => asset.bytes)).toEqual(['the-first-picture'.length, 'the-second-picture-longer'.length]);
   });
 });

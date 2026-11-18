@@ -117,7 +117,11 @@ export const BUDGET = {
   // 1,030.3 kB (1,030,261 bytes) measured with #488's request-parameter enforcement in the gateway, which loads at start: the deny map that
   // takes a denied thinking field off the wire, the one output settlement the body and `modelLimits` share, and the pinned-preset rows. The
   // ceiling is that plus about 1%, rounded up to the thousand. [owner 2026-11-08]
-  initialGzip: 1_054_000,
+  // 1,055.9 kB (1,055,937 bytes) measured with the TextBundle container reader (#282): the Bear backup and Ulysses group paths, iA
+  // Writer's Content Blocks and the fifteen new catalogue messages. The first load carries only the catalogues (+346 bytes gzip on
+  // this branch's own 1,055,591); the readers stay in their lazy chunk. This branch's base predates main's later raises, so its
+  // inherited 1,054,000 was already under the branch's own build. The ceiling is the measurement plus about 1%, rounded up to the thousand.
+  initialGzip: 1_067_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -168,7 +172,11 @@ export const BUDGET = {
   // Effort levels per provider, DeepSeek as a full preset and the request-parameters form (#488): 7,782,495 bytes measured (entry
   // 1,206,897). Caspar raised both ceilings on 2026-11-07 to leave headroom instead of approving each small raise: all JS 8,000,000,
   // entry 1,250,000. With #489 merged in: 7,790.4 kB measured (entry 1,207.9 kB, first load 1,030.3 kB gzip), under all three.
-  totalJs: 8_104_000,
+  // 8,159.9 kB (8,159,964 bytes) measured with #282's container reader: +9,103 on this branch's own 8,150,861 before the change, all
+  // of it in the lazy `textbundle-source` chunk (the Content Blocks module and the container path) and the two catalogues. The
+  // inherited 8,104,000 was already under the branch's own build, whose base predates main's later raises. The ceiling is the
+  // measurement plus about 1%, rounded up to the thousand.
+  totalJs: 8_242_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

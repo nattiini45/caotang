@@ -80,7 +80,9 @@ The preview's in-memory `import.preview` phase is `loading`, `failed` (reading f
 imports stage theirs. Its params: `parentId` (the manuscript, or a folder of the manuscript: folders are appended, never merged),
 `nodes` (the tree in reading order, each naming its parent folder by index; a top-level node goes under `parentId`, or under
 research with `place: 'research'`), `vocabulary` (the terms to add), `codex` (`codex.importBatch` entries, which may name an
-imported document by index as `node`), and `pictures`.
+imported document by index as `node`), and `pictures`. A source may set `PreviewNode.place` to `research` on its **top-level** nodes to
+send its whole import to Research (a Bear `.bear2bk` backup, #282); front and back matter also offer `manuscript` and `skip`. A node that
+names a parent never carries `place`, since it is already under its folder.
 
 - **What the preview decides before the command.** A node left out is not sent, nor anything under it, nor a picture only its text
   used (the status line says so). A scene or front matter at the top of an import into the manuscript gets a folder of its own name,

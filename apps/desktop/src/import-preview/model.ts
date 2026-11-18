@@ -48,7 +48,7 @@ export interface PreviewNode {
   readonly notes?: string;
   readonly synopsis?: string;
   readonly keywords?: readonly string[];
-  /** Front and back matter only: where it goes. `skip` keeps it out (and the report says so). */
+  /** Where a top-level node goes. Front and back matter offer `skip` (kept out, and the report says so); a source whose import belongs in Research (a Bear backup, #282) sets `research` on its top-level nodes. */
   readonly place?: 'manuscript' | 'research' | 'skip';
   /** The source's own fields (front-matter keys, CSV columns), mapped by the writer in the Fields section. */
   readonly fields?: Readonly<Record<string, string | readonly string[]>>;
@@ -689,7 +689,7 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
     documents += 1;
   }
 
-  for (const node of tree) push(node, undefined, undefined);
+  for (const node of tree) push(node, undefined, node.place === 'research' ? 'research' : undefined);
 
   // The pictures the kept bodies use, and only those.
   const bodies = nodes.map((node) => node.body ?? '').join('\n');

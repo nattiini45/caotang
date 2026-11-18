@@ -9,9 +9,12 @@ is the shared splitter's job; this reader only emits blocks and the per-file fro
 
 ## 1. Inputs and outputs
 
-- `readMarkdownFile(bytes, fileName, { encoding? })` reads one file. `readMarkdownArchive(archive, { encoding? })` reads a folder or
-  zip opened by `@caotang/import-read/zip`. Both return `{ ok: true, value }` or `{ ok: false, error }`; nothing throws for anything
-  about the input.
+- `readMarkdownFile(bytes, fileName, { encoding?, tokenNamespace? })` reads one file. `readMarkdownArchive(archive, { encoding? })` reads a
+  folder or zip opened by `@caotang/import-read/zip`. Both return `{ ok: true, value }` or `{ ok: false, error }`; nothing throws for
+  anything about the input.
+- **Picture tokens are per file.** `parseMarkdownBody(body, sourceUnit?, tokenNamespace?)` names a picture `import:markdown-image-<n>`, or
+  `import:markdown-image-<namespace>-<n>` when a namespace is given. A caller merging several files into one document must give each a
+  namespace (`readMarkdownArchive` uses the file's index): without it two files' first picture share one token and one file's bytes (#282).
 - The value is a `MarkdownImport`: the `ImportDocument` (blocks, footnotes, losses, metadata, assets), a `frontMatter` record keyed by
   the blocks' `sourceUnit`, and a `title`.
 - Errors: `ask-encoding` (the preview offers its encoding picker), `too-large`, `too-many-lines` (the plain-text reader's caps),

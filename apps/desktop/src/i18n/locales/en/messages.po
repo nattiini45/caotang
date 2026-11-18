@@ -665,6 +665,11 @@ msgstr "{count, plural, one {# Bear tag kept as a keyword.} other {# Bear tags k
 msgid "{count, plural, one {# change applied. Undo restores it.} other {# changes applied. Undo restores them.}}"
 msgstr "{count, plural, one {# change applied. Undo restores it.} other {# changes applied. Undo restores them.}}"
 
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "{count, plural, one {# CSV file became paragraphs, one per row; its columns are not kept.} other {# CSV files became paragraphs, one per row; their columns are not kept.}}"
+msgstr "{count, plural, one {# CSV file became paragraphs, one per row; its columns are not kept.} other {# CSV files became paragraphs, one per row; their columns are not kept.}}"
+
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "{count, plural, one {# day} other {# days}}"
@@ -683,6 +688,11 @@ msgstr "{count, plural, one {# finding} other {# findings}}"
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "{count, plural, one {# footnote or comment has no place in the text and cannot be kept.} other {# footnotes and comments have no place in the text and cannot be kept.}}"
 msgstr "{count, plural, one {# footnote or comment has no place in the text and cannot be kept.} other {# footnotes and comments have no place in the text and cannot be kept.}}"
+
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "{count, plural, one {# iA Writer Content Block came in where the index lists it.} other {# iA Writer Content Blocks came in where the index lists them.}}"
+msgstr "{count, plural, one {# iA Writer Content Block came in where the index lists it.} other {# iA Writer Content Blocks came in where the index lists them.}}"
 
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
@@ -713,6 +723,11 @@ msgstr "{count, plural, one {# mode} other {# modes}}"
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "{count, plural, one {# move} other {# moves}}"
 msgstr "{count, plural, one {# move} other {# moves}}"
+
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "{count, plural, one {# note kept its Bear dates as a note line; the project has no date field.} other {# notes kept their Bear dates as note lines; the project has no date field.}}"
+msgstr "{count, plural, one {# note kept its Bear dates as a note line; the project has no date field.} other {# notes kept their Bear dates as note lines; the project has no date field.}}"
 
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
@@ -2543,6 +2558,11 @@ msgstr "A folder for each part"
 msgid "A folder for scenes"
 msgstr "A folder for scenes"
 
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "A folder per tag"
+msgstr "A folder per tag"
+
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "a folder that is gone"
@@ -4155,6 +4175,11 @@ msgstr "Balloon’s script text changed"
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "Balloons lettered on “<0/>” from “<1/>”, shown before approval"
 msgstr "Balloons lettered on “<0/>” from “<1/>”, shown before approval"
+
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "Bear tags"
+msgstr "Bear tags"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
@@ -5868,6 +5893,11 @@ msgstr "Create project"
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Created"
 msgstr "Created"
+
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "Created {created}"
+msgstr "Created {created}"
 
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
@@ -9076,6 +9106,11 @@ msgstr "Keyword criteria"
 msgid "Keywords"
 msgstr "Keywords"
 
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "Keywords on each note"
+msgstr "Keywords on each note"
+
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
 msgid "Keywords, all of these"
@@ -10065,6 +10100,11 @@ msgstr "Modern could not load. The current interface is still in use. Try again 
 #: apps/desktop/src/components/Settings.tsx
 msgid "Modern interface"
 msgstr "Modern interface"
+
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "Modified {modified}"
+msgstr "Modified {modified}"
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
@@ -16881,6 +16921,16 @@ msgstr "The complete script written from “<0/>”, shown before approval"
 #: apps/desktop/src/app/mcp-model.ts
 msgid "The connection was cancelled. Choose Connect to try again."
 msgstr "The connection was cancelled. Choose Connect to try again."
+
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "The Content Block “{path}” is a file this import does not read; its line stayed as text."
+msgstr "The Content Block “{path}” is a file this import does not read; its line stayed as text."
+
+#. The TextBundle import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/textbundle-source.ts
+msgid "The Content Block “{path}” names no file in this container; its line stayed as text."
+msgstr "The Content Block “{path}” names no file in this container; its line stayed as text."
 
 #. Interpolated values: calls, count, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts

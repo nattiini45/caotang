@@ -79,6 +79,8 @@ const titleFromName = (name: string): string => {
 
 interface ReadOptions {
   encoding?: DecodableEncoding;
+  /** Keeps this file's picture tokens apart from another's when a caller merges several files into one document. */
+  tokenNamespace?: string;
 }
 
 /** Read one Markdown file's bytes into blocks and front-matter facts. */
@@ -89,7 +91,7 @@ export function readMarkdownFile(bytes: Uint8Array, fileName: string, options: R
   if (decoded.status === 'too-many-lines') return { ok: false, error: { kind: 'too-many-lines', lines: decoded.lines, limit: decoded.limit } };
 
   const { front, format, body } = splitFrontMatter(decoded.text);
-  const parsed = parseMarkdownBody(body, fileName);
+  const parsed = parseMarkdownBody(body, fileName, options.tokenNamespace);
   const mapped = front !== null && format !== null ? mapFrontMatter(front, format) : { metadata: {}, scene: {}, notes: '' };
 
   const document: ImportDocument = {
@@ -137,7 +139,7 @@ export async function readMarkdownArchive(archive: ImportArchive, options: ReadO
   const imageTargets = new Map<string, string>();
   let title: string | undefined;
 
-  for (const path of paths) {
+  for (const [index, path] of paths.entries()) {
     const read = await archive.read(path);
     if (!read.ok) return { ok: false, error: { kind: 'archive', message: read.error.message } };
     const decoded = decodePlainText(read.value, options.encoding ? { encoding: options.encoding } : {});
@@ -146,7 +148,7 @@ export async function readMarkdownArchive(archive: ImportArchive, options: ReadO
     if (decoded.status === 'too-many-lines') return { ok: false, error: { kind: 'too-many-lines', lines: decoded.lines, limit: decoded.limit } };
 
     const { front, format, body } = splitFrontMatter(decoded.text);
-    const parsed = parseMarkdownBody(body, path);
+    const parsed = parseMarkdownBody(body, path, String(index));
     const mapped = front !== null && format !== null ? mapFrontMatter(front, format) : { metadata: {}, scene: {}, notes: '' };
     if (title === undefined && mapped.metadata.title) title = mapped.metadata.title;
 
