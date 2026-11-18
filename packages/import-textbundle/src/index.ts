@@ -137,6 +137,25 @@ interface BundleFiles {
 const dirOf = (path: string): string => path.split('/').slice(0, -1).join('/');
 const baseOf = (path: string): string => path.split('/').pop() ?? path;
 
+/**
+ * A bundle folder and a relative picture target joined into one container path, with `.` and `..` walked. `null` when the target
+ * climbs out of the container, which no entry can answer. A Ulysses sheet reaches its group's pictures with `../assets/x.png`, so
+ * the climb is the ordinary case rather than an attack.
+ */
+function withinContainer(dir: string, target: string): string | null {
+  const parts: string[] = dir === '' ? [] : dir.split('/');
+  for (const part of target.split('/')) {
+    if (part === '' || part === '.') continue;
+    if (part === '..') {
+      if (parts.length === 0) return null;
+      parts.pop();
+      continue;
+    }
+    parts.push(part);
+  }
+  return parts.join('/');
+}
+
 /** Every bundle the container holds, in natural path order. A `.bear2bk` and a Ulysses group hold many; a TextPack holds one. */
 function bundlesOf(paths: readonly string[]): BundleFiles[] {
   return paths
@@ -340,14 +359,18 @@ export async function readTextBundle(archive: ImportArchive): Promise<TextBundle
   for (const asset of assets) {
     const held = imageTargets.get(asset.ref);
     if (held === undefined) continue;
-    const clean = held.target.replace(/^\.\//, '');
-    if (/^[a-z][a-z0-9+.-]*:/i.test(clean) || clean.startsWith('//')) continue; // remote: opt-in elsewhere
+    const clean = held.target.replace(/[?#].*$/, '');
+    if (/^[a-z][a-z0-9+.-]*:/i.test(clean) || clean.startsWith('//')) continue; // remote: never fetched here
+    const own = withinContainer(held.dir, clean);
+    const ownAssets = withinContainer(held.dir === '' ? 'assets' : `${held.dir}/assets`, clean);
+    const root = withinContainer('', clean);
     const candidates = [
-      ...(held.dir === '' ? [] : [`${held.dir}/${clean}`, `${held.dir}/assets/${clean}`]),
-      clean,
-      `assets/${clean}`,
-      ...paths.filter((path) => path.endsWith(`/${clean}`) || path === clean),
-    ];
+      own,
+      ownAssets,
+      root,
+      root === null || root === '' ? null : `assets/${root}`,
+      ...paths.filter((path) => own !== null && (path.endsWith(`/${own}`) || path === own)),
+    ].filter((path): path is string => path !== null && path !== '');
     for (const candidate of candidates) {
       if (archive.entry(candidate) === undefined) continue;
       const bytes = await archive.read(candidate);

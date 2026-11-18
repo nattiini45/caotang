@@ -112,6 +112,25 @@ describe('a Ulysses group export', () => {
     ]);
     expect(assets.map((asset) => asset.name)).toEqual(['pier.png', 'lamp.png']);
   });
+
+  it('reaches a picture the sheet names with ../ or ./, and refuses one that climbs out of the container', async () => {
+    const result = await read({
+      'G/01.textbundle/info.json': JSON.stringify({ creatorIdentifier: 'com.ulyssesapp.mac', title: 'One' }),
+      'G/01.textbundle/text.md': '![chart](../assets/chart.png)\n\n![own](./assets/own.png)\n\n![outside](../../../../outside.png)',
+      'G/assets/chart.png': 'the-group-picture',
+      'G/01.textbundle/assets/own.png': 'the-sheet-picture',
+      'outside.png': 'not-reachable-by-climbing-out',
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const assets = result.value.document.assets ?? [];
+    const brought = assets.filter((asset) => result.value.assetData.has(asset.ref));
+    expect(brought.map((asset) => asset.name)).toEqual(['chart.png', 'own.png']);
+    expect(brought.map((asset) => new TextDecoder().decode(result.value.assetData.get(asset.ref)))).toEqual([
+      'the-group-picture',
+      'the-sheet-picture',
+    ]);
+  });
 });
 
 describe('an iA Writer project archive', () => {

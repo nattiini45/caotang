@@ -41,8 +41,10 @@ Like the other readers it has **no DOM and no third-party dependencies**, so it 
 
 ## 3. Pictures and the keep-everything rule
 
-Each picture resolves against its own bundle's folder and `assets/` first, then anywhere in the container; a remote target is left alone
-(the download opt-in is the preview's). Footnotes stay as `[^n]` (decision 3). Comments go to notes, never dropped. The commit is the
+Each picture resolves against its own bundle's folder and `assets/` first, then anywhere in the container. The target is joined to the
+bundle's folder with `.` and `..` walked, so a Ulysses sheet reaches its group's pictures with `../assets/x.png`; a path that climbs out
+of the container answers to no entry and is not read. A remote target is never fetched: this source has no network option, and the
+preview offers none. Footnotes stay as `[^n]` (decision 3). Comments go to notes, never dropped. The commit is the
 shared preview's one `binder.importTree`, so one Undo takes all of it back, pictures included.
 
 ## 4. The preview
