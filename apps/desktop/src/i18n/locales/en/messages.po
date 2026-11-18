@@ -8619,6 +8619,11 @@ msgstr "Follow the system"
 msgid "Follows these scenes"
 msgstr "Follows these scenes"
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Font"
+msgstr "Font"
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Footnote {label}"
@@ -13082,6 +13087,7 @@ msgid "Paper frames: blank numbered frames to draw in, without the pictures"
 msgstr "Paper frames: blank numbered frames to draw in, without the pictures"
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Paper size"
 msgstr "Paper size"
@@ -13965,6 +13971,11 @@ msgstr "proposed, not run"
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Prose"
 msgstr "Prose"
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Prose PDF (.pdf)"
+msgstr "Prose PDF (.pdf)"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -19112,6 +19123,11 @@ msgstr "The log can contain manuscript and conversation text. Export it only whe
 #: apps/desktop/src/components/Binder.tsx
 msgid "The manuscript is empty"
 msgstr "The manuscript is empty"
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "The manuscript paginated for print: double-spaced Courier on Letter or A4, chapter headings a third of the page down, the page number on every sheet after the first."
+msgstr "The manuscript paginated for print: double-spaced Courier on Letter or A4, chapter headings a third of the page down, the page number on every sheet after the first."
 
 #: apps/desktop/src/components/GoalComposer.tsx
 msgid "The maximum must be at least the minimum."

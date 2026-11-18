@@ -59,6 +59,8 @@ const MEDIA_FORMAT_NAMES: Readonly<Record<string, string>> = {
   rss: 'the RSS feed',
   atom: 'the Atom feed',
   'podcast-rss': 'the podcast feed',
+  // The prose PDF is a prose format too, but its no-text gate refuses through this class, as `html`'s does.
+  'prose-pdf': 'the prose PDF',
 };
 
 /**

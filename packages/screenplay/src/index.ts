@@ -96,9 +96,9 @@ export {
   type PdfText,
 } from './pdf.js';
 
-export { breakBetween, charColumns, textColumns, textUnits, unitColumns, withMeasure, type MeasureRun } from './width.js';
+export { breakBetween, breakPieces, charColumns, splitColumns, textColumns, textUnits, unitColumns, withMeasure, type MeasureRun } from './width.js';
 
-export type { RtlFontLoaders, RtlSupport } from './rtl-font.js';
+export { loadRtlSupport, type RtlFontLoaders, type RtlSupport } from './rtl-font.js';
 
 export { COURIER_PRIME_METRICS } from './fonts/courier-prime-metrics.js';
 export { COUSINE_METRICS } from './fonts/cousine-metrics.js';
