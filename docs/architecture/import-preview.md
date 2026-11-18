@@ -38,6 +38,8 @@ proposed tree?* A source gives:
 | `scanExtra()` | Text the reader kept out of the tree (RTF hidden text, deleted revisions, field codes, link targets) that the injection scan reads too; its hits are listed by what they are, with no node. |
 | `report(plan)`, `importLabel(plan)`, `commit`, `readOnly` | For a source whose import is not a binder tree (the Twee import: one dialogue container, written with `dialogue.importInk`). |
 
+The sources built on this contract: the splitter source (`splitter-source.ts`) with the plain-text and RTF/RTFD readers on it (#283, #274, #390), the Twee source (`twee-source.ts`, a custom commit), and the captions source (`captions-source.ts`, #287), which proposes **one AV script episode in a show folder** instead of chapters and scenes and carries the node kinds `binder.create` takes ([import-captions.md](import-captions.md) §5).
+
 ## 3. Rules first, manual edits second
 
 A chip change re-runs `plan`. The manual edits are kept apart from the rules, so the re-run can keep them: splits by block index
@@ -84,6 +86,9 @@ imports stage theirs. Its params: `parentId` (the manuscript, or a folder of the
 research with `place: 'research'`), `vocabulary` (the terms to add), `codex` (`codex.importBatch` entries, which may name an
 imported document by index as `node`), and `pictures`.
 
+- **A document's kind.** A document node may carry `kind` — `screenplay`, `av-script` or `comic-script`, the kinds `binder.create`
+  takes for a document — and the apply makes that kind of document; absent, the document is prose. A folder takes no kind. The
+  Highland import (screenplay.md §2.2) marks its scenes `screenplay` this way, so a script keeps its kind through the shared preview.
 - **What the preview decides before the command.** A node left out is not sent, nor anything under it, nor a picture only its text
   used (the status line says so). A scene or front matter at the top of an import into the manuscript gets a folder of its own name,
   because a document goes inside a chapter. Keywords, synopsis and notes are fitted to the binder's limits. Every body is checked

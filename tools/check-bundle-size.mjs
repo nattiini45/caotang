@@ -190,7 +190,14 @@ export const BUDGET = {
   // 1,184 for the command's lazy loader and the catalogues 980. First load 1,090,061 gzip (+517 on main), under its ceiling, which does not move.
   // No new dependency, no duplicated SDK version, no production pseudo-locale; every reader and the Worker itself load on use. The ceiling is
   // the measurement plus about 1%, rounded up to the thousand. [delegated 2026-11-17]
-  totalJs: 8_633_000,
+  // The captions import (#287) on main at 0649cd2a, which had just taken the Inklewriter import (#286): 8,657,639 bytes measured
+  // against main's own 8,630,973, so +26,666. Named: the new lazy `captions-source` (+10,001) and the captions reader's `src` chunk
+  // (+17,172), the catalogues (+4,639 German, +4,173 English), the entry's lazy loader (+1,156), the reader Worker (+503) and the
+  // preview dialog (+74); rolldown also regrouped a shared `word-count` chunk (+30,066) out of `manifest` (-22,995), `exporter`
+  // (-12,763) and `state` (-6,189). First load 1,095,371 gzip (+3,333 on main: the English catalogue and the entry), under its
+  // ceiling, which does not move. No new dependency, no duplicated SDK version, no production pseudo-locale; the reader, its source
+  // and the Worker load on use. The ceiling is the measurement plus about 1%, rounded up to the thousand. [delegated 2026-11-18]
+  totalJs: 8_745_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

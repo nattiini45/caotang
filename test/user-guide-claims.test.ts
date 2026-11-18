@@ -723,14 +723,14 @@ describe('the user guide’s reviewed claims match the code', () => {
 });
 
 describe('the import preview (#267)', () => {
-  it('says one Undo takes the whole import back, that the Twee, plain-text and RTF imports open it, and that its commit is the writer’s alone', () => {
-    // The commit is one writer-only, compensable command (import-preview.md §5); the Twee import and the two manuscript imports open the shared dialog.
+  it('says one Undo takes the whole import back, that the Twee, plain-text, RTF, RTFD and captions imports open it, and that its commit is the writer’s alone', () => {
+    // The commit is one writer-only, compensable command (import-preview.md §5); the Twee import and the manuscript imports open the shared dialog.
     expect(COMMAND_REGISTRY['binder.importTree'].descriptor.agentRisk).toBe('never');
     expect(COMMAND_REGISTRY['binder.importTree'].descriptor.undo).toBe('compensable');
     expect(read('apps/desktop/src/components/TweeImportDialog.tsx')).toContain('tweePreviewSource(');
     expect(guide).toContain('- **The import preview.** An import that brings in a whole book shows it first as a proposed binder beside its text');
     expect(guide).toContain('one **Undo** takes all of it back, pictures and codex entries included');
-    expect(guide).toContain('**Import Twee**, **Import Inklewriter**, **Import plain text…**, **Import RTF…** and **Import RTFD…** open it.');
+    expect(guide).toContain('**Import Twee**, **Import Inklewriter**, **Import plain text…**, **Import RTF…**, **Import RTFD…** and **Import captions…** open it.');
     expect(guide).toContain('**Import Inklewriter** reads an Inklewriter story export');
     expect(read('apps/desktop/src/components/ScriptImport.tsx')).toContain('inklewriterPreviewSource');
     expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
@@ -741,9 +741,56 @@ describe('the import preview (#267)', () => {
     expect(manuscript).toContain('rtfdPreviewSource');
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<ManuscriptImportActions />');
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(notYet).toContain('the Twee, plain-text, RTF and RTFD imports open the preview');
+    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD and captions imports open the preview');
     expect(notYet).not.toContain('There is no **Import RTF** command yet');
     expect(changelog).toContain('**One import preview for every structured import.**');
     expect(read('docs/architecture/import-preview.md')).toContain('## 5. The commit: `binder.importTree`');
+  });
+});
+
+describe('the captions import (#287)', () => {
+  it('says what a captions file becomes, that the durations are the file’s own, and what each choice costs', () => {
+    expect(guide).toContain('- **Import captions…** reads an SRT (`.srt`) or WebVTT (`.vtt`) file');
+    expect(guide).toContain('**one AV script episode in a show folder**');
+    expect(guide).toContain("duration comes from the file's own timings, so nothing is estimated");
+    expect(guide).toContain('a gap of at least three seconds starts a new segment');
+    expect(guide).toContain('**Leave it out**');
+    expect(guide).toContain('A WebVTT `NOTE` becomes a quoted text line, never a speaker, and stays where the file put it');
+    expect(guide).toContain('one that is also a cue word (music, sfx, ambience, ad, pause, sting) or the word Narration gets an underscore so it stays speech with its own name');
+    expect(guide).toContain('A cue whose start and end are the same gets no duration');
+    expect(guide).toContain('a choice it cannot read says why, and you can pick a different one');
+    expect(guide).toContain('a script line holds a duration and not a start time');
+    expect(guide).toContain('Untick **Put the episode in a show folder**');
+  });
+
+  it('says the same in German, in the app’s own words for a cue, a speech line and a show', () => {
+    const german = read('docs/i18n/de/USER-GUIDE.md');
+    expect(german).toContain('- **Untertitel importieren…** liest eine SRT- (`.srt`) oder WebVTT-Datei (`.vtt`)');
+    expect(german).toContain('**eine Episode als AV-Skript in einem Sendungsordner**');
+    expect(german).toContain('Jeder Cue mit Wörtern wird eine Sprechzeile');
+    expect(german).toContain('ein Cue ohne Wörter wird ausgelassen und gezählt');
+    expect(german).toContain('sie landet also in einem Kapitel mit ihrem eigenen Namen');
+    expect(german).toContain('eine Pause von mindestens drei Sekunden beginnt ein neues Segment');
+    expect(german).toContain('**Außen vor lassen**');
+    expect(german).toContain('**Die Episode in einen Sendungsordner legen**');
+    expect(german).toContain('bleibt dort, wo die Datei es gesetzt hat');
+    expect(german).toContain('oder das Wort Narration, bekommt einen Unterstrich');
+    expect(german).toContain('eine Auswahl, die sie nicht lesen kann, sagt warum');
+  });
+
+  it('is one writer-only undo step whose nodes carry binder.create’s own kinds, and the reader declares every duration', () => {
+    const source = read('apps/desktop/src/import-preview/captions-source.ts');
+    expect(source).toContain("kind: 'av-script'");
+    expect(source).toContain("kind: 'show'");
+    expect(source).toContain('importLabel');
+    expect(read('apps/desktop/src/components/ManuscriptImport.tsx')).toContain("await import('../import-preview/captions-source.js')");
+    const descriptor = read('packages/bus/src/descriptors-import.ts');
+    expect(descriptor).toContain("const IMPORT_TREE_FOLDER_KINDS = ['show', 'storyboard'] as const;");
+    expect(read('packages/store/src/commands-import.ts')).toContain("type: 'folder', now: at, ...(node.kind === undefined ? {} : { kind: node.kind })");
+    // Declared, never estimated: the builder writes a duration bracket from the cue's own span.
+    expect(read('packages/import-captions/src/episode.ts')).toContain('durationBracket(declared)');
+    expect(read('docs/architecture/import-captions.md')).toContain('## 5. The import command');
+    expect(read('docs/architecture/command-bus.md')).toContain('a folder `show` or `storyboard` (#287)');
+    expect(changelog).toContain('**Captions import (#287).**');
   });
 });

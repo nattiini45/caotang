@@ -35,6 +35,8 @@ export interface TreeRow {
   readonly status: string | null;
   readonly label: string | null;
   readonly synopsis: string;
+  /** The node's kind (`show`, `av-script`, `screenplay`, …), or null for a plain folder or a prose document. */
+  readonly kind: string | null;
 }
 
 /** The body-projection range an editor has selected, and the document it is in. */
@@ -141,6 +143,7 @@ export function installTestHook(current: () => ProjectSession | null): void {
         status: node.status,
         label: node.label,
         synopsis: node.synopsis,
+        kind: node.kind ?? null,
       }));
     },
     body: (docId) => current()?.state.documents.get(docId)?.body ?? null,
