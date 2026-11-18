@@ -285,6 +285,9 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../../packages/ids
+      '@caotang/import-captions':
+        specifier: workspace:*
+        version: link:../../packages/import-captions
       '@caotang/import-core':
         specifier: workspace:*
         version: link:../../packages/import-core
@@ -352,6 +355,9 @@ importers:
         specifier: ^19.3.0
         version: 19.3.0(react@19.3.0)
     devDependencies:
+      '@caotang/script':
+        specifier: workspace:*
+        version: link:../../packages/script
       '@lingui/vite-plugin':
         specifier: 6.10.1
         version: 6.10.1(@babel/core@7.29.7(supports-color@7.2.0))(@lingui/babel-plugin-lingui-macro@6.10.1(@babel/core@7.29.7(supports-color@7.2.0)))(babel-plugin-macros@3.1.0)(rolldown@1.2.12)(supports-color@7.2.0)(vite@8.3.2(@types/node@26.6.4)(jiti@2.7.0))

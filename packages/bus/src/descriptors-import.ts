@@ -56,12 +56,18 @@ export type ImportTreeNode = {
   status?: string;
   label?: string;
   notes?: string;
-  /** A document's kind: a screenplay, an AV script or a comic script, as `binder.create` takes it. A folder takes no kind. */
-  kind?: 'screenplay' | 'av-script' | 'comic-script';
+  /**
+   * The node's kind, as `binder.create` takes it: a document is a screenplay, an AV script or a comic script, and a folder is a
+   * show or a storyboard. Absent: a prose document, or a plain folder.
+   */
+  kind?: 'screenplay' | 'av-script' | 'comic-script' | 'show' | 'storyboard';
 };
 
 /** The kinds a tree document may carry, paired with `binder.create`'s document kinds (descriptors.ts `pairCreateKind`). */
 const IMPORT_TREE_DOCUMENT_KINDS = ['screenplay', 'av-script', 'comic-script'] as const;
+
+/** The kinds a tree folder may carry, paired with `binder.create`'s folder kinds (the same function). */
+const IMPORT_TREE_FOLDER_KINDS = ['show', 'storyboard'] as const;
 
 /** A codex row: a `codex.importBatch` entry that may name an imported document by its index (`node`). */
 export type ImportTreeCodexEntry = Omit<CodexImportBatchEntry, 'attachTo' | 'page'> & { node?: number; attachTo?: string; page?: number };
@@ -229,9 +235,9 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
       if (label !== undefined && !(typeof label === 'string' && labels.has(label))) fail(`label ${showValue(label)} is neither a label of the project nor one this import adds`, 'label', 'map it to a label, add it, or leave it out');
       const kind = raw['kind'];
       if (kind !== undefined) {
-        if (type !== 'document') fail('a folder takes no kind; its type is its kind', 'kind', 'leave kind out for a folder');
-        else if (!(IMPORT_TREE_DOCUMENT_KINDS as readonly string[]).includes(kind as string)) {
-          fail(`kind must be ${IMPORT_TREE_DOCUMENT_KINDS.map((k) => `"${k}"`).join(', ')}, got ${showValue(kind)}`, 'kind');
+        const allowed: readonly string[] = type === 'document' ? IMPORT_TREE_DOCUMENT_KINDS : IMPORT_TREE_FOLDER_KINDS;
+        if (!allowed.includes(kind as string)) {
+          fail(`a ${type === 'document' ? 'document' : 'folder'} kind must be ${allowed.map((k) => `"${k}"`).join(', ')}, got ${showValue(kind)}`, 'kind');
         }
       }
 
@@ -246,7 +252,7 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
         ...(typeof status === 'string' ? { status } : {}),
         ...(typeof label === 'string' ? { label } : {}),
         ...(typeof notes === 'string' ? { notes } : {}),
-        ...(kind === 'screenplay' || kind === 'av-script' || kind === 'comic-script' ? { kind } : {}),
+        ...(kind === 'screenplay' || kind === 'av-script' || kind === 'comic-script' || kind === 'show' || kind === 'storyboard' ? { kind } : {}),
       });
     }
     if (text > IMPORT_TREE_TEXT_MAX) {

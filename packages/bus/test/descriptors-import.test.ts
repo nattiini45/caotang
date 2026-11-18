@@ -145,7 +145,7 @@ describe('binder.importTree — the descriptor', () => {
     expect(result.value.nodes[0]?.kind).toBeUndefined();
   });
 
-  it('refuses a kind on a folder and a kind a document does not take', () => {
+  it('refuses a document kind on a folder and a kind a document does not take', () => {
     const failures = failuresOf(
       binderImportTree.validate(
         {
@@ -159,5 +159,25 @@ describe('binder.importTree — the descriptor', () => {
       ),
     );
     expect(failures.map((failure) => failure.target)).toEqual(['nodes[0].kind', 'nodes[2].kind']);
+  });
+
+  it('takes a folder kind (a show, a storyboard) as binder.create does, so a captions import can make a show (#287)', () => {
+    const nodes = [
+      { type: 'folder', title: 'The Show', kind: 'show' },
+      { type: 'document', title: 'Episode 12', parent: 0, body: '# Episode 12', kind: 'av-script' },
+      { type: 'folder', title: 'Plain' },
+    ];
+    const result = binderImportTree.validate({ nodes }, makeSnapshot());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.nodes[0]?.kind).toBe('show');
+    expect(result.value.nodes[1]?.kind).toBe('av-script');
+    expect(result.value.nodes[2]?.kind).toBeUndefined();
+  });
+
+  it('refuses a folder kind a folder does not take, and names the ones it does', () => {
+    const failures = failuresOf(binderImportTree.validate({ nodes: [{ type: 'folder', title: 'C', kind: 'av-script' }] }, makeSnapshot()));
+    expect(failures.map((failure) => failure.target)).toEqual(['nodes[0].kind']);
+    expect(failures[0]?.message).toContain('"show", "storyboard"');
   });
 });

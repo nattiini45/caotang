@@ -1,6 +1,6 @@
 # The captions reader 🧭
 
-> Status: the package `packages/import-captions` (`@caotang/import-captions`) is **built** (#287) and tested in Node against the AV script's own parser. **Import captions…** in the binder, which calls it through the shared preview (#267) in the `'self'` Worker host (#390), is §5. Epic: #263.
+> Status: the package `packages/import-captions` (`@caotang/import-captions`) is **built** (#287) and tested in Node against the AV script's own parser, and **Import captions…** in the binder calls it through the shared preview (#267) in the `'self'` Worker host (#390), writing one AV script episode in a show folder as one `binder.importTree`. The round trip with the built `vtt` compile (#694) is tested through the real exporter. Not built: SRT as an export target (av-script.md SD9 keeps it a later phase), and a captions file that names its own segments. Epic: #263.
 
 ## 1. Purpose
 
@@ -47,7 +47,23 @@ The script stores durations, not offsets (§4, SD4), so the wall clock a caption
 
 ## 5. The import command
 
-Not built yet in this commit; the preview source, the binder action and their tests are the next change on #287.
+**Import captions…** in the binder's manuscript group (`ManuscriptImport.tsx`, beside Import plain text / RTF / RTFD) accepts `.srt` and `.vtt`. The action loads `captions-source.ts` on first use, so the first load carries neither the reader nor the source; the file's size is checked against the plain-text reader's cap before its bytes are read.
+
+The source runs the decode and the parse in the preview's `'self'` Worker host (`reader-host.ts`, #390) as reader `'captions'` (`reader-protocol.ts`, `reader-session.ts`): the bytes go over once, an encoding change re-reads the Worker's cached copy, and a read that fails can be retried because the host hands a fresh Worker its input again (import-preview.md §5). The episode body is built on the main thread from the cached cues, so the writer's choices re-plan without reading the file again.
+
+| Control | Kind | Default | Effect |
+|---|---|---|---|
+| Encoding | chip, only when the reader guessed | the guess | re-decodes and re-parses in the Worker |
+| New segment at a gap of | chip: never, 1, 2, 3, 5, 10, 30 s | 3 s | `gapSegmentSec` (§4) |
+| Silence between lines | chip: add it to the line before / leave it out | add | `silence` (§4) |
+| Merge consecutive cues of one speaker | option | on | `mergeSameSpeaker` (§4) |
+| Put the episode in a show folder | option | on | the tree is a `show` folder holding the episode, else the episode alone |
+
+The plan is one document of kind `av-script`, inside a folder of kind `show` when that option is on. Both kinds are `binder.create`'s own, carried by `binder.importTree` (command-bus.md §9): a document kind came with #284, and the folder kinds (`show`, `storyboard`) are added here the same additive way, validated against the same pair table. Nothing else is written: no codex rows, no pictures, no fields. The counts name one document and, with the folder, one part; the segments are the ✂ markers and the report's own sentence, because a segment is not a binder node.
+
+The report lists what the import does with the writer's current choices: the cues, speech lines and segments, the episode's runtime, the merges, the folded or left-out silence, the silence at the segment breaks and the leading offset. Every loss of §3 and §4 is a sentence with its count. The injection scan reads the episode body like any imported text (#54). **Import** commits one `binder.importTree`; one Undo removes the show and the episode. Cancel writes nothing. A file with no timed cue fails the read, and the dialog says why with no Import offered.
+
+The dev-only test hook (`app/test-hook.ts`) reports each tree node's `kind`, so the Playwright spec can assert that what landed really is a show folder holding an AV script episode.
 
 ## 6. Evidence
 
