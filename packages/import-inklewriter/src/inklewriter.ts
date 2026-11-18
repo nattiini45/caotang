@@ -135,6 +135,30 @@ function declaredFlag(text: string): { readonly name: string; readonly at: numbe
 }
 
 /**
+ * Where `name` ends when it is written at `at` in `text`, or -1. A run of spaces or tabs in the name matches a run of any length
+ * in the text, because the converter folds every run to one underscore: `door  开关` declared and `door 开关` written in a
+ * condition are the same flag, and matching only the declared spelling would rename inside the condition and break it. The
+ * writer's own spacing is left as it is; the caller copies the matched span.
+ */
+function matchName(text: string, at: number, name: string): number {
+  let ti = at;
+  let ni = 0;
+  while (ni < name.length) {
+    const c = name[ni];
+    if (c === ' ' || c === '\t') {
+      if (text[ti] !== ' ' && text[ti] !== '\t') return -1;
+      while (text[ti] === ' ' || text[ti] === '\t') ti += 1;
+      while (name[ni] === ' ' || name[ni] === '\t') ni += 1;
+      continue;
+    }
+    if (text[ti] !== c) return -1;
+    ti += 1;
+    ni += 1;
+  }
+  return ti;
+}
+
+/**
  * Runs `rename` over the parts of an expression that are not quoted literals, leaving every literal exactly as written. Ink
  * conditions compare text (`name = "the harbour master"`), and a literal may hold spaces and characters the name rule drops, so
  * it is opaque: never read for names, never rewritten. A scan rather than a regular expression, so the work is one pass over the
@@ -220,9 +244,17 @@ function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
     }
   }
   const taken = new Set<string>();
+  for (const base of bases.keys()) taken.add(base);
+  // The converter picks the first free name in `base`, `base_2`, `base_3`, … for each occurrence that folds to one base, skipping
+  // whatever is already taken — including another stitch's key (`section_2`) and so reaching `section_3`. Reserving the same
+  // sequence here, over every name the converter may allocate, covers each name it can pick, in any order it walks the story.
   for (const [base, count] of bases) {
-    taken.add(base);
-    for (let n = 2; n <= count; n += 1) taken.add(`${base}_${n}`);
+    // `base` itself is the first occurrence's name and is already reserved; each further occurrence takes the first free suffix.
+    for (let occurrence = 1; occurrence < count; occurrence += 1) {
+      let n = 2;
+      while (taken.has(`${base}_${n}`)) n += 1;
+      taken.add(`${base}_${n}`);
+    }
   }
 
   const flags = new Map<string, string>();
@@ -270,16 +302,19 @@ function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
     let out = '';
     let at = 0;
     while (at < chunk.length) {
-      const keep = protectedNames.find((name) => chunk.startsWith(name, at));
+      const keep = protectedNames.find((name) => matchName(chunk, at, name) !== -1);
       if (keep !== undefined) {
+        // The declared spelling, so the converter's own whole-name replacement finds this occurrence too: it folds every run of
+        // spaces to one underscore, and a condition written `door 开关` for a flag declared `door  开关` would otherwise stay as
+        // two words in the Ink.
         out += keep;
-        at += keep.length;
+        at = matchName(chunk, at, keep);
         continue;
       }
-      const from = renamed.find((name) => chunk.startsWith(name, at));
+      const from = renamed.find((name) => matchName(chunk, at, name) !== -1);
       if (from !== undefined) {
         out += flags.get(from) as string;
-        at += from.length;
+        at = matchName(chunk, at, from);
         continue;
       }
       out += chunk[at];
@@ -293,12 +328,15 @@ function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
   for (const item of items) {
     const declared = item['flagName'];
     if (typeof declared === 'string') {
+      // The declared name is replaced by lookup, not by scanning: a name written in quotes (`"开关" = 9`) is a name here, while
+      // the same quotes in an expression open a literal. Scanning the whole declaration would skip it and leave `VAR  = 0`.
       const { name, at } = declaredFlag(declared);
+      const suffix = renameIn(declared.slice(at));
       if (name === '') {
         const to = emptyNames[emptyAt] ?? `flag_${(flagCount += 1)}`;
         emptyAt += 1;
-        item['flagName'] = to + declared.slice(at);
-      } else item['flagName'] = renameIn(declared);
+        item['flagName'] = to + suffix;
+      } else item['flagName'] = (flags.get(name) ?? name) + suffix;
     }
     for (const field of ['ifCondition', 'notIfCondition'] as const) {
       const value = item[field];

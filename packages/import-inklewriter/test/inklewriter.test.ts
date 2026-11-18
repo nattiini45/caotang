@@ -516,4 +516,71 @@ describe('a renamed name stays a name of its own', () => {
     for (const rename of result.value.renames) expect(ink).toContain(`VAR ${rename.to} = `);
     expect(result.value.renames.map((r) => r.to)).toEqual(['flag_1']);
   });
+
+  it('an existing flag_1 keeps its own variable beside a renamed one, whichever order they are declared in', () => {
+    for (const content of [[{ flagName: 'flag_1 = 7' }, { flagName: '开关' }], [{ flagName: '开关' }, { flagName: 'flag_1 = 7' }]]) {
+      const result = readInklewriter(bytes(withContent({ start: { content } })));
+      expect(result.ok).toBe(true);
+      if (!result.ok) continue;
+      expect(result.value.ink).toContain('VAR flag_1 = 0');
+      expect(result.value.ink).toContain('VAR flag_2 = false');
+      expect(result.value.ink).toContain('~ flag_1 = 7');
+      expect(result.value.renames.map((r) => r.to)).toEqual(['flag_2']);
+    }
+  });
+
+  it('a protected name written with different spacing is still one flag, and the condition stays valid', () => {
+    const story = withContent({
+      start: {
+        content: [
+          { flagName: '开关' },
+          { flagName: 'door  开关 = 9' },
+          { option: 'Go', linkPath: 'end', ifConditions: [{ ifCondition: 'door 开关 > 3' }], notIfConditions: null },
+        ],
+      },
+      end: { content: ['The end.'] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const ink = result.value.ink;
+    expect(ink).toContain('VAR door = 0');
+    expect(ink).toContain('~ door = 9');
+    // One identifier in the condition, not `door flag_1` and not two words.
+    expect(ink).toContain('{door > 3}');
+  });
+
+  it('a flag name written in quotes gets its generated name, not a nameless variable', () => {
+    for (const declared of ['"开关" = 9', '"开关"']) {
+      const result = readInklewriter(bytes(withContent({ start: { content: [{ flagName: declared }] } })));
+      expect(result.ok).toBe(true);
+      if (!result.ok) continue;
+      const ink = result.value.ink;
+      expect(ink).toContain('VAR flag_1 = ');
+      expect(ink).not.toContain('VAR  =');
+      expect(result.value.renames).toEqual([{ kind: 'flag', from: '"开关"', to: 'flag_1' }]);
+    }
+  });
+
+  it('a reported section name is right when the converter suffix chain skips a stitch key', () => {
+    const story = withContent({
+      start: { content: [{ pageLabel: '第一章' }, 'One.', { divert: 'a' }] },
+      a: { content: [{ pageLabel: 'section' }, 'A.', { divert: 'b' }] },
+      b: { content: [{ pageLabel: 'section!' }, 'B.', { divert: 'end' }] },
+      section_2: { content: ['A stitch whose key is section_2.', { divert: 'end' }] },
+      end: { content: [{ pageLabel: '第二章' }, 'Two.'] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const ink = result.value.ink;
+    const knots = new Set([...ink.matchAll(/^==== ([A-Za-z0-9_]+) ====$/gm)].map((m) => m[1] as string));
+    // `section` folds twice and `section_2` is a stitch key, so the converter reaches `section_3`.
+    expect(knots.has('section_3')).toBe(true);
+    expect(result.value.renames.map((r) => r.to)).toEqual(['section_1', 'section_4']);
+    for (const rename of result.value.renames) expect(knots.has(rename.to)).toBe(true);
+    // The story starts at the first renamed section and the last one is the story's end.
+    expect(ink).toContain('-> section_1');
+    expect(ink.indexOf('==== section_4 ====')).toBeGreaterThan(ink.indexOf('==== section_3 ===='));
+  });
 });
