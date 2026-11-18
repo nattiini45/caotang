@@ -175,13 +175,22 @@ export const BUDGET = {
   // Effort levels per provider, DeepSeek as a full preset and the request-parameters form (#488): 7,782,495 bytes measured (entry
   // 1,206,897). PawCommit Studio raised both ceilings on 2026-11-07 to leave headroom instead of approving each small raise: all JS 8,000,000,
   // entry 1,250,000. With #489 merged in: 7,790.4 kB measured (entry 1,207.9 kB, first load 1,030.3 kB gzip), under all three.
+  // With origin/main merged in (the CPU worker of #669 and the search worker of #646, which regroup the lazy chunks): 8,312,279 bytes
+  // measured, the first load 1,068.0 kB gzip. The reader Worker keeps `worker.format: 'es'`, which its dynamic imports need. The
+  // ceiling is the measured size plus about 3 kB.
   // 8,341.3 kB (8,341,300 bytes) measured with queued coherence reviews and the Review Inbox (#50): the queue/checkpoint substrate and the agent
   // queued path in the entry, the Inbox UI (BackgroundTasks, FindingsPanel, QueuedReviewDetails) and the German catalogue in lazy chunks.
   // Optimisations checked as for the first load above; no duplicated modules, pseudo-locales do not ship. The ceiling is that plus about 1%,
   // rounded up to the thousand. [owner 2026-11-15]
   // H5i measured 8,458,975 bytes raw with no new dependency, duplicated SDK version or production pseudo-locale; form and watch code load on use.
   // The ceiling is the measurement plus about 1%, rounded up to the thousand. [owner 2026-11-17]
-  totalJs: 8_544_000,
+  // The import reader Worker (#283, #274, #390) on main at 907394a7: 8,553,612 bytes measured against main's own 8,524,053, so +29,559.
+  // Named: the Worker's shared reader chunk +31,505 and the new lazy `text` (+10,824), `zip` (+7,393) and `reader.worker` (+2,187) chunks,
+  // while the main-thread `rtf-source` shrinks 29,266 and `text-source` 3,380 because those readers moved into the Worker; the entry gains
+  // 1,184 for the command's lazy loader and the catalogues 980. First load 1,090,061 gzip (+517 on main), under its ceiling, which does not move.
+  // No new dependency, no duplicated SDK version, no production pseudo-locale; every reader and the Worker itself load on use. The ceiling is
+  // the measurement plus about 1%, rounded up to the thousand. [delegated 2026-11-17]
+  totalJs: 8_633_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

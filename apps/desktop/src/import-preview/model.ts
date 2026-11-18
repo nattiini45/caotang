@@ -189,6 +189,16 @@ export interface ImportPreviewSource {
   readonly intro?: string;
   /** Reads the file. Called once, before anything else, with a progress line and a cancel. */
   load?(progress: (text: string) => void, signal: AbortSignal): Promise<void>;
+  /**
+   * Ensures the document for these settings is read, off the main thread where the reader runs in a Worker (#390). The dialog calls
+   * it before planning whenever the reader's chips or options change; a source that caches by its own read key returns at once when
+   * the settings are already read. `plan` then reads the cached document synchronously.
+   */
+  prepare?(settings: PreviewSettings, signal: AbortSignal): Promise<void>;
+  /** Whether `prepare` would return at once for these settings (the document is already read). Lets the dialog skip a reading flash. */
+  prepared?(settings: PreviewSettings): boolean;
+  /** Releases the source's reader (its Worker) when the preview closes. */
+  dispose?(): void;
   chips(): readonly PreviewChip[];
   options(): readonly PreviewOption[];
   plan(settings: PreviewSettings, overrides: PreviewOverrides): PreviewPlan;
@@ -456,8 +466,8 @@ export interface InjectionRow {
 }
 
 /**
- * The injection scan over every document of the tree and its notes (issue #54), located by node, and over the text the reader kept
- * outside the tree (`extra`), located by its label with no node. Nothing is changed by it.
+ * The injection scan over every document of the tree, its notes and its synopsis (issue #54), located by node, and over the text the
+ * reader kept outside the tree (`extra`), located by its label with no node. Nothing is changed by it.
  */
 export function scanTree(tree: readonly PreviewNode[], helpers: PreviewHelpers, extra: readonly ScanExtra[] = []): { readonly total: number; readonly rows: readonly InjectionRow[]; readonly sentence: (name: string) => string | undefined } {
   const parts: { where: string; text: string }[] = [];
@@ -467,6 +477,7 @@ export function scanTree(tree: readonly PreviewNode[], helpers: PreviewHelpers, 
       titles.set(node.id, node.title);
       if (node.body !== undefined) parts.push({ where: node.id, text: node.body });
       if (node.notes !== undefined && node.notes !== '') parts.push({ where: node.id, text: node.notes });
+      if (node.synopsis !== undefined && node.synopsis !== '') parts.push({ where: node.id, text: node.synopsis });
       walk(node.children ?? []);
     }
   };
@@ -488,6 +499,22 @@ export function scanTree(tree: readonly PreviewNode[], helpers: PreviewHelpers, 
     // The status line's sentence after the import, the one every import says (ScriptImport.tsx).
     sentence: (name) => helpers.importScanSentence(name, found),
   };
+}
+
+/**
+ * The codex rows' own text as scan parts (#54): a description and a page body are imported text like a scene's, so a passage that reads
+ * like instructions to an AI is listed against the entry it would land in. A row the writer skips is not scanned: it is not imported.
+ */
+export function codexScanExtra(rows: readonly PreviewCodexRow[], answers: Readonly<Record<string, CodexAnswer>>): readonly ScanExtra[] {
+  const parts: ScanExtra[] = [];
+  for (const row of rows) {
+    if ((answers[row.id] ?? { action: 'import' }).action === 'skip') continue;
+    const answer = answers[row.id];
+    const name = answer !== undefined && answer.action === 'rename' && answer.name.trim() !== '' ? answer.name.trim() : row.name;
+    if (row.description !== undefined && row.description !== '') parts.push({ label: name, text: row.description });
+    if (row.page !== undefined && row.page.body !== '') parts.push({ label: row.page.title === name ? name : `${name} — ${row.page.title}`, text: row.page.body });
+  }
+  return parts;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------

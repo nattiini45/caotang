@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { COMMAND_REGISTRY } from '@caotang/bus';
 import { splitImport, type ImportDocument, type SplitResult } from '@caotang/import-core';
 import { addFolder, createEmptyManifest, createProjectState } from '@caotang/store';
@@ -32,14 +32,36 @@ import {
   withoutPictures,
 } from '../src/import-preview/splitter-source.js';
 import { TEXT_CHIPS, plainTextPreviewSource, plainTextSizeRefusal } from '../src/import-preview/text-source.js';
+import { createReaderSession } from '../src/import-preview/reader-session.js';
+import type { ReaderOpen, ReaderRead } from '../src/import-preview/reader-protocol.js';
+
+/**
+ * An in-process stand-in for the preview's `'self'` Worker: it runs the same reader session the real Worker runs, so these tests
+ * exercise real reader output in Node. The Worker transport itself is covered by import-reader-host.test.ts and the e2e specs.
+ */
+class InProcessWorker {
+  private readonly handle = createReaderSession();
+  onmessage: ((event: { data: unknown }) => void) | null = null;
+  onerror: ((event: { message: string }) => void) | null = null;
+  constructor(_url: unknown, _options?: unknown) {}
+  postMessage(message: { id: number } & (ReaderOpen | ReaderRead)): void {
+    void this.handle(message).then(
+      (result) => this.onmessage?.({ data: { id: message.id, ok: true, result } }),
+      (error: unknown) => this.onmessage?.({ data: { id: message.id, ok: false, error: error instanceof Error ? error.message : String(error) } }),
+    );
+  }
+  terminate(): void {}
+}
 
 beforeEach(() => {
   activateEnglish();
   pinFormatLocale('en-US');
+  vi.stubGlobal('Worker', InProcessWorker);
 });
 afterEach(() => {
   activateEnglish();
   pinFormatLocale(undefined);
+  vi.unstubAllGlobals();
 });
 
 const repo = resolve(__dirname, '../../..');
@@ -232,10 +254,11 @@ describe('SplitResult → plan', () => {
 });
 
 describe('the sources', () => {
-  it('a plain-text manuscript splits into its chapters and scenes and commits as one binder.importTree the bus accepts', () => {
+  it('a plain-text manuscript splits into its chapters and scenes and commits as one binder.importTree the bus accepts', async () => {
     const opened = plainTextPreviewSource('manuscript-utf8.txt', fixture('packages/import-read/test/fixtures/text/manuscript-utf8.txt'));
     if (!opened.ok) throw new Error(opened.message);
     const source = opened.source;
+    await source.load?.(() => {}, new AbortController().signal);
     expect(source.title).toBe('Import “manuscript-utf8.txt”');
     const settings = initialSettings(source.chips(), source.options());
     expect(source.chips().map((chip) => chip.id)).toEqual([TEXT_CHIPS.paragraphs, SPLIT_CHIPS.chapters, SPLIT_CHIPS.scenes, SPLIT_CHIPS.front, SPLIT_CHIPS.sceneTitles]);
@@ -253,9 +276,10 @@ describe('the sources', () => {
     expect(COMMAND_REGISTRY['binder.importTree'].descriptor.validate({ ...commit.params, pictures: [] }, project() as never).ok).toBe(true);
   });
 
-  it('a Windows-1252 guess is an encoding chip, and the report says it is a guess', () => {
+  it('a Windows-1252 guess is an encoding chip, and the report says it is a guess', async () => {
     const opened = plainTextPreviewSource('manuscript-cp1252.txt', fixture('packages/import-read/test/fixtures/text/manuscript-cp1252.txt'));
     if (!opened.ok) throw new Error(opened.message);
+    await opened.source.load?.(() => {}, new AbortController().signal);
     const chip = opened.source.chips().find((candidate) => candidate.id === TEXT_CHIPS.encoding);
     expect(chip?.value).toBe('windows-1252');
     expect(chip?.options[0]?.label).toBe('Windows-1252');
@@ -265,14 +289,17 @@ describe('the sources', () => {
     expect(opened.source.report?.(plan)[0]?.lines[0]).toBe('The file is read as Windows-1252, a guess. If letters look wrong in the text, choose another encoding.');
   });
 
-  it('a Word "Save as text" file reads one line as one paragraph, and the chip turns it back', () => {
+  it('a Word "Save as text" file reads one line as one paragraph, and the chip turns it back', async () => {
     const opened = plainTextPreviewSource('word.txt', fixture('packages/import-read/test/fixtures/text/word-save-as-text.txt'));
     if (!opened.ok) throw new Error(opened.message);
+    await opened.source.load?.(() => {}, new AbortController().signal);
     const chip = opened.source.chips().find((candidate) => candidate.id === TEXT_CHIPS.paragraphs);
     expect(chip?.value).toBe('line');
     const settings = initialSettings(opened.source.chips(), opened.source.options());
     const lines = opened.source.plan(settings, NO_OVERRIDES).blocks.length;
-    const blank = opened.source.plan({ ...settings, chips: { ...settings.chips, [TEXT_CHIPS.paragraphs]: 'blank' } }, NO_OVERRIDES).blocks.length;
+    const blankSettings = { ...settings, chips: { ...settings.chips, [TEXT_CHIPS.paragraphs]: 'blank' } };
+    await opened.source.prepare?.(blankSettings, new AbortController().signal);
+    const blank = opened.source.plan(blankSettings, NO_OVERRIDES).blocks.length;
     expect(blank).toBeLessThan(lines);
   });
 
