@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { test } from './test.js';
 import type * as SessionModule from '../apps/desktop/src/app/session.js';
-import { createProject, waitForSaved } from './support.js';
+import { createProject, waitForSaved, chooseInterfaceLanguage} from './support.js';
 
 async function holdOpening(page: Page): Promise<void> {
   await page.evaluate(async () => {
@@ -108,7 +108,7 @@ for (const shell of ['classic', 'modern'] as const) {
         if (locale === 'de') {
           await page.getByTestId('open-settings').click();
           await page.getByTestId('settings').locator('[data-section="appearance"]').click();
-          await page.locator('input[name="interface-language"][value="de"]').click();
+          await chooseInterfaceLanguage(page, page, 'de');
           await expect(page.locator('html')).toHaveAttribute('lang', 'de');
           await page.keyboard.press('Escape');
           await expect(page.getByTestId('settings')).toBeHidden();

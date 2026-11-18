@@ -2,7 +2,7 @@ import { expect, type Page } from '@playwright/test';
 import { test } from './test.js';
 
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint, type FakeReply } from './endpoint.js';
-import { waitForShell } from './support.js';
+import { waitForShell, chooseInterfaceLanguage} from './support.js';
 
 /**
  * The two axes of a turn's checkpoint in the agent panel (agent-harness §5): the project is restored, the conversation is rewound,
@@ -147,7 +147,7 @@ test('German restore copy separates the original report and names the project ch
   await page.getByTestId('open-settings').click();
   const settings = page.getByTestId('settings');
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
   await settings.getByRole('button', { name: 'Schließen', exact: true }).click();
   await turn.getByTestId('checkpoint').getByRole('button').click();
@@ -183,7 +183,7 @@ for (const locale of ['de', 'en-XA']) {
     await settings.locator('[data-section="appearance"]').click();
     await settings.getByRole('group', { name: 'Interface', exact: true }).getByRole('radio', { name: /^Modern/ }).check();
     await waitForShell(page, 'modern');
-    await settings.locator(`input[name="interface-language"][value="${locale}"]`).click();
+    await chooseInterfaceLanguage(page, settings, locale);
     await expect(page.locator('html')).toHaveAttribute('lang', locale);
     await settings.getByRole('banner').getByRole('button').click();
     await page.setViewportSize({ width: 390, height: 844 });

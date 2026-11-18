@@ -2,7 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
-import { createProject, projectTrace, waitForSaved } from './support.js';
+import { createProject, projectTrace, waitForSaved, chooseInterfaceLanguage} from './support.js';
 import { createGoalScene } from './goal-scene-flow.js';
 
 
@@ -248,7 +248,7 @@ for (const shell of ['classic', 'modern'] as const) {
         } else await page.getByTestId('open-settings').click();
         const settings = page.getByTestId('settings');
         await settings.locator('[data-section="appearance"]').click();
-        await settings.locator('input[name="interface-language"][value="de"]').click();
+        await chooseInterfaceLanguage(page, settings, 'de');
         await expect(page.locator('html')).toHaveAttribute('lang', 'de');
         await page.keyboard.press('Escape');
         await expect(settings).toBeHidden();

@@ -8,7 +8,7 @@ import type { PlanStep } from '../packages/harness/src/index.js';
 
 import { holdCancellingTask, releaseTaskStartup } from './task-cancellation.js';
 import { openSaveSettings } from './save-channel-fixture.js';
-import { idOf, projectTrace } from './support.js';
+import { idOf, projectTrace, chooseInterfaceLanguage} from './support.js';
 import { openReviewInbox, queuedReviewProject, storedReviewTasks } from './queued-review.js';
 
 type UiAgent = typeof UiAgentModule;
@@ -314,7 +314,7 @@ test.describe('the localized touch Inbox', () => {
     await settings.locator('input[name="shell"]').nth(1).check();
     await expect(settings.getByTestId('interface-choice')).toHaveAttribute('data-state', 'ready');
     await settings.locator('input[name="theme"]').nth(1).check();
-    await settings.locator('input[name="interface-language"][value="de"]').click();
+    await chooseInterfaceLanguage(page, settings, 'de');
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
     await page.keyboard.press('Escape');
     await page.setViewportSize({ width: 390, height: 844 });

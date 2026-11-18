@@ -223,6 +223,27 @@ export async function projectIdOf(page: Page): Promise<string | null> {
   });
 }
 
+/**
+ * Clicks the interface-language radio for `tag` after the catalogue module is warm. A language
+ * switch awaits a lazy `import()` of the catalogue (apps/desktop/src/i18n/language.ts); on a
+ * contended runner a cold transform can outlast the plain assertion deadline (#667), so the warm
+ * goes through the app's own loader first — a real load of the same module the radio's switch then
+ * finds in the browser's module map. A failed warm is ignored: the switch reports it like any
+ * failed load. Specs that intercept the catalogue route call the radio's click directly.
+ */
+export async function chooseInterfaceLanguage(page: Page, scope: Page | Locator, tag: string): Promise<void> {
+  await page.evaluate(async (t) => {
+    try {
+      const runtimeUrl = '/src/i18n/runtime.ts';
+      const runtime = (await import(runtimeUrl)) as { loadMessages: (tag: string) => Promise<unknown> };
+      await runtime.loadMessages(t);
+    } catch {
+      /* the switch surfaces a failed catalogue load itself */
+    }
+  }, tag);
+  await scope.locator(`input[name="interface-language"][value="${tag}"]`).click();
+}
+
 /** The shell's save indicator reads "saved": every change has reached the browser store. */
 export async function waitForSaved(page: Page): Promise<void> {
   await expect(page.getByTestId('save-state')).toHaveAttribute('data-state', 'saved');

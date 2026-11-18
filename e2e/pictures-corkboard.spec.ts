@@ -7,7 +7,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { asSent, BLUE, RED, registry, send, undoLatest } from './pictures-support.js';
-import { binderTitle, card, countOf, createProject, firstChapter, waitForSaved } from './support.js';
+import { binderTitle, card, countOf, createProject, firstChapter, waitForSaved, chooseInterfaceLanguage} from './support.js';
 
 const PICTURE_TYPE = 'application/x-caotang-picture';
 
@@ -193,7 +193,7 @@ test('in a right-to-left interface the card still shows its dropped picture', as
   await page.keyboard.press('Enter');
   const settings = page.getByTestId('settings');
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="ar-XB"]').click();
+  await chooseInterfaceLanguage(page, settings, 'ar-XB');
   await expect.poll(() => page.evaluate(() => document.documentElement.dir)).toBe('rtl');
   await settings.locator('.settings-head button').click();
 

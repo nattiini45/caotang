@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { binderRow, binderTitle, createProject, waitForSaved } from './support.js';
+import { binderRow, binderTitle, createProject, waitForSaved, chooseInterfaceLanguage} from './support.js';
 
 /**
  * The German interface as a real-catalogue witness (i18n.md §3.3 "German (I14/L12)", §8.3; D5).
@@ -44,7 +44,7 @@ async function documentLanguage(page: Page): Promise<{ lang: string; dir: string
 
 /** Chooses German in the picker and waits for `<html lang dir>`, the way i18n-switch.spec.ts does. */
 async function switchToGerman(page: Page, settings: Locator): Promise<void> {
-  await languageRadio(settings, 'de').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await expect.poll(() => documentLanguage(page)).toEqual({ lang: 'de', dir: 'ltr' });
 }
 

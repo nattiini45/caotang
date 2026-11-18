@@ -2,7 +2,7 @@ import { expect, type BrowserContextOptions, type Page } from '@playwright/test'
 import { test } from './test.js';
 import { classicPin } from './classic-pin.js';
 import { endpointRoute, fakeEndpoint, planThenAnswer, useFakeEndpoint as addFakeProvider, type FakeRequest } from './endpoint.js';
-import { binderTitle, idOf, projectTrace, loose, waitForSaved } from './support.js';
+import { binderTitle, idOf, projectTrace, loose, waitForSaved, chooseInterfaceLanguage} from './support.js';
 
 const intent = (page: Page) => page.getByRole('combobox', { name: 'Intent' });
 const choices = (page: Page) => page.getByRole('listbox', { name: 'Context to include' });
@@ -408,7 +408,7 @@ test('German Classic context guidance explains background inheritance without a 
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByTestId('settings');
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
   await settings.getByRole('button', { name: 'Schließen', exact: true }).click();
   const summary = page.locator('.context-scope summary');
@@ -428,7 +428,7 @@ test('German narrow Modern context controls wrap and remain keyboard-reachable',
   await page.getByRole('menuitem', { name: 'Settings', exact: true }).click();
   const settings = page.getByTestId('settings');
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
   await settings.getByRole('button', { name: 'Schließen', exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
