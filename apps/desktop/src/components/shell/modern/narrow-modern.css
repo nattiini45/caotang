@@ -77,7 +77,11 @@
   }
 
   :root[data-shell='modern'] .modern-stage:has(.modern-save-summary) {
-    --page-top: calc(72px + var(--target-min) + var(--space-2));
+    --failed-save-top: calc(72px + var(--target-min) + var(--space-2));
+  }
+
+  :root[data-shell='modern'] .modern-stage:has(.modern-save-summary) > :is(.modern-page-area, .modern-notices) {
+    --page-top: var(--failed-save-top);
   }
 
   :root[data-shell='modern'] .modern-stage .modern-save-summary {
@@ -147,7 +151,7 @@
     display: grid;
     grid-template-rows: fit-content(50%) minmax(0, 1fr);
     gap: var(--space-3);
-    padding-block: calc(var(--page-top) + var(--n-top)) calc(var(--page-bottom) + var(--n-bottom) - var(--page-gutter));
+    padding-block: calc(var(--failed-save-top, var(--page-top)) + var(--n-top)) calc(var(--page-bottom) + var(--n-bottom) - var(--page-gutter));
     padding-inline: var(--safe-side);
   }
 

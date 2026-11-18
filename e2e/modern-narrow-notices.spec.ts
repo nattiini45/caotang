@@ -1,9 +1,11 @@
 import { expect } from '@playwright/test';
 import { test } from './test.js';
 import { chooseInterfaceLanguage } from './support.js';
+import { installSaveRefusals, refuseSave } from './save-channel-fixture.js';
 
 test('the German storage warning leaves the empty editor heading readable at 390 px', { tag: '@modern' }, async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 812 });
+  await installSaveRefusals(page);
   await page.addInitScript(() => {
     localStorage.setItem('caotang.interface', 'modern');
     const storage = Object.getPrototypeOf(navigator.storage) as Record<string, unknown>;
@@ -26,6 +28,16 @@ test('the German storage warning leaves the empty editor heading readable at 390
   const warningBox = (await banner.boundingBox())!;
   expect(warningBox.y + warningBox.height).toBeLessThanOrEqual((await heading.boundingBox())!.y);
   await expect(banner.getByRole('button').first()).toBeInViewport();
+  await page.getByTestId('modern-more').click();
+  await page.getByRole('menuitem', { name: 'Einstellungen', exact: true }).click();
+  await settings.locator('[data-section="writing"]').click();
+  await refuseSave(page, 'settings', true);
+  await settings.getByLabel('Tagesziel, in Wörtern (0 für keins)').fill('1234');
+  await settings.getByRole('button', { name: 'Schreib-Einstellungen speichern', exact: true }).click();
+  await expect(page.getByTestId('save-state')).toHaveAttribute('data-state', 'failed');
+  await settings.getByRole('button', { name: 'Schließen', exact: true }).click();
+  const top = (await page.getByTestId('modern-top-ornament').boundingBox())!;
+  expect((await banner.boundingBox())!.y).toBeGreaterThanOrEqual(top.y + top.height);
   await page.setViewportSize({ width: 390, height: 500 });
   await expect(heading).toBeInViewport();
   await banner.getByRole('button').last().click();
