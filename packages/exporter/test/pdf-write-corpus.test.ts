@@ -375,7 +375,7 @@ describe.skipIf(OUT === '')('the PDF write corpus', () => {
       loadColourEmoji: loadColourEmojiInNode,
       loadArabicFont: loadArabicFontInNode,
       loadHebrewFont: loadHebrewFontInNode,
-      loadDevanagariFont: loadDevanagariFontInNode,
+      loadIndicFonts: { devanagari: loadDevanagariFontInNode },
     });
     await exporter.ready();
     state.manifest.recipes = [{ name: 'Corpus', includeRootIds: ['manuscript'], format: entry.format, options: entry.options ?? {} }];

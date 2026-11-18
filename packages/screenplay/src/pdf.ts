@@ -53,10 +53,10 @@
  * offsets, and the tests can check them exactly.
  */
 
-import { cidFontObjects, isBidiControl, isEmojiCluster, type CidSubset, type PdfObject, type PdfValue, type Type3Fonts } from '@caotang/pdf-fonts';
+import { cidFontObjects, isBidiControl, isEmojiCluster, INDIC_SCRIPT_NAMES, srgbIccProfile, type CidSubset, type IndicScript, type PdfObject, type PdfValue, type ShapedScript, type Type3Fonts } from '@caotang/pdf-fonts';
 
 import { COURIER_PRIME_METRICS } from './fonts/courier-prime-metrics.js';
-import { LAYOUT, PAGE_GEOMETRY, type PageSize } from './paginate.js';
+import { LAYOUT, PAGE_GEOMETRY, type LineTag, type PageSize } from './paginate.js';
 import { WIN_ANSI_EXTRA, isPrintable } from './winansi.js';
 import { textUnits, unitColumns } from './width.js';
 
@@ -65,10 +65,15 @@ export { isPrintable };
 /** How many objects a CID font takes (`cidFontObjects`). */
 const CID_FONT_OBJECTS = 6;
 
+/** A standard structure role a tagged line takes (PDF 32000-1 §14.8.4), when the file is marked. */
+export type PdfTag = LineTag;
+
 export interface PdfText {
   readonly text: string;
   /** The line belongs to a right-to-left paragraph (paginate.ts `LayoutLine.rtl`); with its text it finds the line's plan. */
   readonly rtl?: true;
+  /** The role the line's marked content takes, when `PdfInfo.profile` marks the file. Absent: an artifact, outside the structure. */
+  readonly tag?: PdfTag;
   /** Points from the left page edge. */
   readonly x: number;
   /** Baseline in points from the top page edge. */
@@ -81,6 +86,13 @@ export interface PdfInfo {
   readonly producer?: string;
   /** The page's paper (default Letter). It is not in the info dictionary: it sets each page's `MediaBox` and the flip of the y axis. */
   readonly pageSize?: PageSize;
+  /**
+   * `pdfa-2u` writes the file as PDF/A-2u (screenplay.md §5.3): PDF 1.7, an XMP packet declaring the conformance, an sRGB
+   * output intent, a ToUnicode map on the WinAnsi font, a structure tree over the tagged lines, and a trailer ID.
+   */
+  readonly profile?: 'pdfa-2u';
+  /** The document language as a BCP 47 tag, for `/Lang` when `profile` marks the file. */
+  readonly lang?: string;
 }
 
 /** What a font descriptor states (PDF 1.7 §9.8), in glyph space of 1000 units to the em. `COURIER_PRIME_METRICS` is one. */
@@ -172,10 +184,10 @@ export interface PdfShapedGlyph {
   readonly final?: true;
 }
 
-/** A word of Arabic, Hebrew or Devanagari, set in the font of its script glyph by glyph (see the header). */
+/** A word of a shaped script, set in the font of its script glyph by glyph (see the header). */
 export interface PdfShapedRun {
   readonly kind: 'shaped';
-  readonly font: 'arabic' | 'hebrew' | 'devanagari';
+  readonly font: ShapedScript;
   /** The column of the run's left edge, from the line's start. */
   readonly column: number;
   /** The glyphs left to right as drawn, each at its own position, the order the shaper gives them. */
@@ -198,11 +210,12 @@ export interface PdfPlainRun {
 
 export type PdfRtlItem = PdfShapedRun | PdfPlainRun;
 
-/** The Arabic, Hebrew and Devanagari subsets, and the plan of each line that holds one of the scripts or belongs to a right-to-left paragraph. */
+/** The shaped-script subsets, by script, and the plan of each line that holds one of the scripts or belongs to a right-to-left paragraph. */
 export interface PdfRtlFonts {
   readonly arabic?: CidSubset;
   readonly hebrew?: CidSubset;
-  readonly devanagari?: CidSubset;
+  /** The Indic fonts' subsets, by script. */
+  readonly indic?: Partial<Record<IndicScript, CidSubset>>;
   /** A line's plan, by {@link rtlLineKey}. */
   readonly lines: ReadonlyMap<string, readonly PdfRtlItem[]>;
 }
@@ -238,7 +251,12 @@ function num(value: number): string {
 /** Text that is all WinAnsi in the Latin-1 range: one unit a character, each one column in Courier Prime. */
 const LATIN = /^[\x20-\x7e\xa0-\xff]*$/;
 
-function contentStream(lines: readonly PdfText[], pageHeight: number, fallback?: PdfCidFont, emoji?: PdfEmojiFont, rtl?: PdfRtlFonts, colour?: PdfColourEmojiFont): string {
+/** The marked lines of a page, in draw order: each one's structure role, at the index that is its MCID. */
+export interface PageMarks {
+  readonly roles: PdfTag[];
+}
+
+function contentStream(lines: readonly PdfText[], pageHeight: number, fallback?: PdfCidFont, emoji?: PdfEmojiFont, rtl?: PdfRtlFonts, colour?: PdfColourEmojiFont, marks?: PageMarks): string {
   const parts = ['BT', '/F1 12 Tf'];
   let current = 'F1';
   const setFont = (name: string, size = 12): void => {
@@ -276,9 +294,14 @@ function contentStream(lines: readonly PdfText[], pageHeight: number, fallback?:
   };
   for (const line of lines) {
     const y = num(pageHeight - line.y);
+    // A marked file wraps each line: its role's BDC with the next MCID, or /Artifact for the lines the structure skips.
+    const wrap = marks === undefined ? undefined : line.tag === undefined ? ('/Artifact BMC' as const) : (`/${line.tag} << /MCID ${marks.roles.length} >> BDC` as const);
+    if (line.tag !== undefined) marks?.roles.push(line.tag);
+    if (wrap !== undefined) parts.push(wrap);
     const plan = rtl?.lines.get(rtlLineKey(line.text, line.rtl === true));
     if (plan !== undefined) {
       writePlan(plan, line, y, pageHeight, setFont, writeUnits, parts);
+      if (wrap !== undefined) parts.push('EMC');
       continue;
     }
     // A line whose every unit is one Courier Prime column is one string, as the writer always wrote it.
@@ -286,17 +309,23 @@ function contentStream(lines: readonly PdfText[], pageHeight: number, fallback?:
     if (units === null || units.every((unit) => unit.length === 1 && unitColumns(unit) === 1 && fontOf(unit, fallback, emoji, colour) === 'F1')) {
       setFont('F1');
       parts.push(`1 0 0 1 ${num(line.x)} ${y} Tm`, `(${pdfString(line.text)}) Tj`);
+      if (wrap !== undefined) parts.push('EMC');
       continue;
     }
     // A line with fallback glyphs or emoji is written as runs, each placed at its first unit's column.
     writeUnits(units, line.x, y);
+    if (wrap !== undefined) parts.push('EMC');
   }
   parts.push('ET');
   return parts.join('\n');
 }
 
-/** The font resource of each script's subset. */
-const SHAPED_FONT = { arabic: 'F4', hebrew: 'F5', devanagari: 'F6' } as const;
+/** The font resource of each script's subset: Arabic, Hebrew, then the Indic scripts in {@link INDIC_SCRIPT_NAMES} order. */
+const SHAPED_FONT: Readonly<Record<ShapedScript, string>> = {
+  arabic: 'F4',
+  hebrew: 'F5',
+  ...Object.fromEntries(INDIC_SCRIPT_NAMES.map((script, i) => [script, `F${6 + i}`])),
+} as Record<ShapedScript, string>;
 
 /** The marked content that gives a reader the text a stretch of the page stands for (PDF 32000-1 §14.9.4). */
 /** Marked content with no properties: it ends a text item in pdf.js and carries no text. */
@@ -320,10 +349,10 @@ function writePlan(
   for (const item of [...plan].sort((a, b) => a.order - b.order)) {
     const x = line.x + item.column * LAYOUT.charWidth;
     if (item.kind === 'shaped') {
-      // Only Devanagari carries its typed text as marked content. Arabic and Hebrew glyphs are drawn in visual order with the text
-      // of each in ToUnicode, so a reader puts the words back in logical order by the bidirectional algorithm, as it does for any
-      // right-to-left text (see the header).
-      const marked = item.font === 'devanagari';
+      // Only the Indic scripts carry their typed text as marked content. Arabic and Hebrew glyphs are drawn in visual order
+      // with the text of each in ToUnicode, so a reader puts the words back in logical order by the bidirectional algorithm,
+      // as it does for any right-to-left text (see the header).
+      const marked = item.font !== 'arabic' && item.font !== 'hebrew';
       if (marked) parts.push(actualText(item.source));
       setFont(SHAPED_FONT[item.font]);
       const show = (glyph: PdfShapedGlyph): void => {
@@ -492,6 +521,75 @@ function infoString(text: string): string {
 }
 
 /**
+ * One XML character escaped for a text node or attribute, and every non-ASCII code point a numeric
+ * character reference: the writer's offsets are character counts, so the packet stays ASCII byte for byte.
+ */
+function xmlText(text: string): string {
+  let out = '';
+  for (const ch of text) {
+    if (ch === '&') out += '&amp;';
+    else if (ch === '<') out += '&lt;';
+    else if (ch === '>') out += '&gt;';
+    else if (ch === '"') out += '&quot;';
+    else if (ch.codePointAt(0)! > 0x7f) out += `&#x${ch.codePointAt(0)!.toString(16).toUpperCase()};`;
+    else out += ch;
+  }
+  return out;
+}
+
+/**
+ * The XMP packet PDF/A carries on the catalogue (ISO 16684): the conformance claim in `pdfaid`, and the document's
+ * title, creator and tool in the fields the info dictionary mirrors (PDF/A-2 6.6.2.3 asks them to agree).
+ */
+function xmpPacket(title: string, author: string | undefined, producer: string): string {
+  // No BOM: the writer keeps every byte ASCII, so the packet starts at the PI.
+  return `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>\n` +
+    `<x:xmpmeta xmlns:x="adobe:ns:meta/">\n` +
+    `<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n` +
+    `<rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">\n` +
+    `<pdf:Producer>${xmlText(producer)}</pdf:Producer>\n` +
+    `<dc:title><rdf:Alt><rdf:li xml:lang="x-default">${xmlText(title)}</rdf:li></rdf:Alt></dc:title>\n` +
+    (author === undefined ? '' : `<dc:creator><rdf:Seq><rdf:li>${xmlText(author)}</rdf:li></rdf:Seq></dc:creator>\n`) +
+    `<pdfaid:part>2</pdfaid:part>\n` +
+    `<pdfaid:conformance>U</pdfaid:conformance>\n` +
+    `</rdf:Description>\n` +
+    `</rdf:RDF>\n` +
+    `</x:xmpmeta>\n` +
+    `<?xpacket end="w"?>`;
+}
+
+/**
+ * The ToUnicode CMap on the WinAnsi font (PDF/A-2u asks every character to map to Unicode): codes 32–255 to their
+ * character, the Windows-1252 range through `WIN_ANSI_EXTRA`, its five undefined codes left out.
+ */
+function winAnsiToUnicode(): string {
+  const extra = new Map<number, number>();
+  for (const [ch, code] of Object.entries(WIN_ANSI_EXTRA)) extra.set(code, ch.codePointAt(0) ?? 0);
+  const pairs: string[] = [];
+  for (let code = 0x20; code <= 0xff; code += 1) {
+    const uni = code <= 0x7e || code >= 0xa0 ? code : extra.get(code);
+    if (uni !== undefined) pairs.push(`<${code.toString(16).toUpperCase().padStart(2, '0')}> <${uni.toString(16).toUpperCase().padStart(4, '0')}>`);
+  }
+  const chunks: string[] = [];
+  for (let i = 0; i < pairs.length; i += 100) {
+    chunks.push(`${Math.min(100, pairs.length - i)} beginbfchar\n${pairs.slice(i, i + 100).join('\n')}\nendbfchar`);
+  }
+  return `/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n` +
+    `/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n` +
+    `1 begincodespacerange\n<00> <FF>\nendcodespacerange\n${chunks.join('\n')}\nendcmap\nCMapName currentdict /CMap defineresource pop\nend\nend`;
+}
+
+/** A 16-byte file ID: two passes of FNV-1a over the bytes so far, eight different seeds. */
+function fileId(text: string): string {
+  const digest = (seed: number): string => {
+    let h = seed;
+    for (let i = 0; i < text.length; i += 1) h = (Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0);
+    return h.toString(16).toUpperCase().padStart(8, '0');
+  };
+  return digest(0x811c9dc5) + digest(0x01234567) + digest(0x89abcdef) + digest(0xdeadbeef);
+}
+
+/**
  * Writes one PDF from pages of positioned text. Object 1 is the catalogue, 2 the page tree,
  * 3 the font, 4 the info dictionary. Each page then takes two objects: the page, and its
  * content stream. An embedded font adds its descriptor and its program after the pages, a CJK fallback that prints at
@@ -514,6 +612,7 @@ export function writePdf(
   const fallback = cjk === undefined || cjk.glyphs.size === 0 ? undefined : cjk;
   const colour = colourFont === undefined || colourFont.glyphs.size === 0 ? undefined : colourFont;
   const emoji = emojiFont === undefined || emojiFont.glyphs.size === 0 ? undefined : emojiFont;
+  const profile = info.profile === 'pdfa-2u';
   // A page tree with no page in it is a file a reader refuses, so a script that prints nothing still writes one page.
   const written: readonly (readonly PdfText[])[] = pages.length === 0 ? [[]] : pages;
   const pageId = (i: number): number => 5 + 2 * i;
@@ -521,53 +620,81 @@ export function writePdf(
   const bodies: string[] = [];
   bodies[0] = '<< /Type /Catalog /Pages 2 0 R >>';
   bodies[1] = `<< /Type /Pages /Kids [${written.map((_, i) => `${pageId(i)} 0 R`).join(' ')}] /Count ${written.length} >>`;
+  const arabic = rtlFonts?.arabic === undefined || rtlFonts.arabic.entries.length === 0 ? undefined : rtlFonts.arabic;
+  const hebrew = rtlFonts?.hebrew === undefined || rtlFonts.hebrew.entries.length === 0 ? undefined : rtlFonts.hebrew;
+  const indicSubsets = new Map<IndicScript, CidSubset>();
+  INDIC_SCRIPT_NAMES.forEach((script) => {
+    const subset = rtlFonts?.indic?.[script];
+    if (subset !== undefined && subset.entries.length > 0) indicSubsets.set(script, subset);
+  });
+  const fallbackId = pageId(written.length) + (font === undefined ? 0 : 2);
+  const emojiId = fallbackId + (fallback === undefined ? 0 : CID_FONT_OBJECTS);
+  const arabicId = emojiId + (emoji === undefined ? 0 : CID_FONT_OBJECTS);
+  const hebrewId = arabicId + (arabic === undefined ? 0 : CID_FONT_OBJECTS);
+  const indicIdBase = hebrewId + (hebrew === undefined ? 0 : CID_FONT_OBJECTS);
+  const colourId = indicIdBase + indicSubsets.size * CID_FONT_OBJECTS;
+  // PDF/A-2u objects, numbered after the colour fonts: a ToUnicode on the WinAnsi font, the XMP packet, the sRGB
+  // output intent, then the structure tree — the document element, one element per marked line, the tree's root and
+  // the parent tree last (their ids are set once the marks are counted).
+  const pdfaId = colourId + (colour === undefined ? 0 : colour.fonts.objects.length);
+  const toUniId = pdfaId;
+  const metaId = pdfaId + 1;
+  const iccId = pdfaId + 2;
+  const intentId = pdfaId + 3;
+  const docElemId = pdfaId + 4;
+  const firstElemId = pdfaId + 5;
+  const toUniRef = (id: number): string => (profile ? ` /ToUnicode ${id} 0 R` : '');
   if (font === undefined) {
-    bodies[2] = '<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>';
+    bodies[2] = `<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding${toUniRef(toUniId)} >>`;
   } else {
     const descriptorId = pageId(written.length);
     const objects = embeddedFontObjects(font, descriptorId, descriptorId + 1);
-    bodies[2] = objects.font;
+    bodies[2] = `${objects.font.slice(0, -3)}${toUniRef(toUniId)} >>`;
     bodies[descriptorId - 1] = objects.descriptor;
     bodies[descriptorId] = objects.file;
   }
-  const fallbackId = pageId(written.length) + (font === undefined ? 0 : 2);
   if (fallback !== undefined) {
     cidFontText(fallback, fallbackId).forEach((body, i) => {
       bodies[fallbackId - 1 + i] = body;
     });
   }
-  const emojiId = fallbackId + (fallback === undefined ? 0 : CID_FONT_OBJECTS);
   if (emoji !== undefined) {
     cidFontText(emoji, emojiId).forEach((body, i) => {
       bodies[emojiId - 1 + i] = body;
     });
   }
-  const arabic = rtlFonts?.arabic === undefined || rtlFonts.arabic.entries.length === 0 ? undefined : rtlFonts.arabic;
-  const hebrew = rtlFonts?.hebrew === undefined || rtlFonts.hebrew.entries.length === 0 ? undefined : rtlFonts.hebrew;
-  const arabicId = emojiId + (emoji === undefined ? 0 : CID_FONT_OBJECTS);
   if (arabic !== undefined) {
     cidFontText(arabic, arabicId).forEach((body, i) => {
       bodies[arabicId - 1 + i] = body;
     });
   }
-  const hebrewId = arabicId + (arabic === undefined ? 0 : CID_FONT_OBJECTS);
   if (hebrew !== undefined) {
     cidFontText(hebrew, hebrewId).forEach((body, i) => {
       bodies[hebrewId - 1 + i] = body;
     });
   }
-  const devanagari = rtlFonts?.devanagari === undefined || rtlFonts.devanagari.entries.length === 0 ? undefined : rtlFonts.devanagari;
-  const devanagariId = hebrewId + (hebrew === undefined ? 0 : CID_FONT_OBJECTS);
-  if (devanagari !== undefined) {
-    cidFontText(devanagari, devanagariId).forEach((body, i) => {
-      bodies[devanagariId - 1 + i] = body;
+  const indicIds = new Map<IndicScript, number>();
+  let nextIndicId = indicIdBase;
+  for (const [script, subset] of indicSubsets) {
+    const id = nextIndicId;
+    indicIds.set(script, id);
+    cidFontText(subset, id).forEach((body, i) => {
+      bodies[id - 1 + i] = body;
     });
+    nextIndicId += CID_FONT_OBJECTS;
   }
-  const colourId = devanagariId + (devanagari === undefined ? 0 : CID_FONT_OBJECTS);
   if (colour !== undefined) {
     objectsText(colour.fonts.objects, colourId, colour.deflate).forEach((body, i) => {
       bodies[colourId - 1 + i] = body;
     });
+  }
+  const allMarks: PageMarks[] = [];
+  if (profile) {
+    bodies[toUniId - 1] = `<< /Length ${winAnsiToUnicode().length} >>\nstream\n${winAnsiToUnicode()}\nendstream`;
+    bodies[metaId - 1] = `<< /Type /Metadata /Subtype /XML /Length ${xmpPacket(info.title ?? 'Screenplay', info.author, info.producer ?? 'Caotang').length} >>\nstream\n${xmpPacket(info.title ?? 'Screenplay', info.author, info.producer ?? 'Caotang')}\nendstream`;
+    bodies[iccId - 1] = `<< /N 3 /Length ${hex(srgbIccProfile()).length} /Filter /ASCIIHexDecode >>\nstream\n${hex(srgbIccProfile())}\nendstream`;
+    bodies[intentId - 1] = `<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (sRGB IEC61966-2.1) /Info (sRGB IEC61966-2.1) /DestOutputProfile ${iccId} 0 R >>`;
+    written.forEach(() => allMarks.push({ roles: [] }));
   }
   const fonts =
     '/F1 3 0 R' +
@@ -575,20 +702,45 @@ export function writePdf(
     (emoji === undefined ? '' : ` /F3 ${emojiId} 0 R`) +
     (arabic === undefined ? '' : ` /F4 ${arabicId} 0 R`) +
     (hebrew === undefined ? '' : ` /F5 ${hebrewId} 0 R`) +
-    (devanagari === undefined ? '' : ` /F6 ${devanagariId} 0 R`) +
+    [...indicIds.entries()].map(([script, id]) => ` /${SHAPED_FONT[script]} ${id} 0 R`).join('') +
     (colour === undefined ? '' : colour.fonts.fonts.map((font, i) => ` /CE${i + 1} ${colourId + font.object} 0 R`).join(''));
-  const planned = arabic === undefined && hebrew === undefined && devanagari === undefined ? undefined : rtlFonts;
+  const planned = arabic === undefined && hebrew === undefined && indicSubsets.size === 0 ? undefined : rtlFonts;
   const author = info.author === undefined || info.author.trim() === '' ? '' : ` /Author ${infoString(info.author)}`;
   bodies[3] = `<< /Title ${infoString(info.title ?? 'Screenplay')}${author} /Producer ${infoString(info.producer ?? 'Caotang')} >>`;
   written.forEach((lines, i) => {
-    const stream = contentStream(lines, geometry.pageHeight, fallback, emoji, planned, colour);
+    const stream = contentStream(lines, geometry.pageHeight, fallback, emoji, planned, colour, profile ? allMarks[i] : undefined);
     bodies[pageId(i) - 1] =
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${geometry.pageWidth} ${geometry.pageHeight}] ` +
-      `/Resources << /Font << ${fonts} >> >> /Contents ${pageId(i) + 1} 0 R >>`;
+      `/Resources << /Font << ${fonts} >> >>${profile ? ` /StructParents ${i}` : ''} /Contents ${pageId(i) + 1} 0 R >>`;
     bodies[pageId(i)] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
   });
+  if (profile) {
+    // One structure element per marked line, all children of the document element in reading order (page, then MCID).
+    const markRefs: number[] = [];
+    const nums: string[] = [];
+    let elem = firstElemId;
+    allMarks.forEach((marks, i) => {
+      const pageElems: number[] = [];
+      marks.roles.forEach((role, mcid) => {
+        bodies[elem - 1] = `<< /Type /StructElem /S /${role} /P ${docElemId} 0 R /Pg ${pageId(i)} 0 R /K ${mcid} >>`;
+        pageElems.push(elem);
+        markRefs.push(elem);
+        elem += 1;
+      });
+      nums.push(`${i} [${pageElems.map((id) => `${id} 0 R`).join(' ')}]`);
+    });
+    const rootId = elem;
+    const parentTreeId = elem + 1;
+    bodies[docElemId - 1] = `<< /Type /StructElem /S /Document /P ${rootId} 0 R /K [${markRefs.map((id) => `${id} 0 R`).join(' ')}] >>`;
+    bodies[rootId - 1] = `<< /Type /StructTreeRoot /K ${docElemId} 0 R /ParentTree ${parentTreeId} 0 R /ParentTreeNextKey ${written.length} /RoleMap << /Title /H1 >> >>`;
+    bodies[parentTreeId - 1] = `<< /Nums [${nums.join(' ')}] >>`;
+    bodies[0] =
+      `<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> ` +
+      `${info.lang === undefined ? '' : `/Lang (${pdfString(info.lang)}) `}/Metadata ${metaId} 0 R ` +
+      `/StructTreeRoot ${rootId} 0 R /OutputIntents [${intentId} 0 R] >>`;
+  }
 
-  let out = '%PDF-1.4\n%CAOTANG\n';
+  let out = `${profile ? '%PDF-1.7' : '%PDF-1.4'}\n%CAOTANG\n`;
   const offsets: number[] = [];
   bodies.forEach((body, index) => {
     offsets.push(out.length);
@@ -597,6 +749,7 @@ export function writePdf(
   const xref = out.length;
   out += `xref\n0 ${bodies.length + 1}\n0000000000 65535 f \n`;
   for (const offset of offsets) out += `${String(offset).padStart(10, '0')} 00000 n \n`;
-  out += `trailer\n<< /Size ${bodies.length + 1} /Root 1 0 R /Info 4 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  const trailerId = profile ? ` /ID [<${fileId(out)}> <${fileId(out)}>]` : '';
+  out += `trailer\n<< /Size ${bodies.length + 1} /Root 1 0 R /Info 4 0 R${trailerId} >>\nstartxref\n${xref}\n%%EOF\n`;
   return new TextEncoder().encode(out);
 }

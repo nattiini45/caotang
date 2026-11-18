@@ -40,10 +40,11 @@
  * whose paragraph runs right to left ends at the right edge of its box. The
  * fonts are read through the input's `loadArabicFont` and `loadHebrewFont`, and only when a sheet holds their script.
  *
- * Devanagari (Hindi, Marathi, Nepali, Sanskrit) is set in Noto Sans Devanagari (`./devanagari-font.ts`), in the same place in the order: a
- * word is shaped by upstream fontkit in the project's language and drawn glyph by glyph with its typed text as `/ActualText`. A
- * line is cut to its box between grapheme clusters, a conjunct whole, and the ellipsis follows a cluster. The font is read through
- * the input's `loadDevanagariFont`, and only when a sheet holds Devanagari.
+ * The Indic scripts (Devanagari, Bengali, Gurmukhi, Gujarati, Odia, Tamil, Telugu, Kannada, Malayalam, Sinhala) are each set in
+ * their own Noto Sans font (`./indic-font.ts`), in the same place in the order: a word is shaped by upstream fontkit in the
+ * project's language and drawn glyph by glyph with its typed text as `/ActualText`. A line is cut to its box between grapheme
+ * clusters, a conjunct whole, and the ellipsis follows a cluster. Each font is read through the input's `loadIndicFonts`, and
+ * only when a sheet holds its script.
  *
  * A bold run (the title, the page label, the chip) of CJK is set in Noto Sans Mono CJK SC Bold (`@caotang/font-noto-cjk`), read through
  * the input's `loadBoldFallbackFont` only when a bold place holds CJK, from its common file when every CJK character of the bold places
@@ -74,15 +75,15 @@ import {
   CJK_BOLD_FONT_NAME,
   CJK_FONT_NAME,
   COLOUR_EMOJI_NAME,
-  DEVANAGARI_FONT_NAME,
   EMOJI_FONT_NAME,
   HEBREW_FONT_NAME,
   clustersOf,
   countMarks,
-  devanagariFontPrints,
   emboldenedExtra,
   emojiStyleOf,
   fallbackCovers,
+  indicFontPrints,
+  INDIC_SCRIPT_NAMES,
   isBidiControl,
   isRtlMark,
   loadFont,
@@ -90,6 +91,7 @@ import {
   rtlScriptOf,
   scriptRuns,
   type FontLoader,
+  type IndicScript,
   type RtlScript,
 } from '@caotang/pdf-fonts';
 import type * as Bidi from '@caotang/pdf-fonts/bidi';
@@ -100,7 +102,7 @@ import { sniffImage, type PlacedCard, type PlacedText, type SheetPlan } from '@c
 
 import type { FontkitFont } from './cid-embedding.js';
 import { CjkEmbedding, CjkFace } from './cjk-font.js';
-import { DevanagariEmbedding, DevanagariFace } from './devanagari-font.js';
+import { IndicEmbedding, IndicFace, INDIC_FONT_INFO, type IndicFontLoaders } from './indic-font.js';
 import { ColourEmbedding } from './colour-emoji-font.js';
 import { EmojiEmbedding, EmojiFace, type EmojiGlyph } from './emoji-font.js';
 import { isAnimatedWebp } from './image-size.js';
@@ -167,8 +169,8 @@ export interface ContactSheetPdfInput {
   readonly loadArabicFont?: FontLoader;
   /** Reads Noto Sans Hebrew (`./rtl-font.ts`). Called at most once, and only when the sheet holds Hebrew. Without it, Hebrew is drawn as `?` and the log says so. */
   readonly loadHebrewFont?: FontLoader;
-  /** Reads Noto Sans Devanagari (`./devanagari-font.ts`). Called at most once, and only when the sheet holds Devanagari. Without it, Devanagari is drawn as `?` and the log says so. */
-  readonly loadDevanagariFont?: FontLoader;
+  /** The Indic fonts (`./indic-font.ts`), by script. Each is called at most once, and only when the sheet holds its script. Without it, that script is drawn as `?` and the log says so. */
+  readonly loadIndicFonts?: IndicFontLoaders;
   /** Decodes a WebP picture to PNG (see {@link PictureTranscoder}). Called once per picture, and only for a WebP. Without it, a WebP's cards show the caption and the log says so. */
   readonly transcodePicture?: PictureTranscoder;
   /** The project's language (a BCP 47 tag): Devanagari is shaped in it, and Marathi and Nepali use other forms of some letters than Hindi does. Han characters take its forms. */
@@ -196,8 +198,8 @@ const FRAME_RULE: Shade = { r: 0.3, g: 0.3, b: 0.3 };
 const CHIP_FILL: Shade = { r: 0.15, g: 0.15, b: 0.15 };
 const PAPER: Shade = { r: 1, g: 1, b: 1 };
 
-/** The fonts a piece of text can be set in: Helvetica (or Helvetica-Bold), Noto Sans Mono CJK (or its Bold), Noto Emoji, Noto Color Emoji, Noto Sans Arabic, Noto Sans Hebrew, Noto Sans Devanagari. */
-type Face = 'base' | 'cjk' | 'cjk-bold' | 'emoji' | 'colour' | 'devanagari' | RtlScript;
+/** The fonts a piece of text can be set in: Helvetica (or Helvetica-Bold), Noto Sans Mono CJK (or its Bold), Noto Emoji, Noto Color Emoji, Noto Sans Arabic, Noto Sans Hebrew, and the Indic fonts. */
+type Face = 'base' | 'cjk' | 'cjk-bold' | 'emoji' | 'colour' | IndicScript | RtlScript;
 
 /**
  * One grapheme cluster of a line, resolved to the font that draws it. An emoji carries the glyphs its layout gave. A letter of
@@ -277,7 +279,7 @@ export function fallbackNeeds(texts: Iterable<string>, builtIn: ReadonlySet<numb
       const textCodes = codes.filter((code) => code !== VS15);
       if (textCodes.length > 0 && textCodes.every((code) => builtIn.has(code))) continue;
       const first = String.fromCodePoint(codes[0] ?? 0);
-      if (rtlFontPrints(first) !== undefined || devanagariFontPrints(first)) continue;
+      if (rtlFontPrints(first) !== undefined || indicFontPrints(first) !== undefined) continue;
       for (const code of textCodes) cjk.add(String.fromCodePoint(code));
       if (style === 'text' && !textCodes.every((code) => fallbackCovers(String.fromCodePoint(code)))) emoji.add(String.fromCodePoint(...textCodes));
     }
@@ -460,23 +462,28 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       return null;
     }
   };
-  // The Devanagari font, read and embedded the first time a cluster of the script needs it. `null` once it is known to be
-  // unavailable, with the reason.
-  let devanagari: DevanagariEmbedding | null | undefined;
-  let devanagariError = '';
-  const devanagariFont = async (): Promise<DevanagariEmbedding | null> => {
-    if (devanagari !== undefined) return devanagari;
-    devanagari = null;
-    if (input.loadDevanagariFont === undefined) {
-      devanagariError = 'this compile has no Devanagari font';
-      return devanagari;
+  // The Indic fonts, each read and embedded the first time a cluster of its script needs it. `null` once a font is known to be
+  // unavailable, with the reason beside it.
+  const indic = new Map<IndicScript, IndicEmbedding | null>();
+  const indicErrors = new Map<IndicScript, string>();
+  const indicFont = async (script: IndicScript): Promise<IndicEmbedding | null> => {
+    const known = indic.get(script);
+    if (known !== undefined) return known;
+    indic.set(script, null);
+    const name = INDIC_FONT_INFO[script].name;
+    const load = input.loadIndicFonts?.[script];
+    if (load === undefined) {
+      indicErrors.set(script, `this compile has no ${name} font`);
+      return null;
     }
     try {
-      devanagari = new DevanagariEmbedding(lib, pdf, await DevanagariFace.load(input.loadDevanagariFont, input.language));
+      const embedding = new IndicEmbedding(lib, pdf, await IndicFace.load(load, script, input.language));
+      indic.set(script, embedding);
+      return embedding;
     } catch (error) {
-      devanagariError = `the Devanagari font could not be read (${error instanceof Error ? error.message : String(error)})`;
+      indicErrors.set(script, `the ${name} font could not be read (${error instanceof Error ? error.message : String(error)})`);
+      return null;
     }
-    return devanagari;
   };
   // The marks of each script that were left out of what is drawn.
   const marksLeftOut: Record<RtlScript, number> = { arabic: 0, hebrew: 0 };
@@ -484,7 +491,7 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
   // Every character drawn as "?", once each, in the order first met, with how many times it was replaced.
   const missing = new Map<string, number>();
   // Which fallback fonts a "?" would have needed: the log names the ones that could not be read.
-  const neededUnavailable = new Set<'cjk' | 'emoji' | 'devanagari' | RtlScript>();
+  const neededUnavailable = new Set<'cjk' | 'emoji' | IndicScript | RtlScript>();
 
   /**
    * The text as pieces, one per grapheme cluster, each resolved to its font (see the header). A cluster in emoji presentation
@@ -538,13 +545,14 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
         pieces.push({ text: '?', face: 'base' });
         continue;
       }
-      // Devanagari: Noto Sans Devanagari, after the two right-to-left fonts and before the CJK font.
-      if (devanagariFontPrints(String.fromCodePoint(codes[0] ?? 0))) {
-        if ((await devanagariFont()) !== null) {
-          pieces.push({ text: cluster, face: 'devanagari' });
+      // The Indic scripts: each in its own Noto font, after the two right-to-left fonts and before the CJK font.
+      const indicScript = indicFontPrints(String.fromCodePoint(codes[0] ?? 0));
+      if (indicScript !== undefined) {
+        if ((await indicFont(indicScript)) !== null) {
+          pieces.push({ text: cluster, face: indicScript });
           continue;
         }
-        neededUnavailable.add('devanagari');
+        neededUnavailable.add(indicScript);
         missing.set(cluster, (missing.get(cluster) ?? 0) + 1);
         pieces.push({ text: '?', face: 'base' });
         continue;
@@ -632,14 +640,15 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
   };
 
   /**
-   * The width of a run of Devanagari at a size: the run is one shaped word, however many clusters it holds, so a prefix of it (the
-   * clusters kept before an ellipsis) is measured as the word it is. A word the engine cannot shape is drawn as "?", a Helvetica
-   * one for each cluster.
+   * The width of a run of an Indic script at a size: the run is one shaped word, however many clusters it holds, so a prefix of it
+   * (the clusters kept before an ellipsis) is measured as the word it is. A word the engine cannot shape is drawn as "?", a
+   * Helvetica one for each cluster.
    */
-  const devanagariWidth = (run: readonly Piece[], base: PdfLib.PDFFont, size: number): number => {
-    if (devanagari === null || devanagari === undefined) return 0;
-    const word = devanagari.face.shapeRun(run.map((piece) => piece.text).join(''));
-    return word === null ? base.widthOfTextAtSize('?'.repeat(run.length), size) : devanagari.face.widthOf(word, size);
+  const indicWidth = (run: readonly Piece[], base: PdfLib.PDFFont, size: number, script: IndicScript): number => {
+    const embedding = indic.get(script);
+    if (embedding === null || embedding === undefined) return 0;
+    const word = embedding.face.shapeRun(run.map((piece) => piece.text).join(''));
+    return word === null ? base.widthOfTextAtSize('?'.repeat(run.length), size) : embedding.face.widthOf(word, size);
   };
 
   /**
@@ -698,7 +707,7 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
     }
     if (face === 'cjk') return fallback ? fallback.face.widthOf(glyphs, size) + extra : 0;
     if (face === 'arabic' || face === 'hebrew') return rtlWidth(face, run, size);
-    if (face === 'devanagari') return devanagariWidth(run, base, size);
+    if (face !== 'base') return indicWidth(run, base, size, face);
     return base.widthOfTextAtSize(run.map((piece) => piece.text).join(''), size);
   };
 
@@ -739,16 +748,17 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
         at = pen;
         continue;
       }
-      if (face === 'devanagari') {
+      if (face !== 'base' && face !== 'cjk' && face !== 'cjk-bold' && face !== 'emoji' && face !== 'colour') {
         // One shaped word, glyph by glyph at the positions the shaper gave, with the typed text for copying.
+        const embedding = indic.get(face);
         const typed = run.map((piece) => piece.text).join('');
-        const word = devanagari?.face.shapeRun(typed) ?? null;
-        if (devanagari && word !== null) devanagari.drawPlaced(page, word.glyphs, at, y, size, ink, typed);
+        const word = embedding?.face.shapeRun(typed) ?? null;
+        if (embedding && word !== null) embedding.drawPlaced(page, word.glyphs, at, y, size, ink, typed);
         else {
           for (const piece of run) missing.set(piece.text, (missing.get(piece.text) ?? 0) + 1);
           page.drawText('?'.repeat(run.length), { x: at, y, size, font: base, color: color(ink) });
         }
-        at += devanagariWidth(run, base, size);
+        at += indicWidth(run, base, size, face);
         continue;
       }
       const glyphs = run.flatMap((piece) => piece.glyphs ?? []);
@@ -893,7 +903,7 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
   if (fallback?.used === true) await fallback.finish();
   if (boldFallback?.used === true) await boldFallback.finish();
   for (const embedding of rtl.values()) if (embedding?.used === true) await embedding.finish();
-  if (devanagari?.used === true) await devanagari.finish();
+  for (const embedding of indic.values()) if (embedding?.used === true) await embedding.finish();
 
   if (fallback) notes.push(`contact sheet: text outside Latin script is set in ${CJK_FONT_NAME}, embedded with only the glyphs it uses`);
   if (boldFallback?.used === true) notes.push(`contact sheet: bold text outside Latin script is set in ${CJK_BOLD_FONT_NAME}, embedded with only the glyphs it uses`);
@@ -907,7 +917,9 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
   if (colourError !== '') notes.push(`contact sheet: ${colourError}, so the emoji are set in black and white`);
   if (rtl.get('arabic')?.used === true) notes.push(`contact sheet: Arabic, Persian and Urdu text is set in ${ARABIC_FONT_NAME}, embedded with only the glyphs it uses`);
   if (rtl.get('hebrew')?.used === true) notes.push(`contact sheet: Hebrew text is set in ${HEBREW_FONT_NAME}, embedded with only the glyphs it uses`);
-  if (devanagari?.used === true) notes.push(`contact sheet: Devanagari text is set in ${DEVANAGARI_FONT_NAME}, embedded with only the glyphs it uses`);
+  for (const [script, embedding] of indic) {
+    if (embedding?.used === true) notes.push(`contact sheet: ${INDIC_FONT_INFO[script].name.split(' ').slice(2).join(' ')} text is set in ${INDIC_FONT_INFO[script].name}, embedded with only the glyphs it uses`);
+  }
   if (marksLeftOut.hebrew > 0) {
     const n = marksLeftOut.hebrew;
     notes.push(`contact sheet: ${n} Hebrew ${n === 1 ? 'point or cantillation mark is' : 'points and cantillation marks are'} left out of the print, because the font's placement of marks cannot be checked; the text of the file still holds ${n === 1 ? 'it' : 'them'}`);
@@ -925,14 +937,14 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
     const read = [
       ...(rtl.get('arabic') ? [ARABIC_FONT_NAME] : []),
       ...(rtl.get('hebrew') ? [HEBREW_FONT_NAME] : []),
-      ...(devanagari ? [DEVANAGARI_FONT_NAME] : []),
+      ...[...indic.entries()].filter(([, embedding]) => embedding !== null).map(([script]) => INDIC_FONT_INFO[script].name),
       ...(fallback ? [CJK_FONT_NAME] : []),
       ...(emoji ? [EMOJI_FONT_NAME] : []),
     ];
     const reasons = [
       ...(neededUnavailable.has('arabic') ? [rtlErrors.get('arabic') ?? ''] : []),
       ...(neededUnavailable.has('hebrew') ? [rtlErrors.get('hebrew') ?? ''] : []),
-      ...(neededUnavailable.has('devanagari') ? [devanagariError] : []),
+      ...INDIC_SCRIPT_NAMES.filter((script) => neededUnavailable.has(script)).map((script) => indicErrors.get(script) ?? ''),
       ...(neededUnavailable.has('cjk') ? [fallbackError] : []),
       ...(neededUnavailable.has('emoji') ? [emojiError] : []),
     ];

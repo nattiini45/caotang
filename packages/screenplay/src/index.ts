@@ -68,6 +68,7 @@ export {
   type LayoutLine,
   type LayoutPage,
   type LineKind,
+  type LineTag,
   type PageGeometry,
   type PageSize,
   type PaginateOptions,

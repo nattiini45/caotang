@@ -307,18 +307,20 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(changelog).toContain('machine-verified, not reader-verified');
   });
 
-  it('says the screenplay PDF prints Hindi, Marathi, Nepali and Sanskrit in Noto Sans Devanagari, shaped, broken between syllables, split after the danda, with a @ for a cue', () => {
+  it('says the screenplay PDF prints the Indic scripts in their Noto Sans fonts, shaped, broken between syllables, split after the danda, with a @ for a cue', () => {
     const pdfSection = guide.slice(guide.indexOf('### The screenplay PDF'), guide.indexOf('## Writing dialogue'));
-    expect(pdfSection).toContain('Hindi, Marathi, Nepali and Sanskrit print in Noto Sans Devanagari, which is loaded only for a file that has Devanagari');
+    expect(pdfSection).toContain('Hindi, Marathi, Nepali and Sanskrit print in Noto Sans Devanagari');
+    expect(pdfSection).toContain('Bengali and Assamese in Noto Sans Bengali');
+    expect(pdfSection).toContain('Sinhala in Noto Sans Sinhala');
+    expect(pdfSection).toContain('Each font is loaded only for a file that has its script');
     expect(pdfSection).toContain('a word wider than the column breaks only between syllables, never inside a conjunct');
     expect(pdfSection).toContain('needs a `@` in front, as in `@राम`');
-    expect(pdfSection).toContain('only Devanagari has a font so far');
     const render = read('packages/screenplay/src/render-pdf.ts');
-    expect(render).toContain("devanagariFontPrints(base) ? 'devanagari' : undefined");
+    expect(render).toContain('rtlFontPrints(base) ?? indicFontPrints(base)');
     expect(read('packages/screenplay/src/paginate.ts')).toContain('\\u0964\\u0965');
     expect(read('packages/pdf-fonts/package.json')).toContain('"fontkit": "2.0.4"');
     expect(read('packages/pdf-fonts/package.json')).toContain('"harfbuzzjs": "1.6.3"');
-    expect(guide).toContain('Characters that none of its fonts has, such as Tamil, print as `?`');
+    expect(guide).toContain('Characters that none of its fonts has, such as Glagolitic, print as `?`');
   });
 
   it('says the screenplay PDF prints CJK in its fallback font, two columns a character, loaded only when needed', () => {

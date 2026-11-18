@@ -35,21 +35,22 @@
 
 import {
   countMarks,
-  devanagariFontMaps,
-  devanagariFontPrints,
   emojiFontMaps,
   emojiPrint,
   fallbackCovers,
   firstCodePoint,
   hanLocaleTag,
-  hasDevanagari,
+  hasBrahmic,
   hasRtlScript,
+  indicFontMaps,
+  indicFontPrints,
   isBidiControl,
   isEmojiCluster,
   rtlFontPrints,
   rtlScriptOf,
   isRtlMark,
   type FontLoader,
+  type IndicScript,
   type RtlScript,
   type ShapedScript,
 } from '@caotang/pdf-fonts';
@@ -164,11 +165,11 @@ function unprintable(pages: readonly LayoutPage[], colour?: (cluster: string) =>
         if (isPrintable(base)) continue;
         // A bidirectional control character prints nothing, and the Arabic, Hebrew and Devanagari fonts print their own scripts.
         if (isBidiControl(base)) continue;
-        const script = rtlFontPrints(base) ?? (devanagariFontPrints(base) ? 'devanagari' : undefined);
-        if (script === 'devanagari') {
+        const script = rtlFontPrints(base) ?? indicFontPrints(base);
+        if (script !== undefined && script !== 'arabic' && script !== 'hebrew') {
           if (!found.scripts.includes(script)) found.scripts.push(script);
           // A character of the cluster the font has no glyph for (a Vedic sign it lacks) is printed as the font's own empty glyph: named.
-          for (const ch of unit) if (!devanagariFontMaps(ch) && !found.missing.includes(ch)) found.missing.push(ch);
+          for (const ch of unit) if (!indicFontMaps(script, ch) && !found.missing.includes(ch)) found.missing.push(ch);
         } else if (script !== undefined) {
           if (!found.scripts.includes(script)) found.scripts.push(script);
         } else if (fallbackCovers(base)) {
@@ -182,7 +183,20 @@ function unprintable(pages: readonly LayoutPage[], colour?: (cluster: string) =>
 }
 
 /** What the compile log calls each script. */
-const SCRIPT_NAMES: Readonly<Record<ShapedScript, string>> = { arabic: 'Arabic', hebrew: 'Hebrew', devanagari: 'Devanagari' };
+const SCRIPT_NAMES: Readonly<Record<ShapedScript, string>> = {
+  arabic: 'Arabic',
+  hebrew: 'Hebrew',
+  devanagari: 'Devanagari',
+  bengali: 'Bengali',
+  gurmukhi: 'Gurmukhi',
+  gujarati: 'Gujarati',
+  oriya: 'Odia',
+  tamil: 'Tamil',
+  telugu: 'Telugu',
+  kannada: 'Kannada',
+  malayalam: 'Malayalam',
+  sinhala: 'Sinhala',
+};
 
 /** "this character … it is" or "these N characters … they are", for the log. */
 function counted(list: readonly string[], one: string, many: string): { what: string; verb: string; shown: string } {
@@ -216,7 +230,7 @@ export function layoutPdf(blocks: readonly FlatBlock[], opts: PdfRenderOptions, 
   const fountain = renderFountain(blocks, opts);
   const parsed = parseFountain(fountain.text);
   const holdsRtl = hasRtlScript(fountain.text);
-  const pages = withMeasure(holdsRtl || hasDevanagari(fountain.text) ? measure : undefined, () =>
+  const pages = withMeasure(holdsRtl || hasBrahmic(fountain.text) ? measure : undefined, () =>
     paginate(parsed.elements, {
       titlePage: opts.titlePage,
       title: opts.title,
@@ -276,10 +290,10 @@ export function layoutPdf(blocks: readonly FlatBlock[], opts: PdfRenderOptions, 
  * ({@link loadEmojiFallback}), the emoji print in it; with the Arabic, Hebrew and Devanagari fonts ({@link loadRtlFallback}), the
  * scripts print in them; without them they print as "?".
  */
-export function drawPdf(layout: PdfLayout, font?: PdfFont, fallback?: PdfCidFont, emoji?: PdfEmojiFont, rtl?: PdfRtlFonts, colour?: PdfColourEmojiFont): Uint8Array<ArrayBuffer> {
+export function drawPdf(layout: PdfLayout, font?: PdfFont, fallback?: PdfCidFont, emoji?: PdfEmojiFont, rtl?: PdfRtlFonts, colour?: PdfColourEmojiFont, meta?: { profile?: 'pdfa-2u'; lang?: string }): Uint8Array<ArrayBuffer> {
   return writePdf(
-    layout.pages.map((page) => page.lines.map((line) => ({ text: line.text, x: line.x, y: line.y, ...(line.rtl === true ? { rtl: true as const } : {}) }))),
-    { title: layout.title, ...(layout.author === undefined ? {} : { author: layout.author }), ...(layout.pageSize === 'Letter' ? {} : { pageSize: layout.pageSize }) },
+    layout.pages.map((page) => page.lines.map((line) => ({ text: line.text, x: line.x, y: line.y, ...(line.rtl === true ? { rtl: true as const } : {}), ...(line.tag === undefined ? {} : { tag: line.tag }) }))),
+    { title: layout.title, ...(layout.author === undefined ? {} : { author: layout.author }), ...(layout.pageSize === 'Letter' ? {} : { pageSize: layout.pageSize }), ...(meta?.profile === undefined ? {} : { profile: meta.profile }), ...(meta?.lang === undefined ? {} : { lang: meta.lang }) },
     font,
     fallback,
     emoji,
@@ -386,7 +400,8 @@ export function renderPdf(
     notes.push(`pdf: the CJK or emoji fallback font that prints ${what} was not passed to renderPdf, or has no glyph for ${unprinted.length === 1 ? 'it' : 'them'}, so ${verb} not printed as written: ${shown}`);
   }
   for (const script of layout.shapedScripts) {
-    if (rtl?.[script] === undefined) {
+    const subset = script === 'arabic' || script === 'hebrew' ? rtl?.[script] : rtl?.indic?.[script];
+    if (subset === undefined) {
       notes.push(`pdf: the ${SCRIPT_NAMES[script]} font was not passed to renderPdf, so its text is printed as "?"`);
     }
   }
@@ -430,7 +445,7 @@ export async function preparePdf(blocks: readonly FlatBlock[], opts: PdfRenderOp
   const colourCovers = colourOn ? (await import('@caotang/pdf-fonts/colour')).colourEmojiCovers : undefined;
   let layout = layoutPdf(blocks, opts, undefined, colourCovers);
   let support: RtlSupport | undefined;
-  if (layout.shapedScripts.length > 0 && (loaders.arabic !== undefined || loaders.hebrew !== undefined || loaders.devanagari !== undefined)) {
+  if (layout.shapedScripts.length > 0 && (loaders.arabic !== undefined || loaders.hebrew !== undefined || layout.shapedScripts.some((script) => loaders.indic?.[script as IndicScript] !== undefined))) {
     const { loadRtlSupport } = await import('./rtl-font.js');
     support = await loadRtlSupport(layout.shapedScripts, loaders, undefined, opts.language === undefined ? {} : { language: opts.language });
     layout = layoutPdf(blocks, opts, support.measure, colourCovers);
@@ -455,7 +470,7 @@ export async function preparePdf(blocks: readonly FlatBlock[], opts: PdfRenderOp
   return { layout, ...(font === undefined ? {} : { font }), ...(cjk === undefined ? {} : { cjk }), ...(emoji === undefined ? {} : { emoji }), ...(rtl === undefined ? {} : { rtl }), ...(colour === undefined ? {} : { colour }), colourNotes };
 }
 
-/** The renderer seam of screenplay.md §5.3. Its files embed Courier Prime unless the options name another face (`scriptFont`), and the CJK, emoji, Arabic, Hebrew and Devanagari fonts when the script needs them and the host gave a loader. */
+/** The renderer seam of screenplay.md §5.3. Its files embed Courier Prime unless the options name another face (`scriptFont`), and the CJK, emoji, Arabic, Hebrew and Indic fonts when the script needs them and the host gave a loader. */
 export function createPdfRenderer(loaders: PdfFontLoaders = {}): PdfRenderer {
   return {
     async emit(blocks, opts) {

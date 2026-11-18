@@ -1221,6 +1221,8 @@ export type RecipeOptionsParams = {
   css?: string;
   /** The site's absolute https address: RSS's channel link and Atom's feed id (web-publishing.md §3). A feed compile refuses without it. Only `rss` and `atom` read it. */
   siteUrl?: string;
+  /** `pdfa-2u` writes the prose PDF as PDF/A-2u (exporter.md §3). Absent: a plain PDF. Only `prose-pdf` reads it. */
+  pdfProfile?: 'pdfa-2u';
 };
 
 /**

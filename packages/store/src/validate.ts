@@ -209,7 +209,8 @@ function isRecipeOptions(v: unknown): boolean {
     (o['frontMatter'] === undefined || typeof o['frontMatter'] === 'boolean') &&
     (o['htmlMode'] === undefined || o['htmlMode'] === 'standalone' || o['htmlMode'] === 'fragment') &&
     (o['css'] === undefined || typeof o['css'] === 'string') &&
-    (o['siteUrl'] === undefined || typeof o['siteUrl'] === 'string')
+    (o['siteUrl'] === undefined || typeof o['siteUrl'] === 'string') &&
+    (o['pdfProfile'] === undefined || o['pdfProfile'] === 'pdfa-2u')
   );
 }
 
