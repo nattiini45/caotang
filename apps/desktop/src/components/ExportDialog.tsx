@@ -125,6 +125,11 @@ function formatGroups(comicSelected: boolean): readonly { readonly name: string;
             },
           ]
         : []),
+      {
+        format: 'podcast-rss',
+        label: t`Podcast feed (.rss.xml)`,
+        help: t`The show as an RSS feed Apple and the open directories read: an item per episode with its enclosure, duration and publish date. An episode with no hosted audio stays out and is named in the log.`,
+      },
     ],
   },
   // The show's own exports (av-script.md §5): the reading exports, the VO script its episodes' speakable lines make for the booth, the captions and the chapters.
