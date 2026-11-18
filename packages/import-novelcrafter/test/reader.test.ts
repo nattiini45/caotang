@@ -123,6 +123,25 @@ describe('the NovelCrafter export reader (#292)', () => {
     expect(stored.body).not.toContain('import:');
   });
 
+  it('names a codex entry whose entry.md could not be read, rather than dropping it in silence', async () => {
+    const archive = exportOf({
+      'characters/Elena/entry.md': ELENA_ENTRY,
+      'characters/Mara/entry.md': 'Mara is the first mate.',
+    });
+    const failing: ImportArchive = {
+      ...archive,
+      read: async (path) =>
+        path === 'characters/Mara/entry.md'
+          ? { ok: false, error: new ImportArchiveError('not-found', 'the file could not be read', path) }
+          : archive.read(path),
+    };
+    const read = await readNovelCrafterExport(failing);
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.codex.map((entry) => entry.name)).toEqual(['Elena']);
+    expect(read.value.unreadable).toEqual(['characters/Mara/entry.md']);
+  });
+
   it('renders the research page with description, Connections, notes and fields', async () => {
     const read = await readNovelCrafterExport(exportOf({
       'characters/Elena/entry.md': ELENA_ENTRY,

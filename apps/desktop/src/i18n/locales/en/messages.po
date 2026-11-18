@@ -1204,6 +1204,11 @@ msgstr "{fields, plural, one {# custom field kept in the research text} other {#
 msgid "{file} — the export’s own text; the file you picked is the manuscript."
 msgstr "{file} — the export’s own text; the file you picked is the manuscript."
 
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
+msgid "{file} could not be read, so that codex entry is not in the import."
+msgstr "{file} could not be read, so that codex entry is not in the import."
+
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
 msgid "{file} could not be read: {problem}"
@@ -11261,6 +11266,7 @@ msgstr "Not in the project yet"
 
 #. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/novelcrafter-source.ts
 msgid "Not in this import"
 msgstr "Not in this import"
@@ -20232,6 +20238,11 @@ msgstr "Week starts on"
 #: apps/desktop/src/components/InspectorGoals.tsx
 msgid "Weekly"
 msgstr "Weekly"
+
+#. The NovelCrafter import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/novelcrafter-source.ts
+msgid "What could not be read"
+msgstr "What could not be read"
 
 #. A root of the picture sweep's inventory, named in the sentence that says why a sweep was refused. key is a document's journal key; root is the name of another root; reason is a sentence.
 #: apps/desktop/src/app/picture-retention-host.ts

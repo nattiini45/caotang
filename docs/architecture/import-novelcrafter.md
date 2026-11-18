@@ -50,7 +50,9 @@ Each folder holding an `entry.md` is one codex entry. Its type comes from the ty
   replaces `](import:…)` only (`rewritePictureRefs`, pictures.md D5) and its whole-batch validation refuses a ref with a space, so a
   path-shaped ref would leave the research page pointing at a file that is not there.
 
-The research page carries the description, Connections, notes and custom fields, so nothing is dropped silently. The entry cites its
+A codex folder whose `entry.md` cannot be read at all is named in the report (`unreadable`), so the entry that is missing from the
+import is never dropped in silence. The research page carries the description, Connections, notes and custom fields, so nothing else is
+dropped silently. The entry cites its
 own research page when the manuscript does not name it, so a codex-only export still commits its entries.
 
 **A codex-only export brings one empty chapter with it.** With no manuscript Markdown the reader returns no blocks, and the splitter's

@@ -139,6 +139,13 @@ function makeNovelCrafterSource(fileName: string, openReq: ReaderOpen): ImportPr
           lines: read.leftOut.map((path) => t`${{ file: path }} — the export’s own text; the file you picked is the manuscript.`),
         });
       }
+      if (read.unreadable.length > 0) {
+        lists.push({
+          heading: t`Not in this import`,
+          label: t`What could not be read`,
+          lines: read.unreadable.map((path) => t`${{ file: path }} could not be read, so that codex entry is not in the import.`),
+        });
+      }
       if (read.codex.length === 0) return lists;
       const kept: string[] = [];
       const relations = read.codex.reduce((sum, entry) => sum + entry.relations.length, 0);

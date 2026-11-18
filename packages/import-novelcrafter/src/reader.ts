@@ -33,6 +33,11 @@ export interface NovelCrafterImport {
    * dropped silently: the picked file is the manuscript, and the export's own is reported.
    */
   leftOut: readonly string[];
+  /**
+   * Codex folders whose `entry.md` could not be read at all, so the whole entry is missing from the import. Named, never dropped
+   * silently: the folder is in the export and the writer can see it there.
+   */
+  unreadable: readonly string[];
 }
 
 /**
@@ -66,10 +71,14 @@ export async function readNovelCrafterExport(archive: ImportArchive, manuscript?
   const codex: NovelCrafterCodexEntry[] = [];
   const assetData = new Map<string, Uint8Array>();
   const thumbnails: { ref: string; name: string; bytes: number }[] = [];
+  const unreadable: string[] = [];
   let progressions = 0;
   for (const entryMdPath of entryMdPaths) {
     const read = await readCodexEntry(archive, entryMdPath, paths, assetData, thumbnails);
-    if (read === null) continue;
+    if (read === null) {
+      unreadable.push(entryMdPath);
+      continue;
+    }
     codex.push(read.entry);
     progressions += read.progressions;
   }
@@ -101,7 +110,7 @@ export async function readNovelCrafterExport(archive: ImportArchive, manuscript?
   if (thumbnails.length > 0) document.assets = [...(document.assets ?? []), ...thumbnails];
 
   if (codex.length === 0 && document.blocks.length === 0) return { ok: false, error: { kind: 'empty' } };
-  return { ok: true, value: { document, frontMatter, title, assetData, codex, lost: { progressions }, leftOut } };
+  return { ok: true, value: { document, frontMatter, title, assetData, codex, lost: { progressions }, leftOut, unreadable } };
 }
 
 function manuscriptMessage(error: MarkdownError): string {
