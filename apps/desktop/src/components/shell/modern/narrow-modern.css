@@ -76,7 +76,7 @@
     max-inline-size: none;
   }
 
-  :root[data-shell='modern'] .modern-stage:has(.modern-save-summary) > :is(.modern-page-area, .modern-notices) {
+  :root[data-shell='modern'] .modern-stage:has(.modern-save-summary) {
     --page-top: calc(72px + var(--target-min) + var(--space-2));
   }
 
@@ -141,6 +141,32 @@
   /* ---- Notices sit below the top bar, over the page. ---- */
   :root[data-shell='modern'] .modern-stage > .modern-notices {
     inset-block-start: calc(var(--page-top) + var(--document-mode-row, 0px) + var(--n-top));
+  }
+
+  :root[data-shell='modern'] .modern-stage:has(> .modern-notices[data-state='visible'] .storage-banner):has(> .modern-page-area .editor-pane.is-empty:not([hidden])) {
+    display: grid;
+    grid-template-rows: fit-content(50%) minmax(0, 1fr);
+    gap: var(--space-3);
+    padding-block: calc(var(--page-top) + var(--n-top)) calc(var(--page-bottom) + var(--n-bottom) - var(--page-gutter));
+    padding-inline: var(--safe-side);
+  }
+
+  :root[data-shell='modern'] .modern-stage:has(> .modern-notices[data-state='visible'] .storage-banner):has(> .modern-page-area .editor-pane.is-empty:not([hidden])) > :is(.modern-notices, .modern-page-area) {
+    position: relative;
+    inset: auto;
+  }
+
+  :root[data-shell='modern'] .modern-stage:has(> .modern-notices[data-state='visible'] .storage-banner):has(> .modern-page-area .editor-pane.is-empty:not([hidden])) > .modern-notices {
+    min-block-size: 0;
+    overflow-y: auto;
+  }
+
+  :root[data-shell='modern'] .modern-stage:has(> .modern-notices[data-state='visible'] .storage-banner):has(> .modern-page-area .editor-pane.is-empty:not([hidden])) .modern-toast {
+    flex: none;
+  }
+
+  :root[data-shell='modern'] .modern-stage:has(> .modern-notices[data-state='visible'] .storage-banner) .editor-pane.is-empty {
+    justify-content: safe center;
   }
 
   /* ---- The binder drawer, from the inline-start edge, sliding out of it (mirrored in a right-to-left interface). ---- */
