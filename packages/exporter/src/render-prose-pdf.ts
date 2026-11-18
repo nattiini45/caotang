@@ -34,6 +34,7 @@ import {
   rtlFontPrints,
   rtlScriptOf,
   isRtlMark,
+  type IndicScript,
   type RtlScript,
   type ShapedScript,
 } from '@caotang/pdf-fonts';
@@ -848,7 +849,7 @@ export async function prepareProsePdf(
   const colourCovers = colourOn ? (await import('@caotang/pdf-fonts/colour')).colourEmojiCovers : undefined;
   let layout = layoutProsePdf(input, opts, undefined, colourCovers);
   let support: RtlSupport | undefined;
-  if (layout.shapedScripts.length > 0 && (loaders.arabic !== undefined || loaders.hebrew !== undefined || loaders.devanagari !== undefined)) {
+  if (layout.shapedScripts.length > 0 && (loaders.arabic !== undefined || loaders.hebrew !== undefined || layout.shapedScripts.some((script) => loaders.indic?.[script as IndicScript] !== undefined))) {
     support = await loadRtlSupport(layout.shapedScripts, loaders, undefined, opts.language === undefined ? {} : { language: opts.language });
     layout = layoutProsePdf(input, opts, support.measure, colourCovers);
   }
