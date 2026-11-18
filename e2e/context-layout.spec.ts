@@ -53,7 +53,7 @@ for (const variant of [
     await expect(request).toHaveAttribute('aria-busy', 'false');
     await expect(request.locator('details.context-preview')).not.toHaveAttribute('open');
     await expect(request.locator('details.context-accounting')).not.toHaveAttribute('open');
-    if (variant.shell === 'modern') expect(await visibleTurnLines(page)).toBeGreaterThanOrEqual(3);
+    if (variant.shell === 'modern') await expect.poll(() => visibleTurnLines(page)).toBeGreaterThanOrEqual(3);
     await page.screenshot({ path: testInfo.outputPath(`context-${variant.shell}-${variant.language}-${variant.width}-default.png`) });
     await request.locator('details.context-preview > summary').click();
     await expect(request.locator('details.context-preview')).toHaveAttribute('open', '');
@@ -62,10 +62,10 @@ for (const variant of [
     await expect(request.locator('.context-layers')).toBeVisible();
     await request.locator('.context-layers > li').first().scrollIntoViewIfNeeded();
     await expect(request.locator('.context-layers > li').first()).toBeInViewport();
-    if (variant.shell === 'modern') expect(await visibleTurnLines(page)).toBeGreaterThanOrEqual(3);
+    if (variant.shell === 'modern') await expect.poll(() => visibleTurnLines(page)).toBeGreaterThanOrEqual(3);
     const context = panel.locator('.composer-context');
-    expect(await context.evaluate((element) => element.clientHeight)).toBeLessThanOrEqual(Math.min(variant.height * 0.3, 256));
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await expect.poll(() => context.evaluate((element) => element.clientHeight)).toBeLessThanOrEqual(Math.min(variant.height * 0.3, 256));
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`context-${variant.shell}-${variant.language}-${variant.width}-opened.png`) });
   });
 }
