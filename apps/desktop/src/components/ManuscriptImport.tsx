@@ -115,9 +115,19 @@ export function ManuscriptImportActions(): ReactNode {
 
   const openHtml = async (file: File): Promise<void> => {
     try {
-      const { htmlPreviewSource, htmlZipPreviewSource } = await import('../import-preview/html-source.js');
+      const { htmlPreviewSource, htmlZipPreviewSource, htmlSizeRefusal } = await import('../import-preview/html-source.js');
+      const zip = /\.zip$/i.test(file.name);
+      // The size is checked before the file is loaded into memory, as the plain-text and RTF actions do: a 4 GB pick must be
+      // refused with a sentence, not crash the tab on its way to the reader's own cap.
+      const { MAX_TEXT_BYTES } = await import('@caotang/import-read/text');
+      const { ARCHIVE_LIMITS } = await import('@caotang/import-read/zip');
+      const refusal = htmlSizeRefusal(file.name, file.size, zip ? ARCHIVE_LIMITS.maxArchiveBytes : MAX_TEXT_BYTES);
+      if (refusal !== undefined) {
+        report({ text: refusal, tone: 'error' });
+        return;
+      }
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const source = /\.zip$/i.test(file.name) ? htmlZipPreviewSource(file.name, bytes) : htmlPreviewSource(file.name, bytes);
+      const source = zip ? htmlZipPreviewSource(file.name, bytes) : htmlPreviewSource(file.name, bytes);
       openImportPreview({ source });
     } catch (failure) {
       failed(file, failure);

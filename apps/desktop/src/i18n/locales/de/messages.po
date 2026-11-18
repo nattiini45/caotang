@@ -1257,6 +1257,11 @@ msgstr "{file} enthält keinen Cue mit einer Zeit, also gibt es nichts zu import
 msgid "{file} is too large to import as captions: the import reads files up to {limit} MB."
 msgstr "{file} ist zu groß für einen Untertitel-Import: Der Import liest Dateien bis {limit} MB."
 
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "{file} is too large to import as HTML: the import reads files up to {limit} MB."
+msgstr "{file} ist zu groß für den HTML-Import: Der Import liest Dateien bis {limit} MB."
+
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/text-source.ts
 msgid "{file} is too large to import as plain text: the import reads files up to {limit} MB."

@@ -133,4 +133,84 @@ describe('the XHTML walker (#299)', () => {
     expect(isSafeLinkTarget('javascript:alert(1)')).toBe(false);
     expect(isSafeLinkTarget('data:text/html,x')).toBe(false);
   });
+
+  it('keeps literal prose literal: its stars and brackets are words, not markup', () => {
+    const { blocks } = walk('<p>Use *literal* syntax and [link](https://example.test).</p>');
+    const para = blocks[0];
+    expect(para?.kind === 'para' && para.md).toBe('Use \\*literal\\* syntax and \\[link\\](https://example.test).');
+    expect(para?.kind === 'para' && para.text).toBe('Use *literal* syntax and [link](https://example.test).');
+  });
+
+  it('encodes a link destination so an href cannot close the link and start another', () => {
+    const { blocks } = walk('<p><a href="x) [link](javascript:alert(1">click</a></p>');
+    const md = blocks[0]?.kind === 'para' ? blocks[0].md : '';
+    expect(md).toBe('[click](x%29%20%5Blink%5D%28javascript:alert%281)');
+    expect(md.split('](')).toHaveLength(2);
+    expect(md).not.toContain('](javascript');
+  });
+
+  it('counts a script in the head, which the body walk never reaches', () => {
+    const out = htmlToBlocks('<html><head><script>alert(1)</script></head><body><p>Safe text.</p></body></html>');
+    if (!out.ok) throw new Error(out.error.message);
+    expect(out.value.dropped.scripts).toBe(1);
+    expect(JSON.stringify(out.value.blocks)).not.toContain('alert');
+  });
+
+  it('counts an event attribute in the head and inside a dropped element once', () => {
+    const out = htmlToBlocks('<html><head><meta onload="evil()"/></head><body><div onclick="evil()"><p>Text.</p></div></body></html>');
+    if (!out.ok) throw new Error(out.error.message);
+    expect(out.value.dropped.eventAttrs).toBe(2);
+  });
+
+  it('keeps a heading’s title plain while its Markdown keeps the emphasis', () => {
+    const { blocks } = walk('<h1>Chapter <em>One</em></h1>');
+    expect(blocks[0]).toMatchObject({ kind: 'heading', text: 'Chapter One', md: '# Chapter *One*' });
+  });
+
+  it('carries a wrapper’s alignment down to the paragraphs inside it', () => {
+    const { blocks } = walk('<div style="text-align:center"><p>Centered line.</p><p>Also centred.</p></div>');
+    expect(blocks[0]?.kind === 'para' && blocks[0].src?.align).toBe('center');
+    expect(blocks[1]?.kind === 'para' && blocks[1].src?.align).toBe('center');
+  });
+
+  it('gives a wrapper’s page break to its first paragraph only', () => {
+    const { blocks } = walk('<div style="page-break-before:always"><p>One.</p><p>Two.</p></div>');
+    expect(blocks[0]?.kind === 'para' && blocks[0].src?.pageBreakBefore).toBe(true);
+    expect(blocks[1]?.kind === 'para' && blocks[1].src?.pageBreakBefore).toBeUndefined();
+  });
+
+  it('separates table cells and rows when it flattens them to prose', () => {
+    const { blocks } = walk('<table><tr><td>Mary</td><td>Smith</td></tr><tr><td>Ann</td><td>Lee</td></tr></table>');
+    expect(blocks[0]?.kind === 'para' && blocks[0].md).toBe('Mary Smith\nAnn Lee');
+    expect(blocks[0]?.kind === 'para' && blocks[0].text).toBe('Mary Smith Ann Lee');
+  });
+
+  it('keeps a dropped element’s source out of a table and out of a code block', () => {
+    const table = walk('<table><tr><td>a<script>alert(1)</script></td></tr></table>');
+    expect(JSON.stringify(table.blocks)).not.toContain('alert');
+    expect(table.dropped.scripts).toBe(1);
+    const code = walk('<pre>let x = 1;<script>alert(2)</script></pre>');
+    expect(JSON.stringify(code.blocks)).not.toContain('alert');
+    expect(code.dropped.scripts).toBe(1);
+  });
+
+  it('lists a protocol-relative picture as remote, not as one the file carries', () => {
+    const { images, remoteImages } = walk('<img src="//cdn.example/x.png" alt="c"/><p><img src="//cdn.example/y.png" alt="d"/></p>');
+    expect(images.size).toBe(0);
+    expect(remoteImages).toEqual(['//cdn.example/x.png', '//cdn.example/y.png']);
+  });
+
+  it('reads the class rules of a page built to make a scanning regex quadratic, in one pass', () => {
+    // 40,000 dots with no brace inside a stylesheet: a regex that scans from every position would take minutes.
+    const started = Date.now();
+    const out = htmlToBlocks(page(`<style>${'.-'.repeat(40_000)} .c1 { text-align: center; }</style><p class="c1">A centred line.</p>`));
+    expect(Date.now() - started).toBeLessThan(10_000);
+    if (!out.ok) throw new Error(out.error.message);
+    const para = out.value.blocks.find((block) => block.kind === 'para');
+    expect(para?.kind === 'para' && para.src?.align).toBe('center');
+    // Unclosed <style> tags are not well-formed markup, but the class scan runs before the parse and must still return at once.
+    const unclosed = Date.now();
+    htmlToBlocks(page('<style>'.repeat(40_000)));
+    expect(Date.now() - unclosed).toBeLessThan(10_000);
+  });
 });

@@ -9,7 +9,7 @@ import type { ImportDocument, ImportAsset } from '@caotang/import-core';
 import { decodePlainText } from '@caotang/import-read/text';
 import { openZip, isArchiveResidue, type ImportArchive } from '@caotang/import-read/zip';
 import { htmlToBlocks, type HtmlDropped } from './walker.js';
-import { dropUnresolvedPictures, relativeCandidates } from './pictures.js';
+import { dropUnresolvedPictures, pictureRefusal, relativeCandidates, type PictureRefusal } from './pictures.js';
 
 export interface HtmlImport {
   document: ImportDocument;
@@ -67,15 +67,22 @@ export function readHtmlFile(bytes: Uint8Array, fileName: string): HtmlResult {
 
   const assetData = new Map<string, Uint8Array>();
   const assets: ImportAsset[] = [];
+  const refused = new Map<string, PictureRefusal>();
   for (const [ref, target] of images) {
     const data = dataUriBytes(target);
     if (data === null) continue; // a relative target with no archive to resolve it against
+    // The commit's picture pipeline is strict over the whole batch, so bytes it would refuse never become an offer.
+    const why = pictureRefusal(data);
+    if (why !== undefined) {
+      refused.set(ref, why);
+      continue;
+    }
     assetData.set(ref, data);
     assets.push({ ref, name: ref, bytes: data.length });
   }
 
   // A picture with no bytes behind it keeps its alt text and is named, rather than leaving a ref that resolves to nothing.
-  const kept = dropUnresolvedPictures(blocks, new Set(assetData.keys()), images);
+  const kept = dropUnresolvedPictures(blocks, new Set(assetData.keys()), images, refused);
   const title = titleOf(decoded.text, fileName);
   const document: ImportDocument = { blocks: kept.blocks, losses: [...losses, ...kept.losses], assets, metadata: { title } };
   return { ok: true, value: { document, title, assetData, remoteImages, dropped } };
@@ -98,6 +105,7 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
   const assetData = new Map<string, Uint8Array>();
   const assets = new Map<string, ImportAsset>();
   const targets = new Map<string, string>();
+  const refused = new Map<string, PictureRefusal>();
   const remoteImages: string[] = [];
   const dropped: HtmlDropped = { ...EMPTY_DROPPED };
   let title: string | undefined;
@@ -130,6 +138,11 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
       targets.set(ref, target);
       const data = dataUriBytes(target);
       if (data !== null) {
+        const why = pictureRefusal(data);
+        if (why !== undefined) {
+          refused.set(ref, why);
+          continue;
+        }
         assetData.set(ref, data);
         assets.set(ref, { ref, name: ref, bytes: data.length });
         continue;
@@ -139,13 +152,18 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
       if (resolved === null) continue;
       const imageRead = await archive.read(resolved);
       if (!imageRead.ok) continue;
+      const why = pictureRefusal(imageRead.value);
+      if (why !== undefined) {
+        refused.set(ref, why);
+        continue;
+      }
       assetData.set(ref, imageRead.value);
       assets.set(ref, { ref, name: resolved.split('/').pop() ?? ref, bytes: imageRead.value.length });
     }
   }
 
   // Every picture the pages name but the archive does not carry keeps its alt text and is named once for the whole import.
-  const kept = dropUnresolvedPictures(blocks, new Set(assetData.keys()), targets);
+  const kept = dropUnresolvedPictures(blocks, new Set(assetData.keys()), targets, refused);
   const document: ImportDocument = { blocks: kept.blocks, losses: [...losses, ...kept.losses], assets: [...assets.values()], ...(title === undefined ? {} : { metadata: { title } }) };
   return { ok: true, value: { document, title: title ?? '', assetData, remoteImages, dropped } };
 }

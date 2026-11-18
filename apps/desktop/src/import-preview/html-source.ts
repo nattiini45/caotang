@@ -38,6 +38,15 @@ export function htmlErrorText(error: HtmlError): string {
   }
 }
 
+/**
+ * Why a file of this size is not read at all, before its bytes are loaded; undefined when the reader takes it. `maxBytes` is the
+ * cap for what was picked: the text reader's for a page, the archive's for a web-page zip.
+ */
+export function htmlSizeRefusal(fileName: string, size: number, maxBytes: number): string | undefined {
+  if (size <= maxBytes) return undefined;
+  return t`${{ file: fileName }} is too large to import as HTML: the import reads files up to ${{ limit: formatCount(Math.round(maxBytes / (1024 * 1024))) }} MB.`;
+}
+
 /** A saved HTML page or a web-page zip in the preview, read in the Worker. */
 function makeHtmlSource(fileName: string, openReq: ReaderOpen): ImportPreviewSource {
   const host = new ReaderHost();

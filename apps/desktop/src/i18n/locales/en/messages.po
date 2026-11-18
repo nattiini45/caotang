@@ -1256,6 +1256,11 @@ msgstr "{file} holds no timed cue, so there is nothing to import. A captions fil
 msgid "{file} is too large to import as captions: the import reads files up to {limit} MB."
 msgstr "{file} is too large to import as captions: the import reads files up to {limit} MB."
 
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "{file} is too large to import as HTML: the import reads files up to {limit} MB."
+msgstr "{file} is too large to import as HTML: the import reads files up to {limit} MB."
+
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/text-source.ts
 msgid "{file} is too large to import as plain text: the import reads files up to {limit} MB."
