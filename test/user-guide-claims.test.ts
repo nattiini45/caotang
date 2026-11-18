@@ -730,7 +730,9 @@ describe('the import preview (#267)', () => {
     expect(read('apps/desktop/src/components/TweeImportDialog.tsx')).toContain('tweePreviewSource(');
     expect(guide).toContain('- **The import preview.** An import that brings in a whole book shows it first as a proposed binder beside its text');
     expect(guide).toContain('one **Undo** takes all of it back, pictures and codex entries included');
-    expect(guide).toContain('**Import Twee**, **Import plain text…**, **Import RTF…** and **Import RTFD…** open it.');
+    expect(guide).toContain('**Import Twee**, **Import Inklewriter**, **Import plain text…**, **Import RTF…** and **Import RTFD…** open it.');
+    expect(guide).toContain('**Import Inklewriter** reads an Inklewriter story export');
+    expect(read('apps/desktop/src/components/ScriptImport.tsx')).toContain('inklewriterPreviewSource');
     expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
     expect(guide).toContain('in the background, so a long file does not hold the page while it is read');
     const manuscript = read('apps/desktop/src/components/ManuscriptImport.tsx');

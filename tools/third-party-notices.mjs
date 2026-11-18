@@ -73,6 +73,14 @@ export const BUNDLED_ASSETS = Object.freeze([
     shippedAs: 'packages/screenplay/src/fonts/cousine-regular.ts',
     licenseFile: 'packages/screenplay/src/fonts/OFL-Cousine.txt',
   }),
+  Object.freeze({
+    name: 'inklewriter-to-ink (Inklewriter JSON to Ink converter)',
+    version: 'f62fcfd51d3391ba8ad4c7192778451d9f6769b7',
+    license: 'MIT',
+    repository: 'https://github.com/inkle/inklewriter-to-ink',
+    shippedAs: 'packages/import-inklewriter/src/inklewriter-convert.ts',
+    licenseFile: 'packages/import-inklewriter/src/LICENSE-INKLEWRITER',
+  }),
 ]);
 
 /**
