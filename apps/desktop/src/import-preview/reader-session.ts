@@ -5,8 +5,9 @@
  *
  * The readers are imported on first use: the plain-text reader (`@caotang/import-read/text`), the captions reader
  * (`@caotang/import-captions`, which takes the text the plain-text reader decoded), the RTF and `.rtfd` readers
- * (`@caotang/import-rtf`), and the archive reader (`@caotang/import-read/zip`) for a zipped `.rtfd`. None needs a DOM. fflate is reached
- * only through the archive reader's `unzipSync`, never its async blob workers.
+ * (`@caotang/import-rtf`), the archive reader (`@caotang/import-read/zip`) for a zipped `.rtfd`, and the Inklewriter reader
+ * (`@caotang/import-inklewriter`, issue #286). None needs a DOM. fflate is reached only through the archive reader's `unzipSync`,
+ * never its async blob workers.
  */
 
 import type { ImportArchive } from '@caotang/import-read/zip';
@@ -15,7 +16,7 @@ import type { RtfReadResult, RtfdReadResult } from '@caotang/import-rtf';
 import type { ReaderOpen, ReaderRead, ReaderResult, SerializableRtfResult } from './reader-protocol.js';
 
 type State =
-  | { readonly reader: 'text' | 'captions' | 'rtf'; readonly bytes: Uint8Array }
+  | { readonly reader: 'text' | 'captions' | 'rtf' | 'inklewriter'; readonly bytes: Uint8Array }
   | { readonly reader: 'rtfd'; readonly archive: ImportArchive };
 
 /** Flattens an RTF or archive refusal to a code and a message, so it survives the structured clone (an Error's own `code` does not). */
@@ -28,7 +29,7 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
   let state: State | null = null;
 
   const open = async (req: ReaderOpen): Promise<void> => {
-    if (req.reader === 'text' || req.reader === 'captions' || req.reader === 'rtf') {
+    if (req.reader === 'text' || req.reader === 'captions' || req.reader === 'rtf' || req.reader === 'inklewriter') {
       state = { reader: req.reader, bytes: req.bytes };
       return;
     }
@@ -67,6 +68,11 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
         kind: 'captions',
         result: { status: 'read', encoding: decoded.encoding, guessed: decoded.guessed, candidates: decoded.candidates, parse: parseCaptions(decoded.text) },
       };
+    }
+    if (req.reader === 'inklewriter') {
+      if (state.reader !== 'inklewriter') throw new Error('The import reader is not an Inklewriter reader.');
+      const { readInklewriter } = await import('@caotang/import-inklewriter');
+      return { kind: 'inklewriter', result: readInklewriter(state.bytes, req.fileName ?? '') };
     }
     const { readRtf, readRtfd } = await import('@caotang/import-rtf');
     const options = {

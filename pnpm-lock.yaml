@@ -318,6 +318,9 @@ importers:
       '@caotang/import-core':
         specifier: workspace:*
         version: link:../../packages/import-core
+      '@caotang/import-inklewriter':
+        specifier: workspace:*
+        version: link:../../packages/import-inklewriter
       '@caotang/import-read':
         specifier: workspace:*
         version: link:../../packages/import-read
@@ -951,6 +954,12 @@ importers:
         version: link:../script
 
   packages/import-core: {}
+
+  packages/import-inklewriter:
+    dependencies:
+      '@caotang/dialogue':
+        specifier: workspace:*
+        version: link:../dialogue
 
   packages/import-read:
     dependencies:

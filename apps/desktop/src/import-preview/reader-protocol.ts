@@ -12,6 +12,7 @@
 
 import type { ParagraphMode, PlainTextRead } from '@caotang/import-read/text';
 import type { CaptionsResult } from '@caotang/import-captions';
+import type { InklewriterResult } from '@caotang/import-inklewriter';
 import type { RtfImport } from '@caotang/import-rtf';
 import type { DecodableEncoding } from '@caotang/store/encoding';
 
@@ -21,13 +22,15 @@ export type ReaderOpen =
   | { readonly kind: 'open'; readonly reader: 'captions'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'rtf'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'rtfd'; readonly files: readonly { readonly path: string; readonly size: number; readonly bytes: Uint8Array }[] }
-  | { readonly kind: 'open'; readonly reader: 'rtfd-zip'; readonly bytes: Uint8Array };
+  | { readonly kind: 'open'; readonly reader: 'rtfd-zip'; readonly bytes: Uint8Array }
+  | { readonly kind: 'open'; readonly reader: 'inklewriter'; readonly bytes: Uint8Array };
 
 /** Reads the cached input again with these options. A text read decodes and builds blocks; an RTF read parses. */
 export type ReaderRead =
   | { readonly kind: 'read'; readonly reader: 'text'; readonly encoding?: DecodableEncoding; readonly paragraphs?: ParagraphMode | 'auto'; readonly fileName?: string }
   | { readonly kind: 'read'; readonly reader: 'captions'; readonly encoding?: DecodableEncoding }
-  | { readonly kind: 'read'; readonly reader: 'rtf' | 'rtfd'; readonly underlineAs?: 'italic' | 'none'; readonly assetPrefix?: string };
+  | { readonly kind: 'read'; readonly reader: 'rtf' | 'rtfd'; readonly underlineAs?: 'italic' | 'none'; readonly assetPrefix?: string }
+  | { readonly kind: 'read'; readonly reader: 'inklewriter'; readonly fileName?: string };
 
 /** An RTF or `.rtfd` read's result, with its error flattened to a code and a message so it survives the clone. */
 export type SerializableRtfResult =
@@ -38,7 +41,8 @@ export type ReaderResult =
   | { readonly kind: 'opened' }
   | { readonly kind: 'text'; readonly result: PlainTextRead }
   | { readonly kind: 'captions'; readonly result: CaptionsReadResult }
-  | { readonly kind: 'rtf'; readonly result: SerializableRtfResult };
+  | { readonly kind: 'rtf'; readonly result: SerializableRtfResult }
+  | { readonly kind: 'inklewriter'; readonly result: InklewriterResult };
 
 /**
  * A captions read: the decode's own answer and the parse of its text, or the decode's refusal unchanged (the encoding ask, the size
