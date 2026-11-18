@@ -16,11 +16,11 @@ import { crc32, deflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import { loadArabicFontInNode, loadCjkFontInNode, loadColourEmojiInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
-import { MemoryArtifactFs, type ExportRecipeOptions, type ProjectState } from '@caotang/store';
+import { MemoryArtifactFs, addDocument, addFolder, createEmptyManifest, createProjectState, type ExportRecipeOptions, type ProjectState } from '@caotang/store';
 import { addShotNode } from '@caotang/storyboard';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
 import { createExporter } from '../src/index.js';
-import { COMPILED_AT } from './fixture.js';
+import { COMPILED_AT, makeProject } from './fixture.js';
 import { ASSET_FILE, ASSETS, MEDIA_IDS, OPENED, makeMediaProject } from './media-fixture.js';
 
 const OUT = process.env['CAOTANG_PDF_OUT'] ?? '';
@@ -28,7 +28,7 @@ const OUT = process.env['CAOTANG_PDF_OUT'] ?? '';
 /** What the validators must find in one file. `pages[i]` holds the strings page i + 1 must give back as text. */
 interface Expected {
   readonly file: string;
-  readonly format: 'pdf' | 'contact-sheet-pdf';
+  readonly format: 'pdf' | 'contact-sheet-pdf' | 'prose-pdf';
   readonly pages: readonly (readonly string[])[];
   readonly size: readonly [number, number];
   /** Every font the file names: a substring of its BaseFont, whether its program is embedded, and whether it carries a ToUnicode map. */
@@ -157,6 +157,19 @@ function sheetWith(title: string, action: string): ProjectState {
   addShotNode(state, { parentId: MEDIA_IDS.shots, title, id: 'n_SHOTWORLD1', now: OPENED, stored: { shotSize: 'LS', action, durationSec: 2 } });
   return state;
 }
+
+/** A one-chapter manuscript holding a single prose document, for the prose PDF cases. */
+function manuscriptWith(body: string, extra?: (state: ProjectState) => void): ProjectState {
+  const state = createProjectState(createEmptyManifest('The Lighthouse Keeper', OPENED, { locale: 'en-US' }));
+  state.manifest.project.id = 'p_9XK2M4Q7RZ';
+  addFolder(state, { parentId: 'manuscript', title: 'Chapter One', now: OPENED, id: 'n_PCHAPTER1' });
+  addDocument(state, { parentId: 'n_PCHAPTER1', title: 'The Landing', body, now: OPENED, id: 'n_PLANDING1' });
+  extra?.(state);
+  return state;
+}
+
+/** The manuscript fixture's title page, which every prose case below writes as page 1. */
+const TITLE_PAGE = ['The Lighthouse Keeper', 'Ada Lovelace'] as const;
 
 const CORPUS: readonly Case[] = [
   {
@@ -353,6 +366,86 @@ const CORPUS: readonly Case[] = [
     pages: [['Mara sets the kettle down.', 'The harbour, empty.', 'The lamp turns slowly.']],
     size: LETTER,
     fonts: [HELVETICA],
+  },
+  {
+    // The prose PDF (exporter.md §3): the fixture's manuscript with its title page, then the prologue and the two chapters.
+    file: 'prose-latin.pdf',
+    format: 'prose-pdf',
+    build: () => ({ state: makeProject() }),
+    pages: [
+      TITLE_PAGE,
+      ['The keeper had been alone on the rock for nine years.'],
+      ['CHAPTER 1. CHAPTER ONE', 'The ferry was late, as always.', 'Elena stepped onto the quay and waved.', 'The glass fell all night.'],
+      ['CHAPTER 2. CHAPTER TWO', 'Light, at last.'],
+    ],
+    size: LETTER,
+    fonts: [COURIER],
+  },
+  {
+    file: 'prose-cjk.pdf',
+    format: 'prose-pdf',
+    build: () => ({ state: manuscriptWith('The sign says 草堂, and the pier says ようこそ, and the boat says 환영합니다.') }),
+    pages: [TITLE_PAGE, ['CHAPTER 1. CHAPTER ONE', '草堂', 'ようこそ', '환영합니다']],
+    size: LETTER,
+    fonts: [COURIER, CJK],
+  },
+  {
+    // Colour emoji in prose: the same Type 3 font as the screenplay's.
+    file: 'prose-emoji.pdf',
+    format: 'prose-pdf',
+    build: () => ({ state: manuscriptWith('Action 🎬 and family 👨‍👩‍👧, flag 🇯🇵, key 1️⃣, thumb 👍🏽.') }),
+    options: { colourEmoji: true },
+    pages: [TITLE_PAGE, ['CHAPTER 1. CHAPTER ONE', '🎬', '👨‍👩‍👧', '🇯🇵', '1️⃣', '👍🏽']],
+    size: LETTER,
+    fonts: [COURIER, TYPE3],
+  },
+  {
+    // A long manuscript: the first chapter wraps mid-sentence across five pages, and the second chapter opens a page of its own.
+    file: 'prose-long.pdf',
+    format: 'prose-pdf',
+    build: () => ({
+      state: manuscriptWith(
+        Array.from({ length: 60 }, (_, i) => `Paragraph ${i + 1}. The ferry was late again, as it always is, and the gulls watched.`).join('\n\n'),
+        (state) => {
+          addFolder(state, { parentId: 'manuscript', title: 'Chapter Two', now: OPENED, id: 'n_PCHAPTER2' });
+          addDocument(state, {
+            parentId: 'n_PCHAPTER2',
+            title: 'The Storm',
+            body: `The glass fell all night.\n\n${Array.from({ length: 40 }, (_, i) => `Paragraph ${i + 1} of the storm.`).join('\n\n')}`,
+            now: OPENED,
+            id: 'n_PSTORM001',
+          });
+        },
+      ),
+    }),
+    pages: [
+      TITLE_PAGE,
+      ['CHAPTER 1. CHAPTER ONE', 'Paragraph 1.'],
+      ['Paragraph 11.'],
+      ['Paragraph 24.'],
+      ['Paragraph 38.'],
+      ['Paragraph 51.'],
+      ['CHAPTER 2. CHAPTER TWO', 'The glass fell all night.'],
+      ['Paragraph 29 of the storm.'],
+    ],
+    size: LETTER,
+    fonts: [COURIER],
+  },
+  {
+    // The tagged PDF/A-2u recipe (#713): the file claims the profile in its XMP, so veraPDF holds it to every PDF/A-2u rule.
+    // The WinAnsi font gains the ToUnicode map the `u` names, so its expectation differs from the plain file's.
+    file: 'prose-pdfa-2u.pdf',
+    format: 'prose-pdf',
+    build: () => ({ state: makeProject() }),
+    options: { pdfProfile: 'pdfa-2u' },
+    pages: [
+      TITLE_PAGE,
+      ['The keeper had been alone on the rock for nine years.'],
+      ['CHAPTER 1. CHAPTER ONE', 'The ferry was late, as always.', 'Elena stepped onto the quay and waved.', 'The glass fell all night.'],
+      ['CHAPTER 2. CHAPTER TWO', 'Light, at last.'],
+    ],
+    size: LETTER,
+    fonts: [{ name: 'CourierPrime', embedded: true, toUnicode: true }],
   },
 ];
 
