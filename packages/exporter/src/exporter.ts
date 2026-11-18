@@ -20,7 +20,7 @@
 
 import { ApplyRefusal, DEFAULT_RECIPE_NAME, type CommandError } from '@caotang/bus';
 import { ArtifactNotFoundError, EXPORTS_DIR, FIXED_ROOT_IDS, identifierUrn, type ArtifactFs, type ProjectState } from '@caotang/store';
-import { PDF_MIME } from '@caotang/screenplay';
+import { PDF_MIME, type PdfFontLoaders } from '@caotang/screenplay';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
 import type { ComicLetteringFontLoader, FontLoader } from '@caotang/pdf-fonts';
 import { extensionOfMime, isAssetId, planPicture, finishPassthrough, sniffPicture, PictureRefusal, type ProcessPicture, type PictureBytes } from '@caotang/pictures';
@@ -52,6 +52,7 @@ import { renderHtmlArticle, type PublishMeta } from './render-html.js';
 import { renderAtom, renderRss, type FeedItem } from './render-feed.js';
 import { renderMarkdown, renderText } from './render-text.js';
 import type { RenderInput } from './render-input.js';
+import { drawProsePdf, layoutProsePdf, prepareProsePdf, type ProsePdfOptions } from './render-prose-pdf.js';
 import { DEFAULT_TEMPLATE_ID, fileStem, resolveTemplate, type ExportTemplate } from './template.js';
 import {
   hasTextProof,
@@ -272,6 +273,7 @@ const EXTENSION: Record<ExportFormat, string> = {
   rss: 'rss.xml',
   atom: 'atom.xml',
   'podcast-rss': 'rss.xml',
+  'prose-pdf': 'pdf',
 };
 
 /**
@@ -313,6 +315,7 @@ export const EXPORT_MIME: Readonly<Record<ExportFormat, string>> = {
   rss: 'application/rss+xml',
   atom: 'application/atom+xml',
   'podcast-rss': 'application/rss+xml',
+  'prose-pdf': PDF_MIME,
 };
 
 const NO_ASSETS: ReadonlyMap<string, AssetRecord> = new Map();
@@ -494,6 +497,33 @@ export function createExporter(options: ExporterOptions): ExporterService {
       ...(pictures.assetsDir === undefined ? {} : { assetsDir: pictures.assetsDir }),
     };
 
+    // The prose PDF (exporter.md §3): laid out at plan time, so a compile that prints nothing is refused
+    // before anything is reserved, and the fonts are loaded when the file renders, not before.
+    let prosePdf: ProsePdfPlan | undefined;
+    if (request.format === 'prose-pdf') {
+      const pdfOpts: ProsePdfOptions = {
+        ...(metadata.language === undefined ? {} : { language: metadata.language }),
+        ...(request.options.pageSize === undefined ? {} : { pageSize: request.options.pageSize }),
+        ...(request.options.scriptFont === undefined ? {} : { scriptFont: request.options.scriptFont }),
+        ...(request.options.colourEmoji === undefined ? {} : { colourEmoji: request.options.colourEmoji }),
+        ...(request.options.notes === undefined ? {} : { notes: request.options.notes }),
+      };
+      const layout = layoutProsePdf(input, pdfOpts);
+      if (layout.scriptPageCount === 0) {
+        throw new MediaRefusedError('prose-pdf', ['the selection holds no text that prints, so there is nothing to print']);
+      }
+      notes.push(...layout.notes);
+      const loaders: PdfFontLoaders = {
+        ...(options.loadFallbackFont === undefined ? {} : { cjk: options.loadFallbackFont }),
+        ...(options.loadEmojiFont === undefined ? {} : { emoji: options.loadEmojiFont }),
+        ...(options.loadColourEmoji === undefined ? {} : { colourEmoji: options.loadColourEmoji }),
+        ...(options.loadArabicFont === undefined ? {} : { arabic: options.loadArabicFont }),
+        ...(options.loadHebrewFont === undefined ? {} : { hebrew: options.loadHebrewFont }),
+        ...(options.loadDevanagariFont === undefined ? {} : { devanagari: options.loadDevanagariFont }),
+      };
+      prosePdf = { opts: pdfOpts, layout, loaders };
+    }
+
     const entry: Omit<CompileLogEntry, 'output'> = {
       at: at.toISOString(),
       recipe: request.recipe,
@@ -507,7 +537,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
       notes,
     };
 
-    return { kind: 'prose', format: request.format, input, flat, entry, title, epub, html, feed, at: request.at, base: request.base, pictures: pictures.plan };
+    return { kind: 'prose', format: request.format, input, flat, entry, title, epub, html, feed, prosePdf, at: request.at, base: request.base, pictures: pictures.plan };
   };
 
   /**
@@ -1083,9 +1113,19 @@ async function renderProse(compiled: ProsePlan): Promise<RenderedContents> {
       return { contents: await renderDocx(input), notes };
     case 'epub':
       return renderEpubArtifactFor(compiled, input, notes);
+    case 'prose-pdf':
+      return renderProsePdfFor(compiled, input, notes);
     default:
       throw new Error(`"${compiled.format}" is not a prose format, so it has no prose renderer`);
   }
+}
+
+/** The prose PDF's render: the fonts load now, the layout the plan kept is recomputed against the measured text. */
+async function renderProsePdfFor(compiled: ProsePlan, input: RenderInput, notes: string[]): Promise<{ readonly contents: Uint8Array; readonly notes: readonly string[] }> {
+  if (compiled.prosePdf === undefined) throw new Error('a prose PDF reached the renderer without its plan');
+  const prepared = await prepareProsePdf(input, compiled.prosePdf.opts, compiled.prosePdf.loaders);
+  notes.push(...prepared.colourNotes);
+  return { contents: drawProsePdf(prepared), notes };
 }
 
 async function renderEpubArtifactFor(compiled: ProsePlan, input: RenderInput, notes: string[]): Promise<{ readonly contents: Uint8Array; readonly notes: readonly string[] }> {
@@ -1219,6 +1259,16 @@ interface ProsePlan extends PlanCommon {
   readonly html?: HtmlPlan;
   /** Present for the feeds only: the channel facts and every document the selection holds, drafts included (web-publishing.md §3). */
   readonly feed?: FeedPlan;
+  /** Present for the prose PDF only: its recipe options and the layout the plan computed (exporter.md §3). */
+  readonly prosePdf?: ProsePdfPlan;
+}
+
+/** The prose PDF's planned half: the recipe options it reads and the layout the plan's gate refused or accepted. */
+interface ProsePdfPlan {
+  readonly opts: ProsePdfOptions;
+  readonly layout: ReturnType<typeof layoutProsePdf>;
+  /** The host's font loaders, from the service options — the same fields `preparePdf` reads for the screenplay PDF. */
+  readonly loaders: PdfFontLoaders;
 }
 
 /** One feed's shape: the channel facts and the candidate items, drafts among them (the render skips and names them). */
