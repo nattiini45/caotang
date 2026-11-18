@@ -302,6 +302,7 @@ export interface ReviewCheckpoint {
   readonly completionTokens: number;
   readonly notes: readonly string[];
   readonly status: 'complete' | 'partial';
+  /** The documents whose extraction this checkpoint evaluated, and the only ones whose spans a resume keeps: any other document is extracted again, so its spans, the pairs they form and their progress go. */
   readonly evaluated: readonly string[];
   readonly modelCalls?: number;
   readonly usageSource?: 'reported' | 'estimated' | 'unknown';
@@ -424,6 +425,17 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
   const usable = resume !== undefined && (await reviewCheckpointEvidenceOk(plan, bodies, resume, options.yieldToHost)) ? resume : undefined;
   if (resume !== undefined && usable === undefined) notes.push('the saved checkpoint did not match the approved documents; the review started again within its remaining limit');
 
+  // A checkpoint's spans stand only for a document it evaluated. One it never evaluated is extracted again, so a span left from an
+  // earlier extraction of that document would join the new ones and publish from evidence no extraction of this run evaluated.
+  // Those spans go, and with them the pairs they form, the verdicts and usage named for those pairs, and the batch count, which is a
+  // number over that composition; anything the other documents' pairs hold is kept.
+  const evaluatedAtResume = new Set(usable?.evaluated ?? []);
+  const resumedSpans = usable === undefined ? [] : usable.spans.filter((span) => evaluatedAtResume.has(span.docId));
+  const droppedSpans = (usable?.spans.length ?? 0) - resumedSpans.length;
+  if (droppedSpans > 0) notes.push(`${droppedSpans} span(s) from a document the saved checkpoint never evaluated were dropped, and the document is extracted again`);
+  const resumedKeys = new Set<string>();
+  for (const pair of pairSequence(resumedSpans, plan.categories)) resumedKeys.add(pairKey(pair));
+
   // A resume finishes the work the checkpoint left missing, so its outcome is this run's: an unusable reply is retried, not carried as a permanent gap.
   let status: 'complete' | 'partial' = 'complete';
   const previousKeys = new Map<string, string>();
@@ -435,6 +447,7 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
       const judged = new Set(usable.verdicts.map((verdict) => previousKeys.get(verdict.pairId)));
       let unjudged = 0;
       for (const key of usable.verifiedPairs) {
+        if (!resumedKeys.has(key)) continue;
         if (judged.has(key)) verifiedKeys.add(key);
         else unjudged += 1;
       }
@@ -450,9 +463,8 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
   };
   const context = options.context ?? {};
   const extractedDocIds = new Set(usable?.extractedDocIds ?? []);
-  const evaluatedIds = new Set(usable?.evaluated ?? []);
-  for (const docId of [...extractedDocIds]) if (!evaluatedIds.has(docId)) extractedDocIds.delete(docId);
-  const spans: ExtractedSpan[] = usable === undefined ? [] : [...usable.spans];
+  for (const docId of [...extractedDocIds]) if (!evaluatedAtResume.has(docId)) extractedDocIds.delete(docId);
+  const spans: ExtractedSpan[] = [...resumedSpans];
   const evaluated: string[] = usable === undefined ? [] : [...usable.evaluated];
   const usageByPair = new Map<string, ModelUsage | undefined>();
   const verdicts: ParsedVerdict[] = [];
@@ -461,17 +473,18 @@ export async function computeReview(state: ProjectState, file: CoherenceFile, pl
   if (usable !== undefined) {
     for (const [pairId, usage] of Object.entries(usable.usageByPair)) {
       const key = previousKeys.get(pairId);
-      if (key !== undefined) usageByPair.set(key, usage);
+      if (key === undefined || !resumedKeys.has(key)) continue;
+      usageByPair.set(key, usage);
     }
     for (const verdict of usable.verdicts) {
       const key = previousKeys.get(verdict.pairId);
-      if (key === undefined || verdictKeySet.has(key)) continue;
+      if (key === undefined || !resumedKeys.has(key) || verdictKeySet.has(key)) continue;
       verdicts.push(verdict);
       verdictKeys.push(key);
       verdictKeySet.add(key);
     }
   }
-  let verifiedBatches = usable?.verifiedBatches ?? 0;
+  let verifiedBatches = droppedSpans > 0 ? 0 : (usable?.verifiedBatches ?? 0);
   let idsByKeyCache: { spanCount: number; ids: Map<string, string> } | undefined;
   const idsByKey = (): Map<string, string> => {
     if (idsByKeyCache !== undefined && idsByKeyCache.spanCount === spans.length) return idsByKeyCache.ids;
