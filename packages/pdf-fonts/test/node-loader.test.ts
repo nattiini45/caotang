@@ -3,6 +3,9 @@
  * TrueType fonts fontkit reads.
  */
 
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ARABIC_FONT_FILE, CJK_BOLD_FONT_FILE, CJK_FONT_FILE, DEVANAGARI_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from '../src/font-files.js';
 import { sfntFromWoff } from '../src/font-bytes.js';
@@ -77,12 +80,14 @@ describe('the Arabic, Hebrew and Devanagari font files', () => {
 describe('the CJK Bold loader’s failure path', () => {
   it('names every place it looked when the file is in none of them', async () => {
     // The error says the file it wanted and every candidate it tried, in order.
-    const missing = ['/tmp/caotang-no-fonts-here/fonts/one.woff', '/tmp/caotang-no-fonts-here/fonts/two.woff'];
+    // os.tmpdir() + pathToFileURL: a hand-written 'file:///tmp/...' URL has no drive on Windows.
+    const missingDir = join(tmpdir(), 'caotang-no-fonts-here');
+    const missing = [join(missingDir, 'fonts', 'one.woff'), join(missingDir, 'fonts', 'two.woff')];
     await expect(readFirst(CJK_BOLD_FONT_FILE, missing)).rejects.toThrow(
       `${CJK_BOLD_FONT_FILE} is not at ${missing[0]} or ${missing[1]}`,
     );
     // The Bold loader goes through the same path: its candidates are the bundled `fonts/` copy, then the package.
-    const candidates = cjkBoldFontCandidates('file:///tmp/caotang-no-fonts-here/loader.mjs');
-    expect(candidates[0]).toBe('/tmp/caotang-no-fonts-here/fonts/' + CJK_BOLD_FONT_FILE);
+    const candidates = cjkBoldFontCandidates(pathToFileURL(join(missingDir, 'loader.mjs')).href);
+    expect(candidates[0]).toBe(join(missingDir, 'fonts', CJK_BOLD_FONT_FILE));
   });
 });
