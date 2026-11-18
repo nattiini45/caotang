@@ -71,12 +71,13 @@ const SHEET_LATIN = 'Weißdorn crosses the café © 2026';
 /**
  * The sheet and the script on the monochrome path, pinned for these samples with Noto Emoji and Noto Sans Mono CJK loaded.
  * The option off, a host with no colour file and an emoji-free document must all
- * write exactly these bytes.
+ * write exactly these bytes. The script hash is re-based once for the binary
+ * comment line the header gained for PDF/A.
  */
 const GOLDEN = {
   sheetEmoji: '179ffc8a0244574b028fae3b2385ef9035f6a6ddb205fe22a9de40636cd11d51',
   sheetLatin: 'be7399ede59758cb574af3bcacf0f9c223eeadfdbbabdb25eefcfd14fd202b67',
-  scriptEmoji: 'a337b1320be9964b5da83bb1b0fd38a9c4645ef1a2844b937043e9f0b19efe4a',
+  scriptEmoji: '92a696536d37ebf9ba286ebc443a50ee02abc1a390ada355e379b1aec018f6b9',
   scriptLatin: 'd80e4bd6fe96104096cede8ddf2b19f8de6d1912cd6a24329cb9f7e6d1cd38bb',
 } as const;
 

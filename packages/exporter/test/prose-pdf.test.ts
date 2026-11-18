@@ -362,7 +362,8 @@ describe('prose-pdf — the PDF/A profile', () => {
     const bytes = drawProsePdf(prepared);
     const pdf = ascii(bytes);
     expect(pdf).toContain('Caf&#xE9; &#xE9;ph&#xE9;m&#xE8;re');
-    expect([...bytes].every((byte) => byte < 0x80)).toBe(true);
+    expect(pdf.startsWith('%PDF-1.7\n%âãÏÓ\n')).toBe(true);
+    expect([...bytes.slice(19)].every((byte) => byte < 0x80)).toBe(true);
     const doc = await PDFDocument.load(bytes);
     expect(doc.getPageCount()).toBeGreaterThan(0);
   });

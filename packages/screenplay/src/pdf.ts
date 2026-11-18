@@ -740,16 +740,26 @@ export function writePdf(
       `/StructTreeRoot ${rootId} 0 R /OutputIntents [${intentId} 0 R] >>`;
   }
 
-  let out = `${profile ? '%PDF-1.7' : '%PDF-1.4'}\n%CAOTANG\n`;
+  // The binary comment line: four bytes above 127 under the version line, so the file reads as binary to a text tool.
+  // PDF/A-2u requires it (ISO 19005-2 6.1.2); the unprofiled file carries it too, as the PDF spec recommends.
+  // `âãÏÓ` encodes to eight bytes all above 127, and decodes back losslessly. It goes in the head, so the body
+  // `out` stays ASCII and `out.length` is a byte count.
+  const head = new TextEncoder().encode(`${profile ? '%PDF-1.7' : '%PDF-1.4'}\n%âãÏÓ\n`);
+  const headLen = head.length;
+  let out = '%CAOTANG\n';
   const offsets: number[] = [];
   bodies.forEach((body, index) => {
-    offsets.push(out.length);
+    offsets.push(headLen + out.length);
     out += `${index + 1} 0 obj\n${body}\nendobj\n`;
   });
-  const xref = out.length;
+  const xref = headLen + out.length;
   out += `xref\n0 ${bodies.length + 1}\n0000000000 65535 f \n`;
   for (const offset of offsets) out += `${String(offset).padStart(10, '0')} 00000 n \n`;
   const trailerId = profile ? ` /ID [<${fileId(out)}> <${fileId(out)}>]` : '';
   out += `trailer\n<< /Size ${bodies.length + 1} /Root 1 0 R /Info 4 0 R${trailerId} >>\nstartxref\n${xref}\n%%EOF\n`;
-  return new TextEncoder().encode(out);
+  const body = new TextEncoder().encode(out);
+  const pdf = new Uint8Array(headLen + body.length);
+  pdf.set(head);
+  pdf.set(body, headLen);
+  return pdf;
 }
