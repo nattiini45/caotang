@@ -219,7 +219,7 @@
 
 :root[data-shell='modern'] .modern-companion .agent:has(.goal-recovery) .agent-body {
   flex: 1 1 0;
-  min-block-size: 0;
+  min-block-size: 5.25rem;
 }
 
 :root[data-shell='modern'] .modern-companion .agent-foot {
