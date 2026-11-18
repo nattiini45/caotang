@@ -183,7 +183,14 @@ export function captionsPreviewSource(fileName: string, bytes: Uint8Array): Capt
     const encoding = encodingOf(settings);
     if (cache.has(encoding)) return;
     const reply = await host.read({ kind: 'read', reader: 'captions', encoding }, signal);
-    if (reply.kind === 'captions' && reply.result.status === 'read' && reply.result.parse.ok) cache.set(encoding, reply.result.parse.value);
+    // A chosen encoding that cannot be read is a failure the dialog must show: returning quietly would leave it on Reading for
+    // ever, with no plan and no way back but Cancel.
+    if (reply.kind !== 'captions') throw new Error(t`The file could not be read as captions.`);
+    if (reply.result.status !== 'read') throw new Error(t`The file cannot be read as ${{ encoding: encodingLabel(encoding) }}. Choose another encoding.`);
+    if (!reply.result.parse.ok) throw new Error(refusal(reply.result.parse.error.code));
+    cache.set(encoding, reply.result.parse.value);
+    // The report names the encoding the text is actually decoded as, not the first guess.
+    shownEncoding = encoding;
   };
 
   const chips = (): PreviewChip[] => [

@@ -260,3 +260,43 @@ describe('the round trip with the exporter’s own WebVTT compile', () => {
     expect(await compileVtt(settled)).toBe(third);
   });
 });
+
+describe('a guessed encoding the writer changes', () => {
+  /** UTF-16LE without a BOM, so the encoding is guessed and a single-byte choice reads no timed cue. */
+  const utf16 = (text: string): Uint8Array => Uint8Array.from([...text].flatMap((c) => [c.charCodeAt(0), 0]));
+  const ONE_CUE = 'WEBVTT\n\n00:00:01.000 --> 00:00:02.000\n<v Ada>The café lamp is lit.</v>\n';
+
+  async function openGuessed(): Promise<{ source: ImportPreviewSource; settings: PreviewSettings; choices: string[] }> {
+    const opened = captionsPreviewSource('episode.vtt', utf16(ONE_CUE));
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) throw new Error(opened.message);
+    await opened.source.load?.(() => {}, new AbortController().signal);
+    const chips = opened.source.chips();
+    const chip = chips.find((held) => held.id === CAPTIONS_CHIPS.encoding);
+    return { source: opened.source, settings: initialSettings(chips, opened.source.options()), choices: (chip?.options ?? []).map((option) => option.value) };
+  }
+
+  it('an encoding that reads no cue fails with a reason instead of leaving the preview on Reading', async () => {
+    const { source, settings, choices } = await openGuessed();
+    expect(choices).toContain('utf-16le');
+    expect(choices).toContain('windows-1252');
+    const wrong = withSettings(settings, { [CAPTIONS_CHIPS.encoding]: 'windows-1252' });
+    await expect(source.prepare?.(wrong, new AbortController().signal)).rejects.toThrow(/no timed cue/);
+  });
+
+  it('the report names the encoding the text is read as, not the first guess', async () => {
+    const latin = Uint8Array.from([...ONE_CUE.replace('lamp', 'café')].map((c) => (c === 'é' ? 0xe9 : c.charCodeAt(0))));
+    const opened = captionsPreviewSource('episode.vtt', latin);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    await opened.source.load?.(() => {}, new AbortController().signal);
+    const settings = initialSettings(opened.source.chips(), opened.source.options());
+    const lineOf = (): string => opened.source.report?.().find((list) => list.heading === 'Encoding')?.lines[0] ?? '';
+    expect(lineOf()).toContain('Windows-1252');
+    const other = withSettings(settings, { [CAPTIONS_CHIPS.encoding]: 'iso-8859-15' });
+    await opened.source.prepare?.(other, new AbortController().signal);
+    opened.source.plan(other, NO_OVERRIDES);
+    expect(lineOf()).toContain('ISO-8859-15');
+    expect(lineOf()).not.toContain('Windows-1252');
+  });
+});

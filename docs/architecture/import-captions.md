@@ -38,9 +38,9 @@ The script stores durations, not offsets (§4, SD4), so the wall clock a caption
 | | *leave out* | keeps every line's spoken length exact | `leftOutSec`: the episode is shorter than the file |
 | Consecutive cues of one speaker inside a segment | **merge** | one line, because a caption file breaks a sentence every 42 characters | `merged`: how many cues joined the line before them |
 
-- **A `NOTE` becomes a quoted text line** (`> …`). The grammar reads a line whose label is not a name as text (§3), so a note holding `Host: check this` stays a note instead of becoming a speaker called Host. A note before a cue stands before that cue's line; a note after the last cue ends the last segment.
-- **A speaker label the grammar cannot hold** is changed as little as possible and both spellings are named (`speaker-renamed`): characters outside the label set become spaces, a leading non-letter is dropped, and the label is cut to 40. A name that collides with one of the show's cue words gets a trailing `_` (`speaker-cue-word`), because `Music:` would be a cue and not speech. A cue naming nobody is `NARRATION`.
-- **A cue with no span** writes no bracket, so the line is untimed rather than given an invented duration (`untimed-line`).
+- **A `NOTE` becomes a quoted text line** (`> …`). The grammar reads a line whose label is not a name as text (§3), so a note holding `Host: check this` stays a note instead of becoming a speaker called Host. A note before a cue stands before that cue's line; a note after the last cue is written **after that segment's last speech line**, where the file put it. A note also **ends a merged line**: merging across a note boundary would move the note ahead of the words it followed, so the cue after a note starts its own line even when the speaker is the same.
+- **A speaker label the grammar cannot hold** is changed as little as possible and both spellings are named (`speaker-renamed`): characters outside the label set become spaces, a leading non-letter is dropped, and the label is cut to 40. A name that collides with one of the show's cue words gets a trailing `_` (`speaker-cue-word`), because `Music:` would be a cue and not speech. A name that collides with the **reserved narration label** gets a trailing `_` too (`speaker-renamed`): the parser reads `NARRATION` case-insensitively as the show's own narration, so a caption speaker actually called `Narration` would lose its name. A cue naming nobody, or whose name cannot be held at all, is `NARRATION` by intent and keeps that label.
+- **A cue with no span** writes no bracket, so the line is untimed rather than given an invented duration (`untimed-line`). Silence after it is **not folded onto it** — a line with no span of its own takes no duration — so that gap is counted as left out even when the writer chose to fold.
 - **A timing-looking bracket inside the cue's own words** (`It said [12s]`) is counted (`text-bracket`): the grammar reads brackets right to left, takes the declared duration first and keeps that one as words.
 - **The leading offset** (`leadingSec`) is named, not stored: the first segment starts at the script's zero, and a file whose first cue is at 0:12 loses those 12 seconds of silence, which the report says.
 - Words are counted the way the script counts them: a parenthetical is a modifier, not speech.
@@ -53,7 +53,7 @@ The source runs the decode and the parse in the preview's `'self'` Worker host (
 
 | Control | Kind | Default | Effect |
 |---|---|---|---|
-| Encoding | chip, only when the reader guessed | the guess | re-decodes and re-parses in the Worker |
+| Encoding | chip, only when the reader guessed | the guess | re-decodes and re-parses in the Worker; a choice that cannot be read **fails the read** with its reason rather than leaving the dialog on Reading, and the report names the encoding now in use |
 | New segment at a gap of | chip: never, 1, 2, 3, 5, 10, 30 s | 3 s | `gapSegmentSec` (§4) |
 | Silence between lines | chip: add it to the line before / leave it out | add | `silence` (§4) |
 | Merge consecutive cues of one speaker | option | on | `mergeSameSpeaker` (§4) |

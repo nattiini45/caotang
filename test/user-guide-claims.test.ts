@@ -753,8 +753,10 @@ describe('the captions import (#287)', () => {
     expect(guide).toContain("duration comes from the file's own timings, so nothing is estimated");
     expect(guide).toContain('a gap of at least three seconds starts a new segment');
     expect(guide).toContain('**Leave it out**');
-    expect(guide).toContain('A WebVTT `NOTE` becomes a quoted text line, never a speaker');
-    expect(guide).toContain('one that is also a cue word (music, sfx, ambience, ad, pause, sting) gets an underscore so it stays speech');
+    expect(guide).toContain('A WebVTT `NOTE` becomes a quoted text line, never a speaker, and stays where the file put it');
+    expect(guide).toContain('one that is also a cue word (music, sfx, ambience, ad, pause, sting) or the word Narration gets an underscore so it stays speech with its own name');
+    expect(guide).toContain('A cue whose start and end are the same gets no duration');
+    expect(guide).toContain('a choice it cannot read says why, and you can pick a different one');
     expect(guide).toContain('a script line holds a duration and not a start time');
     expect(guide).toContain('Untick **Put the episode in a show folder**');
   });
@@ -767,6 +769,9 @@ describe('the captions import (#287)', () => {
     expect(german).toContain('eine Pause von mindestens drei Sekunden beginnt ein neues Segment');
     expect(german).toContain('**Außen vor lassen**');
     expect(german).toContain('**Die Episode in einen Sendungsordner legen**');
+    expect(german).toContain('bleibt dort, wo die Datei es gesetzt hat');
+    expect(german).toContain('oder das Wort Narration, bekommt einen Unterstrich');
+    expect(german).toContain('eine Auswahl, die sie nicht lesen kann, sagt warum');
   });
 
   it('is one writer-only undo step whose nodes carry binder.create’s own kinds, and the reader declares every duration', () => {

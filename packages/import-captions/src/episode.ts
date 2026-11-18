@@ -108,7 +108,14 @@ export function speakerLabel(raw: string | undefined, vocabulary: readonly strin
   const name = (raw ?? '').trim();
   if (name === '') return { label: NARRATION_LABEL };
   let label = name.replace(ALLOWED, ' ').replace(/\s{2,}/g, ' ').trim().replace(/^[^\p{L}]+/u, '').slice(0, 40).trim();
-  if (label === '' || !SCRIPT_LABEL_PATTERN.test(label)) label = NARRATION_LABEL;
+  const unusable = label === '' || !SCRIPT_LABEL_PATTERN.test(label);
+  if (unusable) label = NARRATION_LABEL;
+  // The script's parser reads the narration label case-insensitively as the show's own narration, so a caption speaker actually
+  // named `Narration` would lose its name and become the default speaker. It is a reserved label, like a cue word. A name that
+  // could not be held at all is narration by intent, so the fallback keeps the label as it is.
+  if (!unusable && label.toLowerCase() === NARRATION_LABEL.toLowerCase()) {
+    return { label: `${label}_`, loss: { kind: 'speaker-renamed', count: 1, sample: `${name} → ${label}_` } };
+  }
   if (vocabulary.some((word) => word.toLowerCase() === label.toLowerCase())) {
     return { label: `${label}_`, loss: { kind: 'speaker-cue-word', count: 1, sample: `${name} → ${label}_` } };
   }
@@ -176,7 +183,8 @@ export function buildEpisode(read: CaptionsRead, options: EpisodeOptions = {}): 
       segments.push(current);
     }
     const last = current.lines[current.lines.length - 1];
-    if (merge && last !== undefined && last.speaker === label && !breaks) {
+    // A note sits at a cue boundary, so merging across one would move it ahead of the words it followed. The note ends the line.
+    if (merge && last !== undefined && last.speaker === label && !breaks && notes.length === 0) {
       // One speaker continuing: the words join, the span runs to the later cue, and the small gap inside is part of the line.
       const inner = rounded(cue.startSec - last.endSec);
       if (inner > 0) foldedSec += inner;
@@ -187,7 +195,10 @@ export function buildEpisode(read: CaptionsRead, options: EpisodeOptions = {}): 
       merged += 1;
     } else {
       if (last !== undefined && gap > 0) {
-        if (silence === 'fold') foldedSec += gap;
+        // Silence folds onto the line before only when that line has a span of its own: a zero-span cue takes no duration, so
+        // the gap after it is left out rather than becoming that cue's length.
+        const lastOwn = rounded(Math.max(0, last.endSec - last.startSec));
+        if (silence === 'fold' && lastOwn > 0) foldedSec += gap;
         else leftOutSec += gap;
       }
       current.lines.push({ speaker: label, text: cue.text, startSec: cue.startSec, endSec: cue.endSec, cues: 1, notes: [...notes] });
@@ -209,15 +220,12 @@ export function buildEpisode(read: CaptionsRead, options: EpisodeOptions = {}): 
     const heading = `Segment ${index + 1} (${clock(segment.startSec)})`;
     body.push(`## ${heading}`, '');
     const lines: EpisodeLine[] = [];
-    for (const note of segment.notes) {
-      for (const line of note.split('\n')) body.push(`> ${line}`);
-      body.push('');
-    }
     segment.lines.forEach((draft, at) => {
       const next = segment.lines[at + 1];
       const own = rounded(Math.max(0, draft.endSec - draft.startSec));
       const after = next === undefined ? 0 : rounded(Math.max(0, next.startSec - draft.endSec));
-      const declared = rounded(own + (silence === 'fold' ? after : 0));
+      // A cue with no span of its own takes no duration bracket, silence or no silence.
+      const declared = rounded(own + (silence === 'fold' && own > 0 ? after : 0));
       for (const note of draft.notes) {
         for (const line of note.split('\n')) body.push(`> ${line}`);
         body.push('');
@@ -228,6 +236,11 @@ export function buildEpisode(read: CaptionsRead, options: EpisodeOptions = {}): 
       lineCount += 1;
       lines.push({ speaker: draft.speaker, text: draft.text, seconds: declared, startSec: draft.startSec, endSec: draft.endSec, cues: draft.cues, notes: draft.notes });
     });
+    // A note after the last cue belongs after the segment's speech, where the file put it.
+    for (const note of segment.notes) {
+      for (const line of note.split('\n')) body.push(`> ${line}`);
+      body.push('');
+    }
     body.push('');
     out.push({ title: heading, startSec: segment.startSec, lines, notes: segment.notes });
   });

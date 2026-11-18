@@ -161,6 +161,59 @@ describe('the speaker label the grammar can hold', () => {
     expect(line.text).toBe('It said [12s]');
     expect(line.durationSec).toBe(2);
   });
+
+  it('a cue with no span takes no duration, and the silence after it is left out rather than folded onto it', () => {
+    const read = cuesOf([
+      'WEBVTT', '',
+      '00:00:01.000 --> 00:00:01.000', '<v Ada>No span.</v>', '',
+      '00:00:02.000 --> 00:00:03.000', '<v Bob>Later.</v>', '',
+    ].join('\n'));
+    const built = buildEpisode(read, { mergeSameSpeaker: false });
+    const lines = speech(parseEpisode(built.body).segments[0]!.lines);
+    expect(lines[0]!.declared).toBe(false);
+    expect(built.body).toContain('Ada: No span.\n');
+    expect(lines[1]!.durationSec).toBe(1);
+    expect(lines[1]!.declared).toBe(true);
+    // The second of silence is accounted for once, as left out, and the total is the spoken time only.
+    expect(built.foldedSec).toBe(0);
+    expect(built.leftOutSec).toBe(1);
+    expect(built.seconds).toBe(1);
+    expect(built.losses.find((loss) => loss.kind === 'untimed-line')?.count).toBe(1);
+  });
+
+  it('a speaker actually named Narration keeps a name of its own, and the rename is reported', () => {
+    expect(speakerLabel('Narration').label).toBe('Narration_');
+    const read = cuesOf(['WEBVTT', '', '00:00:01.000 --> 00:00:02.000', '<v Narration>I am a person.</v>', ''].join('\n'));
+    const built = buildEpisode(read);
+    const line = speech(parseEpisode(built.body).segments[0]!.lines)[0]!;
+    // The parser reads NARRATION case-insensitively as the show's narration, which would drop the caption's own speaker.
+    expect(line.kind).toBe('speech');
+    expect(line.speaker).toBe('Narration_');
+    expect(built.losses.find((loss) => loss.kind === 'speaker-renamed')?.sample).toBe('Narration → Narration_');
+  });
+
+  it('a note after the last cue is written after the segment’s speech, where the file put it', () => {
+    const read = cuesOf(['WEBVTT', '', '00:00:01.000 --> 00:00:02.000', '<v Ada>One.</v>', '', 'NOTE After everything', ''].join('\n'));
+    const built = buildEpisode(read);
+    expect(built.body.indexOf('Ada: One.')).toBeLessThan(built.body.indexOf('> After everything'));
+    const parsed = parseEpisode(built.body).segments[0]!;
+    expect(parsed.lines[parsed.lines.length - 1]!.kind).toBe('text');
+  });
+
+  it('a note between one speaker’s cues keeps its place instead of moving ahead of the words it followed', () => {
+    const read = cuesOf([
+      'WEBVTT', '',
+      '00:00:01.000 --> 00:00:02.000', '<v Ada>One.</v>', '',
+      'NOTE Between the two', '',
+      '00:00:02.500 --> 00:00:03.000', '<v Ada>Two.</v>', '',
+    ].join('\n'));
+    const built = buildEpisode(read);
+    const body = built.body;
+    expect(body.indexOf('Ada: One.')).toBeLessThan(body.indexOf('> Between the two'));
+    expect(body.indexOf('> Between the two')).toBeLessThan(body.indexOf('Ada: Two.'));
+    // The note ends the line, so the two cues are not merged into one.
+    expect(built.merged).toBe(0);
+  });
 });
 
 describe('the two spellings the body uses', () => {

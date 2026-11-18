@@ -18964,6 +18964,7 @@ msgid "The fields {vendor} receives"
 msgstr "Die Felder, die {vendor} erhält"
 
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/captions-source.ts
@@ -18971,6 +18972,7 @@ msgstr "Die Felder, die {vendor} erhält"
 msgid "The file cannot be read as {encoding}. Choose another encoding."
 msgstr "Die Datei kann nicht als {encoding} gelesen werden. Wählen Sie eine andere Kodierung."
 
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #: apps/desktop/src/import-preview/captions-source.ts
 msgid "The file could not be read as captions."
