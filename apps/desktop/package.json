@@ -43,6 +43,7 @@
     "@caotang/import-core": "workspace:*",
     "@caotang/import-inklewriter": "workspace:*",
     "@caotang/import-read": "workspace:*",
+    "@caotang/import-captions": "workspace:*",
     "@caotang/import-rtf": "workspace:*",
     "@caotang/machine": "workspace:*",
     "@caotang/mcp-client": "workspace:*",
@@ -65,6 +66,7 @@
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@caotang/script": "workspace:*",
     "@lingui/vite-plugin": "6.10.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0"

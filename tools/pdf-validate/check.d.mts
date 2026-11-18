@@ -11,7 +11,7 @@ export interface FontFact {
 /** One file's entry in expected.json. */
 export interface ExpectedFile {
   readonly file: string;
-  readonly format: 'pdf' | 'contact-sheet-pdf';
+  readonly format: 'pdf' | 'contact-sheet-pdf' | 'prose-pdf';
   /** Per page, the strings it must give back as text. */
   readonly pages: readonly (readonly string[])[];
   readonly size: readonly [number, number];

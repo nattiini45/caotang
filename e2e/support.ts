@@ -277,10 +277,10 @@ export async function idOf(page: Page, title: string): Promise<string> {
 }
 
 /** The project's tree, as the hook reports it. */
-export async function treeOf(page: Page): Promise<{ id: string; parentId: string | null; type: string; title: string }[]> {
+export async function treeOf(page: Page): Promise<{ id: string; parentId: string | null; type: string; title: string; kind: string | null }[]> {
   return page.evaluate(() => {
     const caotang = (globalThis as unknown as {
-      __caotang?: { tree(): { id: string; parentId: string | null; type: string; title: string }[] };
+      __caotang?: { tree(): { id: string; parentId: string | null; type: string; title: string; kind: string | null }[] };
     }).__caotang;
     return caotang?.tree() ?? [];
   });
