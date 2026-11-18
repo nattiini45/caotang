@@ -289,6 +289,18 @@ describe('names the converter cannot make', () => {
     expect(result.value.renames).toEqual([{ kind: 'flag', from: '开关', to: 'flag_2' }]);
   });
 
+  it('leaves an unclosed quoted literal alone to the end of the condition', () => {
+    const story = withContent({
+      start: { content: ['Start.', { flagName: '开关' }, { divert: 'end' }] },
+      end: { content: [{ ifCondition: 'name = "第一 章' }, 'Named.', { ifCondition: '开关' }, 'Open.'] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.ink).toContain('"第一 章');
+    expect(result.value.renames).toEqual([{ kind: 'flag', from: '开关', to: 'flag_1' }]);
+  });
+
   it('replaces a longer name whole rather than the shorter name inside it', () => {
     const story = withContent({
       start: { content: ['Start.', { flagName: '开关' }, { flagName: '开关门' }, { divert: 'end' }] },

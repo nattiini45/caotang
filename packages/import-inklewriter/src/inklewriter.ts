@@ -125,13 +125,6 @@ const CONDITION_LISTS = [
 ] as const;
 
 /**
- * A quoted literal, whole: paired quotes with escapes, or an unclosed quote to the end of the string. Ink conditions compare
- * text (`name = "the harbour master"`), and a literal may hold spaces and characters the name rule drops, so it is opaque —
- * never read for names and never rewritten.
- */
-const LITERAL = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|["'][\s\S]*$/g;
-
-/**
  * The name a flag declaration names, parsed as the converter's own `Flag` class does: the text before an assignment, else
  * before a maths operator, else the whole text, trimmed. A flag name may contain spaces (`harbour master`), which the
  * converter folds to underscores, so it is not a whitespace-delimited token.
@@ -144,16 +137,32 @@ function declaredFlagName(text: string): string {
   return text.trim();
 }
 
-/** Runs `rename` over the parts of an expression that are not quoted literals, leaving every literal exactly as written. */
+/**
+ * Runs `rename` over the parts of an expression that are not quoted literals, leaving every literal exactly as written. Ink
+ * conditions compare text (`name = "the harbour master"`), and a literal may hold spaces and characters the name rule drops, so
+ * it is opaque: never read for names, never rewritten. A scan rather than a regular expression, so the work is one pass over the
+ * string whatever it holds — an escape skips two characters, and an unclosed quote runs to the end.
+ */
 function outsideLiterals(text: string, rename: (chunk: string) => string): string {
   let out = '';
+  let plain = '';
   let at = 0;
-  for (const match of text.matchAll(LITERAL)) {
-    const start = match.index ?? 0;
-    out += rename(text.slice(at, start)) + match[0];
-    at = start + match[0].length;
+  while (at < text.length) {
+    const quote = text[at];
+    if (quote !== '"' && quote !== "'") {
+      plain += quote;
+      at += 1;
+      continue;
+    }
+    out += rename(plain);
+    plain = '';
+    let end = at + 1;
+    while (end < text.length && text[end] !== quote) end += text[end] === '\\' ? 2 : 1;
+    const stop = Math.min(end + 1, text.length);
+    out += text.slice(at, stop);
+    at = stop;
   }
-  return out + rename(text.slice(at));
+  return out + rename(plain);
 }
 
 /**
