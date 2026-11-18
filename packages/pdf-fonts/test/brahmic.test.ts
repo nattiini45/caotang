@@ -10,6 +10,7 @@ import {
   devanagariRuns,
   hasBrahmic,
   hasDevanagari,
+  indicRuns,
   isDevanagariUnit,
   joinConjuncts,
   startsWithBrahmicMark,
@@ -68,19 +69,19 @@ describe('the runs', () => {
   it('are the letters the Devanagari font prints, and the text between them', () => {
     expect(devanagariRuns(clustersOf('Hello हिन्दी world।'))).toEqual([
       { kind: 'other', text: 'Hello ' },
-      { kind: 'letters', text: 'हिन्दी' },
+      { kind: 'letters', script: 'devanagari', text: 'हिन्दी' },
       { kind: 'other', text: ' world' },
-      { kind: 'letters', text: '।' },
+      { kind: 'letters', script: 'devanagari', text: '।' },
     ]);
     expect(devanagariRuns(clustersOf('एक दो'))).toEqual([
-      { kind: 'letters', text: 'एक' },
+      { kind: 'letters', script: 'devanagari', text: 'एक' },
       { kind: 'other', text: ' ' },
-      { kind: 'letters', text: 'दो' },
+      { kind: 'letters', script: 'devanagari', text: 'दो' },
     ]);
   });
 
-  it('leave another Brahmic script as text between: it has no font', () => {
-    expect(devanagariRuns(clustersOf('হিন্দি')).every((run) => run.kind === 'other')).toBe(true);
+  it('mark another Brahmic script as letters in its own script: it is shaped separately', () => {
+    expect(indicRuns(clustersOf('হিন্দি'))).toEqual([{ kind: 'letters', script: 'bengali', text: 'হিন্দি' }]);
     expect(isDevanagariUnit('कि')).toBe(true);
     expect(isDevanagariUnit('ক')).toBe(false);
   });

@@ -89,6 +89,8 @@ export { assetRecordsOf, exportMetadataOf } from './export-metadata.js';
 export { SCENE_STYLE_ROWS, type SceneStyleRow } from './scene-style.js';
 export { flatten, documentLabel, type FlattenOptions, type FlattenResult } from './flatten.js';
 export { CONTACT_SHEET_HEADER, renderMedia, type MediaFile, type MediaOutput, type MediaRequest } from './media.js';
+// The Indic font loaders every PDF render takes, keyed by script (screenplay.md §5.3).
+export type { IndicFontLoaders } from './indic-font.js';
 // The storyboard contact sheet's PDF emitter (storyboard.md §6), over pdf-lib, loaded lazily.
 export {
   PDF_MIME,
