@@ -316,6 +316,53 @@ describe('names the converter cannot make', () => {
     expect(result.value.ink).toContain('{ flag_2 and flag_1:');
   });
 
+  it('names two sections that share one unusable label separately, as the converter makes two knots', () => {
+    const story = withContent({
+      start: { content: [{ pageLabel: '第一章' }, 'One.', { divert: 'two' }] },
+      two: { content: [{ pageLabel: '第一章' }, 'Two.'] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.ink).toContain('==== section_1 ====');
+    expect(result.value.ink).toContain('==== section_2 ====');
+    expect(result.value.renames).toEqual([
+      { kind: 'section', from: '第一章', to: 'section_1' },
+      { kind: 'section', from: '第一章', to: 'section_2' },
+    ]);
+  });
+
+  it('never gives a section the name of a stitch the converter keeps', () => {
+    const story = withContent({
+      start: { content: ['One.', { divert: 'section_1' }] },
+      section_1: { content: [{ pageLabel: '第一章' }, 'Two.'] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.renames).toEqual([{ kind: 'section', from: '第一章', to: 'section_2' }]);
+    expect(result.value.ink).toContain('==== section_2 ====');
+    expect(result.value.ink).not.toContain('section_1_2');
+  });
+
+  it('names a flag declaration that has no name at all', () => {
+    const story = withContent({
+      start: { content: ['Start.', { flagName: '' }, { flagName: ' = 9' }, { divert: 'end' }] },
+      end: { content: ['The end.'] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.ink).toContain('VAR flag_1 = false');
+    expect(result.value.ink).toContain('VAR flag_2 = 0');
+    expect(result.value.ink).toContain('~ flag_2 = 9');
+    expect(result.value.ink).not.toContain('VAR  =');
+    expect(result.value.renames).toEqual([
+      { kind: 'flag', from: '', to: 'flag_1' },
+      { kind: 'flag', from: '', to: 'flag_2' },
+    ]);
+  });
+
   it('gives a word used as both a section label and a flag one name of each', () => {
     const story = withContent({
       start: { content: [{ pageLabel: '开关' }, 'Start.', { flagName: '开关' }, { divert: 'end' }] },

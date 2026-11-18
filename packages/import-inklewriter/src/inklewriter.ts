@@ -115,9 +115,6 @@ function inkIdentifier(label: string): string {
   return id.endsWith('_') ? id.slice(0, -1) : id;
 }
 
-/** Every string field of a content item that names a flag, whether it declares one or tests one. */
-const FLAG_FIELDS = ['flagName', 'ifCondition', 'notIfCondition'] as const;
-
 /** The two condition lists a choice carries, and the field each entry holds. */
 const CONDITION_LISTS = [
   ['ifConditions', 'ifCondition'],
@@ -125,16 +122,16 @@ const CONDITION_LISTS = [
 ] as const;
 
 /**
- * The name a flag declaration names, parsed as the converter's own `Flag` class does: the text before an assignment, else
- * before a maths operator, else the whole text, trimmed. A flag name may contain spaces (`harbour master`), which the
- * converter folds to underscores, so it is not a whitespace-delimited token.
+ * The name a flag declaration names, and where its expression starts, parsed as the converter's own `Flag` class does: the
+ * text before an assignment, else before a maths operator, else the whole text, trimmed. A flag name may contain spaces
+ * (`harbour master`), which the converter folds to underscores, so it is not a whitespace-delimited token.
  */
-function declaredFlagName(text: string): string {
+function declaredFlag(text: string): { readonly name: string; readonly at: number } {
   const assign = text.indexOf('=');
-  if (assign !== -1) return text.slice(0, assign).trim();
+  if (assign !== -1) return { name: text.slice(0, assign).trim(), at: assign };
   const math = text.search(/[+\-*/]/);
-  if (math !== -1) return text.slice(0, math).trim();
-  return text.trim();
+  if (math !== -1) return { name: text.slice(0, math).trim(), at: math };
+  return { name: text.trim(), at: text.length };
 }
 
 /**
@@ -177,7 +174,8 @@ function outsideLiterals(text: string, rename: (chunk: string) => string): strin
  */
 function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
   const items: Record<string, unknown>[] = [];
-  for (const name of Object.keys(json.data.stitches)) {
+  const stitchNames = Object.keys(json.data.stitches);
+  for (const name of stitchNames) {
     const stitch = json.data.stitches[name];
     if (stitch === undefined || !Array.isArray(stitch.content)) continue;
     for (const item of stitch.content) {
@@ -185,27 +183,32 @@ function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
     }
   }
 
-  // Every name the converter can already make, so a generated one never lands on it. A declared flag name is read whole
-  // (`harbour master` is one name, not two), and a quoted literal names nothing.
+  // Every name the converter keeps as it is: a stitch key becomes a knot or stitch name unchanged, a usable page label and a
+  // usable declared flag name become their slugs. A generated name that landed on one of these would be suffixed by the
+  // converter (`section_1_2`), so the preview would report a name the story does not use — or, for two flags, merge their logic.
   const taken = new Set<string>();
-  const unusableSections: string[] = [];
+  for (const name of stitchNames) {
+    taken.add(name);
+    taken.add(inkIdentifier(name));
+  }
   const unusableFlags: string[] = [];
-  const note = (name: string, into: string[]): void => {
-    if (name === '') return;
-    const id = inkIdentifier(name);
-    if (id === '') {
-      if (!into.includes(name)) into.push(name);
-    } else taken.add(id);
-  };
+  let emptyFlags = 0;
   for (const item of items) {
     const label = item['pageLabel'];
-    if (typeof label === 'string') note(label, unusableSections);
+    if (typeof label === 'string' && label !== '') taken.add(inkIdentifier(label));
     const declared = item['flagName'];
-    if (typeof declared === 'string') note(declaredFlagName(declared), unusableFlags);
+    if (typeof declared !== 'string') continue;
+    const { name } = declaredFlag(declared);
+    if (name === '') {
+      emptyFlags += 1;
+      continue;
+    }
+    const id = inkIdentifier(name);
+    if (id === '') {
+      if (!unusableFlags.includes(name)) unusableFlags.push(name);
+    } else taken.add(id);
   }
 
-  // One new name per original, in story order, each free of every name already used or generated. A word used as both a
-  // section label and a flag gets one of each, since a knot and a variable are different things.
   const flags = new Map<string, string>();
   const renames: InklewriterRename[] = [];
   let sections = 0;
@@ -216,15 +219,28 @@ function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
     taken.add(candidate);
     return candidate;
   };
-  for (const name of unusableSections) {
+
+  // One name per header **occurrence**: two sections with the same unusable label are two knots, and the converter would
+  // suffix the second, so each is named here and each rename is reported.
+  for (const item of items) {
+    const label = item['pageLabel'];
+    if (typeof label !== 'string' || label === '' || inkIdentifier(label) !== '') continue;
     const to = freeName('section', () => (sections += 1));
-    renames.push({ kind: 'section', from: name, to });
-    for (const item of items) if (item['pageLabel'] === name) item['pageLabel'] = to;
+    item['pageLabel'] = to;
+    renames.push({ kind: 'section', from: label, to });
   }
   for (const name of unusableFlags) {
     const to = freeName('flag', () => (flagCount += 1));
     flags.set(name, to);
     renames.push({ kind: 'flag', from: name, to });
+  }
+  // A declaration with no name at all (`{ flagName: '' }`, or one that opens with an operator) would write `VAR  = false`.
+  // Each gets its own name, put back in front of the expression it came with.
+  const emptyNames: string[] = [];
+  for (let i = 0; i < emptyFlags; i += 1) {
+    const to = freeName('flag', () => (flagCount += 1));
+    emptyNames.push(to);
+    renames.push({ kind: 'flag', from: '', to });
   }
 
   // Longest first, so a name that contains another (`开关门` over `开关`) is replaced whole.
@@ -236,8 +252,18 @@ function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
   };
   const renameIn = (expression: string): string => (ordered.length === 0 ? expression : outsideLiterals(expression, renameChunk));
 
+  let emptyAt = 0;
   for (const item of items) {
-    for (const field of FLAG_FIELDS) {
+    const declared = item['flagName'];
+    if (typeof declared === 'string') {
+      const { name, at } = declaredFlag(declared);
+      if (name === '') {
+        const to = emptyNames[emptyAt] ?? `flag_${(flagCount += 1)}`;
+        emptyAt += 1;
+        item['flagName'] = to + declared.slice(at);
+      } else item['flagName'] = renameIn(declared);
+    }
+    for (const field of ['ifCondition', 'notIfCondition'] as const) {
       const value = item[field];
       if (typeof value === 'string') item[field] = renameIn(value);
     }
