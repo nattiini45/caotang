@@ -46,7 +46,7 @@ describe('srgbIccProfile', () => {
 
   it('writes the sRGB transfer curve: white maps to white, the branches meet at the threshold', () => {
     // The rTRC tag: 'para' type 4, parameters g, a, b, c, d, e, f as s15Fixed16.
-    const entry = 132 + 7 * 12; // rTRC is the eighth tag.
+    const entry = 132 + 6 * 12; // rTRC is the seventh tag.
     expect(text(profile, entry)).toBe('rTRC');
     const trc = u32(profile, entry + 4);
     expect(text(profile, trc)).toBe('para');
