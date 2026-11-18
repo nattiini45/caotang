@@ -5,7 +5,7 @@ import { sumUsage, type DayUsageRow } from '../packages/gateway/src/index.js';
 
 import { endpointRoute, FAKE_ENDPOINT, fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
 import { addCustomEndpoint, addHostedProvider, openProviderSetup } from './provider-setup-support.js';
-import { bodyOf, createProject, idOf, savedMessage } from './support.js';
+import { bodyOf, createProject, idOf, savedMessage, chooseInterfaceLanguage} from './support.js';
 
 /**
  * The provider settings the preset registry drives (provider-gateway §2, §9; ui-modules §5.2): the preset picker and its
@@ -832,7 +832,7 @@ for (const locale of ['de', 'en-XA', 'ar-XB']) {
     await seedUsage(page, [usageDay({ estimatedRequests: 1, model: 'a-very-long-model-identifier-for-wrapping-without-page-overflow' }), usageDay({ role: 'drafting', model: 'demo' })]);
     const settings = await openSettings(page);
     await settings.locator('[data-section="appearance"]').click();
-    await settings.locator(`input[name="interface-language"][value="${locale}"]`).click();
+    await chooseInterfaceLanguage(page, settings, locale);
     await expect(page.locator('html')).toHaveAttribute('lang', locale);
     await settings.locator('[data-section="providers"]').click();
     const usage = page.locator('.usage');
@@ -898,7 +898,7 @@ for (const locale of ['en', 'de', 'en-XA', 'ar-XB']) {
     const settings = await openSettings(page);
     if (locale !== 'en') {
       await settings.locator('[data-section="appearance"]').click();
-      await settings.locator(`input[name="interface-language"][value="${locale}"]`).click();
+      await chooseInterfaceLanguage(page, settings, locale);
       await expect(page.locator('html')).toHaveAttribute('lang', locale);
       await settings.locator('[data-section="providers"]').click();
     }

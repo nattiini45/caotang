@@ -1,3 +1,4 @@
+import { chooseInterfaceLanguage } from './support.js';
 import { expect, type Page } from '@playwright/test';
 import { test } from './test.js';
 import { fakeEndpoint, useFakeEndpoint } from './endpoint.js';
@@ -38,7 +39,7 @@ for (const variant of [
       } else await page.getByRole('button', { name: 'Settings', exact: true }).click();
       const settings = page.getByTestId('settings');
       await settings.locator('[data-section="appearance"]').click();
-      await settings.locator('input[name="interface-language"][value="de"]').click();
+      await chooseInterfaceLanguage(page, settings, 'de');
       await expect(page.locator('html')).toHaveAttribute('lang', 'de');
       await settings.locator('.settings-head button').click();
       if (variant.shell === 'modern') await page.keyboard.press('Control+j');

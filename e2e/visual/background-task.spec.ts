@@ -1,3 +1,4 @@
+import { chooseInterfaceLanguage } from '../support.js';
 import { expect, test } from '@playwright/test';
 
 import { holdCancellingTask, releaseTaskStartup } from '../task-cancellation.js';
@@ -8,7 +9,7 @@ test('the background task shows its cancelling state', async ({ page }) => {
   await page.getByTestId('open-settings').click();
   const settings = page.getByTestId('settings');
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
   await page.keyboard.press('Escape');
   await expect(task.getByTestId('task-status')).toHaveText('Wird abgebrochen…');
