@@ -25,8 +25,9 @@
  * veraPDF runs the profile a file's own metadata names, and PDF/A-1b when it names none (that is veraPDF's auto-detect and its
  * default flavour). The corpus is ordinary PDFs that claim no PDF/A or PDF/UA conformance, so the PDF/A-1b fallback is a profile
  * no Caotang file has ever claimed: the rules in {@link VERAPDF_UNCLAIMED_RULES} are the ones a file that makes no such claim
- * cannot satisfy, and they are excused only under that fallback. Every other rule the file breaks is a problem, and so is a file
- * veraPDF cannot read at all. Its report is one file, logs/verapdf.txt, because it validates the whole corpus in one run.
+ * cannot satisfy, and they are excused only for a file whose own XMP names no flavour. Every other rule the file breaks is a
+ * problem, and so is a file veraPDF cannot read at all. Its report is one file, logs/verapdf.txt, because it validates the whole
+ * corpus in one run.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -51,9 +52,9 @@ const PDFA_1B_PROFILE = 'PDF/A-1b validation profile';
  * transparency, which PDF/A-2 lifts), or about something the writers do on purpose (a fallback character states its cell on the
  * grid, 600 to a column, rather than its glyph's advance: `subsetNotoCjk` in packages/screenplay/src/cjk-font.ts).
  *
- * They are excused only while veraPDF ran {@link PDFA_1B_PROFILE}, which it does for a file that names no flavour. A file whose
- * metadata names one is validated against that profile and held to every rule of it, so the PDF/A-2u files #445 will write are
- * checked as the PDF/A they claim to be.
+ * They are excused only for a file whose XMP names no flavour (which is how veraPDF's fallback is told apart from a file that
+ * declares PDF/A-1b: the two run the same profile). A file whose metadata names one is validated against that profile and held to
+ * every rule of it, so the PDF/A-2u files #445 will write are checked as the PDF/A they claim to be.
  */
 export const VERAPDF_UNCLAIMED_RULES = {
   '6.1.2-2': 'the file header carries no binary marker: the writer keeps the file all-ASCII',
@@ -77,8 +78,19 @@ export const VERAPDF_UNCLAIMED_RULES = {
 };
 
 /**
+ * Whether veraPDF read a PDF/A identification in the file's XMP: the `pdfaid:part` property, wherever it sits inside the packet.
+ * This is the claim veraPDF's auto-detect goes by, and it is read here rather than taken from the profile name, because a file
+ * that declares PDF/A-1b runs the same profile veraPDF falls back to for a file that declares nothing.
+ */
+function declaresPdfa(metadata) {
+  if (metadata === null || typeof metadata !== 'object') return false;
+  return Object.entries(metadata).some(([key, value]) => key === 'pdfaid:part' || declaresPdfa(value));
+}
+
+/**
  * What a veraPDF JSON report says is wrong, file by file: a file it could not read, or a rule it broke that it is held to. A rule
- * in {@link VERAPDF_UNCLAIMED_RULES} is excused only under the PDF/A-1b fallback; under any other profile every failed rule counts.
+ * in {@link VERAPDF_UNCLAIMED_RULES} is excused only for a file whose own metadata names no PDF/A flavour; a file that names one,
+ * PDF/A-1b included, is held to every rule of its profile.
  *
  * `files` are the corpus's names, one entry per row the gate reports. A file the report names no result for is a problem of its
  * own, because a gate that checks nothing is the failure it exists to prevent. veraPDF echoes the path it was given, so a job is
@@ -102,6 +114,7 @@ export function veraPdfProblems(reportText, files) {
     const problems = byFile.get(name);
     if (problems === undefined) continue;
     answered.add(name);
+    const claimed = declaresPdfa(job.featuresReport?.metadata);
     if (job.taskException !== undefined) {
       const { type, exception, exceptionMessage } = job.taskException;
       problems.push(`veraPDF could not read the file (${type ?? 'unknown'}): ${exceptionMessage ?? exception ?? 'no message'}`);
@@ -112,7 +125,7 @@ export function veraPdfProblems(reportText, files) {
       for (const rule of result.details?.ruleSummaries ?? []) {
         if (rule.status !== 'failed' && rule.ruleStatus !== 'FAILED') continue;
         const id = `${rule.clause}-${rule.testNumber}`;
-        if (profile === PDFA_1B_PROFILE && Object.hasOwn(VERAPDF_UNCLAIMED_RULES, id)) continue;
+        if (!claimed && profile === PDFA_1B_PROFILE && Object.hasOwn(VERAPDF_UNCLAIMED_RULES, id)) continue;
         const failed = (rule.checks ?? []).find((check) => check.status === 'failed');
         problems.push(`${profile} rule ${id}: ${failed?.errorMessage ?? rule.description ?? 'failed'}`);
       }
@@ -489,7 +502,9 @@ export async function checkCorpus(dir, options = {}) {
  * cannot start at all is every file's problem: a gate that quietly checks nothing is the failure it exists to prevent.
  */
 function veraPdfBatch(paths, logDir) {
-  const result = run('verapdf', ['--format', 'json', ...paths]);
+  // -x metadata adds the XMP properties veraPDF read to each file's report, which is how a file's own conformance claim is known
+  // and costs nothing measurable: the same run says what the file claims and what it breaks.
+  const result = run('verapdf', ['--format', 'json', '-x', 'metadata', ...paths]);
   writeFileSync(join(logDir, 'verapdf.txt'), `${result.stdout}${result.stderr}`);
   const files = paths.map((path) => basename(path));
   if (result.missing) return new Map(files.map((file) => [file, ['veraPDF is not installed']]));

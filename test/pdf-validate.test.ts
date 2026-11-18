@@ -229,6 +229,9 @@ describe('veraPdfProblems', () => {
   const job = (file: string, body: object) => ({ itemDetails: { name: `/corpus/${file}` }, ...body });
   const problemsFor = (jobs: object[], files = ['script.pdf']) => veraPdfProblems(JSON.stringify({ report: { jobs } }), files).get(files[0]) ?? [];
 
+  /** The XMP properties veraPDF read, with a PDF/A identification in the packet: what a file that claims conformance carries. */
+  const declares = (part = '1') => ({ featuresReport: { metadata: { 'rdf:RDF': { 'rdf:Description': { 'pdfaid:part': part, 'pdfaid:conformance': 'B' } } } } });
+
   it('says nothing about a file veraPDF finds compliant', () => {
     expect(problemsFor([job('script.pdf', { validationResult: [result('PDF/A-1b validation profile', [])] })])).toEqual([]);
   });
@@ -243,9 +246,13 @@ describe('veraPdfProblems', () => {
     expect(kept).toEqual(['PDF/A-1b validation profile rule 6.3.7-1: no Unicode map']);
   });
 
-  it('holds a file to every rule of the profile it declares', () => {
-    const declared = problemsFor([job('script.pdf', { validationResult: [result('PDF/A-2u validation profile', [rule('6.7.2', 1, 'no metadata')])] })]);
-    expect(declared).toEqual(['PDF/A-2u validation profile rule 6.7.2-1: no metadata']);
+  it('holds a file to every rule of the profile it declares, including PDF/A-1b, whose profile name is the fallback’s', () => {
+    const declared2u = problemsFor([job('script.pdf', { validationResult: [result('PDF/A-2u validation profile', [rule('6.7.2', 1, 'no metadata')])] })]);
+    expect(declared2u).toEqual(['PDF/A-2u validation profile rule 6.7.2-1: no metadata']);
+    const declared1b = problemsFor([
+      job('script.pdf', { ...declares('1'), validationResult: [result('PDF/A-1b validation profile', [rule('6.7.2', 1, 'no metadata')])] }),
+    ]);
+    expect(declared1b).toEqual(['PDF/A-1b validation profile rule 6.7.2-1: no metadata']);
   });
 
   it('names a file veraPDF cannot read at all', () => {

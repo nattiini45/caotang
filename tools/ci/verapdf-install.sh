@@ -35,9 +35,10 @@ fi
 unzip -q "$work/installer.zip" -d "$work"
 mkdir -p "$dir"
 printf 'INSTALL_PATH=%s\n' "$dir" > "$work/options.properties"
-# Console mode with an options file and no standard input: it installs every pack the installer ships (the CLI, the GUI and the
-# documentation) into $dir and asks nothing.
-java -jar "$work/verapdf-greenfield-$version/verapdf-izpack-installer-$version.jar" -options "$work/options.properties" < /dev/null
+# Console mode, with an options file that answers the install path and no standard input, so a headless runner (and one that happens
+# to have a display) installs without a GUI. It installs every pack the installer ships — the CLI, the GUI and the documentation —
+# into $dir and asks nothing.
+java -jar "$work/verapdf-greenfield-$version/verapdf-izpack-installer-$version.jar" -console -options "$work/options.properties" < /dev/null
 
 installed="$("$dir/verapdf" --version | head -1)"
 test "$installed" = "veraPDF $version" || {
