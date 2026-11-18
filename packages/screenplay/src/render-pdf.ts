@@ -290,10 +290,10 @@ export function layoutPdf(blocks: readonly FlatBlock[], opts: PdfRenderOptions, 
  * ({@link loadEmojiFallback}), the emoji print in it; with the Arabic, Hebrew and Devanagari fonts ({@link loadRtlFallback}), the
  * scripts print in them; without them they print as "?".
  */
-export function drawPdf(layout: PdfLayout, font?: PdfFont, fallback?: PdfCidFont, emoji?: PdfEmojiFont, rtl?: PdfRtlFonts, colour?: PdfColourEmojiFont): Uint8Array<ArrayBuffer> {
+export function drawPdf(layout: PdfLayout, font?: PdfFont, fallback?: PdfCidFont, emoji?: PdfEmojiFont, rtl?: PdfRtlFonts, colour?: PdfColourEmojiFont, meta?: { profile?: 'pdfa-2u'; lang?: string }): Uint8Array<ArrayBuffer> {
   return writePdf(
-    layout.pages.map((page) => page.lines.map((line) => ({ text: line.text, x: line.x, y: line.y, ...(line.rtl === true ? { rtl: true as const } : {}) }))),
-    { title: layout.title, ...(layout.author === undefined ? {} : { author: layout.author }), ...(layout.pageSize === 'Letter' ? {} : { pageSize: layout.pageSize }) },
+    layout.pages.map((page) => page.lines.map((line) => ({ text: line.text, x: line.x, y: line.y, ...(line.rtl === true ? { rtl: true as const } : {}), ...(line.tag === undefined ? {} : { tag: line.tag }) }))),
+    { title: layout.title, ...(layout.author === undefined ? {} : { author: layout.author }), ...(layout.pageSize === 'Letter' ? {} : { pageSize: layout.pageSize }), ...(meta?.profile === undefined ? {} : { profile: meta.profile }), ...(meta?.lang === undefined ? {} : { lang: meta.lang }) },
     font,
     fallback,
     emoji,

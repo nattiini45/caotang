@@ -563,6 +563,7 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
   if (o.htmlMode === 'standalone' || o.htmlMode === 'fragment') pairs.push(['htmlMode', str(o.htmlMode, 'recipe.options.htmlMode')]);
   if (typeof o.css === 'string') pairs.push(['css', str(o.css, 'recipe.options.css')]);
   if (typeof o.siteUrl === 'string') pairs.push(['siteUrl', str(o.siteUrl, 'recipe.options.siteUrl')]);
+  if (o.pdfProfile === 'pdfa-2u') pairs.push(['pdfProfile', str(o.pdfProfile, 'recipe.options.pdfProfile')]);
   return pairs.length === 0 ? '{}' : oneLine(pairs);
 }
 

@@ -142,9 +142,14 @@ export type LineKind =
   | 'pageNumber'
   | 'sceneNumber';
 
+/** A standard structure role a tagged line takes (PDF 32000-1 §14.8.4), when the file is written marked. */
+export type LineTag = 'Title' | 'H1' | 'H2' | 'P' | 'Note' | 'Quote' | 'Code' | 'LI' | 'Figure';
+
 export interface LayoutLine {
   readonly kind: LineKind;
   readonly text: string;
+  /** The role the line's marked content takes, when the PDF is written marked (`PdfInfo.profile`). Absent: an artifact. */
+  readonly tag?: LineTag;
   /** Points from the left edge of the page to the start of the text. */
   readonly x: number;
   /** Baseline in points from the top edge of the page. */
