@@ -100,7 +100,8 @@ test('the choices re-plan the episode: no merge keeps the cues apart, and leavin
   const episode = tree.find((node) => node.kind === 'av-script');
   expect(episode).toBeDefined();
   const body = await bodyOf(page, episode?.id ?? '');
-  expect(body.split('\n').filter((line) => line.startsWith('Ada: '))).toHaveLength(2);
+  expect(body).not.toBeNull();
+  expect((body ?? '').split('\n').filter((line) => line.startsWith('Ada: '))).toHaveLength(2);
 });
 
 test('an SRT file with a speaker prefix imports the same way, and a file with no cue is refused in the dialog', async ({ page }) => {
