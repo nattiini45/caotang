@@ -43,6 +43,10 @@ test('a DOCX-like file: split reasons, a removed split, a rule change that asks,
   // Losses and AI-instruction passages are listed before anything is written, the passage with where it is.
   await expect(dialog.getByRole('list', { name: 'What the import cannot keep' })).toContainText('1 × table became paragraphs');
   await expect(dialog.getByRole('list', { name: 'Passages that read like instructions to an AI' })).toContainText('Chapter 2: Salt · 1');
+  // A codex description and a codex page are scanned too, each named by the entry it would land in.
+  const passages = dialog.getByRole('list', { name: 'Passages that read like instructions to an AI' });
+  await expect(passages).toContainText('Mara');
+  await expect(passages).toContainText('The Lantern');
 
   // A network step is off until the writer turns it on, and says where it goes.
   const download = dialog.getByRole('checkbox', { name: /Download linked images \(downloads 2 files, about 2\.1 MB, from images\.example\.com\)/ });

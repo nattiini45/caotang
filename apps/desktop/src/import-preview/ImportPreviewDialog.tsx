@@ -43,6 +43,7 @@ import {
   offsetsOf,
   removeSplit,
   rename,
+  codexScanExtra,
   scanTree,
   toggleExcluded,
   unknownValues,
@@ -176,10 +177,13 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
   const shown = useMemo(() => (plan === null ? [] : applyEdits(plan.tree, edits)), [plan, edits]);
   const rows = useMemo(() => visibleRows(shown, collapsed), [shown, collapsed]);
   const extraScan = useMemo(() => (ready ? (source.scanExtra?.() ?? []) : []), [ready, source]);
-  const scan = useMemo(() => scanTree(shown, helpers, extraScan), [shown, helpers, extraScan]);
   const codexRows: readonly PreviewCodexRow[] = useMemo(() => (ready ? (source.codexRows?.() ?? []) : []), [ready, source]);
   const held = useMemo(() => (session.state.manifest.codex ?? []).flatMap((entry) => [entry.name, ...entry.aliases]), [session.state.manifest.codex]);
   const colliding = useMemo(() => collisions(codexRows, held), [codexRows, held]);
+  // What each codex row will do, the same answers Import sends: a row that starts skipped is not imported text.
+  const codexDecided = useMemo(() => Object.fromEntries(codexRows.map((row) => [row.id, codexAnswers[row.id] ?? defaultCodexAnswer(row.id, colliding)])), [codexRows, codexAnswers, colliding]);
+  // A codex description and page are imported text too, so they are scanned beside the tree's bodies, notes and synopses (#54).
+  const scan = useMemo(() => scanTree(shown, helpers, [...extraScan, ...codexScanExtra(codexRows, codexDecided)]), [shown, helpers, extraScan, codexRows, codexDecided]);
   const fields = ready ? (source.fields?.() ?? []) : [];
   const vocabulary = session.state.manifest.vocabulary;
   const statusValues = useMemo(() => valuesFor(shown, mapping, 'status'), [shown, mapping]);
@@ -242,7 +246,7 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
         statusAnswers,
         labelAnswers,
         codexRows: codexRows.map((row) => ({ ...row, type: codexTypes[row.id] ?? row.type })),
-        codexAnswers: Object.fromEntries(codexRows.map((row) => [row.id, codexAnswers[row.id] ?? defaultCodexAnswer(row.id, colliding)])),
+        codexAnswers: codexDecided,
         codexHeld: held,
         pictures,
       }, helpers);

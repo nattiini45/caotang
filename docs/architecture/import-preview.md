@@ -68,9 +68,11 @@ the old rule. Import waits while it asks.
   that name; an import never merges into an entry (codex.md §7). An imported row cites the first imported document that holds its
   quote (its own node first); a row named nowhere in the text but with a page of its own cites that page; any other row is reported
   and not made.
-- **Report.** The source's losses; the sanity flags, a fix as a button; the injection scan over every body and its notes
-  (`scanImport`, issue #54), each passage named by the node it is in, a link that selects that node; and any lists the source adds.
-  The text is imported as it is either way.
+- **Report.** The source's losses; the sanity flags, a fix as a button; the injection scan (`scanImport`, issue #54) over **every text the
+  import writes**: each node's body, its notes and its synopsis, each codex row's description and page body, and the text the reader kept
+  outside the tree (`scanExtra()`). A passage in the tree is named by the node it is in, with a link that selects that node; a codex
+  passage is named by the entry it would land in (the name the writer chose, and the page's title when it differs), with no node. A row
+  the writer skips is not scanned, since it is not imported. Any lists the source adds come after. The text is imported as it is either way.
 
 ## 5. The commit: `binder.importTree`
 
