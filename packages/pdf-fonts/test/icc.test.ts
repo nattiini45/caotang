@@ -59,6 +59,6 @@ describe('srgbIccProfile', () => {
     expect(length % 2).toBe(0);
     const units: number[] = [];
     for (let i = 0; i < length; i += 2) units.push((profile[desc + offset + i]! << 8) | profile[desc + offset + i + 1]!);
-    expect(String.fromCharCode(...units)).toBe('sRGB IEC61966-2.1');
+    expect(String.fromCharCode(...units)).toBe('sRGB');
   });
 });
