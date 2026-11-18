@@ -311,10 +311,13 @@ function nameUnusableLabels(json: InklewriterJSON): InklewriterRename[] {
         at = matchName(chunk, at, keep);
         continue;
       }
-      const from = renamed.find((name) => matchName(chunk, at, name) !== -1);
+      // An unusable name is matched **exactly**, as the converter looks a declaration up: two names that differ only in spaces
+      // against tabs (`第一 章` and `第一\t章`) are two flags with two variables, and folding whitespace here would rewrite both
+      // references to the first one's alias and change the story's branching.
+      const from = renamed.find((name) => chunk.startsWith(name, at));
       if (from !== undefined) {
         out += flags.get(from) as string;
-        at = matchName(chunk, at, from);
+        at += from.length;
         continue;
       }
       out += chunk[at];

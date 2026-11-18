@@ -562,6 +562,30 @@ describe('a renamed name stays a name of its own', () => {
     }
   });
 
+  it('two unusable names that differ only in spaces against tabs stay two flags in the conditions', () => {
+    const story = withContent({
+      start: {
+        content: [
+          { flagName: '第一 章' },
+          { flagName: '第一\t章' },
+          { option: 'Space', linkPath: 'end', ifConditions: [{ ifCondition: '第一 章' }], notIfConditions: null },
+          { option: 'Tab', linkPath: 'end', ifConditions: [{ ifCondition: '第一\t章' }], notIfConditions: null },
+        ],
+      },
+      end: { content: ['The end.'] },
+    });
+    const result = readInklewriter(bytes(story));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const ink = result.value.ink;
+    expect(ink).toContain('VAR flag_1 = false');
+    expect(ink).toContain('VAR flag_2 = false');
+    // Each choice tests its own flag: folding whitespace here would make both test flag_1.
+    expect(ink).toContain('{flag_1} [Space]');
+    expect(ink).toContain('{flag_2} [Tab]');
+    expect(result.value.renames.map((r) => r.to)).toEqual(['flag_1', 'flag_2']);
+  });
+
   it('a reported section name is right when the converter suffix chain skips a stitch key', () => {
     const story = withContent({
       start: { content: [{ pageLabel: '第一章' }, 'One.', { divert: 'a' }] },
