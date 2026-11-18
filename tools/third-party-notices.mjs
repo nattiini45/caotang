@@ -10,7 +10,7 @@
  * `pnpm list --prod`, which walks the same lockfile the build uses, so the list cannot name a package the build does not
  * contain. Development tools are not shipped, so they are not listed. Caotang's own packages are MIT, under LICENSE, and
  * are not repeated here, except the workspace packages that hold third-party work under its own license
- * (VENDORED_WORKSPACE_PACKAGES): the Noto Sans Mono CJK, Noto Emoji, Noto Sans Arabic, Noto Sans Hebrew and Noto Sans Devanagari fonts, under the SIL Open Font License, are listed like any
+ * (VENDORED_WORKSPACE_PACKAGES): the Noto Sans Mono CJK, Noto Emoji, Noto Sans Arabic, Noto Sans Hebrew and ten Indic fonts, under the SIL Open Font License, are listed like any
  * other package.
  *
  * Why each license text is kept. MIT and Apache-2.0 both require the copyright notice and the license to travel with
@@ -99,6 +99,15 @@ export const VENDORED_WORKSPACE_PACKAGES = Object.freeze([
   '@caotang/font-noto-arabic',
   '@caotang/font-noto-hebrew',
   '@caotang/font-noto-devanagari',
+  '@caotang/font-noto-bengali',
+  '@caotang/font-noto-gurmukhi',
+  '@caotang/font-noto-gujarati',
+  '@caotang/font-noto-oriya',
+  '@caotang/font-noto-tamil',
+  '@caotang/font-noto-telugu',
+  '@caotang/font-noto-kannada',
+  '@caotang/font-noto-malayalam',
+  '@caotang/font-noto-sinhala',
   '@caotang/font-comic-lettering',
 ]);
 

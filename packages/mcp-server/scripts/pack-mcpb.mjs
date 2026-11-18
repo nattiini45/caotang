@@ -11,9 +11,9 @@
  * tarball command, and it would never reach this script.
  *
  * The steps, each of which stops the pack when it fails:
- *  1. Stage `dist/mcpb/`: `server/caotang-mcp.mjs` (the built bundle), `server/fonts/` (the CJK, emoji, Arabic, Hebrew and Devanagari fonts
+ *  1. Stage `dist/mcpb/`: `server/caotang-mcp.mjs` (the built bundle), `server/fonts/` (the CJK, emoji, Arabic, Hebrew and ten Indic fonts
  *     both PDFs set text in: `@caotang/font-noto-cjk`, `@caotang/font-noto-emoji`, `@caotang/font-noto-arabic`,
- *     `@caotang/font-noto-hebrew` and `@caotang/font-noto-devanagari`, staged as `NotoSansMonoCJKsc-Regular.woff`,
+ *     `@caotang/font-noto-hebrew`, `@caotang/font-noto-devanagari` and the nine `@caotang/font-noto-<script>` packages, staged as `NotoSansMonoCJKsc-Regular.woff`,
  *     `NotoSansMonoCJKsc-Regular-common.woff`, `NotoSansMonoCJKsc-Bold.woff`, `NotoSansMonoCJKsc-Bold-common.woff` (the CJK font's Bold, for bold places of the contact sheet), `NotoEmoji-Regular.woff`, `NotoEmoji-Regular-common.woff`, `NotoColorEmoji.bin` (the colour emoji, `@caotang/font-noto-color-emoji`), `NotoSansArabic-Regular.ttf`, `NotoSansHebrew-Regular.ttf` and `NotoSansDevanagari-Regular.ttf`, where the Node loaders look first, packages/pdf-fonts/src/node-loader.ts),
  *     `server/webp_dec.wasm` (the WebP decoder of `@jsquash/webp`, beside the bundle, where the contact sheet's transcoder looks first,
  *     packages/exporter/src/picture-transcoder-node.ts), `manifest.json`,
@@ -238,6 +238,15 @@ async function main() {
       createRequire(import.meta.url).resolve('@caotang/font-noto-arabic/NotoSansArabic-Regular.ttf'),
       createRequire(import.meta.url).resolve('@caotang/font-noto-hebrew/NotoSansHebrew-Regular.ttf'),
       createRequire(import.meta.url).resolve('@caotang/font-noto-devanagari/NotoSansDevanagari-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-bengali/NotoSansBengali-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-gurmukhi/NotoSansGurmukhi-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-gujarati/NotoSansGujarati-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-oriya/NotoSansOriya-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-tamil/NotoSansTamil-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-telugu/NotoSansTelugu-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-kannada/NotoSansKannada-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-malayalam/NotoSansMalayalam-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-sinhala/NotoSansSinhala-Regular.ttf'),
       ...['ComicNeue-Regular', 'ComicNeue-Italic', 'ComicNeue-Bold', 'ComicNeue-BoldItalic', 'Bangers-Regular'].map((face) =>
         createRequire(import.meta.url).resolve(`@caotang/font-comic-lettering/${face}.woff`),
       ),

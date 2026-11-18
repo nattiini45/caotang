@@ -206,9 +206,9 @@ function placeGlyphs(glyphs: readonly ShapedGlyph[], font: Font, start: number, 
 }
 
 /**
- * Plans one text that may hold Devanagari into `items`: its Devanagari words shaped, each at its column, and the rest plain. `text`
- * is what is drawn and `source` its logical text, which differ only where the algorithm mirrored a character. False when a word
- * needs the Devanagari font and it is not loaded.
+ * Plans one text that may hold Indic script into `items`: its Indic words shaped, each at its column, and the rest plain. `text`
+ * is what is drawn and `source` its logical text, which differ only where the algorithm mirrored a character. A run whose script
+ * has no loaded font stays plain and prints as "?", while the runs whose fonts are loaded still shape.
  */
 function planText(
   text: string,
@@ -231,7 +231,12 @@ function planText(
       continue;
     }
     const font = support.fonts[script];
-    if (font === undefined) return false;
+    if (font === undefined) {
+      // The map is partial: a script with no loaded font falls back and prints as "?", the others still shape.
+      items.push({ kind: 'plain', column: at.column, text: run.text, source: run.text, order: at.order });
+      at.column += support.measure(run.text);
+      continue;
+    }
     const word = shapeIndic(support, run.text, script);
     if (word === undefined || word.failed !== undefined || word.glyphs.length === 0) {
       // The engine could not shape the word: it prints as "?", the columns the layout counted.

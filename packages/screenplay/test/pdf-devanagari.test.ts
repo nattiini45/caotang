@@ -257,10 +257,14 @@ describe('the plan of a line', () => {
     expect(fonts?.arabic).toBeDefined();
   });
 
-  it('leaves a line unplanned, to print as "?", when the Devanagari font is not loaded', async () => {
+  it('plans a script whose font is missing as plain text that prints as "?", keeping the rest shaped', async () => {
     const support = await loadRtlSupport(['devanagari'], {});
     const layout = layoutPdf(blocksOf(text('INT. A - DAY', '', 'हिन्दी')), { title: 'T' }, support.measure);
-    expect((await loadRtlFallback(layout, support))?.lines.size).toBe(0);
+    const fallback = await loadRtlFallback(layout, support);
+    expect(fallback?.lines.size).toBe(1);
+    const items = [...(fallback?.lines.values() ?? [])][0]!;
+    expect(items.every((item) => item.kind === 'plain')).toBe(true);
+    expect(items.map((item) => (item.kind === 'plain' ? item.text : '')).join('')).toContain('हिन्दी');
   });
 });
 
