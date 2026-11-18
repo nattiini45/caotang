@@ -82,6 +82,7 @@ function formatGroups(comicSelected: boolean): readonly { readonly name: string;
       { format: 'html', label: t`Web article (.html)`, help: t`One HTML file per document: the article with its publish date, canonical link and description from the Publishing inspector section.` },
       { format: 'rss', label: t`RSS feed (.rss.xml)`, help: t`One feed file for the selection: an item per published document. Needs the recipe's Site address (https).` },
       { format: 'atom', label: t`Atom feed (.atom.xml)`, help: t`One feed file for the selection: an entry per published document, with the article as its content. Needs the recipe's Site address (https).` },
+      { format: 'prose-pdf', label: t`Prose PDF (.pdf)`, help: t`The manuscript paginated for print: double-spaced Courier on Letter or A4, chapter headings a third of the page down, the page number on every sheet after the first.` },
     ],
   },
   {
@@ -308,7 +309,7 @@ function ColourEmojiControl({
   shown,
   onChange,
 }: {
-  format: 'pdf' | 'contact-sheet-pdf';
+  format: 'pdf' | 'contact-sheet-pdf' | 'prose-pdf';
   shown: ShownOptions;
   onChange: (colourEmoji: boolean | undefined) => void;
 }): ReactNode {
@@ -817,7 +818,7 @@ export function ExportDialog({
                 ) : null}
               </>
             )}
-            {format === 'docx' || format === 'epub' || format === 'txt' ? (
+            {format === 'docx' || format === 'epub' || format === 'txt' || format === 'prose-pdf' ? (
               <label className="export-field">
                 <span className="export-option-label"><Trans>Footnotes</Trans></span>
                 <select
@@ -909,6 +910,35 @@ export function ExportDialog({
                   <span className="export-option-label"><Trans>(MORE) and (CONT’D) where a speech crosses a page</Trans></span>
                 </label>
                 <ColourEmojiControl format="pdf" shown={shown} onChange={(colourEmoji) => saveOptions({ ...shown, colourEmoji })} />
+              </>
+            ) : null}
+            {format === 'prose-pdf' ? (
+              <>
+                <label className="export-field">
+                  <span className="export-option-label"><Trans>Paper size</Trans></span>
+                  {/* Letter is the prose PDF's own paper, so choosing it leaves the option out of the recipe. */}
+                  <select
+                    value={shown.pageSize ?? 'Letter'}
+                    onChange={(event) => saveOptions({ ...shown, pageSize: event.target.value === 'A4' ? 'A4' : undefined })}
+                  >
+                    <option value="Letter"><Trans>US Letter</Trans></option>
+                    <option value="A4"><Trans>A4</Trans></option>
+                  </select>
+                </label>
+                <label className="export-field">
+                  <span className="export-option-label"><Trans>Font</Trans></span>
+                  <select
+                    value={shown.scriptFont ?? 'courier-prime'}
+                    onChange={(event) => saveOptions({ ...shown, scriptFont: event.target.value as RecipeScriptFont })}
+                  >
+                    {RECIPE_SCRIPT_FONTS.map((option) => (
+                      <option key={option} value={option}>
+                        {SCRIPT_FONT_LABELS[option]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <ColourEmojiControl format="prose-pdf" shown={shown} onChange={(colourEmoji) => saveOptions({ ...shown, colourEmoji })} />
               </>
             ) : null}
             {format === 'comic-pdf' ? (

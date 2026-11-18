@@ -947,6 +947,8 @@ describe('export.compile, export.compileSelection and project.deleteNode', () =>
       'atom',
       // The AV script's podcast feed (av-script.md §5), last.
       'podcast-rss',
+      // The manuscript's prose PDF (exporter.md §3), appended after it.
+      'prose-pdf',
     ]);
   });
 
