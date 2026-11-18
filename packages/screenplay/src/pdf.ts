@@ -53,7 +53,7 @@
  * offsets, and the tests can check them exactly.
  */
 
-import { cidFontObjects, isBidiControl, isEmojiCluster, srgbIccProfile, type CidSubset, type PdfObject, type PdfValue, type Type3Fonts } from '@caotang/pdf-fonts';
+import { cidFontObjects, isBidiControl, isEmojiCluster, INDIC_SCRIPT_NAMES, srgbIccProfile, type CidSubset, type IndicScript, type PdfObject, type PdfValue, type ShapedScript, type Type3Fonts } from '@caotang/pdf-fonts';
 
 import { COURIER_PRIME_METRICS } from './fonts/courier-prime-metrics.js';
 import { LAYOUT, PAGE_GEOMETRY, type LineTag, type PageSize } from './paginate.js';
@@ -184,10 +184,10 @@ export interface PdfShapedGlyph {
   readonly final?: true;
 }
 
-/** A word of Arabic, Hebrew or Devanagari, set in the font of its script glyph by glyph (see the header). */
+/** A word of a shaped script, set in the font of its script glyph by glyph (see the header). */
 export interface PdfShapedRun {
   readonly kind: 'shaped';
-  readonly font: 'arabic' | 'hebrew' | 'devanagari';
+  readonly font: ShapedScript;
   /** The column of the run's left edge, from the line's start. */
   readonly column: number;
   /** The glyphs left to right as drawn, each at its own position, the order the shaper gives them. */
@@ -210,11 +210,12 @@ export interface PdfPlainRun {
 
 export type PdfRtlItem = PdfShapedRun | PdfPlainRun;
 
-/** The Arabic, Hebrew and Devanagari subsets, and the plan of each line that holds one of the scripts or belongs to a right-to-left paragraph. */
+/** The shaped-script subsets, by script, and the plan of each line that holds one of the scripts or belongs to a right-to-left paragraph. */
 export interface PdfRtlFonts {
   readonly arabic?: CidSubset;
   readonly hebrew?: CidSubset;
-  readonly devanagari?: CidSubset;
+  /** The Indic fonts' subsets, by script. */
+  readonly indic?: Partial<Record<IndicScript, CidSubset>>;
   /** A line's plan, by {@link rtlLineKey}. */
   readonly lines: ReadonlyMap<string, readonly PdfRtlItem[]>;
 }
@@ -319,8 +320,12 @@ function contentStream(lines: readonly PdfText[], pageHeight: number, fallback?:
   return parts.join('\n');
 }
 
-/** The font resource of each script's subset. */
-const SHAPED_FONT = { arabic: 'F4', hebrew: 'F5', devanagari: 'F6' } as const;
+/** The font resource of each script's subset: Arabic, Hebrew, then the Indic scripts in {@link INDIC_SCRIPT_NAMES} order. */
+const SHAPED_FONT: Readonly<Record<ShapedScript, string>> = {
+  arabic: 'F4',
+  hebrew: 'F5',
+  ...Object.fromEntries(INDIC_SCRIPT_NAMES.map((script, i) => [script, `F${6 + i}`])),
+} as Record<ShapedScript, string>;
 
 /** The marked content that gives a reader the text a stretch of the page stands for (PDF 32000-1 §14.9.4). */
 /** Marked content with no properties: it ends a text item in pdf.js and carries no text. */
@@ -344,10 +349,10 @@ function writePlan(
   for (const item of [...plan].sort((a, b) => a.order - b.order)) {
     const x = line.x + item.column * LAYOUT.charWidth;
     if (item.kind === 'shaped') {
-      // Only Devanagari carries its typed text as marked content. Arabic and Hebrew glyphs are drawn in visual order with the text
-      // of each in ToUnicode, so a reader puts the words back in logical order by the bidirectional algorithm, as it does for any
-      // right-to-left text (see the header).
-      const marked = item.font === 'devanagari';
+      // Only the Indic scripts carry their typed text as marked content. Arabic and Hebrew glyphs are drawn in visual order
+      // with the text of each in ToUnicode, so a reader puts the words back in logical order by the bidirectional algorithm,
+      // as it does for any right-to-left text (see the header).
+      const marked = item.font !== 'arabic' && item.font !== 'hebrew';
       if (marked) parts.push(actualText(item.source));
       setFont(SHAPED_FONT[item.font]);
       const show = (glyph: PdfShapedGlyph): void => {
@@ -617,13 +622,10 @@ export function writePdf(
   bodies[1] = `<< /Type /Pages /Kids [${written.map((_, i) => `${pageId(i)} 0 R`).join(' ')}] /Count ${written.length} >>`;
   const arabic = rtlFonts?.arabic === undefined || rtlFonts.arabic.entries.length === 0 ? undefined : rtlFonts.arabic;
   const hebrew = rtlFonts?.hebrew === undefined || rtlFonts.hebrew.entries.length === 0 ? undefined : rtlFonts.hebrew;
-  const devanagari = rtlFonts?.devanagari === undefined || rtlFonts.devanagari.entries.length === 0 ? undefined : rtlFonts.devanagari;
   const fallbackId = pageId(written.length) + (font === undefined ? 0 : 2);
   const emojiId = fallbackId + (fallback === undefined ? 0 : CID_FONT_OBJECTS);
   const arabicId = emojiId + (emoji === undefined ? 0 : CID_FONT_OBJECTS);
   const hebrewId = arabicId + (arabic === undefined ? 0 : CID_FONT_OBJECTS);
-  const devanagariId = hebrewId + (hebrew === undefined ? 0 : CID_FONT_OBJECTS);
-  const colourId = devanagariId + (devanagari === undefined ? 0 : CID_FONT_OBJECTS);
   // PDF/A-2u objects, numbered after the colour fonts: a ToUnicode on the WinAnsi font, the XMP packet, the sRGB
   // output intent, then the structure tree — the document element, one element per marked line, the tree's root and
   // the parent tree last (their ids are set once the marks are counted).
@@ -664,11 +666,22 @@ export function writePdf(
       bodies[hebrewId - 1 + i] = body;
     });
   }
-  if (devanagari !== undefined) {
-    cidFontText(devanagari, devanagariId).forEach((body, i) => {
-      bodies[devanagariId - 1 + i] = body;
+  const indicSubsets = new Map<IndicScript, CidSubset>();
+  INDIC_SCRIPT_NAMES.forEach((script) => {
+    const subset = rtlFonts?.indic?.[script];
+    if (subset !== undefined && subset.entries.length > 0) indicSubsets.set(script, subset);
+  });
+  const indicIds = new Map<IndicScript, number>();
+  let nextIndicId = hebrewId + (hebrew === undefined ? 0 : CID_FONT_OBJECTS);
+  for (const [script, subset] of indicSubsets) {
+    const id = nextIndicId;
+    indicIds.set(script, id);
+    cidFontText(subset, id).forEach((body, i) => {
+      bodies[id - 1 + i] = body;
     });
+    nextIndicId += CID_FONT_OBJECTS;
   }
+  const colourId = nextIndicId;
   if (colour !== undefined) {
     objectsText(colour.fonts.objects, colourId, colour.deflate).forEach((body, i) => {
       bodies[colourId - 1 + i] = body;
@@ -688,9 +701,9 @@ export function writePdf(
     (emoji === undefined ? '' : ` /F3 ${emojiId} 0 R`) +
     (arabic === undefined ? '' : ` /F4 ${arabicId} 0 R`) +
     (hebrew === undefined ? '' : ` /F5 ${hebrewId} 0 R`) +
-    (devanagari === undefined ? '' : ` /F6 ${devanagariId} 0 R`) +
+    [...indicIds.entries()].map(([script, id]) => ` /${SHAPED_FONT[script]} ${id} 0 R`).join('') +
     (colour === undefined ? '' : colour.fonts.fonts.map((font, i) => ` /CE${i + 1} ${colourId + font.object} 0 R`).join(''));
-  const planned = arabic === undefined && hebrew === undefined && devanagari === undefined ? undefined : rtlFonts;
+  const planned = arabic === undefined && hebrew === undefined && indicSubsets.size === 0 ? undefined : rtlFonts;
   const author = info.author === undefined || info.author.trim() === '' ? '' : ` /Author ${infoString(info.author)}`;
   bodies[3] = `<< /Title ${infoString(info.title ?? 'Screenplay')}${author} /Producer ${infoString(info.producer ?? 'Caotang')} >>`;
   written.forEach((lines, i) => {

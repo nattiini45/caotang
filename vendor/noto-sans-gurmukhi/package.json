@@ -1,0 +1,18 @@
+{
+  "name": "@caotang/font-noto-gurmukhi",
+  "version": "2.004",
+  "license": "OFL-1.1",
+  "private": true,
+  "description": "NotoSansGurmukhi Regular 2.004 as a static TrueType file: the font both PDFs embed, subset, for Punjabi text",
+  "repository": "https://github.com/notofonts/gurmukhi",
+  "exports": {
+    "./NotoSansGurmukhi-Regular.ttf": "./NotoSansGurmukhi-Regular.ttf",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "NotoSansGurmukhi-Regular.ttf",
+    "LICENSE",
+    "README.md",
+    "SHA256SUMS"
+  ]
+}

@@ -291,7 +291,7 @@ function nodeExporter(state: ProjectState): ExporterService {
     loadEmojiFont: loadEmojiFontInNode,
     loadArabicFont: loadArabicFontInNode,
     loadHebrewFont: loadHebrewFontInNode,
-    loadDevanagariFont: loadDevanagariFontInNode,
+    loadIndicFonts: { devanagari: loadDevanagariFontInNode },
   });
 }
 
@@ -449,7 +449,7 @@ function rig(state: ProjectState): Rig {
     loadEmojiFont: loadEmojiFontInNode,
     loadArabicFont: loadArabicFontInNode,
     loadHebrewFont: loadHebrewFontInNode,
-    loadDevanagariFont: loadDevanagariFontInNode,
+    loadIndicFonts: { devanagari: loadDevanagariFontInNode },
   });
   const registry = createProjectCommandRegistry({ clock: { now: () => COMPILED_AT }, exporter: exporter.commandPort() });
   const undo: UndoStore = createUndoStore({ dispatch: (command) => execute(command, bus, registry) });

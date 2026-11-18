@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { withCommon, type CommonFontLoader, type ComicLetteringFontLoader, type FontLoader } from './font-bytes.js';
 import {
   ARABIC_FONT_FILE,
+  BENGALI_FONT_FILE,
   CJK_BOLD_COMMON_FONT_FILE,
   CJK_BOLD_FONT_FILE,
   CJK_COMMON_FONT_FILE,
@@ -33,7 +34,15 @@ import {
   DEVANAGARI_FONT_FILE,
   EMOJI_COMMON_FONT_FILE,
   EMOJI_FONT_FILE,
+  GUJARATI_FONT_FILE,
+  GURMUKHI_FONT_FILE,
   HEBREW_FONT_FILE,
+  KANNADA_FONT_FILE,
+  MALAYALAM_FONT_FILE,
+  ORIYA_FONT_FILE,
+  SINHALA_FONT_FILE,
+  TAMIL_FONT_FILE,
+  TELUGU_FONT_FILE,
   type ComicLetteringFace,
 } from './font-files.js';
 
@@ -44,6 +53,15 @@ const COLOUR_EMOJI_PACKAGE = '@caotang/font-noto-color-emoji';
 const ARABIC_PACKAGE = '@caotang/font-noto-arabic';
 const HEBREW_PACKAGE = '@caotang/font-noto-hebrew';
 const DEVANAGARI_PACKAGE = '@caotang/font-noto-devanagari';
+const BENGALI_PACKAGE = '@caotang/font-noto-bengali';
+const GURMUKHI_PACKAGE = '@caotang/font-noto-gurmukhi';
+const GUJARATI_PACKAGE = '@caotang/font-noto-gujarati';
+const ORIYA_PACKAGE = '@caotang/font-noto-oriya';
+const TAMIL_PACKAGE = '@caotang/font-noto-tamil';
+const TELUGU_PACKAGE = '@caotang/font-noto-telugu';
+const KANNADA_PACKAGE = '@caotang/font-noto-kannada';
+const MALAYALAM_PACKAGE = '@caotang/font-noto-malayalam';
+const SINHALA_PACKAGE = '@caotang/font-noto-sinhala';
 
 /** The places a font file is read from, in the order they are tried. */
 function fontCandidates(file: string, pkg: string, moduleUrl: string): string[] {
@@ -149,6 +167,78 @@ export function devanagariFontCandidates(moduleUrl: string = import.meta.url): s
 
 /** Reads Noto Sans Devanagari, the font for Hindi, Marathi, Nepali and Sanskrit text. */
 export const loadDevanagariFontInNode: FontLoader = async () => readFirst(DEVANAGARI_FONT_FILE, devanagariFontCandidates());
+
+/** The places {@link loadBengaliFontInNode} reads, in the order it tries them. */
+export function bengaliFontCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(BENGALI_FONT_FILE, BENGALI_PACKAGE, moduleUrl);
+}
+
+/** Reads Noto Sans Bengali, the font for Bengali and Assamese text. */
+export const loadBengaliFontInNode: FontLoader = async () => readFirst(BENGALI_FONT_FILE, bengaliFontCandidates());
+
+/** The places {@link loadGurmukhiFontInNode} reads, in the order it tries them. */
+export function gurmukhiFontCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(GURMUKHI_FONT_FILE, GURMUKHI_PACKAGE, moduleUrl);
+}
+
+/** Reads Noto Sans Gurmukhi, the font for Punjabi text. */
+export const loadGurmukhiFontInNode: FontLoader = async () => readFirst(GURMUKHI_FONT_FILE, gurmukhiFontCandidates());
+
+/** The places {@link loadGujaratiFontInNode} reads, in the order it tries them. */
+export function gujaratiFontCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(GUJARATI_FONT_FILE, GUJARATI_PACKAGE, moduleUrl);
+}
+
+/** Reads Noto Sans Gujarati, the font for Gujarati text. */
+export const loadGujaratiFontInNode: FontLoader = async () => readFirst(GUJARATI_FONT_FILE, gujaratiFontCandidates());
+
+/** The places {@link loadOriyaFontInNode} reads, in the order it tries them. */
+export function oriyaFontCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(ORIYA_FONT_FILE, ORIYA_PACKAGE, moduleUrl);
+}
+
+/** Reads Noto Sans Oriya, the font for Odia text. */
+export const loadOriyaFontInNode: FontLoader = async () => readFirst(ORIYA_FONT_FILE, oriyaFontCandidates());
+
+/** The places {@link loadTamilFontInNode} reads, in the order it tries them. */
+export function tamilFontCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(TAMIL_FONT_FILE, TAMIL_PACKAGE, moduleUrl);
+}
+
+/** Reads Noto Sans Tamil, the font for Tamil text. */
+export const loadTamilFontInNode: FontLoader = async () => readFirst(TAMIL_FONT_FILE, tamilFontCandidates());
+
+/** The places {@link loadTeluguFontInNode} reads, in the order it tries them. */
+export function teluguFontCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(TELUGU_FONT_FILE, TELUGU_PACKAGE, moduleUrl);
+}
+
+/** Reads Noto Sans Telugu, the font for Telugu text. */
+export const loadTeluguFontInNode: FontLoader = async () => readFirst(TELUGU_FONT_FILE, teluguFontCandidates());
+
+/** The places {@link loadKannadaFontInNode} reads, in the order it tries them. */
+export function kannadaFontCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(KANNADA_FONT_FILE, KANNADA_PACKAGE, moduleUrl);
+}
+
+/** Reads Noto Sans Kannada, the font for Kannada text. */
+export const loadKannadaFontInNode: FontLoader = async () => readFirst(KANNADA_FONT_FILE, kannadaFontCandidates());
+
+/** The places {@link loadMalayalamFontInNode} reads, in the order it tries them. */
+export function malayalamFontCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(MALAYALAM_FONT_FILE, MALAYALAM_PACKAGE, moduleUrl);
+}
+
+/** Reads Noto Sans Malayalam, the font for Malayalam text. */
+export const loadMalayalamFontInNode: FontLoader = async () => readFirst(MALAYALAM_FONT_FILE, malayalamFontCandidates());
+
+/** The places {@link loadSinhalaFontInNode} reads, in the order it tries them. */
+export function sinhalaFontCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(SINHALA_FONT_FILE, SINHALA_PACKAGE, moduleUrl);
+}
+
+/** Reads Noto Sans Sinhala, the font for Sinhala text. */
+export const loadSinhalaFontInNode: FontLoader = async () => readFirst(SINHALA_FONT_FILE, sinhalaFontCandidates());
 
 /** The places {@link loadComicLetteringFontInNode} reads a face from, in the order it tries them. */
 export function comicLetteringFontCandidates(face: ComicLetteringFace, moduleUrl: string = import.meta.url): string[] {
