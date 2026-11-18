@@ -165,8 +165,8 @@ describe('the HTML reader (#299)', () => {
     expect(read.value.document.assets?.map((asset) => asset.name)).toEqual(['ok.png']);
     expect(read.value.assetData.size).toBe(1);
     const losses = read.value.document.losses ?? [];
-    expect(losses.find((loss) => loss.message.includes('anim.gif'))?.message).toContain('not a PNG, JPEG or WebP');
-    expect(losses.find((loss) => loss.message.includes('huge.png'))?.message).toContain('larger than a picture may be');
+    expect(losses.find((loss) => loss.message?.includes('anim.gif') === true)?.message).toContain('not a PNG, JPEG or WebP');
+    expect(losses.find((loss) => loss.message?.includes('huge.png') === true)?.message).toContain('larger than a picture may be');
     const md = read.value.document.blocks.map((block) => (block.kind === 'image' ? block.assetRef : 'md' in block ? block.md : '')).join('\n');
     expect(md).toContain('the animation');
     expect(md).toContain('the map');
