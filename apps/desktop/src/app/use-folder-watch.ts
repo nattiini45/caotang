@@ -7,7 +7,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { externalChanges } from './folder-watch.js';
 import { folderArtifactFs } from './fs-access.js';
 import { nativeFolderId, onNativeFolderChange, unwatchNativeFolder, watchNativeFolder } from './native-folders.js';
 import type { ProjectSession } from './session.js';
@@ -39,10 +38,14 @@ export function useFolderWatch(session: ProjectSession): FolderWatch {
     let pending: string[] = [];
     let subscription: string | null = null;
 
-    /** Reads the reported paths twice: the second read decides, once any write of this tab's own has reached the folder. */
+    /**
+     * Reads the reported paths twice: the second read decides, once any write of this tab's own has reached the folder. The
+     * comparison loads on the first change, so the website — which has no native folder and no watcher — never fetches it.
+     */
     const ask = async (paths: readonly string[]): Promise<void> => {
       const baseline = session.folderBaseline();
       if (baseline === null) return;
+      const { externalChanges } = await import('./folder-watch.js');
       const read = (target: typeof baseline) => (path: string): Promise<Uint8Array | null> =>
         folderArtifactFs(target.folder).readBytes(path).catch(() => null);
       const first = await externalChanges(baseline, paths.slice(0, MAX_READS), read(baseline));
