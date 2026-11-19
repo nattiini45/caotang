@@ -432,7 +432,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Changed
 
-- **The first screen downloads less; panels come with the click that opens them.** The project panel, **Skills**, agent instructions, the vocabulary editor, the Codex rail, the corkboard, the Import… menu's Final Draft and Twee readers and the card picture picker are now fetched the first time they are opened instead of with the page, so a cold start of Classic carries 11.9 kB gzip less. The first open after an update shows a short **Loading …** line while its code arrives; nothing in the project changes, and no dialog behaves differently.
+- **The first screen downloads less; panels come with the click that opens them.** The project panel, **Skills**, agent instructions, the vocabulary editor, the Codex rail, the corkboard, the Import… menu's Final Draft and Twee readers and the card picture picker are now fetched the first time they are opened instead of with the page, so a cold start of Classic carries 11.9 kB gzip less. A panel whose code cannot be fetched says so on the status line instead of doing nothing. The first open after an update shows a short **Loading …** line while its code arrives; nothing in the project changes, and no dialog behaves differently.
 
 ### Known limits
 

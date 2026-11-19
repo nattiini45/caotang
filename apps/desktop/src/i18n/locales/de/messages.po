@@ -19892,6 +19892,12 @@ msgstr "Der Import-Reader konnte nicht gestartet werden."
 msgid "The import reader failed."
 msgstr "Der Import-Reader ist fehlgeschlagen."
 
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "The import readers could not be loaded. Reload the page and try again."
+msgstr "Die Import-Leser konnten nicht geladen werden. Laden Sie die Seite neu und versuchen Sie es erneut."
+
 #: apps/desktop/src/import-preview/reader-host.ts
 msgid "The import was cancelled."
 msgstr "Der Import wurde abgebrochen."

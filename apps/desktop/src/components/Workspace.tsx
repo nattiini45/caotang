@@ -99,6 +99,9 @@ import { railTabId } from './shell/ClassicShell.js';
 import { minimapDots } from './shell/minimap.js';
 import type { AgentActivity, RailTab, ShellRegions } from './shell/regions.js';
 import { Shell } from './shell/Shell.js';
+// The toolbar's project name and the dialogs other chunks draw (.export-field, .project-dialog-row, .project-dialog) are styled from
+// this sheet, so the workspace keeps it in the entry stylesheet even though the panels that used to bring it now load on use.
+import './project-dialogs.css';
 
 /** The timeline is its own chunk: the view and its package are fetched when the writer first opens it. */
 const PictureBoard = lazyView(() => import('../media/PictureBoard.js').then((module) => ({ default: module.PictureBoard })));

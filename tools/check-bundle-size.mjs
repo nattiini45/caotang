@@ -129,16 +129,19 @@ export const BUDGET = {
   // messages (+1,254 raw), which must precede first paint (i18n.md §3.3), and the entry's lazy loader for the command (+892 raw). The
   // reader, its preview source and the Worker stay on use. The ceiling is the measurement plus about 1%, rounded up to the thousand.
   // [delegated 2026-11-18]
-  // The first-load diet on main at 9e33899b: 1,095,317 bytes measured against main's own 1,107,274, so −11,957. Named, per change,
-  // as each landed: the toolbar's four panels (project, Skills, agent instructions, vocabulary) load when their request in
+  // The first-load diet on main at 9e33899b: 1,095,339 bytes measured against main's own 1,107,274, so −11,935. Named, per change, as
+  // each landed: the toolbar's four panels (project, Skills, agent instructions, vocabulary) load when their request in
   // dialog-requests.ts opens, −6,640; the Import… menu's Final Draft and Twee readers and the Ink planner move to
-  // script-import-readers.ts and the corkboard's picture picker loads when a card asks for one, −1,332 together; the Codex rail and the
-  // corkboard view load with the switch that shows them, as the timeline and the pictures already do, −3,953. The English catalogue
-  // stays in the entry (i18n.md §3.3), so its seven new loading labels are 26 bytes of the last figure, and command validation stays
-  // synchronous at dispatch, so what the bus admits is untouched. The ceiling is the measurement plus 2 kB, so the space does not
-  // silently refill: 1,097,317. All JS is 8,786,397 against main's 8,769,385, +0.19% of chunk-boundary scaffolding for the new on-use
+  // script-import-readers.ts, fetched (and, when the fetch fails, reported on the status line) when a file is chosen, and the
+  // corkboard's picture picker loads when a card asks for one, −1,332 together; the Codex rail and the corkboard view load with the
+  // switch that shows them, as the timeline and the pictures already do, −3,953; the guarded reader load and the seven catalogue labels
+  // (the English catalogue stays in the entry, i18n.md §3.3) account for the last 10 bytes. The entry stylesheet keeps
+  // project-dialogs.css, because the toolbar's project name and other chunks' dialog rows are styled by it, so the CSS that followed
+  // the panels out of the entry is back; skills-dialog.css now reaches the agent panel, which draws its Skills note. Command validation
+  // stays synchronous at dispatch, so what the bus admits is untouched. The ceiling is the measurement plus 2 kB, so the space does not
+  // silently refill: 1,097,339. All JS is 8,786,664 against main's 8,769,385, +0.2% of chunk-boundary scaffolding for the new on-use
   // chunks (no module sits in two of them), so `totalJs` does not move. [delegated 2026-11-19]
-  initialGzip: 1_097_317,
+  initialGzip: 1_097_339,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).

@@ -57,6 +57,19 @@ function scanSentenceOf(fileName: string, text: string): string[] {
 export function ScriptImportActions({ session, children }: { session: ProjectSession; children?: ReactNode }): ReactNode {
   useSession(session);
   const report = useReport();
+  /**
+   * The readers, once, with a failure the writer can act on. A chunk that cannot be fetched (an open tab older than the deploy that
+   * renamed it, or a dropped connection) rejects here, and an import that has already picked its file would otherwise do nothing at
+   * all: the status line says so and the import stops. The other on-use readers in this file are caught the same way.
+   */
+  const withReaders = async (): Promise<Awaited<ReturnType<typeof loadReaders>> | null> => {
+    try {
+      return await loadReaders();
+    } catch {
+      report({ text: t`The import readers could not be loaded. Reload the page and try again.`, tone: 'error' });
+      return null;
+    }
+  };
   const scriptFile = useRef<HTMLInputElement>(null);
   const inkFile = useRef<HTMLInputElement>(null);
   const tweeFile = useRef<HTMLInputElement>(null);
@@ -119,8 +132,9 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
       return;
     }
     // A Final Draft file is read first, so the dialog can count the notes and dual dialogue it keeps before anything is written.
-    const { importFdx } = await loadReaders();
-    setPendingFdx({ fileName: file.name, text, script: importFdx(text), scan });
+    const readers = await withReaders();
+    if (readers === null) return;
+    setPendingFdx({ fileName: file.name, text, script: readers.importFdx(text), scan });
   };
 
   const importFdxFile = (seeds: readonly FdxCodexSeed[]): void => {
@@ -151,14 +165,15 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
     const text = await file.text();
     // The imported containers are read with the Ink compiler, so it loads before they are made (ink-compiler.ts).
     await requestInkCompiler();
-    const { compileInk, mintImportIds, planInkImport } = await loadReaders();
-    const plan = planInkImport(text);
+    const readers = await withReaders();
+    if (readers === null) return;
+    const plan = readers.planInkImport(text);
     if (plan.containers.length === 0) {
       report({ text: t`${{ file: isolate(file.name) }} has no knot to import. An Ink story makes one container for each knot.`, tone: 'error' });
       return;
     }
     // The ids are minted here, before the one dispatch, so one undo takes the containers and their ids together (dialogue-narrative.md A3).
-    const minted = addIds ? mintImportIds(plan.containers, { compiles: (body) => compileInk(body).ok }) : null;
+    const minted = addIds ? readers.mintImportIds(plan.containers, { compiles: (body) => readers.compileInk(body).ok }) : null;
     const outcome = session.dispatch('dialogue.importInk', {
       containers: (minted?.containers ?? plan.containers).map((container) => ({ title: container.title, body: container.body })),
     });
@@ -184,8 +199,9 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
 
   const planTwee = async (file: File): Promise<void> => {
     const text = await file.text();
-    const { planTweeImport } = await loadReaders();
-    const plan = planTweeImport(text);
+    const readers = await withReaders();
+    if (readers === null) return;
+    const plan = readers.planTweeImport(text);
     if (plan.container === null) {
       report({ text: t`${{ file: isolate(file.name) }} has no passage to import. A Twee story makes one knot for each passage.`, tone: 'error' });
       return;
@@ -221,8 +237,9 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
     addIds: boolean,
   ): Promise<{ readonly ok: true } | { readonly ok: false; readonly message: string }> => {
     await requestInkCompiler();
-    const { compileInk, mintImportIds } = await loadReaders();
-    const minted = addIds ? mintImportIds(imported, { compiles: (body) => compileInk(body).ok }) : null;
+    const readers = await withReaders();
+    if (readers === null) return { ok: false, message: t`The import readers could not be loaded. Reload the page and try again.` };
+    const minted = addIds ? readers.mintImportIds(imported, { compiles: (body) => readers.compileInk(body).ok }) : null;
     const outcome = session.dispatch('dialogue.importInk', {
       containers: (minted?.containers ?? imported).map((container) => ({ title: container.title, body: container.body })),
     });
