@@ -246,6 +246,15 @@ export function createGateway(options: GatewayOptions): Gateway {
   const roleRoute = (role: TaskRole | undefined, profileId: string | undefined): ReturnType<RoleResolver['resolve']> =>
     role === undefined || profileId !== undefined ? undefined : options.roles?.resolve(role);
 
+  const roleAllows = (role: TaskRole | undefined, routed: ReturnType<RoleResolver['resolve']>): boolean =>
+    routed === undefined || (role !== undefined && options.roles?.allowed(role).includes(routed.profileId) === true);
+
+  function assertRoleAllows(role: TaskRole | undefined, routed: ReturnType<RoleResolver['resolve']>): void {
+    if (!roleAllows(role, routed)) {
+      throw new EgressDeniedError(`Refused a request under the "${role}" role: it resolved to a profile that role may not use.`);
+    }
+  }
+
   const targetOf = (profileId: string | undefined): ProfileView => {
     if (profileId !== undefined) {
       const found = profiles.get(profileId);
@@ -497,9 +506,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     const routed = roleRoute(req.role, req.profileId);
     // The role-referenced set is the egress allow-list for a routed request: a role may only ever send
     // through a profile the resolver names for it. This refusal lands before any profile lookup or key reveal.
-    if (routed !== undefined && req.role !== undefined && options.roles?.allowed(req.role).includes(routed.profileId) !== true) {
-      throw new EgressDeniedError(`Refused a request under the "${req.role}" role: it resolved to a profile that role may not use.`);
-    }
+    assertRoleAllows(req.role, routed);
     const queuedProfile = targetOf(routed?.profileId ?? req.profileId);
     let release: () => void;
     try {
@@ -514,9 +521,7 @@ export function createGateway(options: GatewayOptions): Gateway {
         yield { finishReason: 'error', usage: ZERO };
         return;
       }
-      if (routed !== undefined && req.role !== undefined && options.roles?.allowed(req.role).includes(routed.profileId) !== true) {
-        throw new EgressDeniedError(`Refused a request under the "${req.role}" role: it resolved to a profile that role may not use.`);
-      }
+      assertRoleAllows(req.role, routed);
       const profile = targetOf(queuedProfile.id);
       const model = req.model ?? routed?.model ?? profile.defaultModel;
       const sent: ChatRequest =
@@ -727,17 +732,15 @@ export function createGateway(options: GatewayOptions): Gateway {
   function requestRoute(profile: ProfileView, model: string, thinking: ThinkingLevel | undefined, request: ModelLimitsRequest) {
     const limits = modelLimits(profile.id, model, thinking, request);
     const stamp = JSON.stringify([
-      profile.id, profile.kind, profile.baseUrl, profile.preset ?? null,
-      Object.entries(profile.fields ?? {}).sort(), resolveRoute(profile, model).adapter, model, thinking ?? null,
-      request.maxOutputTokens ?? limits.maxOutputTokens, limits.thinkingTokens ?? 0, limits.contextWindow ?? null,
-      limits.pricePer1k?.prompt ?? null, limits.pricePer1k?.completion ?? null, limits.cache ?? null,
+      profile.id, profile.kind, profile.baseUrl, profile.preset,
+      Object.entries(profile.fields ?? {}).sort(), resolveRoute(profile, model).adapter, model, thinking, request.maxOutputTokens, limits,
     ]);
     return { expected: { profileId: profile.id, model, stamp }, limits };
   }
 
   function resolveRequestRoute(request: Pick<ChatRequest, 'role' | 'profileId' | 'model' | 'thinking'> & ModelLimitsRequest) {
     const routed = roleRoute(request.role, request.profileId);
-    if (routed !== undefined && request.role !== undefined && options.roles?.allowed(request.role).includes(routed.profileId) !== true) return undefined;
+    if (!roleAllows(request.role, routed)) return undefined;
     const target = routed?.profileId ?? request.profileId;
     const profile = target === undefined ? profiles.active() : profiles.get(target);
     if (profile === undefined) return undefined;

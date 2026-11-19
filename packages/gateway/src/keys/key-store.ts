@@ -140,7 +140,7 @@ export function createKeyStore(port: KeyVaultPort, options: KeyStoreOptions = {}
     sealed.set(entry.iv);
     sealed.set(entry.ciphertext, entry.iv.length);
     const digest = await subtle.digest('SHA-256', sealed);
-    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    return btoa(String.fromCharCode(...new Uint8Array(digest)));
   };
 
   const open = async (profileId: string, expectedRevision?: string): Promise<KeyPayload | undefined> => {
@@ -150,21 +150,21 @@ export function createKeyStore(port: KeyVaultPort, options: KeyStoreOptions = {}
     }
     if (entry === undefined) return undefined;
     const key = await port.getWrappingKey();
-    if (key === undefined) {
-      if (expectedRevision !== undefined) throw new EgressDeniedError('The approved provider credentials cannot be read. No request was sent.');
-      return undefined;
+    let plain: string | undefined;
+    if (key !== undefined) {
+      try {
+        const opened = await subtle.decrypt(
+          { name: 'AES-GCM', iv: entry.iv, additionalData: additionalData(profileId) },
+          key,
+          entry.ciphertext,
+        );
+        plain = decoder.decode(opened);
+      } catch {
+        // A failed tag check means the entry is corrupt or was moved between profiles.
+        // Either way the honest answer is "no usable key", not a partial one.
+      }
     }
-    let plain: string;
-    try {
-      const opened = await subtle.decrypt(
-        { name: 'AES-GCM', iv: entry.iv, additionalData: additionalData(profileId) },
-        key,
-        entry.ciphertext,
-      );
-      plain = decoder.decode(opened);
-    } catch {
-      // A failed tag check means the entry is corrupt or was moved between profiles.
-      // Either way the honest answer is "no usable key", not a partial one.
+    if (plain === undefined) {
       if (expectedRevision !== undefined) throw new EgressDeniedError('The approved provider credentials cannot be read. No request was sent.');
       return undefined;
     }
