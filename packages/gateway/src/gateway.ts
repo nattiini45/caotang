@@ -85,6 +85,10 @@ export interface Gateway extends ProviderGateway {
    * profile's, and its model and thinking level fill the ones not named.
    */
   modelLimits(profileId?: string, model?: string, thinking?: ThinkingLevel, request?: ModelLimitsRequest): ModelLimits;
+  resolveRequestRoute(request: Pick<ChatRequest, 'role' | 'profileId' | 'model' | 'thinking'> & ModelLimitsRequest): {
+    readonly expected: { readonly profileId: string; readonly model: string; readonly stamp: string };
+    readonly limits: ModelLimits;
+  } | undefined;
   /**
    * The capability row for a model on a profile's route: whether it takes native
    * tools, images, a JSON-schema response format, and which thinking levels the UI
@@ -395,7 +399,8 @@ export function createGateway(options: GatewayOptions): Gateway {
       if (requested) return;
       requested = true;
       secrets = revealed;
-      tell({ type: 'request', id, req, profileId: profile.id, ...(profile.preset === undefined ? {} : { preset: profile.preset }), model, at: clock.now() });
+      const { expectedRoute: _approval, ...display } = req;
+      tell({ type: 'request', id, req: display, profileId: profile.id, ...(profile.preset === undefined ? {} : { preset: profile.preset }), model, at: clock.now() });
     };
     const respond = (stats: StreamStats, terminal: ChatChunk | undefined, signal: AbortSignal | undefined): void => {
       if (responded) return;
@@ -511,11 +516,20 @@ export function createGateway(options: GatewayOptions): Gateway {
       }
       const profile = targetOf(queuedProfile.id);
       const model = req.model ?? routed?.model ?? profile.defaultModel;
-      if (req.expectedRoute !== undefined && (req.expectedRoute.profileId !== profile.id || req.expectedRoute.model !== model)) {
-        throw new EgressDeniedError('The provider or model for this request changed. No request was sent.');
-      }
       const sent: ChatRequest =
         req.thinking === undefined && routed?.thinking !== undefined ? { ...req, thinking: routed.thinking } : req;
+      const expected = req.expectedRoute;
+      if (expected !== undefined && (expected.profileId !== profile.id || expected.model !== model
+        || (expected.stamp !== undefined && expected.stamp !== requestRoute(profile, model, sent.thinking, sent).expected.stamp))) {
+        throw new EgressDeniedError('The approved provider, model or price for this request changed. No request was sent.');
+      }
+      const sendGuard = expected?.stamp === undefined ? beforeSend : () => {
+        const current = resolveRequestRoute(req);
+        if (current?.expected.stamp !== expected.stamp) {
+          throw new EgressDeniedError('The approved provider, model or price for this request changed. This attempt was not sent.');
+        }
+        beforeSend?.();
+      };
       // §3's image gate, before anything is sent or any key is revealed: a request carrying image
       // parts needs the active model's `vision` capability and must fit the route's image caps.
       // A refusal names the remedy and never carries the bytes.
@@ -530,7 +544,7 @@ export function createGateway(options: GatewayOptions): Gateway {
 
       try {
         if (profile.kind === 'mock') {
-          beforeSend?.();
+          sendGuard?.();
           stats.attempts = 1;
           trace?.request([]);
           for await (const chunk of mock.complete(sent, signal)) {
@@ -562,7 +576,7 @@ export function createGateway(options: GatewayOptions): Gateway {
         }
         let limited = false;
         let finished: ChatChunk['finishReason'];
-        const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal, onRateLimit: (delayMs: number) => { limited = true; limiter.rateLimited(profile.id, delayMs); }, ...(beforeSend === undefined ? {} : { beforeSend }) };
+        const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal, onRateLimit: (delayMs: number) => { limited = true; limiter.rateLimited(profile.id, delayMs); }, ...(sendGuard === undefined ? {} : { beforeSend: sendGuard }) };
         for await (const chunk of streamChat(deps, spec, stats)) {
           if (chunk.finishReason !== undefined) finished = chunk.finishReason;
           trace?.chunk(chunk, stats, signal);
@@ -702,6 +716,26 @@ export function createGateway(options: GatewayOptions): Gateway {
     };
   }
 
+  function requestRoute(profile: ProfileView, model: string, thinking: ThinkingLevel | undefined, request: ModelLimitsRequest) {
+    const limits = modelLimits(profile.id, model, thinking, request);
+    const stamp = JSON.stringify([
+      profile.id, profile.kind, profile.baseUrl, profile.preset ?? null,
+      Object.entries(profile.fields ?? {}).sort(), resolveRoute(profile, model).adapter, model, thinking ?? null,
+      request.maxOutputTokens ?? limits.maxOutputTokens, limits.thinkingTokens ?? 0, limits.contextWindow ?? null,
+      limits.pricePer1k?.prompt ?? null, limits.pricePer1k?.completion ?? null, limits.cache ?? null,
+    ]);
+    return { expected: { profileId: profile.id, model, stamp }, limits };
+  }
+
+  function resolveRequestRoute(request: Pick<ChatRequest, 'role' | 'profileId' | 'model' | 'thinking'> & ModelLimitsRequest) {
+    const routed = roleRoute(request.role, request.profileId);
+    if (routed !== undefined && request.role !== undefined && options.roles?.allowed(request.role).includes(routed.profileId) !== true) return undefined;
+    const target = routed?.profileId ?? request.profileId;
+    const profile = target === undefined ? profiles.active() : profiles.get(target);
+    if (profile === undefined) return undefined;
+    return requestRoute(profile, request.model ?? routed?.model ?? profile.defaultModel, request.thinking ?? routed?.thinking, request);
+  }
+
   async function probeResponseFormat(profileId?: string): Promise<boolean> {
     const profile = targetOf(profileId);
     const attempt = profile.verification?.kind === 'checking' ? profile.verification.attempt : undefined;
@@ -787,6 +821,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     completeOnce: (req, signal, beforeSend) => collectOnce(complete(req, signal, beforeSend), signal),
     listModels,
     modelLimits,
+    resolveRequestRoute,
     modelCaps,
     accountTokens,
     probeResponseFormat,

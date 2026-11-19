@@ -1525,7 +1525,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // The request as sent: its own profile, model and level, and its role, which the gateway routes a request with no profile by.
     // A call under another role carries none of the session's pins, so it is reserved on the role's route, never the session's.
     const limits = gateway.modelLimits(request.profileId, request.model, request.thinking, request);
-    const price = options.price?.() ?? limits.pricePer1k;
+    const basePrice = options.price?.() ?? limits.pricePer1k;
+    const writeMultiplier = request.expectedRoute?.stamp === undefined ? 1 : Math.max(1, limits.cache?.writeMultiplier ?? 1);
+    const price = basePrice === undefined ? undefined : { prompt: basePrice.prompt * writeMultiplier, completion: basePrice.completion };
     const reserved = meter.reserve({
       promptTokens: usageFor(request.messages, '').promptTokens,
       maxOutputTokens: transmittedOutputCap(limits, request.maxOutputTokens),
@@ -1732,7 +1734,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * reservation and not counted again against the turn's bound. Each request carries the agent path for the ledger, the turn's id so the
    * turn's totals sum its children, and the session's own pins. The agent's text and reasoning never stream to the panel.
    */
-  const agentCall = (turn: Turn, agentPath: string, limit: number, chapter?: { readonly guard: () => void; readonly meter?: BudgetMeter }): ModelCall => {
+  const agentCall = (turn: Turn, agentPath: string, limit: number, chapter?: { readonly expectedRoute: NonNullable<ChatRequest['expectedRoute']>; readonly guard: () => void; readonly meter?: BudgetMeter }): ModelCall => {
     let used = 0;
     return {
       gateway: {
@@ -1744,7 +1746,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
             if (used >= limit) throw modelCallBound(limit);
             guardReadBoundary(turn);
             chapter?.guard();
-            const asked = { ...request, sessionId: usageSessionId, ...(options.role === undefined ? {} : { role: options.role }) };
+            const asked = { ...request, sessionId: usageSessionId, ...(options.role === undefined ? {} : { role: options.role }), ...(chapter === undefined ? {} : { expectedRoute: chapter.expectedRoute }) };
             if (chapterMeter !== undefined) chapterReservation = reserveCall(turn, asked, chapterMeter);
             const reservation = reserveCall(turn, asked);
             used += 1;
@@ -2740,7 +2742,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return ok({ data, summary, affected: [] });
   }
 
-  function runDelegateChild(turn: Turn, step: PlanStep, params: DelegateParams, scope: readonly string[], agentPath: string, onTrace: (row: TraceEntry) => void, chapter?: { readonly state: ProjectState; readonly guard: () => void; readonly meter?: BudgetMeter }) {
+  function runDelegateChild(turn: Turn, step: PlanStep, params: DelegateParams, scope: readonly string[], agentPath: string, onTrace: (row: TraceEntry) => void, chapter?: { readonly state: ProjectState; readonly expectedRoute: NonNullable<ChatRequest['expectedRoute']>; readonly guard: () => void; readonly meter?: BudgetMeter }) {
     const spec = SUBAGENT_SPECS[params.agent];
     const chapterState = chapter?.state;
     const overrides = step.contextOverrides ?? turn.contextOverrides;
@@ -2803,6 +2805,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return chaptersOf(harness.state, scope, hidden, new Set(leaveOut.flatMap((ref) => ref.kind === 'codex' ? [ref.id] : [])));
   }
 
+  const chapterRoute = (turn: Turn) => gateway.resolveRequestRoute({
+    ...(turn.pins.profileId === undefined ? {} : { profileId: turn.pins.profileId }),
+    ...(turn.pins.model === undefined ? {} : { model: turn.pins.model }),
+    ...(turn.pins.thinking === undefined ? {} : { thinking: turn.pins.thinking }),
+    ...(options.role === undefined ? {} : { role: options.role }),
+  });
+
   function chapterPlan(turn: Turn, step: PlanStep, params: DelegateParams, alreadyReserved = 0) {
     const overrides = step.contextOverrides ?? turn.contextOverrides;
     const chapters = chapterScope(params.scope, overrides);
@@ -2817,17 +2826,23 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (calls + 1 > sessionLeft) {
       return err(limitExceeded('The chapter batch does not fit the remaining session model-call budget, including one planner call.', 'select fewer top-level Manuscript folders', 'agent.delegate'));
     }
-    const limits = gateway.modelLimits(turn.pins.profileId, turn.pins.model, turn.pins.thinking, { ...(options.role === undefined ? {} : { role: options.role }) });
+    const route = chapterRoute(turn);
+    if (route === undefined) return err(refusal('invalid-params', 'Choose an authorised provider before requesting chapter helpers.', { target: step.tool }));
+    const { expected, limits } = route;
     const output = transmittedOutputCap(limits);
     const price = limits.pricePer1k;
     const window = limits.contextWindow;
-    const ceiling = window === undefined || price === undefined ? undefined : calls * (window * price.prompt + output * price.completion) / 1000;
+    const cacheWrite = Math.max(1, limits.cache?.writeMultiplier ?? 1);
+    const ceiling = window === undefined || price === undefined ? undefined : calls * (window * price.prompt * cacheWrite + output * price.completion) / 1000;
     const forecast = ceiling === undefined ? 'A cost ceiling is unavailable for this route.' : `At most ${formatUsd(ceiling)} at this route’s listed price, before any cache discount.`;
+    const priceOverride = canonicalJson(options.price?.() ?? null);
     return ok({
       chapters: chapters.value,
       calls,
+      expectedRoute: expected,
+      priceOverride,
       notice: `Chapter delegation: ${chapters.value.length} chapters, up to ${calls} helper model calls. ${forecast}`,
-      fingerprint: canonicalJson([step.params, overrides ?? null, chapters.value.map(({ id, scope }) => [id, scope]), window ?? null, output, price ?? null]),
+      fingerprint: canonicalJson([step.params, overrides ?? null, chapters.value.map(({ id, scope }) => [id, scope]), expected.stamp, priceOverride]),
     });
   }
 
@@ -2863,7 +2878,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       await syncRun(turn, 0);
       return scopeChanged();
     }
-    const { chapters } = ready.value;
+    const { chapters, expectedRoute, priceOverride } = ready.value;
     const spec = SUBAGENT_SPECS[params.agent];
     const batchPath = `${turn.id}/chapters#${turn.delegations + 1}`;
     const work = chapters.map((chapter) => ({ key: chapter.id, input: { chapter, path: `${turn.id}/${spec.name}#${++turn.delegations}` } }));
@@ -2882,6 +2897,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const outcomes = await fanOut(work, async ({ chapter, path }) => {
       started += 1;
       const guard = () => {
+        if (chapterRoute(turn)?.expected.stamp !== expectedRoute.stamp || canonicalJson(options.price?.() ?? null) !== priceOverride) {
+          throw new Error('The approved provider, model or price changed. Ask the writer to approve the new route.');
+        }
         const live = chapterScope([chapter.id], step.contextOverrides ?? turn.contextOverrides);
         const current = live.ok ? live.value[0] : undefined;
         if (current?.id !== chapter.id || canonicalJson(current.scope) !== canonicalJson(chapter.scope)) {
@@ -2890,7 +2908,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       };
       return runDelegateChild(turn, step, params, chapter.scope, path, (row) => {
         view = { ...view, trace: [...view.trace, row] };
-      }, { state: chapter.state, guard, ...(chapterMeter === undefined ? {} : { meter: chapterMeter }) });
+      }, { state: chapter.state, expectedRoute, guard, ...(chapterMeter === undefined ? {} : { meter: chapterMeter }) });
     }, {
       concurrency: 4,
       ...signalOf(turn),

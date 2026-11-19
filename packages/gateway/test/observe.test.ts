@@ -47,6 +47,25 @@ describe('private, route-bound requests', () => {
     expect(h.gateway.requestLog.entries()).toEqual([]);
     expect(h.gateway.ledger.turnTotals('hook-turn').requests).toBe(0);
   });
+
+  it('keeps a route approval out of traces and refuses it after the same profile changes price', async () => {
+    const { h, events } = watched();
+    const profile = await h.profiles.create({ name: 'Demo', kind: 'mock', pricePer1k: { prompt: 1, completion: 1 } });
+    const route = h.gateway.resolveRequestRoute({ profileId: profile.id });
+    expect(route).toBeDefined();
+    if (route === undefined) return;
+    const request = { ...userMessage('hello'), profileId: profile.id, expectedRoute: route.expected };
+    await collect(h.gateway.complete(request));
+    expect(events[0]).toMatchObject({ type: 'request' });
+    expect(events[0]).not.toHaveProperty('req.expectedRoute');
+    events.length = 0;
+
+    await h.profiles.update(profile.id, { pricePer1k: { prompt: 2, completion: 1 } });
+    const { error } = await collect(h.gateway.complete({ ...request, turnId: 'changed-price' }));
+    expect(error).toMatchObject({ message: expect.stringContaining('No request was sent.') });
+    expect(events).toEqual([]);
+    expect(h.gateway.ledger.turnTotals('changed-price').requests).toBe(0);
+  });
 });
 
 describe('a mock profile', () => {

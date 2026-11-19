@@ -204,6 +204,48 @@ describe('chapter delegation', () => {
     expect(textOf(planned.at(-1))).toContain('The approved chapter scope or route changed');
   });
 
+  it('does not reuse approval when the active provider changes to an identically priced profile', async () => {
+    const planned: ChatRequest[] = [];
+    const gateway = await mockGateway([planner([steps(chapterStep), answer('Choose the new provider explicitly.')], planned)]);
+    const second = await gateway.profiles.create({ name: 'Another profile', kind: 'mock' });
+    const session = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }), gateway,
+      decide: async () => { gateway.profiles.activate(second.id); return { action: 'approve' }; },
+    });
+    const report = await session.submit(INTENT, { preload: ['agent.delegate'] });
+    expect(report.status).toBe('replied');
+    expect(report.tokens.requests).toBe(2);
+    expect(textOf(planned.at(-1))).toContain('The approved chapter scope or route changed');
+  });
+
+  it('sends neither queued helper after prices change before dispatch', async () => {
+    const planned: ChatRequest[] = [];
+    const base = await mockGateway([planner([steps(chapterStep), answer('Review the changed price.')], planned)]);
+    const profile = base.profiles.active();
+    expect(profile).toBeDefined();
+    if (profile === undefined) return;
+    let changed: Promise<unknown> | undefined;
+    const gateway: Gateway = {
+      ...base,
+      async *complete(req, signal, beforeSend) {
+        if (req.agentPath !== undefined) {
+          changed ??= base.profiles.update(profile.id, { pricePer1k: { prompt: 2, completion: 2 } });
+          await changed;
+        }
+        yield* base.complete(req, signal, beforeSend);
+      },
+    };
+    const session = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }), gateway, decide: async () => ({ action: 'approve' }),
+    });
+    const report = await session.submit(INTENT, { preload: ['agent.delegate'] });
+    expect(changed).toBeDefined();
+    expect(report.status).toBe('replied');
+    expect(report.modelCalls).toBe(2);
+    expect(report.tokens.requests).toBe(2);
+    expect(textOf(planned.at(-1))).toContain('0 / 2 chapter helpers completed.');
+  });
+
   it.each(['saving the approved reservation', 'waiting for provider dispatch'] as const)('does not send a moved scene while %s', async (timing) => {
     const state = makeState();
     const log = createMemoryRunLog();
