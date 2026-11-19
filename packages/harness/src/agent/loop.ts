@@ -3391,6 +3391,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     proposal: unknown,
   ): Promise<Executed> {
     guardRunLog(turn);
+    if (step.tool === 'coherence.review') guardRecoveredSpend(turn);
     const write = grant !== 'read';
     const card = cardFor(turn, id, step.tool, step.params, write ? 'pending-approval' : 'running');
     if (card.status !== 'running') moveCard(turn, id, 'running');
@@ -4952,7 +4953,6 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * a note that the last reply was never acted on.
    */
   async function resumedTurn(turn: Turn, replay: RunReplay): Promise<Settled> {
-    guardRecoveredSpend(turn);
     turn.restored = true;
     turn.carried = replay.applied.length;
     if (replay.compaction !== undefined) {

@@ -416,6 +416,37 @@ describe('a run resumed between cards is held to the read rules in force when it
   });
 });
 
+it('restores a pending local plan without a model request when earlier chapter spend is unknown', async () => {
+  const state = makeState();
+  const log = createMemoryRunLog();
+  const runId = 'run_PENDING_LOCAL_PLAN';
+  await log.create({ ...newRunRecord(runId, { projectId: PROJECT, intent: INTENT, now: 1_000 }), status: 'interrupted' });
+  const drafts: RunEventDraft[] = [
+    { t: 'turn.start', v: RUN_LOG_VERSION, turnId: 'old', intent: INTENT, wire: 'planner', native: false },
+    { t: 'skills.loaded', turnId: 'old', skills: [] },
+    { t: 'messages', turnId: 'old', appended: [{ role: 'user', content: INTENT }] },
+    { t: 'spend', turnId: 'old', spend: { modelCalls: 9, chapterCalls: 8, reservedChapterCalls: 8, promptTokens: 10, completionTokens: 5, estimatedTokens: 0, steps: 0, activeMs: 0 }, reservedCalls: 0 },
+    { t: 'card.pending', turnId: 'old', kind: 'plan', steps: [
+      { tool: 'meta.set', params: { targets: [FRIEND], label: 'act-2' }, expect: 'The Friend is labelled.' },
+    ], proposals: [null], revisions: [null], done: [] },
+  ];
+  await log.append(runId, drafts.map((event, seq) => ({ ...event, seq, at: 1_000 + seq }) as RunEvent));
+  const gateway = await mockGateway([]);
+  const cards: PendingCard[] = [];
+  const session = createAgentSession({
+    harness: createHarness({ state, ports: createAgentPorts() }), gateway,
+    decide: async (card) => { cards.push(card); return { action: 'approve' }; },
+    meter: createBudgetMeter({ maxTokens: 100_000 }),
+    runLog: { port: log, projectId: PROJECT },
+  });
+  const report = await session.resume(runId);
+  expect(cards).toHaveLength(1);
+  expect(cards[0]?.card.approvable).toBe(true);
+  expect(report.status).toBe('applied');
+  expect(report.tokens.requests).toBe(0);
+  expect(tree(state, FRIEND)?.label).toBe('act-2');
+});
+
 it('refuses a stored draft behind a pending skill load before displaying or approving its card', async () => {
   const state = makeState();
   const log = createMemoryRunLog();
