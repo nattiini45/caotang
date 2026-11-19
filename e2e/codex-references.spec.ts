@@ -12,7 +12,7 @@ function browserStoreAt(page: Page, version: number): Promise<string> {
 test('external research references survive reopening and can be edited and removed', async ({ page }) => {
   test.setTimeout(60_000);
   const externalRequests: string[] = [];
-  page.on('request', (request) => { if (request.url().startsWith('https://example.org')) externalRequests.push(request.url()); });
+  page.on('request', (request) => { if (new URL(request.url()).hostname === 'example.org') externalRequests.push(request.url()); });
   await createProject(page, 'Tide Research');
   const codex = page.getByRole('tab', { name: 'Codex' });
   await codex.click();
@@ -42,7 +42,7 @@ test('external research references survive reopening and can be edited and remov
   await expect(references).toContainText('Gull Press');
   await expect(references.locator('time')).toHaveAttribute('datetime', '2024-02-29');
   await expect(references.locator('blockquote')).toHaveText('The harbour keeps a separate tide log.');
-  const link = references.getByRole('link', { name: /example\.org/ });
+  const link = references.getByRole('link', { name: 'example.org Opens in a new tab' });
   await expect(link).toHaveAttribute('href', 'https://example.org/tides');
   await expect(link).toHaveAttribute('rel', /noreferrer/);
   expect(externalRequests).toEqual([]);
