@@ -1542,13 +1542,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   };
 
   /** A stream whose reservation is settled with the usage it ended with, or the estimate when the provider reported none, however it ends. */
-  async function* settling(turn: Turn, reservation: Reservation | undefined, request: ChatRequest, signal?: AbortSignal, hookGuard?: () => void, chapter?: { readonly refund: () => void; readonly meter?: BudgetMeter; readonly reservation?: Reservation }): AsyncGenerator<ChatChunk, void, undefined> {
+  async function* settling(turn: Turn, reservation: Reservation | undefined, request: ChatRequest, signal?: AbortSignal, hookGuard?: () => void, chapter?: { readonly refund: () => void; readonly guard: () => void; readonly meter?: BudgetMeter; readonly reservation?: Reservation }): AsyncGenerator<ChatChunk, void, undefined> {
     let usage: Usage | undefined;
     let delivered = '';
     let sent = false;
     let refused = false;
     const beforeSend = (): void => {
-      try { guardRunLog(turn); guardReadBoundary(turn); guardRecoveredSpend(turn); hookGuard?.(); } catch (error) { refused = !sent; throw error; }
+      try { guardRunLog(turn); guardReadBoundary(turn); guardRecoveredSpend(turn); chapter?.guard(); hookGuard?.(); } catch (error) { refused = !sent; throw error; }
       turn.sentModelRequest = true;
       sent = true;
     };
@@ -1732,29 +1732,30 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * reservation and not counted again against the turn's bound. Each request carries the agent path for the ledger, the turn's id so the
    * turn's totals sum its children, and the session's own pins. The agent's text and reasoning never stream to the panel.
    */
-  const agentCall = (turn: Turn, agentPath: string, limit: number, chapter: boolean, chapterMeter?: BudgetMeter): ModelCall => {
+  const agentCall = (turn: Turn, agentPath: string, limit: number, chapter?: { readonly guard: () => void; readonly meter?: BudgetMeter }): ModelCall => {
     let used = 0;
     return {
       gateway: {
         complete: (request, signal) => {
-          const refund = chapter ? () => { turn.chapterCalls -= 1; } : undefined;
+          const chapterMeter = chapter?.meter;
           let chapterReservation: Reservation | undefined;
           try {
             guardRunLog(turn);
             if (used >= limit) throw modelCallBound(limit);
             guardReadBoundary(turn);
+            chapter?.guard();
             const asked = { ...request, sessionId: usageSessionId, ...(options.role === undefined ? {} : { role: options.role }) };
             if (chapterMeter !== undefined) chapterReservation = reserveCall(turn, asked, chapterMeter);
             const reservation = reserveCall(turn, asked);
             used += 1;
             turn.calls += 1;
             const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
-            return settling(turn, reservation, sent, signal, undefined, refund === undefined ? undefined : {
-              refund, ...(chapterMeter === undefined ? {} : { meter: chapterMeter }), ...(chapterReservation === undefined ? {} : { reservation: chapterReservation }),
+            return settling(turn, reservation, sent, signal, undefined, chapter === undefined ? undefined : {
+              ...chapter, refund: () => { turn.chapterCalls -= 1; }, ...(chapterReservation === undefined ? {} : { reservation: chapterReservation }),
             });
           } catch (error) {
             if (chapterReservation !== undefined) chapterMeter?.release(chapterReservation);
-            refund?.();
+            if (chapter !== undefined) turn.chapterCalls -= 1;
             throw error;
           }
         },
@@ -2739,8 +2740,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return ok({ data, summary, affected: [] });
   }
 
-  function runDelegateChild(turn: Turn, step: PlanStep, params: DelegateParams, scope: readonly string[], agentPath: string, onTrace: (row: TraceEntry) => void, chapterState?: ProjectState, chapterMeter?: BudgetMeter) {
+  function runDelegateChild(turn: Turn, step: PlanStep, params: DelegateParams, scope: readonly string[], agentPath: string, onTrace: (row: TraceEntry) => void, chapter?: { readonly state: ProjectState; readonly guard: () => void; readonly meter?: BudgetMeter }) {
     const spec = SUBAGENT_SPECS[params.agent];
+    const chapterState = chapter?.state;
     const overrides = step.contextOverrides ?? turn.contextOverrides;
     const chapterPins = chapterState === undefined ? undefined : overrides?.include?.filter((ref) =>
       ref.kind === 'doc' ? scope.includes(ref.id) : chapterState.manifest.codex?.some((entry) => entry.id === ref.id && entry.includePolicy !== 'never') === true);
@@ -2768,7 +2770,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         turn.modelCalls -= unused;
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
       },
-      model: () => agentCall(turn, agentPath, spec.maxModelCalls, chapterState !== undefined, chapterMeter),
+      model: () => agentCall(turn, agentPath, spec.maxModelCalls, chapter),
       read: async (call) => {
         guardReadBoundary(turn);
         const context = { turnId: turn.id, agentPath, ...signalOf(turn) };
@@ -2795,19 +2797,23 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return subagents.run(spec, { agent: spec.name, brief: params.brief, ...(scope.length === 0 ? {} : { scope }) }, handle, turn.signal);
   }
 
-  function chapterPlan(turn: Turn, step: PlanStep, params: DelegateParams) {
-    const overrides = step.contextOverrides ?? turn.contextOverrides;
+  function chapterScope(scope: readonly string[] | undefined, overrides: ContextOverrides | undefined) {
     const leaveOut = overrides?.exclude ?? [];
     const hidden = new Set([...harness.withheldAnywhere(), ...leaveOut.flatMap((ref) => ref.kind === 'doc' ? [ref.id] : [])]);
-    const chapters = chaptersOf(harness.state, params.scope, hidden, new Set(leaveOut.flatMap((ref) => ref.kind === 'codex' ? [ref.id] : [])));
+    return chaptersOf(harness.state, scope, hidden, new Set(leaveOut.flatMap((ref) => ref.kind === 'codex' ? [ref.id] : [])));
+  }
+
+  function chapterPlan(turn: Turn, step: PlanStep, params: DelegateParams, alreadyReserved = 0) {
+    const overrides = step.contextOverrides ?? turn.contextOverrides;
+    const chapters = chapterScope(params.scope, overrides);
     if (!chapters.ok) return chapters;
     const calls = chapters.value.length * SUBAGENT_SPECS[params.agent].maxModelCalls;
     const meterLeft = (turn.meter?.limits.maxModelCalls ?? Infinity) - (turn.meter?.spend().modelCalls ?? 0);
-    if (calls > 200 - turn.chapterCalls || calls + 1 > meterLeft || callsLeft(turn) < 1) {
+    if (calls > 200 - turn.chapterCalls + alreadyReserved || calls + 1 > meterLeft || callsLeft(turn) < 1) {
       return err(limitExceeded('The chapter batch does not fit the remaining call budget, including one planner call.', 'select fewer top-level Manuscript folders', 'agent.delegate'));
     }
     const session = sessionLimits();
-    const sessionLeft = (session.maxModelCalls ?? Infinity) - sessionUse.modelCalls - turn.modelCalls - turn.chapterCalls;
+    const sessionLeft = (session.maxModelCalls ?? Infinity) - sessionUse.modelCalls - turn.modelCalls - turn.chapterCalls + alreadyReserved;
     if (calls + 1 > sessionLeft) {
       return err(limitExceeded('The chapter batch does not fit the remaining session model-call budget, including one planner call.', 'select fewer top-level Manuscript folders', 'agent.delegate'));
     }
@@ -2828,25 +2834,39 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function runChapterDelegate(turn: Turn, step: PlanStep, id: string, params: DelegateParams, approval: string | undefined): Promise<ToolOutcome> {
     const planned = chapterPlan(turn, step, params);
     if (!planned.ok) return err(planned.error);
-    const { chapters, calls, fingerprint } = planned.value;
+    const { calls, fingerprint } = planned.value;
     if (approval === undefined) {
       return err(refusal('permission-denied', 'Chapter delegation needs the writer’s approval before starting any helpers.', {
         target: step.tool, details: { chapterApproval: fingerprint },
       }));
     }
-    if (approval !== fingerprint) {
-      return err(refusal('permission-denied', 'The approved chapter scope or route changed. No helpers were started.', {
-        target: step.tool, correctiveHint: 'send a new chapter delegation call for the writer to approve',
-      }));
-    }
+    const scopeChanged = () => err(refusal('permission-denied', 'The approved chapter scope or route changed. No helpers were started.', {
+      target: step.tool, correctiveHint: 'send a new chapter delegation call for the writer to approve',
+    }));
+    if (approval !== fingerprint) return scopeChanged();
     checkStop(turn);
     guardReadBoundary(turn);
     guardRecoveredSpend(turn);
+    turn.chapterCalls += calls;
+    let ready: ReturnType<typeof chapterPlan>;
+    try {
+      await syncRun(turn, 0, 'running', calls);
+      checkStop(turn);
+      guardReadBoundary(turn);
+      ready = chapterPlan(turn, step, params, calls);
+    } catch (error) {
+      turn.chapterCalls -= calls;
+      throw error;
+    }
+    if (!ready.ok || ready.value.fingerprint !== approval) {
+      turn.chapterCalls -= calls;
+      await syncRun(turn, 0);
+      return scopeChanged();
+    }
+    const { chapters } = ready.value;
     const spec = SUBAGENT_SPECS[params.agent];
     const batchPath = `${turn.id}/chapters#${turn.delegations + 1}`;
     const work = chapters.map((chapter) => ({ key: chapter.id, input: { chapter, path: `${turn.id}/${spec.name}#${++turn.delegations}` } }));
-    turn.chapterCalls += calls;
-    await syncRun(turn, 0, 'running', calls);
     const use = usageOf(turn);
     const session = sessionLimits();
     const tokensLeft = Math.min(turn.budget.maxTokens ?? Infinity, (session.maxTokens ?? Infinity) - sessionUse.tokens) - use.tokens;
@@ -2861,9 +2881,16 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     let started = 0;
     const outcomes = await fanOut(work, async ({ chapter, path }) => {
       started += 1;
+      const guard = () => {
+        const live = chapterScope([chapter.id], step.contextOverrides ?? turn.contextOverrides);
+        const current = live.ok ? live.value[0] : undefined;
+        if (current?.id !== chapter.id || canonicalJson(current.scope) !== canonicalJson(chapter.scope)) {
+          throw new Error('The approved chapter scope changed. This helper request was not sent; ask the writer to approve the new scope.');
+        }
+      };
       return runDelegateChild(turn, step, params, chapter.scope, path, (row) => {
         view = { ...view, trace: [...view.trace, row] };
-      }, chapter.state, chapterMeter);
+      }, { state: chapter.state, guard, ...(chapterMeter === undefined ? {} : { meter: chapterMeter }) });
     }, {
       concurrency: 4,
       ...signalOf(turn),

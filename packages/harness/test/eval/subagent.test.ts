@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import type { ChatRequest, Gateway } from '@caotang/gateway';
 import { subagentScript } from '@caotang/gateway/mock';
 import type { MockScript } from '@caotang/gateway/mock';
-import { addDocument, addFolder, setBody, type ProjectState } from '@caotang/store';
+import { addDocument, addFolder, moveNode, setBody, type ProjectState } from '@caotang/store';
 
 import { createAgentPorts, createAgentSession, createBudgetMeter, createMemoryRunLog, DELEGATE_NOTICE, parseRunEvents, type RunLogPort } from '../../src/index.js';
 import { evaluate, type Scenario } from '../../src/agent/eval.js';
@@ -202,6 +202,57 @@ describe('chapter delegation', () => {
     }));
     expect(result.failures).toEqual([]);
     expect(textOf(planned.at(-1))).toContain('The approved chapter scope or route changed');
+  });
+
+  it.each(['saving the approved reservation', 'waiting for provider dispatch'] as const)('does not send a moved scene while %s', async (timing) => {
+    const state = makeState();
+    const log = createMemoryRunLog();
+    const planned: ChatRequest[] = [];
+    const base = await mockGateway([
+      planner([steps(chapterStep), answer('Ask me to review the new scope.')], planned),
+      subagentScript(() => answer('This request should not have been sent.')),
+    ]);
+    let moved = false;
+    const move = () => {
+      if (moved) return;
+      moved = true;
+      moveNode(state, LANDING, { parentId: CHAPTER_TWO });
+    };
+    const port: RunLogPort = {
+      ...log,
+      append: async (id, events, patch) => {
+        await log.append(id, events, patch);
+        if (timing === 'saving the approved reservation' && events.some((event) => event.t === 'spend' && event.spend.reservedChapterCalls === 8)) move();
+      },
+    };
+    const gateway: Gateway = {
+      ...base,
+      async *complete(req, signal, beforeSend) {
+        if (timing === 'waiting for provider dispatch' && req.agentPath !== undefined) {
+          await Promise.resolve();
+          move();
+        }
+        yield* base.complete(req, signal, beforeSend);
+      },
+    };
+    const session = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }, state), gateway, decide: async () => ({ action: 'approve' }),
+      runLog: { port, projectId: state.manifest.project.id, newRunId: () => 'chapter-move' },
+    });
+    const report = await session.submit(INTENT, { preload: ['agent.delegate'] });
+    expect(moved).toBe(true);
+    expect(report.status).toBe('replied');
+    expect(report.modelCalls).toBe(2);
+    expect(report.tokens.requests).toBe(2);
+    expect(textOf(planned.at(-1))).toContain(timing === 'saving the approved reservation'
+      ? 'The approved chapter scope or route changed' : '0 / 2 chapter helpers completed.');
+    const events = parseRunEvents(await log.events('chapter-move'));
+    expect(events.ok).toBe(true);
+    if (events.ok) {
+      const settled = events.events.findLast((event) => event.t === 'spend');
+      expect(settled).toMatchObject({ spend: { modelCalls: 2 } });
+      expect(settled?.spend.chapterCalls).toBeUndefined();
+    }
   });
 
   it('admits chapter helpers against cumulative session spend without consuming planner slots', async () => {
