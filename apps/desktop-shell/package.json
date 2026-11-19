@@ -8,8 +8,8 @@
   "main": "dist/main.mjs",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "pnpm build && electron .",
-    "test:smoke": "pnpm build && playwright test",
+    "start": "pnpm build && install-electron && electron .",
+    "test:smoke": "pnpm build && install-electron && playwright test",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json"
   },
   "devDependencies": {

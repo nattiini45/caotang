@@ -1,6 +1,6 @@
 # Caotang for desktop (development shell)
 
-From the repository root, run `pnpm install`, `pnpm build`, then `pnpm --filter @caotang/desktop-shell start`. The first shell launch downloads its pinned Electron binary; normal workspace installs do not download it. On Linux, `xvfb-run -a pnpm --filter @caotang/desktop-shell test:smoke` runs the bundled-app smoke with Chromium's sandbox enabled. Use a host that supports the Chromium sandbox, not `--no-sandbox`.
+From the repository root, run `pnpm install`, `pnpm build`, then `pnpm --filter @caotang/desktop-shell start`. The launcher and smoke explicitly install the pinned Electron binary if it is missing; normal workspace installs do not download it. On Linux, `xvfb-run -a pnpm --filter @caotang/desktop-shell test:smoke` runs the bundled-app smoke with Chromium's sandbox enabled. Use a host that supports the Chromium sandbox, not `--no-sandbox`.
 
 Electron **45.4.1** is pinned exactly: it is the spike's tested Electron 45 release and includes Chromium and other upstream fixes. The exact pin keeps the renderer runtime reproducible; see #410 for upgrade validation. This patch is new enough to need a version-scoped pnpm release-age exception when added. No Electron binary is bundled into the web build.
 
