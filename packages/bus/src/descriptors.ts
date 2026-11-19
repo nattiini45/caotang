@@ -1388,13 +1388,19 @@ function validateCodexOp(
     } else {
       const current = typeof id === 'string' ? references.get(id) : undefined;
       const refs = { ids: [...(current?.ids ?? [])], count: current?.count ?? 0 };
+      // The cap is the batch's net effect, so a create may precede the remove that makes room for it.
+      const removes = edits.filter((edit) => isCodexDetailObject(edit) && edit['action'] === 'remove').length;
+      let remaining = CODEX_REFERENCE_MAX - refs.count + removes;
       for (const [i, edit] of edits.entries()) {
-        const problem = referenceEditProblem(edit, refs.ids, refs.count);
+        const problem = referenceEditProblem(edit, refs.ids, remaining);
         if (problem !== undefined) {
           push(invalid(`referenceEdits[${i}] ${problem}`, undefined, `referenceEdits[${i}]`));
           continue;
         }
-        if (edit.action === 'create') refs.count += 1;
+        if (edit.action === 'create') {
+          refs.count += 1;
+          remaining -= 1;
+        }
         if (edit.action === 'remove') {
           refs.count -= 1;
           refs.ids = refs.ids.filter((candidate) => candidate !== edit.id);
