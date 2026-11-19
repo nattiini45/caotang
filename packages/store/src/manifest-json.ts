@@ -634,13 +634,9 @@ export function serializeManifest(
   const target = migrationTarget(format);
   if (from < target || from > format.current) {
     throw new MigrationError(
-      from < format.current
-        ? `refusing to stamp a v${format.current} formatVersion on a v${from} manifest: it has not ` +
-          `been migrated, and §6's parenthetical — "no rolling forward on unrelated edits" — is ` +
-          `what forbids it. Load it first; the §6 registry is the only thing that can upgrade it.`
-        : `refusing to stamp a v${format.current} formatVersion on a v${from} manifest: it is ` +
-          `newer than this build, and writing it at v${format.current} would drop fields this ` +
-          `serializer does not know it has.`,
+      from < target
+        ? `Cannot write the v${from} manifest: it has not been migrated to v${target}. Load it first.`
+        : `Cannot write the v${from} manifest: it is newer than this build (v${format.current}). Use a newer Caotang.`,
       from,
       format.current,
     );
