@@ -1899,6 +1899,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
     }
     await turn.run?.append({ t: 'step.intent', turnId: turn.id, callId, index, tool, expect: revisionsNow(), structure: structureDigest(harness.state.manifest) });
+    return liveStepRefusal(turn, step);
+  }
+
+  function liveStepRefusal(turn: Turn, step: PlanStep): CommandError | undefined {
     try { guardRunLog(turn); } catch (error) {
       return refusal('revision-conflict', error instanceof Error ? error.message : 'The required run log could not be saved.', { correctiveHint: 'check project storage, then send the request again' });
     }
@@ -1913,11 +1917,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * Written after a step applied and the project's save has landed. `before` is the revisions just before the step ran, so `after` names
    * only the documents the step changed, taken before the save is awaited: the writer's own typing during the wait is not the step's.
    */
-  async function logApplied(turn: Turn, callId: string, index: number, tool: string, summary: string | undefined, before: Revisions | undefined): Promise<void> {
+  async function logApplied(turn: Turn, callId: string, index: number, tool: string, summary: string | undefined, before: Revisions | undefined, capturedAfter?: Revisions): Promise<void> {
     const run = turn.run;
     if (run === undefined) return;
     await syncSkills(turn);
-    const after = before === undefined ? {} : changedSince(before);
+    const after = capturedAfter ?? (before === undefined ? {} : changedSince(before));
     try {
       await options.runLog?.flush?.();
     } catch (error) {
@@ -1943,23 +1947,77 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     planOptions: PlanOptions,
   ): Promise<Result<PlanOutcome, CommandError>> {
     const executable = { steps: plan.steps.map(toolStep) };
-    if (turn.run === undefined) return harness.executePlan(executable, context, planOptions);
+    const from = planOptions.from ?? 0;
+    const until = planOptions.until ?? plan.steps.length;
+    if (turn.run === undefined) {
+      if (!plan.steps.slice(from, until).some((step) => harness.hasMcpHook(step.tool))) {
+        return harness.executePlan(executable, context, planOptions);
+      }
+      const preflight = harness.previewPlan(executable, { ...planOptions, turnId: context.turnId });
+      if (!preflight.ok) return preflight;
+      if (!preflight.value.ok) return ok({ status: 'refused', preflight: preflight.value });
+    }
     const completed: StepResult[] = [];
     let undoGroupId: string | undefined;
     const group = (): { undoGroupId?: string } => (undoGroupId === undefined ? {} : { undoGroupId });
-    for (let index = planOptions.from ?? 0; index < plan.steps.length; index += 1) {
+    for (let index = from; index < until; index += 1) {
       const step = plan.steps[index] as PlanStep;
       const callId = planStepCallId(context.callId, index);
       if (planOptions.signal?.aborted === true) return ok({ status: 'stopped', completed, stoppedAt: index, ...group() });
-      const intentError = await logIntent(turn, callId, index, step);
+      const intentError = turn.run === undefined ? undefined : await logIntent(turn, callId, index, step);
       if (intentError !== undefined) {
         await logFailed(turn, callId, index, step.tool, intentError.message);
         return ok({ status: 'failed', completed, failedAt: index, error: intentError, askBack: askBackFor(intentError), ...group() });
       }
-      const before = revisionsNow();
-      await beginSkillAccess(turn, step.tool);
-      const result = harness.executePlan(executable, context, { ...planOptions, from: index, until: index + 1 });
-      await finishSkillLoad(turn, step.tool);
+      let before = revisionsNow();
+      let loggedApplied = false;
+      if (turn.run !== undefined) await beginSkillAccess(turn, step.tool);
+      let result: Result<PlanOutcome, CommandError>;
+      if (turn.run !== undefined && !harness.hasMcpHook(step.tool)) {
+        result = harness.executePlan(executable, context, { ...planOptions, from: index, until: index + 1 });
+      } else {
+        const preflight = turn.run === undefined
+          ? undefined
+          : harness.previewPlan(executable, { ...planOptions, turnId: context.turnId, from: index, until: index + 1 });
+        if (preflight !== undefined && !preflight.ok) {
+          result = preflight;
+        } else if (preflight !== undefined && !preflight.value.ok) {
+          result = ok({ status: 'refused', preflight: preflight.value });
+        } else {
+          const proposal = planOptions.proposals?.[index];
+          const call = { name: step.tool, callId, params: step.params, ...(proposal === undefined || proposal === null ? {} : { proposal }) };
+          const granted = { turnId: context.turnId, permission: { approvedPlan: true } } as const;
+          const pending = harness.hasMcpHook(step.tool)
+            ? harness.callWithMcpHooks(call, { ...granted, ...signalOf(turn) }, {
+                check: () => liveStepRefusal(turn, step),
+                beforeApply: () => { before = revisionsNow(); },
+                afterApply: (outcome) => {
+                  if (!outcome.ok || turn.run === undefined) return;
+                  loggedApplied = true;
+                  if (outcome.value.undoGroupId !== undefined) turn.undoGroupId ??= outcome.value.undoGroupId;
+                  return logApplied(turn, callId, index, step.tool, outcome.value.summary, before, changedSince(before)).then(() => turn.run?.broken !== true);
+                },
+              })
+            : harness.call(call, granted);
+          const outcome = pending instanceof Promise ? await pending : pending;
+          if (outcome.ok) {
+            result = ok({
+              status: 'applied', steps: [{ index, tool: step.tool, expect: step.expect, value: outcome.value }],
+              ...(outcome.value.undoGroupId === undefined ? {} : { undoGroupId: outcome.value.undoGroupId }),
+            });
+          } else if (turn.signal?.aborted === true && outcome.error.details?.['completedCommands'] === undefined) {
+            await logFailed(turn, callId, index, step.tool, outcome.error.message);
+            result = ok({ status: 'stopped', completed: [], stoppedAt: index });
+          } else {
+            const groupId = outcome.error.details?.['undoGroupId'];
+            result = ok({
+              status: 'failed', completed: [], failedAt: index, error: outcome.error, askBack: askBackFor(outcome.error),
+              ...(typeof groupId === 'string' ? { undoGroupId: groupId } : {}),
+            });
+          }
+        }
+      }
+      if (turn.run !== undefined) await finishSkillLoad(turn, step.tool);
       if (!result.ok) {
         await logFailed(turn, callId, index, step.tool, result.error.message);
         return result;
@@ -1969,7 +2027,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         completed.push(...outcome.steps);
         undoGroupId ??= outcome.undoGroupId;
         if (undoGroupId !== undefined) turn.undoGroupId ??= undoGroupId;
-        await logApplied(turn, callId, index, step.tool, outcome.steps[0]?.value.summary, before);
+        if (turn.run !== undefined && !loggedApplied) await logApplied(turn, callId, index, step.tool, outcome.steps[0]?.value.summary, before);
         continue;
       }
       if (outcome.status === 'failed') {
@@ -2444,7 +2502,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const granted = { turnId: turn.id, sessionId: usageSessionId, ...(call.name === 'session.history' ? { sessionHistory: turn.priorTurns } : {}), ...(permission === undefined ? {} : { permission }) };
     if (awaited(call.name)) return harness.callAsync(call, { ...granted, ...signalOf(turn) });
     await beginSkillAccess(turn, call.name, true);
-    return harness.call(call, granted);
+    return harness.hasMcpHook(call.name) ? harness.callWithMcpHooks(call, { ...granted, ...signalOf(turn) }) : harness.call(call, granted);
   }
 
   /** Records one read's outcome: its trace row, its step, its card's last move, and any findings it made. */
@@ -3081,6 +3139,15 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // through its own entry, under the confirmation its card gave (extensibility §4 rule 2).
     const stepOverrides = step.contextOverrides ?? turn.contextOverrides;
     const asyncContext = { turnId: turn.id, sessionId: usageSessionId, ...signalOf(turn), ...(stepOverrides === undefined ? {} : { contextOverrides: stepOverrides }) };
+    let loggedApplied = false;
+    const boundary = write && harness.hasMcpHook(step.tool) ? {
+      check: () => liveStepRefusal(turn, step),
+      afterApply: (result: ToolOutcome) => {
+        if (!result.ok || turn.run === undefined) return;
+        loggedApplied = true;
+        return logApplied(turn, id, index, step.tool, result.value.summary, undefined).then(() => turn.run?.broken !== true);
+      },
+    } : undefined;
     const outcome =
       generationFailure ??
       (loadedExternal(step.tool) === undefined
@@ -3091,6 +3158,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
               : grant === 'confirmed'
                 ? { ...asyncContext, permission: { confirmed: true } }
                 : asyncContext,
+            boundary,
           )
         : await harness.callExternal(
             call,
@@ -3102,7 +3170,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const mayHaveActed = !outcome.ok && mayHaveActedOf(outcome.error) ? true : undefined;
     // These tools write findings or call a server, not documents, and the wait is long: no document is claimed for the step.
     if (write) {
-      if (outcome.ok) await logApplied(turn, id, index, step.tool, outcome.value.summary, undefined);
+      if (outcome.ok) {
+        if (!loggedApplied) await logApplied(turn, id, index, step.tool, outcome.value.summary, undefined);
+      }
       else await logFailed(turn, id, index, step.tool, outcome.error.message);
     }
     if (!outcome.ok && turn.signal?.aborted === true) {
@@ -3331,20 +3401,34 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const card = cardFor(turn, id, step.tool, step.params, grant === 'auto' ? 'running' : 'pending-approval');
       if (card.status !== 'running') moveCard(turn, id, 'running');
       const intentError = await logIntent(turn, id, from, step);
-      const before = revisionsNow();
+      let before = revisionsNow();
+      let loggedApplied = false;
+      let waitedForHook = false;
       let outcome: ToolOutcome;
       if (intentError === undefined) {
         await beginSkillAccess(turn, step.tool);
-        outcome = harness.call(
-          { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) },
-          grant === 'auto' ? { turnId: turn.id } : { turnId: turn.id, permission: { confirmed: true } },
-        );
+        const call = { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) };
+        const granted = { turnId: turn.id, ...(grant === 'auto' ? {} : { permission: { confirmed: true } }) } as const;
+        const pending = harness.hasMcpHook(step.tool)
+          ? harness.callWithMcpHooks(call, { ...granted, ...signalOf(turn) }, {
+              check: () => liveStepRefusal(turn, step),
+              beforeApply: () => { before = revisionsNow(); },
+              afterApply: (outcome) => {
+                if (!outcome.ok || turn.run === undefined) return;
+                loggedApplied = true;
+                return logApplied(turn, id, from, step.tool, outcome.value.summary, before, changedSince(before)).then(() => turn.run?.broken !== true);
+              },
+            })
+          : harness.call(call, granted);
+        waitedForHook = pending instanceof Promise;
+        outcome = pending instanceof Promise ? await pending : pending;
         await finishSkillLoad(turn, step.tool);
       } else {
         outcome = err(intentError);
       }
-      if (outcome.ok) await logApplied(turn, id, from, step.tool, outcome.value.summary, before);
-      else await logFailed(turn, id, from, step.tool, outcome.error.message);
+      if (outcome.ok) {
+        if (!loggedApplied) await logApplied(turn, id, from, step.tool, outcome.value.summary, before);
+      } else await logFailed(turn, id, from, step.tool, outcome.error.message);
       if (outcome.ok) {
         recordStep(turn, id, id);
         pushRow(turn, { tool: step.tool, callId: id, outcome: 'ok', params: step.params }, bodyOf(outcome.value));
@@ -3352,6 +3436,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         moveCard(turn, id, 'done', { summary: outcome.value.summary });
         wireResult(turn, step, { ok: true, body: bodyOf(outcome.value) });
         return { ok: true, ...(outcome.value.undoGroupId === undefined ? {} : { undoGroupId: outcome.value.undoGroupId }), effect: true, completed: [from] };
+      }
+      if (waitedForHook && turn.signal?.aborted === true && outcome.error.details?.['completedCommands'] === undefined) {
+        pushRow(turn, { tool: step.tool, callId: id, outcome: 'not-run', params: step.params }, STOPPED_STEP);
+        turn.steps.push({ index: from, tool: step.tool, expect: step.expect, status: 'cancelled' });
+        moveCard(turn, id, 'failed', { error: STOPPED_STEP });
+        wireResult(turn, step, { ok: false, body: STOPPED_STEP });
+        return { ok: false, cancelled: true, effect: false, completed: [] };
       }
       const reason = errorSummary(outcome.error);
       pushRow(turn, { tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params }, reason);

@@ -33,6 +33,7 @@
  */
 
 import { t } from '@lingui/core/macro';
+import type { McpReadHook } from '@caotang/harness';
 import { COHERENCE_FILE, serializeCoherenceFile, type CoherenceFile } from '@caotang/coherence';
 import { collatorFor, isolate } from '@caotang/i18n';
 import { TASKS_FILE } from '@caotang/tasks';
@@ -156,6 +157,7 @@ export interface SessionDefaults {
   readonly retention?: RetentionConfig;
   /** The app's MCP client, so the agent's `tool.search` and `mcp.invoke` reach the servers the writer connected (extensibility §5). */
   readonly mcp?: { readonly client: McpClient };
+  readonly mcpHooks?: (projectId: string) => readonly McpReadHook[];
   /** What the agent's coherence tools read from the app: the checks the writer has on, and the review's model (coherence.md §7). */
   readonly coherence?: SessionCoherence;
   /** The writer's own agent rules, read by every session at each agent call (Settings › Agent; agent-harness §4). */
@@ -245,6 +247,7 @@ async function sessionFor(
       // The agent's image check reads the project's images at each call (storyboard.md §4).
       presentAssets: () => assetsFor(state.manifest.project.id).presentIds(),
       ...(defaults.mcp === undefined ? {} : { mcp: defaults.mcp }),
+      ...(defaults.mcpHooks === undefined ? {} : { mcpHooks: defaults.mcpHooks }),
       ...(defaults.coherence === undefined ? {} : { coherence: defaults.coherence }),
       ...(defaults.appRules === undefined ? {} : { appRules: defaults.appRules }),
       ...(defaults.debounceMs === undefined ? {} : { debounceMs: defaults.debounceMs }),
