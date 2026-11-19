@@ -10,6 +10,8 @@
 
 **First-landing scope (v0.1-of-track):** Fountain as first-class doc kind (editor + structure import) · Fountain/FDX import · Fountain export · paginated PDF at the exporter gate. **Post-track:** FDX *production* half (revision marks, colored/locked pages, scene-number locking — the later FDX-production stage).
 
+The scene header keeps the whole page-count and runtime estimate readable in both shells. The pill can grow or wrap within the card instead of clipping the estimate.
+
 ## 2. Data model
 
 ### 2.1 Document kind

@@ -243,7 +243,11 @@
   font-variant-numeric: tabular-nums;
 }
 
-.sp-readout-chip {
+.chip.sp-readout-chip {
+  display: block;
+  max-inline-size: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
 }
 

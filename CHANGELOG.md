@@ -98,6 +98,18 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- Provider setup and editing fit in narrow Settings in both shells, including the longer German action labels (#659).
+
+- Workspace errors stay readable until dismissed or replaced by another error, even if an informational notice arrives later (#563).
+
+- The Modern agent window keeps its resource-use line readable while a turn works or waits for approval (#572).
+
+- The Modern bottom bar keeps its views, Ask and Search separate beside an open Binder on smaller desktops (#505).
+
+- The Modern storage warning on a phone no longer covers the empty editor heading (#647).
+
+- The screenplay header shows the full page count and estimated runtime on a phone (#586).
+
 - **Modern WebKit CI headroom.** Explicitly marked Modern-shell end-to-end cases get 60 seconds instead of the default 30 seconds in WebKit. Classic cases, other engines, assertions, larger existing budgets and job deadlines are unchanged; software-rendered wallpaper costs remain tracked separately (#698).
 
 - **WebKit shard capacity.** The suite runs in three shards instead of two to restore headroom below the unchanged 40-minute job limit. Coverage, assertions, retries and two workers per shard are unchanged (#689).

@@ -2,9 +2,11 @@
 
 .provider-setup {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   max-inline-size: 36rem;
   margin-block: var(--space-5);
+  overflow-wrap: anywhere;
 }
 
 .provider-setup > h4 {
@@ -13,7 +15,13 @@
 
 .provider-setup .field {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
+}
+
+.provider-setup .button {
+  max-inline-size: 100%;
+  white-space: normal;
 }
 
 .provider-setup .profile-form-actions {
