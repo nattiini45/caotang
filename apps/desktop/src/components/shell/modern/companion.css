@@ -197,15 +197,7 @@
   color: var(--ink);
 }
 
-:root[data-shell='modern'] .modern-companion .agent-body {
-  flex: 1 0 14rem;
-  min-block-size: 14rem;
-  overflow-y: auto;
-  padding: var(--space-4) var(--space-5);
-}
-
 :root[data-shell='modern'] .modern-companion .goal-recovery {
-  flex: 0 1 auto;
   min-block-size: 0;
 }
 
@@ -218,8 +210,12 @@
   min-block-size: 0;
 }
 
+:root[data-shell='modern'] .modern-companion .is-goal-running {
+  gap: var(--space-1);
+}
+
 :root[data-shell='modern'] .modern-companion .agent.is-goal-running .agent-body {
-  min-block-size: 5.25rem;
+  min-block-size: 5rem;
 }
 
 :root[data-shell='modern'] .modern-companion .agent-foot {
@@ -327,6 +323,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  flex: 1 0 14rem;
+  min-block-size: 14rem;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
 }
 
 :root[data-shell='modern'] .modern-companion .agent-body > * {
