@@ -189,7 +189,7 @@ interface LimitPins {
 }
 
 /** The pins of a role's resolution, or undefined when no profile exists. */
-function pinsOf(resolved: { readonly profile: ProfileView; readonly model: string; readonly thinking?: ThinkingLevel } | undefined): LimitPins | undefined {
+function pinsOf(resolved: { readonly profile: ProfileView; readonly model: string; readonly thinking?: ThinkingLevel } | undefined): (LimitPins & { readonly model: string }) | undefined {
   if (resolved === undefined) return undefined;
   return { profileId: resolved.profile.id, model: resolved.model, ...(resolved.thinking === undefined ? {} : { thinking: resolved.thinking }) };
 }
@@ -3408,6 +3408,7 @@ export class AgentController {
     const agent = loop.createAgentSession({
       harness,
       gateway: this.providers.gateway,
+      modelHookRoute: () => pinsOf(this.providers.resolveForRole?.('background')),
       pictureOutbox: this.session.pictureOutbox,
       transcribe: (input) => this.session.transcribePictures(input),
       transcriptionRoute: (profileId, model) => this.transcriptionRoute(profileId, model),

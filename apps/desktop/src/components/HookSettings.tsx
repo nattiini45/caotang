@@ -11,6 +11,7 @@ import type { ProjectSession } from '../app/session.js';
 import type { AppServices } from '../app/services.js';
 import { explain } from './actions.js';
 import { McpHookSettings } from './McpHookSettings.js';
+import { ModelHookSettings } from './ModelHookSettings.js';
 import { useSession } from './shared.js';
 
 const blankCheck = (kind: HookCheck['kind']): HookCheck => {
@@ -30,10 +31,11 @@ export function HookSettings({ session, services }: { readonly session: ProjectS
   return (
     <section className="settings-section" aria-labelledby="settings-hooks" data-testid="hook-settings">
       <h3 id="settings-hooks"><Trans>Hooks</Trans></h3>
-      <p className="settings-note"><Trans>Hooks check this project at selected events. They can warn or stop an action, but never approve it, change your text or call a provider.</Trans></p>
+      <p className="settings-note"><Trans>Hooks check this project at selected events. They can warn or stop an action, but never approve it or change your text.</Trans></p>
       {session === null ? <p className="settings-note"><Trans>Open a project to manage its hooks.</Trans></p> : <>
         <ProjectHooks session={session} />
-        <McpHookSettings key={session.projectId} projectId={session.projectId} services={services} />
+        <McpHookSettings key={`mcp:${session.projectId}`} projectId={session.projectId} services={services} />
+        <ModelHookSettings key={`model:${session.projectId}`} projectId={session.projectId} services={services} />
       </>}
     </section>
   );
@@ -56,7 +58,7 @@ function ProjectHooks({ session }: { readonly session: ProjectSession }): ReactN
   return (
     <>
       {draft === null ? <>
-        {hooks.length === 0 ? <p className="settings-note"><Trans>This project has no hooks yet. Add one to check a word, a word count, a status or continuity.</Trans></p> : null}
+        {hooks.length === 0 ? <p className="settings-note"><Trans>This project has no local checks yet. Add a hook to check a word, a word count, a status or continuity.</Trans></p> : null}
         <ul className="settings-rules" aria-label={t`Project hooks`}>
           {hooks.map((hook) => {
             const name = isolate(hook.name);

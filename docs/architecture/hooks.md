@@ -1,6 +1,6 @@
 # Hooks — the writer's checks on agent calls, turns, saves and exports
 
-> Status: **built for pure checks.** All seven events, Settings › Hooks (create, edit, enable, delete and test), `agent.hooks`, the user-only commands and the reports are built. Non-check handlers and a `turn.end` continuation remain specified, not built.
+> Status: **built for pure checks and private MCP and model handlers.** Checks cover all seven events. MCP and model handlers run only around supported built-in agent tools. Shell handlers and `turn.end` continuation remain specified, not built.
 > Cross-refs: where a hook sits among the rules and the gate = [agent-harness.md](agent-harness.md) §4 · the two commands = [command-bus.md](command-bus.md) §9 · `agent.hooks` = [project-format.md](project-format.md) §2 · the note the model reads = [context-assembly.md](context-assembly.md) §2 · the extension posture = [extensibility.md](extensibility.md) §4 rule 7.
 
 ## 1. Purpose
@@ -83,13 +83,17 @@ A failed check names what failed in the writer's words and counts: `“lantern�
 
 Caps, enforced by the bus on save, by the loader on load and again by the runner: 20 hooks in a project, 50 patterns in a check, 300 characters in a pattern or a message, 30 check ids or statuses, 50 tools in a matcher, 60 characters in a name. The runner reads at most 2,000,000 characters of prose; more is a failure of the hook. So is an external tool's arguments nested over 6 levels deep (a string, or a list or object with something in it) or holding over 500 strings: the walk never stops short and passes the rest, it fails, and the hook warns or blocks under `failClosed` as it does for the text cap.
 
-The read-only `mcp` handler is configured in app settings below. The `model` handler (a short prompt on the Background role) and the `command` handler (a program on the writer's computer, with the desktop build) are specified but not built. None belongs in a project file: a project file that names one is dropped at load with a notice naming the hook.
+The read-only `mcp` and Background `model` handlers are configured in app settings below. The `command` handler (a program on the writer's computer, with the desktop build) is not built. None belongs in a project file: a project file that names one is dropped at load with a notice naming the hook.
 
 ## 6. Storage and commands
 
 **Read-only MCP handlers (#511).** Settings › Hooks can save up to 20 local MCP hooks per project. The writer names a built-in agent tool and chooses before or after it runs. Caotang sends an empty argument object, not the triggering tool's arguments, manuscript passages, or model context. Both save and live invocation require the configured tool to belong to a connected server trusted for reads, match its reviewed pin, and have effective risk `read-auto`. Execution reuses `mcp.invoke` and records activity as `source: 'mcp'`. Caotang discards the raw result and server error; only a generic status can reach the activity log, hook report, or model. The synchronous preflight, check-only test panel and command bus do not trigger MCP hooks. An unavailable hook warns by default; the writer can make a before hook block instead. An after hook runs only after the original tool succeeds and any required applied record is saved. A hook cannot approve a call or override a denial.
 
 These definitions live in the app database's settings record (`mcpHooks[projectId]`), not in `agent.hooks`. They do not travel with a folder, bundle or the shared server list. A changed or revoked tool pin is never adopted automatically; review the tool again and reselect it in the hook. Disabling or deleting the hook doesn't contact the server.
+
+**Background model handlers (#511).** A writer can save a short check for a supported built-in agent tool in Settings › Hooks. It lives in private app settings (`modelHooks[projectId]`), never in a project or bundle. Saving, editing and preflight make no provider request. The plan's prompt preview estimates each eligible hook separately from the drafting request, so the writer can see the additional Background request before deciding.
+
+An enabled hook runs only at the admitted tool's execution boundary, before it runs or after it succeeds. It sends the writer's check and the step's limited, readable prose through the Background role, not credentials, conversation history or the full manuscript. The demo provider cannot run it. The request counts against the same turn call and spending limits as the agent and is cancellable. Only a bounded `allow`, `warn` or `block` verdict is accepted. The raw result and provider error are discarded; only a generic status can reach the planner, and any hook note is enclosed as untrusted. A failure warns unless the writer made a before hook fail closed. An after hook can report but cannot reverse the original call. No hook grants permission, rewrites the call, or continues a turn.
 
 Hooks live in the manifest under `agent.hooks`, beside `agent.rules` (project-format §2). The loader reads each hook with the bus's own `readHook` (the check `hook.save` runs), so a hook the load keeps is one the bus would accept:
 
@@ -132,4 +136,4 @@ A hook that cannot be read (a handler that is not a `check`, an unknown key, a n
 
 ## 9. Decisions
 
-The decision line is in [decisions.md](../decisions.md), "Agent and tools". Non-check handlers remain separate work: `mcp` and `model` need app-side configuration, `command` needs the desktop build, and `turn.end` continuation needs a demonstrated need and a model-call budget.
+The decision line is in [decisions.md](../decisions.md), "Agent and tools". The `command` handler needs the desktop build, and `turn.end` continuation remains separate work.

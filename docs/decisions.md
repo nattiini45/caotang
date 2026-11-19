@@ -1,5 +1,7 @@
 # Decisions
 
+- Background model hooks are opt-in, private to this browser and project, execute only on admitted tool calls, share turn budgets, and show an estimate before plan approval. The demo cannot run them. They never grant permission, rewrite arguments or continue a turn. [delegated 2026-11-19]
+
 - The shared provider forms size their field tracks to the Settings content box, and longer button labels and help wrap there instead of setting a wider intrinsic minimum (#659). [delegated 2026-11-18]
 
 - In both shells, a workspace error stays until dismissed or replaced by a newer error. Informational reports cannot silently overwrite it, and closing a modal acknowledges nothing (#563). [delegated 2026-11-18]
