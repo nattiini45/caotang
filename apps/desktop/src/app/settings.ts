@@ -25,6 +25,7 @@ import { EMPTY_MCP_SETTINGS, loadMcpSettings, type McpSettings } from '@caotang/
 
 import { formatterLocale } from '../i18n/format-locale.js';
 import { readMcpHooks, type McpHooksByProject } from './mcp-hooks.js';
+import { readModelHooks, type ModelHooksByProject } from './model-hooks.js';
 
 /** The scopes a review or a scan can start with (coherence.md §6.2): one document, what changed since the last pass, the whole manuscript. */
 export const REVIEW_SCOPES = ['doc', 'changed', 'full'] as const;
@@ -237,6 +238,7 @@ export interface AppSettings {
    */
   readonly mcp: McpSettings;
   readonly mcpHooks: McpHooksByProject;
+  readonly modelHooks: ModelHooksByProject;
   /** The Coherence slice (ui-modules §5.2): the checks a scan runs, the default scope, and the cap on a review's findings. */
   readonly coherence: CoherenceSettings;
   /** The context budgets (context-assembly §3). Empty means the spec's defaults, which is what an unset record means. */
@@ -260,6 +262,7 @@ export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
   sampleProjectIds: Object.freeze([]) as readonly string[],
   mcp: EMPTY_MCP_SETTINGS,
   mcpHooks: Object.freeze({}),
+  modelHooks: Object.freeze({}),
   coherence: DEFAULT_COHERENCE_SETTINGS,
   context: Object.freeze({ layerBudgets: Object.freeze({}) }),
   agent: DEFAULT_AGENT_SETTINGS,
@@ -282,6 +285,7 @@ export interface SettingsPatch {
   readonly sampleProjectIds?: readonly string[];
   readonly mcp?: McpSettings;
   readonly mcpHooks?: McpHooksByProject;
+  readonly modelHooks?: ModelHooksByProject;
   readonly coherence?: Partial<CoherenceSettings>;
   /** The whole context record: the Context section saves both budgets together, so a patch replaces them. */
   readonly context?: ContextSettings;
@@ -425,6 +429,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
     sampleProjectIds: samples.filter((id): id is string => typeof id === 'string' && id.length > 0).slice(0, 50),
     mcp: loadMcpSettings(source['mcp'], new Date().toISOString()).settings,
     mcpHooks: readMcpHooks(source['mcpHooks']),
+    modelHooks: readModelHooks(source['modelHooks']),
     coherence: {
       enabledChecks: enabledChecksOf(coherence['enabledChecks']),
       defaultReviewScope: reviewScopeOf(coherence['defaultReviewScope']),
@@ -493,6 +498,7 @@ export function applyPatch(current: AppSettings, patch: SettingsPatch): AppSetti
     sampleProjectIds: patch.sampleProjectIds ?? current.sampleProjectIds,
     mcp: patch.mcp ?? current.mcp,
     mcpHooks: patch.mcpHooks === undefined ? current.mcpHooks : { ...current.mcpHooks, ...patch.mcpHooks },
+    modelHooks: patch.modelHooks === undefined ? current.modelHooks : { ...current.modelHooks, ...patch.modelHooks },
     coherence: { ...current.coherence, ...(patch.coherence ?? {}) },
     context: patch.context ?? current.context,
     agent: { ...current.agent, ...(patch.agent ?? {}) },

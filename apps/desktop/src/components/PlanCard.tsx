@@ -364,6 +364,20 @@ function StepRow({
         </figure>
       ) : null}
 
+      {step.modelHooks === undefined ? null : (
+        <div className="context-preview">
+          <p><Trans>These checks use your Background provider. They can send text from this step.</Trans></p>
+          <ul className="context-reasons" aria-label={t`Model hook prompt estimates`}>
+            {step.modelHooks.map((hook) => {
+              const promptTokens = formatCount(hook.promptTokens);
+              const outputTokens = formatCount(hook.outputTokens);
+              return <li key={hook.id}>{hook.event === 'tool.before'
+                ? <Trans><UserText value={hook.name} /> before this step: about {promptTokens} tokens in, up to {outputTokens} out.</Trans>
+                : <Trans><UserText value={hook.name} /> after this step: about {promptTokens} tokens in, up to {outputTokens} out.</Trans>}</li>;
+            })}
+          </ul>
+        </div>
+      )}
       {step.context !== undefined ? <PromptPreview context={step.context} pinned={step.contextOverrides?.include}
         onExclude={!live ? undefined : (ref) => onEdit([{ op: 'context', index: step.index, overrides: chooseContext(step.contextOverrides ?? {}, ref, 'exclude') }])}
         onRestore={!live ? undefined : (ref) => onEdit([{ op: 'context', index: step.index, overrides: chooseContext(step.contextOverrides ?? {}, ref, 'remove') }])} /> : null}

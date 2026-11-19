@@ -149,6 +149,17 @@ describe('the plan card', () => {
     expect(view.approvable).toBe(false);
   });
 
+  it('shows model-hook estimates only for ready steps that are still to run', () => {
+    const estimate = { id: 'hook', name: 'Review point of view', event: 'tool.before' as const, promptTokens: 80, outputTokens: 256 };
+    const view = planCardOf({
+      id: 'card', turnId: 't', kind: 'plan', revision: 0, previewRevision: 0, from: 1,
+      state: editable({ completed: [0] }), previews: [], risks: [],
+      preflight: { ok: false, steps: [...ready.steps.slice(0, 2), { ...refused.steps[0]!, index: 2 }] },
+      modelHooks: [[estimate], [estimate], [estimate]],
+    });
+    expect(view.steps.map(step => step.modelHooks)).toEqual([undefined, [estimate], undefined]);
+  });
+
   it('shows the steps a resumed plan will not run again as done, by the origins it has applied', () => {
     const view = planCardOf({
       id: 'card',
