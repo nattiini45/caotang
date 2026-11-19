@@ -3890,6 +3890,11 @@ msgstr "Alle"
 msgid "All changes saved in this browser"
 msgstr "Alle Änderungen in diesem Browser gespeichert"
 
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
+#: apps/desktop/src/app/integrity-model.ts
+msgid "All changes saved to the project folder"
+msgstr "Alle Änderungen sind im Projektordner gespeichert"
+
 #: apps/desktop/src/components/GoalRecovery.tsx
 msgid "All saved distances:"
 msgstr "Alle gespeicherten Abstände:"
@@ -5251,6 +5256,10 @@ msgstr "Caotang kann nicht erkennen, welche Kodierung das ist."
 msgid "Caotang cannot tell which encoding {file} is in, so it cannot import it."
 msgstr "Caotang kann nicht erkennen, in welcher Kodierung {file} vorliegt, und kann die Datei daher nicht importieren."
 
+#: apps/desktop/src/app/native-folders.ts
+msgid "Caotang could not access the project folder. Check its permissions and try again."
+msgstr "Caotang konnte nicht auf den Projektordner zugreifen. Prüfe die Berechtigungen und versuche es erneut."
+
 #. Interpolated values: error
 #: apps/desktop/src/App.tsx
 msgid "Caotang could not open its storage"
@@ -5918,6 +5927,11 @@ msgstr "Wählen Sie eine Anbieter-Vorlage, um den Abzug des Prompt-Packs zu sehe
 msgid "Choose an available read-only MCP tool."
 msgstr "Wählen Sie ein verfügbares schreibgeschütztes MCP-Werkzeug."
 
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "Choose an empty folder for the new project. Nothing was copied."
+msgstr "Wähle einen leeren Ordner für das neue Projekt. Es wurde nichts kopiert."
+
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Choose an entry"
 msgstr "Eintrag wählen"
@@ -5935,6 +5949,10 @@ msgstr "Einen Eintrag wählen…"
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
 msgid "Choose an example to fill the box"
 msgstr "Ein Beispiel wählen, um das Feld auszufüllen"
+
+#: apps/desktop/src/app/native-folders.ts
+msgid "Choose an existing Caotang project folder or an empty folder for a new copy."
+msgstr "Wähle einen vorhandenen Caotang-Projektordner oder einen leeren Ordner für eine neue Kopie."
 
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/media/StoryboardView.tsx
@@ -6701,6 +6719,10 @@ msgstr "Kopien enthalten Gesprächs- und Manuskripttext, aber keine Wiederherste
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Copy them into a folder beside the file"
 msgstr "Kopieren Sie sie in einen Ordner neben der Datei"
+
+#: apps/desktop/src/components/NativeFolderControls.tsx
+msgid "Copy to a folder…"
+msgstr "In einen Ordner kopieren …"
 
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
@@ -9202,6 +9224,10 @@ msgstr "Für die nächste Anfrage"
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "For you. Never sent to the model."
 msgstr "Für Sie. Wird nie an das Modell gesendet."
+
+#: apps/desktop/src/components/NativeFolderControls.tsx
+msgid "Forget folder"
+msgstr "Ordner aus der Liste entfernen"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -12903,6 +12929,11 @@ msgstr "Nicht ausgeführt. Der Hook ist deaktiviert oder seine Filter passen nic
 msgid "Not saved to browser storage yet. Your words are safe in this tab and are written again on the next change."
 msgstr "Noch nicht im Browser-Speicher gespeichert. Ihre Wörter sind in diesem Tab sicher und werden bei der nächsten Änderung erneut geschrieben."
 
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
+#: apps/desktop/src/app/integrity-model.ts
+msgid "Not saved to the project folder. Check the folder, or export a backup before leaving."
+msgstr "Nicht im Projektordner gespeichert. Prüfe den Ordner oder exportiere vor dem Verlassen eine Sicherung."
+
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 #: apps/desktop/src/media/screenplay-model.ts
@@ -15298,6 +15329,10 @@ msgstr "Der Neuaufbau verliert:"
 msgid "Recent distances"
 msgstr "Letzte Abstände"
 
+#: apps/desktop/src/components/NativeFolderControls.tsx
+msgid "Recent project folders"
+msgstr "Zuletzt geöffnete Projektordner"
+
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
 msgid "Recent scenes"
@@ -15748,6 +15783,7 @@ msgstr "Projekt wird umbenannt"
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
+#: apps/desktop/src/components/NativeFolderControls.tsx
 msgid "Reopen folder"
 msgstr "Ordner erneut öffnen"
 
@@ -17977,6 +18013,11 @@ msgstr "Die Ergebnisse einiger Aufrufe wurden vor der Unterbrechung nicht gespei
 msgid "Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave."
 msgstr "Einige Änderungen sind noch nicht im Browser-Speicher angekommen, daher bleibt das Projekt geöffnet. Exportieren Sie ein Bundle, um eine Kopie zu sichern, und verlassen Sie dann die Seite."
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Some changes have not reached the project folder, so the project stays open. Export a bundle to keep a copy."
+msgstr "Einige Änderungen sind noch nicht im Projektordner gespeichert, daher bleibt das Projekt geöffnet. Exportiere ein Paket, um eine Kopie zu behalten."
+
 #. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts
 msgid "Some changes were taken back in this tab, but they could not be saved. Keep this tab open and retry the failed save before restoring again."
@@ -19418,6 +19459,11 @@ msgstr "Die Prüfliste sagt, welche."
 msgid "The choice is kept in this browser. Until you choose, the page follows the system."
 msgstr "Die Auswahl wird in diesem Browser gespeichert. Bis Sie sich entscheiden, folgt die Seite dem System."
 
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "The chosen folder is no longer empty. Choose another folder."
+msgstr "Der gewählte Ordner ist nicht mehr leer. Wähle einen anderen Ordner."
+
 #. Interpolated values: name
 #. js-lingui-explicit-id
 #: packages/store/src/read.ts
@@ -19832,6 +19878,11 @@ msgstr "Der Ordner enthält eine andere Version von „{name}“"
 #: apps/desktop/src/components/RunHistory.tsx
 msgid "The folder-copy preference could not be read. Reopen Activity to try again."
 msgstr "Die Einstellung für Ordnerkopien konnte nicht gelesen werden. Öffnen Sie Aktivität erneut, um es noch einmal zu versuchen."
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "The folder’s writing history could not be read, so it is not in the backup."
+msgstr "Der Schreibverlauf des Ordners konnte nicht gelesen werden und ist daher nicht in der Sicherung enthalten."
 
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
 #: apps/desktop/src/media/ScreenplayView.tsx
@@ -20401,6 +20452,19 @@ msgstr "Das Projekt konnte nicht gespeichert werden. Es wurde nichts wiederherge
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "The project cover"
 msgstr "Das Projektcover"
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "The project folder changed outside Caotang or is in use. Reopen it before saving."
+msgstr "Der Projektordner wurde außerhalb von Caotang geändert oder wird gerade verwendet. Öffne ihn vor dem Speichern erneut."
+
+#: apps/desktop/src/app/native-folders.ts
+msgid "The project folder is missing or was moved. Choose Open a folder to find it."
+msgstr "Der Projektordner fehlt oder wurde verschoben. Wähle „Ordner öffnen“, um ihn zu finden."
+
+#: apps/desktop/src/app/native-folders.ts
+msgid "The project folder is read-only. Make it writable, then try again."
+msgstr "Der Projektordner ist schreibgeschützt. Gib den Ordner zum Schreiben frei und versuche es erneut."
 
 #. Interpolated values: calls, cap, error
 #: apps/desktop/src/app/task-queue.ts
@@ -22860,6 +22924,7 @@ msgid "Untitled"
 msgstr "Ohne Titel"
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
+#. Interpolated values: count, path, reason
 #. Interpolated values: count, path, reason
 #: apps/desktop/src/app/lifecycle.ts
 #: apps/desktop/src/components/Home.tsx

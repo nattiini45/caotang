@@ -10,6 +10,16 @@
 import { openRuntimeStore, type RuntimeStore } from '@caotang/store';
 
 let pending: Promise<RuntimeStore> | null = null;
+const nativeStores = new Map<string, Promise<RuntimeStore>>();
+
+export function nativeRuntimeStore(folderId: string): Promise<RuntimeStore> {
+  const existing = nativeStores.get(folderId);
+  if (existing !== undefined) return existing;
+  const pending = openRuntimeStore(indexedDB, `caotang-native-${folderId}`);
+  nativeStores.set(folderId, pending);
+  void pending.catch(() => nativeStores.delete(folderId));
+  return pending;
+}
 
 export function runtimeStore(): Promise<RuntimeStore> {
   if (pending === null) {
