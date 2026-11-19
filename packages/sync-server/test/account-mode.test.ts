@@ -100,16 +100,25 @@ describe('wrapped account key records', () => {
     await h.invite('reader-two');
     const { session: first } = await h.signIn('reader-one');
     const { session: second } = await h.signIn('reader-two');
-    const read = (session?: string) => h.dispatch(KEY_RECORD_PATH, { headers: session ? { Cookie: session } : {} });
+    const accountId = async (session: string) => {
+      const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session } })).json() as { id: string };
+      return account.id;
+    };
+    const firstId = await accountId(first!);
+    const secondId = await accountId(second!);
+    const read = (session?: string, id = firstId) => h.dispatch(KEY_RECORD_PATH, {
+      headers: session ? { Cookie: session, 'X-Caotang-Account': id } : {},
+    });
     expect((await read(first)).status).toBe(503);
     await applyMigrations(h.db!, ['0004_account_key_records.sql']);
     expect((await read()).status).toBe(401);
     expect((await read(first)).status).toBe(404);
-    const create = (record: object, origin = ORIGIN, method = 'POST') => h.dispatch(KEY_RECORD_PATH, {
-      method, headers: { Cookie: first!, Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify(record),
+    const create = (record: object, origin = ORIGIN, method = 'POST', session = first!) => h.dispatch(KEY_RECORD_PATH, {
+      method, headers: { Cookie: session, Origin: origin, 'Content-Type': 'application/json', 'X-Caotang-Account': firstId }, body: JSON.stringify(record),
     });
     const records = [wrappedRecord(1), wrappedRecord(2)];
     expect((await create(records[0]!, 'https://unrelated.example.invalid')).status).toBe(403);
+    expect((await create(records[0]!, ORIGIN, 'POST', second!)).status).toBe(412);
     const attempts = await Promise.all(records.map((record) => create(record)));
     expect(attempts.map((response) => response.status).sort()).toEqual([201, 409]);
     expect((await create(wrappedRecord(3), ORIGIN, 'PUT')).status).toBe(405);
@@ -120,10 +129,10 @@ describe('wrapped account key records', () => {
     expect(loaded.status).toBe(200);
     expect(loaded.headers.get('Cache-Control')).toBe('no-store');
     expect(await loaded.json()).toEqual(winner);
-    expect((await read(second)).status).toBe(404);
-    const account = await (await h.dispatch('/v1/account', { headers: { Cookie: first! } })).json() as { id: string };
+    expect((await read(second)).status).toBe(412);
+    expect((await read(second, secondId)).status).toBe(404);
     expect(await h.db!.prepare('SELECT * FROM account_key_records').all()).toMatchObject({
-      results: [{ account_id: account.id, record_json: JSON.stringify(winner) }],
+      results: [{ account_id: firstId, record_json: JSON.stringify(winner) }],
     });
     await h.revoke('reader-one');
     expect((await read(anotherDevice)).status).toBe(401);
@@ -138,6 +147,7 @@ describe('wrapped account key records', () => {
     await applyMigrations(h.db!, ['0004_account_key_records.sql']);
     await h.invite('reader-one');
     const { session } = await h.signIn('reader-one');
+    const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session! } })).json() as { id: string };
     const record = wrappedRecord(1);
     const passphrase = 'fictional-passphrase-that-must-not-be-echoed';
     const recoveryKey = 'fictional-recovery-key-that-must-not-be-echoed';
@@ -151,7 +161,7 @@ describe('wrapped account key records', () => {
       '{"passphrase":"' + passphrase,
     ]) {
       const response = await h.dispatch(KEY_RECORD_PATH, {
-        method: 'POST', headers: { Cookie: session!, Origin: ORIGIN, 'Content-Type': 'application/json' }, body,
+        method: 'POST', headers: { Cookie: session!, Origin: ORIGIN, 'Content-Type': 'application/json', 'X-Caotang-Account': account.id }, body,
       });
       expect(response.status).toBe(400);
       expect(response.headers.get('Cache-Control')).toBe('no-store');

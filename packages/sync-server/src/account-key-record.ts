@@ -55,6 +55,8 @@ async function readRecord(request: Request): Promise<string | null> {
 
 export async function accountKeyRecordRoute(request: Request, account: DurableAccount, db: D1DatabaseSession): Promise<Response> {
   const { id, githubId, revision } = account;
+  if (request.method !== 'GET' && request.method !== 'POST') return reply(405, 'Use GET to read or POST to create the account key record.');
+  if (request.headers.get('X-Caotang-Account') !== id) return reply(412, 'The signed-in account changed. Load the account again.');
   const current = () => db.prepare(`SELECT (SELECT record_json FROM account_key_records WHERE account_id = a.account_id) AS record_json
     ${ACTIVE_SESSION}`).bind(id, githubId, revision).first<{ record_json: string | null }>();
   try {
@@ -65,7 +67,6 @@ export async function accountKeyRecordRoute(request: Request, account: DurableAc
         headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
       });
     }
-    if (request.method !== 'POST') return reply(405, 'Use GET to read or POST to create the account key record.');
     const record = await readRecord(request);
     if (record === null) return reply(400, 'Send a valid wrapped account key record.');
     const inserted = await db.prepare(`INSERT INTO account_key_records (account_id, record_json)
