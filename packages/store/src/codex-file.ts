@@ -21,6 +21,8 @@
  */
 
 import { emitFlowSequence, emitScalar, parseFrontMatterFields, FrontMatterError } from './frontmatter.js';
+import { isCodexDetailObject } from '@caotang/bus';
+import { jsonValueProblem } from './json-value.js';
 import type { CodexIncludePolicy, CodexSource } from './manifest.js';
 // §2's coercions live in one module and both surfaces call it.
 // Before this, `coercePolicy`/`coerceType` were private to this file and the
@@ -50,6 +52,7 @@ export interface CodexFrontMatter {
   keywords: string[];
   /** video-prompt-pack.md §3: the entry's visual reference asset ids. Absent reads as none, and the key is written only when there are some. */
   visualRefs?: string[];
+  details?: Record<string, unknown>;
   /**
    * codex.md §10 K4: the entry's provenance. The writer always passes it; a file
    * written before K4 has no key, and the reader reads that absence as `'manual'`
@@ -93,6 +96,7 @@ const KEY_ORDER = [
   'visualRefs',
   'origin',
   'sources',
+  'details',
 ] as const;
 
 /**
@@ -168,6 +172,17 @@ export function parseCodexFile(raw: string): ParsedCodexFile {
     }
   }
   const sources = parseSources(scalar('sources'), coercions);
+  let details: Record<string, unknown> | undefined;
+  if (fields.has('details')) {
+    const rawDetails = scalar('details');
+    try {
+      const parsed: unknown = JSON.parse(rawDetails ?? 'null');
+      if (isCodexDetailObject(parsed) && jsonValueProblem(parsed, 'details') === undefined) details = parsed;
+    } catch {
+      details = undefined;
+    }
+    if (details === undefined) coercions.push('front matter details must be a JSON object; details were not recovered');
+  }
 
   return {
     frontMatter: {
@@ -182,6 +197,7 @@ export function parseCodexFile(raw: string): ParsedCodexFile {
       keywords: list('keywords'),
       // Present only when the file names some, so a file written before visual references reads with the key absent.
       ...(fields.has('visualRefs') ? { visualRefs: list('visualRefs') } : {}),
+      ...(details === undefined ? {} : { details }),
       origin,
       sources,
     },
@@ -272,6 +288,7 @@ export function formatCodexFrontMatter(fm: CodexFrontMatter): string {
   if (fm.origin !== undefined) values.origin = emitScalar(fm.origin);
   if (fm.sources !== undefined && fm.sources.length > 0) values.sources = emitSources(fm.sources);
   if (fm.visualRefs !== undefined && fm.visualRefs.length > 0) values.visualRefs = emitFlowSequence(fm.visualRefs);
+  if (fm.details !== undefined) values.details = JSON.stringify(JSON.stringify(fm.details));
   const lines = KEY_ORDER.flatMap((key) => {
     const value = values[key];
     return value === undefined ? [] : [`${key}: ${value}`];

@@ -55,12 +55,14 @@ import { useAssetRecords, useImageUrl } from '../media/hooks.js';
 import { pickerLabelOf } from '../media/picture-board-model.js';
 import type { ProjectSession } from '../app/session.js';
 import { attachEntry, explain, saveEntry } from './actions.js';
+import { LazyBoundary, lazyView } from './lazy-view.js';
 import { KEYWORDS_MAX, KEYWORD_CHARS_MAX } from './Inspector.js';
 import { EmptyState, formatCount, useDebouncedText, useReport, useSession } from './shared.js';
 
 
 /* lingui-set comment="The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale." */
 type Outcome = Result<ExecutionOutcome, CommandError>;
+const CodexDetails = lazyView(() => import('./CodexDetails.js').then((module) => ({ default: module.CodexDetails })));
 
 export interface CodexPanelProps {
   readonly session: ProjectSession;
@@ -310,6 +312,8 @@ function CodexEntryEditor({
     const outcome = attachEntry(session, entry.id, [], [nodeId]);
     if (!outcome.ok) report({ text: refusal(outcome.error), tone: 'error' });
   };
+  const detailFields = session.state.manifest.codexDetailFields ?? [];
+  const types = new Set<string>([...CODEX_TYPES, entry.type, ...detailFields.map((field) => field.type)]);
 
   return (
     <div className="codex codex-entry">
@@ -338,7 +342,7 @@ function CodexEntryEditor({
           value={entry.type}
           onChange={(event) => change({ type: event.target.value })}
         >
-          {CODEX_TYPES.map((type) => (
+          {[...types].map((type) => (
             <option key={type} value={type}>
               {TYPE_LABELS[type] ?? type}
             </option>
@@ -395,6 +399,19 @@ function CodexEntryEditor({
       />
 
       <DescriptionField entry={entry} onCommit={(description) => change({ description })} />
+
+      <LazyBoundary label={t`Details`}>
+        <CodexDetails entry={entry} fields={detailFields} onValue={(key, value) => change({ details: { [key]: value } })}
+          onDefine={(detailField) => {
+            const outcome = session.dispatch('codex.upsert', {
+              detailField,
+              entries: detailField.type === entry.type ? [] : [{ action: 'update', id: entry.id, type: detailField.type }],
+            });
+            if (!outcome.ok) report({ text: refusal(outcome.error), tone: 'error' });
+            return outcome.ok;
+          }}
+        />
+      </LazyBoundary>
 
       <ChipField
         label={t`Keywords`}

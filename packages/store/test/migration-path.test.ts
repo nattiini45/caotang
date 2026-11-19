@@ -1,18 +1,13 @@
 /**
- * §6's load path, exercised at a version this build does not ship.
+ * §6's migration path, exercised with a synthetic registry.
  *
  * [project-format.md §6](docs/architecture/project-format.md) is a contract about
  * a project that arrives at an *older* `formatVersion` than the build reading it:
  * the manifest is upgraded in memory before anything is validated, steps 3–4 judge
  * what the migration produced, the state is built from the manifest that was
- * judged, and a writer never stamps a version its object never reached. With
- * `FORMAT_VERSION === 1` and an empty registry none of that is reachable — a v1
- * manifest is already current, so the branch is not merely untested but
- * *unenterable*.
- *
- * That is the reason this file exists rather than a `FORMAT_VERSION` bump: three
- * real behaviours sit behind a branch no test could otherwise enter, and no
- * format change is due that would enter it. The seam is the substitution of
+ * judged, and a writer refuses objects that still need that migration. The
+ * production registry is empty: v1 and v2 use the same schema. To exercise an
+ * actual transformation, the tests use the substitution of
  * {@link FormatContext} — a registry and the version it targets — defaulted
  * everywhere in the package to the frozen production value.
  *
@@ -162,11 +157,7 @@ describe('the seam is production by default, and stays that way', () => {
     expect(MIGRATIONS).toEqual([]);
   });
 
-  it('a v1 manifest is already current to the production build, so the branch is unenterable', () => {
-    // The premise of the whole file, asserted rather than assumed: with the
-    // production context the migration branch is not merely untested, it cannot
-    // be entered, which is why the three findings survived a review that read
-    // the code closely.
+  it('the production build still validates a v1 manifest without migration', () => {
     const report = validateManifest(v1WithStatus('draft'), { docFiles: [`${DOC_ID}.md`] });
     expect(report.migrations).toEqual([]);
     expect(report.ok).toBe(true);
@@ -227,7 +218,7 @@ describe('the state is built from the manifest that was validated', () => {
   });
 });
 
-describe('§6 "writers always save at the current version"', () => {
+describe('§6 writer version boundaries', () => {
   it('refuses to stamp the current version over a manifest that has not been migrated', () => {
     const stale = { ...createEmptyManifest('K', T), formatVersion: 1 } as Manifest;
     expect(() => serializeManifest(stale, atV2([renameStatusTerm]))).toThrow(MigrationError);
@@ -237,10 +228,7 @@ describe('§6 "writers always save at the current version"', () => {
   });
 
   it('refuses a manifest that is already newer than this build', () => {
-    // The same lie, the other way: a v2-shaped object written at v1 loses every
-    // field this serializer has never heard of, and the file claims a shape it
-    // does not have.
-    const ahead = { ...createEmptyManifest('K', T), formatVersion: 2 } as Manifest;
+    const ahead = { ...createEmptyManifest('K', T), formatVersion: FORMAT_VERSION + 1 };
     expect(() => serializeManifest(ahead, PRODUCTION_FORMAT)).toThrow(/newer than this build/);
   });
 
@@ -256,8 +244,9 @@ describe('§6 "writers always save at the current version"', () => {
     expect(text).toContain('"id": "wip"');
   });
 
-  it('control: at the shipped version a current manifest still writes it', () => {
-    expect(serializeManifest(createEmptyManifest('K', T))).toContain(
+  it('control: a manifest at the highest supported version still writes it', () => {
+    const manifest = { ...createEmptyManifest('K', T), formatVersion: FORMAT_VERSION };
+    expect(serializeManifest(manifest)).toContain(
       `\n  "formatVersion": ${FORMAT_VERSION},`,
     );
   });
@@ -305,8 +294,7 @@ describe('§6 "writers always save at the current version"', () => {
     //
     // The rotation half of the ordering fix is real and is pinned above; this is
     // the rest of the same function. A **characterisation, not an endorsement**:
-    // at `FORMAT_VERSION === 1` a v1 manifest is the only one that can be held,
-    // so nothing in production reaches this. It is pinned so the page says what
+    // a v1 manifest does not require migration in production. It is pinned so the page says what
     // the code does — and so the day the check is hoisted above the writes (the
     // change planned for it), **this** is the test that fails,
     // which is the right direction for a change that widens the guarantee.
