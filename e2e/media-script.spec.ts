@@ -216,6 +216,9 @@ test('the Source tab draws a scene heading and a cue, and Tab completes a cue fr
   await expect(page.locator('.src-layer .tok-cue')).toHaveText('MARCUS');
   await expect(source(page)).toHaveValue(SCENE);
 
+  // Wait until the caret sits at the end of the text — a synthetic fill leaves it engine-dependent, and Tab
+  // only completes when it reads the caret at the cue's end.
+  await expect.poll(() => caretOf(page)).toEqual([SCENE.length, SCENE.length]);
   // "MA" is the start of "MARCUS", the cue already in the scene, so Tab completes it in capitals.
   await source(page).press('Tab');
   await expect(source(page)).toHaveValue(SCENE.replace(/MA$/, 'MARCUS'));
@@ -541,9 +544,13 @@ test('a chord on the Source tab turns the caret\'s line into the element of that
   await page.keyboard.press(await chord(page, 3));
   await expect(source(page)).toHaveValue(['INT. HOUSE - DAY', '', '@marcus', 'Hi.'].join('\n'));
   await expect(source(page)).toBeFocused();
+  // The conversion restores the caret itself on the next frame; wait until it has landed at the end of the cue
+  // so the second chord acts on that line instead of reading a stale caret on the line below.
+  await expect.poll(() => caretOf(page)).toEqual([25, 25]);
   // A line that already is the element is left alone, and no character is typed.
   await page.keyboard.press(await chord(page, 3));
   await expect(source(page)).toHaveValue(['INT. HOUSE - DAY', '', '@marcus', 'Hi.'].join('\n'));
+  await expect.poll(() => caretOf(page)).toEqual([25, 25]);
 
   // The dialogue line below becomes a parenthetical with chord 4.
   await source(page).press('ArrowDown');
