@@ -47,10 +47,20 @@ export function CodexReferences({ records, onEdit }: {
     const reference = readCodexReference(record);
     return reference === undefined || ids.filter((id) => id === reference.id).length !== 1 ? [] : [reference];
   });
+  // A record whose id reads but whose body does not keeps a row of its own: named by the title it still carries and removable, because
+  // the alternative is a reference stuck in the project with no control to clear it, counting against the cap. It is never editable, so
+  // a later edit cannot look complete.
+  const shown = new Set(references.map((reference) => reference.id));
+  const hidden = new Map<string, string | undefined>();
+  for (const record of records) {
+    const id = codexReferenceId(record);
+    if (id === undefined || shown.has(id) || ids.filter((candidate) => candidate === id).length !== 1) continue;
+    hidden.set(id, storedTitle(record));
+  }
   return (
     <section className="inspector-section" aria-labelledby={heading}>
       <h3 id={heading} ref={headingElement} tabIndex={-1} className="field-label"><Trans>External references</Trans></h3>
-      {references.length === 0 ? <p className="field-help"><Trans>Add the books, articles or sites behind this entry.</Trans></p> : (
+      {references.length === 0 && hidden.size === 0 ? <p className="field-help"><Trans>Add the books, articles or sites behind this entry.</Trans></p> : (
         <ul className="codex-reference-list" aria-labelledby={heading}>
           {references.map((reference) => {
             const { title } = reference;
@@ -91,9 +101,29 @@ export function CodexReferences({ records, onEdit }: {
               </li>
             );
           })}
+          {[...hidden].map(([id, stored]) => {
+            const title = stored ?? t`Untitled reference`;
+            return (
+              <li key={id} className="codex-reference-item is-unreadable">
+                <div className="codex-reference-title" dir="auto">{title}</div>
+                <p className="field-help"><Trans>A field in this reference could not be read. Remove it and add it again.</Trans></p>
+                <div className="codex-reference-actions">
+                  <Button className="button is-quiet" disabled={editing !== null} aria-label={t`Remove reference ${{ title }}`}
+                    onClick={() => {
+                      if (!onEdit({ action: 'remove', id })) return;
+                      // At the cap the Add button is still disabled on this render, so the heading takes focus instead.
+                      if (add.current?.disabled === true) headingElement.current?.focus();
+                      else add.current?.focus();
+                    }}>
+                    <Trans>Remove</Trans>
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
-      {references.length < records.length ? (
+      {records.length > references.length + hidden.size ? (
         <p className="field-help"><Trans>Some saved references could not be shown. They are kept in the project.</Trans></p>
       ) : null}
       {records.length >= CODEX_REFERENCE_MAX ? (
@@ -108,6 +138,12 @@ export function CodexReferences({ records, onEdit }: {
       )}
     </section>
   );
+}
+
+/** The title a stored record still carries, so a reference the panel cannot show is at least named. */
+function storedTitle(record: unknown): string | undefined {
+  const title = typeof record === 'object' && record !== null && !Array.isArray(record) ? (record as Record<string, unknown>)['title'] : undefined;
+  return typeof title === 'string' && title.trim() !== '' ? title : undefined;
 }
 
 function ReferenceForm({ id, initial, onEdit, onClose }: {

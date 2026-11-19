@@ -62,6 +62,7 @@ import {
   createViewState,
   execute,
   lookupCommand,
+  readCodexReference,
   resolveCommand,
   type BusContext,
   type Command,
@@ -316,6 +317,35 @@ describe('codex references', () => {
 
     h.undoGroup(swapped.undoGroupId ?? '');
     expect(entry.references).toHaveLength(CODEX_REFERENCE_MAX);
+  });
+
+  it('removes a reference whose own field does not read, so none is stuck in the project for good', () => {
+    const h = harness();
+    const entry = h.state.manifest.codex?.find(({ id }) => id === ENTRY);
+    if (entry === undefined) throw new Error('missing fixture entry');
+    entry.references = Array.from({ length: CODEX_REFERENCE_MAX }, (_, index) => ({
+      id: `ref_${String(index).padStart(10, '0')}`,
+      title: `Reference ${String(index)}`,
+    }));
+    const broken = entry.references[0];
+    if (typeof broken !== 'object' || broken === null) throw new Error('missing fixture reference');
+    (broken as Record<string, unknown>)['date'] = '2026-02-30';
+    expect(readCodexReference(broken)).toBeUndefined();
+
+    const removed = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: ENTRY, referenceEdits: [{ action: 'remove', id: 'ref_0000000000' }],
+    }] } }));
+    expect(entry.references).toHaveLength(CODEX_REFERENCE_MAX - 1);
+
+    const room = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: ENTRY, referenceEdits: [{ action: 'create', title: 'Tide Tables' }],
+    }] } }));
+    expect(entry.references).toHaveLength(CODEX_REFERENCE_MAX);
+
+    h.undoGroup(room.undoGroupId ?? '');
+    h.undoGroup(removed.undoGroupId ?? '');
+    expect(entry.references).toHaveLength(CODEX_REFERENCE_MAX);
+    expect(entry.references?.[0]).toBe(broken);
   });
 });
 

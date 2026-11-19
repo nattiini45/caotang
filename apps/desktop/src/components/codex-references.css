@@ -44,3 +44,7 @@
   margin-block: var(--space-2);
   color: var(--accent);
 }
+
+.codex-reference-item.is-unreadable .field-help {
+  margin-block: var(--space-2);
+}
