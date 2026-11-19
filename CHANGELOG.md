@@ -98,6 +98,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - Ctrl+Home and Ctrl+End in the scene editor always move the caret, including right after a click at the end of the text. Before, the key could be taken and then dropped, leaving the caret where the click had put it (#665).
 
+- A binder drop Firefox delivers to the tree above the row that accepted it now moves the document where the pointer was, exactly once, instead of losing the move. The accepted row is rechecked when the drop lands, so a drag that ended, or a row that refused the hover, cannot be used for a move nobody asked for (#655).
+
 - Provider setup and editing fit in narrow Settings in both shells, including the longer German action labels (#659).
 
 - Workspace errors stay readable until dismissed or replaced by another error, even if an informational notice arrives later (#563).
