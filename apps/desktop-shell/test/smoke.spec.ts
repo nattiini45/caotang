@@ -6,6 +6,8 @@ import { _electron, expect, test } from '@playwright/test';
 
 import type {} from '../src/folder-contract.cjs';
 
+import { dismissDialogs } from './dialogs.js';
+
 const executablePath = createRequire(import.meta.url)('electron') as string;
 const shell = fileURLToPath(new URL('..', import.meta.url));
 
@@ -17,6 +19,7 @@ test('the sandboxed desktop window opens the built studio and its lazy Settings'
     args: [shell, `--user-data-dir=${profile}`],
     chromiumSandbox: true,
   });
+  dismissDialogs(electron);
   try {
     const page = await electron.firstWindow();
     await expect(page.getByRole('textbox', { name: 'Project name' })).toBeVisible();
