@@ -171,6 +171,34 @@ describe('wrapped account key records', () => {
     expect(messages.join('\n')).not.toContain(passphrase);
     expect(messages.join('\n')).not.toContain(recoveryKey);
   });
+
+  it('refuses a wrapped record no browser could unlock, leaving the account’s single slot free', async () => {
+    const h = await runtime();
+    await applyMigrations(h.db!, ['0004_account_key_records.sql']);
+    await h.invite('reader-one');
+    const { session } = await h.signIn('reader-one');
+    const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session! } })).json() as { id: string };
+    const create = (body: string) => h.dispatch(KEY_RECORD_PATH, {
+      method: 'POST', headers: { Cookie: session!, Origin: ORIGIN, 'Content-Type': 'application/json', 'X-Caotang-Account': account.id }, body,
+    });
+    const record = wrappedRecord(2);
+    for (const body of [
+      JSON.stringify({ ...record, salt: '' }),
+      JSON.stringify({ ...record, salt: Buffer.alloc(8, 3).toString('base64') }),
+      JSON.stringify({ ...record, salt: Buffer.alloc(65, 3).toString('base64') }),
+      JSON.stringify({ ...record, wrappedMaster: '' }),
+      JSON.stringify({ ...record, wrappedMaster: Buffer.concat([Buffer.of(1), Buffer.alloc(59, 3)]).toString('base64') }),
+      JSON.stringify({ ...record, wrappedMaster: Buffer.concat([Buffer.of(2), Buffer.alloc(60, 3)]).toString('base64') }),
+    ]) {
+      const response = await create(body);
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ message: 'Send a valid wrapped account key record.' });
+    }
+    expect(await h.db!.prepare('SELECT count(*) AS count FROM account_key_records').first('count')).toBe(0);
+    expect((await create(JSON.stringify(record))).status).toBe(201);
+    expect((await create(JSON.stringify(wrappedRecord(4)))).status).toBe(409);
+    expect(await h.db!.prepare('SELECT record_json FROM account_key_records').first('record_json')).toBe(JSON.stringify(record));
+  });
 });
 
 describe('the Worker in account mode', () => {
