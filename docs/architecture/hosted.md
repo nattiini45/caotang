@@ -46,6 +46,8 @@ passphrase ──Argon2id(salt)──> KEK ──wraps──> MK ──wraps─�
 
 What the server stores beside the account is an `AccountKeyRecord`: `{ format: 1, kdf: { id, params }, salt, wrappedMaster }`, where `salt` and `wrappedMaster` are base64. `kdf.id` names the algorithm (`argon2id`) and `kdf.params` its cost (`memoryKiB`, `iterations`, `parallelism`); an unlock rebuilds the KDF from this descriptor, so an account set up at one cost still unlocks after the default rises. `wrappedMaster` is the MK sealed under the KEK (§2). The record holds no plaintext key. Signing in proves identity to the server and never derives a key; setup, unlock, recovery and passphrase rotation are the orchestration in `account.ts`.
 
+The [account-mode server](sync-server.md#wrapped-account-key-records) lets an authenticated device read this record or create it exactly once. The client acknowledges the printable recovery key before submitting the wrapped record. It sends neither the passphrase nor the recovery key. Concurrent setup on another device returns a conflict and the first committed record remains authoritative. Passphrase rotation is a crypto primitive only until a separate server replacement contract ships.
+
 ### 2.2 Passphrase rotation
 
 Changing the passphrase derives a new KEK from a fresh salt and re-wraps the same MK, optionally at a new KDF cost. The MK is unchanged, so every project key and every sealed byte stays valid and no project file is rewritten. The recovery key still opens the account, because it is the MK itself (§4).
