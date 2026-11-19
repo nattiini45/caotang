@@ -683,7 +683,7 @@
             },
             "details": {
               "type": "object",
-              "description": "Detail values by field key, checked against the project schema for this entry type. Use null to clear a value."
+              "description": "Details by key; null clears."
             },
             "exclude": {
               "type": "array",

@@ -82,7 +82,7 @@ export const codexWriteParams: ObjectSpec = param.object(
             [...CODEX_INCLUDE_POLICIES],
           ),
           caseSensitive: param.boolean('Whether the name and aliases match case-sensitively.'),
-          details: param.freeObject('Detail values by field key, checked against the project schema for this entry type. Use null to clear a value.'),
+          details: param.freeObject('Details by key; null clears.'),
           exclude: param.list(
             `Phrases in which matches are ignored, at most ${CODEX_EXCLUDE_MAX}.`,
             param.string('One excluded phrase.', { nonBlank: true, maxLength: CODEX_EXCLUDE_CHARS_MAX }),
