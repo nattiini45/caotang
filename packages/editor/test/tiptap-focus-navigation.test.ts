@@ -28,6 +28,24 @@ describe('document-boundary navigation during initial focus (#569)', () => {
     expect(editor.state.selection.from).toBe(target + 1);
   });
 
+  it('moves the DOM caret when the model already sits at the boundary (#665)', async () => {
+    const { host } = await mountInto('The ferry was late.\n');
+    const root = focusDom(host);
+    const editor = tiptapOf(root);
+    editor.view.setProps({ handleScrollToSelection: () => true });
+    root.focus();
+    // A click at the end of the text leaves the DOM caret there before the library has read it, so the model is still
+    // at the boundary the key asks for.
+    expect(editor.state.selection.from).toBe(1);
+    const text = textNodeWith(root, 'The ferry was late.');
+    document.getSelection()!.collapse(text, 'The ferry was late.'.length);
+    const down = new KeyboardEvent('keydown', { key: 'Home', ctrlKey: true, bubbles: true, cancelable: true });
+    root.dispatchEvent(down);
+    expect(down.defaultPrevented).toBe(true);
+    expect(document.getSelection()!.anchorOffset).toBe(0);
+    expect(editor.state.selection.from).toBe(1);
+  });
+
   it('extends the existing anchor with Shift and leaves unrelated or composing keys native', async () => {
     const { host } = await mountInto('The ferry was late.\n');
     const root = focusDom(host);

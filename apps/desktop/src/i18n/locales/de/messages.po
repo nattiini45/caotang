@@ -552,7 +552,7 @@ msgstr "{chapters, plural, one {# Kapitel importieren} other {# Kapitel importie
 #. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
 #: apps/desktop/src/components/export-preview-model.ts
 msgid "{chapters} {chapterCount, plural, one {chapter} other {chapters}}, {scenes} {sceneCount, plural, one {scene} other {scenes}}, {words} {wordCount, plural, one {word} other {words}}"
-msgstr "{chapters} {chapterCount, plural, one {Kapitel} other {Kapitel}}, {scenes} {sceneCount, plural, one {Szene} other {Szenen}}, {words} {wordCount, plural, one {Wort} other {Wörtern}}"
+msgstr "{chapters} {chapterCount, plural, one {Kapitel} other {Kapitel}}, {scenes} {sceneCount, plural, one {Szene} other {Szenen}}, {words} {wordCount, plural, one {Wort} other {Wörter}}"
 
 #. Dialogue coverage on a shot. Interpolated values: text is a passage of the writer's script; the count is a number.
 #: apps/desktop/src/media/ShotCoverage.tsx
@@ -870,7 +870,7 @@ msgstr "{count} {merged, plural, one {Cue wurde} other {Cues wurden}} mit einer 
 #. Interpolated values: count, n
 #: apps/desktop/src/app/counts.ts
 msgid "{count} {n, plural, one {word} other {words}}"
-msgstr "{count} {n, plural, one {Wort} other {Wörtern}}"
+msgstr "{count} {n, plural, one {Wort} other {Wörter}}"
 
 #. The editor load banner. Interpolated values: count and blocks are numbers; noun is the kind of Markdown construct a load kept as it was typed; line is a line number.
 #: apps/desktop/src/app/load-banner.ts
@@ -900,12 +900,12 @@ msgstr "{count} {untimed, plural, one {Zeile hat} other {Zeilen haben}} keine Da
 #. Interpolated values: count, target, words
 #: apps/desktop/src/app/session-progress.ts
 msgid "{count} {words, plural, one {word} other {words}} today"
-msgstr "{count} {words, plural, one {Wort} other {Wörtern}} heute"
+msgstr "{count} {words, plural, one {Wort} other {Wörter}} heute"
 
 #. Interpolated values: count, target, words
 #: apps/desktop/src/app/session-progress.ts
 msgid "{count} {words, plural, one {word} other {words}} today · set a daily target"
-msgstr "{count} {words, plural, one {Wort} other {Wörtern}} heute · tägliches Ziel setzen"
+msgstr "{count} {words, plural, one {Wort} other {Wörter}} heute · tägliches Ziel setzen"
 
 #. Interpolated values: count, target, words
 #: apps/desktop/src/app/session-progress.ts
@@ -1013,12 +1013,12 @@ msgstr "{day, selectordinal, one {#.} two {#.} few {#.} other {#.}}"
 #. Interpolated values: count, day, days, error
 #: apps/desktop/src/components/WritingHistory.tsx
 msgid "{day}: {count} {words, plural, one {word} other {words}}"
-msgstr "{day}: {count} {words, plural, one {Wort} other {Wörtern}}"
+msgstr "{day}: {count} {words, plural, one {Wort} other {Wörter}}"
 
 #. Interpolated values: count, day, days, error
 #: apps/desktop/src/components/WritingHistory.tsx
 msgid "{day}: {count} {words, plural, one {word} other {words}}, target met"
-msgstr "{day}: {count} {words, plural, one {Wort} other {Wörtern}}, Ziel erreicht"
+msgstr "{day}: {count} {words, plural, one {Wort} other {Wörter}}, Ziel erreicht"
 
 #. Words on the story timeline's axis and in a scene's accessible name. Interpolated values: days, count, n, text, span, anchor, lower, rest, dayLabel, endLabel, durationDays, openFindings, title, part, name, names, folder.
 #: apps/desktop/src/components/timeline/timeline-labels.ts
@@ -1063,22 +1063,22 @@ msgstr "{degree, select, least {mindestens} most {höchstens} other {etwa}} {cou
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {word} other {words}} on {title}"
-msgstr "{degree, select, least {mindestens} most {höchstens} other {etwa}} {count} {target, plural, one {Wort} other {Wörtern}} in {title}"
+msgstr "{degree, select, least {mindestens} most {höchstens} other {etwa}} {count} {target, plural, one {Wort} other {Wörter}} in {title}"
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {word} other {words}} on {title} by {by}"
-msgstr "{degree, select, least {mindestens} most {höchstens} other {etwa}} {count} {target, plural, one {Wort} other {Wörtern}} in {title} bis {by}"
+msgstr "{degree, select, least {mindestens} most {höchstens} other {etwa}} {count} {target, plural, one {Wort} other {Wörter}} in {title} bis {by}"
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {word} other {words}} this month"
-msgstr "{degree, select, least {mindestens} most {höchstens} other {etwa}} {count} {target, plural, one {Wort} other {Wörtern}} in diesem Monat"
+msgstr "{degree, select, least {mindestens} most {höchstens} other {etwa}} {count} {target, plural, one {Wort} other {Wörter}} in diesem Monat"
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {word} other {words}} this week"
-msgstr "{degree, select, least {mindestens} most {höchstens} other {etwa}} {count} {target, plural, one {Wort} other {Wörtern}} in dieser Woche"
+msgstr "{degree, select, least {mindestens} most {höchstens} other {etwa}} {count} {target, plural, one {Wort} other {Wörter}} in dieser Woche"
 
 #. Modern interface, the + New menu in the top ornament.
 #: apps/desktop/src/components/shell/modern/new-menu.tsx
@@ -1390,7 +1390,7 @@ msgstr "{lines} {lineCount, plural, one {Cue} other {Cues}} in {scenes} {sceneCo
 #. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
 #: apps/desktop/src/components/export-preview-model.ts
 msgid "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {container} other {containers}}, {words} {wordCount, plural, one {word} other {words}}"
-msgstr "{lines} {lineCount, plural, one {Zeile} other {Zeilen}} in {scenes} {sceneCount, plural, one {Container} other {Container}}, {words} {wordCount, plural, one {Wort} other {Wörtern}}"
+msgstr "{lines} {lineCount, plural, one {Zeile} other {Zeilen}} in {scenes} {sceneCount, plural, one {Container} other {Container}}, {words} {wordCount, plural, one {Wort} other {Wörter}}"
 
 #. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
 #. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
@@ -1879,7 +1879,7 @@ msgstr "{scenes} {sceneCount, plural, one {Container} other {Container}}"
 #. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
 #: apps/desktop/src/components/export-preview-model.ts
 msgid "{scenes} {sceneCount, plural, one {scene} other {scenes}} in {sections} {sectionCount, plural, one {section} other {sections}}, {words} {wordCount, plural, one {word} other {words}}"
-msgstr "{scenes} {sceneCount, plural, one {Szene} other {Szenen}} in {sections} {sectionCount, plural, one {Abschnitt} other {Abschnitten}}, {words} {wordCount, plural, one {Wort} other {Wörtern}}"
+msgstr "{scenes} {sceneCount, plural, one {Szene} other {Szenen}} in {sections} {sectionCount, plural, one {Abschnitt} other {Abschnitten}}, {words} {wordCount, plural, one {Wort} other {Wörter}}"
 
 #. Elapsed seconds, with one decimal place; s is the unit abbreviation.
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
@@ -3676,6 +3676,7 @@ msgid "harness.progress.notesAppend.active"
 msgstr "Wird zu den Notizen von „{doc}“ hinzugefügt"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Address"
 msgstr "Adresse"
@@ -4452,7 +4453,7 @@ msgstr "Angehängt an <0/>"
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "Attached to no items yet. A Manual entry is sent only in the items it is attached to."
-msgstr "Noch an keine Elemente angehängt. Ein Manual-Eintrag wird nur in den Elementen gesendet, an die er angehängt ist."
+msgstr "Noch an keine Elemente angehängt. Ein Eintrag mit der Richtlinie „Manuell“ wird nur in den Elementen gesendet, an die er angehängt ist."
 
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #: apps/desktop/src/components/InspectorPictures.tsx
@@ -4464,6 +4465,7 @@ msgstr "Das Anhängen wartet darauf, dass der Text gespeichert wird."
 msgid "Attachments"
 msgstr "Anhänge"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Attempt"
@@ -11104,6 +11106,7 @@ msgid "Max"
 msgstr "Max"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Max tokens"
 msgstr "Max. Token"
@@ -12738,6 +12741,7 @@ msgid "Not verified"
 msgstr "Nicht verifiziert"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #. Screenplay element chords. Interpolated values: label is a modifier key combination; last is the number of the last element.
@@ -13420,6 +13424,7 @@ msgstr "In falscher Reihenfolge"
 msgid "Out of order in its strand"
 msgstr "In falscher Reihenfolge in seinem Strang"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
 #: apps/desktop/src/app/run-log-export.ts
@@ -14194,6 +14199,7 @@ msgstr "Preis pro 1.000 Token in Dollar (optional)"
 msgid "Prices are dollars per 1,000 tokens, written as a number of zero or more."
 msgstr "Preise sind Dollar pro 1.000 Token, als Zahl ab 0 angegeben."
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #. Interpolated values: cost, prompt, completion, requestsTotal
@@ -15523,6 +15529,7 @@ msgstr "Angefragte Dokumente:"
 msgid "Requests"
 msgstr "Anfragen"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Requests, newest first"
@@ -17859,6 +17866,7 @@ msgstr "Beginnt bei: <0/>"
 msgid "Starts this background plan and sends the approved text to its model."
 msgstr "Startet diesen Hintergrundplan und sendet den freigegebenen Text an sein Modell."
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: scope, title
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
@@ -22264,12 +22272,12 @@ msgstr "Dienstag"
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Turn actions"
-msgstr "Durchgangsaktionen"
+msgstr "Aktionen zu dieser Anfrage"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Turn actions for “{intent}”"
-msgstr "Durchgangsaktionen für „{intent}“"
+msgstr "Aktionen zur Anfrage „{intent}“"
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx

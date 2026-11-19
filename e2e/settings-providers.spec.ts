@@ -849,16 +849,16 @@ for (const locale of ['de', 'en-XA', 'ar-XB']) {
     await page.keyboard.press('Space');
     await expect(checkbox).toBeChecked();
     await expect(usage.getByRole('table')).toHaveCount(0);
-    await expect(usage.locator('.usage-records li')).toHaveCount(2);
+    await expect(usage.locator('.records li')).toHaveCount(2);
     const expectedCounts = await page.evaluate((tag) => {
       const format = new Intl.NumberFormat(tag);
       return { requests: format.format(1), input: format.format(1000), output: format.format(200) };
     }, locale);
-    for (const record of await usage.locator('.usage-records li').all()) {
-      await expect(record.locator('.usage-record-values dt')).toHaveCount(6);
-      await expect(record.locator('.usage-record-values dd').nth(2)).toHaveText(expectedCounts.requests);
-      await expect(record.locator('.usage-record-values dd').nth(3)).toHaveText(expectedCounts.input);
-      await expect(record.locator('.usage-record-values dd').nth(4)).toHaveText(expectedCounts.output);
+    for (const record of await usage.locator('.records li').all()) {
+      await expect(record.locator('.record-values dt')).toHaveCount(6);
+      await expect(record.locator('.record-values dd').nth(2)).toHaveText(expectedCounts.requests);
+      await expect(record.locator('.record-values dd').nth(3)).toHaveText(expectedCounts.input);
+      await expect(record.locator('.record-values dd').nth(4)).toHaveText(expectedCounts.output);
       const geometry = await record.evaluate((element) => {
         const bounds = element.getBoundingClientRect();
         return [...element.querySelectorAll('h5, dt, dd')].map((cell) => {

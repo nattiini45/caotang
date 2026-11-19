@@ -98,6 +98,16 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- The browser-storage warning no longer floats over the page in Modern. It takes a row of its own in every view and at every width, so a field you scroll to — the Codex's **Ausschlussbegriffe**, for one — stays clickable beside it while its backup and dismiss buttons remain in reach (#735).
+
+- Ctrl+Home and Ctrl+End in the scene editor always move the caret, including right after a click at the end of the text. Before, the key could be taken and then dropped, leaving the caret where the click had put it (#665).
+
+- A binder drop Firefox delivers to the tree above the row that accepted it now moves the document where the pointer was, exactly once, instead of losing the move. The accepted row is rechecked when the drop lands, so a drag that ended, or a row that refused the hover, cannot be used for a move nobody asked for (#655).
+
+- The provider request log fits a phone's Settings in both shells: on the narrow layout each request is a labelled record instead of an eight-column table, so the German headers and a long address no longer push the whole Settings pane sideways (#726).
+
+- German word counts read "22 Wörter" and "0 Wörter heute" instead of "22 Wörtern", while phrases a preposition needs stay in the dative ("bei 3 Wörtern ab", "1200 von 2.000 Wörtern"). The agent's turn menu reads **Aktionen zu dieser Anfrage** instead of **Durchgangsaktionen** (#573).
+
 - Provider setup and editing fit in narrow Settings in both shells, including the longer German action labels (#659).
 
 - Workspace errors stay readable until dismissed or replaced by another error, even if an informational notice arrives later (#563).
