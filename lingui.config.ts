@@ -36,6 +36,7 @@ export default defineConfig({
         '<rootDir>/packages/bus/src',
         '<rootDir>/packages/store/src',
         '<rootDir>/packages/dialogue/src',
+        '<rootDir>/packages/gateway/src',
       ],
       exclude: ['<rootDir>/apps/desktop/src/i18n/locales'],
     },

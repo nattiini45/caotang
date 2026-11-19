@@ -304,6 +304,18 @@ msgstr "„{name}“ konnte nicht wiederhergestellt werden: {error}"
 msgid "“{name}” has changes that are not in a bundle yet. A bundle is the copy that does not depend on this browser."
 msgstr "„{name}“ hat Änderungen, die noch nicht in einem Bundle sind. Ein Bundle ist die Kopie, die nicht von diesem Browser abhängt."
 
+#. Interpolated values: name
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.denyField"
+msgstr "„{name}“ ist kein Feldname für Anfragen."
+
+#. Interpolated values: name
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.headerName"
+msgstr "„{name}“ ist kein gültiger Header-Name."
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "“{name}” is open in another tab. Close it there, then remove it here."
@@ -343,6 +355,12 @@ msgstr "„{path}“ ist kein UTF-8-Text, daher enthält diese Kopie an seiner S
 #: apps/desktop/src/app/lifecycle.ts
 msgid "“{path}” is not UTF-8 text, so this copy leaves it out; the file it was opened from still holds its text"
 msgstr "„{path}“ ist kein UTF-8-Text, daher lässt diese Kopie ihn aus; die Datei, aus der sie geöffnet wurde, enthält ihren Text noch"
+
+#. Interpolated values: preset
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.presetUnknown"
+msgstr "„{preset}“ ist keine der Anbieter-Voreinstellungen."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -527,6 +545,11 @@ msgstr "„{value}“ ist hier bereits vorhanden."
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 msgid "“{value}” is not a {kindWord} of this project:"
 msgstr "„{value}“ ist kein {kindWord} dieses Projekts:"
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.thinkingValue"
+msgstr "„{value}“ ist kein Thinking-Wert, den eine Anfrage senden kann."
 
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
@@ -1644,6 +1667,27 @@ msgstr "{from} → {to}"
 msgid "{hiddenLabels, plural, one {# more changed file label is not shown.} other {# more changed file labels are not shown.}}"
 msgstr "{hiddenLabels, plural, one {# weitere geänderte Datei wird nicht genannt.} other {# weitere geänderte Dateien werden nicht genannt.}}"
 
+#. js-lingui-explicit-id
+#: packages/gateway/src/errors.ts
+msgid "gateway.rateLimit"
+msgstr "{host} begrenzt gerade die Anfragen dieses Profils. Warten Sie einen Moment und versuchen Sie es erneut, oder wechseln Sie in den Einstellungen das Profil."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/errors.ts
+msgid "gateway.providerStream"
+msgstr "{host} hat einen Fehler gemeldet: {excerpt}"
+
+#. Interpolated values: excerpt
+#. js-lingui-explicit-id
+#: packages/gateway/src/errors.ts
+msgid "gateway.provider"
+msgstr "{host} hat HTTP {status} zurückgemeldet{excerpt}"
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/errors.ts
+msgid "gateway.protocol"
+msgstr "{host} hat eine Antwort gesendet, die Caotang nicht lesen konnte: {excerpt}"
+
 #. Slash command replies. Interpolated values: id and name are a context layer's key and name, tokens and budget are token counts, budgetNote is the budget phrase, topic is a command name, drop is a dropped layer, number and arg are turn numbers.
 #: apps/desktop/src/app/slash-model.ts
 msgid "{id} {name}: {tokens} tokens{budgetNote}"
@@ -2121,6 +2165,11 @@ msgstr "{placedCount, plural, one {# Seite platziert} other {# Seiten platziert}
 #: apps/desktop/src/components/McpCatalog.tsx
 msgid "{plainCount, plural, one {# resource listed by this server.} other {# resources listed by this server.}}"
 msgstr "{plainCount, plural, one {# von diesem Server aufgeführte Ressource.} other {# von diesem Server aufgeführte Ressourcen.}}"
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/errors.ts
+msgid "gateway.localCors"
+msgstr "{product} hat die Anfrage dieser Seite nicht akzeptiert, daher hat der Browser sie blockiert. {fix}"
 
 #. Interpolated values: model, name, provider, total
 #: apps/desktop/src/components/ProviderSetup.tsx
@@ -3435,6 +3484,12 @@ msgstr "ein fehlender Eintrag"
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "A missing entry"
 msgstr "Ein fehlender Eintrag"
+
+#. Interpolated values: baseUrl
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.mockBaseUrl"
+msgstr "Ein Mock-Profil verwendet {baseUrl} als Basis-URL."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -5156,6 +5211,18 @@ msgstr "Höchstens"
 msgid "At most {calls} model calls per run. A lower limit in Settings still applies."
 msgstr "Höchstens {calls} Modellaufrufe pro Durchlauf. Eine niedrigere Grenze in den Einstellungen gilt weiterhin."
 
+#. Interpolated values: max
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.customHeadersMax"
+msgstr "Es können höchstens {max} benutzerdefinierte Header gesetzt werden."
+
+#. Interpolated values: max
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.denyMax"
+msgstr "Es können höchstens {max} Felder ausgelassen werden."
+
 #. words is the maximum word count per synopsis in this check.
 #: apps/desktop/src/components/GoalRecovery.tsx
 msgid "At most {words} words per synopsis."
@@ -6839,6 +6906,11 @@ msgstr "Wählen Sie, wie die Zeitachse die Tage Ihrer Geschichte benennt. Die Ta
 msgid "Choose Next to go to the first change."
 msgstr "Wählen Sie Weiter, um zur ersten Änderung zu gehen."
 
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.presetRequired"
+msgstr "Wählen Sie eine der Anbieter-Voreinstellungen."
+
 #. Interpolated values: error, name
 #: apps/desktop/src/app/providers.ts
 msgid "Choose one of the providers."
@@ -7648,6 +7720,12 @@ msgstr "Die Kosten beruhen auf erfassten Aufrufpreisen oder vom Provider gemelde
 msgid "Could not be read"
 msgstr "Konnte nicht gelesen werden"
 
+#. Interpolated values: reason
+#. js-lingui-explicit-id
+#: packages/gateway/src/errors.ts
+msgid "gateway.network"
+msgstr "{host} konnte nicht erreicht werden{reason}. Prüfen Sie Ihre Verbindung und die Basis-URL in den Einstellungen."
+
 #. Interpolated value: provider (a provider's name)
 #: apps/desktop/src/app/provider-setup-model.ts
 msgid "Could not reach {provider}. Check your connection, then try again."
@@ -7845,6 +7923,11 @@ msgstr "Aktuelle Aufgabe"
 #: apps/desktop/src/components/ProviderSetup.tsx
 msgid "Custom endpoint"
 msgstr "Eigener Endpunkt"
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.customHeadersGeneric"
+msgstr "Benutzerdefinierte Header sind nur bei einem generischen OpenAI-kompatiblen Endpunkt verfügbar."
 
 #. Interpolated values: model, name, provider, total
 #: apps/desktop/src/components/ProviderSetup.tsx
@@ -9299,6 +9382,11 @@ msgstr "Geben Sie einen Namen mit höchstens {nameLimit} Zeichen ein."
 msgid "Enter a non-negative whole number."
 msgstr "Geben Sie eine ganze Zahl ab null ein."
 
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.textValue"
+msgstr "Geben Sie einen Textwert für dieses Feld ein."
+
 #: apps/desktop/src/components/CodexDetails.tsx
 msgid "Enter a value that matches this field, or clear it."
 msgstr "Geben Sie einen passenden Wert ein oder leeren Sie das Feld."
@@ -9312,9 +9400,45 @@ msgstr "Geben Sie eine ganze Zahl größer als null ein."
 msgid "Enter check instructions with at most {promptLimit} characters."
 msgstr "Geben Sie Prüfanweisungen mit höchstens {promptLimit} Zeichen ein."
 
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.customHeadersObject"
+msgstr "Geben Sie benutzerdefinierte Header als Name-Wert-Objekt ein."
+
 #: apps/desktop/src/app/keymap.ts
 msgid "Enter or Space"
 msgstr "Eingabetaste oder Leertaste"
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.fieldsObject"
+msgstr "Geben Sie Anbieter-Felder als Name-Wert-Objekt ein."
+
+#. Interpolated values: label
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.fieldRequired"
+msgstr "Geben Sie {label} für diesen Anbieter ein."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.apiKeyReenter"
+msgstr "Geben Sie den API-Schlüssel für den neuen Endpunkt erneut ein."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.apiKeyRequired"
+msgstr "Geben Sie den API-Schlüssel für diesen Endpunkt ein."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.headersReenter"
+msgstr "Geben Sie die zusätzlichen Header für den neuen Endpunkt erneut ein."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.modelName"
+msgstr "Geben Sie den Modellnamen ein, zum Beispiel openai/gpt-4.1-mini."
 
 #: apps/desktop/src/components/CodexGraph.tsx
 msgid "Entries and their links"
@@ -10423,6 +10547,11 @@ msgstr "Geben Sie dem Makro einen Namen."
 #: apps/desktop/src/components/AgentInstructionsPanel.tsx
 msgid "Give the note a title in words."
 msgstr "Geben Sie der Notiz einen Titel in Worten."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.nameRequired"
+msgstr "Geben Sie dem Profil einen Namen."
 
 #. Interpolated values: bytes, folder, max, name, path, problem, size, taken
 #: apps/desktop/src/app/skills-model.ts
@@ -11727,6 +11856,11 @@ msgstr "Von vor einem Neuladen behalten"
 #: apps/desktop/src/components/TracePanel.tsx
 msgid "Kept in this tab only"
 msgstr "Nur in diesem Tab gehalten"
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/errors.ts
+msgid "gateway.auth"
+msgstr "Der Schlüssel wurde von {host} abgelehnt. Prüfen Sie das Profil in den Einstellungen."
 
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
@@ -13515,6 +13649,11 @@ msgstr "Nächste Schritte"
 msgid "No"
 msgstr "Nein"
 
+#. js-lingui-explicit-id
+#: packages/gateway/src/errors.ts
+msgid "gateway.endpoint"
+msgstr "Kein {path} unter {baseUrl}. Die meisten OpenAI-kompatiblen Basis-URLs enden auf /v1."
+
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "No active planner request is available yet."
@@ -13897,6 +14036,16 @@ msgstr "Es ist kein Provider aktiv, daher kann der Agent nicht laufen."
 #: apps/desktop/src/app/agent.ts
 msgid "No provider is active. Add one in Settings > Providers to use the agent."
 msgstr "Es ist kein Provider aktiv. Fügen Sie unter Einstellungen > Provider einen hinzu, um den Agenten zu nutzen."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/errors.ts
+msgid "gateway.profileNotFound"
+msgstr "Kein Anbieter-Profil hat die ID {profileId}."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/errors.ts
+msgid "gateway.noActive"
+msgstr "Kein Anbieter-Profil ist aktiv. Fügen Sie eines in den Einstellungen hinzu."
 
 #. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
 #: apps/desktop/src/components/CommandComposer.tsx
@@ -14507,6 +14656,11 @@ msgstr "Im Projekt hat sich nichts geändert."
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Nothing is attached here."
 msgstr "Hier ist nichts angehängt."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/errors.ts
+msgid "gateway.localRefused"
+msgstr "Auf {address} lauscht nichts. Läuft {product}? Starten Sie es, oder korrigieren Sie die Adresse in den Einstellungen."
 
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
@@ -15931,6 +16085,11 @@ msgstr "Preis pro 1.000 Token in Dollar (optional)"
 msgid "Prices are dollars per 1,000 tokens, written as a number of zero or more."
 msgstr "Preise sind Dollar pro 1.000 Token, als Zahl ab 0 angegeben."
 
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.pricesZero"
+msgstr "Preise müssen null oder größer sein."
+
 #. Agent instructions copy. Interpolated values: title and name are note titles, path is a file path, used, sent, allowed and count are token counts.
 #: apps/desktop/src/components/AgentInstructionsPanel.tsx
 msgid "Process"
@@ -16094,6 +16253,11 @@ msgstr "Prompt"
 #: apps/desktop/src/components/McpCatalog.tsx
 msgid "Prompt <0><1/></0>"
 msgstr "Prompt <0><1/></0>"
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/errors.ts
+msgid "gateway.contextLength"
+msgstr "Prompt ≈ {promptTokens} Token überschreitet das Modellfenster ({window}). Reduzieren Sie den Kontext: siehe Token-Budget im Aktivitätsprotokoll."
 
 #. Agent status sentences. Interpolated values: progress, total and cached are counts, call is a call number, cause is a reason.
 #: apps/desktop/src/app/agent-model.ts
@@ -19165,6 +19329,11 @@ msgstr "Keine senden"
 msgid "Send with Cancel"
 msgstr "Mit „Abbrechen“ senden"
 
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.temperatureToggle"
+msgstr "Das Senden einer Temperatur ist entweder ein oder aus."
+
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "sends"
@@ -20442,6 +20611,11 @@ msgstr "Textstellen, die zu keinem Cue gehören, außen vor. Zuerst: {sample}"
 msgid "Strict tool schemas"
 msgstr "Strikte Werkzeugschemas"
 
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.toolStrictToggle"
+msgstr "Strikte Tool-Schemas sind entweder ein oder aus."
+
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #: apps/desktop/src/media/DialogueView.tsx
 msgid "Structure"
@@ -20759,6 +20933,11 @@ msgstr "Teleprompter (.txt)"
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "Temperature"
 msgstr "Temperatur"
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.temperature"
+msgstr "Temperatur muss eine Zahl von 0 bis 2 sein."
 
 #. Interpolated values: model, name, provider, total
 #. Interpolated values: model, name, provider, total
@@ -21112,6 +21291,16 @@ msgstr "„{label}“ wurde nicht geschrieben. {errors, plural, one {Eine Zeile 
 msgid "The {layer} budget of {budget} tokens is full (rank {rank})."
 msgstr "Das Budget von {budget} Tokens für {layer} ist ausgeschöpft (Rang {rank})."
 
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.headerChars"
+msgstr "Der Header {name} enthält Zeichen, die ein Anfrage-Header nicht enthalten darf."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.headerEmpty"
+msgstr "Der Header {name} ist leer."
+
 #. Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number.
 #: apps/desktop/src/media/prompt-pack-model.ts
 msgid "The {vendor} pack could not be built: {reason}. The export is held until this is fixed."
@@ -21335,6 +21524,11 @@ msgstr "Die Erlaubnis konnte auf diesem Gerät nicht gespeichert werden. Die Auf
 msgid "The allowance could not be taken back on this machine. Try again."
 msgstr "Die Erlaubnis konnte auf diesem Gerät nicht widerrufen werden. Versuchen Sie es erneut."
 
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.apiKeySpace"
+msgstr "Der API-Schlüssel enthält ein Leerzeichen oder einen Zeilenumbruch. Fügen Sie ihn erneut ein."
+
 #. Interpolated values: error
 #: apps/desktop/src/app/services.ts
 msgid "The app settings could not be opened here, so they will not be kept: {error}"
@@ -21374,6 +21568,51 @@ msgstr "Die Hintergrundroute hat sich seit der Freigabe dieser Prüfung geänder
 #: apps/desktop/src/app/folder-diff.ts
 msgid "the backup keeps the full file."
 msgstr "die Sicherung behält die vollständige Datei."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/base-url.ts
+msgid "gateway.invalid.baseUrlFullPath"
+msgstr "Die Basis-URL ist ein vollständiger Endpunkt-Pfad. Geben Sie nur die Basis ein, die meist auf /v1 endet. Zum Beispiel {example}."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/base-url.ts
+msgid "gateway.invalid.baseUrlEmpty"
+msgstr "Die Basis-URL ist leer. Zum Beispiel {example}."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/base-url.ts
+msgid "gateway.invalid.baseUrlNotUrl"
+msgstr "Die Basis-URL ist keine URL. Zum Beispiel {example}."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/base-url.ts
+msgid "gateway.invalid.baseUrlPathless"
+msgstr "Die Basis-URL muss pfadlos sein oder eine Version wie /v1 tragen. Zum Beispiel {example}."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/base-url.ts
+msgid "gateway.invalid.baseUrlQuery"
+msgstr "Die Basis-URL darf weder eine Abfragezeichenfolge noch ein Fragment enthalten. Zum Beispiel {example}."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/base-url.ts
+msgid "gateway.invalid.baseUrlCredentials"
+msgstr "Die Basis-URL darf weder Benutzername noch Passwort enthalten. Zum Beispiel {example}."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/base-url.ts
+msgid "gateway.invalid.baseUrlLocal"
+msgstr "Die Basis-URL muss auf diesen Computer zeigen (127.0.0.1, localhost oder [::1]): Einfaches http ist nur zu diesem Computer erlaubt, damit ein Schlüssel oder Manuskript niemals unverschlüsselt über ein Netzwerk gesendet wird. Für einen anderen Server verwenden Sie den OpenAI-kompatiblen Endpunkt mit einer https://-Adresse. Zum Beispiel {example}."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/base-url.ts
+msgid "gateway.invalid.baseUrlHttp"
+msgstr "Die Basis-URL muss mit http:// oder https:// beginnen. Zum Beispiel {example}."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/base-url.ts
+msgid "gateway.invalid.baseUrlHttps"
+msgstr "Die Basis-URL muss mit https:// beginnen, damit der Schlüssel niemals im Klartext gesendet wird. Zum Beispiel {example}."
 
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #: apps/desktop/src/app/mcp-model.ts
@@ -21434,6 +21673,11 @@ msgstr "Der Browser konnte das Bild nicht schreiben."
 #: apps/desktop/src/app/picture-transcoder.ts
 msgid "The browser decoded this picture to nothing."
 msgstr "Das Dekodieren dieses Bildes durch den Browser ergab nichts."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/errors.ts
+msgid "gateway.modelListUnreadable"
+msgstr "Der Browser hat dieser Seite das Lesen der Modellliste von {host} nicht erlaubt. Das passiert, wenn die Verbindung abgebrochen ist, und auch wenn {host} einer Webseite nicht erlaubt, diese Antwort zu lesen (ein falsch getippter Schlüssel kann gleich aussehen). Chat kann trotzdem funktionieren: Senden Sie eine Nachricht, um es herauszufinden, oder prüfen Sie den Schlüssel in den Einstellungen."
 
 #. The timeline's Save image.
 #: apps/desktop/src/app/timeline-image.ts
@@ -22197,6 +22441,11 @@ msgstr "Der Schlüssel konnte nicht geprüft werden. Versuchen Sie es erneut."
 msgid "The key for “{name}” is no longer in this browser, so the profile was not restored. Add it again in Settings."
 msgstr "Der Schlüssel für „{name}“ ist nicht mehr in diesem Browser, daher wurde das Profil nicht wiederhergestellt. Fügen Sie ihn in den Einstellungen erneut hinzu."
 
+#. js-lingui-explicit-id
+#: packages/gateway/src/errors.ts
+msgid "gateway.missingKey"
+msgstr "Der für „{name}“ gespeicherte Schlüssel kann auf diesem Gerät nicht gelesen werden. Geben Sie ihn in den Einstellungen erneut ein."
+
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 msgid "the knot “{name}”"
@@ -22434,6 +22683,11 @@ msgstr "Die übrigen Schritte wurden nicht angewendet."
 msgid "The other steps still wait for your approval."
 msgstr "Die übrigen Schritte warten weiterhin auf Ihre Freigabe."
 
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.maxOutputTokens"
+msgstr "Das Ausgabelimit muss eine ganze Zahl von Token sein, mindestens 1."
+
 #: apps/desktop/src/media/ScreenplayPreview.tsx
 msgid "The page breaks follow the screenplay page: about 55 lines a page, 12 point Courier."
 msgstr "Die Seitenumbrüche folgen der Drehbuchseite: etwa 55 Zeilen pro Seite, 12 Punkt Courier."
@@ -22547,6 +22801,11 @@ msgstr "Das Kapiteldokument nach Podcasting 2.0 — Anfang, Titel und Ende je Se
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
 msgid "The preview could not be made: {message}"
 msgstr "Die Vorschau konnte nicht erstellt werden: {message}"
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.nameTooLong"
+msgstr "Der Profilname ist länger als 80 Zeichen."
 
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
@@ -22816,6 +23075,11 @@ msgstr "Der Aufruf endete ohne gespeichertes Prüfurteil. Er wird nicht wiederho
 #: apps/desktop/src/app/providers.ts
 msgid "The request log could not be read: {error}"
 msgstr "Das Anfrageprotokoll konnte nicht gelesen werden: {error}"
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/profiles.ts
+msgid "gateway.invalid.paramsRead"
+msgstr "Die Anfrage-Parameter konnten nicht gelesen werden."
 
 #. Shot prompt record refusals. Interpolated values: shotId is a shot's id; number is a line number; first and last bound a whole number.
 #: apps/desktop/src/media/prompt-edit-model.ts
@@ -26467,6 +26731,11 @@ msgstr "Geben Sie die Änderung selbst frei, auch im Auto-Modus."
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Your approval is being processed."
 msgstr "Deine Zustimmung wird verarbeitet."
+
+#. js-lingui-explicit-id
+#: packages/gateway/src/errors.ts
+msgid "gateway.localDenied"
+msgstr "Ihr Browser hat diese Seite daran gehindert, {product} auf diesem Computer zu erreichen. Erlauben Sie dieser Seite in den Website-Einstellungen des Browsers, sich mit Apps auf Ihrem Gerät zu verbinden, und versuchen Sie es dann erneut."
 
 #. Session restore messages. Interpolated values: reason is why a restore stopped.
 #: apps/desktop/src/app/session.ts

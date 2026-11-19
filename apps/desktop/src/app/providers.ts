@@ -65,7 +65,7 @@ import { normalizeSettings, type RoleRef, type RoleSettings } from './settings.j
 import { TabTrace } from './trace-store.js';
 import { SaveChannel } from './save-channel.js';
 import type { StudioHost } from './studio-host.js';
-import { probeFailureOf, type ProbeFailure } from './provider-probe.js';
+import { gatewayText, probeFailureOf, type ProbeFailure } from './provider-probe.js';
 import { SetupError, type SetupDiscovery, type SetupInput } from './provider-setup.js';
 
 /* lingui-set comment="Interpolated values: error, name" */
@@ -465,7 +465,7 @@ export class ProviderService {
           this.profiles.recordVerification(view.id, readVerification(record.verification));
           if (record.isActive) activeId = view.id;
         } catch (error) {
-          const reason = messageOf(error);
+          const reason = displayText(error);
             notices.push(t`“${{ name: isolate(record.name) }}” could not be restored: ${{ error: reason }}`);
         } finally {
           pin(null);
@@ -473,14 +473,14 @@ export class ProviderService {
       }
       if (activeId !== null) this.profiles.activate(activeId);
     } catch (error) {
-      const reason = messageOf(error);
+      const reason = displayText(error);
       notices.push(t`Your provider profiles could not be read: ${{ error: reason }}`);
     }
 
     try {
       this.ledger.restore((await db.get<unknown>(APP_KEYS.usage)) ?? []);
     } catch (error) {
-      const reason = messageOf(error);
+      const reason = displayText(error);
       this.usageReadFailure = t`The usage totals could not be read: ${{ error: reason }}`;
       notices.push(this.usageReadFailure);
     }
@@ -489,7 +489,7 @@ export class ProviderService {
       const entries = (await db.get<RequestLogEntry[]>(APP_KEYS.requests)) ?? [];
       for (const entry of entries.slice(-REQUEST_LOG_KEEP)) this.requests.append(entry);
     } catch (error) {
-      const reason = messageOf(error);
+      const reason = displayText(error);
       notices.push(t`The request log could not be read: ${{ error: reason }}`);
     }
   }
@@ -535,7 +535,7 @@ export class ProviderService {
       await this.db.put(APP_KEYS.requests, this.requests.entries().slice(-REQUEST_LOG_KEEP));
       return this.usageReadFailure;
     } catch (error) {
-      const reason = messageOf(error);
+      const reason = displayText(error);
       return t`Your provider settings could not be saved in this browser: ${{ error: reason }}`;
     }
   }
@@ -590,7 +590,7 @@ export class ProviderService {
         try {
           note = formatNote(await this.gateway.probeResponseFormat(id));
         } catch (error) {
-          const reason = messageOf(error);
+          const reason = displayText(error);
           note = t`The endpoint did not answer the format check, so the agent asks for JSON in the prompt: ${{ error: reason }}`;
         }
       }
@@ -624,7 +624,7 @@ export class ProviderService {
       });
       id = view.id;
     } catch (error) {
-      throw new SetupError({ kind: 'invalid', message: messageOf(error), ...(error instanceof ProfileError && error.field !== undefined ? { field: error.field } : {}) });
+      throw new SetupError({ kind: 'invalid', message: displayText(error), ...(error instanceof ProfileError && error.field !== undefined ? { field: error.field } : {}) });
     }
     this.drafts.add(id);
     const abandon = async (failure: SetupError['failure']): Promise<never> => {
@@ -727,7 +727,7 @@ export class ProviderService {
       return { models };
     } catch (error) {
       this.verification(id, { type: 'failed', attempt, checkedAt: this.clock.now() });
-      const reason = messageOf(error);
+      const reason = displayText(error);
       return { error: t`The endpoint did not list its models, so the profile was saved but is not verified: ${{ error: reason }}`, failure: probeFailureOf(error) };
     }
   }
@@ -735,6 +735,11 @@ export class ProviderService {
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** The display text of a thrown failure: the gateway's fixed text through the catalogue, everything else as thrown. */
+function displayText(error: unknown): string {
+  return error instanceof ProviderError || error instanceof ProfileError ? gatewayText(error) : messageOf(error);
 }
 
 /** The activation note for a profile's response-format answer, in the words the Settings section shows. */

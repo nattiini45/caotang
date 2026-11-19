@@ -79,7 +79,7 @@ function extract(filename: string, code: string, onMessageExtracted: Parameters<
 /** `lingui.config.ts` adds this after the default extractor; it matches only marked package sources. */
 export const packageRefsExtractor: ExtractorType = {
   match(filename) {
-    return /(?:^|[\\/])packages[\\/](?:harness|coherence|bus|store|dialogue)[\\/]src[\\/].*\.ts$/.test(filename);
+    return /(?:^|[\\/])packages[\\/](?:harness|coherence|bus|store|dialogue|gateway)[\\/]src[\\/].*\.ts$/.test(filename);
   },
   extract(filename, code, onMessageExtracted) {
     extract(filename, code, onMessageExtracted);

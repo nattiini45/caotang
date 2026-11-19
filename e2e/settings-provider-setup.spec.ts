@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { endpointRoute, FAKE_ENDPOINT, planThenAnswer } from './endpoint.js';
 import { openProviderSetup } from './provider-setup-support.js';
+import { chooseInterfaceLanguage } from './support.js';
 
 /**
  * Adding a provider is a key and one press (provider-gateway §2, "Adding a provider"): paste a key, the provider is recognised,
@@ -251,4 +252,44 @@ test('correcting the key while the check runs lists the new key\'s models, not t
   expect(keys).toContain(ANTHROPIC_KEY + 'B');
   await expect(settings.locator('[data-profile="Anthropic (Claude)"]')).toContainText('new-model');
   await expect(settings.locator('[data-profile]')).toHaveCount(2);
+});
+
+/**
+ * The setup form's recovery wording in German (#596): the package-side ProfileError refs render through the
+ * interface catalogue, and a provider's own words stay isolated in the bdi, never translated in place.
+ */
+test('de: a bad base URL and a rejected key answer with German recovery wording', { tag: '@i18n' }, async ({ page }) => {
+  await page.route('https://rejected.example.test/v1/**', (route) =>
+    route.fulfill({ status: 401, json: { error: { message: 'The API key was rejected.' } } }));
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  const settings = page.getByTestId('settings');
+  await settings.locator('[data-section="appearance"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+  await settings.locator('[data-section="providers"]').click();
+
+  const form = settings.getByRole('form', { name: 'Anbieter hinzufügen' });
+  const add = settings.getByRole('button', { name: 'Anbieter hinzufügen', exact: true });
+  await expect(form.or(add)).toBeVisible();
+  if (await add.isVisible()) await add.click();
+  await expect(form).toBeVisible();
+  await form.getByRole('button', { name: 'Eigener Endpunkt' }).click();
+  const custom = settings.getByRole('form', { name: 'Eigener Endpunkt' });
+  const endpoint = custom.getByLabel('Endpunkt (die Basis-URL, endend auf /v1)');
+  const connect = custom.getByRole('button', { name: 'Verbinden und Modelle auflisten' });
+
+  // A base URL the package validator refuses renders the fixed message in the interface language.
+  await endpoint.fill('not-a-url');
+  await connect.click();
+  await expect(settings.getByRole('alert')).toContainText('Die Basis-URL ist keine URL.');
+
+  // A host that rejects the key: the cause is translated, the provider's own words stay untouched in the bdi.
+  await endpoint.fill('https://rejected.example.test/v1');
+  await custom.getByLabel('API-Schlüssel (optional – nur wenn der Endpunkt einen braucht)').fill('test-key');
+  await connect.click();
+  const alert = settings.getByRole('alert');
+  await expect(alert).toContainText('hat diesen Schlüssel nicht akzeptiert');
+  await expect(alert).toContainText('Antwort des Anbieters:');
+  await expect(alert.locator('bdi')).toContainText('rejected');
 });

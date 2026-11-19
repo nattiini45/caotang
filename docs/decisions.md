@@ -4,6 +4,9 @@
 
 - `main` takes pull requests without requiring the branch to be up to date with it, so nobody syncs a branch by hand before merging; `verify` and `pawcommit-review` stay required, and `ci.yml` still runs on `merge_group` so a merge queue can be switched on without a workflow change. Why: GitHub offers merge queues only in organization-owned repositories, and this repository belongs to a personal account, so the queue this trigger was written for cannot be enabled here. A merge group is not a pull request, so `pawcommit-review` passes its grouped pull requests' own verdicts through rather than reporting nothing. [delegated 2026-11-21]
 
+- Gateway errors carry a MessageRef beside the fixed English message (#596). `ProviderError`/`ProfileError` expose `messageRef` only for app-authored text (`providerRefs` mirrors `providerMessages`, plus the validation messages in `profiles.ts`/`base-url.ts`); the app renders it through the interface catalogue and falls back to `error.message`, so host- and provider-supplied values are never translated in place and the typed error kinds, SDK and logs are unchanged. Extraction only; the gateway's call logic stays the harness lane's. [delegated 2026-11-19]
+
+
 - Codex external references (#222) are ordered research records, independent of manuscript `sources` and the canon rule. The writer can open an HTTP(S) link explicitly; the app requests no remote preview and sends no reference data as automatic model context. [delegated 2026-11-19]
 
 - Codex details, external references and relations (#221–#223) stay out of automatic model context. Mention matching does not follow relations. Details and external references can be passed explicitly to `codex.write` and follow its usual confirmation path. External references stay separate from manuscript `sources` and do not change the canon rule. Verify the assembly boundary in prompt preview before shipping. [delegated 2026-11-19]
