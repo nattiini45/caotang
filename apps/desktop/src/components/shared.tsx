@@ -81,20 +81,23 @@ export interface StatusMessage {
 export type Report = (message: StatusMessage) => void;
 
 export class ReportChannel {
-  private held: StatusMessage | null = null;
-  reveal(): void { this.held = null; }
+  private held: 'error' | 'action' | null = null;
+  dismiss(): void { this.held = null; }
+  reveal(): void {
+    if (this.held === 'action') this.held = null;
+  }
   next(message: StatusMessage, covered: boolean): StatusMessage | null {
+    if (message.tone === 'error') {
+      this.held = 'error';
+      return message;
+    }
+    if (this.held === 'error') return null;
     if (!covered) {
       this.reveal();
       return message;
     }
-    if (message.tone === 'error') {
-      this.held = message;
-      return message;
-    }
-    if (this.held?.tone === 'error') return null;
     if (message.link !== undefined) {
-      this.held = message;
+      this.held = 'action';
       return message;
     }
     return this.held === null ? message : null;

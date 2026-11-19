@@ -5,7 +5,7 @@ import { ModalStack, modalMachine, type ModalEvent, type ModalState } from '../s
 import { ReportChannel, type StatusMessage } from '../src/components/shared.js';
 
 describe('the modal stack', () => {
-  it('holds one unseen error or action-needed report against info, but keeps normal replacement outside a modal', () => {
+  it('holds errors until dismissed in either layout and protects action links while covered', () => {
     const error: StatusMessage = { tone: 'error', text: 'The save failed.' };
     const newer: StatusMessage = { tone: 'error', text: 'The settings save failed.' };
     const info: StatusMessage = { tone: 'info', text: 'The skill was imported.' };
@@ -16,10 +16,17 @@ describe('the modal stack', () => {
     expect(channel.next(newer, true)).toBe(newer);
     expect(channel.next(action, true)).toBeNull();
     channel.reveal();
+    expect(channel.next(info, false)).toBeNull();
+    expect(channel.next(action, false)).toBeNull();
+    channel.dismiss();
     expect(channel.next(action, true)).toBe(action);
     expect(channel.next(info, true)).toBeNull();
-    expect(channel.next(error, true)).toBe(error);
+    channel.reveal();
     expect(channel.next(info, false)).toBe(info);
+    expect(channel.next(error, false)).toBe(error);
+    expect(channel.next(info, false)).toBeNull();
+    expect(channel.next(newer, false)).toBe(newer);
+    channel.dismiss();
     expect(channel.next(info, true)).toBe(info);
   });
   it('agrees with its exhaustive transition table', () => {

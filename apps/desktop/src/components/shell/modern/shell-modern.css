@@ -669,14 +669,8 @@
   color: var(--muted);
 }
 
-/* Below 1180 px the five views keep their icons and lose their words (each keeps its tooltip and accessible name). */
 @media (min-width: 960px) and (max-width: 1179px) {
   :root[data-shell='modern'] .modern-view .modern-label {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
+    display: none;
   }
 }

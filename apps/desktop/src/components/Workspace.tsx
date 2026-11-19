@@ -1151,7 +1151,10 @@ export function Workspace({
               ) : null}
               {folderSaving ? <>{message === null ? null : ' '}<Trans>Saving to the folder…</Trans></> : null}
             </span>
-            {message === null ? null : <button type="button" className="button is-quiet" onClick={() => setMessage(null)}>
+            {message === null ? null : <button type="button" className="button is-quiet" onClick={() => {
+              reportChannel.dismiss();
+              setMessage(null);
+            }}>
               <Trans>Dismiss</Trans>
             </button>}
           </div>
