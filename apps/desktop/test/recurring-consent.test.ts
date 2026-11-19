@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { i18n } from '@lingui/core';
 import { seededId } from '@caotang/ids';
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore, type ChatRequest } from '@caotang/gateway';
 import { createMockProvider } from '@caotang/gateway/mock';
@@ -15,9 +16,12 @@ import { TaskConsents } from '../src/app/task-consents.js';
 import { TaskRuns } from '../src/app/task-runs.js';
 import { TaskStore } from '../src/app/task-store.js';
 import { openTasksHome } from '../src/app/tasks-io.js';
+import { messages } from '../src/i18n/locales/en/messages.po';
 
 const cleanup: Array<() => Promise<void>> = [];
 beforeEach(() => {
+  i18n.load('en', messages);
+  i18n.activate('en');
   vi.stubGlobal('document', new EventTarget());
   vi.stubGlobal('window', new EventTarget());
 });

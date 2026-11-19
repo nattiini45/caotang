@@ -25,7 +25,7 @@
  * The tasks themselves are definitions in `tasks.json` and are changed here, by the writer. The agent has no tool for them.
  */
 
-import { t } from '@lingui/core/macro';
+import { plural, t } from '@lingui/core/macro';
 import { DETERMINISTIC_CHECK_IDS, type DeterministicCheckId } from '@caotang/coherence';
 import type { PlanStep } from '@caotang/harness';
 import { recurringRunTable, stepRecurringRun, type RecurringRunState, type RecurringRunEvent } from './recurring-state.js';
@@ -40,7 +40,6 @@ import {
   newTaskId,
   planText,
   readPlanText,
-  scheduleWords,
   selfStartProblem,
   usesModel,
   type AgentTask,
@@ -743,9 +742,28 @@ export class RecurringTasks {
       case 'intent':
         return cut(task.body.text, 160);
       case 'scan':
-        return task.body.scope === 'full' ? 'Scan the whole manuscript for continuity problems' : 'Scan what changed since the last scan for continuity problems';
-      case 'plan':
-        return task.body.steps.length === 1 ? 'Run a plan of 1 step' : `Run a plan of ${task.body.steps.length} steps`;
+        return task.body.scope === 'full' ? t`Scan the whole manuscript for continuity problems` : t`Scan what changed since the last scan for continuity problems`;
+      case 'plan': {
+        const steps = task.body.steps.length;
+        return plural(steps, { one: 'Run a plan of # step', other: 'Run a plan of # steps' });
+      }
+    }
+  }
+
+  /* The schedule in the words the panel shows. `scheduleWords` in @caotang/tasks
+   * stays English; the panel's copy lives here so it goes through the catalogue. */
+  private scheduleWords(schedule: TaskSchedule): string {
+    switch (schedule.kind) {
+      case 'manual':
+        return t`Only when you run it`;
+      case 'on-open':
+        return t`Each time the project opens`;
+      case 'daily':
+        return t`Every day from ${{ at: schedule.at }}`;
+      case 'weekly': {
+        const day = { mon: t`Monday`, tue: t`Tuesday`, wed: t`Wednesday`, thu: t`Thursday`, fri: t`Friday`, sat: t`Saturday`, sun: t`Sunday` }[schedule.day];
+        return t`Every ${{ day }} from ${{ at: schedule.at }}`;
+      }
     }
   }
 
@@ -770,7 +788,7 @@ export class RecurringTasks {
         enabled: task.enabled,
         body: task.body.kind,
         doing: this.doing(task),
-        schedule: scheduleWords(task.schedule),
+        schedule: this.scheduleWords(task.schedule),
         usesModel: model,
         problem,
         note:
