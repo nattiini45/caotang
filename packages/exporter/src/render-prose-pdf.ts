@@ -265,14 +265,12 @@ function wrapTokens(tokens: readonly Token[], width: number, indents: readonly n
         continue;
       }
       let rest = piece.slice(head.length);
-      if (head === '') {
-        [head, rest] = splitColumns(piece, Math.max(1, available));
-        // A CJK closer never opens a line: it overhangs this line's last column instead.
-        if (rest !== '' && NO_LINE_START.test(rest)) {
-          const cp = String.fromCodePoint(rest.codePointAt(0) ?? 0);
-          head += cp;
-          rest = rest.slice(cp.length);
-        }
+      if (head === '') [head, rest] = splitColumns(piece, Math.max(1, available));
+      // A CJK closer never opens a line: it overhangs this line's last column instead.
+      if (NO_LINE_START.test(rest)) {
+        const cp = String.fromCodePoint(rest.codePointAt(0) ?? 0);
+        head += cp;
+        rest = rest.slice(cp.length);
       }
       current += (space === 1 ? ' ' : '') + head;
       // The word's notes stay with the line its head broke on.

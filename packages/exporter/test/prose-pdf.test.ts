@@ -269,6 +269,12 @@ describe('prose-pdf — the layout', () => {
     expect(texts.filter((text) => text.startsWith('A')).length).toBeGreaterThan(1);
     for (const line of title?.lines ?? []) expect(line.x).toBeGreaterThanOrEqual(72);
   });
+
+  it.each(['—', '―', '〜'])('keeps %s at the preceding line end when a CJK line fills its measure', (closer) => {
+    const first = '日'.repeat(30);
+    const layout = layoutProsePdf(inputOf(`${first}${closer}次`), {});
+    expect(layout.pages.flatMap((page) => page.lines.map((line) => line.text)).filter(Boolean)).toEqual([`${first}${closer}`, '次']);
+  });
 });
 
 describe('prose-pdf — through the bus', () => {
