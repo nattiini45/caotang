@@ -217,7 +217,7 @@ Loader steps when `caotang.json` is unparseable:
 
 - `formatVersion` is an integer; v1 is the first stable format.
 - Migrations run **load-time, in-memory first**: `v(n) → v(n+1)` functions in a fixed registry, each with a unit test fixture pair. A migration failure aborts the open with the project untouched.
-- Writers always save at the **current** version (no rolling forward on unrelated edits).
+- Writers keep the manifest's supported version unless they emit data that needs a newer reader. The first such boundary is v2: a folder or bundle with typed codex field definitions or entry detail values is written at least at v2, so a v1-only build refuses it before editing or recovery. A v1 project opens without migration or a migration notice; a v1 project without these fields still writes as v1. If a v1 manifest already contains typed details (for example, a hand edit), this build reads them and protects them on the next write. A manifest read at v2 is never stamped back to v1, even if the fields are gone.
 - Unknown-tolerance: unknown fields on load are preserved in memory and **dropped on next save**, with a one-time notice that names each such field. The open counts only these as dropped; the other things a load noticed (an identity made at open, a migration, a document held because its text is not UTF-8) are said as their own sentences. (Rationale: round-tripping unknown fields forever turns the manifest into an append-only log; explicit drop-notice beats silent divergence both ways. Rejected: strict reject — breaks harmless third-party annotation.)
 
 ## 7. Portable deliverables

@@ -15,7 +15,8 @@ import type { PermissionRule } from './agent-rules.js';
 export type { AssetRecord, ProjectHook, ProjectMacro };
 
 export const APP_ID = 'caotang';
-export const FORMAT_VERSION = 1;
+export const CODEX_DETAILS_FORMAT_VERSION = 2;
+export const FORMAT_VERSION = CODEX_DETAILS_FORMAT_VERSION;
 
 /** Fixed roots, reserved and not deletable. */
 export const FIXED_ROOT_IDS = ['root', 'manuscript', 'research'] as const;

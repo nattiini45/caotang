@@ -13,23 +13,14 @@
  * dropped here — §6: "unknown fields on load are preserved in memory and
  * dropped on next save, with a one-time notice."
  *
- * **The `formatVersion` written here is a transcription, not an assertion.**
- * §6 says "writers always save at the current version (no rolling forward on
- * unrelated edits)", and the parenthetical is the clause that does the work: a
- * caller holding a v1-shaped object has not been migrated, so stamping v2 over
- * it *is* rolling the version forward on an unrelated edit — and the file it
- * produces claims a shape it does not have, which the next open then validates
- * against the wrong schema because the version gate now believes it is current.
- * That only the §6 registry knows the migration steps proves the writer cannot
- * *fix* such a manifest, not that it may mislabel it. The writer does not
- * migrate, and it does not lie about what it wrote.
- * So a manifest whose own `formatVersion` is not this build's is refused, in
- * both directions, and the load path is where a version changes.
+ * The writer does not migrate. Production can write either supported version,
+ * marking a v1 artifact v2 only if it emits codex data a v1-only build would lose.
  */
 
 import { CHAR_LIMIT_MAX, EPUB_IMAGE_MAX_PX_MAX, EPUB_IMAGE_MAX_PX_MIN, PICTURE_MODES, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type HookCheck, type ProjectHook, type ProjectMacro } from '@caotang/bus';
 import type { PermissionRule } from './agent-rules.js';
 import { jsonValueProblem } from './json-value.js';
+import { CODEX_DETAILS_FORMAT_VERSION } from './manifest.js';
 import type {
   CodexEntry,
   Derived,
@@ -44,6 +35,7 @@ import type {
 import {
   PRODUCTION_FORMAT,
   MigrationError,
+  migrationTarget,
   readFormatVersion,
   type FormatContext,
 } from './migrations.js';
@@ -632,18 +624,15 @@ function derived(d: Derived): string {
  * count — produces a byte-identical manifest, keeping the §8 acceptance test's
  * "diff is empty" honest.
  *
- * Throws `MigrationError` when the manifest's own `formatVersion` is not this
- * build's current one — see the module note. A writer has no registry, so it can
- * neither migrate nor vouch for a version it did not receive already correct;
- * the honest answer is to refuse and let the caller route through the load path,
- * which is where §6 puts the upgrade and the notice.
+ * Throws `MigrationError` if the manifest is too new or still needs a migration.
  */
 export function serializeManifest(
   manifest: Manifest,
   format: FormatContext = PRODUCTION_FORMAT,
 ): string {
   const from = readFormatVersion(manifest);
-  if (from !== format.current) {
+  const target = migrationTarget(format);
+  if (from < target || from > format.current) {
     throw new MigrationError(
       from < format.current
         ? `refusing to stamp a v${format.current} formatVersion on a v${from} manifest: it has not ` +
@@ -657,8 +646,11 @@ export function serializeManifest(
     );
   }
 
+  const hasDetailFields = (manifest.codexDetailFields?.length ?? 0) > 0;
+  const protectsCodex = hasDetailFields || manifest.codex?.some((entry) => entry.details !== undefined);
+  const version = format === PRODUCTION_FORMAT && protectsCodex ? Math.max(from, CODEX_DETAILS_FORMAT_VERSION) : from;
   const parts: string[] = ['{', `${INDENT}"app": ${str(manifest.app, 'manifest.app')},`];
-  parts.push(`${INDENT}"formatVersion": ${String(format.current)},`);
+  parts.push(`${INDENT}"formatVersion": ${String(version)},`);
   parts.push(projectIdentity(manifest.project));
   parts.push(
     [
@@ -676,7 +668,7 @@ export function serializeManifest(
   if (manifest.codex !== undefined) {
     parts.push(`${INDENT}"codex": ${objectArray(manifest.codex.map(codexEntry), 1)},`);
   }
-  if (manifest.codexDetailFields !== undefined && manifest.codexDetailFields.length > 0) {
+  if (manifest.codexDetailFields !== undefined && hasDetailFields) {
     const fields = manifest.codexDetailFields.map(({ type, key: fieldKey, label, kind }) => oneLine([
       ['type', str(type, 'codexDetailFields.type')],
       ['key', str(fieldKey, 'codexDetailFields.key')],

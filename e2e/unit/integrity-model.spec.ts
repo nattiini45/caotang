@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import {
+  FORMAT_VERSION,
   MANIFEST_FILE,
   FolderDriftError,
   MemoryArtifactFs,
@@ -839,14 +840,14 @@ test.describe('a manifest another program wrote in a newer format is refused, no
     const fs = folderArtifactFs(root);
     await writeProject(fs, project());
     const manifest = JSON.parse(await fs.read(MANIFEST_FILE)) as Record<string, unknown>;
-    manifest.formatVersion = 2;
+    manifest.formatVersion = FORMAT_VERSION + 1;
     const newer = JSON.stringify(manifest);
     await fs.writeAtomic(MANIFEST_FILE, newer);
     const store = await openRuntimeStore(new MemoryIndexedDb());
 
     const refused = openFolder(store, root);
     await expect(refused).rejects.toBeInstanceOf(ProjectRefusedError);
-    await expect(refused).rejects.toThrow('format version 2');
+    await expect(refused).rejects.toThrow(`format version ${FORMAT_VERSION + 1}`);
     expect(await fs.read(MANIFEST_FILE)).toBe(newer);
     expect((await fs.listFiles('')).some((name) => name.startsWith('caotang.json.corrupt-'))).toBe(false);
     expect(await listProjectIds(store)).toEqual([]);

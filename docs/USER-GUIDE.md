@@ -329,6 +329,8 @@ Each entry has a name, optional aliases (**Add an alias and press Enter**), a ty
 
 Under **Details**, choose **Add detail field**. Give the field a label, a key (for example, `air-date`), and a value type: text, number, date, or yes/no. Use the current entry type or enter a new type name to assign it to this entry. Every entry of that type gets the same field, but its value is individual. Leaving a value blank clears it; details are not automatically included in requests to the model.
 
+A project folder or bundle saved with these fields uses project format v2. If an older Caotang build refuses to open it, use a build that supports v2. Projects that stay in v1 still open and save without migration.
+
 The include policy says when the agent sees an entry:
 
 - **Always**: with every request. These are sent whole even when together they are longer than the codex's share of the prompt; the other entries are then left out, and the prompt preview says how many tokens the Always entries need.

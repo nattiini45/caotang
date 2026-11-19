@@ -26,6 +26,7 @@ import {
 } from './manifest.js';
 import {
   FIRST_FORMAT_VERSION,
+  migrationTarget,
   PRODUCTION_FORMAT,
   runMigrations,
   type AppliedMigration,
@@ -379,8 +380,9 @@ function validateFields(
   // project untouched", which is an abort rather than a field complaint.
   let source: Record<string, unknown> = input;
   let migrations: readonly AppliedMigration[] = [];
-  if (version < format.current) {
-    const result = runMigrations(format.registry, input, format.current);
+  const target = migrationTarget(format);
+  if (version < target) {
+    const result = runMigrations(format.registry, input, target);
     source = result.manifest;
     migrations = result.applied;
   }
@@ -1720,8 +1722,7 @@ export interface ValidateOptions {
   /**
    * Which steps this build knows, and which version it is at. Defaults to
    * {@link PRODUCTION_FORMAT}; the substitution exists so §6's migration branch
-   * can be reached in a test while `FORMAT_VERSION` is still 1, and nothing in
-   * this package passes anything else.
+   * can be reached in a test without changing what production accepts.
    */
   format?: FormatContext;
 }
