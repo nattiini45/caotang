@@ -260,15 +260,12 @@ test('the element menu turns the caret\'s line into the element chosen, from the
   await expect(source(page)).toBeFocused();
   await expect(source(page)).toHaveValue(['INT. HOUSE - DAY', '', '@marcus', 'Hi.'].join('\n'));
 
-  // Start at the converted cue's end, then keep the vertical navigation under test after the edit.
+  // Start at the converted cue's end: the conversion puts the caret there itself on the next frame, so wait until
+  // it has landed instead of racing it with a synthetic selection.
   const converted = ['INT. HOUSE - DAY', '', '@marcus', 'Hi.'].join('\n');
   const cueCaret = converted.indexOf('@marcus') + '@marcus'.length;
   const dialogueCaret = converted.indexOf('Hi.') + 'Hi.'.length;
-  await source(page).evaluate((field, at) => {
-    const input = field as HTMLTextAreaElement;
-    input.focus();
-    input.setSelectionRange(at, at);
-  }, cueCaret);
+  await expect.poll(() => caretOf(page)).toEqual([cueCaret, cueCaret]);
   await source(page).press('ArrowDown');
   await source(page).press('End');
   expect(await caretOf(page)).toEqual([dialogueCaret, dialogueCaret]);
