@@ -146,7 +146,7 @@ export function createKeyStore(port: KeyVaultPort, options: KeyStoreOptions = {}
   const open = async (profileId: string, expectedRevision?: string): Promise<KeyPayload | undefined> => {
     const entry = await port.getEntry(profileId);
     if (expectedRevision !== undefined && await revisionOf(entry) !== expectedRevision) {
-      throw new EgressDeniedError('The approved provider credentials changed. No request was sent.');
+      throw new EgressDeniedError('The approved provider credentials changed. This attempt was not sent.');
     }
     if (entry === undefined) return undefined;
     const key = await port.getWrappingKey();

@@ -529,12 +529,11 @@ export function createGateway(options: GatewayOptions): Gateway {
       const expected = req.expectedRoute;
       if (expected !== undefined && (expected.profileId !== profile.id || expected.model !== model
         || (expected.stamp !== undefined && expected.stamp !== requestRoute(profile, model, sent.thinking, sent).expected.stamp))) {
-        throw new EgressDeniedError('The approved provider, model or price for this request changed. No request was sent.');
+        throw new EgressDeniedError('The approved route changed. No request was sent.');
       }
       const sendGuard = expected?.stamp === undefined ? beforeSend : () => {
-        const current = resolveRequestRoute(req);
-        if (current?.expected.stamp !== expected.stamp) {
-          throw new EgressDeniedError('The approved provider, model or price for this request changed. This attempt was not sent.');
+        if (resolveRequestRoute(req)?.expected.stamp !== expected.stamp) {
+          throw new EgressDeniedError('The approved route changed. This attempt was not sent.');
         }
         beforeSend?.();
       };
