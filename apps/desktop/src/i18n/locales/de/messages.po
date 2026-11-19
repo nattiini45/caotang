@@ -2755,6 +2755,11 @@ msgstr "Ein Dokument ohne Veröffentlichungsdatum ist ein Entwurf: Es wird in ei
 msgid "a fact that is gone"
 msgstr "ein Fakt, der nicht mehr da ist"
 
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "A field in this reference could not be read. Remove it and add it again."
+msgstr "Ein Feld dieser Quelle konnte nicht gelesen werden. Entfernen Sie sie und fügen Sie sie erneut hinzu."
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "A field was kept as its text."
@@ -15414,6 +15419,7 @@ msgstr "Nächsten Monat erinnern"
 #. Interpolated values: name
 #. Interpolated values: parent, title, amount
 #. Interpolated values: title is the writer's reference title.
+#. Interpolated values: title is the writer's reference title.
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
@@ -15521,6 +15527,7 @@ msgstr "Eingereihte Nachricht {number} entfernen"
 msgid "Remove reference {number}"
 msgstr "Referenz {number} entfernen"
 
+#. Interpolated values: title is the writer's reference title.
 #. Interpolated values: title is the writer's reference title.
 #: apps/desktop/src/components/CodexReferences.tsx
 msgid "Remove reference {title}"
@@ -22837,6 +22844,11 @@ msgstr "Ohne Titel"
 #: apps/desktop/src/components/Home.tsx
 msgid "Untitled project"
 msgstr "Projekt ohne Titel"
+
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "Untitled reference"
+msgstr "Unbenannte Quelle"
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
