@@ -1,6 +1,6 @@
 import { once } from 'node:events';
 import { createHmac } from 'node:crypto';
-import { Miniflare, Response } from 'miniflare';
+import { Log, LogLevel, Miniflare, Response } from 'miniflare';
 import type { Request as RuntimeRequest } from 'miniflare';
 import WebSocketClient from 'ws';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -27,9 +27,17 @@ export class TestAccountHub extends AccountHub {
 const ONE = '00000000-0000-4000-8000-000000000001';
 const TWO = '00000000-0000-4000-8000-000000000002';
 const open: Miniflare[] = [];
+const KEY_RECORD_PATH = '/v1/account/key-record';
+const wrappedRecord = (fill: number) => ({
+  format: 1,
+  kdf: { id: 'argon2id', params: { memoryKiB: 65_536, iterations: 3, parallelism: 1 } },
+  salt: Buffer.alloc(16, fill).toString('base64'),
+  wrappedMaster: Buffer.concat([Buffer.of(1), Buffer.alloc(60, fill)]).toString('base64'),
+});
 
-async function runtime(bindings: Record<string, string> = {}, options: { migrate?: boolean; database?: boolean } = {}) {
+async function runtime(bindings: Record<string, string> = {}, options: { migrate?: boolean; database?: boolean; log?: Log } = {}) {
   const instance = new Miniflare({
+    log: options.log,
     upstream: ORIGIN,
     modules: workerModules(hubs),
     compatibilityDate: '2026-07-30',
@@ -53,7 +61,7 @@ async function runtime(bindings: Record<string, string> = {}, options: { migrate
   if (db && options.migrate !== false) await applyMigrations(db, ['0001_accounts.sql']);
   const invite = (login: string, limitBytes = 1_000) => db!.prepare(accountOperatorSql({ type: 'invite', identity: { id: `github:${IDS[login]}`, login }, limitBytes })).run();
   const revoke = (login: string) => db!.prepare(accountOperatorSql({ type: 'revoke', githubId: `github:${IDS[login]}` })).run();
-  const dispatch = (path: string, init: { method?: string; headers?: Record<string, string> } = {}) => instance.dispatchFetch(`${ORIGIN}${path}`, { redirect: 'manual', ...init });
+  const dispatch = (path: string, init: { method?: string; headers?: Record<string, string>; body?: string } = {}) => instance.dispatchFetch(`${ORIGIN}${path}`, { redirect: 'manual', ...init });
   const signIn = async (login: string) => {
     const start = await dispatch('/v1/auth/github');
     const location = new URL(start.headers.get('Location')!);
@@ -84,6 +92,86 @@ function signed(payload: object): string {
 }
 
 afterEach(async () => { await Promise.all(open.splice(0).map((instance) => instance.dispose())); });
+
+describe('wrapped account key records', () => {
+  it('applies the additive migration to existing accounts, elects one creator, and reads the winning record only for that account', async () => {
+    const h = await runtime();
+    await h.invite('reader-one');
+    await h.invite('reader-two');
+    const { session: first } = await h.signIn('reader-one');
+    const { session: second } = await h.signIn('reader-two');
+    const accountId = async (session: string) => {
+      const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session } })).json() as { id: string };
+      return account.id;
+    };
+    const firstId = await accountId(first!);
+    const secondId = await accountId(second!);
+    const read = (session?: string, id = firstId) => h.dispatch(KEY_RECORD_PATH, {
+      headers: session ? { Cookie: session, 'X-Caotang-Account': id } : {},
+    });
+    expect((await read(first)).status).toBe(503);
+    await applyMigrations(h.db!, ['0004_account_key_records.sql']);
+    expect((await read()).status).toBe(401);
+    expect((await read(first)).status).toBe(404);
+    const create = (record: object, origin = ORIGIN, method = 'POST', session = first!) => h.dispatch(KEY_RECORD_PATH, {
+      method, headers: { Cookie: session, Origin: origin, 'Content-Type': 'application/json', 'X-Caotang-Account': firstId }, body: JSON.stringify(record),
+    });
+    const records = [wrappedRecord(1), wrappedRecord(2)];
+    expect((await create(records[0]!, 'https://unrelated.example.invalid')).status).toBe(403);
+    expect((await create(records[0]!, ORIGIN, 'POST', second!)).status).toBe(412);
+    const attempts = await Promise.all(records.map((record) => create(record)));
+    expect(attempts.map((response) => response.status).sort((a, b) => a - b)).toEqual([201, 409]);
+    expect((await create(wrappedRecord(3), ORIGIN, 'PUT')).status).toBe(405);
+    expect((await create(wrappedRecord(3))).status).toBe(409);
+    const winner = records[attempts.findIndex((response) => response.status === 201)]!;
+    const { session: anotherDevice } = await h.signIn('reader-one');
+    const loaded = await read(anotherDevice);
+    expect(loaded.status).toBe(200);
+    expect(loaded.headers.get('Cache-Control')).toBe('no-store');
+    expect(await loaded.json()).toEqual(winner);
+    expect((await read(second)).status).toBe(412);
+    expect((await read(second, secondId)).status).toBe(404);
+    expect(await h.db!.prepare('SELECT * FROM account_key_records').all()).toMatchObject({
+      results: [{ account_id: firstId, record_json: JSON.stringify(winner) }],
+    });
+    await h.revoke('reader-one');
+    expect((await read(anotherDevice)).status).toBe(401);
+    expect((await create(wrappedRecord(3))).status).toBe(401);
+  });
+
+  it('refuses secret fields and invalid records without storing, logging or echoing their values', async () => {
+    const messages: string[] = [];
+    const h = await runtime({}, { log: new class extends Log {
+      protected override log(message: string): void { messages.push(message); }
+    }(LogLevel.VERBOSE) });
+    await applyMigrations(h.db!, ['0004_account_key_records.sql']);
+    await h.invite('reader-one');
+    const { session } = await h.signIn('reader-one');
+    const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session! } })).json() as { id: string };
+    const record = wrappedRecord(1);
+    const passphrase = 'fictional-passphrase-that-must-not-be-echoed';
+    const recoveryKey = 'fictional-recovery-key-that-must-not-be-echoed';
+    for (const body of [
+      JSON.stringify({ ...record, passphrase, recoveryKey }),
+      JSON.stringify({ ...record, salt: recoveryKey }),
+      JSON.stringify({ ...record, kdf: { ...record.kdf, params: { ...record.kdf.params, recoveryKey } } }),
+      JSON.stringify({ ...record, kdf: { ...record.kdf, params: { ...record.kdf.params, memoryKiB: 262_145 } } }),
+      JSON.stringify({ ...record, wrappedMaster: Buffer.alloc(61).toString('base64') }),
+      JSON.stringify(record) + ' '.repeat(1024),
+      '{"passphrase":"' + passphrase,
+    ]) {
+      const response = await h.dispatch(KEY_RECORD_PATH, {
+        method: 'POST', headers: { Cookie: session!, Origin: ORIGIN, 'Content-Type': 'application/json', 'X-Caotang-Account': account.id }, body,
+      });
+      expect(response.status).toBe(400);
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      expect(await response.json()).toEqual({ message: 'Send a valid wrapped account key record.' });
+    }
+    expect(await h.db!.prepare('SELECT count(*) AS count FROM account_key_records').first('count')).toBe(0);
+    expect(messages.join('\n')).not.toContain(passphrase);
+    expect(messages.join('\n')).not.toContain(recoveryKey);
+  });
+});
 
 describe('the Worker in account mode', () => {
   it('claims an invited numeric identity at sign-in and serves its own account and usage', async () => {
