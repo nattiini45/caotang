@@ -4,7 +4,8 @@
 
 - [owner 2026-11-19] Codex relations (#223) ship both an entry Relations section, with incoming and outgoing links, and a project-wide graph.
 
-- [owner 2026-11-19] Raise the artifact format version when writing new codex fields (#221–#223) so older builds refuse to open those projects rather than losing data on save. Keep ordinary v1 projects readable and writable without migration.
+- [owner 2026-11-19] Protect new codex fields against silent downgrade loss (#221–#223). Typed details write artifact format v2 and lazily upgrade the browser database on the first protected commit: old builds ignore browser row markers and can strip typed recovery data before refusing a folder save. Leave browsers that never use the feature and ordinary v1 artifacts unchanged.
+- [owner 2026-11-19] Raise the total JS ceiling to 8,834,000 bytes for the typed-codex rollback gate (8,745,967 measured). The implementation shares the format predicate and existing transaction and connection handlers, adds no dependency, and keeps the editor lazy. First-load ceilings are unchanged.
 
 - A private Background before hook can propose a rewrite of an eligible prose field only if the rewritten call is revalidated and shown with its original on a fresh human approval card. An earlier approval and Auto mode cannot approve the rewrite. This supersedes the no-rewrite portion of the declarative-hook decision dated 2026-10-22 and of the Background model hook decision below; it does not change the project-file restrictions. [owner 2026-11-13]
 

@@ -1,18 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import {
   MANIFEST_FILE,
+  MAX_RUNTIME_DB_VERSION,
+  RUNTIME_DB_VERSION,
   MemoryArtifactFs,
+  MemoryIndexedDb,
+  ProjectWriteConflictError,
+  RuntimeStoreStaleError,
   ProjectRefusedError,
   commitRecovery,
+  commitProject,
   createEmptyManifest,
   createProjectState,
   exportProjectZip,
   importProjectZip,
   migrateToCurrent,
+  openRuntimeStore,
   readProject,
+  readProjectState,
   recoverProject,
   serializeManifest,
   writeProject,
+  writeProjectState,
   type CodexEntry,
 } from '../src/index.js';
 
@@ -32,6 +41,78 @@ const entry: CodexEntry = {
   origin: 'manual',
   sources: [],
 };
+
+function openUnprotectedVersion(factory: IDBFactory, name: string): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = factory.open(name, RUNTIME_DB_VERSION);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+describe('the codex browser rollback boundary', () => {
+  it('leaves an ordinary database at v6 and commits the first protected row as it upgrades', async () => {
+    const factory = new MemoryIndexedDb();
+    const store = await openRuntimeStore(factory);
+    const manifest = createEmptyManifest('The Lantern', NOW);
+    await writeProjectState(store, createProjectState(manifest));
+    const id = manifest.project.id;
+    expect(store.db.version).toBe(RUNTIME_DB_VERSION);
+    (await openUnprotectedVersion(factory, store.name)).close();
+
+    const other = await openRuntimeStore(factory);
+    manifest.codex = [{ ...entry, details: { age: 0, unknown: ['keep'] } }];
+    await commitProject(store, { projectId: id, manifest });
+    expect(store.db.version).toBe(MAX_RUNTIME_DB_VERSION);
+    await expect(openUnprotectedVersion(factory, store.name)).rejects.toMatchObject({ name: 'VersionError' });
+    await expect(readProjectState(other, id)).rejects.toBeInstanceOf(RuntimeStoreStaleError);
+    store.close();
+    const reopened = await openRuntimeStore(factory);
+    expect(await readProjectState(reopened, id)).toMatchObject({
+      manifest: { formatVersion: 2, codex: manifest.codex },
+    });
+    reopened.close();
+  });
+
+  it('leaves the database rollback-compatible when the first protected write is refused', async () => {
+    const factory = new MemoryIndexedDb();
+    const store = await openRuntimeStore(factory);
+    const manifest = createEmptyManifest('The Lantern', NOW);
+    const id = manifest.project.id;
+    const state = createProjectState(manifest);
+    await writeProjectState(store, state);
+    const stale = structuredClone(state);
+    stale.manifest.project.name = 'A different draft';
+    manifest.codexDetailFields = [{ type: 'character', key: 'age', label: 'Age', kind: 'number' }];
+    await expect(writeProjectState(store, state, { expected: stale })).rejects.toBeInstanceOf(ProjectWriteConflictError);
+    (await openUnprotectedVersion(factory, store.name)).close();
+    expect((await readProjectState(store, id)).manifest).not.toHaveProperty('codexDetailFields');
+
+    await writeProjectState(store, state);
+    expect(store.db.version).toBe(MAX_RUNTIME_DB_VERSION);
+    expect((await readProjectState(store, id)).manifest.codexDetailFields).toEqual(manifest.codexDetailFields);
+    store.close();
+  });
+
+  it('does not perform a refused upgrade after the blocking tab leaves', async () => {
+    const factory = new MemoryIndexedDb();
+    const store = await openRuntimeStore(factory);
+    const state = createProjectState(createEmptyManifest('The Lantern', NOW));
+    await writeProjectState(store, state);
+    const blocker = await openUnprotectedVersion(factory, store.name);
+    state.manifest.codex = [{ ...entry, details: { age: 24 } }];
+    try {
+      await expect(writeProjectState(store, state)).rejects.toThrow('blocking browser storage');
+    } finally {
+      blocker.close();
+    }
+    const reopened = await openRuntimeStore(factory);
+    expect(reopened.db.version).toBe(RUNTIME_DB_VERSION);
+    expect((await readProjectState(reopened, state.manifest.project.id)).manifest.codex).toEqual([]);
+    store.close();
+    reopened.close();
+  });
+});
 
 describe('the codex artifact format boundary', () => {
   it('opens and saves legacy v1 with the same bytes and no migration', async () => {

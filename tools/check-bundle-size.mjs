@@ -202,7 +202,9 @@ export const BUDGET = {
   // (-12,763) and `state` (-6,189). First load 1,095,371 gzip (+3,333 on main: the English catalogue and the entry), under its
   // ceiling, which does not move. No new dependency, no duplicated SDK version, no production pseudo-locale; the reader, its source
   // and the Worker load on use. The ceiling is the measurement plus about 1%, rounded up to the thousand. [delegated 2026-11-18]
-  totalJs: 8_745_000,
+  // Typed codex details add an atomic, lazy browser-storage upgrade. The shared format predicate and existing open/transaction
+  // handlers avoid a second storage implementation; the details editor stays lazy. Measured 8,745,967 bytes with no new dependency.
+  totalJs: 8_834_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

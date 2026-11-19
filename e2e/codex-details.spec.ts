@@ -1,5 +1,16 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { createProject, waitForSaved } from './support.js';
+
+function preDetailsBrowserStore(page: Page): Promise<string> {
+  return page.evaluate(() => new Promise<string>((resolve) => {
+    const request = (globalThis as unknown as { indexedDB: IDBFactory }).indexedDB.open('caotang', 6);
+    request.onsuccess = () => {
+      request.result.close();
+      resolve('open');
+    };
+    request.onerror = () => resolve(request.error?.name ?? 'unknown');
+  }));
+}
 
 test('a custom type shares typed detail fields between entries after reopening', async ({ page }) => {
   test.setTimeout(60_000);
@@ -10,6 +21,8 @@ test('a custom type shares typed detail fields between entries after reopening',
   const name = page.getByRole('textbox', { name: 'Name', exact: true });
   await name.fill('Fenn');
   await name.press('Enter');
+  await waitForSaved(page);
+  expect(await preDetailsBrowserStore(page)).toBe('open');
 
   const details = page.getByRole('region', { name: 'Details', exact: true });
   const add = details.getByRole('button', { name: 'Add detail field' });
@@ -20,6 +33,8 @@ test('a custom type shares typed detail fields between entries after reopening',
   await details.getByRole('combobox', { name: 'Value type' }).click();
   await page.getByRole('option', { name: 'Number', exact: true }).click();
   await details.getByRole('button', { name: 'Save field' }).click();
+  await waitForSaved(page);
+  expect(await preDetailsBrowserStore(page)).toBe('VersionError');
   await expect(add).toBeFocused();
   await expect(page.getByLabel('Type', { exact: true })).toHaveValue('Guest');
   const episode = details.getByRole('spinbutton', { name: 'Episode' });

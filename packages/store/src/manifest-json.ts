@@ -20,7 +20,7 @@
 import { CHAR_LIMIT_MAX, EPUB_IMAGE_MAX_PX_MAX, EPUB_IMAGE_MAX_PX_MIN, PICTURE_MODES, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type HookCheck, type ProjectHook, type ProjectMacro } from '@caotang/bus';
 import type { PermissionRule } from './agent-rules.js';
 import { jsonValueProblem } from './json-value.js';
-import { CODEX_DETAILS_FORMAT_VERSION } from './manifest.js';
+import { requiredManifestVersion } from './manifest.js';
 import type {
   CodexEntry,
   Derived,
@@ -643,8 +643,7 @@ export function serializeManifest(
   }
 
   const hasDetailFields = (manifest.codexDetailFields?.length ?? 0) > 0;
-  const protectsCodex = hasDetailFields || manifest.codex?.some((entry) => entry.details !== undefined);
-  const version = format === PRODUCTION_FORMAT && protectsCodex ? Math.max(from, CODEX_DETAILS_FORMAT_VERSION) : from;
+  const version = format === PRODUCTION_FORMAT ? requiredManifestVersion(manifest) : from;
   const parts: string[] = ['{', `${INDENT}"app": ${str(manifest.app, 'manifest.app')},`];
   parts.push(`${INDENT}"formatVersion": ${String(version)},`);
   parts.push(projectIdentity(manifest.project));

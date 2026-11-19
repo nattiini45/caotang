@@ -18,6 +18,12 @@ export const APP_ID = 'caotang';
 export const CODEX_DETAILS_FORMAT_VERSION = 2;
 export const FORMAT_VERSION = CODEX_DETAILS_FORMAT_VERSION;
 
+export function requiredManifestVersion(manifest: Manifest): number {
+  const hasDetails = (manifest.codexDetailFields?.length ?? 0) > 0
+    || manifest.codex?.some((entry) => entry.details !== undefined);
+  return hasDetails ? Math.max(manifest.formatVersion, CODEX_DETAILS_FORMAT_VERSION) : manifest.formatVersion;
+}
+
 /** Fixed roots, reserved and not deletable. */
 export const FIXED_ROOT_IDS = ['root', 'manuscript', 'research'] as const;
 

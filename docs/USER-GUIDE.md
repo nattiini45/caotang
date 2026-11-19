@@ -331,6 +331,8 @@ Under **Details**, choose **Add detail field**. Give the field a label, a key (f
 
 A project folder or bundle saved with these fields uses project format v2. If an older Caotang build refuses to open it, use a build that supports v2. Projects that stay in v1 still open and save without migration.
 
+Saving these fields in the browser also updates that browser's project storage. Afterward, older builds can't open any projects in that browser. Browsers where you've never saved these fields can still open projects in an older build.
+
 The include policy says when the agent sees an entry:
 
 - **Always**: with every request. These are sent whole even when together they are longer than the codex's share of the prompt; the other entries are then left out, and the prompt preview says how many tokens the Always entries need.
