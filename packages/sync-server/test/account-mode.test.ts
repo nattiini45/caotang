@@ -206,7 +206,7 @@ describe('the sealed provider-key vault', () => {
 
   it('commits once, replaces under a version precondition, and never parses what it stores', async () => {
     const h = await runtime();
-    await applyMigrations(h.db!, ['0004_account_key_records.sql', '0005_account_vaults.sql']);
+    await applyMigrations(h.db!, ['0004_account_key_records.sql', '0005_account_vaults.sql', '0006_account_vault_versions.sql']);
     await h.invite('reader-one');
     const { session } = await h.signIn('reader-one');
     const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session! } })).json() as { id: string };
@@ -244,7 +244,7 @@ describe('the sealed provider-key vault', () => {
 
   it('removes the vault under its version, and refuses an oversized body without storing anything', async () => {
     const h = await runtime();
-    await applyMigrations(h.db!, ['0004_account_key_records.sql', '0005_account_vaults.sql']);
+    await applyMigrations(h.db!, ['0004_account_key_records.sql', '0005_account_vaults.sql', '0006_account_vault_versions.sql']);
     await h.invite('reader-one');
     const { session } = await h.signIn('reader-one');
     const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session! } })).json() as { id: string };
@@ -263,6 +263,38 @@ describe('the sealed provider-key vault', () => {
     expect((await h.dispatch('/v1/account/vault', { method: 'DELETE', headers: headers({ 'If-Match': '"1"' }) })).status).toBe(204);
     expect((await h.dispatch('/v1/account/vault', { headers: headers() })).status).toBe(404);
     expect((await h.dispatch('/v1/account/vault', { method: 'DELETE', headers: headers({ 'If-Match': '"1"' }) })).status).toBe(412);
+  });
+
+  it('never reuses a version after removal, so a stale precondition cannot overwrite the replacement', async () => {
+    const h = await runtime();
+    await applyMigrations(h.db!, ['0004_account_key_records.sql', '0005_account_vaults.sql', '0006_account_vault_versions.sql']);
+    await h.invite('reader-one');
+    const { session } = await h.signIn('reader-one');
+    const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session! } })).json() as { id: string };
+    const headers = (extra: Record<string, string> = {}) => ({ Cookie: session!, Origin: ORIGIN, 'X-Caotang-Account': account.id, ...extra });
+    const put = (vault: string, extra: Record<string, string>) => h.dispatch('/v1/account/vault', {
+      method: 'PUT', headers: headers({ 'Content-Type': 'application/json', ...extra }), body: JSON.stringify({ vault }),
+    });
+
+    const first = base64(new Uint8Array(80).fill(5));
+    const second = base64(new Uint8Array(80).fill(6));
+    expect((await put(first, { 'If-None-Match': '*' })).status).toBe(201);
+    const replaced = await put(second, { 'If-Match': '"1"' });
+    expect(replaced.status).toBe(200);
+    expect(replaced.headers.get('ETag')).toBe('"2"');
+
+    expect((await h.dispatch('/v1/account/vault', { method: 'DELETE', headers: headers({ 'If-Match': '"2"' }) })).status).toBe(204);
+    expect((await h.dispatch('/v1/account/vault', { headers: headers() })).status).toBe(404);
+
+    const third = base64(new Uint8Array(80).fill(7));
+    const recreated = await put(third, { 'If-None-Match': '*' });
+    expect(recreated.status).toBe(201);
+    expect(recreated.headers.get('ETag')).toBe('"3"');
+    expect(await recreated.json()).toEqual({ version: 3 });
+
+    expect((await put(first, { 'If-Match': '"1"' })).status).toBe(412);
+    expect((await h.dispatch('/v1/account/vault', { method: 'DELETE', headers: headers({ 'If-Match': '"2"' }) })).status).toBe(412);
+    expect(await h.dispatch('/v1/account/vault', { headers: headers() }).then((r) => r.json())).toEqual({ version: 3, vault: third });
   });
 });
 
