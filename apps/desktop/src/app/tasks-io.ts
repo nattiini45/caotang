@@ -35,6 +35,7 @@ import {
 import { StoreArtifactFs } from './coherence-io.js';
 import { SaveChannel } from './save-channel.js';
 import { folderArtifactFs, isSameFolder, type DirectoryHandleLike } from './fs-access.js';
+import { nativeFolderId } from './native-folders.js';
 
 /** What the Tasks panel says about the file: whether it can be saved, what the load noticed, and why the last save did not land. */
 export interface TasksStatus {
@@ -137,6 +138,21 @@ export class TasksHome {
     }
     this.file = next;
     return this.saveChannel.enqueue(async () => {
+      const folder = this.folder;
+      const native = folder !== null && nativeFolderId(folder.root) !== undefined;
+      const saveFolder = async (target: FolderCopy): Promise<string | null> => {
+        try {
+          await saveToFolder(target, next);
+          this.folderFailure = null;
+        } catch (error) {
+          this.folderFailure = `Your tasks could not be saved to the folder: ${messageOf(error)}`;
+        }
+        return this.folderFailure;
+      };
+      if (native) {
+        const failure = await saveFolder(folder);
+        if (failure !== null) return failure;
+      }
       try {
         await saveTasks(this.mirror.fs, this.mirror.load, next);
         this.browserFailure = null;
@@ -144,16 +160,7 @@ export class TasksHome {
         this.browserFailure = `Your tasks could not be saved in this browser: ${messageOf(error)}`;
         return this.browserFailure;
       }
-      if (this.folder !== null) {
-        try {
-          await saveToFolder(this.folder, next);
-          this.folderFailure = null;
-        } catch (error) {
-          this.folderFailure = `Your tasks could not be saved to the folder: ${messageOf(error)}`;
-          return this.folderFailure;
-        }
-      }
-      return null;
+      return folder !== null && !native ? saveFolder(folder) : null;
     });
   }
 
@@ -214,8 +221,9 @@ export async function openTasksHome(projectId: string, store: RuntimeStore, fold
   if (folder !== null) {
     try {
       folderCopy = await readFolderCopy(folder);
-      if (folderCopy.load.status !== 'absent') load = folderCopy.load;
+      if (nativeFolderId(folder) !== undefined || folderCopy.load.status !== 'absent') load = folderCopy.load;
     } catch (error) {
+      if (nativeFolderId(folder) !== undefined) throw error;
       notices.push(`${messageOf(error)} Tasks are kept in this browser.`);
     }
   }

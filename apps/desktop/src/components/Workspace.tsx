@@ -55,6 +55,7 @@ import { evictionVariantApplies, type EvictionFacts } from '../app/picture-notic
 import { ExportSweepOffer, sweepBeforeExport, sweepOfferBeforeExport } from '../media/PictureStorage.js';
 import { PictureNotices } from './PictureNotices.js';
 import { saveStateWords } from '../app/integrity-model.js';
+import { nativeFolderId, nativeFoldersAvailable } from '../app/native-folders.js';
 import { requestInspector } from '../app/inspector-request.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import type { StartIntent } from '../App.js';
@@ -474,7 +475,9 @@ export function Workspace({
   const failedSaveChannels = session.failedSaveChannels();
   const stopped = session.tabStop().getSnapshot();
   const stopCause = stopped.kind === 'stopped' ? stopped.cause : undefined;
-  const saveWords = saveStateWords(saveState, stopCause, failedSaveChannels);
+  const nativeFolder = nativeFolderId(session.folderBaseline()?.folder ?? null) !== undefined;
+  const browserFolderPicker = !nativeFoldersAvailable() && folderAccessSupported();
+  const saveWords = saveStateWords(saveState, stopCause, failedSaveChannels, nativeFolder);
   // The export dialog compiles the item the binder has selected, unless that is a section (then it is the whole manuscript).
   const exportSelection: ExportSelection | null =
     selectedNode === undefined || selectedNode.id === 'manuscript' || selectedNode.id === 'research' || selectedNode.id === 'root'
@@ -829,13 +832,15 @@ export function Workspace({
       }
       if (session.saveState() === 'failed') {
         report({
-          text: t`Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave.`,
+          text: nativeFolder
+            ? t`Some changes have not reached the project folder, so the project stays open. Export a bundle to keep a copy.`
+            : t`Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave.`,
           tone: 'error',
         });
         return;
       }
       // Leaving with changes the writer has no copy of is not held up: the projects screen suggests a bundle, once (project-format §8).
-      if (session.changedSinceExport()) {
+      if (!nativeFolder && session.changedSinceExport()) {
         noteLeaveSuggestion({ projectId: session.projectId, name: state.manifest.project.name });
       }
       onHome();
@@ -857,7 +862,7 @@ export function Workspace({
   const openProviders = (): void => setSettingsSection('providers');
   // The shell actions (modern-interface.md §4.2): Classic's toolbar and its narrow More menu both render from this one list.
   const actions = shellActions(
-    { undoLabel, focusMode, theme, folderPicker: folderAccessSupported(), keyboardLayout },
+    { undoLabel, focusMode, theme, folderPicker: browserFolderPicker, keyboardLayout },
     {
       projects: leave,
       details: () => openDialog({ kind: 'project' }),
@@ -1119,7 +1124,7 @@ export function Workspace({
         projectId={session.projectId}
         facts={pictureFacts}
         onExport={exportBundleOffering}
-        {...(folderAccessSupported() ? { onSaveToFolder: saveToFolder } : {})}
+        {...(browserFolderPicker ? { onSaveToFolder: saveToFolder } : {})}
       />
     ),
     status: message === null && !folderSaving && review.kind !== 'running' ? null : (

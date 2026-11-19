@@ -26,8 +26,9 @@ export function saveStateWords(
   state: SaveState,
   cause: StopCause = 'newer-text',
   failedChannels: readonly SaveChannelName[] = [],
+  nativeFolder = false,
 ): { readonly text: string; readonly summary?: string; readonly offersBackup: boolean } {
-  if (state === 'saved') return { text: t`All changes saved in this browser`, offersBackup: false };
+  if (state === 'saved') return { text: nativeFolder ? t`All changes saved to the project folder` : t`All changes saved in this browser`, offersBackup: false };
   if (state === 'saving') return { text: t`Saving…`, offersBackup: false };
   if (state === 'conflict' && cause === 'updated') {
     return { text: t`Caotang was updated in another tab, so this tab cannot save. Export a backup, then reload this tab.`, offersBackup: false };
@@ -36,6 +37,11 @@ export function saveStateWords(
   const names = { project: t`Project`, documents: t`Documents`, findings: t`Findings`, tasks: t`Tasks`, settings: t`Settings` };
   const parts = listFormat(formatterLocale()).format((failedChannels.length === 0 ? ['project'] as const : failedChannels).map((channel) => names[channel]));
   const summary = t`Not saved: ${{ parts }}`;
+  if (nativeFolder) return {
+    text: t`Not saved to the project folder. Check the folder, or export a backup before leaving.`,
+    summary,
+    offersBackup: true,
+  };
   if (failedChannels.length > 0 && !(failedChannels.length === 1 && failedChannels[0] === 'project')) {
     if (failedChannels.includes('documents')) {
       return {
