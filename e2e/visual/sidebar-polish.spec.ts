@@ -66,6 +66,15 @@ for (const scheme of ['light', 'dark'] as const) {
     await expect(page.getByTestId('modern-sidebar').getByRole('tab')).toHaveCount(4);
     await page.mouse.move(118, 400);
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    // #644: the glass top ornament can keep a glyph raster baked mid-slide after its
+    // inset-inline-start transition — settle it, then force one repaint at the final position.
+    const ornament = page.locator('.modern-ornament.is-top');
+    await expect.poll(() => ornament.evaluate((el) => el.getAnimations({ subtree: true }).length)).toBe(0);
+    await ornament.evaluate((el) => {
+      (el as HTMLElement).style.display = 'none';
+      void (el as HTMLElement).offsetHeight;
+      (el as HTMLElement).style.display = '';
+    });
     await expect(page).toHaveScreenshot(`modern-${scheme}-german-sidebar-count.png`, { animations: 'disabled', caret: 'hide', mask: [page.getByTestId('save-state'), page.locator('time')], maxDiffPixels: 0 });
   });
 }
