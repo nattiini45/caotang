@@ -56,6 +56,7 @@ test('folder saves land on disk, and a recent folder never opens a stale mirror'
 
   const onDisk = await readFile(manifest, 'utf8');
   await writeFile(manifest, onDisk.replace('Harbor Notebook', 'Folder Version'));
+  await writeFile(join(dir, 'AGENTS.md'), 'Keep the existing chapter titles.');
   const reopened = await launch(profile);
   const moved = test.info().outputPath('moved project');
   try {

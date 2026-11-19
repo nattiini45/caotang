@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { ArtifactNotFoundError } from '@caotang/store';
+import { ArtifactNotFoundError } from '@caotang/store/artifact-fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { ArtifactPathError, NodeArtifactFs, byteArtifactsOver, resolveWithin } from '../src/index.js';

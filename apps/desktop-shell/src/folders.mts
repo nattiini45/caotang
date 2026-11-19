@@ -43,7 +43,7 @@ function entryPath(root: string, path: unknown, file: boolean): string {
     ['docs', 'codex', 'assets', 'exports', 'runs', 'memory', '.caotang-backup'].includes(first ?? '') ||
     (first === '.agents' && (second === undefined || second === 'skills')) ||
     /^(?:caotang\.json|coherence\.json|tasks\.json)(?:\.bak(?:\.\d+)?|\.corrupt-[\w.-]+)?$/.test(path) ||
-    ['CAOTANG.md', 'sessions.jsonl', '.gitignore', '.caotang-mcp.lock'].includes(path)
+    ['CAOTANG.md', 'AGENTS.md', 'sessions.jsonl', '.gitignore', '.caotang-mcp.lock'].includes(path)
   ) return path;
   throw new FolderRefusal('invalid');
 }
