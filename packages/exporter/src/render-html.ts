@@ -102,7 +102,7 @@ function articleLines(input: HtmlArticleInput): string[] {
     lines.push(`    <p><time datetime="${escapeXml(publishedAt)}">${escapeXml(day)}</time></p>`);
   }
   lines.push('  </header>');
-  const order = noteOrder(input.blocks);
+  const order = noteOrder(input.blocks, input.notes);
   for (const block of input.blocks) lines.push(...blockLines(block, order));
   if (order.size > 0 && input.notes !== undefined) {
     lines.push('  <section>');
@@ -123,20 +123,22 @@ function articleLines(input: HtmlArticleInput): string[] {
 }
 
 /** The footnote markers in first-use order, numbered like the other formats' document-wide list (exporter.md §3). */
-function noteOrder(blocks: readonly ProseBlock[]): Map<string, number> {
+function noteOrder(blocks: readonly ProseBlock[], notes: HtmlArticleInput['notes']): Map<string, number> {
   const order = new Map<string, number>();
+  if (notes === undefined) return order;
   const walk = (items: readonly ProseBlock[]): void => {
     for (const block of items) {
       if (block.kind === 'quote') walk(block.blocks);
       else if (block.kind === 'list') block.items.forEach(walk);
       else if (block.kind === 'paragraph' || block.kind === 'heading') {
         for (const run of block.runs) {
-          if (run.noteId !== undefined && !order.has(run.noteId)) order.set(run.noteId, order.size + 1);
+          if (run.noteId !== undefined && notes.has(run.noteId) && !order.has(run.noteId)) order.set(run.noteId, order.size + 1);
         }
       }
     }
   };
   walk(blocks);
+  for (const id of order.keys()) walk(notes.get(id) ?? []);
   return order;
 }
 

@@ -2,7 +2,7 @@
  * The prose PDF — a paginated print of the manuscript (exporter.md §3), for Study and
  * Professional Hall. It shares the screenplay PDF's engine (`packages/screenplay/pdf.ts`)
  * and fonts: Courier Prime embedded (A3), Cousine or the base-14 Courier by the `scriptFont`
- * recipe option, and the CJK, emoji, Arabic, Hebrew and Devanagari fallbacks loaded lazily
+ * recipe option, and the CJK, emoji, Arabic, Hebrew and Indic fallbacks loaded lazily
  * only for the text that needs them. A new manuscript format, not a second writer.
  *
  * The layout is the manuscript's: one-inch margins, 65 columns, 27 rows a page at a double
@@ -15,20 +15,19 @@
  * paginates, so the page count is known before anything is drawn and the plan can refuse a
  * compile that prints nothing without loading a font. {@link prepareProsePdf} loads the fonts
  * and the shapers the text needs, by a dynamic import, and lays out again with the measured
- * widths when Arabic, Hebrew or Devanagari change the line breaks. `drawPdf` of
+ * widths when Arabic, Hebrew or Indic text changes the line breaks. `drawPdf` of
  * `@caotang/screenplay` writes the file.
  */
 
 import {
   countMarks,
-  devanagariFontMaps,
-  devanagariFontPrints,
   emojiFontMaps,
   emojiPrint,
   fallbackCovers,
   firstCodePoint,
-  hasDevanagari,
   hasRtlScript,
+  indicFontMaps,
+  indicFontPrints,
   isBidiControl,
   isEmojiCluster,
   rtlFontPrints,
@@ -40,6 +39,7 @@ import {
 } from '@caotang/pdf-fonts';
 import { languageDirection, paragraphDirection, type Direction } from '@caotang/pdf-fonts/bidi';
 import {
+  breakPieces,
   drawPdf,
   isPrintable,
   loadCjkFallback,
@@ -254,22 +254,33 @@ function wrapTokens(tokens: readonly Token[], width: number, indents: readonly n
         col += space + textColumns(piece);
         break;
       }
-      let [head, rest] = splitColumns(piece, Math.max(1, width - col - space));
-      if (head !== '' && head !== piece) {
+      const available = width - col - space;
+      let head = '';
+      for (const part of breakPieces(piece)) {
+        if (textColumns(head + part) > available) break;
+        head += part;
+      }
+      if (head === '' && current !== '') {
+        flush();
+        continue;
+      }
+      let rest = piece.slice(head.length);
+      if (head === '') {
+        [head, rest] = splitColumns(piece, Math.max(1, available));
         // A CJK closer never opens a line: it overhangs this line's last column instead.
         if (rest !== '' && NO_LINE_START.test(rest)) {
           const cp = String.fromCodePoint(rest.codePointAt(0) ?? 0);
           head += cp;
           rest = rest.slice(cp.length);
         }
-        current += (space === 1 ? ' ' : '') + head;
-        // The word's notes stay with the line its head broke on.
-        notes.push(...pieceNotes);
-        pieceNotes = [];
-        col += space + textColumns(head);
-        piece = rest;
       }
+      current += (space === 1 ? ' ' : '') + head;
+      // The word's notes stay with the line its head broke on.
+      notes.push(...pieceNotes);
+      pieceNotes = [];
       flush();
+      if (rest === '') break;
+      piece = rest;
     }
   }
   if (current !== '' || lines.length === 0) flush();
@@ -316,10 +327,10 @@ function unprintable(lines: readonly LayoutLine[], colour?: (cluster: string) =>
       const base = firstCodePoint(unit);
       if (isPrintable(base)) continue;
       if (isBidiControl(base)) continue;
-      const script = rtlFontPrints(base) ?? (devanagariFontPrints(base) ? 'devanagari' : undefined);
-      if (script === 'devanagari') {
+      const script = rtlFontPrints(base) ?? indicFontPrints(base);
+      if (script !== undefined && script !== 'arabic' && script !== 'hebrew') {
         if (!found.scripts.includes(script)) found.scripts.push(script);
-        for (const ch of unit) if (!devanagariFontMaps(ch) && !found.missing.includes(ch)) found.missing.push(ch);
+        for (const ch of unit) if (!indicFontMaps(script, ch) && !found.missing.includes(ch)) found.missing.push(ch);
       } else if (script !== undefined) {
         if (!found.scripts.includes(script)) found.scripts.push(script);
       } else if (fallbackCovers(base)) {
@@ -605,15 +616,19 @@ function footnoteLines(
 
 /**
  * Paginates the manuscript. Pure and synchronous: the same input, options and measure always
- * give the same pages. `measure` is the width of a shaped word of Arabic or Hebrew in columns,
+ * give the same pages. `measure` is the width of a shaped word of Arabic, Hebrew or Indic text in columns,
  * as the screenplay's layout reads it; `colour` says which emoji the colour set prints.
  */
 export function layoutProsePdf(input: RenderInput, opts: ProsePdfOptions, measure?: MeasureRun, colour?: (cluster: string) => boolean): PdfLayout {
+  return withMeasure(measure, () => paginateProsePdf(input, opts, colour));
+}
+
+function paginateProsePdf(input: RenderInput, opts: ProsePdfOptions, colour?: (cluster: string) => boolean): PdfLayout {
   const allText = input.blocks.map((block) => (block.kind === 'scene' ? block.body : block.kind === 'chapter' ? block.title : '')).join('\n');
   const holdsRtl = hasRtlScript(allText);
   const neutral: Direction = holdsRtl ? languageDirection(opts.language) : 'ltr';
   const { book, number: noteNumber } = noteBookOf();
-  const { flows, bodyLines } = withMeasure(holdsRtl || hasDevanagari(allText) ? measure : undefined, () => flowOf(input, neutral, noteNumber));
+  const { flows, bodyLines } = flowOf(input, neutral, noteNumber);
   const pageSize = opts.pageSize ?? 'Letter';
   const geometry = PAGE_GEOMETRY[pageSize];
   const pageHeight = geometry.pageHeight;
@@ -836,7 +851,7 @@ function wordsOf(input: RenderInput): string {
 
 /**
  * Lays the manuscript out, loads the fonts the layout needs, and lays it out again when the
- * Arabic, Hebrew or Devanagari fonts change the widths — the screenplay's `preparePdf` for the
+ * Arabic, Hebrew or Indic fonts change the widths — the screenplay's `preparePdf` for the
  * prose input. A document without any is laid out once, with no shaper and no such font loaded.
  */
 export async function prepareProsePdf(
