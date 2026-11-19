@@ -1,13 +1,14 @@
 # Caotang for desktop
 
-The native shell in [epic #16](https://github.com/nattiini45/caotang/issues/16) hosts the existing root-base Vite build from `apps/desktop/dist/`. The browser site, project format, storage schema and Vite output stay unchanged. This spec records the feasibility spike (#398) and the boundary for the first shell (#400); it does not describe an installable product.
+The [development shell](../../apps/desktop-shell/README.md) in [epic #16](https://github.com/nattiini45/caotang/issues/16) hosts the existing root-base Vite build from `apps/desktop/dist/`. The browser site, project format, storage schema and Vite output stay unchanged. This spec records the feasibility spike (#398) and the first shell (#400); it does not describe an installable product.
 
 ## Runtime and trust boundary
 
 - Serve the build from the fixed origin `app://caotang/`; keep that origin stable because Chromium keys storage to it. Register the scheme before Electron is ready as standard, secure and Fetch/CORS-capable. Do not bypass CSP. Serve only built assets from a fixed directory, reject other hosts and paths outside that directory, and do not start a loopback server.
 - The renderer is sandboxed and context-isolated, with Node integration off and Chromium web security on. It never navigates to remote pages or creates arbitrary windows. Serve a CSP header alongside the unchanged HTML meta policy: scripts, styles and Workers are same-origin; no inline script, eval, embedded frames, objects or form submission. Deny framing with `frame-ancestors 'none'` in the header, where Chromium enforces it. Renderer data requests remain subject to Chromium's network rules; a native network proxy, filesystem and keychain are not part of the shell.
-- Expose only a versioned, typed desktop bridge. With no native ports yet, this is read-only shell identification, not IPC, filesystem access or a generic Electron API. The renderer still uses its browser ports. Packaged-binary fuses and ASAR integrity belong to the packaging step (#401), not the unpacked smoke launcher.
-- There is no shipped service worker in the web build. The custom scheme can support one, but the shell should not register one or enable that privilege until there is a worker to ship and its update/cache policy is specified.
+- The typed preload bridge exposes only `window.caotangDesktop.version`. There is no IPC, filesystem bridge or generic Electron API. The renderer still uses its browser ports. Only the studio URL can receive Electron permissions for browser file access or sanitized clipboard writes. Other permission requests are denied. Packaged-binary fuses and ASAR integrity belong to #401, not the unpacked smoke launcher.
+- Each Electron profile allows one instance. It restores the last normal window dimensions and maximized state, not the screen position, so changing monitors does not reopen the window off-screen.
+- There is no shipped service worker in the web build. The custom scheme can support one, but the shell does not register one or enable that privilege until there is a worker to ship and its update/cache policy is specified.
 
 ## Spike results (Linux x64)
 

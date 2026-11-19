@@ -86,7 +86,7 @@ An unresolved document conflict keeps its recovery guidance even if a later prod
 - **MCP & tools.** Settings can connect external [Model Context Protocol](https://modelcontextprotocol.io) servers over Streamable HTTP. Each server's tool list is reviewed before its tools are used, and a tool can be switched off. The agent calls an enabled tool at once only when its server is trusted for reads and the tool is read-only. Any other call waits for your approval.
 - **Caotang as an MCP server.** Other AI tools can read a project folder, attach its documents, notes, codex and story timeline as resources, and run prompts that carry the context Caotang gathers for a scene. With writes allowed, they can change it, and each change that asks is confirmed in the host. See [Caotang as an MCP server](#caotang-as-an-mcp-server).
 
-Not in this build yet: the desktop wrapper. [docs/USER-GUIDE.md](docs/USER-GUIDE.md#what-is-not-in-this-build-yet) lists it with the rest, and [docs/ROADMAP.md](docs/ROADMAP.md) has the order.
+Not in this build yet: an installable desktop app. The [Electron development shell](apps/desktop-shell/README.md) runs the web build from source. [docs/USER-GUIDE.md](docs/USER-GUIDE.md#what-is-not-in-this-build-yet) lists what is still missing, and [docs/ROADMAP.md](docs/ROADMAP.md) has the order.
 
 MCP server cards in **Settings › MCP & tools** show **Connecting** while a connection is checked and **Failed** with one translated alert when it cannot connect. Choose **Connect** to retry; saved server settings are unchanged.
 
