@@ -352,7 +352,7 @@
    holding one gives it a row of its own instead of floating it over the page. The rule covers every view — the empty editor (#647),
    the Codex (#735), and any field a writer scrolls to — at every width; the narrow layout changes only the row's padding, where its
    own bars and safe areas decide the room. ---- */
-:root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner) {
+:root[data-shell='modern'] .modern-stage:has(.storage-banner) {
   display: grid;
   grid-template-rows: fit-content(50%) minmax(0, 1fr);
   gap: var(--space-4);
@@ -360,12 +360,12 @@
   padding-inline: var(--area-start) var(--area-end);
 }
 
-:root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner) > :is(.modern-notices, .modern-page-area) {
+:root[data-shell='modern'] .modern-stage:has(.storage-banner) > :is(.modern-notices, .modern-page-area) {
   position: relative;
   inset: auto;
 }
 
-:root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner) > .modern-notices {
+:root[data-shell='modern'] .modern-stage:has(.storage-banner) > .modern-notices {
   grid-row: 1;
   min-block-size: 0;
   overflow-y: auto;
@@ -374,11 +374,11 @@
   inline-size: min(720px, 100%);
 }
 
-:root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner) > .modern-page-area {
+:root[data-shell='modern'] .modern-stage:has(.storage-banner) > .modern-page-area {
   grid-row: 2;
 }
 
-:root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner) .modern-toast {
+:root[data-shell='modern'] .modern-stage:has(.storage-banner) .modern-toast {
   flex: none;
 }
 
