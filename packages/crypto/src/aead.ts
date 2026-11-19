@@ -1,7 +1,7 @@
 import { buf, concat, systemRandom, type RandomBytes } from './bytes.js';
 import { CryptoError } from './errors.js';
 
-/** The first byte of every sealed value; a later format takes the next number. */
+/** The first byte of a sealed file or manifest value; a later format takes the next number. */
 export const FORMAT_TAG = 1;
 export const NONCE_BYTES = 12;
 export const TAG_BYTES = 16;
@@ -18,6 +18,7 @@ export async function aeadSeal(
   associatedData: Uint8Array,
   plaintext: Uint8Array,
   random: RandomBytes = systemRandom,
+  format: number = FORMAT_TAG,
 ): Promise<Uint8Array> {
   const nonce = random(NONCE_BYTES);
   if (nonce.length !== NONCE_BYTES) throw new CryptoError('invalid-argument', 'the nonce source returned the wrong length');
@@ -26,12 +27,17 @@ export async function aeadSeal(
     await aesKey(key, 'encrypt'),
     buf(plaintext),
   );
-  return concat(Uint8Array.of(FORMAT_TAG), nonce, new Uint8Array(sealed));
+  return concat(Uint8Array.of(format), nonce, new Uint8Array(sealed));
 }
 
-export async function aeadOpen(key: Uint8Array, associatedData: Uint8Array, sealed: Uint8Array): Promise<Uint8Array> {
+export async function aeadOpen(
+  key: Uint8Array,
+  associatedData: Uint8Array,
+  sealed: Uint8Array,
+  format: number = FORMAT_TAG,
+): Promise<Uint8Array> {
   if (sealed.length < 1 + NONCE_BYTES + TAG_BYTES) throw new CryptoError('bad-format', 'the sealed value is too short');
-  if (sealed[0] !== FORMAT_TAG) throw new CryptoError('bad-format', `unknown sealed format ${sealed[0]}`);
+  if (sealed[0] !== format) throw new CryptoError('bad-format', `unknown sealed format ${sealed[0]}`);
   const nonce = sealed.subarray(1, 1 + NONCE_BYTES);
   const body = sealed.subarray(1 + NONCE_BYTES);
   try {
