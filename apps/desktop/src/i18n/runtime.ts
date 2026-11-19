@@ -28,6 +28,7 @@ import { i18n, type Messages } from '@lingui/core';
 import { t } from '@lingui/core/macro';
 
 import {
+  INTERFACE_CATALOGUES,
   interfaceCatalogueForId,
   interfaceCatalogueForTag,
   pseudoCatalogues,
@@ -143,6 +144,20 @@ async function loadCatalogue(id: string): Promise<Messages> {
  */
 export function withEnglishFallback(messages: Messages): Messages {
   return { ...enMessages, ...messages };
+}
+
+/**
+ * Warms every non-English, non-pseudo catalogue the build ships, without activating one. The browser's
+ * module map is shared with the switch's own dynamic import, so a catalogue loaded here resolves for
+ * the later switch from cache instead of the network. A warm that fails is ignored: the switch's
+ * `loadMessages` retries through `loadGerman`'s fresh-URL path and owns the notice. Pseudo catalogues
+ * are never warmed — they exist only for dev/test and are picked deliberately.
+ */
+export function preloadCatalogues(): Promise<void> {
+  const loads = INTERFACE_CATALOGUES.filter((catalogue) => catalogue.id !== SOURCE_LOCALE_TAG && !catalogue.pseudo).map(
+    (catalogue) => loadCatalogue(catalogue.id),
+  );
+  return Promise.allSettled(loads).then(() => undefined);
 }
 
 /**

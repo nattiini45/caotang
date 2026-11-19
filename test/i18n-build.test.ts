@@ -30,6 +30,7 @@ import {
   activeTag,
   catalogueForTag,
   loadMessages,
+  preloadCatalogues,
   PSEUDO_CATALOGUES,
   PseudoCatalogueUnavailableError,
   tagForCatalogueId,
@@ -120,6 +121,13 @@ describe('the loader', () => {
     const catalogue = await activateCatalogue('en');
     expect(catalogue.tag).toBe('en');
     expect(activeTag()).toBe('en');
+  });
+
+  it('warms the shipped non-source catalogues without activating one', async () => {
+    activateEnglish();
+    await expect(preloadCatalogues()).resolves.toBeUndefined();
+    expect(activeTag()).toBe('en');
+    await expect(loadMessages('de')).resolves.toBeTypeOf('object');
   });
 });
 
