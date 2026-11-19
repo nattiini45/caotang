@@ -2175,7 +2175,7 @@ export class ProjectSession {
     this.folderCopy = { ...this.folderCopy, digests: new Map(digests) };
   }
 
-  /** The session log the runtime store holds for this project, as the folder's `sessions.jsonl` is written from and read into (project-format §4). */
+  /** The session log this session reads: the native project folder's `sessions.jsonl` when the session was given a `sessionLog`, and the runtime store's otherwise (project-format §4). */
   sessionLog(): Promise<SessionRecord[]> {
     return this.artifactSessions?.read() ?? readSessions(this.runtime, this.projectId);
   }
