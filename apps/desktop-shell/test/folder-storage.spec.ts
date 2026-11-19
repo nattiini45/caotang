@@ -84,6 +84,58 @@ test('folder saves land on disk, and a recent folder never opens a stale mirror'
   }
 });
 
+test('a recent-folder list that cannot be read costs the list, not the window', async () => {
+  const profile = test.info().outputPath('profile');
+  const dir = test.info().outputPath('Recovered folder');
+  await mkdir(profile, { recursive: true });
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(profile, 'native-project-folders.json'), '[{"id": "half a record"');
+  const electron = await launch(profile);
+  try {
+    const page = await electron.firstWindow();
+    await expect(page.getByRole('textbox', { name: 'Project name' })).toBeVisible();
+    await choose(electron, dir);
+    await page.getByRole('textbox', { name: 'Project name' }).fill('Ash Notebook');
+    await page.getByRole('button', { name: 'Create project', exact: true }).click();
+    await expect(page.getByText('Ash Notebook', { exact: true })).toBeVisible();
+    await expect.poll(() => readFile(join(dir, 'caotang.json'), 'utf8')).toContain('"name": "Ash Notebook"');
+  } finally {
+    await electron.close();
+  }
+});
+
+test('forgetting a recent folder leaves its folder writable for a closing session', async () => {
+  const profile = test.info().outputPath('profile');
+  const dir = test.info().outputPath('Wren folder');
+  await mkdir(profile, { recursive: true });
+  await mkdir(dir, { recursive: true });
+  const electron = await launch(profile);
+  try {
+    const page = await electron.firstWindow();
+    await choose(electron, dir);
+    await page.getByRole('textbox', { name: 'Project name' }).fill('Wren Notebook');
+    await page.getByRole('button', { name: 'Create project', exact: true }).click();
+    await expect(page.getByText('Wren Notebook', { exact: true })).toBeVisible();
+    const outcome = await page.evaluate(async () => {
+      const api = window.caotangDesktop?.folders;
+      if (!api) throw new Error('Native folder bridge missing');
+      const folders = await api.recentFolders();
+      if (!folders.ok || !folders.value[0]) throw new Error('No recent project folder');
+      const id = folders.value[0].id;
+      const forgotten = await api.forgetFolder(id);
+      const write = await api.write(id, 'docs/note.md', new TextEncoder().encode('The closing save.'));
+      const after = await api.recentFolders();
+      return { forgotten, write, listed: after.ok ? after.value.map((folder) => folder.id) : null };
+    });
+    expect(outcome.forgotten).toEqual({ ok: true, value: null });
+    expect(outcome.write).toEqual({ ok: true, value: null });
+    expect(outcome.listed).toEqual([]);
+    expect(await readFile(join(dir, 'docs', 'note.md'), 'utf8')).toBe('The closing save.');
+  } finally {
+    await electron.close();
+  }
+});
+
 test('explicit copy leaves an IndexedDB-only project available', async () => {
   const dir = test.info().outputPath('copy');
   await mkdir(dir, { recursive: true });

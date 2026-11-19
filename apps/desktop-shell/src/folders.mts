@@ -65,22 +65,37 @@ function publicFolder({ id, name }: Grant): NativeFolder {
   return { id, name };
 }
 
+/**
+ * The grants a registry file holds. The file is the list of recent folders, not the projects, so one that cannot be read costs the list
+ * and never the window: a file that is not a list starts empty, and a record missing a field is dropped rather than stopping the shell.
+ */
+function grantsIn(bytes: string): Grant[] {
+  let saved: unknown;
+  try {
+    saved = JSON.parse(bytes);
+  } catch (error) {
+    console.error('Caotang could not read its recent-folder list. Starting with none.', error);
+    return [];
+  }
+  if (!Array.isArray(saved)) return [];
+  return saved.filter((record): record is Grant => {
+    if (record === null || typeof record !== 'object') return false;
+    const candidate = record as Partial<Grant>;
+    return typeof candidate.id === 'string' && typeof candidate.name === 'string' && typeof candidate.root === 'string'
+      && typeof candidate.dev === 'number' && typeof candidate.ino === 'number';
+  });
+}
+
 export async function registerFolderIpc(profile: string, entryUrl: string): Promise<void> {
   const registryFs = new NodeArtifactFs(profile);
   const registry = 'native-project-folders.json';
   const recent = new Map<string, Grant>();
   const selected = new Map<string, Grant>();
   const registryBytes = await readFile(join(profile, registry), 'utf8').catch((error: unknown) => {
-    if (errorCode(error) === 'ENOENT') return '[]';
-    throw error;
+    if (errorCode(error) !== 'ENOENT') console.error('Caotang could not read its recent-folder list. Starting with none.', error);
+    return '[]';
   });
-  const saved: unknown = JSON.parse(registryBytes);
-  if (!Array.isArray(saved)) throw new Error('Native project folder registry is unreadable.');
-  for (const record of saved as Partial<Grant>[]) {
-    if (!record || typeof record.id !== 'string' || typeof record.name !== 'string' || typeof record.root !== 'string'
-      || typeof record.dev !== 'number' || typeof record.ino !== 'number') throw new Error('Native project folder registry is unreadable.');
-    recent.set(record.id, record as Grant);
-  }
+  for (const record of grantsIn(registryBytes)) recent.set(record.id, record);
   let writes = Promise.resolve();
   const updateRecents = (action: (next: Map<string, Grant>) => void): Promise<null> => {
     const write = writes.then(async () => {
@@ -142,7 +157,9 @@ export async function registerFolderIpc(profile: string, entryUrl: string): Prom
   });
   handle('forget', (_event, id) => {
     const grant = granted(id);
-    selected.delete(grant.id);
+    // Forgetting edits the list, not the grant. A session that is closing still writes to the folder it was opened from, so the grant
+    // goes on working for the rest of this run and only the persisted entry is removed.
+    selected.set(grant.id, grant);
     return updateRecents((next) => { next.delete(grant.id); });
   });
   handle('list', (_event, id, path) => withPath(id, path, path === '', false, async (fs, dir): Promise<NativeFolderEntry[]> => {
