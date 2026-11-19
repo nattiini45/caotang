@@ -18,11 +18,16 @@ export function nativeFolderId(folder: DirectoryHandleLike | null): string | und
   return folder === null ? undefined : nativeIds.get(folder);
 }
 
+/** A browser-shaped filesystem error: `fs-access` reads the name, and the message never reaches the writer. */
+function fsError(name: 'NotFoundError' | 'TypeMismatchError'): DOMException {
+  return new DOMException(name, name);
+}
+
 function unwrap<T>(reply: FolderReply<T>): T {
   if (reply.ok) return reply.value;
   switch (reply.error) {
     case 'missing': throw new Error(t`The project folder is missing or was moved. Choose Open a folder to find it.`);
-    case 'entry-missing': throw new DOMException('The file is not in the folder.', 'NotFoundError');
+    case 'entry-missing': throw fsError('NotFoundError');
     case 'read-only': throw new Error(t`The project folder is read-only. Make it writable, then try again.`);
     case 'invalid': throw new Error(t`Choose an existing Caotang project folder or an empty folder for a new copy.`);
     case 'unavailable': throw new Error(t`Caotang could not access the project folder. Check its permissions and try again.`);
@@ -36,8 +41,8 @@ function folderHandle(folder: NativeFolder, api: NativeFolderBridge): DirectoryH
     async function check(child: string, kind: HandleLike['kind'], create?: boolean): Promise<string> {
       const target = at(path, child);
       const found = (await list(path)).find((entry) => entry.name === child);
-      if (found && found.kind !== kind) throw new DOMException('The entry is a different kind.', 'TypeMismatchError');
-      if (!found && !create) throw new DOMException('The entry is missing.', 'NotFoundError');
+      if (found && found.kind !== kind) throw fsError('TypeMismatchError');
+      if (!found && !create) throw fsError('NotFoundError');
       return target;
     }
     return {
