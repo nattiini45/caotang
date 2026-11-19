@@ -327,6 +327,12 @@ The codex is your reference book: characters, locations, objects, lore, subplots
 
 Each entry has a name, optional aliases (**Add an alias and press Enter**), a type (**Character**, **Location**, **Object**, **Lore**, **Subplot** or **Other**), a description of up to 2,000 characters, an include policy, **Exclude phrases** (a match inside one is ignored), and the documents it is attached to.
 
+Under **Details**, choose **Add detail field**. Give the field a label, a key (for example, `air-date`), and a value type: text, number, date, or yes/no. Use the current entry type or enter a new type name to assign it to this entry. Every entry of that type gets the same field, but its value is individual. Leaving a value blank clears it; details are not automatically included in requests to the model.
+
+A project folder or bundle saved with these fields uses project format v2. If an older Caotang build refuses to open it, use a build that supports v2. Projects that stay in v1 still open and save without migration.
+
+Saving these fields in the browser also updates that browser's project storage. Afterward, older builds can't open any projects in that browser. Browsers where you've never saved these fields can still open projects in an older build.
+
 The include policy says when the agent sees an entry:
 
 - **Always**: with every request. These are sent whole even when together they are longer than the codex's share of the prompt; the other entries are then left out, and the prompt preview says how many tokens the Always entries need.

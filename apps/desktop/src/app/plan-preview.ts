@@ -8,6 +8,7 @@
 
 import { i18n, type MessageDescriptor } from '@lingui/core';
 import { msg, t } from '@lingui/core/macro';
+import { CODEX_DETAIL_DIFF_PREFIX } from '@caotang/bus';
 import { isolate, numberFormat } from '@caotang/i18n';
 import { costLineRef, refusalSentence } from '@caotang/harness';
 import type { ComicPreview, StepCost, TimelineCard, TimelineCardRow, TimelineDeltaFinding } from '@caotang/harness';
@@ -188,6 +189,10 @@ const FIELD_LABELS: Readonly<Record<string, MessageDescriptor>> = {
 
 /** A field's writer-facing label, or the internal name for one with no label. */
 function fieldLabel(field: string): string {
+  if (field.startsWith(CODEX_DETAIL_DIFF_PREFIX)) {
+    const fieldKey = field.slice(CODEX_DETAIL_DIFF_PREFIX.length);
+    return t({ message: `Details: ${{ fieldKey }}`, comment: 'Interpolated values: fieldKey is a key the writer chose for a codex detail.' });
+  }
   const label = FIELD_LABELS[field];
   return label === undefined ? field : i18n._(label);
 }
@@ -291,6 +296,7 @@ function valueOfJson(text: string): unknown {
  * pictures (`names`, by asset id), and says "(none)" for an empty list; every other field reads as `plainOf` reads it.
  */
 function wordsOf(field: string, value: unknown, names: ReadonlyMap<string, string>): string {
+  if (value === '' && field.startsWith(CODEX_DETAIL_DIFF_PREFIX)) return t`Empty text`;
   if (field !== 'visualRefs') return plainOf(field, value);
   const ids = Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
   return ids.length === 0 ? '(none)' : ids.map((id) => names.get(id) ?? i18n._(MISSING_PICTURE)).join(', ');
@@ -301,11 +307,19 @@ function wordsOf(field: string, value: unknown, names: ReadonlyMap<string, strin
  * references are always listed on a create, so a create with none says "(none)" rather than leaving the writer to wonder.
  */
 function createChangesOf(entry: Record<string, unknown>, names: ReadonlyMap<string, string>): CodexPreviewChange[] {
-  return CREATE_FIELDS.filter((field) => entry[field] !== undefined || field === 'visualRefs').map((field) => ({
+  const changes = CREATE_FIELDS.filter((field) => entry[field] !== undefined || field === 'visualRefs').map((field) => ({
     field: fieldLabel(field),
     from: NEW_ENTRY_FROM,
     to: wordsOf(field, entry[field], names),
   }));
+  const details = entry['details'];
+  if (isRecord(details)) {
+    for (const [key, value] of Object.entries(details)) {
+      const field = `${CODEX_DETAIL_DIFF_PREFIX}${key}`;
+      if (value !== null) changes.push({ field: fieldLabel(field), from: NEW_ENTRY_FROM, to: wordsOf(field, value, names) });
+    }
+  }
+  return changes;
 }
 
 /** The changes of an update: each field that moves, from its old value to its new one, under the writer's label. */

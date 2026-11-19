@@ -8,6 +8,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **Chapter helpers (#47).** Ask the agent to read one chapter at a time across the Manuscript. It shows the number of chapters and maximum model calls before starting, runs helpers in parallel, and keeps finished notes if you stop it. Any proposed changes still go through the agent’s normal plan approval.
 
+- **Typed codex details (#221).** Define text, number, date or yes/no fields for an entry type, including a type you name yourself. Entries of that type share the fields but keep their own values. Details stay out of automatic model context. A folder or bundle saved with typed details requires a Caotang build that supports project format v2. The first browser save with typed details also updates that browser's project storage, so older builds refuse it rather than losing data. Ordinary v1 artifacts and browsers that never save the new fields stay compatible.
 - **Desktop development shell (#400).** Run the existing production app in a sandboxed Electron window from a source checkout. It uses a separate local Chromium profile and is not an installer.
 
 - **Background model hooks (#511).** Add a private check for a built-in agent tool in Settings › Hooks. The plan previews its estimated tokens; execution uses the Background role and shares the turn's model limits. The demo cannot run these checks.

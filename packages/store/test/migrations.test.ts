@@ -11,7 +11,7 @@
  * and the machinery is exercised against that. The fixture-coverage test then
  * makes the requirement real rather than decorative: it walks the production
  * registry and fails if any registered migration lacks a fixture, so the day
- * someone adds the first genuine v1 → v2 step, this file has to grow with it.
+ * someone adds the first genuine migration step, this file has to grow with it.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -285,20 +285,9 @@ describe('§6 wired into the load path', () => {
     expect(report.manifest).toBe(input);
   });
 
-  // The test above does not show that load and validation cannot diverge: that
-  // invariant spans *two* files, and the test checks one, at the one version
-  // where the two halves cannot differ. With `FORMAT_VERSION === 1` and an empty
-  // registry, `report.manifest` IS the input by construction, so the assertion
-  // passes whatever `read.ts` does with it.
-  //
-  // `read.ts` building state from the validated manifest rather than the raw
-  // parse is therefore held in place by no test here. Guarding it needs a
-  // registry the test can substitute or a `FORMAT_VERSION` above 1, so it is a
-  // build slice: an assertion added here would be either skipped or vacuous.
-
   it('loads a current project with no migration notice', async () => {
     const fs = new MemoryArtifactFs();
-    fs.putFile(MANIFEST_FILE, serializeManifest(createEmptyManifest('K')));
+    fs.putFile(MANIFEST_FILE, serializeManifest({ ...createEmptyManifest('K'), formatVersion: FORMAT_VERSION }));
     const result = await readProject(fs);
     expect(result.report.migrations).toEqual([]);
     expect(result.notices.some((n) => n.path === 'formatVersion')).toBe(false);
@@ -311,16 +300,8 @@ describe('§6 wired into the load path', () => {
   });
 });
 
-describe('§6 "writers always save at the current version"', () => {
-  it('stamps the current version of a manifest that is already current', () => {
-    // A v0 manifest handed to the serializer must not come back stamped v1.
-    // Proving the writer *cannot fix* a stale manifest is not a reason to
-    // mislabel it: §6's parenthetical, "no rolling forward on
-    // unrelated edits", is the clause that forbids exactly that, and on a v2
-    // build the file it produced would have claimed a shape it did not have.
-    // The refusal is the correct answer, and it is asserted in
-    // `migration-path.test.ts` at a version this build does not ship — here the
-    // only reachable case is the agreement, so that is what is asserted.
+describe('§6 writer versions', () => {
+  it('keeps a manifest at the highest supported version', () => {
     const current = at(FORMAT_VERSION);
     const text = serializeManifest(current as unknown as Manifest);
     expect(text).toContain(`\n  "formatVersion": ${FORMAT_VERSION},`);

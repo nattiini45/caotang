@@ -79,7 +79,7 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'doc.write': ['docId', 'body', 'expectedRevision'],
   'editor.insert': ['docId', 'offset', 'text', 'expectedRevision'],
   'editor.replaceRange': ['docId', 'range', 'text', 'expectedRevision'],
-  'codex.upsert': ['entries'],
+  'codex.upsert': ['entries', 'detailField'],
   'codex.attach': ['entryId', 'attachTo', 'detachFrom'],
   'export.compile': ['format', 'recipeName', 'templateId'],
   'export.compileSelection': ['includeRootIds', 'format', 'templateId', 'recipeName'],
