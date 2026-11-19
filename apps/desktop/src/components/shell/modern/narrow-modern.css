@@ -148,15 +148,20 @@
   }
 
   /* The storage banner's own row (surfaces-modern.css) keeps its room from this layout's bars and safe areas instead of the
-     desktop page's. The notices already start at the row's edge here, so their desktop top margin is dropped. */
+     desktop page's: the row starts below the top bar, and the page keeps its inline and bottom room inside that row. */
   :root[data-shell='modern'] .modern-stage:has(.storage-banner) {
     gap: var(--space-3);
-    padding-block: calc(var(--failed-save-top, var(--page-top)) + var(--document-mode-row, 0px) + var(--n-top)) calc(var(--page-bottom) + var(--n-bottom) - var(--page-gutter));
-    padding-inline: var(--safe-side);
   }
 
   :root[data-shell='modern'] .modern-stage:has(.storage-banner) > .modern-notices {
-    margin-block-start: 0;
+    margin-block-start: calc(var(--failed-save-top, var(--page-top)) + var(--document-mode-row, 0px) + var(--n-top));
+    margin-inline: var(--safe-side);
+    inline-size: auto;
+  }
+
+  :root[data-shell='modern'] .modern-stage:has(.storage-banner) > .modern-page-area {
+    inset-block: 0 calc(var(--page-bottom) + var(--n-bottom) - var(--page-gutter));
+    inset-inline: var(--safe-side);
   }
 
   :root[data-shell='modern'] .modern-stage:has(.storage-banner) .editor-pane.is-empty {

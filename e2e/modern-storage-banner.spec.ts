@@ -6,8 +6,8 @@ import { test as tagged } from './test.js';
 /**
  * The browser-storage warning over the page in Modern (#647 for the empty editor, #735 for every other view). The banner is not a
  * toast: it stays until the writer answers it and it carries buttons, so the stage gives it a row of its own, and a field the writer
- * scrolls to is never underneath it. Both widths are covered, because the reserved row takes its padding from the desktop page in
- * one and from the narrow layout's bars and safe areas in the other.
+ * scrolls to is never underneath it. Both widths are covered, because the reserved row takes its room from the desktop page in one
+ * and from the narrow layout's bars and safe areas in the other.
  */
 
 /** A German Modern project whose browser has not promised to keep this site's storage, with the banner still up. */

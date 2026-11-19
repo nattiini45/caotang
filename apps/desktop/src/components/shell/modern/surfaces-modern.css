@@ -350,32 +350,39 @@
 
 /* ---- A storage banner is not a toast (storage.ts, §0): it stays until the writer answers it and it carries buttons, so a stage
    holding one gives it a row of its own instead of floating it over the page. The rule covers every view — the empty editor (#647),
-   the Codex (#735), and any field a writer scrolls to — at every width; the narrow layout changes only the row's padding, where its
-   own bars and safe areas decide the room. ---- */
+   the Codex (#735), and any field a writer scrolls to — at every width; the narrow layout changes only the row's offsets, where its
+   own bars and safe areas decide the room.
+   The row's room comes from the two participants' own margins and never from the stage's padding: the wallpaper, the floating capsules
+   and the binder bar resolve their insets against the stage's own box, so a padded stage would move every one of them. The page keeps
+   its absolute placement and its inline insets — the geometry's room for the agent window and a docked Scene info — and is given only
+   the row it sits in. ---- */
 :root[data-shell='modern'] .modern-stage:has(.storage-banner) {
   display: grid;
   grid-template-rows: fit-content(50%) minmax(0, 1fr);
   gap: var(--space-4);
-  padding-block: var(--page-top) var(--page-bottom);
-  padding-inline: var(--area-start) var(--area-end);
-}
-
-:root[data-shell='modern'] .modern-stage:has(.storage-banner) > :is(.modern-notices, .modern-page-area) {
-  position: relative;
-  inset: auto;
 }
 
 :root[data-shell='modern'] .modern-stage:has(.storage-banner) > .modern-notices {
+  position: relative;
+  inset: auto;
   grid-row: 1;
   min-block-size: 0;
   overflow-y: auto;
-  /* Where the absolute notice sat: clear of the top ornament's floating band. */
-  margin-block-start: calc(var(--radius-ornament) + var(--space-6));
-  inline-size: min(720px, 100%);
+  /* Where the absolute notice sat: below the top ornament's floating band, centred in the room the page keeps. */
+  margin-block-start: calc(var(--page-top) + var(--radius-ornament) + var(--space-6));
+  margin-inline: auto;
 }
 
 :root[data-shell='modern'] .modern-stage:has(.storage-banner) > .modern-page-area {
   grid-row: 2;
+  /* Absolutely placed as it always is, inside the row it is given; `inset-inline` stays the geometry's. */
+  inset-block: 0 var(--page-bottom);
+}
+
+/* The binder is a wrapper with nothing in flow (its bar and sidebar are absolute): out of the rows, so its hover-out still ends
+   where the bar does. */
+:root[data-shell='modern'] .modern-stage:has(.storage-banner) > .modern-binder {
+  position: absolute;
 }
 
 :root[data-shell='modern'] .modern-stage:has(.storage-banner) .modern-toast {
