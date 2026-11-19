@@ -12,7 +12,7 @@ import { subagentScript } from '@caotang/gateway/mock';
 import type { MockScript } from '@caotang/gateway/mock';
 import { addDocument, addFolder, setBody, type ProjectState } from '@caotang/store';
 
-import { createAgentPorts, createAgentSession, createMemoryRunLog, DELEGATE_NOTICE, parseRunEvents, type RunLogPort } from '../../src/index.js';
+import { createAgentPorts, createAgentSession, createBudgetMeter, createMemoryRunLog, DELEGATE_NOTICE, parseRunEvents, type RunLogPort } from '../../src/index.js';
 import { evaluate, type Scenario } from '../../src/agent/eval.js';
 import { CHAPTER_ONE, CHAPTER_TWO, ENTRY, FRIEND, LANDING, OPENED, makeHarness, makeState } from '../fixtures.js';
 import { mockGateway } from '../agent/gateway.js';
@@ -291,7 +291,8 @@ describe('chapter delegation', () => {
     expect(textOf(planned.at(-1))).toContain('1 / 2 chapter helpers completed.');
   });
 
-  it('restores completed chapter usage before admitting another batch after a reload', async () => {
+  it.each(['completed batch', 'in-flight batch with an automatic cost limit', 'in-flight batch with a run token limit'] as const)('recovers a %s without exceeding the active budget', async (scenarioName) => {
+    const completed = scenarioName === 'completed batch';
     const log = createMemoryRunLog();
     const state = makeState();
     const projectId = state.manifest.project.id;
@@ -299,8 +300,11 @@ describe('chapter delegation', () => {
     const dropped = new Promise<void>((resolve) => { drop = resolve; });
     const port: RunLogPort = {
       ...log,
-      append: (id, events, patch) => {
-        if (events.some((event) => event.t === 'spend' && event.spend.chapterCalls === 2 && event.reservedCalls === 1)) {
+      append: async (id, events, patch) => {
+        const atDrop = events.some((event) => event.t === 'spend' && (completed
+          ? event.spend.chapterCalls === 2 && event.reservedCalls === 1
+          : event.spend.chapterCalls === 2 && event.reservedCalls === 0));
+        if (atDrop) {
           drop();
           return new Promise(() => {});
         }
@@ -319,8 +323,10 @@ describe('chapter delegation', () => {
     if (!events.ok) return;
     const snapshots = events.events.filter((event) => event.t === 'spend').map((event) => event.spend);
     expect(snapshots).toContainEqual(expect.objectContaining({ chapterCalls: 8, modelCalls: 9, reservedChapterCalls: 8 }));
-    expect(snapshots.at(-1)).toMatchObject({ chapterCalls: 2, modelCalls: 3 });
-    expect(snapshots.at(-1)?.reservedChapterCalls).toBeUndefined();
+    if (completed) {
+      expect(snapshots.at(-1)).toMatchObject({ chapterCalls: 2, modelCalls: 3 });
+      expect(snapshots.at(-1)?.reservedChapterCalls).toBeUndefined();
+    }
     await log.update('chapter-run', { status: 'interrupted' });
 
     const resumed: ChatRequest[] = [];
@@ -330,13 +336,23 @@ describe('chapter delegation', () => {
     const second = createAgentSession({
       harness: makeHarness({ ports: createAgentPorts() }, state), gateway: secondGateway,
       sessionBudget: { maxModelCalls: 13 }, decide: async () => { approvals += 1; return { action: 'approve' }; },
+      ...(scenarioName === 'in-flight batch with an automatic cost limit' ? { mode: 'auto', budget: { maxCostUsd: 100 } } : {}),
+      ...(scenarioName === 'in-flight batch with a run token limit' ? { meter: createBudgetMeter({ maxTokens: 100_000 }) } : {}),
       runLog: { port: log, projectId },
     });
     const report = await second.resume('chapter-run');
-    expect(report.status).toBe('replied');
-    expect(report.modelCalls).toBe(6);
     expect(approvals).toBe(0);
-    expect(textOf(resumed.at(-1))).toContain('session model-call budget');
+    if (completed) {
+      expect(report.status).toBe('replied');
+      expect(report.modelCalls).toBe(6);
+      expect(textOf(resumed.at(-1))).toContain('session model-call budget');
+    } else {
+      expect(report.status).toBe('failed');
+      expect(report.modelCalls).toBe(9);
+      expect(report.tokens.requests).toBe(0);
+      expect(resumed).toEqual([]);
+      expect(report.askBack?.reason).toContain('unknown token or cost usage');
+    }
   });
 });
 

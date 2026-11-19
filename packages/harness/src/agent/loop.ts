@@ -1498,12 +1498,29 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return meter.stepsLeft();
   };
 
+  const guardRecoveredSpend = (turn: Turn): void => {
+    if ((turn.restoredChapterSpend?.reservedChapterCalls ?? 0) === 0) return;
+    const run = turn.meter?.limits;
+    const session = sessionLimits();
+    const runBounded = run?.maxTokens !== undefined || run?.maxCostUsd !== undefined;
+    const automaticBounded = policyOf(turn).decides
+      && (turn.budget.maxTokens !== undefined || turn.budget.maxCostUsd !== undefined || session.maxTokens !== undefined || session.maxCostUsd !== undefined);
+    if (runBounded || automaticBounded) {
+      throw new BudgetExceeded({
+        code: 'budget_exhausted',
+        reason: 'The interrupted chapter batch has unknown token or cost usage. No further model requests were sent.',
+        options: ['Check the earlier batch’s usage before starting a new request', 'Discard the interrupted run'],
+      });
+    }
+  };
+
   /**
    * Reserves a request's worst case from the turn's meter before it is sent (agent-harness §7.1): the prompt's estimate plus the output
    * cap the request goes with, thinking included. A refusal ends the turn on a question, and the request is never sent. A time limit
    * that has passed is the turn's stop, ended the way the signal ends it. No meter, no reservation.
    */
   const reserveCall = (turn: Turn, request: ChatRequest, meter = turn.meter): Reservation | undefined => {
+    guardRecoveredSpend(turn);
     if (meter === undefined) return undefined;
     // The request as sent: its own profile, model and level, and its role, which the gateway routes a request with no profile by.
     // A call under another role carries none of the session's pins, so it is reserved on the role's route, never the session's.
@@ -1531,7 +1548,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     let sent = false;
     let refused = false;
     const beforeSend = (): void => {
-      try { guardRunLog(turn); guardReadBoundary(turn); hookGuard?.(); } catch (error) { refused = !sent; throw error; }
+      try { guardRunLog(turn); guardReadBoundary(turn); guardRecoveredSpend(turn); hookGuard?.(); } catch (error) { refused = !sent; throw error; }
       turn.sentModelRequest = true;
       sent = true;
     };
@@ -1975,6 +1992,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * a crash loses them, and a resume counts them as spent so the run's limits stay honest.
    */
   async function syncRun(turn: Turn, reserved: number, status?: RunStatus, pendingChapters = 0): Promise<void> {
+    if (reserved > 0 || pendingChapters > 0) guardRecoveredSpend(turn);
     const run = turn.run;
     if (run === undefined) return;
     await syncSkills(turn);
@@ -2793,10 +2811,6 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (calls + 1 > sessionLeft) {
       return err(limitExceeded('The chapter batch does not fit the remaining session model-call budget, including one planner call.', 'select fewer top-level Manuscript folders', 'agent.delegate'));
     }
-    if ((turn.restoredChapterSpend?.reservedChapterCalls ?? 0) > 0 && policyOf(turn).decides
-      && (turn.budget.maxTokens !== undefined || turn.budget.maxCostUsd !== undefined || session.maxTokens !== undefined || session.maxCostUsd !== undefined)) {
-      return err(limitExceeded('The interrupted chapter batch has unknown token or cost usage, so another batch cannot run within the configured budget.', 'start a new request after checking the earlier batch’s usage', 'agent.delegate'));
-    }
     const limits = gateway.modelLimits(turn.pins.profileId, turn.pins.model, turn.pins.thinking, { ...(options.role === undefined ? {} : { role: options.role }) });
     const output = transmittedOutputCap(limits);
     const price = limits.pricePer1k;
@@ -2827,6 +2841,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     }
     checkStop(turn);
     guardReadBoundary(turn);
+    guardRecoveredSpend(turn);
     const spec = SUBAGENT_SPECS[params.agent];
     const batchPath = `${turn.id}/chapters#${turn.delegations + 1}`;
     const work = chapters.map((chapter) => ({ key: chapter.id, input: { chapter, path: `${turn.id}/${spec.name}#${++turn.delegations}` } }));
@@ -4937,6 +4952,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * a note that the last reply was never acted on.
    */
   async function resumedTurn(turn: Turn, replay: RunReplay): Promise<Settled> {
+    guardRecoveredSpend(turn);
     turn.restored = true;
     turn.carried = replay.applied.length;
     if (replay.compaction !== undefined) {
