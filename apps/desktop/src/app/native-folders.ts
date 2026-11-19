@@ -1,6 +1,6 @@
 import { t } from '@lingui/core/macro';
 
-import type { FolderReply, NativeFolder, NativeFolderBridge } from '../../../desktop-shell/src/folder-contract.cjs';
+import type { FolderReply, NativeFolder, NativeFolderBridge, NativeFolderChange } from '../../../desktop-shell/src/folder-contract.cjs';
 
 import type { DirectoryHandleLike, FileHandleLike, HandleLike } from './fs-access.js';
 
@@ -105,4 +105,21 @@ export async function rememberNativeFolder(id: string): Promise<void> {
 export async function forgetNativeFolder(id: string): Promise<void> {
   const api = bridge();
   if (api) unwrap(await api.forgetFolder(id));
+}
+
+/** Starts watching an open project folder in the main process; the returned id stops it again (desktop.md §External folder changes). */
+export async function watchNativeFolder(id: string): Promise<string | null> {
+  const api = bridge();
+  return api ? unwrap(await api.watch(id)) : null;
+}
+
+export async function unwatchNativeFolder(subscription: string): Promise<void> {
+  const api = bridge();
+  if (api) unwrap(await api.unwatch(subscription));
+}
+
+/** Listens for the changes the main process reports for a watched folder. The returned function stops listening. */
+export function onNativeFolderChange(listener: (change: NativeFolderChange) => void): () => void {
+  const api = bridge();
+  return api ? api.onChanged(listener) : () => undefined;
 }
