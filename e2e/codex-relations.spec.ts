@@ -64,6 +64,20 @@ test('a relation is edited on the entry that states it and shows on the entry it
   await expect(relations).toContainText('rival');
   await expect(relations).not.toContainText('ally');
 
+  await page.getByRole('button', { name: '← All entries' }).click();
+  await page.getByRole('button', { name: 'Graph', pressed: false }).click();
+  const drawing = page.locator('svg.codex-graph-drawing');
+  await expect(drawing).toBeVisible();
+  const links = page.getByRole('list', { name: 'Entries and their links' });
+  await expect(links).toContainText('Mara');
+  const follow = links.getByRole('button', { name: 'Links to Mara.' });
+  await follow.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { level: 2, name: 'Mara' })).toBeVisible();
+  await page.getByRole('button', { name: '← All entries' }).click();
+  await page.getByRole('button', { name: 'List', pressed: false }).click();
+  await page.getByRole('button', { name: /^Fenn/ }).click();
+
   await relations.getByRole('button', { name: 'Remove relation to Mara' }).click();
   await expect(add).toBeFocused();
   await expect(relations).toContainText('This entry links to nothing yet.');

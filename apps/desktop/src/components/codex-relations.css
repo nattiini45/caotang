@@ -30,7 +30,7 @@
 }
 
 .codex-relation-label {
-  color: var(--text-muted);
+  color: var(--muted);
 }
 
 .codex-relation-label::before {

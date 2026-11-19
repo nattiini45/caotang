@@ -341,6 +341,8 @@ Under **Relations**, choose **Add relation** to link this entry to another one a
 
 An entry with a relation raises the project to project format v4, and the first browser save of one updates that browser's project storage again. An older Caotang build then refuses those projects instead of losing the links; projects with no relations keep the format they had.
 
+Switch the codex between **List** and **Graph** with the control beside **New entry**. The graph draws every entry as a point and every link as an arrow, and below it the same links are listed as buttons, so you can reach both ends with the keyboard. Select an entry in either place to open it.
+
 The include policy says when the agent sees an entry:
 
 - **Always**: with every request. These are sent whole even when together they are longer than the codex's share of the prompt; the other entries are then left out, and the prompt preview says how many tokens the Always entries need.

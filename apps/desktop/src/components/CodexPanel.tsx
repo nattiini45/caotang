@@ -65,6 +65,7 @@ type Outcome = Result<ExecutionOutcome, CommandError>;
 const CodexDetails = lazyView(() => import('./CodexDetails.js').then((module) => ({ default: module.CodexDetails })));
 const CodexReferences = lazyView(() => import('./CodexReferences.js').then((module) => ({ default: module.CodexReferences })));
 const CodexRelations = lazyView(() => import('./CodexRelations.js').then((module) => ({ default: module.CodexRelations })));
+const CodexGraph = lazyView(() => import('./CodexGraph.js').then((module) => ({ default: module.CodexGraph })));
 
 export interface CodexPanelProps {
   readonly session: ProjectSession;
@@ -85,6 +86,8 @@ export interface CodexPanelProps {
 export function CodexPanel({ session, onOpenDocument, onAgentIntent, focus = null }: CodexPanelProps): ReactNode {
   useSession(session);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The list/graph switch belongs to the panel, not the list, so opening an entry and coming back keeps it.
+  const [view, setView] = useState<'list' | 'graph'>('list');
   // A new focus request opens its entry. The serial is the request, so the same entry asked for again opens again. The
   // comparison is made while rendering, so the panel never paints the entry it was not asked to show.
   const [answered, setAnswered] = useState<number | null>(null);
@@ -96,7 +99,7 @@ export function CodexPanel({ session, onOpenDocument, onAgentIntent, focus = nul
   const selected = selectedId === null ? undefined : entries.find((entry) => entry.id === selectedId);
 
   if (selected === undefined) {
-    return <CodexList session={session} entries={entries} onOpen={setSelectedId} onAgentIntent={onAgentIntent} />;
+    return <CodexList session={session} entries={entries} view={view} onView={setView} onOpen={setSelectedId} onAgentIntent={onAgentIntent} />;
   }
   return (
     <CodexEntryEditor
@@ -117,17 +120,22 @@ export function CodexPanel({ session, onOpenDocument, onAgentIntent, focus = nul
 function CodexList({
   session,
   entries,
+  view,
+  onView,
   onOpen,
   onAgentIntent,
 }: {
   session: ProjectSession;
   entries: readonly CodexEntry[];
+  view: 'list' | 'graph';
+  onView: (view: 'list' | 'graph') => void;
   onOpen: (entryId: string) => void;
   onAgentIntent: (intent: string) => void;
 }): ReactNode {
   useLingui();
   const report = useReport();
   const [filter, setFilter] = useState<CodexFilter>(NO_FILTER);
+  const graph = view === 'graph' && entries.length > 0;
   const modern = isModern();
   const totals = totalsOf(session.state, session.mentions, entries);
   const visible = entries.filter((entry) => matchesFilter(entry, filter));
@@ -191,9 +199,23 @@ function CodexList({
           <button type="button" className="button is-primary" onClick={create}>
             <Trans>New entry</Trans>
           </button>
+          <div className="codex-view-switch" role="group" aria-label={t`Codex view`}>
+            <button type="button" className="button is-quiet" aria-pressed={view === 'list'} onClick={() => onView('list')}>
+              <Trans>List</Trans>
+            </button>
+            <button type="button" className="button is-quiet" aria-pressed={view === 'graph'} onClick={() => onView('graph')}>
+              <Trans>Graph</Trans>
+            </button>
+          </div>
         </div>
       ) : null}
 
+      {graph ? (
+        <LazyBoundary label={t`the graph`}>
+          <CodexGraph entries={entries} onOpen={onOpen} />
+        </LazyBoundary>
+      ) : (
+        <>
       <input
         type="search"
         className="codex-search"
@@ -269,6 +291,8 @@ function CodexList({
             </div>
           ))}
         </section>
+      )}
+        </>
       )}
     </div>
   );

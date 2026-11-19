@@ -84,6 +84,8 @@ A confirmed `codex.write` can edit relations with `relationEdits`, using create,
 
 An entry with at least one relation needs format v4, so a build that shipped external references only refuses the folder, bundle or browser store rather than dropping the links on save. A project with no relations stays at v3 or lower. Relations are not included in automatic model context, and mention matching does not follow them: a link is a writer's note about the story, never an implicit reference between entries.
 
+**The graph.** The codex panel's toolbar switches between the list and a project-wide graph: every entry a node on one circle, every stored relation an arrow from the entry that states it, so the picture is derived from the manifest and nothing else. It is a read-only view; a link is added, changed or removed in the entry that holds it. The drawing is decoration for a sighted reader and carries `aria-hidden`, and the list beside it is the surface keyboard and screen-reader users work: each linked entry, the links it makes as buttons that open the other end, and the names that link back. An entry with no link in either direction is counted rather than listed, so a large codex stays readable. The graph loads on demand, like the entry sections, and never enters the first load.
+
 ## 3. Storage & write path
 
 - **Manifest is structural truth:** `caotang.json` holds a top-level `codex[]` array (full `CodexEntry` objects, same fixed key order discipline as `tree`). Basic codex entries are supported in format v1; see §2.1, §2.2 and §2.3 for the typed-details, references and relations boundaries.

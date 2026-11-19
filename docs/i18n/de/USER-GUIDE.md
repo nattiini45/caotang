@@ -314,7 +314,7 @@ Ein Comic kann ein Skript haben, ein Dokument, das Caotang nach Wahl mit dem Buc
 Zum Exportieren wählen Sie den Comic oder eine seiner Seiten und dann **Kompilieren…**. **Comic-PDF (.pdf)** bietet **Anschnitt**, **Schnittmarken** und **Papierrahmen**. **Comic-Archiv (.cbz)** und **Comic-EPUB (.epub)** verwenden den Rasterizer des Browsers; ein Kommandozeilen- oder MCP-Host verweigert diese beiden vor dem Schreiben und weist Sie an, aus der App heraus zu exportieren. Jedes Format folgt der eigenen Leserichtung des Comics, daher setzt kein Exportprofil sie fest.
 
 ## Der Kodex
-<!-- source: c8b7f2d6 -->
+<!-- source: b4891c6b -->
 
 Der Kodex ist Ihr Nachschlagewerk: Figuren, Orte, Gegenstände, Überlieferung, Nebenhandlungen und alles andere, was der Agent wissen sollte. Öffnen Sie ihn über die Registerkarte **Kodex** auf der linken Seite. Wählen Sie **Neuer Eintrag**, um einen hinzuzufügen, oder tippen Sie in das Suchfeld, um einen zu finden.
 
@@ -333,6 +333,8 @@ Ein Eintrag mit einer externen Quelle hebt das Projekt auf Projektformat v3, und
 Wählen Sie unter **Beziehungen** die Option **Beziehung hinzufügen**, um diesen Eintrag mit einem anderen zu verknüpfen und der Verknüpfung bei Bedarf ein eigenes Wort zu geben: *Verbündete*, *Rivalin*, *Mutter von*. Die Liste zeigt die Verknüpfungen dieses Eintrags und darunter unter **Verweise von** die Einträge, die auf ihn verweisen; wählen Sie einen Namen, um den Eintrag zu öffnen. Eine Verknüpfung gehört zu dem Eintrag, der sie angibt; der andere Eintrag führt sie daher unter **Verweise von** statt in seiner eigenen Liste, und zum Entfernen öffnen Sie den Eintrag, der sie hält. Wird der verknüpfte Eintrag gelöscht, bleibt die Verknüpfung bestehen und nennt den Eintrag als fehlend.
 
 Ein Eintrag mit einer Beziehung hebt das Projekt auf Projektformat v4, und das erste Speichern im Browser aktualisiert den Projektspeicher des Browsers erneut. Eine ältere Caotang-Version lehnt solche Projekte dann ab, statt die Verknüpfungen zu verlieren; Projekte ohne Beziehungen behalten ihr bisheriges Format.
+
+Mit dem Schalter neben **Neuer Eintrag** wechseln Sie im Kodex zwischen **Liste** und **Netz**. Das Netz zeigt jeden Eintrag als Punkt und jede Verknüpfung als Pfeil; darunter stehen dieselben Verknüpfungen als Schaltflächen, sodass Sie beide Enden mit der Tastatur erreichen. Wählen Sie einen Eintrag an einer der beiden Stellen, um ihn zu öffnen.
 
 Die Einschlussrichtlinie legt fest, wann der Agent einen Eintrag sieht:
 

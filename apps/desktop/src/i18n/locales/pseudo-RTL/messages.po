@@ -936,6 +936,11 @@ msgstr ""
 msgid "{count} documents could not be drafted and are left out of the review."
 msgstr ""
 
+#. count is a number of codex entries that have no link in either direction.
+#: apps/desktop/src/components/CodexGraph.tsx
+msgid "{count} entries link to nothing."
+msgstr ""
+
 #. Interpolated values: scope, title
 #: apps/desktop/src/components/Corkboard.tsx
 msgid "{count} items"
@@ -1137,6 +1142,11 @@ msgstr ""
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
 msgid "{encoding} — the best reading"
+msgstr ""
+
+#. entries counts codex entries and links the links between them; both are formatted numbers.
+#: apps/desktop/src/components/CodexGraph.tsx
+msgid "{entries} entries with {links} links."
 msgstr ""
 
 #. Interpolated values: error
@@ -2877,6 +2887,7 @@ msgstr ""
 msgid "a missing entry"
 msgstr ""
 
+#: apps/desktop/src/components/CodexGraph.tsx
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "A missing entry"
 msgstr ""
@@ -6191,6 +6202,11 @@ msgstr ""
 msgid "Codex included"
 msgstr ""
 
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
+#: apps/desktop/src/components/CodexPanel.tsx
+msgid "Codex view"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: MAX_FINDINGS_CAP, max
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
@@ -8313,6 +8329,10 @@ msgstr ""
 msgid "Enter or Space"
 msgstr ""
 
+#: apps/desktop/src/components/CodexGraph.tsx
+msgid "Entries and their links"
+msgstr ""
+
 #: apps/desktop/src/components/CodexDetails.tsx
 msgid "Entries of this type share the field. Enter a new type name to use it for this entry."
 msgstr ""
@@ -9381,7 +9401,9 @@ msgstr ""
 msgid "Got it"
 msgstr ""
 
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
+#: apps/desktop/src/components/CodexPanel.tsx
 #: apps/desktop/src/media/DialogueView.tsx
 msgid "Graph"
 msgstr ""
@@ -10901,13 +10923,29 @@ msgstr ""
 msgid "Linked from"
 msgstr ""
 
+#. names is the list of codex entry names that link to this entry.
+#: apps/desktop/src/components/CodexGraph.tsx
+msgid "Linked from {names}."
+msgstr ""
+
 #. name is the linked entry name, or a missing entry.
+#. name is the name of the codex entry the link points at.
+#: apps/desktop/src/components/CodexGraph.tsx
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Links to {name}."
 msgstr ""
 
+#: apps/desktop/src/components/CodexGraph.tsx
+msgid "Links to a missing entry."
+msgstr ""
+
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Links to other codex entries. They stay out of automatic model requests."
+msgstr ""
+
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
+#: apps/desktop/src/components/CodexPanel.tsx
+msgid "List"
 msgstr ""
 
 #. js-lingui-explicit-id
@@ -12217,6 +12255,10 @@ msgstr ""
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "No entries match"
+msgstr ""
+
+#: apps/desktop/src/components/CodexGraph.tsx
+msgid "No entry links yet."
 msgstr ""
 
 #. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
@@ -19843,6 +19885,11 @@ msgstr ""
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The goal’s interruption could not be saved. Reopen the project to try again, or discard the goal record."
+msgstr ""
+
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
+#: apps/desktop/src/components/CodexPanel.tsx
+msgid "the graph"
 msgstr ""
 
 #. Interpolated values: count, number, total
