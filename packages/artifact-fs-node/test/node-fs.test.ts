@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { ArtifactNotFoundError } from '@caotang/store/artifact-fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { ArtifactPathError, NodeArtifactFs, byteArtifactsOver, resolveWithin } from '../src/index.js';
+import { ArtifactBusyError, ArtifactPathError, NodeArtifactFs, byteArtifactsOver, renameWithRetry, resolveWithin } from '../src/index.js';
 
 const tempDir = (name: string): string => mkdtempSync(join(tmpdir(), `caotang-${name}-`));
 const removeDir = (path: string): void => rmSync(path, { recursive: true, force: true });
@@ -125,5 +125,36 @@ describe('NodeArtifactFs', () => {
     writeFileSync(join(root, 'docs', 'notes-by-hand.md'), 'written by hand');
     await fs.writeAtomic('docs/n_NEIGHBOR01.md', 'neighbour');
     expect(readFileSync(join(root, 'docs', 'notes-by-hand.md'), 'utf8')).toBe('written by hand');
+  });
+});
+
+describe('renameWithRetry', () => {
+  const sharingError = (code: string): Error => Object.assign(new Error('the file is in use'), { code });
+
+  it('retries the sharing errors Windows gives while another program holds the file', async () => {
+    const codes: readonly (string | undefined)[] = ['EPERM', 'EACCES', 'EBUSY', undefined];
+    const attempted: number[] = [];
+    await renameWithRetry('/project/root/temp', '/project/root/caotang.json', async () => {
+      attempted.push(attempted.length);
+      const code = codes[attempted.length - 1];
+      if (code !== undefined) throw sharingError(code);
+    });
+    expect(attempted).toHaveLength(4);
+  });
+
+  it('reports a budget that ran out as contention, not as a permission problem', async () => {
+    const failure = await renameWithRetry('/project/root/temp', '/project/root/caotang.json', async () => {
+      throw sharingError('EPERM');
+    }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(ArtifactBusyError);
+    expect(failure).toMatchObject({ code: 'EBUSY', errno: 'EPERM', path: '/project/root/caotang.json' });
+  });
+
+  it('passes a rename that is not one of the sharing errors straight through', async () => {
+    const failure = sharingError('ENOENT');
+    const thrown = await renameWithRetry('/project/root/temp', '/project/root/caotang.json', async () => {
+      throw failure;
+    }).catch((error: unknown) => error);
+    expect(thrown).toBe(failure);
   });
 });

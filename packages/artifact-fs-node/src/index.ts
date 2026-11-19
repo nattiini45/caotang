@@ -77,16 +77,41 @@ export function resolveWithin(root: string, path: string): string {
   return target;
 }
 
-/** Retries a rename on the transient sharing errors Windows gives while another process holds the target. */
-async function renameWithRetry(from: string, to: string): Promise<void> {
+/**
+ * A write the retry budget gave up on: another program still holds the file. The folder is writable — the bridge checks that
+ * before it writes — so this is access trouble rather than a permission problem, and its `code` says so to the caller's mapping.
+ */
+export class ArtifactBusyError extends Error {
+  readonly code = 'EBUSY';
+
+  constructor(
+    readonly path: string,
+    readonly errno: string | undefined,
+  ) {
+    super(`artifact path ${JSON.stringify(path)} is in use by another program${errno === undefined ? '' : ` (${errno})`}`);
+    this.name = 'ArtifactBusyError';
+  }
+}
+
+/**
+ * Retries a rename on the transient sharing errors Windows gives while another process holds the target. A budget that runs out
+ * is contention that outlived the retries, so it is reported as {@link ArtifactBusyError} rather than as the permission error the
+ * last attempt happened to carry: the writer is told the folder could not be used, not to make a writable folder writable.
+ */
+export async function renameWithRetry(
+  from: string,
+  to: string,
+  attemptRename: (from: string, to: string) => Promise<void> = rename,
+): Promise<void> {
   for (let attempt = 1; ; attempt += 1) {
     try {
-      await rename(from, to);
+      await attemptRename(from, to);
       return;
     } catch (error) {
       const code = errnoOf(error);
       const transient = code === 'EPERM' || code === 'EACCES' || code === 'EBUSY';
-      if (!transient || attempt >= 6) throw error;
+      if (!transient) throw error;
+      if (attempt >= 6) throw new ArtifactBusyError(to, code);
       await new Promise((done) => setTimeout(done, 25 * attempt));
     }
   }
