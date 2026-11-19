@@ -7,6 +7,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 ### Added
 
 - **Background model hooks (#511).** Add a private check for a built-in agent tool in Settings › Hooks. The plan previews its estimated tokens; execution uses the Background role and shares the turn's model limits. The demo cannot run these checks.
+- **Model hook rewrites and follow-ups (#511).** Let a before hook propose replacement notes or synopsis text and compare both versions on a fresh card. Even in Auto mode, the replacement needs your approval. A private turn-end hook can ask the agent to continue up to twice within the same limits.
 
 - **Read-only MCP hooks (#511).** Settings › Hooks can call a trusted, reviewed read-only MCP tool before or after a selected built-in agent tool. The definition stays in this browser for this project, and the request sends no manuscript or tool arguments.
 

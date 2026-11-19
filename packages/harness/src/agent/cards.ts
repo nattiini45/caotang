@@ -194,10 +194,19 @@ export interface PlanStepView {
   /** The prompt that produced this step's draft, as the card shows it (context-assembly §5). */
   readonly context?: PromptPreview;
   readonly modelHooks?: readonly ModelHookEstimate[];
+  readonly hookRewrite?: HookRewriteView & { readonly after: string };
   /** The step's estimated cost at the profile's price, when the step carries one: a coherence review's plan (coherence.md §5.3). */
   readonly cost?: StepCost;
   /** The delegated agent that proposed this step, when the step is the one it proposed as it was proposed (agent-harness §2). An edited step has none. */
   readonly proposedBy?: string;
+}
+
+export interface HookRewriteView {
+  readonly tool: string;
+  readonly field: string;
+  readonly name: string;
+  readonly before: string;
+  readonly edited?: true;
 }
 
 export interface PlanCardView {
@@ -331,6 +340,7 @@ export interface EditableSteps {
   readonly proposals: readonly unknown[];
   readonly stale: readonly boolean[];
   readonly superseded: readonly Superseded[];
+  readonly hookRewrites?: readonly (HookRewriteView | undefined)[];
   /**
    * The origins of the steps this turn has already applied. Such a step has run: it is shown as done,
    * it is never run again, and no edit may drop, change or move it. A pending step may not be moved
@@ -419,12 +429,18 @@ export function applyEdit(state: EditableSteps, edit: PlanEdit): Result<Editable
   const toolChanged = next.tool !== current.tool;
   const stale = state.stale.map((flag, index) => (index !== edit.index ? flag : drafted ? MODEL_BACKED_TOOLS.has(next.tool) : flag));
   const proposals = toolChanged ? state.proposals.map((proposal, index) => (index === edit.index ? undefined : proposal)) : state.proposals;
+  const origin = state.origins[edit.index] ?? edit.index;
+  const rewrite = state.hookRewrites?.[origin];
+  const hookRewrites = rewrite !== undefined && rewrite.tool === next.tool && current.params[rewrite.field] !== next.params[rewrite.field]
+    ? state.hookRewrites?.map((entry, at) => at === origin ? { ...rewrite, edited: true as const } : entry)
+    : state.hookRewrites;
   return ok({
     ...state,
     steps,
     proposals,
     stale,
-    superseded: [...state.superseded, { origin: state.origins[edit.index] ?? edit.index, step: current }],
+    superseded: [...state.superseded, { origin, step: current }],
+    ...(hookRewrites === undefined ? {} : { hookRewrites }),
   });
 }
 
@@ -658,6 +674,8 @@ export function planCardOf(args: {
     const context = staged[index]?.context;
     const cost = staged[index]?.cost;
     const proposer = args.proposedBy?.[index];
+    const rewrite = args.state.hookRewrites?.[origin];
+    const after = rewrite?.tool === step.tool ? step.params[rewrite.field] : undefined;
     const shared = {
       index,
       origin,
@@ -672,6 +690,7 @@ export function planCardOf(args: {
       ...(context === undefined ? {} : { context }),
       ...(cost === undefined ? {} : { cost }),
       ...(proposer === undefined ? {} : { proposedBy: proposer }),
+      ...(rewrite !== undefined && typeof after === 'string' ? { hookRewrite: { ...rewrite, after } } : {}),
     };
     if (args.state.completed.includes(origin)) return { ...shared, status: 'done' };
     const checked = args.preflight.steps.find((entry) => entry.index === index);

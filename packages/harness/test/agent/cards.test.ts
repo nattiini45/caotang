@@ -54,6 +54,18 @@ function editable(over: Partial<EditableSteps> = {}): EditableSteps {
 }
 
 describe('plan edits (agent-harness §2)', () => {
+  it('attributes a change to the writer when they edit a hook’s replacement', () => {
+    const step = { tool: 'notes.append', params: { doc: 'The Storm', text: 'Rain fell.' }, expect: 'Add a note.' };
+    const rewrite = { tool: step.tool, field: 'text', before: 'Snow fell.', name: 'Weather check' };
+    const changed = applyEdit(editable({ steps: [step], origins: [0], hookRewrites: [rewrite] }), {
+      op: 'set', index: 0, path: ['params', 'text'], value: 'Hail fell.',
+    });
+    expect(changed).toMatchObject({ ok: true, value: {
+      steps: [{ params: { text: 'Hail fell.' } }],
+      hookRewrites: [{ ...rewrite, edited: true }],
+    } });
+  });
+
   it('reorders steps with their origins, proposals and staleness moving together', () => {
     const withDraft = editable({ proposals: [undefined, undefined, { text: 'Rain falls.', words: 2 }] });
     const moved = applyEdit(withDraft, { op: 'reorder', from: 2, to: 0 });

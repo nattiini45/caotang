@@ -121,7 +121,7 @@ import {
 import { portPreflights } from './agent/ports.js';
 import { STAGED_PROSE, blockOf, blockWords, createHookRunner, exportHookNodes, hookLabel, proseOf, type HookInput, type HookRun, type HookSource } from './hooks.js';
 import { invokeMcpReadHook, type McpReadHook } from './mcp-hooks.js';
-import { MODEL_HOOK_LIMIT, MODEL_HOOK_TOOLS, invokeModelHook, modelHookMessages, sameModelHook, type ModelHook, type ModelHookActor } from './model-hooks.js';
+import { MODEL_HOOK_LIMIT, MODEL_HOOK_REWRITE_PENDING, MODEL_HOOK_TOOLS, invokeModelHook, modelHookMessages, modelHookTransformField, sameModelHook, type ModelHook, type ModelHookActor, type ModelHookRewrite } from './model-hooks.js';
 import { TOOL_METADATA, capOf, metadataFor, type ToolMetadata, type ToolName, type ToolRisk } from './metadata.js';
 import type { ResultData } from './results.js';
 import { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
@@ -284,6 +284,7 @@ export interface ExternalHarness {
 
 interface ActorCallBoundary {
   readonly check: () => CommandError | undefined;
+  readonly rewrite?: (replacement: ModelHookRewrite) => void;
   readonly beforeApply?: () => void;
   readonly afterApply: (outcome: ToolOutcome) => void | Promise<boolean>;
 }
@@ -1526,7 +1527,8 @@ export function createHarness(options: HarnessOptions): Harness {
   }
 
   function modelHooks(): readonly ModelHook[] {
-    return (options.modelHooks?.() ?? []).slice(0, MODEL_HOOK_LIMIT).filter((hook) => hook.enabled && MODEL_HOOK_TOOLS.some((tool) => tool === hook.tool));
+    return (options.modelHooks?.() ?? []).slice(0, MODEL_HOOK_LIMIT).filter((hook) => hook.enabled
+      && (hook.event === 'turn.end' ? hook.tool === '' : MODEL_HOOK_TOOLS.some((tool) => tool === hook.tool)));
   }
 
   function modelHookInput(hook: ModelHook, params: CallParams, proposal?: unknown, affected: readonly string[] = []): readonly ChatMessage[] | undefined {
@@ -1545,7 +1547,7 @@ export function createHarness(options: HarnessOptions): Harness {
       const staged = Object.hasOwn(STAGED_PROSE, hook.tool) ? STAGED_PROSE[hook.tool] : undefined;
       if (staged !== undefined && (!isRecord(proposal) || !Object.hasOwn(proposal, staged.key))) return undefined;
       const prose = proseOf(hook.tool, parsed.value, staged === undefined || !isRecord(proposal) ? undefined : { [staged.key]: proposal[staged.key] });
-      return modelHookMessages(hook.prompt, hook.tool, prose);
+      return modelHookMessages(hook.prompt, hook.tool, prose, hook.event === 'tool.before' && hook.canTransform === true && modelHookTransformField(hook.tool) !== undefined ? 'transform' : undefined);
     } catch {
       return undefined;
     }
@@ -1711,9 +1713,31 @@ export function createHarness(options: HarnessOptions): Harness {
           && ruleRefusalFor(admitted.value.entry.meta, params, turn) === undefined
           && canonicalJson(messages ?? null) === canonicalJson(modelHookInput(hook, params, call.proposal, affected) ?? null);
         const start = clock();
-        const report = await invokeModelHook(actor, messages, allowed, turn.signal);
+        const field = event === 'tool.before' && hook.canTransform === true ? modelHookTransformField(call.name) : undefined;
+        const report = await invokeModelHook(actor, messages, allowed, turn.signal, field === undefined ? undefined : 'transform');
         attempted ||= report.attempted;
         if (!active() || !current() || report.decision === 'allow') continue;
+        if (report.decision === 'transform' && field !== undefined) {
+          if (!allowed()) return refusal('permission-denied', 'The call changed while the hook was checking it. Nothing was written.', { target: call.name });
+          const before = params[field];
+          if (before === report.replacement) continue;
+          const name = hookLabel(redact(hook.name));
+          const replacement = prepareCall(call.name, { ...params, [field]: report.replacement });
+          const problem = replacement.ok ? ruleRefusalFor(replacement.value.entry.meta, replacement.value.params, turn) : replacement.error;
+          if (!replacement.ok || problem !== undefined || typeof before !== 'string' || redact(before) !== before || boundary?.rewrite === undefined) {
+            return refusal(problem?.code ?? 'permission-denied', `Hook “${name}” could not rewrite ${call.name}: ${problem?.message ?? 'the original text cannot be shown safely on a fresh approval card.'}`, {
+              target: call.name,
+              correctiveHint: problem?.correctiveHint ?? 'review the hook and send the request again',
+              details: { askBackCode: 'hook_blocked', hookId: hook.id, hookName: name },
+            });
+          }
+          boundary.rewrite({ hookId: hook.id, name, field, before, params: replacement.value.params });
+          recordHooks(turn.turnId, [{
+            hookId: hook.id, name, event, tool: call.name, callId: call.callId, ms: Math.max(0, clock() - start),
+            decision: { action: 'warn', reason: 'The model hook proposed replacement text. A fresh approval is required.' },
+          }], params);
+          return refusal('permission-denied', MODEL_HOOK_REWRITE_PENDING, { target: call.name });
+        }
         const block = event === 'tool.before' && (report.decision === 'block' || (report.reason !== undefined && hook.failClosed));
         const reason = report.reason ?? (report.decision === 'block' ? 'The model hook did not pass this check.' : 'The model hook flagged this check for review.');
         const run: HookRun = {
