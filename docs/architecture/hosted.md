@@ -60,6 +60,21 @@ After the first passphrase unlock the device may wrap the MK under a fresh **non
 
 The vault key is HKDF-SHA-256 of the MK under `caotang/v1/vault-key`, a label no project subkey uses. Encrypted provider-key sync (P9) is its own slice; this slice ships only the derivation, so the vault has a key to seal under that cannot collide with a file, path or manifest key.
 
+### 2.5 The sealed provider-key vault
+
+Provider keys and the profiles they belong to are sealed into **one vault object per account**, outside project files, exports and bundles. MCP bearer tokens and server configuration are excluded pending their own decision.
+
+The vault is sealed twice, because there are two different mistakes to catch:
+
+- **Each profile's entry** is sealed under the vault key with associated data `caotang/v1/vault-entry` NUL account NUL profile id NUL endpoint origin. A key therefore cannot be read as another profile's, or as the same provider at another address.
+- **The vault itself** is sealed with associated data `caotang/v1/vault` NUL account NUL version, where the version is the one the server holds. A vault replayed from an older version, or moved to another account, does not open.
+
+Both use format byte `0x02`, so a vault value is refused by the file and manifest readers and the reverse. The server sees one opaque object and cannot tell which profiles exist.
+
+The wire form is `{version, vault}`, the vault being base64 of the sealed object. The version is the server's own counter: a client seals at `version + 1` and commits with `If-Match` of the version it read, so the first commit wins and the later device is told to re-read. Each device keeps a high-water mark for the vault (`HighWaterMarks`), so an object below its mark is refused as a rollback rather than opened. A device that opts out of syncing writes no vault at all and keeps its own copy locally; **remove synced keys** deletes the account vault and advises rotating the keys at the providers.
+
+A write that loses the race re-reads, re-seals the profiles it changed onto the version it found, and retries once; a second loss surfaces as a conflict the writer is told about, with the profiles that changed named. Re-sealing never rewrites a profile the device did not change.
+
 ## 3. Sealed files and hashed paths
 
 A sealed value is `0x01 ‖ nonce(12) ‖ ciphertext ‖ tag(16)`. The first byte is the format; an unknown one is refused.
