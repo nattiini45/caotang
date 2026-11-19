@@ -13,6 +13,12 @@ export type FolderReply<T> = { readonly ok: true; readonly value: T } | {
   readonly error: 'missing' | 'entry-missing' | 'read-only' | 'invalid' | 'unavailable';
 };
 
+/** A burst of changes another program made in an open project folder: the folder's id and project-relative paths. */
+export interface NativeFolderChange {
+  readonly folderId: string;
+  readonly paths: readonly string[];
+}
+
 export interface NativeFolderBridge {
   pickFolder(mode: 'open' | 'empty'): Promise<FolderReply<NativeFolder | null>>;
   recentFolders(): Promise<FolderReply<readonly NativeFolder[]>>;
@@ -23,6 +29,9 @@ export interface NativeFolderBridge {
   write(id: string, path: string, bytes: Uint8Array): Promise<FolderReply<null>>;
   mkdir(id: string, path: string): Promise<FolderReply<null>>;
   remove(id: string, path: string): Promise<FolderReply<null>>;
+  watch(id: string): Promise<FolderReply<string>>;
+  unwatch(subscription: string): Promise<FolderReply<null>>;
+  onChanged(listener: (change: NativeFolderChange) => void): () => void;
 }
 
 export interface DesktopBridge {
