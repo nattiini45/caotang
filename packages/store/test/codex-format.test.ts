@@ -27,6 +27,8 @@ import {
 
 const NOW = new Date('2026-11-19T10:00:00.000Z');
 const v1Reader = { current: 1, registry: [] };
+const v2Reader = { current: 2, registry: [] };
+const reference = { id: 'ref_00000001', title: 'Tide tables', url: 'https://example.org/tides', publisher: 'Harbour Office', date: '2026-03-04', quote: 'Spring tides run six hours.' };
 const entry: CodexEntry = {
   id: 'c_0000000001',
   name: 'Kestrel',
@@ -63,7 +65,7 @@ describe('the codex browser rollback boundary', () => {
     const other = await openRuntimeStore(factory);
     manifest.codex = [{ ...entry, details: { age: 0, unknown: ['keep'] } }];
     await commitProject(store, { projectId: id, manifest });
-    expect(store.db.version).toBe(MAX_RUNTIME_DB_VERSION);
+    expect(store.db.version).toBe(RUNTIME_DB_VERSION + 1);
     await expect(openUnprotectedVersion(factory, store.name)).rejects.toMatchObject({ name: 'VersionError' });
     await expect(readProjectState(other, id)).rejects.toBeInstanceOf(RuntimeStoreStaleError);
     store.close();
@@ -89,7 +91,7 @@ describe('the codex browser rollback boundary', () => {
     expect((await readProjectState(store, id)).manifest).not.toHaveProperty('codexDetailFields');
 
     await writeProjectState(store, state);
-    expect(store.db.version).toBe(MAX_RUNTIME_DB_VERSION);
+    expect(store.db.version).toBe(RUNTIME_DB_VERSION + 1);
     expect((await readProjectState(store, id)).manifest.codexDetailFields).toEqual(manifest.codexDetailFields);
     store.close();
   });
@@ -139,6 +141,34 @@ describe('the codex artifact format boundary', () => {
       codexDetailFields: manifest.codexDetailFields,
     });
     expect(manifest.formatVersion).toBe(1);
+  });
+
+  it('raises an artifact with external references to v3, and a v2 build refuses it', async () => {
+    const manifest = createEmptyManifest('The Lantern', NOW);
+    manifest.codex = [{ ...entry, references: [reference] }];
+    expect(JSON.parse(serializeManifest(manifest))).toMatchObject({ formatVersion: 3, codex: [{ references: [reference] }] });
+    const fs = new MemoryArtifactFs();
+    await writeProject(fs, createProjectState(manifest), { now: NOW });
+    const before = fs.snapshot();
+    await expect(readProject(fs, { format: v2Reader })).rejects.toBeInstanceOf(ProjectRefusedError);
+    expect(fs.snapshot()).toEqual(before);
+    expect((await readProject(fs, { now: NOW })).state.manifest.codex?.[0]?.references).toEqual([reference]);
+  });
+
+  it('commits external references at the browser version that refuses a typed-details build', async () => {
+    const factory = new MemoryIndexedDb();
+    const store = await openRuntimeStore(factory);
+    const manifest = createEmptyManifest('The Lantern', NOW);
+    await writeProjectState(store, createProjectState(manifest));
+    manifest.codex = [{ ...entry, references: [reference] }];
+    await commitProject(store, { projectId: manifest.project.id, manifest });
+    expect(store.db.version).toBe(MAX_RUNTIME_DB_VERSION);
+    await expect(openUnprotectedVersion(factory, store.name)).rejects.toMatchObject({ name: 'VersionError' });
+    expect((await readProjectState(store, manifest.project.id)).manifest).toMatchObject({
+      formatVersion: 3,
+      codex: [{ references: [reference] }],
+    });
+    store.close();
   });
 
   it('refuses protected folders and bundles at the v1 gate and reopens them intact in production', async () => {

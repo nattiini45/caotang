@@ -63,6 +63,7 @@ import { EmptyState, formatCount, useDebouncedText, useReport, useSession } from
 /* lingui-set comment="The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale." */
 type Outcome = Result<ExecutionOutcome, CommandError>;
 const CodexDetails = lazyView(() => import('./CodexDetails.js').then((module) => ({ default: module.CodexDetails })));
+const CodexReferences = lazyView(() => import('./CodexReferences.js').then((module) => ({ default: module.CodexReferences })));
 
 export interface CodexPanelProps {
   readonly session: ProjectSession;
@@ -411,6 +412,10 @@ function CodexEntryEditor({
             return outcome.ok;
           }}
         />
+      </LazyBoundary>
+
+      <LazyBoundary label={t`External references`}>
+        <CodexReferences records={entry.references ?? []} onEdit={(edit) => change({ referenceEdits: [edit] })} />
       </LazyBoundary>
 
       <ChipField

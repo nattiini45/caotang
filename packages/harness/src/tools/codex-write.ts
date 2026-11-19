@@ -31,6 +31,9 @@ import {
   CODEX_EXCLUDE_CHARS_MAX,
   CODEX_EXCLUDE_MAX,
   CODEX_NAME_MAX,
+  CODEX_REFERENCE_FIELDS,
+  CODEX_REFERENCE_MAX,
+  readCodexReference,
   CODEX_VISUAL_REFS_MAX,
   ok,
   type CommandError,
@@ -52,17 +55,17 @@ const CODEX_BATCH_MAX = 20;
 const DESCRIPTION_MAX = CODEX_DESCRIPTION_MAX;
 const PREVIEW_CHARS = 200;
 
-const CREATE_KEYS = ['action', 'name', 'aliases', 'type', 'description', 'includePolicy', 'caseSensitive', 'exclude', 'attachTo', 'detachFrom', 'visualRefs', 'details'];
+const CREATE_KEYS = ['action', 'name', 'aliases', 'type', 'description', 'includePolicy', 'caseSensitive', 'exclude', 'attachTo', 'detachFrom', 'visualRefs', 'details', 'referenceEdits'];
 
 export const codexWriteParams: ObjectSpec = param.object(
-  'The codex entries to create or update, as one batch.',
+  'Codex writes.',
   {
     entries: param.list(
-      'Entries to create or update: at most 20 per call. Each is validated before any of them is written.',
+      'Validate the whole batch before writing.',
       param.object(
-        'One codex entry: a create, or an update of an existing entry by id.',
+        'One entry.',
         {
-          action: param.choice('create makes a new entry; update changes one named by id.', ['create', 'update']),
+          action: param.choice('Create or update.', ['create', 'update']),
           id: param.string('The id of the entry to update. Required for an update; not set on a create.', { nonBlank: true }),
           name: param.string(`The entry name, at most ${CODEX_NAME_MAX} characters. Required on a create.`, {
             nonBlank: true,
@@ -83,6 +86,11 @@ export const codexWriteParams: ObjectSpec = param.object(
           ),
           caseSensitive: param.boolean('Whether the name and aliases match case-sensitively.'),
           details: param.freeObject('Details by key; null clears.'),
+          referenceEdits: param.list(
+            'External refs.',
+            param.freeObject('action: create/update/remove; title on create; id on update/remove; url/publisher/date/quote (date YYYY-MM-DD, null clears).'),
+            { minItems: 1, maxItems: CODEX_REFERENCE_MAX },
+          ),
           exclude: param.list(
             `Phrases in which matches are ignored, at most ${CODEX_EXCLUDE_MAX}.`,
             param.string('One excluded phrase.', { nonBlank: true, maxLength: CODEX_EXCLUDE_CHARS_MAX }),
@@ -91,7 +99,7 @@ export const codexWriteParams: ObjectSpec = param.object(
           attachTo: param.list('Binder node ids to attach the entry to.', param.string('One node id.', { nonBlank: true })),
           detachFrom: param.list('Binder node ids to detach the entry from.', param.string('One node id.', { nonBlank: true })),
           visualRefs: param.list(
-            `The image asset ids the entry's visual references are, at most ${CODEX_VISUAL_REFS_MAX}: images already in this project, by id. An update replaces the list.`,
+            'Project image ids; replaces the list.',
             param.string('One image asset id.', { nonBlank: true }),
             { maxItems: CODEX_VISUAL_REFS_MAX },
           ),
@@ -133,7 +141,7 @@ function createDiff(entry: Record<string, unknown>): Record<string, unknown> {
   return {
     action: 'create',
     name: entry['name'],
-    ...definedFields(entry, ['type', 'description', 'aliases', 'includePolicy', 'caseSensitive', 'exclude', 'visualRefs', 'details']),
+    ...definedFields(entry, ['type', 'description', 'aliases', 'includePolicy', 'caseSensitive', 'exclude', 'visualRefs', 'details', 'referenceEdits']),
     ...(attach.length === 0 ? {} : { attach }),
     ...(flags.length === 0 ? {} : { flags }),
   };
@@ -261,7 +269,7 @@ export function prepareCodexWrite(params: CallParams, context: PrepareContext): 
 
     // An update: its field changes go in the upsert, its attachments as codex.attach.
     const id = String(entry['id']);
-    const fields = definedFields(entry, ['name', 'aliases', 'type', 'description', 'includePolicy', 'caseSensitive', 'exclude', 'visualRefs', 'details']);
+    const fields = definedFields(entry, ['name', 'aliases', 'type', 'description', 'includePolicy', 'caseSensitive', 'exclude', 'visualRefs', 'details', 'referenceEdits']);
     if (isRecord(fields['details']) && Object.keys(fields['details']).length === 0) delete fields['details'];
     const before = existingEntry(state, id);
     const changes: { field: string; from: string; to: string }[] = [];
@@ -271,6 +279,14 @@ export function prepareCodexWrite(params: CallParams, context: PrepareContext): 
           const old = Object.hasOwn(before?.details ?? {}, key) ? before?.details?.[key] : undefined;
           changes.push({ field: `${CODEX_DETAIL_DIFF_PREFIX}${key}`, from: JSON.stringify(old ?? null), to: JSON.stringify(next) });
         }
+        continue;
+      }
+      if (field === 'referenceEdits' && Array.isArray(value)) {
+        const edits = value.filter(isRecord).map((edit) => {
+          const existing = before?.references?.map(readCodexReference).find((reference) => reference?.id === edit['id']);
+          return { ...definedFields(edit, ['action', ...CODEX_REFERENCE_FIELDS]), ...(existing === undefined ? {} : { previousTitle: existing.title }) };
+        });
+        changes.push({ field: 'references', from: 'null', to: JSON.stringify(edits) });
         continue;
       }
       const old = before === undefined ? undefined : (before as unknown as Record<string, unknown>)[field];
