@@ -258,6 +258,10 @@ export interface CoherenceStatus {
 }
 
 export interface SessionOptions {
+  readonly sessionLog?: {
+    read(): Promise<SessionRecord[]>;
+    append(record: SessionRecord): Promise<void>;
+  };
   readonly saveChannels?: readonly SaveChannel[];
   readonly store: RuntimeStore;
   readonly projectId: string;
@@ -348,6 +352,7 @@ function refusalOf(plan: Extract<RestorePlan, { kind: 'with-later' }>, id: strin
 let recoveryFailures = 0;
 
 export class ProjectSession {
+  private readonly artifactSessions: SessionOptions['sessionLog'];
   private recovery: Promise<RecoveryModule.RunRecovery> | undefined;
   readonly projectId: string;
   readonly state: ProjectState;
@@ -578,9 +583,10 @@ export class ProjectSession {
     // minted again on the next open, and a retailer would see two books.
     if (this.backfilled.length > 0) this.persistence.schedule();
 
+    this.artifactSessions = options.sessionLog;
     this.sitting = createSessionTracker({
       projectId: options.projectId,
-      append: (request) => appendSession(options.store, request),
+      append: (request) => this.artifactSessions?.append(request.record) ?? appendSession(options.store, request),
     });
     const flushSignals = domFlushSignals({ visibility: document, page: window });
     this.autosave = createAutosave({
@@ -2171,7 +2177,7 @@ export class ProjectSession {
 
   /** The session log the runtime store holds for this project, as the folder's `sessions.jsonl` is written from and read into (project-format §4). */
   sessionLog(): Promise<SessionRecord[]> {
-    return readSessions(this.runtime, this.projectId);
+    return this.artifactSessions?.read() ?? readSessions(this.runtime, this.projectId);
   }
 
   /**

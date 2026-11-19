@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Native project folders in the desktop development shell (#402).** Pick a folder for a new project, reopen recent folders without a browser permission prompt, or copy an existing browser-only project into an empty folder without changing the original. The folder, not the local mirror, holds the manuscript. Missing or read-only folders do not open from a stale copy. The web app's storage is unchanged.
+
 - **Desktop development shell (#400).** Run the existing production app in a sandboxed Electron window from a source checkout. It uses a separate local Chromium profile and is not an installer.
 
 - **Background model hooks (#511).** Add a private check for a built-in agent tool in Settings › Hooks. The plan previews its estimated tokens; execution uses the Background role and shares the turn's model limits. The demo cannot run these checks.

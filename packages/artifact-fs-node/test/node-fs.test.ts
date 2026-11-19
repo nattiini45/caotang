@@ -3,14 +3,17 @@
  * readers' rules for what is absent. Every case runs against a real folder.
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { ArtifactNotFoundError } from '@caotang/store';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { ArtifactPathError, NodeArtifactFs, byteArtifactsOver, resolveWithin } from '../src/folder-api.js';
-import { removeDir, tempDir } from './support.js';
+import { ArtifactPathError, NodeArtifactFs, byteArtifactsOver, resolveWithin } from '../src/index.js';
+
+const tempDir = (name: string): string => mkdtempSync(join(tmpdir(), `caotang-${name}-`));
+const removeDir = (path: string): void => rmSync(path, { recursive: true, force: true });
 
 describe('resolveWithin', () => {
   const root = join('/project', 'root');
