@@ -348,6 +348,40 @@
   display: none;
 }
 
+/* ---- A storage banner is not a toast (storage.ts, §0): it stays until the writer answers it and it carries buttons, so a stage
+   holding one gives it a row of its own instead of floating it over the page. The rule covers every view — the empty editor (#647),
+   the Codex (#735), and any field a writer scrolls to — at every width; the narrow layout changes only the row's padding, where its
+   own bars and safe areas decide the room. ---- */
+:root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner) {
+  display: grid;
+  grid-template-rows: fit-content(50%) minmax(0, 1fr);
+  gap: var(--space-4);
+  padding-block: var(--page-top) var(--page-bottom);
+  padding-inline: var(--area-start) var(--area-end);
+}
+
+:root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner) > :is(.modern-notices, .modern-page-area) {
+  position: relative;
+  inset: auto;
+}
+
+:root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner) > .modern-notices {
+  grid-row: 1;
+  min-block-size: 0;
+  overflow-y: auto;
+  /* Where the absolute notice sat: clear of the top ornament's floating band. */
+  margin-block-start: calc(var(--radius-ornament) + var(--space-6));
+  inline-size: min(720px, 100%);
+}
+
+:root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner) > .modern-page-area {
+  grid-row: 2;
+}
+
+:root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner) .modern-toast {
+  flex: none;
+}
+
 /* ---- Notices (§8.6): toast capsules of float glass at the top centre of the page, with the same roles, text and buttons. They sit
    just below the top ornament, never over it: a tall notice that covered the title capsule would hide **More**, and Settings with it. ---- */
 :root[data-shell='modern'] .modern-notices {

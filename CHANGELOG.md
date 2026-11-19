@@ -96,6 +96,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- The browser-storage warning no longer floats over the page in Modern. It takes a row of its own in every view and at every width, so a field you scroll to — the Codex's **Ausschlussbegriffe**, for one — stays clickable beside it while its backup and dismiss buttons remain in reach (#735).
+
 - Ctrl+Home and Ctrl+End in the scene editor always move the caret, including right after a click at the end of the text. Before, the key could be taken and then dropped, leaving the caret where the click had put it (#665).
 
 - A binder drop Firefox delivers to the tree above the row that accepted it now moves the document where the pointer was, exactly once, instead of losing the move. The accepted row is rechecked when the drop lands, so a drag that ended, or a row that refused the hover, cannot be used for a move nobody asked for (#655).
