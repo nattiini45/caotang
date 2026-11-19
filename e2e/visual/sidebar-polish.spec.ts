@@ -75,6 +75,8 @@ for (const scheme of ['light', 'dark'] as const) {
       void (el as HTMLElement).offsetHeight;
       (el as HTMLElement).style.display = '';
     });
+    // The repaint lands on the next committed frame; wait for it before the screenshot reads the raster.
+    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
     await expect(page).toHaveScreenshot(`modern-${scheme}-german-sidebar-count.png`, { animations: 'disabled', caret: 'hide', mask: [page.getByTestId('save-state'), page.locator('time')], maxDiffPixels: 0 });
   });
 }
