@@ -115,8 +115,10 @@ its own lazy chunk (#268).
 
 The plain-text and RTF readers run in a `'self'` module Worker (`reader-host.ts` owns it, `reader.worker.ts` is its entry,
 `reader-session.ts` is the DOM-free dispatch), so a large file never blocks typing or scrolling while it parses (#390). The Worker is
-made from a same-origin URL (`new URL('./reader.worker.ts', import.meta.url)`, `type: 'module'`), never a `blob:` URL: the CSP is
-`worker-src 'self'`. The input bytes are sent once on `open` and cached in the Worker; a reader chip or option change re-reads that
+made from a same-origin URL (`reader-worker-url.ts`, `type: 'module'`), never a `blob:` URL: the CSP is
+`worker-src 'self'`. Production emits its URL from the app's build graph so shared modules are shipped once. The host still starts
+the Worker only on demand, and the Worker imports readers without the DOM-based module preloader. The input bytes are sent once
+on `open` and cached in the Worker; a reader chip or option change re-reads that
 copy through `prepare`, and a read's picture bytes are transferred back so an image-heavy RTF costs the main thread no copy. A buffer
 shared by several attachments (the same picture placed twice in an `.rtfd` package) is transferred once, so the reply never lists a
 duplicate transferable and the cloned views keep sharing it. Every

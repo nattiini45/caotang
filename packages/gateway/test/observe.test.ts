@@ -19,6 +19,36 @@ function watched(options: Parameters<typeof harness>[0] = {}): { h: Harness; eve
   return { h: harness({ ...options, observe: (event) => events.push(event) }), events };
 }
 
+describe('private, route-bound requests', () => {
+  it('keeps the payload and provider excerpts out of traces and logs while counting usage', async () => {
+    const text = 'Private hook instructions and prose.';
+    const { h, events } = watched({
+      net: new ScriptedFetch().push(() => jsonResponse(400, { error: { message: text } })),
+      retry: { maxRetries: 0 },
+    });
+    await addEndpoint(h);
+    const { error } = await collect(h.gateway.complete({ ...userMessage(text), turnId: 'hook-turn', role: 'background', privatePayload: true }));
+    expect(error).toBeDefined();
+    expect(JSON.stringify(error)).not.toContain(text);
+    expect(events).toEqual([]);
+    expect(h.gateway.requestLog.entries()).toMatchObject([{ status: 400, outcome: 'failed' }]);
+    expect(h.gateway.requestLog.entries()[0]?.note).toBeUndefined();
+    expect(h.gateway.ledger.turnTotals('hook-turn').requests).toBe(1);
+  });
+
+  it('refuses an unexpected resolved model without making or logging a request', async () => {
+    const { h, events } = watched();
+    const profile = await h.profiles.create({ name: 'Demo', kind: 'mock' });
+    const { error } = await collect(h.gateway.complete({
+      ...userMessage('Do not send.'), turnId: 'hook-turn', role: 'background', expectedRoute: { profileId: profile.id, model: 'not-the-model' },
+    }));
+    expect(error).toMatchObject({ message: expect.stringContaining('No request was sent.') });
+    expect(events).toEqual([]);
+    expect(h.gateway.requestLog.entries()).toEqual([]);
+    expect(h.gateway.ledger.turnTotals('hook-turn').requests).toBe(0);
+  });
+});
+
 describe('a mock profile', () => {
   it('reports request, first token, attempt and response, with the usage marked as an estimate', async () => {
     const { h, events } = watched();

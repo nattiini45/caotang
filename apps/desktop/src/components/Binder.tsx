@@ -101,6 +101,9 @@ interface Hover {
   readonly refusal: DropRefusal | null;
 }
 
+/** A drop plan the pre-checks accepted: the only shape a move may be dispatched from. */
+type AcceptedDrop = Extract<DropPlan, { readonly ok: true }>;
+
 type Picker =
   | { readonly kind: 'context'; readonly nodeId: string; readonly anchor: MenuAnchor }
   | { readonly kind: 'status'; readonly nodeId: string; readonly anchor: MenuAnchor }
@@ -231,20 +234,47 @@ export function Binder(props: BinderProps): ReactNode {
     setHover((previous) => (sameHover(previous, next) ? previous : next));
   };
 
+  /**
+   * Puts one drop plan through the bus and leaves the moved node selected, so the next keystroke acts on what was dragged.
+   * The row's own drop and the tree's recovery of a drop the browser hands to the ancestor above the row both come here, so
+   * a move is dispatched exactly once.
+   */
+  const applyDrop = (moving: string, plan: AcceptedDrop, event: DragEvent<HTMLElement>): void => {
+    event.preventDefault();
+    const outcome = moveNode(session, moving, plan);
+    if (!outcome.ok) {
+      report({ text: explain(outcome.error), tone: 'error' });
+      return;
+    }
+    session.dispatch('view.setSelection', { nodeIds: [moving] });
+  };
+
   const onDrop = (event: DragEvent<HTMLElement>, node: TreeNode): void => {
     const hit = dropAt(event, node);
     const moving = dragging;
     setHover(null);
     setDragging(null);
     if (!hit || moving === null || !hit.plan.ok) return;
-    event.preventDefault();
-    const outcome = moveNode(session, moving, hit.plan);
-    if (!outcome.ok) {
-      report({ text: explain(outcome.error), tone: 'error' });
-      return;
-    }
-    // The moved node stays the selection, so the next keystroke acts on what was dragged.
-    session.dispatch('view.setSelection', { nodeIds: [moving] });
+    applyDrop(moving, hit.plan, event);
+  };
+
+  /**
+   * A drop the browser delivers to the tree rather than to the row whose `dragover` it accepted: Firefox retargets a native
+   * release that way, and the row's own handler then never runs (#655). The accepted target is the row the last `dragover`
+   * chose, and its plan is worked out again against the state as it is now, so a row that was refused, moved or deleted since
+   * the pointer left it cannot be used for a move nobody asked for.
+   */
+  const onTreeDrop = (event: DragEvent<HTMLDivElement>): void => {
+    // A drop a row received has already answered for it, and it bubbles here afterwards.
+    if (event.target instanceof Element && event.target.closest('.row') !== null) return;
+    const accepted = hover;
+    const moving = dragging;
+    setHover(null);
+    setDragging(null);
+    if (accepted === null || accepted.refusal !== null || moving === null) return;
+    const plan = planDrop(state, moving, { nodeId: accepted.nodeId, zone: accepted.zone });
+    if (!plan.ok) return;
+    applyDrop(moving, plan, event);
   };
 
   /* ------------------------------------------------------------------ *
@@ -595,6 +625,7 @@ export function Binder(props: BinderProps): ReactNode {
         onDragLeave={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHover(null);
         }}
+        onDrop={onTreeDrop}
       >
         {rows.map((row) => {
           const isSelected = row.node.id === selected;

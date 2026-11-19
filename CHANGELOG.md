@@ -6,6 +6,11 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Background model hooks (#511).** Add a private check for a built-in agent tool in Settings › Hooks. The plan previews its estimated tokens; execution uses the Background role and shares the turn's model limits. The demo cannot run these checks.
+- **Model hook rewrites and follow-ups (#511).** Let a before hook propose replacement notes or synopsis text and compare both versions on a fresh card. Even in Auto mode, the replacement needs your approval. A private turn-end hook can ask the agent to continue up to twice within the same limits.
+
+- **Read-only MCP hooks (#511).** Settings › Hooks can call a trusted, reviewed read-only MCP tool before or after a selected built-in agent tool. The definition stays in this browser for this project, and the request sends no manuscript or tool arguments.
+
 - **Captions import (#287).** **Import captions…** in the binder reads an SRT or WebVTT file from a captioning or transcription tool and makes one AV script episode in a show folder, as one undo step. Every speech line's duration is declared from the cue's own timings, so nothing is estimated; speakers come from WebVTT's `<v Name>` span or a `Name:` / `- Name:` prefix, and a cue naming nobody becomes narration. Consecutive cues of one speaker merge, a gap of at least three seconds starts a new segment, and smaller gaps are folded into the line before them or left out — each is a choice, the report says what it costs in seconds, and a merged line follows the silence choice too, so "Leave it out" keeps it to its spoken length. A cue with no words is left out and counted, and the report says how many lines carry no duration and that the show's speech rate estimates them. A `NOTE` becomes a quoted text line, never a speaker, and keeps its place: a note after the last cue is written after that segment's speech, and a note between cues keeps them apart. Styling, cue positions, karaoke timestamps, `STYLE` and `REGION` blocks and cue identifiers are left out and counted; a speaker name a script label cannot hold is shortened, and one that is also a cue word or the reserved word Narration gets an underscore so it stays speech with its own name. A cue with no span takes no duration and the silence after it is left out. A guessed encoding can be changed, the report names the one in use, and a choice that cannot be read fails with its reason instead of leaving the preview reading. The parse runs in the import preview's background Worker with a size cap, a timeout and Cancel. Known limits: the silence before the first cue and at segment breaks is reported, not stored, because a script line holds a duration and not a start time; a cue naming two speakers stays one line under the first; and the `vtt` export carries no segment markers, so a round trip settles its segments on the second pass.
 
 - **All ten Indic scripts in both PDFs.** The screenplay PDF and the storyboard contact sheet now print Bengali and Assamese, Punjabi, Gujarati, Odia, Tamil, Telugu, Kannada, Malayalam and Sinhala, which printed as `?` before; Devanagari (Hindi, Marathi, Nepali, Sanskrit) already printed. Each script prints in its own Noto Sans font, loaded only for a file that holds that script, shaped by the same fontkit 2.0.4 shaper as Devanagari with the conjuncts, reorderings and stacked marks of its script. Copying text out of either PDF gives back the words as you typed them, and a character name in these scripts needs a `@` in front, as before. A file with no Indic text is written byte for byte as before and loads no extra font. These pages are machine-verified, not reader-verified (#35).
@@ -95,6 +100,28 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Both PDFs are checked by veraPDF in CI (#28).** The screenplay PDF and the storyboard contact sheet now go through veraPDF's PDF/A validator beside pdf.js, qpdf, Poppler, Ghostscript and MuPDF, so a file that breaks a structural or font rule fails the build instead of reaching a reader. The files claim no PDF/A or PDF/UA conformance, so the check holds them to the rules that do not depend on such a claim and names each rule a file breaks; a file whose metadata does name a flavour is validated against it in full, which is where the PDF/A-2u output (#445) will be checked. The manual Acrobat and paper-print pass is dropped: the validators in CI are what stands behind both PDFs now.
 
 ### Fixed
+
+- The browser-storage warning no longer floats over the page in Modern. It takes a row of its own in every view and at every width, so a field you scroll to — the Codex's **Ausschlussbegriffe**, for one — stays clickable beside it while its backup and dismiss buttons remain in reach (#735).
+
+- Ctrl+Home and Ctrl+End in the scene editor always move the caret, including right after a click at the end of the text. Before, the key could be taken and then dropped, leaving the caret where the click had put it (#665).
+
+- A binder drop Firefox delivers to the tree above the row that accepted it now moves the document where the pointer was, exactly once, instead of losing the move. The accepted row is rechecked when the drop lands, so a drag that ended, or a row that refused the hover, cannot be used for a move nobody asked for (#655).
+
+- The provider request log fits a phone's Settings in both shells: on the narrow layout each request is a labelled record instead of an eight-column table, so the German headers and a long address no longer push the whole Settings pane sideways (#726).
+
+- German word counts read "22 Wörter" and "0 Wörter heute" instead of "22 Wörtern", while phrases a preposition needs stay in the dative ("bei 3 Wörtern ab", "1200 von 2.000 Wörtern"). The agent's turn menu reads **Aktionen zu dieser Anfrage** instead of **Durchgangsaktionen** (#573).
+
+- Provider setup and editing fit in narrow Settings in both shells, including the longer German action labels (#659).
+
+- Workspace errors stay readable until dismissed or replaced by another error, even if an informational notice arrives later (#563).
+
+- The Modern agent window keeps its resource-use line readable while a turn works or waits for approval (#572).
+
+- The Modern bottom bar keeps its views, Ask and Search separate beside an open Binder on smaller desktops (#505).
+
+- The Modern storage warning on a phone no longer covers the empty editor heading (#647).
+
+- The screenplay header shows the full page count and estimated runtime on a phone (#586).
 
 - **Modern WebKit CI headroom.** Explicitly marked Modern-shell end-to-end cases get 60 seconds instead of the default 30 seconds in WebKit. Classic cases, other engines, assertions, larger existing budgets and job deadlines are unchanged; software-rendered wallpaper costs remain tracked separately (#698).
 

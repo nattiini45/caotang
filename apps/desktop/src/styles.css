@@ -2747,43 +2747,45 @@ dialog.confirm:has(.folder-file-preview) {
 .usage-table col:nth-child(7) { inline-size: 10%; }
 .usage-table col:nth-child(8) { inline-size: 22%; }
 
+/* The narrow layout's shape for a table too wide for the pane: one labelled record per row, for the usage table and the
+   request log alike (ui-modules §0.6). */
 .usage-table th,
 .usage-table td,
-.usage-records,
+.records,
 .usage-breakdown bdi {
   overflow-wrap: anywhere;
 }
 
-.usage-records {
+.records {
   list-style: none;
   margin: var(--space-4) 0;
   padding: 0;
 }
 
-.usage-records li + li {
+.records li + li {
   margin-block-start: var(--space-5);
   padding-block-start: var(--space-4);
   border-block-start: 1px solid var(--line);
 }
 
-.usage-records h5 {
+.records h5 {
   margin-block: 0 var(--space-3);
   font-size: var(--text-md);
 }
 
-.usage-record-values {
+.record-values {
   margin: 0;
   font-size: var(--text-md);
 }
 
-.usage-record-values > div {
+.record-values > div {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   gap: var(--space-3);
   margin-block: var(--space-2);
 }
 
-.usage-record-values dd {
+.record-values dd {
   min-inline-size: 0;
   margin: 0;
   font-variant-numeric: tabular-nums;
@@ -2862,8 +2864,8 @@ dialog.confirm:has(.folder-file-preview) {
   vertical-align: top;
 }
 
-.request-table tr[data-outcome='failed'] td,
-.request-table tr[data-outcome='refused'] td {
+.request-log [data-outcome='failed'],
+.request-log [data-outcome='refused'] {
   color: var(--danger);
 }
 

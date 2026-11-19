@@ -56,7 +56,6 @@ import {
   type ReadAssetRecord,
 } from '@caotang/pictures';
 
-import { stripPrivateMetadata } from '@caotang/pictures/prepare';
 
 import type { ApplyClock, ProjectAssetPort } from './commands-project.js';
 import { applyAssetTranscribe } from './commands-transcription.js';
@@ -602,6 +601,7 @@ function assetStoreWorkingCopiesApply(clock: ApplyClock, assets: ProjectAssetPor
 
     // Phase 1: make every working copy. Nothing in the manifest has changed yet.
     const plans: WorkingCopyPlan[] = [];
+    const { stripPrivateMetadata } = await import('@caotang/pictures/prepare');
     for (const assetId of params.assetIds) {
       const record = records.find((candidate) => candidate.id === assetId);
       if (record === undefined) throw new Error(`asset.storeWorkingCopies reached its apply with no picture "${assetId}"`);

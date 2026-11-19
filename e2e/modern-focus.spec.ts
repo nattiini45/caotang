@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { NO_PIN } from './classic-pin.js';
+import { switchToModern } from './modern-walk.js';
 import { binderTitle, createProject, waitForSaved } from './support.js';
 
 /**
@@ -214,12 +215,8 @@ test('Scene info lists the scene’s open findings, and Show in Findings opens t
   await expect(page.getByTestId('findings-open')).toHaveText('2 open');
 
   // Modern, switched on live; the rail stays on Findings, so the sidebar's tab is already the current one, closed.
-  await page.locator('.toolbar').getByRole('button', { name: 'Settings', exact: true }).click();
-  const settings = page.getByTestId('settings');
-  await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
-  await settings.getByRole('group', { name: 'Interface', exact: true }).getByRole('radio', { name: /^Modern/ }).check();
-  await settings.getByRole('button', { name: 'Close' }).click();
-  await expect(stage(page)).toBeVisible();
+  await switchToModern(page);
+  await expect(page.getByTestId('modal-stack')).toHaveAttribute('data-depth', '0');
   await page.mouse.move(700, 450);
   await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'closed');
   const banner = page.getByTestId('storage-banner');
