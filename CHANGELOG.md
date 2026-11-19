@@ -8,6 +8,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **Chapter helpers (#47).** Ask the agent to read one chapter at a time across the Manuscript. It shows the number of chapters and maximum model calls before starting, runs helpers in parallel, and keeps finished notes if you stop it. Any proposed changes still go through the agent’s normal plan approval.
 
+- **Wrapped account keys for the standalone sync server.** A signed-in account can create its wrapped key record once and read it from another device. A second setup cannot overwrite the first, and the passphrase and recovery key stay on the device. The local app is unchanged.
 - **External codex references (#222).** Record the books, articles and sites behind an entry with a title, URL, publisher, date and quote. These references are separate from manuscript provenance and stay out of automatic model context. Saving one raises the project to format v3, so a build that predates references refuses the folder, bundle or browser store instead of dropping them; projects without references keep their current format.
 - **Native project folders in the desktop development shell (#402).** Pick a folder for a new project, reopen recent folders without a browser permission prompt, or copy an existing browser-only project into an empty folder without changing the original. The folder, not the local mirror, holds the manuscript. Missing or read-only folders do not open from a stale copy. The web app's storage is unchanged.
 

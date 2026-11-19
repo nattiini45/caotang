@@ -1,4 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
+import { accountKeyRecordRoute } from './account-key-record.js';
 import { AccountRegistry, type DurableAccount } from './accounts.js';
 import { StorageCoordinator, storageRoute, sweepQuota } from './storage.js';
 
@@ -244,6 +245,9 @@ export default {
       if (!account) return reply(404, 'This API route does not exist.');
       if (!env.PROJECT_STORE || !env.STORAGE_COORDINATOR) return reply(503, 'Storage is not configured. Contact the server operator.');
       return storageRoute(request, url, account, env);
+    }
+    if (url.pathname === '/v1/account/key-record') {
+      return account ? accountKeyRecordRoute(request, account, env.ACCOUNT_DB!.withSession('first-primary')) : reply(404, 'This API route does not exist.');
     }
     const hub = account ? env.ACCOUNT_HUBS.getByName(account.id) : env.ACCOUNT_HUBS.getByName(ticket.identity!.id);
     const hubAccount: HubAccount | undefined = account ? { id: account.id, githubId: account.githubId, revision: account.revision } : undefined;
