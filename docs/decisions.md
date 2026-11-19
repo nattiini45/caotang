@@ -1,5 +1,17 @@
 # Decisions
 
+- The shared provider forms size their field tracks to the Settings content box, and longer button labels and help wrap there instead of setting a wider intrinsic minimum (#659). [delegated 2026-11-18]
+
+- In both shells, a workspace error stays until dismissed or replaced by a newer error. Informational reports cannot silently overwrite it, and closing a modal acknowledges nothing (#563). [delegated 2026-11-18]
+
+- The Modern companion gives agent resource use its own wrapping row, leaving the lifecycle label readable beside Stop instead of ellipsizing the two readouts against each other (#572). [delegated 2026-11-18]
+
+- Beside an open Modern Binder from 960 to 1280 px, the view radios use the compact icon treatment without reducing target size or removing their names. Ask and Search stack their labels below the icons and leave the shortcut in the tooltip (#505). [delegated 2026-11-18]
+
+- A visible storage warning in the narrow Modern empty editor takes its actual space in the layout rather than overlaying the empty-state heading or its next action (#647). [delegated 2026-11-18]
+
+- The screenplay header's runtime pill takes its natural width and can wrap within the card; it does not inherit the compact label truncation used for other chips (#586). [delegated 2026-11-18]
+
 - Read-only MCP hooks are private to a project on this browser, run only during agent tool execution, and send empty arguments. Save and live dispatch require the chosen reviewed pin, trusted reads and read-only risk. Synchronous preflight and project hooks stay local. [delegated 2026-11-18]
 
 - [delegated 2026-11-18] The Inklewriter reader names what the vendored converter cannot: a section label or flag name made only of characters its identifier rule drops (`第一章`, `开关`) is given `section_N` / `flag_N` before the converter runs, and every change is reported to the writer as a rename. Without it the converter wrote a nameless knot, a nameless `VAR` and empty conditions — invalid Ink the planner stored as one container holding the whole file. A generated name is never one the converter keeps — a stitch key, a usable page label's slug or a usable declared flag name's slug — since it would otherwise be suffixed by the converter and the preview would report a name the story does not use, or two flags would share a `VAR`; names are the **declared** flag names read as the converter's own parser reads them, so a name with a space (`harbour master`) is one name and not two, and they are replaced by substring, longest first, exactly as the converter replaces them; and a quoted literal is opaque, whole including its spaces and escaped quotes, so a condition that compares text keeps every character of it. Each header occurrence gets its own name, and so does a declaration with no name at all. The reader also refuses a story with no stitches or whose first stitch is missing (`no-stitches`, `initial-missing`) rather than importing `-> undefined`, and the preview shows the planner's own notes, so the entry the story starts at is named instead of dropped (#286, found by review).

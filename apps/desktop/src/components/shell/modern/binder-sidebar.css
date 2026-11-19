@@ -55,9 +55,19 @@
     --area-start: calc(var(--binder-inset) + var(--binder-bar-w) + var(--binder-gap) + var(--binder-sidebar-w)) !important;
   }
 
-  /* The page is about 500 px wide beside the sidebar: the bottom ornament's tabs take tighter insets so all five fit over it. */
-  :root[data-shell='modern'] .modern-stage:has(> .modern-binder.is-open) > .modern-ornament.is-bottom .modern-capsule {
-    padding-inline: var(--space-5);
+  :root[data-shell='modern'] .modern-binder.is-open ~ .is-bottom .modern-capsule {
+    flex: none;
+    padding-inline: var(--space-2);
+  }
+
+  :root[data-shell='modern'] .modern-binder.is-open ~ .is-bottom > .modern-capsule {
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--text-xs);
+  }
+
+  :root[data-shell='modern'] .modern-binder.is-open ~ .is-bottom :is(.modern-view .modern-label, .modern-kbd) {
+    display: none;
   }
 }
 

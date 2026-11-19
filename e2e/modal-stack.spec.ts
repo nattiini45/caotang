@@ -103,3 +103,28 @@ test('Modern notices stay current while covered, announce a new import failure i
   await expect(status).toHaveText(message ?? '');
   await expect(status).toBeVisible();
 });
+
+for (const shell of ['classic', 'modern'] as const) {
+  test(`${shell}: a workspace error stays until dismissed even when an info report arrives`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
+    await page.addInitScript((value) => localStorage.setItem('caotang.interface', value), shell);
+    await createProject(page, 'Harbour Notes');
+    const banner = page.getByTestId('storage-banner');
+    if (await banner.isVisible()) await banner.getByRole('button', { name: 'Dismiss' }).click();
+    if (shell === 'modern') {
+      await page.getByTestId('modern-more').click();
+      await page.getByRole('menuitem', { name: 'Skills', exact: true }).click();
+    } else await page.getByRole('button', { name: 'Skills', exact: true }).click();
+    await page.locator('input[aria-label="Skill zip"]').setInputFiles({ name: 'broken.zip', mimeType: 'application/zip', buffer: Buffer.from('not a zip') });
+    const report = page.locator('.status-line').filter({ hasText: 'That file is not a zip that can be opened.' });
+    await expect(report).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('modal-stack')).toHaveAttribute('data-state', 'empty');
+    await expect(report).toBeVisible();
+    await page.keyboard.press('ControlOrMeta+z');
+    await expect(report).toBeVisible();
+    await report.getByRole('button', { name: 'Dismiss', exact: true }).click();
+    await expect(report).toHaveCount(0);
+    await page.keyboard.press('ControlOrMeta+z');
+    await expect(page.locator('.status-line')).toContainText('There is nothing to undo.');
+  });
+}
