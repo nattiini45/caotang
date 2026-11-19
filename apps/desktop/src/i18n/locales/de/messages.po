@@ -3368,7 +3368,9 @@ msgstr "Limit für aktive Zeit (Minuten)"
 msgid "Activity"
 msgstr "Aktivität"
 
+#. Interpolated values: parent, title, amount
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Add"
 msgstr "Hinzufügen"
@@ -3567,6 +3569,11 @@ msgstr "Panel hinzufügen"
 msgid "Add pattern"
 msgstr "Muster hinzufügen"
 
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "Add reference"
+msgstr "Quelle hinzufügen"
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Add server"
@@ -3581,6 +3588,11 @@ msgstr "Tags hinzufügen"
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Add tags, separated by commas"
 msgstr "Tags hinzufügen, durch Kommas getrennt"
+
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "Add the books, articles or sites behind this entry."
+msgstr "Fügen Sie Bücher, Artikel oder Websites hinzu, auf die sich dieser Eintrag stützt."
 
 #. Storyboard board text and refusals. Interpolated values: sceneTitle is a scene title the writer wrote; shotId and folderId are ids; field and the quoted value come from the shot record; count is a number.
 #: apps/desktop/src/media/storyboard-model.ts
@@ -5076,6 +5088,7 @@ msgstr "Kamerabewegung"
 #. Interpolated values: model, name, provider, total
 #. Interpolated values: model, profile
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: title is the writer's reference title.
 #. Interpolated values: tokens, coveredTurns
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
@@ -5094,6 +5107,7 @@ msgstr "Kamerabewegung"
 #: apps/desktop/src/components/AgentMemory.tsx
 #: apps/desktop/src/components/BackgroundTasks.tsx
 #: apps/desktop/src/components/BinderFilters.tsx
+#: apps/desktop/src/components/CodexReferences.tsx
 #: apps/desktop/src/components/editor-labels.ts
 #: apps/desktop/src/components/EncodingDialog.tsx
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -7993,14 +8007,18 @@ msgstr "Frühere Anfragen werden nach mehr als sechs noch nicht zusammengefasste
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: parent, title, amount
+#. Interpolated values: title is the writer's reference title.
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Private Background model hook settings.
 #. Read-only MCP hooks in project Settings.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
+#: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/AgentQueue.tsx
 #: apps/desktop/src/components/BinderFooter.tsx
+#: apps/desktop/src/components/CodexReferences.tsx
 #: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -8021,6 +8039,11 @@ msgstr "{name} bearbeiten"
 #: apps/desktop/src/components/Settings.tsx
 msgid "Edit and save this profile to check it again."
 msgstr "Bearbeiten und speichern Sie dieses Profil, um es erneut zu prüfen."
+
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "Edit external reference"
+msgstr "Externe Quelle bearbeiten"
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
@@ -8055,6 +8078,11 @@ msgstr "Anbieter bearbeiten"
 #: apps/desktop/src/components/AgentQueue.tsx
 msgid "Edit queued message {number}"
 msgstr "Wartende Nachricht {number} bearbeiten"
+
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "Edit reference {title}"
+msgstr "Quelle {title} bearbeiten"
 
 #. Interpolated values: tokens, coveredTurns
 #: apps/desktop/src/components/AgentMemory.tsx
@@ -8634,6 +8662,15 @@ msgstr "Exporte werden in diesem Browser aufbewahrt, nicht im Ordner. {reason}"
 #: apps/desktop/src/components/AgentMemory.tsx
 msgid "External"
 msgstr "Extern"
+
+#. Interpolated values: parent, title, amount
+#. Interpolated values: title is the writer's reference title.
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
+#: apps/desktop/src/app/plan-preview.ts
+#: apps/desktop/src/components/CodexPanel.tsx
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "External references"
+msgstr "Externe Quellen"
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
@@ -11908,6 +11945,11 @@ msgstr "Neuer Eintrag"
 msgid "New entry: <0/>"
 msgstr "Neuer Eintrag: <0/>"
 
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "New external reference"
+msgstr "Neue externe Quelle"
+
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #: apps/desktop/src/components/KnowledgeList.tsx
 msgid "New fact"
@@ -13465,6 +13507,11 @@ msgstr "Projekt wird geöffnet"
 msgid "Opening your projects…"
 msgstr "Ihre Projekte werden geöffnet…"
 
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "Opens in a new tab"
+msgstr "Öffnet sich in einem neuen Tab"
+
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
 msgid "Opens the agent with this in the Intent box. Nothing is sent until you send it."
@@ -14643,6 +14690,11 @@ msgstr "Provider: {provider}"
 msgid "Providers"
 msgstr "Provider"
 
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "Publication date"
+msgstr "Veröffentlichungsdatum"
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Publish date"
@@ -14652,6 +14704,11 @@ msgstr "Veröffentlichungsdatum"
 #: apps/desktop/src/app/activity-model.ts
 msgid "Publish fields changed"
 msgstr "Veröffentlichungsfelder geändert"
+
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "Publisher"
+msgstr "Verlag oder Herausgeber"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
@@ -14755,6 +14812,11 @@ msgstr "Schnellprüfungen, die der Scan im Tab Feststellungen ausführt"
 #: apps/desktop/src/app/findings-model.ts
 msgid "Quick scan"
 msgstr "Schnellscan"
+
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "Quote"
+msgstr "Zitat"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -15237,6 +15299,11 @@ msgstr "Bewegung reduzieren"
 msgid "Reduce transparency"
 msgstr "Transparenz reduzieren"
 
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "Reference title"
+msgstr "Titel der Quelle"
+
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #: apps/desktop/src/media/ShotPromptEditor.tsx
@@ -15334,13 +15401,17 @@ msgstr "Nächsten Monat erinnern"
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #. Interpolated values: count, number, total
 #. Interpolated values: name
+#. Interpolated values: parent, title, amount
+#. Interpolated values: title is the writer's reference title.
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
+#: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/AgentQueue.tsx
+#: apps/desktop/src/components/CodexReferences.tsx
 #: apps/desktop/src/components/Home.tsx
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/KnowledgeList.tsx
@@ -15378,6 +15449,11 @@ msgstr "{name} aus diesem Browser entfernen"
 #: apps/desktop/src/components/Settings.tsx
 msgid "Remove {profile}"
 msgstr "{profile} entfernen"
+
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "Remove a reference before adding another."
+msgstr "Entfernen Sie eine Quelle, bevor Sie eine weitere hinzufügen."
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
@@ -15433,6 +15509,11 @@ msgstr "Eingereihte Nachricht {number} entfernen"
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "Remove reference {number}"
 msgstr "Referenz {number} entfernen"
+
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "Remove reference {title}"
+msgstr "Quelle {title} entfernen"
 
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
@@ -16410,6 +16491,11 @@ msgstr "Darüber hinweg speichern"
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "Save prompt"
 msgstr "Prompt speichern"
+
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "Save reference"
+msgstr "Quelle speichern"
 
 #. Interpolated values: reason is a local storage error; count and days are configured upper bounds; size is a formatted byte estimate.
 #: apps/desktop/src/components/AgentSessionData.tsx
@@ -17859,6 +17945,11 @@ msgstr "Ein Teil der Prüfarbeit ist nicht abgeschlossen. Sehen Sie sich den Fes
 #: apps/desktop/src/app/furniture-store.ts
 msgid "Some saved filters or goals could not be moved into the project, so they are kept in this browser and will be tried again on the next open. {refused}"
 msgstr "Einige gespeicherte Filter oder Ziele konnten nicht ins Projekt übernommen werden, daher bleiben sie in diesem Browser und werden beim nächsten Öffnen erneut versucht. {refused}"
+
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "Some saved references could not be shown. They are kept in the project."
+msgstr "Einige gespeicherte Quellen können nicht angezeigt werden. Sie bleiben im Projekt erhalten."
 
 #: apps/desktop/src/components/GoalComposer.tsx
 msgid "Some selected checks require the whole manuscript. Deselect those checks or explicitly choose the whole manuscript."
@@ -22821,6 +22912,11 @@ msgstr "Dokumentdetails werden aktualisiert"
 msgid "harness.progress.picturesAnnotate.active"
 msgstr "Die Bilddetails werden aktualisiert"
 
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "URL"
+msgstr "Internetadresse"
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -22862,6 +22958,11 @@ msgstr "Anderen Schlüssel verwenden"
 #: apps/desktop/src/components/AgentSessionData.tsx
 msgid "Use a whole session count from 1 to {count} and days from 1 to {days}."
 msgstr "Geben Sie eine ganze Sitzungsanzahl von 1 bis {count} und eine Tagesanzahl von 1 bis {days} ein."
+
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "Use an HTTP or HTTPS address without a username or password."
+msgstr "Verwenden Sie eine HTTP- oder HTTPS-Adresse ohne Benutzernamen oder Passwort."
 
 #: apps/desktop/src/components/CardPictureDialog.tsx
 msgid "Use as card picture"

@@ -16,9 +16,13 @@ export type { AssetRecord, ProjectHook, ProjectMacro };
 
 export const APP_ID = 'caotang';
 export const CODEX_DETAILS_FORMAT_VERSION = 2;
-export const FORMAT_VERSION = CODEX_DETAILS_FORMAT_VERSION;
+export const CODEX_REFERENCES_FORMAT_VERSION = 3;
+export const FORMAT_VERSION = CODEX_REFERENCES_FORMAT_VERSION;
 
 export function requiredManifestVersion(manifest: Manifest): number {
+  if (manifest.codex?.some((entry) => (entry.references?.length ?? 0) > 0)) {
+    return Math.max(manifest.formatVersion, CODEX_REFERENCES_FORMAT_VERSION);
+  }
   const hasDetails = (manifest.codexDetailFields?.length ?? 0) > 0
     || manifest.codex?.some((entry) => entry.details !== undefined);
   return hasDetails ? Math.max(manifest.formatVersion, CODEX_DETAILS_FORMAT_VERSION) : manifest.formatVersion;
@@ -237,6 +241,7 @@ export interface CodexEntry {
    */
   visualRefs?: string[];
   details?: Record<string, unknown>;
+  references?: unknown[];
   /** additive (codex.md §10 K4) — missing on load = 'manual' */
   origin: 'manual' | 'agent' | 'import';
   sources: CodexSource[];

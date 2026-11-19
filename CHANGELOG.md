@@ -6,6 +6,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **External codex references (#222).** Record the books, articles and sites behind an entry with a title, URL, publisher, date and quote. These references are separate from manuscript provenance and stay out of automatic model context. Saving one raises the project to format v3, so a build that predates references refuses the folder, bundle or browser store instead of dropping them; projects without references keep their current format.
 - **Native project folders in the desktop development shell (#402).** Pick a folder for a new project, reopen recent folders without a browser permission prompt, or copy an existing browser-only project into an empty folder without changing the original. The folder, not the local mirror, holds the manuscript. Missing or read-only folders do not open from a stale copy. The web app's storage is unchanged.
 
 - **Typed codex details (#221).** Define text, number, date or yes/no fields for an entry type, including a type you name yourself. Entries of that type share the fields but keep their own values. Details stay out of automatic model context. A folder or bundle saved with typed details requires a Caotang build that supports project format v2. The first browser save with typed details also updates that browser's project storage, so older builds refuse it rather than losing data. Ordinary v1 artifacts and browsers that never save the new fields stay compatible.
