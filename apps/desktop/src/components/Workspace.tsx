@@ -1174,29 +1174,14 @@ export function Workspace({
           </div>
         ) : null}
         {folderWatch.changed !== null && folderCopy !== null ? (
-          <div className="status-line is-info" role="status" data-testid="folder-change">
-            <span>
-              {(() => {
-                const summary = changeSummary(folderWatch.changed, (path) => path.slice(path.lastIndexOf('/') + 1));
-                const files = listFormat(formatterLocale()).format(summary.names);
-                return summary.more === 0
-                  ? t`The project folder changed outside Caotang: ${{ files }}. Caotang has not reloaded the folder’s version.`
-                  : t`The project folder changed outside Caotang: ${{ files }} and ${{ count: summary.more }} more. Caotang has not reloaded the folder’s version.`;
-              })()}
-            </span>
-            {saveState === 'saved' ? (
-              <button type="button" className="button" onClick={() => onReopenFolder(folderCopy)}>
-                <Trans>Reopen the folder’s version</Trans>
-              </button>
-            ) : (
-              <button type="button" className="button" onClick={exportBundleOffering}>
-                <Trans>Export a backup</Trans>
-              </button>
-            )}
-            <button type="button" className="button is-quiet" onClick={folderWatch.dismiss}>
-              <Trans>Keep writing</Trans>
-            </button>
-          </div>
+          <FolderChangeOffer
+            changed={folderWatch.changed}
+            folder={folderCopy}
+            saved={saveState === 'saved'}
+            onReopen={onReopenFolder}
+            onExport={exportBundleOffering}
+            onDismiss={folderWatch.dismiss}
+          />
         ) : null}
       </>
     ),
@@ -1337,6 +1322,44 @@ function DeleteSummary({ descendants, documents, words }: { descendants: number;
         ? t`This removes the item, the ${plural(descendants, { one: '# item', other: '# items' })} inside it, and ${plural(words, { one: '# word', other: '# words' })} across ${plural(documents, { one: '# document', other: '# documents' })}. You can undo it right after with Ctrl+Z.`
         : t`This removes the item, the ${plural(descendants, { one: '# item', other: '# items' })} inside it. You can undo it right after with Ctrl+Z.`}
     </p>
+  );
+}
+
+/**
+ * The offer a change another program made in the open folder raises (desktop.md §External folder changes): it names the changed
+ * files and never acts by itself. Reopening is offered when this tab has nothing unsaved; when it does, the copy that does not
+ * depend on a reload comes first, so the writer's words cannot be dropped by taking the offer.
+ */
+function FolderChangeOffer({ changed, folder, saved, onReopen, onExport, onDismiss }: {
+  readonly changed: readonly string[];
+  readonly folder: DirectoryHandleLike;
+  readonly saved: boolean;
+  readonly onReopen: (folder: DirectoryHandleLike) => void;
+  readonly onExport: () => void;
+  readonly onDismiss: () => void;
+}): ReactNode {
+  const summary = changeSummary(changed, (path) => path.slice(path.lastIndexOf('/') + 1));
+  const files = listFormat(formatterLocale()).format(summary.names);
+  return (
+    <div className="status-line is-info" role="status" data-testid="folder-change">
+      <span>
+        {summary.more === 0
+          ? t`The project folder changed outside Caotang: ${{ files }}. Caotang has not reloaded the folder’s version.`
+          : t`The project folder changed outside Caotang: ${{ files }} and ${{ count: summary.more }} more. Caotang has not reloaded the folder’s version.`}
+      </span>
+      {saved ? (
+        <button type="button" className="button" onClick={() => onReopen(folder)}>
+          <Trans>Reopen the folder’s version</Trans>
+        </button>
+      ) : (
+        <button type="button" className="button" onClick={onExport}>
+          <Trans>Export a backup</Trans>
+        </button>
+      )}
+      <button type="button" className="button is-quiet" onClick={onDismiss}>
+        <Trans>Keep writing</Trans>
+      </button>
+    </div>
   );
 }
 
