@@ -334,7 +334,7 @@ Wählen Sie unter **Beziehungen** die Option **Beziehung hinzufügen**, um diese
 
 Ein Eintrag mit einer Beziehung hebt das Projekt auf Projektformat v4, und das erste Speichern im Browser aktualisiert den Projektspeicher des Browsers erneut. Eine ältere Caotang-Version lehnt solche Projekte dann ab, statt die Verknüpfungen zu verlieren; Projekte ohne Beziehungen behalten ihr bisheriges Format.
 
-Mit dem Schalter neben **Neuer Eintrag** wechseln Sie im Kodex zwischen **Liste** und **Netz**. Das Netz zeigt jeden Eintrag als Punkt und jede Verknüpfung als Pfeil; darunter stehen dieselben Verknüpfungen als Schaltflächen, sodass Sie beide Enden mit der Tastatur erreichen. Wählen Sie einen Eintrag an einer der beiden Stellen, um ihn zu öffnen.
+Mit dem Schalter neben **Neuer Eintrag** wechseln Sie im Kodex zwischen **Liste** und **Graph**. Der Graph zeigt jeden Eintrag als Punkt und jede Verknüpfung als Pfeil; darunter stehen dieselben Verknüpfungen als Schaltflächen, sodass Sie beide Enden mit der Tastatur erreichen. Wählen Sie einen Eintrag an einer der beiden Stellen, um ihn zu öffnen.
 
 Die Einschlussrichtlinie legt fest, wann der Agent einen Eintrag sieht:
 

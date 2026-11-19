@@ -9407,7 +9407,7 @@ msgstr "Verstanden"
 #: apps/desktop/src/components/CodexPanel.tsx
 #: apps/desktop/src/media/DialogueView.tsx
 msgid "Graph"
-msgstr "Netz"
+msgstr "Graph"
 
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
