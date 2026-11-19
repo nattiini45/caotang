@@ -83,7 +83,7 @@
   color: var(--ink);
 }
 
-.model-hook-settings .model-hook-failure {
+.model-hook-settings .model-hook-checkbox {
   display: inline-flex;
   align-items: center;
   min-block-size: var(--target-min);
@@ -99,14 +99,14 @@
   cursor: pointer;
 }
 
-.model-hook-failure .mcp-hook-check {
+.model-hook-checkbox .mcp-hook-check {
   flex: none;
   inline-size: 1.2rem;
   block-size: 1.2rem;
   background: var(--paper);
 }
 
-.model-hook-failure[data-checked] .mcp-hook-check {
+.model-hook-checkbox[data-checked] .mcp-hook-check {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--accent-ink);
@@ -116,4 +116,7 @@
   display: flex;
   align-items: center;
   min-block-size: var(--target-min);
+}
+.model-hook-settings .settings-rules > li > span:first-child {
+  overflow-wrap: anywhere;
 }

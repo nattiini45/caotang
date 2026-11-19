@@ -3717,6 +3717,11 @@ msgstr "nach {dayLabel}"
 msgid "after {title}"
 msgstr "nach {title}"
 
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "After a successful turn, the Background provider receives your check instructions and the turn status, not the conversation, manuscript or tool results. The hook can ask the agent to continue up to twice per turn, within the same call, spending and time limits. New tool calls still follow the usual approval rules."
+msgstr "Nach einem erfolgreichen Agentenlauf erhält der Anbieter für die Rolle „Hintergrund“ Ihre Prüfanweisungen und den Status des Laufs, aber weder die Unterhaltung noch das Manuskript oder die Werkzeugergebnisse. Der Hook kann den Agenten höchstens zweimal pro Lauf zum Fortfahren auffordern. Die Grenzen für Aufrufe, Kosten und Dauer bleiben dieselben. Für neue Werkzeugaufrufe gelten weiterhin die üblichen Freigaberegeln."
+
 #. Interpolated values: bytes, folder, max, name, path, problem, size, taken
 #: apps/desktop/src/app/skills-model.ts
 msgid "After loading this skill, the agent can read text files under references/ and assets/. Scripts are never run."
@@ -8140,13 +8145,18 @@ msgstr "Aktiviert"
 
 #. Private Background model hook settings.
 #: apps/desktop/src/components/ModelHookSettings.tsx
-msgid "Enabled model hooks send your check instructions, the tool name and a limited amount of task text to the provider configured for the Background role. Hook settings stay in this browser and are not included in project files or bundles."
-msgstr "Aktive Modell-Hooks senden Ihre Prüfanweisungen, den Werkzeugnamen und einen begrenzten Teil des Aufgabentexts an den Anbieter für die Rolle „Hintergrund“. Die Einstellungen bleiben in diesem Browser und werden nicht in Projektdateien oder Bundles aufgenommen."
+msgid "Enabled model hooks send your check instructions to the provider configured for the Background role. Tool hooks also send the tool name and a limited amount of task text. Hook settings stay in this browser and are not included in project files or bundles."
+msgstr "Aktive Modell-Hooks senden Ihre Prüfanweisungen an den Anbieter für die Rolle „Hintergrund“. Werkzeug-Hooks senden außerdem den Werkzeugnamen und einen begrenzten Teil des Aufgabentexts. Die Einstellungen bleiben in diesem Browser und werden nicht in Projektdateien oder Bundles aufgenommen."
 
 #. Private Background model hook settings.
 #: apps/desktop/src/components/ModelHookSettings.tsx
 msgid "Enabled the model hook."
 msgstr "Modell-Hook aktiviert."
+
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Enables a hook that sends check instructions and turn status to the Background provider"
+msgstr "Aktiviert einen Hook, der Prüfanweisungen und den Laufstatus an den Anbieter für die Rolle „Hintergrund“ sendet"
 
 #. Private Background model hook settings.
 #: apps/desktop/src/components/ModelHookSettings.tsx
@@ -10654,6 +10664,11 @@ msgstr "Vom Agenten gliedern lassen"
 msgid "Let the vendor rewrite the prompt"
 msgstr "Den Anbieter den Prompt umschreiben lassen"
 
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Let this hook propose replacement text"
+msgstr "Diesen Hook Ersatztext vorschlagen lassen"
+
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.comicLetter.content"
@@ -11368,6 +11383,11 @@ msgstr "Modell-Aufrufe: {used} von {limit} · ein Aufruf übrig"
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "Model hook prompt estimates"
 msgstr "Token-Schätzung für Modell-Hooks"
+
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "Model hook rewrite"
+msgstr "Änderungsvorschlag des Modell-Hooks"
 
 #. Private Background model hook settings.
 #: apps/desktop/src/components/ModelHookSettings.tsx
@@ -12540,6 +12560,11 @@ msgstr "Noch keine Tags."
 msgid "No target model is selected, so there is no pack to show."
 msgstr "Es ist kein Zielmodell ausgewählt, daher gibt es kein Prompt-Pack anzuzeigen."
 
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "No text. This clears the field."
+msgstr "Kein Text. Dadurch wird das Feld geleert."
+
 #. Words on the story timeline's axis and in a scene's accessible name. Interpolated values: days, count, n, text, span, anchor, lower, rest, dayLabel, endLabel, durationDays, openFindings, title, part, name, names, folder.
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "No thread"
@@ -13394,6 +13419,11 @@ msgstr "Verknüpfungen ordnen"
 #: apps/desktop/src/components/RestoreResult.tsx
 msgid "Original result: <0/>"
 msgstr "Ursprüngliches Ergebnis: <0/>"
+
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "Original text"
+msgstr "Ursprünglicher Text"
 
 #. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
 #: apps/desktop/src/components/CommandComposer.tsx
@@ -18543,6 +18573,11 @@ msgstr "Text, den der Import nicht behält (verborgener Text, gelöschte Überar
 msgid "Text this step writes"
 msgstr "Text, den dieser Schritt schreibt"
 
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "Text to apply"
+msgstr "Zu übernehmender Text"
+
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
@@ -19585,6 +19620,11 @@ msgstr "der Wert des Headers"
 msgid "The HEIC photo is larger than a picture may be."
 msgstr "Das HEIC-Foto ist größer, als ein Bild sein darf."
 
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "The hook can only propose a change to the note or synopsis text. You review the original and the replacement on a new approval card, even in Auto mode."
+msgstr "Der Hook kann nur Änderungen am Notiz- oder Zusammenfassungstext vorschlagen. Prüfen Sie den ursprünglichen und den vorgeschlagenen Text auf einer neuen Freigabekarte, auch im Auto-Modus."
+
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "The image was removed from this shot."
@@ -19785,6 +19825,11 @@ msgstr "Der Modell-Aufruf ist fehlgeschlagen: {error}"
 #: apps/desktop/src/components/InterruptedRuns.tsx
 msgid "The model call that was in flight when the page closed was lost, and its cost counts as spent. A plan card comes back needing your approval again, and the undo for steps already applied did not survive the reload."
 msgstr "Der beim Schließen der Seite laufende Modellaufruf ging verloren; seine Kosten gelten als verbraucht. Eine Plankarte benötigt erneut Ihre Freigabe. Die Rückgängig-Historie bereits angewendeter Schritte hat das Neuladen nicht überstanden."
+
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "The model hook “<0/>” proposed a rewrite. Review it before you approve."
+msgstr "Der Modell-Hook „<0/>“ schlägt eine Änderung vor. Prüfen Sie sie vor der Freigabe."
 
 #. Interpolated values: calls, cap, error
 #: apps/desktop/src/app/task-queue.ts
@@ -23075,6 +23120,11 @@ msgstr "wenn {condition}"
 msgid "When its name or an alias appears in the text"
 msgstr "Wenn sein Name oder ein Alias im Text vorkommt"
 
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "When the agent finishes a turn"
+msgstr "Wenn der Agent einen Lauf beendet"
+
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
@@ -23470,6 +23520,11 @@ msgstr "Sie haben das Zeichen der Fußnote {label} („{text}“) gelöscht. Ihr
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "You deleted the marker of footnote {label}. Its note is still at the end of the scene. Delete the note too?"
 msgstr "Sie haben das Zeichen der Fußnote {label} gelöscht. Ihre Anmerkung steht noch am Ende der Szene. Die Anmerkung auch löschen?"
+
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "You edited the text after the model hook “<0/>” proposed a rewrite."
+msgstr "Sie haben den Text bearbeitet, nachdem der Modell-Hook „<0/>“ eine Änderung vorgeschlagen hat."
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx

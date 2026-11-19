@@ -33,6 +33,7 @@ function runtime() {
   return {
     harness,
     written: () => state.manifest.tree.find((node) => node.id === LANDING)?.notes?.includes(TEXT) === true,
+    notes: () => state.manifest.tree.find((node) => node.id === LANDING)?.notes ?? '',
     setHooks: (next: readonly ModelHook[]) => { hooks = next; },
     setRules: (next: RuleSet) => { rules = next; },
   };
@@ -64,6 +65,126 @@ async function endpointFixture(answer: (url: string) => Response = () => verdict
 }
 
 describe('Background model hook execution', () => {
+  it.each(['approve', 'cancel'] as const)('asks for a rewrite in Auto mode, and the writer can %s it', async (action) => {
+    const run = runtime();
+    run.setHooks([{ ...HOOK, canTransform: true }]);
+    const rewritten = 'The tide fell before dawn.';
+    const endpoint = await endpointFixture(() => verdict(JSON.stringify({ decision: 'transform', reason: INTERNAL, replacement: rewritten })));
+    const log = createMemoryRunLog();
+    const decide = vi.fn(async ({ card }: PendingCard) => {
+      expect(run.written()).toBe(false);
+      expect(run.notes()).not.toContain(rewritten);
+      expect(card.steps[0]).toMatchObject({ params: { doc: LANDING, text: rewritten }, hookRewrite: { name: 'Viewpoint', field: 'text', before: TEXT } });
+      expect(log.dump()).toContain('"hookRewrites"');
+      return { action };
+    });
+    const report = await createAgentSession({ ...endpoint, harness: run.harness, mode: 'auto', decide, runLog: { port: log, projectId: 'p_HOOKS' } })
+      .submitPlan('Add a note.', { steps: planWith().steps.slice(0, 1) });
+    expect(decide).toHaveBeenCalledOnce();
+    expect(endpoint.fetch).toHaveBeenCalledOnce();
+    expect(run.written()).toBe(false);
+    expect(run.notes().includes(rewritten)).toBe(action === 'approve');
+    expect(report.status).toBe(action === 'approve' ? 'applied' : 'cancelled');
+    expect(JSON.stringify(report)).not.toContain(INTERNAL);
+    expect(log.dump()).not.toContain(INTERNAL);
+    if (action === 'approve') {
+      expect(log.dump()).toMatch(/"t":"step\.applied"[^\n]+\.rewrite1/);
+      expect(log.dump()).toMatch(/"t":"step\.failed"[^\n]+The original call did not run/);
+    }
+  });
+
+  it('names the model hook on an invalid rewrite and writes neither version', async () => {
+    const run = runtime();
+    run.setHooks([{ ...HOOK, canTransform: true }]);
+    const endpoint = await endpointFixture(() => verdict(JSON.stringify({ decision: 'transform', reason: INTERNAL, replacement: 'x'.repeat(2_001) })));
+    const report = await createAgentSession({ ...endpoint, harness: run.harness, mode: 'auto', decide: async () => ({ action: 'cancel' }) })
+      .submitPlan('Add the note.', { steps: planWith().steps.slice(0, 1) });
+    expect(report).toMatchObject({ status: 'failed', askBack: { code: 'hook_blocked', reason: expect.stringMatching(/Viewpoint.*2000/) } });
+    expect(run.written()).toBe(false);
+    expect(run.notes()).not.toContain('xxx');
+    expect(endpoint.fetch).toHaveBeenCalledOnce();
+  });
+
+  it('checks a fresh card after the JSON planner’s original approval without repeating completed steps', async () => {
+    const run = runtime();
+    run.setHooks([{ ...HOOK, canTransform: true }]);
+    const rewritten = 'The tide fell before dawn.';
+    const plan = { steps: [...planWith().steps].reverse() };
+    const endpoint = await endpointFixture((url) => url.includes('foreground')
+      ? verdict(JSON.stringify(plan))
+      : verdict(JSON.stringify({ decision: 'transform', reason: INTERNAL, replacement: rewritten })));
+    const gateway = { ...endpoint.gateway, modelCaps: () => ({ tools: false }) };
+    const cards: PendingCard[] = [];
+    const report = await createAgentSession({ ...endpoint, gateway, harness: run.harness, mode: 'ask', loadEveryTool: () => true, decide: async (pending) => {
+      cards.push(pending);
+      expect(run.notes()).not.toContain(rewritten);
+      return { action: 'approve' };
+    } }).submit('Add two notes.');
+    expect(report.status).toBe('applied');
+    expect(cards).toHaveLength(2);
+    expect(cards[0]?.card.steps[1]?.params['text']).toBe(TEXT);
+    expect(cards[1]?.card.steps).toMatchObject([{ status: 'done' }, { hookRewrite: { name: HOOK.name }, params: { text: rewritten } }]);
+    expect(cards[1]?.card.revision).toBeGreaterThan(cards[0]?.card.revision ?? -1);
+    expect(run.harness.log.entries().filter((row) => row.issuedBy === 'agent').map((row) => row.command)).toEqual(['notes.set', 'notes.append']);
+    expect(run.written()).toBe(false);
+    expect(run.notes()).toContain(rewritten);
+  });
+
+  it('checks live write rules again after a rewrite is approved', async () => {
+    const run = runtime();
+    run.setHooks([{ ...HOOK, canTransform: true }]);
+    const endpoint = await endpointFixture(() => verdict(JSON.stringify({ decision: 'transform', reason: INTERNAL, replacement: 'A changed note.' })));
+    const decide = vi.fn(async ({ card }: PendingCard) => {
+      expect(card.steps[0]?.hookRewrite?.before).toBe(TEXT);
+      run.setRules({ rules: [{ source: 'app', tool: TOOL, access: 'write', effect: 'deny', scope: { subtree: LANDING } }] });
+      return { action: 'approve' as const };
+    });
+    const report = await createAgentSession({ ...endpoint, harness: run.harness, mode: 'auto', decide, maxRetries: 0 })
+      .submitPlan('Add a note.', { steps: planWith().steps.slice(0, 1) });
+    expect(report.status).toBe('failed');
+    expect(decide).toHaveBeenCalledOnce();
+    expect(run.notes()).not.toContain('A changed note.');
+    expect(run.written()).toBe(false);
+  });
+
+  it('restores the rewritten card without reusing the prior approval or call id', async () => {
+    const run = runtime();
+    run.setHooks([{ ...HOOK, canTransform: true }]);
+    const rewritten = 'The tide fell before dawn.';
+    const endpoint = await endpointFixture(() => verdict(JSON.stringify({ decision: 'transform', reason: INTERNAL, replacement: rewritten })));
+    const log = createMemoryRunLog();
+    let park = (): void => {};
+    const parked = new Promise<void>((resolve) => { park = resolve; });
+    let release = (): void => {};
+    const released = new Promise<void>((resolve) => { release = resolve; });
+    const first = createAgentSession({
+      ...endpoint, harness: run.harness, mode: 'auto', runLog: { port: log, projectId: 'p_HOOKS' },
+      decide: async () => { park(); await released; return { action: 'cancel' }; },
+    });
+    const interrupted = first.submitPlan('Add the note.', { steps: planWith().steps.slice(0, 1) });
+    await parked;
+    const [saved] = await log.open('p_HOOKS');
+    if (saved === undefined) throw new Error('The rewrite card was not saved.');
+    await log.update(saved.runId, { status: 'interrupted' });
+    const harness = createProductHarness({ state: run.harness.state, ports: 'agent' });
+    const decide = vi.fn(async ({ card }: PendingCard) => {
+      expect(run.notes()).not.toContain(rewritten);
+      expect(card.steps[0]).toMatchObject({ params: { doc: LANDING, text: rewritten }, hookRewrite: { before: TEXT, name: HOOK.name } });
+      return { action: 'approve' as const };
+    });
+    const resumed = createAgentSession({ ...endpoint, harness, mode: 'auto', decide, runLog: { port: log, projectId: 'p_HOOKS' } });
+    try {
+      expect((await resumed.resume(saved.runId)).status).toBe('applied');
+      expect(decide).toHaveBeenCalledOnce();
+      expect(endpoint.fetch).toHaveBeenCalledOnce();
+      expect(run.notes().split(rewritten)).toHaveLength(2);
+      expect(run.written()).toBe(false);
+    } finally {
+      release();
+      await interrupted;
+    }
+  });
+
   it('selects only the staged prose, never the draft brief, replay context or unknown fields', () => {
     const { harness } = runtime();
     const hook = { ...HOOK, tool: 'scene.draft' };

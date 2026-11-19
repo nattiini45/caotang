@@ -47,6 +47,7 @@ import {
   planCostOf,
   refusalReasonOf,
   stepPreviewOf,
+  wordDiff,
   type ReviewPreviewView,
   type StepPreviewView,
   type TranscriptionPreviewView,
@@ -56,6 +57,7 @@ import { accessibleText } from '../i18n/accessible-text.js';
 import { UserText } from '../i18n/UserText.js';
 import { chooseContext, contextKey, droppedContextPins } from '../app/context-choices.js';
 import { contextDropText, contextLayerLabel } from './context-labels.js';
+import './plan-card.css';
 
 /* lingui-set comment="Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated." */
 
@@ -334,6 +336,8 @@ function StepRow({
         ) : null,
       )}
 
+      {step.hookRewrite === undefined ? null : <HookRewriteBlock rewrite={step.hookRewrite} />}
+
       {/* Modern folds a step's raw parameters under "Arguments" (#363), as a tool call's are. */}
       {done ? null : (
         <ModernFold label={t`Arguments`} className="plan-step-edit">
@@ -382,6 +386,24 @@ function StepRow({
         onExclude={!live ? undefined : (ref) => onEdit([{ op: 'context', index: step.index, overrides: chooseContext(step.contextOverrides ?? {}, ref, 'exclude') }])}
         onRestore={!live ? undefined : (ref) => onEdit([{ op: 'context', index: step.index, overrides: chooseContext(step.contextOverrides ?? {}, ref, 'remove') }])} /> : null}
     </li>
+  );
+}
+
+function HookRewriteBlock({ rewrite }: { rewrite: NonNullable<PlanStepView['hookRewrite']> }): ReactNode {
+  const { after } = rewrite;
+  const segments = wordDiff(rewrite.before, after);
+  return (
+    <figure className="plan-draft plan-hook-rewrite" aria-label={t`Model hook rewrite`}>
+      <figcaption>{rewrite.edited === true
+        ? <Trans>You edited the text after the model hook “<UserText value={rewrite.name} />” proposed a rewrite.</Trans>
+        : <Trans>The model hook “<UserText value={rewrite.name} />” proposed a rewrite. Review it before you approve.</Trans>}</figcaption>
+      <dl className="notes-diff">
+        <dt><Trans>Original text</Trans></dt>
+        <dd dir="auto">{segments.map((segment, index) => segment.kind === 'removed' ? <del key={index}>{segment.text}</del> : segment.kind === 'same' ? segment.text : null)}</dd>
+        <dt><Trans>Text to apply</Trans></dt>
+        <dd dir="auto">{after === '' ? <Trans>No text. This clears the field.</Trans> : segments.map((segment, index) => segment.kind === 'added' ? <ins key={index}>{segment.text}</ins> : segment.kind === 'same' ? segment.text : null)}</dd>
+      </dl>
+    </figure>
   );
 }
 

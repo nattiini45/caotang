@@ -13,11 +13,13 @@ const hook: ModelHook = {
 
 describe('private model hook settings', () => {
   it('round trips definitions by project and clears only the selected project', () => {
-    const first = applyPatch(DEFAULT_SETTINGS, { modelHooks: { [projectId]: [hook] } });
+    const rewrite: ModelHook = { ...hook, canTransform: true };
+    const turn: ModelHook = { ...hook, id: 'r_023456789A', event: 'turn.end', tool: '', failClosed: false };
+    const first = applyPatch(DEFAULT_SETTINGS, { modelHooks: { [projectId]: [rewrite, turn] } });
     const other = { ...hook, enabled: false };
     const second = applyPatch(first, { modelHooks: { [otherProjectId]: [other] } });
     const reload = normalizeSettings(JSON.parse(JSON.stringify(second)));
-    expect(modelHooksForProject(reload.modelHooks, projectId)).toEqual([hook]);
+    expect(modelHooksForProject(reload.modelHooks, projectId)).toEqual([rewrite, turn]);
     expect(modelHooksForProject(reload.modelHooks, otherProjectId)).toEqual([other]);
     expect(modelHooksForProject(reload.modelHooks, 'constructor')).toEqual([]);
     expect(modelHooksForProject(reload.modelHooks, 'p_0000000000')).toEqual([]);
@@ -32,7 +34,7 @@ describe('private model hook settings', () => {
       [projectId]: [
         { ...hook, name: ` ${hook.name} `, prompt: ` ${hook.prompt} `, credentials: 'extra field', args: { text: 'extra field' } },
         { ...hook, name: 'Duplicate' },
-        { ...hook, id: 'r_023456789A', event: 'turn.end' },
+        { ...hook, id: 'r_023456789A', event: 'turn.submit' },
         { ...hook, id: 'r_323456789A', tool: 'not-a-real-tool' },
         { ...hook, id: 'r_423456789A', prompt: '   ' },
         { ...hook, id: 'r_523456789A', name: ' ' },
@@ -41,6 +43,25 @@ describe('private model hook settings', () => {
         after,
       ],
     })).toEqual({ [projectId]: [hook, { ...after, failClosed: false }] });
+  });
+
+  it('keeps explicit rewrites only for supported before hooks and clears unused turn fields', () => {
+    const turn = { ...hook, id: 'r_023456789A', event: 'turn.end', tool: 'stale-tool', canTransform: true };
+    const after = { ...hook, id: 'r_223456789A', event: 'tool.after', canTransform: true };
+    const unsupported = { ...hook, id: 'r_323456789A', tool: 'scene.draft', canTransform: true };
+    const falseOptIn = { ...hook, id: 'r_423456789A', canTransform: false };
+    const malformedOptIn = { ...hook, id: 'r_523456789A', canTransform: 'true' };
+    const rewrite = { ...hook, id: 'r_623456789A', tool: 'notes.replace', canTransform: true };
+    expect(readModelHooks({ [projectId]: [turn, after, unsupported, falseOptIn, malformedOptIn, rewrite] })).toEqual({
+      [projectId]: [
+        { ...hook, id: turn.id, event: 'turn.end', tool: '', failClosed: false },
+        { ...hook, id: after.id, event: 'tool.after', failClosed: false },
+        { ...hook, id: unsupported.id, tool: 'scene.draft' },
+        { ...hook, id: falseOptIn.id },
+        { ...hook, id: malformedOptIn.id },
+        rewrite,
+      ],
+    });
   });
 
   it('enforces text and project count caps on reload', () => {
