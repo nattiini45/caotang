@@ -4431,7 +4431,7 @@ msgstr "Angehängt an <0/>"
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "Attached to no items yet. A Manual entry is sent only in the items it is attached to."
-msgstr "Noch an keine Elemente angehängt. Ein Manual-Eintrag wird nur in den Elementen gesendet, an die er angehängt ist."
+msgstr "Noch an keine Elemente angehängt. Ein Eintrag mit der Richtlinie „Manuell“ wird nur in den Elementen gesendet, an die er angehängt ist."
 
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #: apps/desktop/src/components/InspectorPictures.tsx

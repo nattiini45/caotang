@@ -93,3 +93,15 @@ describe('German turn actions name the writer’s request (#573)', () => {
     expect(Object.values(german).filter((text) => text.includes('Durchgangsaktion'))).toEqual([]);
   });
 });
+
+describe('German Codex copy names the policy the entry editor shows (#734)', () => {
+  it('says Manuell, the include policy’s own label, instead of the English word', () => {
+    const hint = germanOf('Attached to no items yet. A Manual entry is sent only in the items it is attached to.', {});
+    expect(hint).toBe(
+      'Noch an keine Elemente angehängt. Ein Eintrag mit der Richtlinie „Manuell“ wird nur in den Elementen gesendet, an die er angehängt ist.',
+    );
+    // The label the sentence points at is the one the policy control beside it carries.
+    expect(germanOf('Manual', {})).toBe('Manuell');
+    expect(hint).not.toContain('Manual');
+  });
+});
