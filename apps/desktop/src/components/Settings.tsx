@@ -543,9 +543,11 @@ function RolesPanel({ services, onSaved }: { services: AppServices; onSaved: (te
 
 
 function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
+  const narrow = useNarrow();
   const entries: RequestLogEntry[] = services.providers.requests.entries().slice().reverse();
   const names = new Map(services.providers.list().map((profile) => [profile.id, profile.name]));
   const entryCount = entries.length;
+  const profileName = (entry: RequestLogEntry): string => names.get(entry.profileId) ?? entry.profileId;
   return (
     <section className="request-log" aria-labelledby="settings-requests">
       <h4 id="settings-requests">
@@ -560,6 +562,54 @@ function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
         <p className="muted">
           <Trans>No request has been sent yet.</Trans>
         </p>
+      ) : narrow ? (
+        // A phone's Settings pane is narrower than these eight columns, so each request is a labelled record instead of a row of a
+        // table that would scroll the whole pane sideways (ui-modules §0.6, the shape the usage records share).
+        <ul className="records" data-testid="request-log" aria-label={t`Requests, newest first`}>
+          {entries.map((entry, index) => (
+            <li key={`${entry.at}:${index}`} data-outcome={entry.outcome}>
+              <h5>
+                <bdi>{timeLabel(entry.at)}</bdi> · {entry.outcome}
+              </h5>
+              <dl className="record-values">
+                <div>
+                  <dt><Trans>Profile</Trans></dt>
+                  <dd><bdi>{profileName(entry)}</bdi></dd>
+                </div>
+                <div>
+                  <dt><Trans>Attempt</Trans></dt>
+                  <dd>{entry.attempt}</dd>
+                </div>
+                <div>
+                  <dt><Trans>Outcome</Trans></dt>
+                  <dd>{entry.outcome}</dd>
+                </div>
+                {entry.status === undefined ? null : (
+                  <div>
+                    <dt><Trans>Status</Trans></dt>
+                    <dd>{entry.status}</dd>
+                  </div>
+                )}
+                {entry.maxTokens === undefined ? null : (
+                  <div>
+                    <dt><Trans>Max tokens</Trans></dt>
+                    <dd>{entry.maxTokens}</dd>
+                  </div>
+                )}
+                <div>
+                  <dt><Trans>Address</Trans></dt>
+                  <dd className="request-url">{entry.url.replace(/^https?:\/\//, '')}</dd>
+                </div>
+                {entry.note === undefined && entry.errorKind === undefined ? null : (
+                  <div>
+                    <dt><Trans>Note</Trans></dt>
+                    <dd>{entry.note ?? entry.errorKind}</dd>
+                  </div>
+                )}
+              </dl>
+            </li>
+          ))}
+        </ul>
       ) : (
         <table className="request-table" data-testid="request-log">
           <caption className="visually-hidden">
@@ -597,7 +647,7 @@ function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
             {entries.map((entry, index) => (
               <tr key={`${entry.at}:${index}`} data-outcome={entry.outcome}>
                 <td>{timeLabel(entry.at)}</td>
-                <td>{names.get(entry.profileId) ?? entry.profileId}</td>
+                <td>{profileName(entry)}</td>
                 <td>{entry.attempt}</td>
                 <td>{entry.outcome}</td>
                 <td>{entry.status ?? ''}</td>

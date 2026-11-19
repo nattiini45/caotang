@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { binderRow, binderTitle, createProject, dragVisibleElement, projectTrace, rejected, trace, traceNames, waitForSaved } from './support.js';
+import { binderRow, binderTitle, countOf, createProject, dragVisibleElement, projectTrace, rejected, trace, traceNames, waitForSaved } from './support.js';
 
 /**
  * ui-modules §2: the binder's gestures, the keyboard map, the delete confirmation and the
@@ -269,6 +269,109 @@ test('a right-click opens the binder menu for the row, and Rename from it opens 
   await expect(page.getByRole('textbox', { name: 'Rename Scene B' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('menu')).toHaveCount(0);
+});
+
+/**
+ * The browser's own drag sequence, dispatched rather than driven by the mouse: Playwright can start a native HTML5 drag in
+ * Chromium only, and the shape this covers (which element each event is delivered to) is the same in every engine. One real
+ * `DataTransfer` travels through the sequence.
+ */
+test.describe('a drop the browser delivers to the tree instead of the row (#655)', () => {
+  /** Starts the drag from a row, so the binder's own `dragstart` names what moves. */
+  async function startDrag(page: Page, title: string): Promise<void> {
+    await binderRow(page, title).evaluate((element) => {
+      const data = new DataTransfer();
+      data.setData('text/plain', '');
+      (globalThis as unknown as { __drag?: DataTransfer }).__drag = data;
+      element.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: data }));
+    });
+  }
+
+  /** A `dragover` over one row at an edge, reporting whether the row took it. */
+  async function dragOverRow(page: Page, title: string, edge: 'before' | 'into' | 'after'): Promise<boolean> {
+    return binderRow(page, title).evaluate((element, edge) => {
+      const rect = element.getBoundingClientRect();
+      const clientY = edge === 'before' ? rect.top + 2 : edge === 'after' ? rect.bottom - 2 : rect.top + rect.height / 2;
+      const event = new DragEvent('dragover', {
+        bubbles: true, cancelable: true, clientX: rect.left + 20, clientY,
+        dataTransfer: (globalThis as unknown as { __drag?: DataTransfer }).__drag,
+      });
+      element.dispatchEvent(event);
+      return event.defaultPrevented;
+    }, edge);
+  }
+
+  /** The release, delivered where the browser's own target was: the tree above the row, or the row itself. */
+  async function release(page: Page, on: 'tree' | 'row', title?: string): Promise<void> {
+    const target = on === 'tree' ? page.locator('.binder-tree') : binderRow(page, title ?? '');
+    await target.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      element.dispatchEvent(new DragEvent('drop', {
+        bubbles: true, cancelable: true, clientX: rect.left + 20, clientY: rect.top + 2,
+        dataTransfer: (globalThis as unknown as { __drag?: DataTransfer }).__drag,
+      }));
+    });
+  }
+
+  test('resolves the move from the row whose dragover it accepted', async ({ page }) => {
+    await chapterWithScenes(page);
+    expect(await binderTitles(page)).toEqual(['Chapter 1', 'Scene A', 'Scene B']);
+    const before = await countOf(page, 'binder.move');
+
+    await startDrag(page, 'Scene B');
+    expect(await dragOverRow(page, 'Scene A', 'before')).toBe(true);
+    await expect(binderRow(page, 'Scene A')).toHaveClass(/is-drop-before/);
+    await release(page, 'tree');
+
+    await expect.poll(() => binderTitles(page)).toEqual(['Chapter 1', 'Scene B', 'Scene A']);
+    const moves = (await trace(page)).filter((row) => row.command === 'binder.move');
+    expect(moves).toHaveLength(before + 1);
+    expect(moves.at(-1)?.summary).toBe('moved "Scene B" to position 0 under "Chapter 1"');
+  });
+
+  test('moves once when the release reaches the row itself', async ({ page }) => {
+    await chapterWithScenes(page);
+    const before = await countOf(page, 'binder.move');
+
+    await startDrag(page, 'Scene B');
+    expect(await dragOverRow(page, 'Scene A', 'before')).toBe(true);
+    await expect(binderRow(page, 'Scene A')).toHaveClass(/is-drop-before/);
+    await release(page, 'row', 'Scene A');
+
+    await expect.poll(() => binderTitles(page)).toEqual(['Chapter 1', 'Scene B', 'Scene A']);
+    expect(await countOf(page, 'binder.move')).toBe(before + 1);
+  });
+
+  test('does not reuse an acceptance the drag ended after', async ({ page }) => {
+    await chapterWithScenes(page);
+    const names = await traceNames(page);
+
+    await startDrag(page, 'Scene B');
+    expect(await dragOverRow(page, 'Scene A', 'before')).toBe(true);
+    await expect(binderRow(page, 'Scene A')).toHaveClass(/is-drop-before/);
+    // The browser ends the drag where the writer let go of a refused release: nothing is accepted any more.
+    await binderRow(page, 'Scene B').evaluate((element) => {
+      element.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: (globalThis as unknown as { __drag?: DataTransfer }).__drag }));
+    });
+    await release(page, 'tree');
+
+    await expect(binderRow(page, 'Scene A')).not.toHaveClass(/is-drop-before/);
+    expect(await binderTitles(page)).toEqual(['Chapter 1', 'Scene A', 'Scene B']);
+    expect(await traceNames(page)).toEqual(names);
+  });
+
+  test('does not move when the accepted dragover was a refusal', async ({ page }) => {
+    await chapterWithScenes(page);
+    const names = await traceNames(page);
+
+    // A folder over its own child is refused, and the refusal is the whole answer.
+    await startDrag(page, 'Chapter 1');
+    expect(await dragOverRow(page, 'Scene A', 'into')).toBe(false);
+    await release(page, 'tree');
+
+    expect(await binderTitles(page)).toEqual(['Chapter 1', 'Scene A', 'Scene B']);
+    expect(await traceNames(page)).toEqual(names);
+  });
 });
 
 test('a folder cannot be dropped into its own child, and nothing is moved', async ({ page }) => {

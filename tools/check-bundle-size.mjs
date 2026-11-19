@@ -218,7 +218,13 @@ export const BUDGET = {
      */
     entry: 106_648,
     entryMargin: 0.01,
-    // Current: 96,600 B raw for `modern-shell`'s stylesheet: 95,670 B measured after sharing save-recovery row/truncation/control rules, plus about 1% (owner's standing 2026-11-08 rule; #580/#578).
+    // Current: 98,300 B raw for `modern-shell`'s stylesheet: 97,280 B measured with the storage banner's own row (#735), plus about 1%
+    // (owner's standing 2026-11-08 rule; #580/#578). That rule generalises #647's narrow-only reservation to every view and every width:
+    // six `:has(.storage-banner)` rules (the stage's grid, the notices' row, the page's row inside it, the binder out of the rows, the toast
+    // fix, and where a field is the only content) plus the narrow layout's offsets. Optimisations tried first: the selector was shortened
+    // from `:has(> .modern-notices .storage-banner)` to `:has(.storage-banner)` (80 bytes), the notices' width is the one 720 px line the base
+    // rule cannot supply once the element is in flow, and moving the rules to the entry stylesheet would have left that cap (191 bytes of
+    // headroom) short by more. 96,600 B was measured at #580/#578, after sharing save-recovery row/truncation/control rules.
     /** Lazy stylesheets by chunk name, raw. Modern's (tokens/modern.css and shell-modern.css): 12.3 kB raw, 2.7 kB gzip at #305. */
     // Stageshow polish #357: the Modern control kit (controls-modern.css: buttons, fields, selects, checks, radios, switches, segmented,
     // disclosures, badges, help text, empty states) took the sheet from 47.6 kB to 60,375 bytes raw (9.6 kB gzip); the cap is 59,089 (its first cut) plus
@@ -238,7 +244,7 @@ export const BUDGET = {
     // 390 px, k-tonal and k-quiet). 93,531 bytes raw measured on the merge; the cap is that plus about 1%.
     // Navigation (#474): the + New capsule and its two-line menu, the Findings count, the views' words hidden at 960–1179 px.
     // 94,550 bytes raw measured (+1,019 on main's 93,531); the cap is that plus about 1%. Raising an owner-recorded cap: see the PR.
-    caps: { 'modern-shell': 96_600 },
+    caps: { 'modern-shell': 98_300 },
   },
   // Current: 36,500 B gzip over Classic's first load: 36,144 B measured after save-recovery CSS deduplication and Scene info reuse, plus about 1% (owner's standing 2026-11-08 rule; #580/#578).
   /**
