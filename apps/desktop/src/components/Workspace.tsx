@@ -24,7 +24,7 @@ import {
 } from 'react';
 import { plural, select, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { isolate } from '@caotang/i18n';
+import { isolate, listFormat } from '@caotang/i18n';
 import { pictureStorageReport, type ProjectState, type RuntimeStore, type SweepCandidate } from '@caotang/store';
 
 import { useFolderSave } from './use-folder-save.js';
@@ -56,6 +56,9 @@ import { ExportSweepOffer, sweepBeforeExport, sweepOfferBeforeExport } from '../
 import { PictureNotices } from './PictureNotices.js';
 import { saveStateWords } from '../app/integrity-model.js';
 import { nativeFolderId, nativeFoldersAvailable } from '../app/native-folders.js';
+import { useFolderWatch } from '../app/use-folder-watch.js';
+import { changeSummary } from '../app/folder-watch.js';
+import { formatterLocale } from '../i18n/format-locale.js';
 import { requestInspector } from '../app/inspector-request.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import type { StartIntent } from '../App.js';
@@ -139,6 +142,8 @@ export interface WorkspaceProps {
    * `answerFolderDiffers`). The save is the folder save, so a document it would write over is asked about first.
    */
   readonly saveToFolder?: DirectoryHandleLike | null;
+  /** Reloads the open project folder's own version, after the folder changed outside Caotang (App `reopenFolder`). */
+  readonly onReopenFolder: (folder: DirectoryHandleLike) => void;
 }
 
 export function Workspace({
@@ -149,9 +154,12 @@ export function Workspace({
   notice = null,
   startIntent = null,
   saveToFolder: pendingFolder = null,
+  onReopenFolder,
 }: WorkspaceProps): ReactNode {
   useSession(session);
   const { state, view } = session;
+  // A change another program makes in the open folder waits here as an offer; nothing is reloaded by itself (desktop.md, #403).
+  const folderWatch = useFolderWatch(session);
   // The printed-key layout behind the shortcut labels the toolbar shows (keymap.ts; the same subscription as EditorPane).
   const keyboardLayout = useSyncExternalStore(keyboardLayoutStore.subscribe, keyboardLayoutStore.snapshot);
   const [rail, setRail] = useState<RailTab>('binder');
@@ -475,7 +483,8 @@ export function Workspace({
   const failedSaveChannels = session.failedSaveChannels();
   const stopped = session.tabStop().getSnapshot();
   const stopCause = stopped.kind === 'stopped' ? stopped.cause : undefined;
-  const nativeFolder = nativeFolderId(session.folderBaseline()?.folder ?? null) !== undefined;
+  const folderCopy = session.folderBaseline()?.folder ?? null;
+  const nativeFolder = nativeFolderId(folderCopy) !== undefined;
   const browserFolderPicker = !nativeFoldersAvailable() && folderAccessSupported();
   const saveWords = saveStateWords(saveState, stopCause, failedSaveChannels, nativeFolder);
   // The export dialog compiles the item the binder has selected, unless that is a section (then it is the whole manuscript).
@@ -1127,7 +1136,7 @@ export function Workspace({
         {...(browserFolderPicker ? { onSaveToFolder: saveToFolder } : {})}
       />
     ),
-    status: message === null && !folderSaving && review.kind !== 'running' ? null : (
+    status: message === null && !folderSaving && review.kind !== 'running' && folderWatch.changed === null ? null : (
       <>
         {review.kind === 'running' ? (
           <div className="status-line" role="status" data-testid="review-status" data-state="running">
@@ -1162,6 +1171,31 @@ export function Workspace({
             }}>
               <Trans>Dismiss</Trans>
             </button>}
+          </div>
+        ) : null}
+        {folderWatch.changed !== null && folderCopy !== null ? (
+          <div className="status-line is-info" role="status" data-testid="folder-change">
+            <span>
+              {(() => {
+                const summary = changeSummary(folderWatch.changed, (path) => path.slice(path.lastIndexOf('/') + 1));
+                const files = listFormat(formatterLocale()).format(summary.names);
+                return summary.more === 0
+                  ? t`The project folder changed outside Caotang: ${{ files }}. Caotang has not reloaded the folder’s version.`
+                  : t`The project folder changed outside Caotang: ${{ files }} and ${{ count: summary.more }} more. Caotang has not reloaded the folder’s version.`;
+              })()}
+            </span>
+            {saveState === 'saved' ? (
+              <button type="button" className="button" onClick={() => onReopenFolder(folderCopy)}>
+                <Trans>Reopen the folder’s version</Trans>
+              </button>
+            ) : (
+              <button type="button" className="button" onClick={exportBundleOffering}>
+                <Trans>Export a backup</Trans>
+              </button>
+            )}
+            <button type="button" className="button is-quiet" onClick={folderWatch.dismiss}>
+              <Trans>Keep writing</Trans>
+            </button>
           </div>
         ) : null}
       </>

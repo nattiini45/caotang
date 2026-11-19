@@ -5260,6 +5260,11 @@ msgstr "Caotang has no record of what this folder held when this project was las
 msgid "Caotang kept {saved, plural, one {# unsaved change} other {# unsaved changes}} from before the reload and saved {saved, plural, one {it} other {them}}."
 msgstr "Caotang kept {saved, plural, one {# unsaved change} other {# unsaved changes}} from before the reload and saved {saved, plural, one {it} other {them}}."
 
+#. Interpolated values: error
+#: apps/desktop/src/App.tsx
+msgid "Caotang needs an answer to open this folder, so it is not reopened here. Open it from the projects list."
+msgstr "Caotang needs an answer to open this folder, so it is not reopened here. Open it from the projects list."
+
 #. Interpolated values: model, name, provider, total
 #: apps/desktop/src/components/ProviderSetup.tsx
 msgid "Caotang recognises the provider from the key. The key is encrypted in this browser and never written into a project."
@@ -8501,6 +8506,7 @@ msgstr "Export {name} as a bundle"
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Modern interface: Scene info, the inspector as a popover from the title capsule.
 #: apps/desktop/src/components/shell/modern/scene-info.tsx
 #: apps/desktop/src/components/StaleTabNotice.tsx
@@ -10442,6 +10448,11 @@ msgstr "Keep waiting"
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Keep WebP pictures as they are (for Apple Books; other readers may show them blank)"
 msgstr "Keep WebP pictures as they are (for Apple Books; other readers may show them blank)"
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Keep writing"
+msgstr "Keep writing"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -15684,6 +15695,11 @@ msgstr "Reopen folder"
 msgid "Reopen folder of {name}"
 msgstr "Reopen folder of {name}"
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Reopen the folder’s version"
+msgstr "Reopen the folder’s version"
+
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
 msgid "Replace cover…"
@@ -20336,6 +20352,21 @@ msgstr "The project cover"
 #: apps/desktop/src/app/lifecycle.ts
 msgid "The project folder changed outside Caotang or is in use. Reopen it before saving."
 msgstr "The project folder changed outside Caotang or is in use. Reopen it before saving."
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "The project folder changed outside Caotang: {files} and {count} more. Caotang has not reloaded the folder’s version."
+msgstr "The project folder changed outside Caotang: {files} and {count} more. Caotang has not reloaded the folder’s version."
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "The project folder changed outside Caotang: {files}. Caotang has not reloaded the folder’s version."
+msgstr "The project folder changed outside Caotang: {files}. Caotang has not reloaded the folder’s version."
+
+#. Interpolated values: error
+#: apps/desktop/src/App.tsx
+msgid "The project folder could not be reopened: {error}"
+msgstr "The project folder could not be reopened: {error}"
 
 #: apps/desktop/src/app/native-folders.ts
 msgid "The project folder is missing or was moved. Choose Open a folder to find it."
