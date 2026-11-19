@@ -28,3 +28,21 @@ test('an explicit reference write shows the proposed source on a confirmation ca
     entries: [{ changes: [{ field: 'External references', to: expect.stringMatching(/Tide Tables.*Gull Press/) }] }],
   });
 });
+
+test('an edit of a held reference shows what the entry already had, not an empty field', () => {
+  const held = [{ id: 'ref_0000000001', title: 'Tide Tables', publisher: 'Gull Press' }];
+  const preview = stepPreviewOf('codex.write', { entries: [{
+    action: 'update', id: 'c_0000000001', name: 'Fenn',
+    changes: [{
+      field: 'references',
+      from: JSON.stringify(held),
+      to: JSON.stringify([{ action: 'update', id: 'ref_0000000001', publisher: 'Nordufer Verlag' }]),
+    }],
+  }] }, project());
+  expect(preview).toMatchObject({
+    kind: 'codex',
+    entries: [{ changes: [{ field: 'External references', from: expect.stringMatching(/Tide Tables.*Gull Press/), to: expect.stringMatching(/Nordufer Verlag/) }] }],
+  });
+  expect(JSON.stringify(preview)).not.toContain('(none)');
+  expect(JSON.stringify(preview)).not.toContain('Edit · Tide Tables');
+});
