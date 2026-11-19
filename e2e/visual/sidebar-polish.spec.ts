@@ -66,16 +66,10 @@ for (const scheme of ['light', 'dark'] as const) {
     await expect(page.getByTestId('modern-sidebar').getByRole('tab')).toHaveCount(4);
     await page.mouse.move(118, 400);
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-    // #644: the glass top ornament can keep a glyph raster baked mid-slide after its
-    // inset-inline-start transition — settle it, then force one repaint at the final position.
-    const ornament = page.locator('.modern-ornament.is-top');
-    await expect.poll(() => ornament.evaluate((el) => el.getAnimations({ subtree: true }).length)).toBe(0);
-    await ornament.evaluate((el) => {
-      (el as HTMLElement).style.display = 'none';
-      void (el as HTMLElement).offsetHeight;
-      (el as HTMLElement).style.display = '';
-    });
-    // The repaint lands on the next committed frame; wait for it before the screenshot reads the raster.
+    // #644: after the reload the title's glyph raster can be one frame behind its settled layout;
+    // the fonts and two committed frames are the real conditions to wait on. A forced repaint is
+    // deliberately avoided — repainting the glass ornament bakes a different glyph phase.
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
     await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
     await expect(page).toHaveScreenshot(`modern-${scheme}-german-sidebar-count.png`, { animations: 'disabled', caret: 'hide', mask: [page.getByTestId('save-state'), page.locator('time')], maxDiffPixels: 0 });
   });
