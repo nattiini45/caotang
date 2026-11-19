@@ -1,0 +1,30 @@
+name: Desktop shell
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop-smoke:
+    name: Desktop shell smoke (Linux)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile --engine-strict
+      - run: pnpm build
+      - run: xvfb-run -a pnpm --filter @caotang/desktop-shell test:smoke
