@@ -300,11 +300,13 @@ function wordsOf(field: string, value: unknown, names: ReadonlyMap<string, strin
   if (value === '' && field.startsWith(CODEX_DETAIL_DIFF_PREFIX)) return t`Empty text`;
   if (field === 'references' && Array.isArray(value)) {
     return value.filter(isRecord).map((edit) => {
-      const action = edit['action'] === 'create' ? t`Add` : edit['action'] === 'remove' ? t`Remove` : t`Edit`;
+      // An edit carries an action; a stored reference, which is what an update started from, does not.
+      const action = edit['action'] === 'create' ? t`Add` : edit['action'] === 'remove' ? t`Remove`
+        : edit['action'] === 'update' ? t`Edit` : undefined;
       const previous = typeof edit['previousTitle'] === 'string' ? [edit['previousTitle']] : [];
       const values = CODEX_REFERENCE_FIELDS.flatMap((key) =>
         Object.hasOwn(edit, key) ? [plainOf(key, edit[key])] : []);
-      return [action, ...previous, ...values].map(isolate).join(' · ');
+      return [action, ...previous, ...values].filter((part) => part !== undefined).map(isolate).join(' · ');
     }).join('; ');
   }
   if (field !== 'visualRefs') return plainOf(field, value);
