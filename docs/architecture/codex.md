@@ -10,7 +10,7 @@ The codex is the per-project knowledge base of *entities that recur in the prose
 1. **Context assembly** — generation calls include codex entries keyed by mention (per policy), never the whole codex.
 2. **The agent** — reads/creates/updates entries so the bible stays *maintained* (manual bible entry is the usual chore; Caotang's agent fills the codex from the manuscript).
 
-Explicitly **not** in v0.1 (backlog): relations graph (real power, real context-flood risk; needs prompt-preview debugging first), per-entry typed detail sub-fields, thumbnails, appearance heatmap (cheap derived stat, v0.2), embedding retrieval (rejected).
+Backlog: relations graph (real power, real context-flood risk; needs prompt-preview debugging first), thumbnails, appearance heatmap (cheap derived stat, v0.2), embedding retrieval (rejected).
 
 Entries are searchable lexically through `text.search` ([retrieval.md](retrieval.md)); `never` entries are excluded before indexing and scoring. This explicit tool does not change mention-keyed assembly or introduce embeddings.
 
@@ -58,11 +58,20 @@ Field contracts (mirrors project-format §2 discipline — every field has a dom
 
 **Provenance semantics:** `codex.write` sets `origin: 'agent'` + `sources[]` automatically on create; the UI codex editor defaults `origin: 'manual'` and lets the writer attach a source citation by picking text (rare, but keeps hand-entries citable). Provenance is **display data in v0.1** (inspector "established from…" line + codex panel badge) and the coherence canon rule's input; it is **not** sent to the model as separate payload (description body already carries the content). `import` origin = an import: the agent's `codex.import` (at most 20 entries per call) or the writer's batch import from the app (`codex.importBatch`, §7.1), or the cast and location rows the writer ticks in a Final Draft script import, which `screenplay.import` makes in its own undo group, each attached to the first imported scene that names it (#265).
 
+### 2.1 Typed details
+
+The writer can define optional fields shared by all entries of a type, including a custom type. The project manifest has an optional `codexDetailFields` array of `{ type, key, label, kind }` definitions, in creation order. A type is an exact entry type string (1–64 characters after trimming); a field key is a stable identifier, unique within that type, with 1–64 ASCII letters, digits, underscores or hyphens, starting with a letter. A label is 1–80 characters after trimming. A project holds up to 256 definitions, at most 24 per type.
+
+An entry has an optional `details` object keyed by these identifiers. Kinds are `text` (up to 2,000 characters), `number` (finite), `date` (a real calendar date in YYYY-MM-DD), and `boolean` (true or false). New writes patch named fields, using null to clear a value. The command refuses an undeclared key or incompatible value and names the field. A type change leaves prior values as stored; only the current type's compatible values are rendered as controls. Unknown keys and existing incompatible values are retained on load and save, and an unrelated edit does not overwrite them. The writer can add field definitions in the entry inspector; defining the first field for a new type can also assign that type to the entry.
+
+Definitions and values are absent in projects that do not use them. They are not included in automatic model context or prompt-preview content. Explicit value edits through `codex.write` are subject to normal write confirmation; its tool schema does not offer field definition edits.
+
 ## 3. Storage & write path
 
 - **Manifest is structural truth:** `caotang.json` gains a top-level `codex[]` array (full `CodexEntry` objects, same fixed key order discipline as `tree`). Format v1 absorbs it additively — no `formatVersion` bump (versions migrate real data, not spec growth).
 - **Per-entry redundancy file:** `codex/<id>.md` — YAML front matter `{id, name, type, includePolicy, caseSensitive, aliases, exclude, attachments, keywords}` + body = `description` Markdown. Written on every entry save via the same atomic write path as documents (temp → rename; project-format §4). This is the doc front-matter pattern applied to codex: **each entry is individually meaningful and survives manifest corruption** — the direct countermeasure to the failure mode where single-asset corruption makes a whole project unreadable.
 - **Conflict rule:** manifest wins over redundancy files; missing file → rewritten from manifest; file with no manifest entry → recovered like orphan `docs/*.md` (project-format §2 validation step 4): imported as a codex entry under `codex/`-file metadata, reported in the load notice.
+- **Typed-detail recovery:** `details` is also stored in each codex Markdown file as a JSON object in a quoted front-matter scalar. Entry values survive an orphan import or a rebuild from files. Shared project-level field definitions live in the manifest and its backups; a rebuild without those backups retains the values even when it cannot reconstruct the definitions.
 - **Recovery (project-format §5 extended):** the rebuild-from-front-matter pass also scans `codex/*.md`; rebuilt entries land with their stored policy/aliases; descriptions survive; attachment ids that no longer resolve are dropped per the dangling rule.
 - **No codex secrets rule** (project-format §2): descriptions are prose, but the no-secrets discipline applies — provider keys/URLs never belong in codex text; loader does not scan for them (documented, not enforced).
 - **Series-scope design constraint:** writing tools with a multi-book story commonly ship a shared/promotable codex; Caotang's is single-project in v0.1, but entry ids and the `codex/<id>.md` redundancy layout must assume **no project-local collision domains** (ids globally unique per install) so a future "promote entry to series scope" needs no migration. Boundary recorded in [codex-panels.md](codex-panels.md) §3.
@@ -144,7 +153,8 @@ The shared import preview ([import-preview.md](import-preview.md) §4, #267) is 
 - **Codex panel** (left-rail peer of binder): list grouped by type; search box; entry editor (name, aliases chip-input, type dropdown, include-policy 4-state selector, description markdown textarea, keywords, attachments list); mention counts per entry (from caches, refreshed on doc writes).
 - **Inspector:** "Codex" section on document nodes — chips for entries attached to this doc (+ attach picker), and mention chips (entries detected in this doc, click → codex panel entry).
 - **First-run:** empty codex shows the guided seed card: "Let the agent draft entries from your manuscript" → one-click `codex.write` plan (the bootstrap path, minimal form; full bootstrap wizard = v0.2 backlog).
-- Out of scope v0.1: editor underline highlighting, heatmap, relations editor, detail fields.
+- The entry editor's **Details** section renders the current type's fields and lets the writer define fields for the current or a custom type.
+- Out of scope v0.1: editor underline highlighting, heatmap, relations editor.
 
 ## 9. Evals hooks
 

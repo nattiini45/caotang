@@ -16,6 +16,46 @@ function entryOf(state: ReturnType<typeof makeState>, id: string) {
 }
 
 describe('codex.write', () => {
+  it('validates a custom entry’s detail values by key without losing other saved detail values', () => {
+    const state = makeState();
+    const entry = entryOf(state, ENTRY);
+    entry.type = 'Guest';
+    entry.details = { futureValue: { keep: true } };
+    state.manifest.codexDetailFields = [{ type: 'Guest', key: 'episode', label: 'Episode', kind: 'number' }];
+    const harness = makeHarness({}, state);
+    const before = snapshotOf(state);
+    const bad = refusalOf(run(harness, 'codex.write', { entries: [{ action: 'update', id: ENTRY, details: { episode: 'one' } }] }, { permission: CONFIRMED }));
+    expect(bad.details?.failures?.[0]?.message).toContain('details field "episode"');
+    expect(snapshotOf(state)).toBe(before);
+    const outcome = valueOf(run(harness, 'codex.write', { entries: [{ action: 'update', id: ENTRY, details: { episode: 1 } }] }, { permission: CONFIRMED }));
+    expect(entry.details).toEqual({ futureValue: { keep: true }, episode: 1 });
+    expect(outcome.data['diffs']).toEqual([expect.objectContaining({ changes: [{ field: 'details.episode', from: 'null', to: '1' }] })]);
+    harness.undo.undo(outcome.undoGroupId ?? '');
+    expect(snapshotOf(state)).toBe(before);
+  });
+
+  it('validates detail values on create and clears only the named detail on update', () => {
+    const state = makeState();
+    state.manifest.codexDetailFields = [
+      { type: 'character', key: 'debut', label: 'Debut', kind: 'date' },
+      { type: 'character', key: 'narrator', label: 'Narrator', kind: 'boolean' },
+    ];
+    const harness = makeHarness({}, state);
+    const bad = refusalOf(run(harness, 'codex.write', {
+      entries: [{ action: 'create', type: 'character', name: 'Neri', details: { debut: '2025-02-29' } }],
+    }, { permission: CONFIRMED }));
+    expect(bad.details?.failures?.[0]?.message).toContain('details field "debut"');
+    const outcome = valueOf(run(harness, 'codex.write', {
+      entries: [{ action: 'create', type: 'character', name: 'Neri', details: { debut: '2024-02-29', narrator: false } }],
+    }, { permission: CONFIRMED }));
+    const [id] = outcome.data['created'] as string[];
+    expect(entryOf(state, id ?? '').details).toEqual({ debut: '2024-02-29', narrator: false });
+    valueOf(run(harness, 'codex.write', {
+      entries: [{ action: 'update', id, details: { debut: null } }],
+    }, { permission: CONFIRMED }));
+    expect(entryOf(state, id ?? '').details).toEqual({ narrator: false });
+  });
+
   it('creates an entry attached to a node, and undoes it back to the byte-identical prior codex', () => {
     const state = makeState();
     const harness = makeHarness({}, state);

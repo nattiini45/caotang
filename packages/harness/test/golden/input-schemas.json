@@ -681,6 +681,10 @@
               "type": "boolean",
               "description": "Whether the name and aliases match case-sensitively."
             },
+            "details": {
+              "type": "object",
+              "description": "Detail values by field key, checked against the project schema for this entry type. Use null to clear a value."
+            },
             "exclude": {
               "type": "array",
               "description": "Phrases in which matches are ignored, at most 20.",

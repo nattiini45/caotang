@@ -1,5 +1,11 @@
 # Decisions
 
+- Codex details, external references and relations (#221–#223) stay out of automatic model context. Mention matching does not follow relations. Details and external references can be passed explicitly to `codex.write` and follow its usual confirmation path. External references stay separate from manuscript `sources` and do not change the canon rule. Verify the assembly boundary in prompt preview before shipping. [delegated 2026-11-19]
+
+- [proposed] Codex relations (#223) start in a Relations section on the selected entry rather than a standalone project map. Show incoming and outgoing links and let writers follow them to the other entry.
+
+- [proposed] Codex details, references and relations (#221–#223) are optional format-v1 additions; existing projects need no migration. A pre-feature build opens the same-version project for editing but drops unrecognized codex keys on save, without a codex-field warning. A project marked with a newer format version is refused outright, not opened read-only or rebuilt. Document the downgrade limit and preserve unknown detail keys in the new build.
+
 - The shared provider forms size their field tracks to the Settings content box, and longer button labels and help wrap there instead of setting a wider intrinsic minimum (#659). [delegated 2026-11-18]
 
 - In both shells, a workspace error stays until dismissed or replaced by a newer error. Informational reports cannot silently overwrite it, and closing a modal acknowledges nothing (#563). [delegated 2026-11-18]

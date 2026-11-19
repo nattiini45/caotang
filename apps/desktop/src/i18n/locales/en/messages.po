@@ -3482,6 +3482,10 @@ msgstr "Add another provider"
 msgid "Add balloon"
 msgstr "Add balloon"
 
+#: apps/desktop/src/components/CodexDetails.tsx
+msgid "Add detail field"
+msgstr "Add detail field"
+
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #: apps/desktop/src/components/KnowledgeList.tsx
 msgid "Add fact"
@@ -6881,6 +6885,10 @@ msgstr "Dark theme"
 msgid "Data"
 msgstr "Data"
 
+#: apps/desktop/src/components/CodexDetails.tsx
+msgid "Date"
+msgstr "Date"
+
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
 #: apps/desktop/src/app/coherence-report-words.ts
 msgid "Dated {date}."
@@ -7228,6 +7236,12 @@ msgstr "Detach from {title}"
 msgid "Detach from a removed item"
 msgstr "Detach from a removed item"
 
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
+#: apps/desktop/src/components/CodexDetails.tsx
+#: apps/desktop/src/components/CodexPanel.tsx
+msgid "Details"
+msgstr "Details"
+
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #: apps/desktop/src/media/PictureBoard.tsx
 #: apps/desktop/src/media/PictureDetails.tsx
@@ -7238,6 +7252,11 @@ msgstr "Details of {title}"
 #: apps/desktop/src/components/GoalRecovery.tsx
 msgid "Details: {check}"
 msgstr "Details: {check}"
+
+#. Interpolated values: fieldKey is a key the writer chose for a codex detail.
+#: apps/desktop/src/app/plan-preview.ts
+msgid "Details: {fieldKey}"
+msgstr "Details: {fieldKey}"
 
 #: apps/desktop/src/app/codex-model.ts
 msgid "Detected"
@@ -8107,6 +8126,10 @@ msgstr "Enter a name for this hook."
 msgid "Enter a non-negative whole number."
 msgstr "Enter a non-negative whole number."
 
+#: apps/desktop/src/components/CodexDetails.tsx
+msgid "Enter a value that matches this field, or clear it."
+msgstr "Enter a value that matches this field, or clear it."
+
 #: apps/desktop/src/components/GoalComposer.tsx
 msgid "Enter a whole number greater than zero."
 msgstr "Enter a whole number greater than zero."
@@ -8114,6 +8137,14 @@ msgstr "Enter a whole number greater than zero."
 #: apps/desktop/src/app/keymap.ts
 msgid "Enter or Space"
 msgstr "Enter or Space"
+
+#: apps/desktop/src/components/CodexDetails.tsx
+msgid "Entries of this type share the field. Enter a new type name to use it for this entry."
+msgstr "Entries of this type share the field. Enter a new type name to use it for this entry."
+
+#: apps/desktop/src/components/CodexDetails.tsx
+msgid "Entry type"
+msgstr "Entry type"
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
@@ -8529,6 +8560,14 @@ msgstr "False positive"
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "Field"
 msgstr "Field"
+
+#: apps/desktop/src/components/CodexDetails.tsx
+msgid "Field key"
+msgstr "Field key"
+
+#: apps/desktop/src/components/CodexDetails.tsx
+msgid "Field label"
+msgstr "Field label"
 
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/media/StoryboardView.tsx
@@ -11667,6 +11706,10 @@ msgstr "New comic here"
 msgid "New day for change {n}"
 msgstr "New day for change {n}"
 
+#: apps/desktop/src/components/CodexDetails.tsx
+msgid "New detail field"
+msgstr "New detail field"
+
 #: apps/desktop/src/media/create-menu.ts
 msgid "New dialogue here"
 msgstr "New dialogue here"
@@ -11829,6 +11872,7 @@ msgstr "Next steps"
 
 #. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
+#: apps/desktop/src/components/CodexDetails.tsx
 msgid "No"
 msgstr "No"
 
@@ -12604,6 +12648,7 @@ msgstr "Not sent in this estimate"
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
+#: apps/desktop/src/components/CodexDetails.tsx
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "Not set"
@@ -12814,6 +12859,10 @@ msgstr "Nothing was imported."
 #: apps/desktop/src/components/Home.tsx
 msgid "Nothing was opened or changed."
 msgstr "Nothing was opened or changed."
+
+#: apps/desktop/src/components/CodexDetails.tsx
+msgid "Number"
+msgstr "Number"
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
@@ -16100,6 +16149,10 @@ msgstr "Save fact"
 msgid "Save failed"
 msgstr "Save failed"
 
+#: apps/desktop/src/components/CodexDetails.tsx
+msgid "Save field"
+msgstr "Save field"
+
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
 msgid "Save filter"
@@ -17702,6 +17755,10 @@ msgstr "Start the review"
 msgid "Start the scene. Your words are saved in this browser as you go."
 msgstr "Start the scene. Your words are saved in this browser as you go."
 
+#: apps/desktop/src/components/CodexDetails.tsx
+msgid "Start with a letter A–Z. Use letters A–Z, digits, hyphens or underscores."
+msgstr "Start with a letter A–Z. Use letters A–Z, digits, hyphens or underscores."
+
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Starts a new conversation through this turn. The manuscript stays as it is now."
@@ -18357,6 +18414,7 @@ msgid "Tested {event} · {tool} · {issuer} · document: {document}"
 msgstr "Tested {event} · {tool} · {issuer} · document: {document}"
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/CodexDetails.tsx
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Text"
 msgstr "Text"
@@ -22613,6 +22671,10 @@ msgstr "Using about {used} of about {total} this browser allows for this site."
 msgid "Using the folder’s version replaces this browser’s copy with it. This browser’s copy is not kept, so export it first if you may want it. Keeping this browser’s version saves it to the folder, and asks first about any document it would write over. A separate copy leaves both as they are, and cannot be saved into that folder."
 msgstr "Using the folder’s version replaces this browser’s copy with it. This browser’s copy is not kept, so export it first if you may want it. Keeping this browser’s version saves it to the folder, and asks first about any document it would write over. A separate copy leaves both as they are, and cannot be saved into that folder."
 
+#: apps/desktop/src/components/CodexDetails.tsx
+msgid "Value type"
+msgstr "Value type"
+
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "Value, from 0 to 2"
@@ -23295,8 +23357,13 @@ msgstr "Year {n}"
 
 #. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
+#: apps/desktop/src/components/CodexDetails.tsx
 msgid "Yes"
 msgstr "Yes"
+
+#: apps/desktop/src/components/CodexDetails.tsx
+msgid "Yes or no"
+msgstr "Yes or no"
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts

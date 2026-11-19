@@ -277,6 +277,7 @@ function codexEntry(c: CodexEntry): string {
   // invented — same rule as the additive tree-node timestamps above.
   if (c.createdAt !== undefined) pairs.push(['createdAt', str(c.createdAt, 'codex.createdAt')]);
   if (c.updatedAt !== undefined) pairs.push(['updatedAt', str(c.updatedAt, 'codex.updatedAt')]);
+  if (c.details !== undefined) pairs.push(['details', criterion(c.details, 'codex.details')]);
   return oneLine(pairs);
 }
 
@@ -674,6 +675,15 @@ export function serializeManifest(
   // and a load→write cycle must not invent entries the author never made.
   if (manifest.codex !== undefined) {
     parts.push(`${INDENT}"codex": ${objectArray(manifest.codex.map(codexEntry), 1)},`);
+  }
+  if (manifest.codexDetailFields !== undefined && manifest.codexDetailFields.length > 0) {
+    const fields = manifest.codexDetailFields.map(({ type, key: fieldKey, label, kind }) => oneLine([
+      ['type', str(type, 'codexDetailFields.type')],
+      ['key', str(fieldKey, 'codexDetailFields.key')],
+      ['label', str(label, 'codexDetailFields.label')],
+      ['kind', str(kind, 'codexDetailFields.kind')],
+    ]));
+    parts.push(`${INDENT}"codexDetailFields": ${objectArray(fields, 1)},`);
   }
   if (manifest.filters !== undefined) {
     parts.push(`${INDENT}"filters": ${objectArray(manifest.filters.map(savedFilter), 1)},`);

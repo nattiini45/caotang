@@ -6,7 +6,7 @@
  * unknown-tolerant rules that make them safe.
  */
 
-import type { ProjectHook, ProjectMacro, RecipeScriptFont, SceneNumbersOption } from '@caotang/bus';
+import type { CodexDetailField, ProjectHook, ProjectMacro, RecipeScriptFont, SceneNumbersOption } from '@caotang/bus';
 
 import type { AssetRecord, ReadAssetLink, ReadAssetRecord } from '@caotang/pictures';
 
@@ -229,6 +229,7 @@ export interface CodexEntry {
    * mentions this entry. Additive in format v1; absent reads as none, and the serializer omits the key when there are none.
    */
   visualRefs?: string[];
+  details?: Record<string, unknown>;
   /** additive (codex.md §10 K4) — missing on load = 'manual' */
   origin: 'manual' | 'agent' | 'import';
   sources: CodexSource[];
@@ -306,6 +307,7 @@ export interface Manifest {
   derived: Derived;
   /** additive in v1; absent = empty codex */
   codex?: CodexEntry[];
+  codexDetailFields?: CodexDetailField[];
   /** additive in v1 (binder-filters.md); absent = no saved queries */
   filters?: SavedFilter[];
   /** additive in v1 (goals-progress.md); absent = no goals */

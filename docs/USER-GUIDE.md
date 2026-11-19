@@ -327,6 +327,8 @@ The codex is your reference book: characters, locations, objects, lore, subplots
 
 Each entry has a name, optional aliases (**Add an alias and press Enter**), a type (**Character**, **Location**, **Object**, **Lore**, **Subplot** or **Other**), a description of up to 2,000 characters, an include policy, **Exclude phrases** (a match inside one is ignored), and the documents it is attached to.
 
+Under **Details**, choose **Add detail field**. Give the field a label, a key (for example, `air-date`), and a value type: text, number, date, or yes/no. Use the current entry type or enter a new type name to assign it to this entry. Every entry of that type gets the same field, but its value is individual. Leaving a value blank clears it; details are not automatically included in requests to the model.
+
 The include policy says when the agent sees an entry:
 
 - **Always**: with every request. These are sent whole even when together they are longer than the codex's share of the prompt; the other entries are then left out, and the prompt preview says how many tokens the Always entries need.

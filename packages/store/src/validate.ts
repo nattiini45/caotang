@@ -41,6 +41,7 @@ import type {
   GoalKindParam,
   GoalMetricParam,
 } from '@caotang/bus';
+import { CODEX_DETAIL_FIELDS_MAX, CODEX_DETAIL_FIELDS_PER_TYPE_MAX, isCodexDetailObject, readCodexDetailField, type CodexDetailField } from '@caotang/bus';
 import { isGeneratedId, isIdWithPrefix } from '@caotang/ids';
 import { readAssetLinks, readAssetRecords, validateLinkSet } from '@caotang/pictures';
 import { parseRules } from './agent-rules.js';
@@ -728,6 +729,7 @@ function validateFields(
   // imports, which is the only point at which the answer is knowable. One
   // implementation, in the one place the question has an answer.
   validateCodex(source.codex, { fatal, warn });
+  validateCodexDetailFields(source, warn);
 
   // Step 3 — the furniture the author's own saved work lives in: `filters[]`
   // (binder-filters §4) and `goals[]` (goals-progress §2.2/§3). Both are
@@ -808,6 +810,29 @@ function validateFields(
  * strict half. Two limits (2000 description, 32 × 64 keywords) are shared with
  * the bus rather than retyped; see the module header.
  */
+function validateCodexDetailFields(source: Record<string, unknown>, warn: (path: string, message: string) => void): void {
+  const raw = source.codexDetailFields;
+  if (raw === undefined) return;
+  if (!Array.isArray(raw)) {
+    warn('codexDetailFields', 'expected a list of detail definitions; ignored');
+    delete source.codexDetailFields;
+    return;
+  }
+  const fields: CodexDetailField[] = [];
+  for (const [i, value] of raw.entries()) {
+    const field = readCodexDetailField(value);
+    const peers = field === undefined ? [] : fields.filter((candidate) => candidate.type === field.type);
+    if (field === undefined || peers.some((candidate) => candidate.key === field.key) ||
+        fields.length >= CODEX_DETAIL_FIELDS_MAX || peers.length >= CODEX_DETAIL_FIELDS_PER_TYPE_MAX) {
+      warn(`codexDetailFields[${i}]`, 'invalid, duplicate or over-limit detail definition; ignored');
+    } else {
+      fields.push(field);
+    }
+  }
+  if (fields.length === 0) delete source.codexDetailFields;
+  else source.codexDetailFields = fields;
+}
+
 function validateCodex(
   raw: unknown,
   sink: {
@@ -1073,6 +1098,11 @@ function validateCodex(
     // --- visualRefs -------------------------------------------------------
     // video-prompt-pack.md §3: asset ids. Shape only here. A reference to a file that is not in `assets/` is kept, not dropped: the
     // pack and the codex panel report it as missing (only the host can list that folder, and the writer fixes it there).
+    const details = entryNode.details;
+    if (details !== undefined && (!isCodexDetailObject(details) || jsonValueProblem(details) !== undefined)) {
+      warn(`${at}.details`, 'expected a JSON object; details were ignored');
+      delete entryNode.details;
+    }
     const visualRefs = entryNode.visualRefs;
     if (visualRefs !== undefined) {
       if (!Array.isArray(visualRefs)) {
