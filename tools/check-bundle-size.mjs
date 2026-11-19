@@ -129,7 +129,13 @@ export const BUDGET = {
   // messages (+1,254 raw), which must precede first paint (i18n.md §3.3), and the entry's lazy loader for the command (+892 raw). The
   // reader, its preview source and the Worker stay on use. The ceiling is the measurement plus about 1%, rounded up to the thousand.
   // [delegated 2026-11-18]
-  initialGzip: 1_108_000,
+  // Codex relations and the project-wide graph (#223) on main at 9414c1bb: 1,108,754 bytes gzip measured against main's own 1,107,212,
+  // so +1,542, which put it 754 over the old ceiling. Named: the store's relation record, its read and write path and its validation, the
+  // bus's relation commands and their descriptors, and the Codex list's view switch, all of which the panel needs before first paint. The
+  // entry's Relations section, the graph and both their stylesheets load on use. Optimisations tried first: both views are lazy chunks with
+  // their own CSS, and removing the view switch outright measured 1,108,699, so that switch costs 55 bytes and the rest is the feature's own
+  // model. The ceiling is the measurement plus about 1%, rounded up to the thousand. [owner 2026-11-19]
+  initialGzip: 1_120_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
