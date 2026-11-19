@@ -120,7 +120,7 @@ describe('wrapped account key records', () => {
     expect((await create(records[0]!, 'https://unrelated.example.invalid')).status).toBe(403);
     expect((await create(records[0]!, ORIGIN, 'POST', second!)).status).toBe(412);
     const attempts = await Promise.all(records.map((record) => create(record)));
-    expect(attempts.map((response) => response.status).sort()).toEqual([201, 409]);
+    expect(attempts.map((response) => response.status).sort((a, b) => a - b)).toEqual([201, 409]);
     expect((await create(wrappedRecord(3), ORIGIN, 'PUT')).status).toBe(405);
     expect((await create(wrappedRecord(3))).status).toBe(409);
     const winner = records[attempts.findIndex((response) => response.status === 201)]!;

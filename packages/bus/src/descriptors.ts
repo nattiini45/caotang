@@ -39,6 +39,7 @@ import {
   readCodexDetailField,
   type CodexDetailField,
 } from './codex-details.js';
+import { CODEX_REFERENCE_MAX, codexReferenceId, referenceEditProblem } from './codex-references.js';
 import type {
   McpInvokeParams,
   McpReadResourceParams,
@@ -348,6 +349,7 @@ const CODEX_OP_KEYS = [
   // The asset ids an entry's pack references carry (video-prompt-pack.md §3, A5). An update replaces the list, as `aliases` does.
   'visualRefs',
   'details',
+  'referenceEdits',
 ] as const;
 
 function narrowCodexOp(op: Record<string, unknown>): CodexUpsertOp {
@@ -1217,6 +1219,7 @@ function validateCodexOp(
   projectNames: Map<string, { name: string; id: string }>,
   entryTypes: Map<string, string | undefined>,
   detailFields: readonly CodexDetailField[],
+  references: Map<string, { ids: string[]; count: number }>,
 ): void {
   const push = <T>(refusal: Result<T, CommandError>): void => {
     if (!refusal.ok) failures.push(toPerOpFailure(target, refusal.error));
@@ -1375,6 +1378,29 @@ function validateCodexOp(
           push(invalid(`details field "${key}" must be a valid ${field.kind} or null to clear it`, undefined, `details.${key}`));
         }
       }
+    }
+  }
+
+  const edits = op['referenceEdits'];
+  if (edits !== undefined) {
+    if (!Array.isArray(edits) || edits.length === 0 || edits.length > CODEX_REFERENCE_MAX) {
+      push(invalid(`referenceEdits must have between 1 and ${CODEX_REFERENCE_MAX} operations`, undefined, 'referenceEdits'));
+    } else {
+      const current = typeof id === 'string' ? references.get(id) : undefined;
+      const refs = { ids: [...(current?.ids ?? [])], count: current?.count ?? 0 };
+      for (const [i, edit] of edits.entries()) {
+        const problem = referenceEditProblem(edit, refs.ids, refs.count);
+        if (problem !== undefined) {
+          push(invalid(`referenceEdits[${i}] ${problem}`, undefined, `referenceEdits[${i}]`));
+          continue;
+        }
+        if (edit.action === 'create') refs.count += 1;
+        if (edit.action === 'remove') {
+          refs.count -= 1;
+          refs.ids = refs.ids.filter((candidate) => candidate !== edit.id);
+        }
+      }
+      if (typeof id === 'string') references.set(id, refs);
     }
   }
 
@@ -1574,14 +1600,18 @@ export const codexUpsert: CommandDescriptor<CodexUpsertParams> = {
     // project's existing names seed the map, so one map catches both.
     const projectNames = new Map<string, { name: string; id: string }>();
     const entryTypes = new Map<string, string | undefined>();
+    const references = new Map<string, { ids: string[]; count: number }>();
     for (const entry of snapshot.manifest.codex ?? []) {
       projectNames.set(entry.name.toLowerCase(), { name: entry.name, id: entry.id });
       entryTypes.set(entry.id, entry.type);
+      if (entry.references !== undefined) {
+        references.set(entry.id, { ids: entry.references.flatMap((reference) => codexReferenceId(reference) ?? []), count: entry.references.length });
+      }
     }
     const failures: PerOpFailure[] = [];
     const fields = detailField === undefined ? detailFields : [...detailFields, detailField];
     for (const [i, op] of entries.entries()) {
-      validateCodexOp(snapshot, op, `entries[${i}]`, failures, projectNames, entryTypes, fields);
+      validateCodexOp(snapshot, op, `entries[${i}]`, failures, projectNames, entryTypes, fields, references);
     }
     if (failures.length > 0) {
       return batchRefusal(failures, 'fix every listed op and resend the whole batch — nothing was written');

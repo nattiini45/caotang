@@ -954,6 +954,7 @@ export async function importOrphanCodex(
       keywords: frontMatter.keywords,
       ...(frontMatter.visualRefs === undefined ? {} : { visualRefs: frontMatter.visualRefs }),
       ...(frontMatter.details === undefined ? {} : { details: frontMatter.details }),
+      ...(frontMatter.references === undefined ? {} : { references: frontMatter.references }),
       // Provenance comes from the file (codex.md §10 K4). The codec has already read a
       // key that is absent as 'manual' (pre-K4 files) and coerced an unknown origin to
       // 'agent', so an agent-inferred entry is recovered as one, not as canon.
