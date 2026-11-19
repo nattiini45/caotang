@@ -223,6 +223,16 @@ for (const width of [960, 1100]) {
       await dialog.getByRole('button', { name: 'Abbrechen', exact: true }).click();
       await expect(dialog).toHaveCount(0);
 
+      // The codex's own words, read off the screen rather than out of the catalogue: a new entry is attached to
+      // nothing yet, and the help names the include policy the way the policy option above it labels it (#734).
+      await page.getByRole('tab', { name: 'Kodex' }).click();
+      await expect(page.getByRole('region', { name: 'Der Kodex ist leer' })).toBeVisible();
+      await page.locator('.empty-state .empty-actions button').first().click();
+      const attachments = page.getByRole('region', { name: 'Angehängt an' });
+      await expect(attachments).toContainText('Noch an keine Elemente angehängt.');
+      await expect(attachments).toContainText('Ein Eintrag mit der Richtlinie „Manuell“');
+      await expect(attachments).not.toContainText('Manual');
+
       // Back on the shell: still inside the window, nothing clipped, and no CSP violation happened.
       expectInsideWindow(await page.getByTestId('save-state').boundingBox(), width);
       expect(await clippedControls(page)).toEqual([]);
