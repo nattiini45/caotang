@@ -4,6 +4,7 @@ import { RuntimeStoreNewerError } from '@caotang/store';
 import { runtimeStore } from './runtime.js';
 import { fixtureWireFactory } from './mcp.js';
 import { mcpHooksForProject } from './mcp-hooks.js';
+import { modelHooksForProject } from './model-hooks.js';
 import { openAppServices } from './services.js';
 import { initializeInterfaceLanguage } from '../i18n/language.js';
 import { listProjects, setSessionDefaults } from './lifecycle.js';
@@ -30,7 +31,8 @@ export function useBootPhase(): BootPhase {
         const coherence = { checks: () => services.settings.current().coherence.enabledChecks, providers: services.providers };
         const appRules = () => services.settings.current().agent.rules;
         const mcpHooks = (projectId: string) => mcpHooksForProject(services.settings.current().mcpHooks, projectId);
-        setSessionDefaults({ debounceMs: editor.autosaveDebounceMs, retention, mcp: { client: services.mcp.client }, mcpHooks, coherence, appRules, saveChannels: [services.settings.saveChannel] });
+        const modelHooks = (projectId: string) => modelHooksForProject(services.settings.current().modelHooks, projectId);
+        setSessionDefaults({ debounceMs: editor.autosaveDebounceMs, retention, mcp: { client: services.mcp.client }, mcpHooks, modelHooks, coherence, appRules, saveChannels: [services.settings.saveChannel] });
       };
       apply();
       detach = services.settings.subscribe(apply);

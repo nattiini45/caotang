@@ -73,6 +73,7 @@ export interface CallSpec {
   readonly headers: Record<string, string>;
   /** Every secret value in `headers` (key, custom header values). Scrubbed from excerpts; never stored on an error or a log entry. */
   readonly secrets: readonly string[];
+  readonly privatePayload?: true;
   /**
    * A factory for the stream dialect, for calls that read SSE (`streamChat`). A parser holds
    * the route's per-stream state — an open tool call and its arguments — so every attempt
@@ -167,6 +168,7 @@ function describe(err: unknown): string {
 
 /** Redacts, collapses whitespace, and bounds. Every excerpt that leaves this file passes through here. */
 function clean(text: string, spec: CallSpec): string {
+  if (spec.privatePayload === true) return '';
   return redact(text, spec.secrets).replace(/\s+/g, ' ').trim().slice(0, EXCERPT_LIMIT);
 }
 
@@ -291,7 +293,7 @@ function logAttempt(
     outcome,
     ...(status !== undefined ? { status } : {}),
     ...(error !== undefined ? { errorKind: error.kind } : {}),
-    ...(error?.detail !== undefined ? { note: error.detail } : {}),
+    ...(error?.detail !== undefined && spec.privatePayload !== true ? { note: error.detail } : {}),
   };
   deps.log.append(entry);
   spec.onAttempt?.(entry);

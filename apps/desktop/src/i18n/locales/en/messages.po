@@ -2392,6 +2392,16 @@ msgstr "+ Add status…"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
+msgid "<0/> after this step: about {promptTokens} tokens in, up to {outputTokens} out."
+msgstr "<0/> after this step: about {promptTokens} tokens in, up to {outputTokens} out."
+
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "<0/> before this step: about {promptTokens} tokens in, up to {outputTokens} out."
+msgstr "<0/> before this step: about {promptTokens} tokens in, up to {outputTokens} out."
+
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
 msgid "<0/> is not valid JSON, so the change was not sent."
 msgstr "<0/> is not valid JSON, so the change was not sent."
 
@@ -3535,6 +3545,11 @@ msgstr "Add line ids to the imported containers (one time)"
 msgid "Add MCP hook"
 msgstr "Add MCP hook"
 
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Add model hook"
+msgstr "Add model hook"
+
 #. Interpolated values: name
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -3710,8 +3725,10 @@ msgstr "after {title}"
 msgid "After loading this skill, the agent can read text files under references/ and assets/. Scripts are never run."
 msgstr "After loading this skill, the agent can read text files under references/ and assets/. Scripts are never run."
 
+#. Private Background model hook settings.
 #. Read-only MCP hooks in project Settings.
 #: apps/desktop/src/components/McpHookSettings.tsx
+#: apps/desktop/src/components/ModelHookSettings.tsx
 msgid "After the agent tool runs"
 msgstr "After the agent tool runs"
 
@@ -3933,6 +3950,11 @@ msgstr "Always included: this entry goes into every drafting call"
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Always, in every drafting call"
 msgstr "Always, in every drafting call"
+
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "An after hook can warn you, but it cannot stop or undo the tool action."
+msgstr "An after hook can warn you, but it cannot stop or undo the tool action."
 
 #: apps/desktop/src/app/run-baseline.ts
 msgid "An agent run restore point has no project manifest."
@@ -4704,8 +4726,10 @@ msgstr "Before"
 msgid "Before chapter 1"
 msgstr "Before chapter 1"
 
+#. Private Background model hook settings.
 #. Read-only MCP hooks in project Settings.
 #: apps/desktop/src/components/McpHookSettings.tsx
+#: apps/desktop/src/components/ModelHookSettings.tsx
 msgid "Before the agent tool runs"
 msgstr "Before the agent tool runs"
 
@@ -4816,6 +4840,11 @@ msgstr "Block if the MCP hook cannot run"
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Block the action"
 msgstr "Block the action"
+
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Block the tool if the model hook cannot run"
+msgstr "Block the tool if the model hook cannot run"
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
@@ -4955,8 +4984,10 @@ msgstr "Browser storage: the browser has not said whether it keeps this project.
 msgid "Browsers may remove stored data when a device runs short of space. Asking the browser to keep it lowers that risk, and the browser has not granted it here. {storageSentence} A bundle is the copy that does not depend on the browser."
 msgstr "Browsers may remove stored data when a device runs short of space. Asking the browser to keep it lowers that risk, and the browser has not granted it here. {storageSentence} A bundle is the copy that does not depend on the browser."
 
+#. Private Background model hook settings.
 #. Read-only MCP hooks in project Settings.
 #: apps/desktop/src/components/McpHookSettings.tsx
+#: apps/desktop/src/components/ModelHookSettings.tsx
 msgid "Built-in agent tool"
 msgstr "Built-in agent tool"
 
@@ -5036,6 +5067,7 @@ msgstr "Camera movement"
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#. Private Background model hook settings.
 #. Read-only MCP hooks in project Settings.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
@@ -5059,6 +5091,7 @@ msgstr "Camera movement"
 #: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/components/KnowledgeList.tsx
 #: apps/desktop/src/components/McpHookSettings.tsx
+#: apps/desktop/src/components/ModelHookSettings.tsx
 #: apps/desktop/src/components/PlanCard.tsx
 #: apps/desktop/src/components/PlanOfferCard.tsx
 #: apps/desktop/src/components/ProfileEditor.tsx
@@ -5606,6 +5639,11 @@ msgstr "Check first: "
 msgid "Check for continuity problems"
 msgstr "Check for continuity problems"
 
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Check instructions"
+msgstr "Check instructions"
+
 #. Interpolated values: model, name, provider, total
 #: apps/desktop/src/components/ProviderSetup.tsx
 msgid "Check key"
@@ -5711,8 +5749,15 @@ msgstr "Choices"
 msgid "Choose a binder document or folder"
 msgstr "Choose a binder document or folder"
 
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Choose a built-in agent tool"
+msgstr "Choose a built-in agent tool"
+
+#. Private Background model hook settings.
 #. Read-only MCP hooks in project Settings.
 #: apps/desktop/src/components/McpHookSettings.tsx
+#: apps/desktop/src/components/ModelHookSettings.tsx
 msgid "Choose a built-in agent tool."
 msgstr "Choose a built-in agent tool."
 
@@ -7044,11 +7089,13 @@ msgstr "Default speaker"
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Private Background model hook settings.
 #. Read-only MCP hooks in project Settings.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/BinderFooter.tsx
 #: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/McpHookSettings.tsx
+#: apps/desktop/src/components/ModelHookSettings.tsx
 #: apps/desktop/src/components/SkillsPanel.tsx
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Delete"
@@ -7073,6 +7120,11 @@ msgstr "Delete {name}"
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "Delete {title}?"
 msgstr "Delete {title}?"
+
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Delete a model hook before adding another."
+msgstr "Delete a model hook before adding another."
 
 #. Read-only MCP hooks in project Settings.
 #: apps/desktop/src/components/McpHookSettings.tsx
@@ -7145,10 +7197,20 @@ msgstr "Deleted the hook. Undo brings it back."
 msgid "Deleted the MCP hook."
 msgstr "Deleted the MCP hook."
 
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Deleted the model hook."
+msgstr "Deleted the model hook."
+
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "Deleted the skill “{name}”. Undo brings it back."
 msgstr "Deleted the skill “{name}”. Undo brings it back."
+
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Deletes this private model hook"
+msgstr "Deletes this private model hook"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -7322,11 +7384,18 @@ msgid "Diff against the approved text of {file}:"
 msgstr "Diff against the approved text of {file}:"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
+#. Private Background model hook settings.
 #. Read-only MCP hooks in project Settings.
 #: apps/desktop/src/components/McpHookSettings.tsx
 #: apps/desktop/src/components/McpSection.tsx
+#: apps/desktop/src/components/ModelHookSettings.tsx
 msgid "Disable"
 msgstr "Disable"
+
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Disabled the model hook."
+msgstr "Disabled the model hook."
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
@@ -7897,6 +7966,7 @@ msgstr "Earlier requests are summarised automatically after more than six unsumm
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#. Private Background model hook settings.
 #. Read-only MCP hooks in project Settings.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/AgentQueue.tsx
@@ -7906,6 +7976,7 @@ msgstr "Earlier requests are summarised automatically after more than six unsumm
 #: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/components/KnowledgeList.tsx
 #: apps/desktop/src/components/McpHookSettings.tsx
+#: apps/desktop/src/components/ModelHookSettings.tsx
 #: apps/desktop/src/components/Settings.tsx
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "Edit"
@@ -7932,6 +8003,11 @@ msgstr "Edit hook"
 #: apps/desktop/src/components/McpHookSettings.tsx
 msgid "Edit MCP hook"
 msgstr "Edit MCP hook"
+
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Edit model hook"
+msgstr "Edit model hook"
 
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #: apps/desktop/src/components/Inspector.tsx
@@ -8059,9 +8135,11 @@ msgid "Empty text"
 msgstr "Empty text"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
+#. Private Background model hook settings.
 #. Read-only MCP hooks in project Settings.
 #: apps/desktop/src/components/McpHookSettings.tsx
 #: apps/desktop/src/components/McpSection.tsx
+#: apps/desktop/src/components/ModelHookSettings.tsx
 msgid "Enable"
 msgstr "Enable"
 
@@ -8082,6 +8160,21 @@ msgstr "Enable at least one coherence check in Settings before setting a clean-s
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Enabled"
 msgstr "Enabled"
+
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Enabled model hooks send your check instructions, the tool name and a limited amount of task text to the provider configured for the Background role. Hook settings stay in this browser and are not included in project files or bundles."
+msgstr "Enabled model hooks send your check instructions, the tool name and a limited amount of task text to the provider configured for the Background role. Hook settings stay in this browser and are not included in project files or bundles."
+
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Enabled the model hook."
+msgstr "Enabled the model hook."
+
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Enables a hook that sends limited task text to the Background provider"
+msgstr "Enables a hook that sends limited task text to the Background provider"
 
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
@@ -8127,6 +8220,11 @@ msgstr "Enter a finite, non-negative number, or leave this optional limit empty.
 msgid "Enter a name for this hook."
 msgstr "Enter a name for this hook."
 
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Enter a name with at most {nameLimit} characters."
+msgstr "Enter a name with at most {nameLimit} characters."
+
 #: apps/desktop/src/components/GoalComposer.tsx
 msgid "Enter a non-negative whole number."
 msgstr "Enter a non-negative whole number."
@@ -8138,6 +8236,11 @@ msgstr "Enter a value that matches this field, or clear it."
 #: apps/desktop/src/components/GoalComposer.tsx
 msgid "Enter a whole number greater than zero."
 msgstr "Enter a whole number greater than zero."
+
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Enter check instructions with at most {promptLimit} characters."
+msgstr "Enter check instructions with at most {promptLimit} characters."
 
 #: apps/desktop/src/app/keymap.ts
 msgid "Enter or Space"
@@ -8210,9 +8313,11 @@ msgstr "Estimates include conversation messages. Output, thinking and system res
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Private Background model hook settings.
 #. Read-only MCP hooks in project Settings.
 #: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/McpHookSettings.tsx
+#: apps/desktop/src/components/ModelHookSettings.tsx
 msgid "Event"
 msgstr "Event"
 
@@ -9410,8 +9515,8 @@ msgstr "Hooks"
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
-msgid "Hooks check this project at selected events. They can warn or stop an action, but never approve it, change your text or call a provider."
-msgstr "Hooks check this project at selected events. They can warn or stop an action, but never approve it, change your text or call a provider."
+msgid "Hooks check this project at selected events. They can warn or stop an action, but never approve it or change your text."
+msgstr "Hooks check this project at selected events. They can warn or stop an action, but never approve it or change your text."
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -11302,6 +11407,16 @@ msgstr "Model calls: {used} of {limit} · limit reached"
 msgid "Model calls: {used} of {limit} · one call left"
 msgstr "Model calls: {used} of {limit} · one call left"
 
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "Model hook prompt estimates"
+msgstr "Model hook prompt estimates"
+
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Model hooks"
+msgstr "Model hooks"
+
 #. Interpolated values: model, name, provider, total
 #. Interpolated values: model, profile
 #: apps/desktop/src/components/ProfileEditor.tsx
@@ -11563,6 +11678,7 @@ msgstr "Mythic"
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: parent, title, amount
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
+#. Private Background model hook settings.
 #. Read-only MCP hooks in project Settings.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
@@ -11572,6 +11688,7 @@ msgstr "Mythic"
 #: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/McpHookSettings.tsx
 #: apps/desktop/src/components/McpSection.tsx
+#: apps/desktop/src/components/ModelHookSettings.tsx
 #: apps/desktop/src/components/ProfileEditor.tsx
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "Name"
@@ -11777,6 +11894,11 @@ msgstr "New knowledge fact"
 #: apps/desktop/src/components/McpHookSettings.tsx
 msgid "New MCP hook"
 msgstr "New MCP hook"
+
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "New model hook"
+msgstr "New model hook"
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
@@ -16188,6 +16310,11 @@ msgstr "Save limits"
 msgid "Save MCP hook"
 msgstr "Save MCP hook"
 
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Save model hook"
+msgstr "Save model hook"
+
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Save or open this project in a folder and allow write access first."
@@ -16372,6 +16499,11 @@ msgstr "Saved the {kind, select, status {status} label {label} other {status}} �
 msgid "Saved the MCP hook."
 msgstr "Saved the MCP hook."
 
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Saved the model hook."
+msgstr "Saved the model hook."
+
 #. Interpolated values: folder is the writer's folder name; backup is the local backup path; error is the save failure message
 #: apps/desktop/src/components/use-folder-save.ts
 msgid "Saved the project to the folder “{folder}”. Exports go there from now on."
@@ -16454,6 +16586,11 @@ msgstr "Saved. The limits apply to the projects you open from now on, and to the
 #: apps/desktop/src/components/Settings.tsx
 msgid "Saved. The save delay applies to the projects you open from now on, and the agent-edit choice to the next document you open."
 msgstr "Saved. The save delay applies to the projects you open from now on, and the agent-edit choice to the next document you open."
+
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "Saves private instructions for a model hook"
+msgstr "Saves private instructions for a model hook"
 
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -19135,6 +19272,11 @@ msgstr "The daily target is a whole number of words from 0 to {max}; 0 means no 
 msgid "The default"
 msgstr "The default"
 
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "The demo does not run model hooks. To use them, choose a non-demo provider for Background under Providers. Saving a hook does not send a test request."
+msgstr "The demo does not run model hooks. To use them, choose a non-demo provider for Background under Providers. Saving a hook does not send a test request."
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "The demo profile is named “{DEMO_PROFILE_NAME}”. A bundle export is the copy to keep: browser storage can be cleared."
@@ -21000,6 +21142,11 @@ msgstr "These apply to the Modern interface: glass becomes solid, and nothing sl
 msgid "These apply to the whole container. The default speaker fills the speaker column of the dialogue table. Add line ids on save writes the missing line ids into the Ink text as it saves."
 msgstr "These apply to the whole container. The default speaker fills the speaker column of the dialogue table. Add line ids on save writes the missing line ids into the Ink text as it saves."
 
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "These checks use your Background provider. They can send text from this step."
+msgstr "These checks use your Background provider. They can send text from this step."
+
 #: apps/desktop/src/media/picture-hooks.tsx
 msgid "These files were left out:"
 msgstr "These files were left out:"
@@ -21104,6 +21251,11 @@ msgstr "This browser cannot run a queued review here, so the review can only run
 #: apps/desktop/src/components/McpHookSettings.tsx
 msgid "This browser cannot save MCP hooks. Open Caotang in a browser that allows local storage."
 msgstr "This browser cannot save MCP hooks. Open Caotang in a browser that allows local storage."
+
+#. Private Background model hook settings.
+#: apps/desktop/src/components/ModelHookSettings.tsx
+msgid "This browser cannot save model hooks. Open Caotang in a browser that allows local storage."
+msgstr "This browser cannot save model hooks. Open Caotang in a browser that allows local storage."
 
 #. The value is the image format name, JPEG or PNG.
 #: apps/desktop/src/app/picture-transcoder.ts
@@ -21431,8 +21583,8 @@ msgstr "This project defines one hook. Review it in Settings › Hooks."
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
-msgid "This project has no hooks yet. Add one to check a word, a word count, a status or continuity."
-msgstr "This project has no hooks yet. Add one to check a word, a word count, a status or continuity."
+msgid "This project has no local checks yet. Add a hook to check a word, a word count, a status or continuity."
+msgstr "This project has no local checks yet. Add a hook to check a word, a word count, a status or continuity."
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx

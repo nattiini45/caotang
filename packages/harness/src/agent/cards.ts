@@ -161,6 +161,14 @@ export function groupCards(cards: readonly StatusCard[]): readonly CardItem[] {
  * Plan cards — the steps a turn asks to run, and the edits that change them.
  * ------------------------------------------------------------------ */
 
+export interface ModelHookEstimate {
+  readonly id: string;
+  readonly name: string;
+  readonly event: 'tool.before' | 'tool.after';
+  readonly promptTokens: number;
+  readonly outputTokens: number;
+}
+
 export interface PlanStepView {
   readonly contextOverrides?: ContextOverrides;
   /** The step's index in the plan as it now stands. */
@@ -185,6 +193,7 @@ export interface PlanStepView {
   readonly cut: boolean;
   /** The prompt that produced this step's draft, as the card shows it (context-assembly §5). */
   readonly context?: PromptPreview;
+  readonly modelHooks?: readonly ModelHookEstimate[];
   /** The step's estimated cost at the profile's price, when the step carries one: a coherence review's plan (coherence.md §5.3). */
   readonly cost?: StepCost;
   /** The delegated agent that proposed this step, when the step is the one it proposed as it was proposed (agent-harness §2). An edited step has none. */
@@ -633,6 +642,7 @@ export function planCardOf(args: {
   readonly previews: readonly (unknown | undefined)[];
   readonly risks: readonly string[];
   readonly staged?: readonly StagedView[];
+  readonly modelHooks?: readonly (readonly ModelHookEstimate[])[];
   readonly contextOverrides?: ContextOverrides;
   /** The delegated agent each step was proposed by, aligned to the steps. */
   readonly proposedBy?: readonly (string | undefined)[];
@@ -669,9 +679,11 @@ export function planCardOf(args: {
     // The step's own preview comes from its drafted proposal when it has one (scene, synopsis and findings drafts), and
     // otherwise from its prepare, which the preflight carries (a codex diff, a restructure's tree). Both are what the card shows.
     const preview = args.previews[index] ?? checked?.preview;
+    const modelHooks = args.modelHooks?.[index];
     return {
       ...shared,
       status,
+      ...(index >= args.from && status === 'ready' && modelHooks !== undefined && modelHooks.length > 0 ? { modelHooks } : {}),
       ...(preview === undefined ? {} : { preview }),
       ...(checked?.error === undefined ? {} : { error: checked.error }),
       ...(checked?.hooks === undefined ? {} : { hooks: checked.hooks }),

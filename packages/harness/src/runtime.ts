@@ -80,6 +80,7 @@ import {
 } from '@caotang/bus';
 import type { ReviewPlan } from '@caotang/coherence';
 import { dialogueTableTool } from '@caotang/dialogue';
+import { redact, type ChatMessage } from '@caotang/gateway';
 import {
   createLoadedTools,
   createMcpTransport,
@@ -118,8 +119,9 @@ import {
   type SourcedRule,
 } from './rules.js';
 import { portPreflights } from './agent/ports.js';
-import { blockOf, blockWords, createHookRunner, exportHookNodes, hookLabel, type HookInput, type HookRun, type HookSource } from './hooks.js';
+import { STAGED_PROSE, blockOf, blockWords, createHookRunner, exportHookNodes, hookLabel, proseOf, type HookInput, type HookRun, type HookSource } from './hooks.js';
 import { invokeMcpReadHook, type McpReadHook } from './mcp-hooks.js';
+import { MODEL_HOOK_LIMIT, MODEL_HOOK_TOOLS, invokeModelHook, modelHookMessages, sameModelHook, type ModelHook, type ModelHookActor } from './model-hooks.js';
 import { TOOL_METADATA, capOf, metadataFor, type ToolMetadata, type ToolName, type ToolRisk } from './metadata.js';
 import type { ResultData } from './results.js';
 import { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
@@ -164,7 +166,7 @@ import type {
   ToolPort,
   TurnContext,
 } from './types.js';
-import { canonicalJson } from './util.js';
+import { canonicalJson, isRecord } from './util.js';
 
 export interface HarnessOptions {
   /** The project. Reads and validates against it; the bus applies commands to it. */
@@ -241,6 +243,7 @@ export interface HarnessOptions {
    */
   readonly hooks?: HookSource;
   readonly mcpHooks?: () => readonly McpReadHook[];
+  readonly modelHooks?: () => readonly ModelHook[];
 }
 
 /** What the rules say about one step, before it is drafted or carded. */
@@ -300,6 +303,9 @@ export interface Harness {
   call<N extends string>(call: ToolCall & { readonly name: N }, turn: TurnContext): Result<ToolValue<ResultData<N>>, CommandError>;
   hasMcpHook(tool: string): boolean;
   callWithMcpHooks(call: ToolCall, turn: TurnContext, boundary?: ActorCallBoundary): ToolOutcome | Promise<ToolOutcome>;
+  modelHooks(): readonly ModelHook[];
+  modelHookInput(hook: ModelHook, params: CallParams, proposal?: unknown): readonly ChatMessage[] | undefined;
+  callWithHooks(call: ToolCall, turn: TurnContext, boundary?: ActorCallBoundary, actor?: ModelHookActor): ToolOutcome | Promise<ToolOutcome>;
   /** Checks a plan with no effect. Malformed plans come back as a refusal. */
   previewPlan(plan: unknown, options?: PlanOptions): Result<PlanPreflight, CommandError>;
   /**
@@ -320,7 +326,7 @@ export interface Harness {
    * Runs one call to an async port (`asyncPorts`), such as `coherence.review` or `pictures.view`. A read needs no approval;
    * a write needs the plan's approval or a one-step confirmation. An external caller may run a read but never an async write.
    */
-  callAsync(call: ToolCall, turn: TurnContext, boundary?: ActorCallBoundary): Promise<ToolOutcome>;
+  callAsync(call: ToolCall, turn: TurnContext, boundary?: ActorCallBoundary, actor?: ModelHookActor): Promise<ToolOutcome>;
   /**
    * The plan of a `coherence.review` step, staged before its card is shown (coherence.md §7 tool 16). Pure: no model is called,
    * so the card shows the documents, the cost estimate and the first prompt before the writer approves.
@@ -629,8 +635,8 @@ const HOOK_NOTES_MAX = 5;
 const HOOK_NOTE_MAX = 1500;
 const MCP_HOOK_LIMIT = 20;
 
-function hookBlocked(run: NonNullable<ReturnType<typeof blockOf>>, tool: string, afterMcp = false): CommandError {
-  return refusal('permission-denied', `${blockWords(run, tool)} ${afterMcp ? 'The original tool did not run.' : 'Nothing was run.'}`, {
+function hookBlocked(run: NonNullable<ReturnType<typeof blockOf>>, tool: string, afterHook = false): CommandError {
+  return refusal('permission-denied', `${blockWords(run, tool)} ${afterHook ? 'The original tool did not run.' : 'Nothing was run.'}`, {
     target: tool,
     correctiveHint: 'change the step so the hook passes, or tell the writer which hook is in the way; only the writer can change a hook',
     details: { askBackCode: 'hook_blocked', hook: { id: run.hookId, name: hookLabel(run.name) } },
@@ -1519,19 +1525,48 @@ export function createHarness(options: HarnessOptions): Harness {
     return (options.mcpHooks?.() ?? []).slice(0, MCP_HOOK_LIMIT).filter((hook) => hook.enabled && hook.tool === tool);
   }
 
-  function callWithMcpHooks(call: ToolCall, turn: TurnContext, boundary?: ActorCallBoundary): ToolOutcome | Promise<ToolOutcome> {
-    const selected = turn.source === 'mcp' || turn.agentPath !== undefined ? [] : mcpHooksFor(call.name);
-    return selected.length === 0 && mcpHookCalls.get(turn.turnId)?.has(call.callId) !== true
+  function modelHooks(): readonly ModelHook[] {
+    return (options.modelHooks?.() ?? []).slice(0, MODEL_HOOK_LIMIT).filter((hook) => hook.enabled && MODEL_HOOK_TOOLS.some((tool) => tool === hook.tool));
+  }
+
+  function modelHookInput(hook: ModelHook, params: CallParams, proposal?: unknown, affected: readonly string[] = []): readonly ChatMessage[] | undefined {
+    const entry = entries.get(hook.tool as ToolName);
+    if (entry === undefined || entry.kind === 'protocol' || !MODEL_HOOK_TOOLS.some((tool) => tool === hook.tool)) return undefined;
+    const parsed = checkParams(hook.tool, entry.params, params);
+    if (!parsed.ok) return undefined;
+    const set = currentRules();
+    if (set.unreadable === true) return undefined;
+    const hidden = withheldAnywhere(set, state);
+    if (hidden.size > 0) {
+      const targets = targetsOf(entry.meta, parsed.value);
+      if (targets === undefined || [...targets.reads, ...targets.writes, ...affected].some((id) => hidden.has(id))) return undefined;
+    }
+    try {
+      const staged = Object.hasOwn(STAGED_PROSE, hook.tool) ? STAGED_PROSE[hook.tool] : undefined;
+      if (staged !== undefined && (!isRecord(proposal) || !Object.hasOwn(proposal, staged.key))) return undefined;
+      const prose = proseOf(hook.tool, parsed.value, staged === undefined || !isRecord(proposal) ? undefined : { [staged.key]: proposal[staged.key] });
+      return modelHookMessages(hook.prompt, hook.tool, prose);
+    } catch {
+      return undefined;
+    }
+  }
+
+  const actorTurn = (turn: TurnContext): boolean => turn.source !== 'mcp' && turn.agentPath === undefined;
+
+  function callWithHooks(call: ToolCall, turn: TurnContext, boundary?: ActorCallBoundary, actor?: ModelHookActor): ToolOutcome | Promise<ToolOutcome> {
+    const selected = actorTurn(turn) ? mcpHooksFor(call.name) : [];
+    return selected.length === 0 && !(actorTurn(turn) && actor?.hooks.some((hook) => hook.tool === call.name))
+      && mcpHookCalls.get(turn.turnId)?.has(call.callId) !== true
       ? callTool(call, turn)
-      : callAwaited(call, turn, false, selected, boundary);
+      : callAwaited(call, turn, false, selected, boundary, actor);
   }
 
-  function callAsync(call: ToolCall, turn: TurnContext, boundary?: ActorCallBoundary): Promise<ToolOutcome> {
-    const selected = turn.source === 'mcp' || turn.agentPath !== undefined ? [] : mcpHooksFor(call.name);
-    return callAwaited(call, turn, true, selected, boundary);
+  function callAsync(call: ToolCall, turn: TurnContext, boundary?: ActorCallBoundary, actor?: ModelHookActor): Promise<ToolOutcome> {
+    const selected = actorTurn(turn) ? mcpHooksFor(call.name) : [];
+    return callAwaited(call, turn, true, selected, boundary, actor);
   }
 
-  async function callAwaited(call: ToolCall, given: TurnContext, asyncPort: boolean, selectedHooks: readonly McpReadHook[], boundary?: ActorCallBoundary): Promise<ToolOutcome> {
+  async function callAwaited(call: ToolCall, given: TurnContext, asyncPort: boolean, selectedHooks: readonly McpReadHook[], boundary?: ActorCallBoundary, actor?: ModelHookActor): Promise<ToolOutcome> {
     const identity = identityRefusal(call, given);
     if (identity !== undefined) return failure(identity) as ToolOutcome;
     const restricted = skillToolRefusal(skillLoads, given.turnId, call.name);
@@ -1577,6 +1612,7 @@ export function createHarness(options: HarnessOptions): Harness {
     const admitted = admit();
     if (!admitted.ok) return failure(admitted.error) as ToolOutcome;
     const selected = selectedHooks.map((hook) => ({ ...hook }));
+    const model = actorTurn(turn) ? (actor?.hooks ?? []).slice(0, MODEL_HOOK_LIMIT).filter((hook) => hook.enabled && hook.tool === call.name) : [];
     const check = (prep: Prepared, record = true) => hooksBefore({ ...call, params: prep.params }, prep.entry.meta, turn.turnId, 'run', record);
     const runOriginal = async (prep: Prepared, notes: readonly HookNote[]) => {
       const { entry, params } = prep;
@@ -1590,14 +1626,14 @@ export function createHarness(options: HarnessOptions): Harness {
       const afterAllowed = saved === undefined || await saved;
       return { ...ran, outcome, afterAllowed };
     };
-    if (selected.length === 0) {
+    if (selected.length === 0 && model.length === 0) {
       const hooked = check(admitted.value);
       if (hooked.error !== undefined) return failure(hooked.error) as ToolOutcome;
       const { outcome, applied } = await runOriginal(admitted.value, hooked.runs.flatMap(noteOf));
       if (applied) callCache.record(turn.turnId, call.callId, fingerprint, outcome);
       return outcome;
     }
-    if (selected.some((hook) => hook.event === 'tool.before')) {
+    if ([...selected, ...model].some((hook) => hook.event === 'tool.before')) {
       const hooked = check(admitted.value, false);
       if (hooked.error !== undefined) return failure(hooked.error) as ToolOutcome;
     }
@@ -1653,10 +1689,54 @@ export function createHarness(options: HarnessOptions): Harness {
       }
       return undefined;
     };
+    const runModelHooks = async (event: ModelHook['event'], params: CallParams, affected?: readonly string[]): Promise<CommandError | undefined> => {
+      const seen = new Set<string>();
+      for (const hook of model) {
+        if (!active()) break;
+        if (hook.event !== event || seen.has(hook.id)) continue;
+        seen.add(hook.id);
+        const current = () => modelHooks().some((candidate) => sameModelHook(candidate, hook));
+        if (!current()) continue;
+        if (event === 'tool.before') {
+          if (fingerprint !== fingerprintOf()) return replayMismatch(call, turn);
+          const fresh = admit();
+          if (!fresh.ok) return fresh.error;
+          params = fresh.value.params;
+          const checked = check(fresh.value, false);
+          if (checked.error !== undefined) return checked.error;
+        } else if (ruleRefusalFor(admitted.value.entry.meta, params, turn) !== undefined) break;
+        const messages = modelHookInput(hook, params, call.proposal, affected);
+        const allowed = () => active() && current() && fingerprint === fingerprintOf()
+          && (event !== 'tool.before' || admit().ok)
+          && ruleRefusalFor(admitted.value.entry.meta, params, turn) === undefined
+          && canonicalJson(messages ?? null) === canonicalJson(modelHookInput(hook, params, call.proposal, affected) ?? null);
+        const start = clock();
+        const report = await invokeModelHook(actor, messages, allowed, turn.signal);
+        attempted ||= report.attempted;
+        if (!active() || !current() || report.decision === 'allow') continue;
+        const block = event === 'tool.before' && (report.decision === 'block' || (report.reason !== undefined && hook.failClosed));
+        const reason = report.reason ?? (report.decision === 'block' ? 'The model hook did not pass this check.' : 'The model hook flagged this check for review.');
+        const run: HookRun = {
+          hookId: hook.id,
+          name: hookLabel(redact(hook.name)),
+          event,
+          tool: call.name,
+          callId: call.callId,
+          ms: Math.max(0, clock() - start),
+          decision: { action: block ? 'block' : 'warn', reason },
+          ...(report.reason === undefined ? {} : { failed: report.reason }),
+        };
+        recordHooks(turn.turnId, [run], params);
+        const blocked = blockOf([run]);
+        if (blocked !== undefined) return hookBlocked(blocked, call.name, attempted);
+        beforeNotes.push(...noteOf(run));
+      }
+      return undefined;
+    };
     const result = Promise.resolve().then(async () => {
-      const blocked = await runMcpHooks('tool.before', admitted.value.params);
+      const blocked = await runMcpHooks('tool.before', admitted.value.params) ?? await runModelHooks('tool.before', admitted.value.params);
       if (!active()) {
-        return failure(refusal('permission-denied', 'The tool call stopped while waiting for its MCP hooks. The original tool did not run.', { target: call.name })) as ToolOutcome;
+        return failure(refusal('permission-denied', `The tool call stopped while waiting for its ${model.length === 0 ? 'MCP' : 'execution'} hooks. The original tool did not run.`, { target: call.name })) as ToolOutcome;
       }
       if (fingerprint !== fingerprintOf()) return failure(replayMismatch(call, turn)) as ToolOutcome;
       const fresh = admit();
@@ -1666,7 +1746,10 @@ export function createHarness(options: HarnessOptions): Harness {
       if (checked.error !== undefined) return failure(checked.error) as ToolOutcome;
       const ran = await runOriginal(fresh.value, [...checked.runs.flatMap(noteOf), ...beforeNotes]);
       applied = ran.applied;
-      if (ran.outcome.ok && ran.afterAllowed) await runMcpHooks('tool.after', fresh.value.params);
+      if (ran.outcome.ok && ran.afterAllowed) {
+        await runMcpHooks('tool.after', fresh.value.params);
+        await runModelHooks('tool.after', fresh.value.params, ran.outcome.value.affected.map((node) => node.nodeId));
+      }
       return ran.outcome;
     }).then((outcome) => {
       if (mcpHookCalls.get(turn.turnId) === calls && (attempted || applied)) {
@@ -1700,7 +1783,10 @@ export function createHarness(options: HarnessOptions): Harness {
     tools: listTools,
     call: ((call, turn) => callTool(call, turn)) as Harness['call'],
     hasMcpHook: (tool) => mcpHooksFor(tool).length > 0,
-    callWithMcpHooks,
+    callWithMcpHooks: callWithHooks,
+    modelHooks,
+    modelHookInput,
+    callWithHooks,
     previewPlan: (input, options = {}) => {
       const parsed = parsePlan(input);
       if (!parsed.ok) return failure(parsed.error) as Result<PlanPreflight, CommandError>;

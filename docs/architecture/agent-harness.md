@@ -272,6 +272,8 @@ The same pure hook runner handles `turn.submit` (before the first provider reque
 
 Private read-only MCP hooks can run around the execution of matching built-in tools in agent turns. They do not participate in preflight, a writer's synchronous commands, or delegated or external callers. The original tool must pass its normal permission checks. The hook reaches only its configured, trusted, pinned read-only tool via `mcp.invoke` with empty arguments; it cannot load tools for the model, grant permissions, or invoke another hook. See [hooks.md §6](hooks.md#6-storage-and-commands).
 
+Private model hooks use the same execution boundary. Their requests resolve the Background role independently of the foreground model and spend from the existing turn budget. The prompt preview shows separate hook estimates, not the hook's private instructions or prose. See [hooks.md §6](hooks.md#6-storage-and-commands).
+
 ## 5. Undo & safety
 
 Restore and rewind markers have one owner in the harness session: a pure `turn.marker` state. The session's RecentTurn context and the controller's TurnView badges project that same state; the controller stores no second copy. Whole and partial restore metadata remain distinct, and rewind prevents a later restore from changing the marker while retaining earlier restore metadata. Undoing a durable project restore returns its earlier project-restoration metadata through this owner, but never makes a rewound conversation visible again. The conversation axis remains irreversible; the marker has no final state because its project axis can be undone. This changes no project or run-log record.
