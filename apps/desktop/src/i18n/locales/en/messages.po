@@ -3866,6 +3866,11 @@ msgstr "All"
 msgid "All changes saved in this browser"
 msgstr "All changes saved in this browser"
 
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
+#: apps/desktop/src/app/integrity-model.ts
+msgid "All changes saved to the project folder"
+msgstr "All changes saved to the project folder"
+
 #: apps/desktop/src/components/GoalRecovery.tsx
 msgid "All saved distances:"
 msgstr "All saved distances:"
@@ -5226,6 +5231,10 @@ msgstr "Caotang cannot tell what encoding it is."
 msgid "Caotang cannot tell which encoding {file} is in, so it cannot import it."
 msgstr "Caotang cannot tell which encoding {file} is in, so it cannot import it."
 
+#: apps/desktop/src/app/native-folders.ts
+msgid "Caotang could not access the project folder. Check its permissions and try again."
+msgstr "Caotang could not access the project folder. Check its permissions and try again."
+
 #. Interpolated values: error
 #: apps/desktop/src/App.tsx
 msgid "Caotang could not open its storage"
@@ -5893,6 +5902,11 @@ msgstr "Choose a vendor template to see the Proof of the prompt pack."
 msgid "Choose an available read-only MCP tool."
 msgstr "Choose an available read-only MCP tool."
 
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "Choose an empty folder for the new project. Nothing was copied."
+msgstr "Choose an empty folder for the new project. Nothing was copied."
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Choose an entry…"
@@ -5902,6 +5916,10 @@ msgstr "Choose an entry…"
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
 msgid "Choose an example to fill the box"
 msgstr "Choose an example to fill the box"
+
+#: apps/desktop/src/app/native-folders.ts
+msgid "Choose an existing Caotang project folder or an empty folder for a new copy."
+msgstr "Choose an existing Caotang project folder or an empty folder for a new copy."
 
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/media/StoryboardView.tsx
@@ -6663,6 +6681,10 @@ msgstr "Copies contain conversation and manuscript text, not restore points. The
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Copy them into a folder beside the file"
 msgstr "Copy them into a folder beside the file"
+
+#: apps/desktop/src/components/NativeFolderControls.tsx
+msgid "Copy to a folder…"
+msgstr "Copy to a folder…"
 
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
@@ -9154,6 +9176,10 @@ msgstr "For the next request"
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "For you. Never sent to the model."
 msgstr "For you. Never sent to the model."
+
+#: apps/desktop/src/components/NativeFolderControls.tsx
+msgid "Forget folder"
+msgstr "Forget folder"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -12815,6 +12841,11 @@ msgstr "Not run. The hook is disabled or its matcher does not match this input."
 msgid "Not saved to browser storage yet. Your words are safe in this tab and are written again on the next change."
 msgstr "Not saved to browser storage yet. Your words are safe in this tab and are written again on the next change."
 
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
+#: apps/desktop/src/app/integrity-model.ts
+msgid "Not saved to the project folder. Check the folder, or export a backup before leaving."
+msgstr "Not saved to the project folder. Check the folder, or export a backup before leaving."
+
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 #: apps/desktop/src/media/screenplay-model.ts
@@ -15206,6 +15237,10 @@ msgstr "Rebuilding loses:"
 msgid "Recent distances"
 msgstr "Recent distances"
 
+#: apps/desktop/src/components/NativeFolderControls.tsx
+msgid "Recent project folders"
+msgstr "Recent project folders"
+
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
 msgid "Recent scenes"
@@ -15640,6 +15675,7 @@ msgstr "Renaming the project"
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
+#: apps/desktop/src/components/NativeFolderControls.tsx
 msgid "Reopen folder"
 msgstr "Reopen folder"
 
@@ -17865,6 +17901,11 @@ msgstr "Some call outcomes were not saved before the interruption. Their allowan
 msgid "Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave."
 msgstr "Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave."
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Some changes have not reached the project folder, so the project stays open. Export a bundle to keep a copy."
+msgstr "Some changes have not reached the project folder, so the project stays open. Export a bundle to keep a copy."
+
 #. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts
 msgid "Some changes were taken back in this tab, but they could not be saved. Keep this tab open and retry the failed save before restoring again."
@@ -19302,6 +19343,11 @@ msgstr "The checks list says which."
 msgid "The choice is kept in this browser. Until you choose, the page follows the system."
 msgstr "The choice is kept in this browser. Until you choose, the page follows the system."
 
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "The chosen folder is no longer empty. Choose another folder."
+msgstr "The chosen folder is no longer empty. Choose another folder."
+
 #. Interpolated values: name
 #. js-lingui-explicit-id
 #: packages/store/src/read.ts
@@ -19716,6 +19762,11 @@ msgstr "The folder holds a different version of “{name}”"
 #: apps/desktop/src/components/RunHistory.tsx
 msgid "The folder-copy preference could not be read. Reopen Activity to try again."
 msgstr "The folder-copy preference could not be read. Reopen Activity to try again."
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "The folder’s writing history could not be read, so it is not in the backup."
+msgstr "The folder’s writing history could not be read, so it is not in the backup."
 
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
 #: apps/desktop/src/media/ScreenplayView.tsx
@@ -20280,6 +20331,19 @@ msgstr "The project could not be saved, so nothing was restored. Keep this tab o
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "The project cover"
 msgstr "The project cover"
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "The project folder changed outside Caotang or is in use. Reopen it before saving."
+msgstr "The project folder changed outside Caotang or is in use. Reopen it before saving."
+
+#: apps/desktop/src/app/native-folders.ts
+msgid "The project folder is missing or was moved. Choose Open a folder to find it."
+msgstr "The project folder is missing or was moved. Choose Open a folder to find it."
+
+#: apps/desktop/src/app/native-folders.ts
+msgid "The project folder is read-only. Make it writable, then try again."
+msgstr "The project folder is read-only. Make it writable, then try again."
 
 #. Interpolated values: calls, cap, error
 #: apps/desktop/src/app/task-queue.ts
@@ -22735,6 +22799,7 @@ msgid "Untitled"
 msgstr "Untitled"
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
+#. Interpolated values: count, path, reason
 #. Interpolated values: count, path, reason
 #: apps/desktop/src/app/lifecycle.ts
 #: apps/desktop/src/components/Home.tsx

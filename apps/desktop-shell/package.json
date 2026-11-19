@@ -7,10 +7,14 @@
   "type": "module",
   "main": "dist/main.mjs",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && vite build",
     "start": "pnpm build && install-electron && electron .",
     "test:smoke": "pnpm build && install-electron && playwright test",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "@caotang/artifact-fs-node": "workspace:*",
+    "@caotang/store": "workspace:*"
   },
   "devDependencies": {
     "electron": "45.4.1"
