@@ -33,7 +33,9 @@ import {
   CODEX_NAME_MAX,
   CODEX_REFERENCE_FIELDS,
   CODEX_REFERENCE_MAX,
+  CODEX_RELATION_MAX,
   readCodexReference,
+  readCodexRelation,
   CODEX_VISUAL_REFS_MAX,
   ok,
   type CommandError,
@@ -90,6 +92,11 @@ export const codexWriteParams: ObjectSpec = param.object(
             'External refs.',
             param.freeObject('action: create/update/remove; title on create; id on update/remove; url/publisher/date/quote (date YYYY-MM-DD, null clears).'),
             { minItems: 1, maxItems: CODEX_REFERENCE_MAX },
+          ),
+          relationEdits: param.list(
+            'Entry links.',
+            param.freeObject('action: create/update/remove; targetId on create; id on update/remove; label (null clears).'),
+            { minItems: 1, maxItems: CODEX_RELATION_MAX },
           ),
           exclude: param.list(
             `Phrases in which matches are ignored, at most ${CODEX_EXCLUDE_MAX}.`,
@@ -269,7 +276,7 @@ export function prepareCodexWrite(params: CallParams, context: PrepareContext): 
 
     // An update: its field changes go in the upsert, its attachments as codex.attach.
     const id = String(entry['id']);
-    const fields = definedFields(entry, ['name', 'aliases', 'type', 'description', 'includePolicy', 'caseSensitive', 'exclude', 'visualRefs', 'details', 'referenceEdits']);
+    const fields = definedFields(entry, ['name', 'aliases', 'type', 'description', 'includePolicy', 'caseSensitive', 'exclude', 'visualRefs', 'details', 'referenceEdits', 'relationEdits']);
     if (isRecord(fields['details']) && Object.keys(fields['details']).length === 0) delete fields['details'];
     const before = existingEntry(state, id);
     const changes: { field: string; from: string; to: string }[] = [];
@@ -279,6 +286,15 @@ export function prepareCodexWrite(params: CallParams, context: PrepareContext): 
           const old = Object.hasOwn(before?.details ?? {}, key) ? before?.details?.[key] : undefined;
           changes.push({ field: `${CODEX_DETAIL_DIFF_PREFIX}${key}`, from: JSON.stringify(old ?? null), to: JSON.stringify(next) });
         }
+        continue;
+      }
+      if (field === 'relationEdits' && Array.isArray(value)) {
+        const edits = value.filter(isRecord).map((edit) => {
+          const existing = before?.relations?.map(readCodexRelation).find((relation) => relation?.id === edit['id']);
+          const target = typeof edit['targetId'] === 'string' ? state.manifest.codex?.find((candidate) => candidate.id === edit['targetId'])?.name : undefined;
+          return { ...definedFields(edit, ['action', 'targetId', 'label']), ...(existing === undefined ? {} : { previousTarget: existing.targetId }), ...(target === undefined ? {} : { targetName: target }) };
+        });
+        changes.push({ field: 'relations', from: 'null', to: JSON.stringify(edits) });
         continue;
       }
       if (field === 'referenceEdits' && Array.isArray(value)) {

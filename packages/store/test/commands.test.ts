@@ -60,6 +60,7 @@ import {
   createViewState,
   execute,
   lookupCommand,
+  readCodexRelation,
   resolveCommand,
   type BusContext,
   type Command,
@@ -285,6 +286,39 @@ describe('codex references', () => {
     expect((await readProject(orphan)).state.manifest.codex?.[0]?.references).toEqual(entry.references);
     h.undoGroup(outcome.undoGroupId ?? '');
     expect(entry.references).toEqual([ref, { futureRecord: true }]);
+  });
+});
+
+describe('codex relations', () => {
+  it('links two entries by name, refuses a bad target by name, and an undo takes the list back', () => {
+    const h = harness();
+    const entries = h.state.manifest.codex ?? [];
+    const fenn = entries.find(({ id }) => id === ENTRY);
+    const mara = entries.find(({ id }) => id !== ENTRY);
+    if (fenn === undefined || mara === undefined) throw new Error('missing fixture entries');
+    const before = fenn.relations;
+
+    const linked = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: mara.id, label: 'ally' }],
+    }] } }));
+    const relations = (fenn.relations ?? []).flatMap((value) => readCodexRelation(value) ?? []);
+    expect(relations).toHaveLength(1);
+    expect(relations[0]).toMatchObject({ targetId: mara.id, label: 'ally' });
+
+    const selfLink = execute(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: fenn.id }],
+    }] } }), h.bus, h.registry);
+    expect(selfLink.ok).toBe(false);
+    if (!selfLink.ok) expect(selfLink.error.message).toContain('cannot relate to itself');
+
+    const missing = execute(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: 'c_NOSUCHENTRY' }],
+    }] } }), h.bus, h.registry);
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) expect(missing.error.message).toContain('must name an existing codex entry');
+
+    h.undoGroup(linked.undoGroupId ?? '');
+    expect(fenn.relations).toEqual(before);
   });
 });
 

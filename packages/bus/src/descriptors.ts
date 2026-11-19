@@ -40,6 +40,7 @@ import {
   type CodexDetailField,
 } from './codex-details.js';
 import { CODEX_REFERENCE_MAX, codexReferenceId, referenceEditProblem } from './codex-references.js';
+import { CODEX_RELATION_MAX, codexRelationId, relationEditProblem } from './codex-relations.js';
 import type {
   McpInvokeParams,
   McpReadResourceParams,
@@ -350,6 +351,7 @@ const CODEX_OP_KEYS = [
   'visualRefs',
   'details',
   'referenceEdits',
+  'relationEdits',
 ] as const;
 
 function narrowCodexOp(op: Record<string, unknown>): CodexUpsertOp {
@@ -1220,6 +1222,7 @@ function validateCodexOp(
   entryTypes: Map<string, string | undefined>,
   detailFields: readonly CodexDetailField[],
   references: Map<string, { ids: string[]; count: number }>,
+  relations: Map<string, { ids: string[]; count: number }>,
 ): void {
   const push = <T>(refusal: Result<T, CommandError>): void => {
     if (!refusal.ok) failures.push(toPerOpFailure(target, refusal.error));
@@ -1401,6 +1404,35 @@ function validateCodexOp(
         }
       }
       if (typeof id === 'string') references.set(id, refs);
+    }
+  }
+
+  const relationEdits = op['relationEdits'];
+  if (relationEdits !== undefined) {
+    if (!Array.isArray(relationEdits) || relationEdits.length === 0 || relationEdits.length > CODEX_RELATION_MAX) {
+      push(invalid(`relationEdits must have between 1 and ${CODEX_RELATION_MAX} operations`, undefined, 'relationEdits'));
+    } else {
+      const current = typeof id === 'string' ? relations.get(id) : undefined;
+      const held = { ids: [...(current?.ids ?? [])], count: current?.count ?? 0 };
+      const targets = (snapshot.manifest.codex ?? []).map((entry) => entry.id);
+      for (const [i, edit] of relationEdits.entries()) {
+        const problem = relationEditProblem(edit, {
+          liveIds: held.ids,
+          targets,
+          ownId: typeof id === 'string' ? id : '',
+          currentCount: held.count,
+        });
+        if (problem !== undefined) {
+          push(invalid(`relationEdits[${i}] ${problem}`, undefined, `relationEdits[${i}]`));
+          continue;
+        }
+        if (edit.action === 'create') held.count += 1;
+        if (edit.action === 'remove') {
+          held.count -= 1;
+          held.ids = held.ids.filter((candidate) => candidate !== edit.id);
+        }
+      }
+      if (typeof id === 'string') relations.set(id, held);
     }
   }
 
@@ -1601,17 +1633,21 @@ export const codexUpsert: CommandDescriptor<CodexUpsertParams> = {
     const projectNames = new Map<string, { name: string; id: string }>();
     const entryTypes = new Map<string, string | undefined>();
     const references = new Map<string, { ids: string[]; count: number }>();
+    const relations = new Map<string, { ids: string[]; count: number }>();
     for (const entry of snapshot.manifest.codex ?? []) {
       projectNames.set(entry.name.toLowerCase(), { name: entry.name, id: entry.id });
       entryTypes.set(entry.id, entry.type);
       if (entry.references !== undefined) {
         references.set(entry.id, { ids: entry.references.flatMap((reference) => codexReferenceId(reference) ?? []), count: entry.references.length });
       }
+      if (entry.relations !== undefined) {
+        relations.set(entry.id, { ids: entry.relations.flatMap((relation) => codexRelationId(relation) ?? []), count: entry.relations.length });
+      }
     }
     const failures: PerOpFailure[] = [];
     const fields = detailField === undefined ? detailFields : [...detailFields, detailField];
     for (const [i, op] of entries.entries()) {
-      validateCodexOp(snapshot, op, `entries[${i}]`, failures, projectNames, entryTypes, fields, references);
+      validateCodexOp(snapshot, op, `entries[${i}]`, failures, projectNames, entryTypes, fields, references, relations);
     }
     if (failures.length > 0) {
       return batchRefusal(failures, 'fix every listed op and resend the whole batch — nothing was written');

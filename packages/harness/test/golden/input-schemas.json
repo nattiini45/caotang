@@ -688,6 +688,16 @@
               "minItems": 1,
               "maxItems": 24
             },
+            "relationEdits": {
+              "type": "array",
+              "description": "Entry links.",
+              "items": {
+                "type": "object",
+                "description": "action: create/update/remove; targetId on create; id on update/remove; label (null clears)."
+              },
+              "minItems": 1,
+              "maxItems": 40
+            },
             "exclude": {
               "type": "array",
               "description": "Phrases in which matches are ignored, at most 20.",
