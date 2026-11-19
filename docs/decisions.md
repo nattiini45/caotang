@@ -1,5 +1,12 @@
 # Decisions
 
+- Codex details, external references and relations (#221–#223) stay out of automatic model context. Mention matching does not follow relations. Details and external references can be passed explicitly to `codex.write` and follow its usual confirmation path. External references stay separate from manuscript `sources` and do not change the canon rule. Verify the assembly boundary in prompt preview before shipping. [delegated 2026-11-19]
+
+- [owner 2026-11-19] Codex relations (#223) ship both an entry Relations section, with incoming and outgoing links, and a project-wide graph.
+
+- [owner 2026-11-19] Protect new codex fields against silent downgrade loss (#221–#223). Typed details write artifact format v2 and lazily upgrade the browser database on the first protected commit: old builds ignore browser row markers and can strip typed recovery data before refusing a folder save. Leave browsers that never use the feature and ordinary v1 artifacts unchanged.
+- [owner 2026-11-19] Raise the total JS ceiling to 8,834,000 bytes for the typed-codex rollback gate (8,745,967 measured). The implementation shares the format predicate and existing transaction and connection handlers, adds no dependency, and keeps the editor lazy. First-load ceilings are unchanged.
+
 - A private Background before hook can propose a rewrite of an eligible prose field only if the rewritten call is revalidated and shown with its original on a fresh human approval card. An earlier approval and Auto mode cannot approve the rewrite. This supersedes the no-rewrite portion of the declarative-hook decision dated 2026-10-22 and of the Background model hook decision below; it does not change the project-file restrictions. [owner 2026-11-13]
 
 - A private Background turn-end hook can request a continuation of a successful interactive turn. At most two continuations share the original limits, and a third is ignored and reported. The reason is outside data, never an approval. This extends the turn-end behavior without changing pure project checks. [delegated 2026-11-19]

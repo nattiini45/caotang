@@ -27,6 +27,7 @@ import {
   CODEX_ALIAS_CHARS_MAX,
   CODEX_ALIASES_MAX,
   CODEX_DESCRIPTION_MAX,
+  CODEX_DETAIL_DIFF_PREFIX,
   CODEX_EXCLUDE_CHARS_MAX,
   CODEX_EXCLUDE_MAX,
   CODEX_NAME_MAX,
@@ -35,7 +36,7 @@ import {
   type CommandError,
   type Result,
 } from '@caotang/bus';
-import { CODEX_INCLUDE_POLICIES, CODEX_TYPES, type ProjectState } from '@caotang/store';
+import { CODEX_INCLUDE_POLICIES, type ProjectState } from '@caotang/store';
 
 import { failure, invalidParams, limitExceeded, notFound, refusal } from '../errors.js';
 import { capOf } from '../metadata.js';
@@ -51,7 +52,7 @@ const CODEX_BATCH_MAX = 20;
 const DESCRIPTION_MAX = CODEX_DESCRIPTION_MAX;
 const PREVIEW_CHARS = 200;
 
-const CREATE_KEYS = ['action', 'name', 'aliases', 'type', 'description', 'includePolicy', 'caseSensitive', 'exclude', 'attachTo', 'detachFrom', 'visualRefs'];
+const CREATE_KEYS = ['action', 'name', 'aliases', 'type', 'description', 'includePolicy', 'caseSensitive', 'exclude', 'attachTo', 'detachFrom', 'visualRefs', 'details'];
 
 export const codexWriteParams: ObjectSpec = param.object(
   'The codex entries to create or update, as one batch.',
@@ -72,7 +73,7 @@ export const codexWriteParams: ObjectSpec = param.object(
             param.string('One alias.', { nonBlank: true, maxLength: CODEX_ALIAS_CHARS_MAX }),
             { maxItems: CODEX_ALIASES_MAX },
           ),
-          type: param.choice('The entry type.', [...CODEX_TYPES]),
+          type: param.string('Built-in or project-defined entry type.', { nonBlank: true }),
           description: param.string(
             `The entry description. At most ${DESCRIPTION_MAX} characters; a longer one fails the batch with a proposed truncation.`,
           ),
@@ -81,6 +82,7 @@ export const codexWriteParams: ObjectSpec = param.object(
             [...CODEX_INCLUDE_POLICIES],
           ),
           caseSensitive: param.boolean('Whether the name and aliases match case-sensitively.'),
+          details: param.freeObject('Details by key; null clears.'),
           exclude: param.list(
             `Phrases in which matches are ignored, at most ${CODEX_EXCLUDE_MAX}.`,
             param.string('One excluded phrase.', { nonBlank: true, maxLength: CODEX_EXCLUDE_CHARS_MAX }),
@@ -131,7 +133,7 @@ function createDiff(entry: Record<string, unknown>): Record<string, unknown> {
   return {
     action: 'create',
     name: entry['name'],
-    ...definedFields(entry, ['type', 'description', 'aliases', 'includePolicy', 'caseSensitive', 'exclude', 'visualRefs']),
+    ...definedFields(entry, ['type', 'description', 'aliases', 'includePolicy', 'caseSensitive', 'exclude', 'visualRefs', 'details']),
     ...(attach.length === 0 ? {} : { attach }),
     ...(flags.length === 0 ? {} : { flags }),
   };
@@ -259,10 +261,18 @@ export function prepareCodexWrite(params: CallParams, context: PrepareContext): 
 
     // An update: its field changes go in the upsert, its attachments as codex.attach.
     const id = String(entry['id']);
-    const fields = definedFields(entry, ['name', 'aliases', 'type', 'description', 'includePolicy', 'caseSensitive', 'exclude', 'visualRefs']);
+    const fields = definedFields(entry, ['name', 'aliases', 'type', 'description', 'includePolicy', 'caseSensitive', 'exclude', 'visualRefs', 'details']);
+    if (isRecord(fields['details']) && Object.keys(fields['details']).length === 0) delete fields['details'];
     const before = existingEntry(state, id);
     const changes: { field: string; from: string; to: string }[] = [];
     for (const [field, value] of Object.entries(fields)) {
+      if (field === 'details' && isRecord(value)) {
+        for (const [key, next] of Object.entries(value)) {
+          const old = Object.hasOwn(before?.details ?? {}, key) ? before?.details?.[key] : undefined;
+          changes.push({ field: `${CODEX_DETAIL_DIFF_PREFIX}${key}`, from: JSON.stringify(old ?? null), to: JSON.stringify(next) });
+        }
+        continue;
+      }
       const old = before === undefined ? undefined : (before as unknown as Record<string, unknown>)[field];
       changes.push({ field, from: JSON.stringify(old ?? null), to: JSON.stringify(value) });
     }

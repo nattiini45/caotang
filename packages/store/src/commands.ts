@@ -1172,6 +1172,16 @@ export function createProjectCommandRegistry(
    */
   const CODEX_DEFAULT_TYPE = 'other';
 
+  function applyCodexDetails(entry: CodexEntry, changes: NonNullable<CodexUpsertParams['entries'][number]['details']>): void {
+    const details = new Map(Object.entries(entry.details ?? {}));
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === null) details.delete(key);
+      else details.set(key, value);
+    }
+    if (details.size === 0) delete entry.details;
+    else entry.details = Object.fromEntries(details);
+  }
+
   /** A codex entry copied whole, arrays included — §5's "prior-state copy". */
   function copyCodexEntry(entry: CodexEntry): CodexEntry {
     return {
@@ -1247,7 +1257,12 @@ export function createProjectCommandRegistry(
    * docIds and quoted spans are the harness's data, not a mutation command's.
    */
   const codexUpsert: ProjectApply<CodexUpsertParams> = (state, params, context) => {
-    const codex = state.manifest.codex ?? (state.manifest.codex = []);
+    const beforeFields = state.manifest.codexDetailFields;
+    if (params.detailField !== undefined) {
+      state.manifest.codexDetailFields = [...(beforeFields ?? []), { ...params.detailField }];
+    }
+    const codex = state.manifest.codex ?? [];
+    if (params.entries.length > 0) state.manifest.codex = codex;
     const taken = new Set(codex.map((entry) => entry.id));
     const stamp = new Date(clock.now()).toISOString();
     const created: CodexEntry[] = [];
@@ -1278,6 +1293,7 @@ export function createProjectCommandRegistry(
           createdAt: stamp,
           updatedAt: stamp,
         };
+        if (op.details !== undefined) applyCodexDetails(entry, op.details);
         taken.add(entry.id);
         // `detachFrom` on a create is inert rather than an error: a list of ids
         // nothing is attached to, on an entry that was not attached to anything.
@@ -1305,6 +1321,7 @@ export function createProjectCommandRegistry(
       if (op.exclude !== undefined) entry.exclude = [...op.exclude];
       if (op.keywords !== undefined) entry.keywords = [...op.keywords];
       if (op.visualRefs !== undefined) entry.visualRefs = [...new Set(op.visualRefs)];
+      if (op.details !== undefined) applyCodexDetails(entry, op.details);
       if (op.attachTo !== undefined || op.detachFrom !== undefined) {
         applyAttachmentDelta(entry, op.attachTo ?? [], op.detachFrom ?? []);
       }
@@ -1319,8 +1336,14 @@ export function createProjectCommandRegistry(
     }
 
     context.undo.compensate(
-      `undo the ${created.length} created and ${updated.length} updated codex entries`,
+      params.detailField === undefined
+        ? `undo the ${created.length} created and ${updated.length} updated codex entries`
+        : `undo adding the codex detail field "${params.detailField.label}"`,
       () => {
+        if (params.detailField !== undefined) {
+          if (beforeFields === undefined) delete state.manifest.codexDetailFields;
+          else state.manifest.codexDetailFields = beforeFields;
+        }
         // Reverse order, so two updates to one entry unwind the way they were made.
         for (const { entry, before } of [...updated].reverse()) {
           Object.assign(entry, copyCodexEntry(before));
@@ -1337,6 +1360,7 @@ export function createProjectCommandRegistry(
           if (!('updatedAt' in before)) delete entry.updatedAt;
           // The same rule for `visualRefs`: an update that adds the list leaves a key a copy that never had one cannot remove.
           if (!('visualRefs' in before)) delete entry.visualRefs;
+          if (!('details' in before)) delete entry.details;
         }
         for (const entry of [...created].reverse()) {
           const at = codex.findIndex((candidate) => candidate.id === entry.id);
@@ -1361,11 +1385,11 @@ export function createProjectCommandRegistry(
 
     context.report({
       affected: affectedOf(state, attachedNodes),
-      summary: agentWriteSummary(
+      summary: params.detailField === undefined ? agentWriteSummary(
         context,
         `the agent’s codex change: ${created.length} created, ${updated.length} updated${attachedNodes.length > 0 ? `, ${countOf(attachedNodes.length, 'node')} attached` : ''}`,
         `created ${created.length} and updated ${updated.length} codex ${created.length + updated.length === 1 ? 'entry' : 'entries'}${attachedNodes.length > 0 ? `, attached to ${countOf(attachedNodes.length, 'node')}` : ''}`,
-      ),
+      ) : `added the codex detail field "${params.detailField.label}" for "${params.detailField.type}"`,
     });
 
     return {
