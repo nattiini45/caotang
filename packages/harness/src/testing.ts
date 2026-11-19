@@ -48,8 +48,8 @@ export function withResultChecks<H extends Harness>(harness: H): H {
       checkOutcome(harness, call.name, outcome);
       return outcome;
     }) as Harness['call'],
-    callAsync: async (call, turn) => {
-      const outcome = await harness.callAsync(call, turn);
+    callAsync: async (call, turn, boundary) => {
+      const outcome = await harness.callAsync(call, turn, boundary);
       checkOutcome(harness, call.name, outcome);
       return outcome;
     },

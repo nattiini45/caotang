@@ -3376,7 +3376,7 @@ msgstr "Legen Sie zuerst eine Figur im Kodex an."
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Add a document to this project before testing a hook."
-msgstr "Füge diesem Projekt ein Dokument hinzu, bevor du einen Hook testest."
+msgstr "Fügen Sie diesem Projekt ein Dokument hinzu, bevor Sie einen Hook testen."
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -3526,6 +3526,11 @@ msgstr "Zeilen-IDs beim Speichern hinzufügen"
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Add line ids to the imported containers (one time)"
 msgstr "Zeilen-IDs zu den importierten Containern hinzufügen (einmalig)"
+
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "Add MCP hook"
+msgstr "MCP-Hook hinzufügen"
 
 #. Interpolated values: name
 #. js-lingui-explicit-id
@@ -3701,6 +3706,11 @@ msgstr "nach {title}"
 #: apps/desktop/src/app/skills-model.ts
 msgid "After loading this skill, the agent can read text files under references/ and assets/. Scripts are never run."
 msgstr "Nach dem Laden dieses Skills kann der Agent Textdateien unter references/ und assets/ lesen. Skripte werden niemals ausgeführt."
+
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "After the agent tool runs"
+msgstr "Nach der Ausführung des Agentenwerkzeugs"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -4691,6 +4701,11 @@ msgstr "Vor"
 msgid "Before chapter 1"
 msgstr "Vor Kapitel 1"
 
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "Before the agent tool runs"
+msgstr "Vor der Ausführung des Agentenwerkzeugs"
+
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "Before this step"
@@ -4788,6 +4803,11 @@ msgstr "Anschnitt: Die Kunst über den Beschnitt hinaus verlängern, für einen 
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Block if the check cannot run (before events only)"
 msgstr "Blockieren, wenn die Prüfung nicht ausgeführt werden kann (nur vor einer Aktion)"
+
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "Block if the MCP hook cannot run"
+msgstr "Blockieren, wenn der MCP-Hook nicht ausgeführt werden kann"
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
@@ -4932,6 +4952,11 @@ msgstr "Browser-Speicher: Der Browser hat nicht gesagt, ob er dieses Projekt beh
 msgid "Browsers may remove stored data when a device runs short of space. Asking the browser to keep it lowers that risk, and the browser has not granted it here. {storageSentence} A bundle is the copy that does not depend on the browser."
 msgstr "Browser können gespeicherte Daten entfernen, wenn ein Gerät wenig Speicher hat. Die Bitte an den Browser, sie zu behalten, senkt dieses Risiko, und der Browser hat sie hier nicht gewährt. {storageSentence} Ein Bundle ist die Kopie, die nicht vom Browser abhängt."
 
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "Built-in agent tool"
+msgstr "Integriertes Agentenwerkzeug"
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Bundle file"
@@ -5008,6 +5033,7 @@ msgstr "Kamerabewegung"
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#. Read-only MCP hooks in project Settings.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
@@ -5029,6 +5055,7 @@ msgstr "Kamerabewegung"
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/components/KnowledgeList.tsx
+#: apps/desktop/src/components/McpHookSettings.tsx
 #: apps/desktop/src/components/PlanCard.tsx
 #: apps/desktop/src/components/PlanOfferCard.tsx
 #: apps/desktop/src/components/ProfileEditor.tsx
@@ -5681,6 +5708,11 @@ msgstr "Auswahl"
 msgid "Choose a binder document or folder"
 msgstr "Ein Dokument oder einen Ordner im Binder wählen"
 
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "Choose a built-in agent tool."
+msgstr "Wählen Sie ein integriertes Agentenwerkzeug."
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Choose a character…"
@@ -5739,6 +5771,11 @@ msgstr "Ein Bild wählen…"
 msgid "Choose a provider in Settings, then run /context again. No request was sent."
 msgstr "Wählen Sie in den Einstellungen einen Anbieter und führen Sie /context erneut aus. Es wurde keine Anfrage gesendet."
 
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "Choose a read-only MCP tool"
+msgstr "Schreibgeschütztes MCP-Werkzeug wählen"
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Choose a reason from the picker."
@@ -5781,6 +5818,11 @@ msgstr "Wählen Sie eine Anbieter-Vorlage, um eine Vorschau des Prompt-Packs zu 
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
 msgid "Choose a vendor template to see the Proof of the prompt pack."
 msgstr "Wählen Sie eine Anbieter-Vorlage, um den Abzug des Prompt-Packs zu sehen."
+
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "Choose an available read-only MCP tool."
+msgstr "Wählen Sie ein verfügbares schreibgeschütztes MCP-Werkzeug."
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -6392,6 +6434,11 @@ msgstr "Verbinden Sie in den Einstellungen einen Anbieter, um die Geschichte mit
 msgid "Connect and list models"
 msgstr "Verbinden und Modelle auflisten"
 
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "Connect and review the tool again in MCP & tools, then edit this hook to select it."
+msgstr "Verbinden und prüfen Sie das Werkzeug erneut unter „MCP und Werkzeuge“. Bearbeiten Sie dann diesen Hook und wählen Sie das Werkzeug aus."
+
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #: apps/desktop/src/app/mcp-model.ts
 msgid "Connected"
@@ -6990,9 +7037,11 @@ msgstr "Standardsprecher"
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Read-only MCP hooks in project Settings.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/BinderFooter.tsx
 #: apps/desktop/src/components/HookSettings.tsx
+#: apps/desktop/src/components/McpHookSettings.tsx
 #: apps/desktop/src/components/SkillsPanel.tsx
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Delete"
@@ -7017,6 +7066,11 @@ msgstr "{name} löschen"
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "Delete {title}?"
 msgstr "{title} löschen?"
+
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "Delete an MCP hook before adding another."
+msgstr "Löschen Sie einen MCP-Hook, bevor Sie einen weiteren hinzufügen."
 
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #: apps/desktop/src/media/PictureBoard.tsx
@@ -7077,7 +7131,12 @@ msgstr "„{title}“ gelöscht. Strg+Z macht das sofort rückgängig."
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Deleted the hook. Undo brings it back."
-msgstr "Der Hook wurde gelöscht. Mit Rückgängig stellst du ihn wieder her."
+msgstr "Der Hook wurde gelöscht. Mit „Rückgängig“ stellen Sie ihn wieder her."
+
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "Deleted the MCP hook."
+msgstr "MCP-Hook gelöscht."
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -7245,6 +7304,8 @@ msgid "Diff against the approved text of {file}:"
 msgstr "Diff gegen den genehmigten Text von {file}:"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Disable"
 msgstr "Deaktivieren"
@@ -7818,6 +7879,7 @@ msgstr "Frühere Anfragen werden nach mehr als sechs noch nicht zusammengefasste
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#. Read-only MCP hooks in project Settings.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/AgentQueue.tsx
 #: apps/desktop/src/components/BinderFooter.tsx
@@ -7825,6 +7887,7 @@ msgstr "Frühere Anfragen werden nach mehr als sechs noch nicht zusammengefasste
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/components/KnowledgeList.tsx
+#: apps/desktop/src/components/McpHookSettings.tsx
 #: apps/desktop/src/components/Settings.tsx
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "Edit"
@@ -7845,6 +7908,12 @@ msgstr "Bearbeiten und speichern Sie dieses Profil, um es erneut zu prüfen."
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Edit hook"
 msgstr "Hook bearbeiten"
+
+#. Read-only MCP hooks in project Settings.
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "Edit MCP hook"
+msgstr "MCP-Hook bearbeiten"
 
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #: apps/desktop/src/components/Inspector.tsx
@@ -7967,6 +8036,8 @@ msgid "Empty research"
 msgstr "Leere Recherche"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Enable"
 msgstr "Aktivieren"
@@ -8027,6 +8098,11 @@ msgstr "Eingabe"
 #: apps/desktop/src/components/GoalComposer.tsx
 msgid "Enter a finite, non-negative number, or leave this optional limit empty."
 msgstr "Geben Sie eine endliche Zahl ab null ein oder lassen Sie dieses optionale Limit leer."
+
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "Enter a name for this hook."
+msgstr "Geben Sie einen Namen für diesen Hook ein."
 
 #: apps/desktop/src/components/GoalComposer.tsx
 msgid "Enter a non-negative whole number."
@@ -8099,7 +8175,9 @@ msgstr "Die Schätzung umfasst Gesprächsnachrichten. Reserve für Ausgabe, Denk
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Read-only MCP hooks in project Settings.
 #: apps/desktop/src/components/HookSettings.tsx
+#: apps/desktop/src/components/McpHookSettings.tsx
 msgid "Event"
 msgstr "Ereignis"
 
@@ -9290,7 +9368,7 @@ msgstr "Hooks"
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Hooks check this project at selected events. They can warn or stop an action, but never approve it, change your text or call a provider."
-msgstr "Hooks prüfen dieses Projekt bei ausgewählten Ereignissen. Sie können warnen oder eine Aktion stoppen, aber niemals eine Aktion genehmigen, deinen Text ändern oder einen Anbieter aufrufen."
+msgstr "Hooks prüfen dieses Projekt bei ausgewählten Ereignissen. Sie können warnen oder eine Aktion stoppen, aber niemals eine Aktion genehmigen, Ihren Text ändern oder einen Anbieter aufrufen."
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -9646,6 +9724,11 @@ msgstr "Blenden Sie im Fokusmodus den Binder und den Inspektor aus"
 #: apps/desktop/src/components/editor-labels.ts
 msgid "In line with the text"
 msgstr "Im Fließtext"
+
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "In MCP & tools, connect and review a server, trust it for reads, and enable a read-only tool that takes no required arguments."
+msgstr "Verbinden und prüfen Sie unter „MCP und Werkzeuge“ einen Server. Erlauben Sie ihm Lesezugriffe und aktivieren Sie ein schreibgeschütztes Werkzeug ohne Pflichtargumente."
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
@@ -10396,7 +10479,7 @@ msgstr "Lassen Sie sie aus und behalten Sie ihren Text"
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Leave tools blank to match every tool. Use * for a wildcard. Export events use export.compile; save and turn events have no tool."
-msgstr "Lass die Werkzeuge leer, damit alle Werkzeuge erfasst werden. Verwende * als Platzhalter. Exportereignisse verwenden export.compile; Speicher- und Rundenereignisse haben kein Werkzeug."
+msgstr "Lassen Sie das Feld leer, um alle Werkzeuge zu erfassen. Verwenden Sie * als Platzhalter. Exportereignisse verwenden export.compile; Speicher- und Rundenereignisse haben kein Werkzeug."
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
@@ -10976,6 +11059,11 @@ msgstr "MCP & Werkzeuge"
 msgid "MCP servers"
 msgstr "MCP-Server"
 
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "MCP tool"
+msgstr "MCP-Werkzeug"
+
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #: apps/desktop/src/components/InspectorGoals.tsx
 msgid "Measure"
@@ -11432,12 +11520,14 @@ msgstr "Mythisch"
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: parent, title, amount
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
+#. Read-only MCP hooks in project Settings.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/CodexPanel.tsx
 #: apps/desktop/src/components/HookSettings.tsx
+#: apps/desktop/src/components/McpHookSettings.tsx
 #: apps/desktop/src/components/McpSection.tsx
 #: apps/desktop/src/components/ProfileEditor.tsx
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -11634,6 +11724,12 @@ msgstr "Neuer Eintrag"
 #: apps/desktop/src/components/KnowledgeList.tsx
 msgid "New knowledge fact"
 msgstr "Neuer Wissensfakt"
+
+#. Read-only MCP hooks in project Settings.
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "New MCP hook"
+msgstr "Neuer MCP-Hook"
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
@@ -12939,7 +13035,7 @@ msgstr "Ordner öffnen…"
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Open a project to manage its hooks."
-msgstr "Öffne ein Projekt, um seine Hooks zu verwalten."
+msgstr "Öffnen Sie ein Projekt, um seine Hooks zu verwalten."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -14594,6 +14690,11 @@ msgstr "Benutzerhandbuch lesen"
 msgid "harness.progress.sessionHistory.content"
 msgstr "Frühere Austausche dieser Rolle lesen"
 
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "Read-only MCP hooks"
+msgstr "Schreibgeschützte MCP-Hooks"
+
 #: apps/desktop/src/app/agent-model.ts
 msgid "Reader agent"
 msgstr "Lese-Agent"
@@ -16025,6 +16126,11 @@ msgstr "Bild speichern"
 msgid "Save limits"
 msgstr "Limits speichern"
 
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "Save MCP hook"
+msgstr "MCP-Hook speichern"
+
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Save or open this project in a folder and allow write access first."
@@ -16202,6 +16308,12 @@ msgstr "Gespeicherter Verbrauch"
 #: apps/desktop/src/components/VocabularyEditor.tsx
 msgid "Saved the {kind, select, status {status} label {label} other {status}} “{name}”."
 msgstr "„{name}“ als {kind, select, status {status} label {label} other {status}} gespeichert."
+
+#. Read-only MCP hooks in project Settings.
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "Saved the MCP hook."
+msgstr "MCP-Hook gespeichert."
 
 #. Interpolated values: folder is the writer's folder name; backup is the local backup path; error is the save failure message
 #: apps/desktop/src/components/use-folder-save.ts
@@ -20830,6 +20942,11 @@ msgstr "Diese gelten für den ganzen Container. Der Standardsprecher füllt die 
 msgid "These files were left out:"
 msgstr "Diese Dateien wurden ausgelassen:"
 
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "These hooks stay in this browser. They call a tool on a server you trust for reads. They send no manuscript text or tool arguments."
+msgstr "Diese Hooks bleiben in diesem Browser. Sie rufen ein Werkzeug auf einem Server auf, dem Sie Lesezugriffe erlauben. Sie senden weder Manuskripttext noch Werkzeugargumente."
+
 #: apps/desktop/src/media/picture-hooks.tsx
 msgid "These pictures are large"
 msgstr "Diese Bilder sind groß"
@@ -20920,6 +21037,11 @@ msgstr "Dieser Browser kann keine HEIC-Fotos öffnen."
 #: apps/desktop/src/app/task-queue.ts
 msgid "This browser cannot run a queued review here, so the review can only run now."
 msgstr "Dieser Browser kann hier keine eingereihte Prüfung ausführen, daher kann die Prüfung nur sofort laufen."
+
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "This browser cannot save MCP hooks. Open Caotang in a browser that allows local storage."
+msgstr "Dieser Browser kann keine MCP-Hooks speichern. Öffnen Sie Caotang in einem Browser, der lokalen Speicher zulässt."
 
 #. The value is the image format name, JPEG or PNG.
 #: apps/desktop/src/app/picture-transcoder.ts
@@ -21248,7 +21370,7 @@ msgstr "Dieses Projekt enthält einen Hook. Prüfe ihn unter Einstellungen › H
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "This project has no hooks yet. Add one to check a word, a word count, a status or continuity."
-msgstr "Dieses Projekt hat noch keine Hooks. Füge einen hinzu, um ein Wort, eine Wortanzahl, einen Status oder die Kontinuität zu prüfen."
+msgstr "Dieses Projekt hat noch keine Hooks. Fügen Sie einen hinzu, um ein Wort, eine Wortanzahl, einen Status oder die Kontinuität zu prüfen."
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -21258,7 +21380,7 @@ msgstr "Dieses Projekt hat noch keine Skills."
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "This project has reached its hook limit. Delete a hook before adding another."
-msgstr "Dieses Projekt hat die Höchstzahl an Hooks erreicht. Lösche einen Hook, bevor du einen weiteren hinzufügst."
+msgstr "Dieses Projekt hat die Höchstzahl an Hooks erreicht. Löschen Sie einen Hook, bevor Sie einen weiteren hinzufügen."
 
 #: apps/desktop/src/components/StaleTabNotice.tsx
 msgid "This project is open in another tab"
@@ -21537,6 +21659,11 @@ msgstr "Diese Aufgabe darf nicht mehr automatisch starten. Prüfen Sie ihre Erla
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "This tests the form above, including unsaved changes. It reads only local project state and the text below. No action runs, no file is written and no provider is called."
 msgstr "Dieser Test prüft das Formular oben, einschließlich ungespeicherter Änderungen. Er liest nur den lokalen Projektzustand und den Text unten. Es wird keine Aktion ausgeführt, keine Datei geschrieben und kein Anbieter aufgerufen."
+
+#. Read-only MCP hooks in project Settings.
+#: apps/desktop/src/components/McpHookSettings.tsx
+msgid "This tool is no longer available for hooks. Review it in MCP & tools, then choose it again."
+msgstr "Dieses Werkzeug ist für Hooks nicht mehr verfügbar. Prüfen Sie es unter „MCP und Werkzeuge“ und wählen Sie es danach erneut aus."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting

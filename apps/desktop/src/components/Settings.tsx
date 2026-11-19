@@ -176,7 +176,7 @@ export function Settings({
               />
             ) : null}
             {section === 'writing' ? <WritingSection services={services} /> : null}
-            {section === 'hooks' ? <HookSettings session={session} /> : null}
+            {section === 'hooks' ? <HookSettings session={session} services={services} /> : null}
             {section === 'coherence' ? <CoherenceSection services={services} /> : null}
             {section === 'mcp' ? narrow ? <OpenOnDesktop feature="mcp" /> : <McpSection mcp={services.mcp} /> : null}
             {section === 'appearance' ? <AppearanceSection services={services} /> : null}
