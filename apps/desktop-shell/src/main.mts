@@ -1,13 +1,14 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { realpath } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 
 import { app, BrowserWindow, net, protocol, screen, session } from 'electron';
 
+import { registerFolderIpc } from './folders.mjs';
 const ORIGIN = 'app://caotang';
 const ENTRY = `${ORIGIN}/`;
-const BUILD = fileURLToPath(new URL('../../desktop/dist/', import.meta.url));
+const BUILD = resolve(import.meta.dirname, '../../desktop/dist');
 const CSP = [
   "default-src 'self'",
   "script-src 'self'",
@@ -70,7 +71,7 @@ async function openWindow(): Promise<void> {
     width: Math.min(availableWidth, Number.isInteger(state.width) ? Math.max(480, Number(state.width)) : 1280),
     height: Math.min(availableHeight, Number.isInteger(state.height) ? Math.max(360, Number(state.height)) : 850),
     webPreferences: {
-      preload: fileURLToPath(new URL('./preload.cjs', import.meta.url)),
+      preload: join(import.meta.dirname, 'preload.cjs'),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
@@ -95,7 +96,8 @@ async function openWindow(): Promise<void> {
 
 async function start(): Promise<void> {
   await serveBuild();
-  const allowed = (permission: string): boolean => permission === 'fileSystem' || permission === 'clipboard-sanitized-write';
+  await registerFolderIpc(app.getPath('userData'), ENTRY);
+  const allowed = (permission: string): boolean => permission === 'clipboard-sanitized-write';
   session.defaultSession.setPermissionCheckHandler((contents, permission, origin) => (
     contents?.getURL() === ENTRY && origin === ORIGIN && allowed(permission)
   ));

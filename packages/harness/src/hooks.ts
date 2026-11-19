@@ -117,7 +117,7 @@ export const WRITTEN_TEXT: Readonly<Record<string, WrittenText>> = {
   'export.compile': { read: [], skip: ['selection.root', 'template', 'recipeName'] },
   'codex.write': {
     read: ['entries[].name', 'entries[].aliases[]', 'entries[].description'],
-    skip: ['entries[].id', 'entries[].exclude[]', 'entries[].attachTo[]', 'entries[].detachFrom[]', 'entries[].visualRefs[]'],
+    skip: ['entries[].id', 'entries[].type', 'entries[].exclude[]', 'entries[].attachTo[]', 'entries[].detachFrom[]', 'entries[].visualRefs[]'], // The bus only accepts a built-in or already-declared type, so this selects vocabulary rather than writing prose.
   },
   'doc.import': { read: ['title', 'body', 'synopsis'], skip: ['parent', 'keywords[]', 'status', 'label'] },
   'codex.import': { read: ['entries[].name', 'entries[].aliases[]', 'entries[].description'], skip: ['entries[].exclude[]', 'entries[].attachTo[]'] },

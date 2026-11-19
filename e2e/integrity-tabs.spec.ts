@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { RUNTIME_DB_VERSION, ZIP_ENGINE } from '../packages/store/src/index.js';
+import { MAX_RUNTIME_DB_VERSION, ZIP_ENGINE } from '../packages/store/src/index.js';
 
 import { binderTitle, bodyOf, createProject, FOLDER_ACCESS_ONLY, idOf, projectIdOf, waitForSaved } from './support.js';
 
@@ -300,7 +300,7 @@ test('a store another tab has upgraded stops this tab, and the words typed after
         };
         request.onerror = () => reject(request.error);
       }),
-    RUNTIME_DB_VERSION + 1,
+    MAX_RUNTIME_DB_VERSION + 1,
   );
 
   await page.getByRole('textbox', { name: 'Document text' }).click();

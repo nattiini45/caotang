@@ -41,7 +41,7 @@ import {
 } from './paths.js';
 import { createEmptyManifest } from './create.js';
 import { createProjectState, type ProjectState } from './state.js';
-import { importAgentFiles, importOrphanCodex, importOrphanDocuments, importSkills, readProject, type LoadNotice } from './read.js';
+import { ProjectRefusedError, importAgentFiles, importOrphanCodex, importOrphanDocuments, importSkills, readProject, type LoadNotice } from './read.js';
 import type { EncodingIssue } from './encoding.js';
 import { PRODUCTION_FORMAT, type FormatContext } from './migrations.js';
 import { writeProject, type WriteReport } from './write.js';
@@ -121,7 +121,7 @@ const REBUILD_LOSS: readonly string[] = [
   'Node notes, sibling order and parent links: front matter carries node-local metadata only (project-format §3), never structure.',
 ];
 
-/** Read and fully load one candidate manifest. Any failure means "try the next one". */
+/** Read and fully load one candidate; refusal of the primary is not damage. */
 async function tryLoad(
   fs: ArtifactFs,
   path: string,
@@ -137,7 +137,8 @@ async function tryLoad(
   try {
     const result = await readProject(fs, { manifestText: text, manifestPath: path, now, format });
     return { result, text };
-  } catch {
+  } catch (error) {
+    if (path === MANIFEST_FILE && error instanceof ProjectRefusedError) throw error;
     return undefined;
   }
 }

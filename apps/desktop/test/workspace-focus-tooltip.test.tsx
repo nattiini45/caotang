@@ -27,8 +27,10 @@ describe('the Focus button’s tooltip', () => {
   it('reads the keyboard layout through the same store subscription as EditorPane', () => {
     expect(workspace).toContain('useSyncExternalStore(keyboardLayoutStore.subscribe, keyboardLayoutStore.snapshot)');
     expect(workspace).toContain("keyboardLayoutStore, resolveKey } from '../app/keymap.js'");
-    // The layout reaches the shell actions as one of their facts.
-    expect(workspace).toContain('folderPicker: folderAccessSupported(), keyboardLayout }');
+    // The layout reaches the shell actions as one of their facts, beside the folder-picker capability — the browser
+    // picker only where the app has no native folders (#402).
+    expect(workspace).toContain('const browserFolderPicker = !nativeFoldersAvailable() && folderAccessSupported();');
+    expect(workspace).toContain('folderPicker: browserFolderPicker, keyboardLayout }');
   });
 
   it('keeps the visible Focus copy and the pressed state', () => {

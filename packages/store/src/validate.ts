@@ -26,6 +26,7 @@ import {
 } from './manifest.js';
 import {
   FIRST_FORMAT_VERSION,
+  migrationTarget,
   PRODUCTION_FORMAT,
   runMigrations,
   type AppliedMigration,
@@ -41,6 +42,7 @@ import type {
   GoalKindParam,
   GoalMetricParam,
 } from '@caotang/bus';
+import { CODEX_DETAIL_FIELDS_MAX, CODEX_DETAIL_FIELDS_PER_TYPE_MAX, isCodexDetailObject, readCodexDetailField, type CodexDetailField } from '@caotang/bus';
 import { isGeneratedId, isIdWithPrefix } from '@caotang/ids';
 import { readAssetLinks, readAssetRecords, validateLinkSet } from '@caotang/pictures';
 import { parseRules } from './agent-rules.js';
@@ -378,8 +380,9 @@ function validateFields(
   // project untouched", which is an abort rather than a field complaint.
   let source: Record<string, unknown> = input;
   let migrations: readonly AppliedMigration[] = [];
-  if (version < format.current) {
-    const result = runMigrations(format.registry, input, format.current);
+  const target = migrationTarget(format);
+  if (version < target) {
+    const result = runMigrations(format.registry, input, target);
     source = result.manifest;
     migrations = result.applied;
   }
@@ -727,7 +730,8 @@ function validateFields(
   // `dropDanglingAttachments` already runs over the whole codex once, after the
   // imports, which is the only point at which the answer is knowable. One
   // implementation, in the one place the question has an answer.
-  validateCodex(source.codex, { fatal, warn });
+  const detailFields = validateCodexDetailFields(source, warn);
+  validateCodex(source.codex, { fatal, warn }, new Set(detailFields.map((field) => field.type)));
 
   // Step 3 — the furniture the author's own saved work lives in: `filters[]`
   // (binder-filters §4) and `goals[]` (goals-progress §2.2/§3). Both are
@@ -808,12 +812,37 @@ function validateFields(
  * strict half. Two limits (2000 description, 32 × 64 keywords) are shared with
  * the bus rather than retyped; see the module header.
  */
+function validateCodexDetailFields(source: Record<string, unknown>, warn: (path: string, message: string) => void): CodexDetailField[] {
+  const raw = source.codexDetailFields;
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) {
+    warn('codexDetailFields', 'expected a list of detail definitions; ignored');
+    delete source.codexDetailFields;
+    return [];
+  }
+  const fields: CodexDetailField[] = [];
+  for (const [i, value] of raw.entries()) {
+    const field = readCodexDetailField(value);
+    const peers = field === undefined ? [] : fields.filter((candidate) => candidate.type === field.type);
+    if (field === undefined || peers.some((candidate) => candidate.key === field.key) ||
+        fields.length >= CODEX_DETAIL_FIELDS_MAX || peers.length >= CODEX_DETAIL_FIELDS_PER_TYPE_MAX) {
+      warn(`codexDetailFields[${i}]`, 'invalid, duplicate or over-limit detail definition; ignored');
+    } else {
+      fields.push(field);
+    }
+  }
+  if (fields.length === 0) delete source.codexDetailFields;
+  else source.codexDetailFields = fields;
+  return fields;
+}
+
 function validateCodex(
   raw: unknown,
   sink: {
     fatal: (path: string, message: string) => void;
     warn: (path: string, message: string) => void;
   },
+  declaredTypes: ReadonlySet<string>,
 ): void {
   const { fatal, warn } = sink;
   if (raw === undefined) return;
@@ -990,7 +1019,7 @@ function validateCodex(
     // user sees, and a value nobody is told about is a value nobody can fix.
     const type = coerceType(entryNode.type);
     if (typeof entryNode.type === 'string' && entryNode.type !== '') {
-      if (!(CODEX_TYPES as readonly string[]).includes(entryNode.type)) {
+      if (!(CODEX_TYPES as readonly string[]).includes(entryNode.type) && !declaredTypes.has(entryNode.type)) {
         warn(
           `${at}.type`,
           `"${entryNode.type}" is not a v0.1 codex type; kept as-is and shown as an unknown-type chip (v0.1: ${CODEX_TYPES.join(', ')})`,
@@ -1073,6 +1102,16 @@ function validateCodex(
     // --- visualRefs -------------------------------------------------------
     // video-prompt-pack.md §3: asset ids. Shape only here. A reference to a file that is not in `assets/` is kept, not dropped: the
     // pack and the codex panel report it as missing (only the host can list that folder, and the writer fixes it there).
+    const details = entryNode.details;
+    if (details !== undefined && (!isCodexDetailObject(details) || jsonValueProblem(details) !== undefined)) {
+      warn(`${at}.details`, 'expected a JSON object; details were ignored');
+      delete entryNode.details;
+    }
+    const references = entryNode.references;
+    if (references !== undefined && (!Array.isArray(references) || jsonValueProblem(references) !== undefined)) {
+      warn(`${at}.references`, 'expected a JSON list; external references were ignored');
+      delete entryNode.references;
+    }
     const visualRefs = entryNode.visualRefs;
     if (visualRefs !== undefined) {
       if (!Array.isArray(visualRefs)) {
@@ -1688,8 +1727,7 @@ export interface ValidateOptions {
   /**
    * Which steps this build knows, and which version it is at. Defaults to
    * {@link PRODUCTION_FORMAT}; the substitution exists so §6's migration branch
-   * can be reached in a test while `FORMAT_VERSION` is still 1, and nothing in
-   * this package passes anything else.
+   * can be reached in a test without changing what production accepts.
    */
   format?: FormatContext;
 }

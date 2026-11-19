@@ -8,6 +8,8 @@
  */
 
 import type { CommandError, Result } from './result.js';
+import type { CodexDetailChanges, CodexDetailField } from './codex-details.js';
+import type { CodexReferenceEdit } from './codex-references.js';
 import type { ActivityReport } from './activity-log.js';
 import type { CoherenceStatusName, ScenePatch, SceneMetaRecord } from './coherence.js';
 import type {
@@ -322,6 +324,7 @@ export interface ValidationCodexEntry {
   readonly sources?: readonly { readonly docId: string }[];
   /** The asset ids of the entry's visual references (video-prompt-pack.md §3). A use of each picture. */
   readonly visualRefs?: readonly string[] | undefined;
+  readonly references?: readonly unknown[];
 }
 
 export interface ValidationDocument {
@@ -374,6 +377,7 @@ export interface ValidationSnapshot {
     };
     /** additive in v1 — absent = empty codex (project-format §2) */
     readonly codex?: readonly ValidationCodexEntry[];
+    readonly codexDetailFields?: readonly CodexDetailField[];
     /**
      * The saved export recipes (exporter.md §2). Additive in v1, so absent means none. Only the name and the nodes a
      * recipe selects are read here, for the refusals `recipe.save` and `recipe.delete` make.
@@ -920,6 +924,8 @@ export type CodexUpsertOp = {
   sources?: CodexSourceCitation[];
   /** video-prompt-pack.md §3: the asset ids of the entry's visual references. An update replaces the list. */
   visualRefs?: string[];
+  details?: CodexDetailChanges;
+  referenceEdits?: CodexReferenceEdit[];
 };
 
 /*
@@ -987,7 +993,7 @@ export type EditorReplaceRangeParams = {
   expectedRevision?: number;
 };
 
-export type CodexUpsertParams = { entries: CodexUpsertOp[] };
+export type CodexUpsertParams = { entries: CodexUpsertOp[]; detailField?: CodexDetailField };
 
 export type CodexAttachParams = { entryId: string; attachTo: string[]; detachFrom: string[] };
 

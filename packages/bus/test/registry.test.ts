@@ -199,6 +199,7 @@ const PARAM_SAMPLE: Record<string, unknown> = {
   range: { from: 0, to: 0 },
   patch: { status: 'draft', label: 'act-1', keywords_add: ['sea'], keywords_remove: ['grief'], style: 'section' },
   entries: [{ action: 'create', name: 'Someone New' }],
+  detailField: { type: 'character', key: 'role', label: 'Role', kind: 'text' },
   attachTo: [CHAPTER_ONE],
   detachFrom: [],
   includeRootIds: [MANUSCRIPT],

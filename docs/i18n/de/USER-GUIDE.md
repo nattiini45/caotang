@@ -315,11 +315,21 @@ Ein Comic kann ein Skript haben, ein Dokument, das Caotang nach Wahl mit dem Buc
 Zum Exportieren wählen Sie den Comic oder eine seiner Seiten und dann **Kompilieren…**. **Comic-PDF (.pdf)** bietet **Anschnitt**, **Schnittmarken** und **Papierrahmen**. **Comic-Archiv (.cbz)** und **Comic-EPUB (.epub)** verwenden den Rasterizer des Browsers; ein Kommandozeilen- oder MCP-Host verweigert diese beiden vor dem Schreiben und weist Sie an, aus der App heraus zu exportieren. Jedes Format folgt der eigenen Leserichtung des Comics, daher setzt kein Exportprofil sie fest.
 
 ## Der Kodex
-<!-- source: 0af900f6 -->
+<!-- source: 4fc12b1e -->
 
 Der Kodex ist Ihr Nachschlagewerk: Figuren, Orte, Gegenstände, Überlieferung, Nebenhandlungen und alles andere, was der Agent wissen sollte. Öffnen Sie ihn über die Registerkarte **Kodex** auf der linken Seite. Wählen Sie **Neuer Eintrag**, um einen hinzuzufügen, oder tippen Sie in das Suchfeld, um einen zu finden.
 
 Jeder Eintrag hat einen Namen, optionale Aliasnamen (**Alias hinzufügen und Eingabetaste drücken**), einen Typ (**Figur**, **Ort**, **Gegenstand**, **Überlieferung**, **Nebenhandlung** oder **Sonstiges**), eine Beschreibung mit bis zu 2.000 Zeichen, eine Einschlussrichtlinie, **Ausschlussbegriffe** (ein Treffer darin wird ignoriert) und die Dokumente, an die er angehängt ist.
+
+Wählen Sie unter **Details** die Option **Detailfeld hinzufügen**. Geben Sie dem Feld eine Bezeichnung, einen Schlüssel (zum Beispiel `sendetermin`) und einen Werttyp: Text, Zahl, Datum oder Ja/Nein. Verwenden Sie den aktuellen Eintragstyp oder geben Sie einen neuen Typnamen ein, um ihn diesem Eintrag zuzuweisen. Alle Einträge dieses Typs erhalten dasselbe Feld, behalten aber ihre eigenen Werte. Ein leerer Wert leert das Feld. Details werden nicht automatisch an das Modell gesendet.
+
+Ein Projektordner oder Projektpaket, das mit diesen Feldern gespeichert wird, verwendet das Projektformat v2. Wenn eine ältere Caotang-Version das Projekt nicht öffnet, verwenden Sie eine Version, die v2 unterstützt. Projekte im Format v1 lassen sich weiterhin ohne Umstellung öffnen und speichern.
+
+Wenn Sie diese Felder im Browser speichern, wird auch der Projektspeicher des Browsers aktualisiert. Danach können ältere Versionen keine Projekte mehr in diesem Browser öffnen. In Browsern, in denen Sie diese Felder nie gespeichert haben, können Sie Projekte weiterhin mit einer älteren Version öffnen.
+
+Wählen Sie unter **Externe Quellen** die Option **Quelle hinzufügen**, um einen Artikel, ein Buch, eine Website oder eine andere Quelle außerhalb des Manuskripts festzuhalten. Geben Sie einen Titel und bei Bedarf eine Internetadresse, den Verlag, das Veröffentlichungsdatum oder ein Zitat ein. Caotang öffnet einen Link erst, wenn Sie ihn auswählen. Externe Quellen ändern nichts an den Manuskriptstellen, auf die sich der Eintrag stützt, und werden nicht automatisch an das Modell gesendet.
+
+Ein Eintrag mit einer externen Quelle hebt das Projekt auf Projektformat v3, und das erste Speichern im Browser aktualisiert den Projektspeicher des Browsers erneut. Eine ältere Caotang-Version lehnt solche Projekte dann ab, statt die Quellen zu verlieren; Projekte ohne externe Quellen behalten ihr bisheriges Format.
 
 Die Einschlussrichtlinie legt fest, wann der Agent einen Eintrag sieht:
 

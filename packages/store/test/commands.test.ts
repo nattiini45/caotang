@@ -72,13 +72,17 @@ import {
 import {
   addDocument,
   addFolder,
+  codexFile,
   createEmptyManifest,
   createProjectCommandRegistry,
   createProjectState,
+  MemoryArtifactFs,
   nodeById,
+  readProject,
   removeNode,
   setBody,
   validateManifest,
+  writeProject,
   type ProjectState,
 } from '../src/index.js';
 
@@ -217,6 +221,72 @@ function harness(permission?: BusContext<ProjectState>['permission']): Harness {
     },
   };
 }
+
+describe('codex detail storage', () => {
+  it('defines a custom type and preserves known and unknown details through a save and orphan recovery', async () => {
+    const h = harness();
+    const entry = h.state.manifest.codex?.find(({ id }) => id === ENTRY);
+    if (entry === undefined) throw new Error('missing fixture entry');
+    entry.details = { futureField: ['retain', { version: 2 }] };
+    const definition = h.run(cmd({ name: 'codex.upsert', params: {
+      detailField: { type: 'Guest', key: 'role', label: 'Role', kind: 'text' },
+      entries: [{ action: 'update', id: ENTRY, type: 'Guest', details: { role: 'Host' } }],
+    } }));
+
+    const state = createProjectState(createEmptyManifest('Codex fixture', OPENED));
+    const diskId = 'c_0000000001';
+    state.manifest.codex = [{ ...entry, id: diskId, attachments: [], sources: [] }];
+    if (h.state.manifest.codexDetailFields === undefined) throw new Error('missing written definition');
+    state.manifest.codexDetailFields = h.state.manifest.codexDetailFields;
+    const fs = new MemoryArtifactFs();
+    await writeProject(fs, state);
+    const loaded = await readProject(fs);
+    expect(loaded.state.manifest.codexDetailFields).toEqual([{ type: 'Guest', key: 'role', label: 'Role', kind: 'text' }]);
+    expect(loaded.state.manifest.codex?.find(({ id }) => id === diskId)?.details).toEqual({ futureField: ['retain', { version: 2 }], role: 'Host' });
+    expect(loaded.report.warnings.some((warning) => warning.path.endsWith('.type'))).toBe(false);
+    const orphan = new MemoryArtifactFs();
+    await writeProject(orphan, createProjectState(createEmptyManifest('Recovery fixture', OPENED)));
+    orphan.putFile(codexFile(diskId), await fs.read(codexFile(diskId)));
+    expect((await readProject(orphan)).state.manifest.codex?.[0]?.details).toEqual(entry.details);
+
+    h.undoGroup(definition.undoGroupId ?? '');
+    expect(h.state.manifest.codexDetailFields).toBeUndefined();
+    expect(entry.type).toBe('character');
+    expect(entry.details).toEqual({ futureField: ['retain', { version: 2 }] });
+  });
+});
+
+describe('codex references', () => {
+  it('keeps unknown records and per-record keys on edit, write, read and recovery', async () => {
+    const h = harness();
+    const entry = h.state.manifest.codex?.find(({ id }) => id === ENTRY);
+    if (entry === undefined) throw new Error('missing fixture entry');
+    const ref = { id: 'ref_0000000001', title: 'Tide Tables', publisher: 'Gull Press', future: { edition: 2 } };
+    entry.references = [ref, { futureRecord: true }];
+    const outcome = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: ENTRY, referenceEdits: [{ action: 'update', id: ref.id, publisher: null, date: '2001-01-12' }],
+    }] } }));
+    expect(entry.references).toEqual([{ id: ref.id, title: 'Tide Tables', date: '2001-01-12', future: { edition: 2 } }, { futureRecord: true }]);
+
+    const state = createProjectState(createEmptyManifest('Reference fixture', OPENED));
+    const diskId = 'c_0000000001';
+    const sceneId = 'n_0000000001';
+    addDocument(state, { parentId: 'manuscript', title: 'Scene', body: 'Fenn', now: OPENED, id: sceneId });
+    const sources = [{ docId: sceneId, quote: 'Fenn', from: 0, to: 4, extractedAt: OPENED.toISOString() }];
+    state.manifest.codex = [{ ...entry, id: diskId, origin: 'import', sources, attachments: [sceneId] }];
+    const fs = new MemoryArtifactFs();
+    await writeProject(fs, state);
+    const loaded = await readProject(fs);
+    expect(loaded.state.manifest.codex?.[0]).toMatchObject({ references: entry.references, origin: 'import', sources });
+
+    const orphan = new MemoryArtifactFs();
+    await writeProject(orphan, createProjectState(createEmptyManifest('Recovery fixture', OPENED)));
+    orphan.putFile(codexFile(diskId), await fs.read(codexFile(diskId)));
+    expect((await readProject(orphan)).state.manifest.codex?.[0]?.references).toEqual(entry.references);
+    h.undoGroup(outcome.undoGroupId ?? '');
+    expect(entry.references).toEqual([ref, { futureRecord: true }]);
+  });
+});
 
 let ordinal = 0;
 function cmd(partial: Partial<Command> & Pick<Command, 'name' | 'params'>): Command {

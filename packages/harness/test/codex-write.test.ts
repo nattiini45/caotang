@@ -16,6 +16,85 @@ function entryOf(state: ReturnType<typeof makeState>, id: string) {
 }
 
 describe('codex.write', () => {
+  it('validates external references without changing the entry’s provenance', () => {
+    const state = makeState();
+    const entry = entryOf(state, ENTRY);
+    const before = { origin: entry.origin, sources: structuredClone(entry.sources) };
+    const harness = makeHarness({}, state);
+    const outcome = valueOf(run(harness, 'codex.write', {
+      entries: [{ action: 'update', id: ENTRY, referenceEdits: [{
+        action: 'create', title: 'The Tidemaker', url: 'https://example.org/tides', publisher: 'Gull Press',
+        date: '2024-02-29', quote: 'The harbour keeps a separate tide log.',
+      }] }],
+    }, { permission: CONFIRMED }));
+    expect(entry).toMatchObject(before);
+    expect(entry.references).toEqual([expect.objectContaining({
+      id: expect.stringMatching(/^ref_/), title: 'The Tidemaker', publisher: 'Gull Press',
+    })]);
+    expect(outcome.data['diffs']).toEqual([expect.objectContaining({
+      changes: [expect.objectContaining({ field: 'references', to: expect.stringContaining('The Tidemaker') })],
+    })]);
+    const refused = refusalOf(run(harness, 'codex.write', { entries: [
+      { action: 'update', id: ENTRY, referenceEdits: [{ action: 'create', title: 'A refused link', url: 'data:text/plain,no' }] },
+    ] }, { permission: CONFIRMED }));
+    expect(refused.details?.failures?.[0]?.message).toContain('url must be an HTTP or HTTPS address without credentials');
+    expect(entry.references).toHaveLength(1);
+    harness.undo.undo(outcome.undoGroupId ?? '');
+    expect(entry.references).toBeUndefined();
+    expect(entry).toMatchObject(before);
+  });
+
+  it('validates a custom entry’s detail values by key without losing other saved detail values', () => {
+    const state = makeState();
+    const entry = entryOf(state, ENTRY);
+    entry.type = 'Guest';
+    entry.details = { futureValue: { keep: true } };
+    state.manifest.codexDetailFields = [{ type: 'Guest', key: 'episode', label: 'Episode', kind: 'number' }];
+    const harness = makeHarness({}, state);
+    const before = snapshotOf(state);
+    const bad = refusalOf(run(harness, 'codex.write', { entries: [{ action: 'update', id: ENTRY, details: { episode: 'one' } }] }, { permission: CONFIRMED }));
+    expect(bad.details?.failures?.[0]?.message).toContain('details field "episode"');
+    expect(snapshotOf(state)).toBe(before);
+    const outcome = valueOf(run(harness, 'codex.write', { entries: [{ action: 'update', id: ENTRY, details: { episode: 1 } }] }, { permission: CONFIRMED }));
+    expect(entry.details).toEqual({ futureValue: { keep: true }, episode: 1 });
+    expect(outcome.data['diffs']).toEqual([expect.objectContaining({ changes: [{ field: 'details.episode', from: 'null', to: '1' }] })]);
+    harness.undo.undo(outcome.undoGroupId ?? '');
+    expect(snapshotOf(state)).toBe(before);
+  });
+
+  it('validates detail values on create and clears only the named detail on update', () => {
+    const state = makeState();
+    state.manifest.codexDetailFields = [
+      { type: 'Guest', key: 'debut', label: 'Debut', kind: 'date' },
+      { type: 'Guest', key: 'narrator', label: 'Narrator', kind: 'boolean' },
+    ];
+    const harness = makeHarness({}, state);
+    const bad = refusalOf(run(harness, 'codex.write', {
+      entries: [{ action: 'create', type: 'Guest', name: 'Neri', details: { debut: '2025-02-29' } }],
+    }, { permission: CONFIRMED }));
+    expect(bad.details?.failures?.[0]?.message).toContain('details field "debut"');
+    const outcome = valueOf(run(harness, 'codex.write', {
+      entries: [{ action: 'create', type: 'Guest', name: 'Neri', details: { debut: '2024-02-29', narrator: false } }],
+    }, { permission: CONFIRMED }));
+    const [id] = outcome.data['created'] as string[];
+    expect(entryOf(state, id ?? '').type).toBe('Guest');
+    expect(entryOf(state, id ?? '').details).toEqual({ debut: '2024-02-29', narrator: false });
+    valueOf(run(harness, 'codex.write', {
+      entries: [{ action: 'update', id, details: { debut: null } }],
+    }, { permission: CONFIRMED }));
+    expect(entryOf(state, id ?? '').details).toEqual({ narrator: false });
+  });
+
+  it('does not stamp an update whose only field is an empty detail patch', () => {
+    const state = makeState();
+    const before = snapshotOf(state);
+    const outcome = valueOf(run(makeHarness({}, state), 'codex.write', {
+      entries: [{ action: 'update', id: ENTRY, details: {} }],
+    }, { permission: CONFIRMED }));
+    expect(outcome.undoGroupId).toBeUndefined();
+    expect(snapshotOf(state)).toBe(before);
+  });
+
   it('creates an entry attached to a node, and undoes it back to the byte-identical prior codex', () => {
     const state = makeState();
     const harness = makeHarness({}, state);

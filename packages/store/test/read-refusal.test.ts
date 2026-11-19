@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  FORMAT_VERSION,
   KNOWN_NODE_KEYS,
   MANIFEST_FILE,
   MemoryArtifactFs,
@@ -49,11 +50,11 @@ describe('a manifest this build refuses to open is refused, not rebuilt', () => 
   it('refuses a caotang.json in a format newer than this build, and names the newer Caotang', async () => {
     const fs = await folderWithDocument();
     await editManifest(fs, (manifest) => {
-      manifest.formatVersion = 2;
+      manifest.formatVersion = FORMAT_VERSION + 1;
     });
     const refused = readProject(fs);
     await expect(refused).rejects.toBeInstanceOf(ProjectRefusedError);
-    await expect(refused).rejects.toThrow('format version 2');
+    await expect(refused).rejects.toThrow(`format version ${FORMAT_VERSION + 1}`);
     await expect(refused).rejects.toThrow('newer Caotang');
     await expect(refused).rejects.toThrow('Nothing was written');
   });
@@ -84,6 +85,9 @@ describe('a manifest this build refuses to open is refused, not rebuilt', () => 
 
   it('a manifest in this build’s own format loads', async () => {
     const fs = await folderWithDocument();
+    await editManifest(fs, (manifest) => {
+      manifest.formatVersion = FORMAT_VERSION;
+    });
     const loaded = await readProject(fs);
     expect(loaded.state.documents.get(KEPT)?.body).toBe('The ferry was late.');
   });

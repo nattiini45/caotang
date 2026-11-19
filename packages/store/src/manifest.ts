@@ -6,7 +6,7 @@
  * unknown-tolerant rules that make them safe.
  */
 
-import type { ProjectHook, ProjectMacro, RecipeScriptFont, SceneNumbersOption } from '@caotang/bus';
+import type { CodexDetailField, ProjectHook, ProjectMacro, RecipeScriptFont, SceneNumbersOption } from '@caotang/bus';
 
 import type { AssetRecord, ReadAssetLink, ReadAssetRecord } from '@caotang/pictures';
 
@@ -15,7 +15,18 @@ import type { PermissionRule } from './agent-rules.js';
 export type { AssetRecord, ProjectHook, ProjectMacro };
 
 export const APP_ID = 'caotang';
-export const FORMAT_VERSION = 1;
+export const CODEX_DETAILS_FORMAT_VERSION = 2;
+export const CODEX_REFERENCES_FORMAT_VERSION = 3;
+export const FORMAT_VERSION = CODEX_REFERENCES_FORMAT_VERSION;
+
+export function requiredManifestVersion(manifest: Manifest): number {
+  if (manifest.codex?.some((entry) => (entry.references?.length ?? 0) > 0)) {
+    return Math.max(manifest.formatVersion, CODEX_REFERENCES_FORMAT_VERSION);
+  }
+  const hasDetails = (manifest.codexDetailFields?.length ?? 0) > 0
+    || manifest.codex?.some((entry) => entry.details !== undefined);
+  return hasDetails ? Math.max(manifest.formatVersion, CODEX_DETAILS_FORMAT_VERSION) : manifest.formatVersion;
+}
 
 /** Fixed roots, reserved and not deletable. */
 export const FIXED_ROOT_IDS = ['root', 'manuscript', 'research'] as const;
@@ -229,6 +240,8 @@ export interface CodexEntry {
    * mentions this entry. Additive in format v1; absent reads as none, and the serializer omits the key when there are none.
    */
   visualRefs?: string[];
+  details?: Record<string, unknown>;
+  references?: unknown[];
   /** additive (codex.md §10 K4) — missing on load = 'manual' */
   origin: 'manual' | 'agent' | 'import';
   sources: CodexSource[];
@@ -306,6 +319,7 @@ export interface Manifest {
   derived: Derived;
   /** additive in v1; absent = empty codex */
   codex?: CodexEntry[];
+  codexDetailFields?: CodexDetailField[];
   /** additive in v1 (binder-filters.md); absent = no saved queries */
   filters?: SavedFilter[];
   /** additive in v1 (goals-progress.md); absent = no goals */

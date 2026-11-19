@@ -31,6 +31,15 @@
 
 import { err, ok, type CommandError, type Result } from './result.js';
 import { PUBLISH_FIELD_NAMES, SCENE_STYLES } from './command.js';
+import {
+  CODEX_DETAIL_FIELDS_MAX,
+  CODEX_DETAIL_FIELDS_PER_TYPE_MAX,
+  isCodexDetailObject,
+  matchesCodexDetail,
+  readCodexDetailField,
+  type CodexDetailField,
+} from './codex-details.js';
+import { CODEX_REFERENCE_MAX, codexReferenceId, referenceEditProblem } from './codex-references.js';
 import type {
   McpInvokeParams,
   McpReadResourceParams,
@@ -339,6 +348,8 @@ const CODEX_OP_KEYS = [
   'sources',
   // The asset ids an entry's pack references carry (video-prompt-pack.md §3, A5). An update replaces the list, as `aliases` does.
   'visualRefs',
+  'details',
+  'referenceEdits',
 ] as const;
 
 function narrowCodexOp(op: Record<string, unknown>): CodexUpsertOp {
@@ -1206,6 +1217,9 @@ function validateCodexOp(
   target: string,
   failures: PerOpFailure[],
   projectNames: Map<string, { name: string; id: string }>,
+  entryTypes: Map<string, string | undefined>,
+  detailFields: readonly CodexDetailField[],
+  references: Map<string, { ids: string[]; count: number }>,
 ): void {
   const push = <T>(refusal: Result<T, CommandError>): void => {
     if (!refusal.ok) failures.push(toPerOpFailure(target, refusal.error));
@@ -1345,8 +1359,49 @@ function validateCodexOp(
   }
 
   const type = op['type'];
-  if (type !== undefined && !CODEX_TYPES.includes(type as string)) {
+  if (type !== undefined && !CODEX_TYPES.includes(type as string) && !detailFields.some((field) => field.type === type)) {
     push(invalid(`type must be one of ${CODEX_TYPES.join(', ')}, got ${showValue(type)}`, 'v0.1 codex types are a closed enum — custom types are v0.2', 'type'));
+  }
+  const selectedType = typeof type === 'string' ? type : typeof id === 'string' ? entryTypes.get(id) : 'other';
+  if (action === 'update' && typeof id === 'string' && typeof type === 'string') entryTypes.set(id, type);
+
+  const details = op['details'];
+  if (details !== undefined) {
+    if (!isCodexDetailObject(details)) {
+      push(invalid('details must be an object keyed by field name', undefined, 'details'));
+    } else {
+      for (const [key, value] of Object.entries(details)) {
+        const field = detailFields.find((candidate) => candidate.type === selectedType && candidate.key === key);
+        if (field === undefined) {
+          push(invalid(`details field "${key}" is not defined for type "${selectedType ?? 'other'}"`, undefined, `details.${key}`));
+        } else if (value !== null && !matchesCodexDetail(field.kind, value)) {
+          push(invalid(`details field "${key}" must be a valid ${field.kind} or null to clear it`, undefined, `details.${key}`));
+        }
+      }
+    }
+  }
+
+  const edits = op['referenceEdits'];
+  if (edits !== undefined) {
+    if (!Array.isArray(edits) || edits.length === 0 || edits.length > CODEX_REFERENCE_MAX) {
+      push(invalid(`referenceEdits must have between 1 and ${CODEX_REFERENCE_MAX} operations`, undefined, 'referenceEdits'));
+    } else {
+      const current = typeof id === 'string' ? references.get(id) : undefined;
+      const refs = { ids: [...(current?.ids ?? [])], count: current?.count ?? 0 };
+      for (const [i, edit] of edits.entries()) {
+        const problem = referenceEditProblem(edit, refs.ids, refs.count);
+        if (problem !== undefined) {
+          push(invalid(`referenceEdits[${i}] ${problem}`, undefined, `referenceEdits[${i}]`));
+          continue;
+        }
+        if (edit.action === 'create') refs.count += 1;
+        if (edit.action === 'remove') {
+          refs.count -= 1;
+          refs.ids = refs.ids.filter((candidate) => candidate !== edit.id);
+        }
+      }
+      if (typeof id === 'string') references.set(id, refs);
+    }
   }
 
   const policy = op['includePolicy'];
@@ -1511,6 +1566,21 @@ export const codexUpsert: CommandDescriptor<CodexUpsertParams> = {
   validate: (params, snapshot) => {
     const p = requireDeclaredParams('codex.upsert', params);
     if (!p.ok) return p;
+    const detailFields = snapshot.manifest.codexDetailFields ?? [];
+    const rawField = p.value['detailField'];
+    const detailField = readCodexDetailField(rawField);
+    if (rawField !== undefined && detailField === undefined) {
+      return invalid('a detail field needs a valid type, key, label and kind', undefined, 'detailField');
+    }
+    if (detailField !== undefined) {
+      const sameType = detailFields.filter((field) => field.type === detailField.type);
+      if (sameType.some((field) => field.key === detailField.key)) {
+        return invalid(`"${detailField.key}" already names a field for "${detailField.type}"`, undefined, 'detailField.key');
+      }
+      if (detailFields.length >= CODEX_DETAIL_FIELDS_MAX || sameType.length >= CODEX_DETAIL_FIELDS_PER_TYPE_MAX) {
+        return limitExceeded(`A project can hold ${CODEX_DETAIL_FIELDS_MAX} detail fields and each type can hold ${CODEX_DETAIL_FIELDS_PER_TYPE_MAX}.`, undefined, 'detailField');
+      }
+    }
     const entries = p.value['entries'];
     if (!Array.isArray(entries)) {
       return invalid(
@@ -1529,17 +1599,24 @@ export const codexUpsert: CommandDescriptor<CodexUpsertParams> = {
     // "no case-insensitive name collisions within batch **or project**" — the
     // project's existing names seed the map, so one map catches both.
     const projectNames = new Map<string, { name: string; id: string }>();
+    const entryTypes = new Map<string, string | undefined>();
+    const references = new Map<string, { ids: string[]; count: number }>();
     for (const entry of snapshot.manifest.codex ?? []) {
       projectNames.set(entry.name.toLowerCase(), { name: entry.name, id: entry.id });
+      entryTypes.set(entry.id, entry.type);
+      if (entry.references !== undefined) {
+        references.set(entry.id, { ids: entry.references.flatMap((reference) => codexReferenceId(reference) ?? []), count: entry.references.length });
+      }
     }
     const failures: PerOpFailure[] = [];
+    const fields = detailField === undefined ? detailFields : [...detailFields, detailField];
     for (const [i, op] of entries.entries()) {
-      validateCodexOp(snapshot, op, `entries[${i}]`, failures, projectNames);
+      validateCodexOp(snapshot, op, `entries[${i}]`, failures, projectNames, entryTypes, fields, references);
     }
     if (failures.length > 0) {
       return batchRefusal(failures, 'fix every listed op and resend the whole batch — nothing was written');
     }
-    return ok({ entries: entries.filter(isRecord).map(narrowCodexOp) });
+    return ok({ entries: entries.filter(isRecord).map(narrowCodexOp), ...(detailField === undefined ? {} : { detailField }) });
   },
 };
 
