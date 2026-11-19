@@ -13,6 +13,7 @@ function transpile(path: string): string {
 export function workerModules(appendToEntry = ''): { type: 'ESModule'; path: string; contents: string }[] {
   return [
     { type: 'ESModule', path: 'src/index.mjs', contents: transpile('../src/index.ts') + appendToEntry },
+    { type: 'ESModule', path: 'src/account-key-record.js', contents: transpile('../src/account-key-record.ts') },
     { type: 'ESModule', path: 'src/accounts.js', contents: transpile('../src/accounts.ts') },
     { type: 'ESModule', path: 'src/fingerprint.js', contents: transpile('../src/fingerprint.ts') },
     { type: 'ESModule', path: 'src/quota-lifecycle.js', contents: transpile('../src/quota-lifecycle.ts') },
