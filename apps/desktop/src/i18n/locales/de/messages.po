@@ -1314,6 +1314,11 @@ msgstr "{findings, plural, one {# offene Feststellung} other {# offene Feststell
 msgid "{first} and {rest} more"
 msgstr "{first} und {rest} weitere"
 
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "{forms, plural, one {# form control was removed} other {# form controls were removed}}"
+msgstr "{forms, plural, one {# Formularelement wurde entfernt} other {# Formularelemente wurden entfernt}}"
+
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "{from} → {to}"

@@ -32,7 +32,7 @@ export type HtmlError =
 export type HtmlResult = { ok: true; value: HtmlImport } | { ok: false; error: HtmlError };
 
 const HTML_EXT = /\.(html?|xhtml)$/i;
-const EMPTY_DROPPED: HtmlDropped = { scripts: 0, styles: 0, iframes: 0, eventAttrs: 0, unsafeLinks: 0 };
+const EMPTY_DROPPED: HtmlDropped = { scripts: 0, styles: 0, iframes: 0, forms: 0, eventAttrs: 0, unsafeLinks: 0 };
 
 const titleOf = (html: string, fallback: string): string => {
   const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
@@ -130,6 +130,7 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
     dropped.scripts += walked.value.dropped.scripts;
     dropped.styles += walked.value.dropped.styles;
     dropped.iframes += walked.value.dropped.iframes;
+    dropped.forms += walked.value.dropped.forms;
     dropped.eventAttrs += walked.value.dropped.eventAttrs;
     dropped.unsafeLinks += walked.value.dropped.unsafeLinks;
 

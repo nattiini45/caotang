@@ -111,6 +111,7 @@ export interface HtmlDropped {
   scripts: number;
   styles: number;
   iframes: number;
+  forms: number;
   eventAttrs: number;
   unsafeLinks: number;
 }
@@ -137,6 +138,8 @@ export interface HtmlWalkOptions {
 
 const BLOCK_TAGS = new Set(['p', 'div', 'section', 'article', 'header', 'footer', 'main', 'aside', 'blockquote', 'ul', 'ol', 'li', 'pre', 'table', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'figure', 'figcaption']);
 const DROP_TAGS = new Set(['script', 'style', 'iframe', 'noscript', 'template', 'head', 'object', 'embed', 'form', 'input', 'button', 'select', 'textarea', 'link', 'meta']);
+/** The dropped tags that are form content, counted for the report so a page's fields never leave silently. */
+const FORM_TAGS = new Set(['form', 'input', 'button', 'select', 'textarea']);
 
 /**
  * Every stylesheet the document carries: each `<style>` element and each `<link rel="stylesheet">`, in the head as well as the body.
@@ -188,6 +191,7 @@ function countDropped(root: XmlNode, dropped: HtmlDropped): void {
   const tag = root.local.toLowerCase();
   if (tag === 'script') dropped.scripts += 1;
   else if (tag === 'iframe') dropped.iframes += 1;
+  else if (FORM_TAGS.has(tag)) dropped.forms += 1;
   for (const attribute of root.attributes) if (/^on/i.test(attribute.local)) dropped.eventAttrs += 1;
   for (const child of root.children) countDropped(child, dropped);
 }
@@ -205,7 +209,7 @@ export function htmlToBlocks(html: string, options: HtmlWalkOptions = {}): HtmlW
     losses: [],
     images: new Map(),
     remoteImages: [],
-    dropped: { scripts: 0, styles: stylesheetsIn(root), iframes: 0, eventAttrs: 0, unsafeLinks: 0 },
+    dropped: { scripts: 0, styles: stylesheetsIn(root), iframes: 0, forms: 0, eventAttrs: 0, unsafeLinks: 0 },
     styles,
     unit: options.unit ?? '',
     refPrefix: options.refPrefix ?? 'import:html-image-',
@@ -334,7 +338,11 @@ function walkNode(node: XmlNode, state: WalkState, context: InlineContext, inher
       const marker = tag === 'ul' ? '- ' : `${index}. `;
       index += 1;
       const rendered = inlineText(item, state, { ...context });
-      if (rendered.md.trim() !== '') emit(marker + rendered.md.trim(), rendered.text.trim(), { ...own, ...blockStyle(item, state) });
+      if (rendered.md.trim() !== '') {
+        emit(marker + rendered.md.trim(), rendered.text.trim(), { ...own, ...blockStyle(item, state) });
+        // The list's own page break belongs to the first item it produces, not to every item; an item's own style still applies.
+        delete own.pageBreak;
+      }
     }
     return;
   }
@@ -345,7 +353,12 @@ function walkNode(node: XmlNode, state: WalkState, context: InlineContext, inher
   }
   if (tag === 'pre') {
     const text = textContent(node).trim();
-    if (text !== '') emit(`\`\`\`\n${text}\n\`\`\``, text, own);
+    if (text !== '') {
+      // A fence longer than any run of backticks inside, so the code cannot close its own fence and spill into markup.
+      const longest = (text.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length), 0);
+      const fence = '`'.repeat(Math.max(3, longest + 1));
+      emit(`${fence}\n${text}\n${fence}`, text, own);
+    }
     return;
   }
   if (tag === 'table') {

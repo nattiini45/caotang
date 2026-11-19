@@ -67,9 +67,11 @@ const EXPORT: Record<string, string | Buffer> = {
     '<h1>Chapter Two</h1><p>The letter arrived on a Tuesday.</p>' +
     '<script>alert(1)</script>' +
     '<p><img src="images/cover.png" alt="cover"/><img src="https://example.com/x.png" alt="remote"/></p>' +
+    '<p>The lamp stood by the door. <img src="images/lamp.png" alt="the lamp"/></p>' +
     '<p>The chart was lost. <img src="images/not-carried.png" alt="the chart"/></p>' +
     '</body></html>',
   'images/cover.png': PNG,
+  'images/lamp.png': PNG,
 };
 
 const choose = async (page: Page): Promise<void> => {
@@ -113,4 +115,28 @@ test('a web-page zip opens with its script removed and remote picture listed, an
   const last = await bodyOf(page, later[later.length - 1]?.id ?? '');
   expect(last).toContain('The chart was lost. the chart');
   expect(last).not.toContain('import:html-image-');
+});
+
+test('unticking Import pictures leaves no picture reference in the manuscript, an inline one included', async ({ page }) => {
+  await createProject(page, 'HTML Without Pictures');
+  await choose(page);
+
+  const dialog = page.getByRole('dialog', { name: 'Import “page.zip”' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('checkbox', { name: /Import \d+ picture/ }).uncheck();
+  await expect(dialog.getByRole('list', { name: 'What the import cannot keep' })).toContainText('Pictures are left out: Import pictures is off.');
+  await dialog.getByRole('button', { name: 'Import 2 chapters' }).click();
+  await expect(dialog).toBeHidden();
+  await waitForSaved(page);
+
+  expect((await traceNames(page)).filter((name) => name === 'binder.importTree')).toHaveLength(1);
+  const tree = await treeOf(page);
+  const two = tree.find((node) => node.title === 'Chapter Two');
+  const scenes = tree.filter((node) => node.parentId === two?.id && node.type === 'document');
+  const body = await bodyOf(page, scenes[0]?.id ?? '');
+  // The inline picture's words stay and its ref goes; the picture that was a paragraph of its own leaves whole.
+  expect(body).toContain('The lamp stood by the door. the lamp');
+  expect(body).toContain('The chart was lost. the chart');
+  expect(body).not.toContain('import:');
+  expect(body).not.toContain('![cover]');
 });

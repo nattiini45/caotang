@@ -98,10 +98,13 @@ export function pictureRefusal(bytes: Uint8Array): PictureRefusal | undefined {
   return undefined;
 }
 
-/** An inline picture whose target is one of the reader's own refs. */
-const INLINE_IMAGE = /!\[([^\]]*)\]\((import:[A-Za-z0-9._/-]+)\)/g;
+/** An inline picture whose target is one of the reader's own refs. The alt may carry escaped brackets (`\]`, `\\`), as the walker writes them. */
+const INLINE_IMAGE = /!\[((?:\\.|[^\]\\])*)\]\((import:[A-Za-z0-9._/-]+)\)/g;
 
-/** The relative target as paths to try inside the archive: its own folder first, then the archive root, `..` climbing. */
+/**
+ * The relative target as paths to try inside the archive: its own folder first, then the archive root, `..` climbing. A path that
+ * climbs above the archive root offers nothing: not beside the page, and not at the root either, even when the root carries its name.
+ */
 export function relativeCandidates(pagePath: string, target: string): readonly string[] {
   const clean = target.replace(/[?#].*$/, '');
   const parts = pagePath.split('/').slice(0, -1);
@@ -118,7 +121,8 @@ export function relativeCandidates(pagePath: string, target: string): readonly s
     }
     stack.push(piece);
   }
-  if (!above) out.push(stack.join('/'));
+  if (above) return out;
+  out.push(stack.join('/'));
   const root = walk.filter((piece) => piece !== '' && piece !== '.' && piece !== '..').join('/');
   if (root !== '' && !out.includes(root)) out.push(root);
   return out;

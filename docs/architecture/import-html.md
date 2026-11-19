@@ -17,7 +17,8 @@ The walker turns the page into the import block list (`import-core`) with the si
 
 - `h1`–`h6` become heading blocks at their level; `<hr>` becomes a scene break. A heading's `text` is the plain title the splitter
   names a chapter or scene with, while its `md` keeps the emphasis: `<h1>Chapter <em>One</em></h1>` is the title `Chapter One`.
-- Paragraphs, list items (`- ` / `1. `), blockquotes (`> `) and code blocks become Markdown paragraphs. Emphasis (`<strong>`/`<b>`,
+- Paragraphs, list items (`- ` / `1. `), blockquotes (`> `) and code blocks become Markdown paragraphs. A code block's fence is
+  longer than any run of backticks inside it, so the code cannot close its own fence. Emphasis (`<strong>`/`<b>`,
   `<em>`/`<i>`) and inline code render as Markdown. **Literal prose stays literal**: a text node's `\`, backtick, `*`, `_`, `[`, `]`
   and `<` are escaped, and a paragraph that would begin with `#`, `>`, `-`, `+` or a list number has that marker escaped, so
   `Use *literal* syntax` and `[link](https://example.test)` are the writer's words and not markup. Each block carries the unescaped

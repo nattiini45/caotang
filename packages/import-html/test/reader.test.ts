@@ -106,6 +106,33 @@ describe('the HTML reader (#299)', () => {
     expect(md).not.toContain('import:html-image-0-0');
   });
 
+  it('keeps the words of an unresolved picture whose alt carries a bracket, escaped as the walker writes it', () => {
+    const read = readHtmlFile(enc('<html><body><p>The chart. <img src="missing.png" alt="a]b"/></p></body></html>'), 'page.html');
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const md = read.value.document.blocks.map((block) => ('md' in block ? block.md : '')).join('\n');
+    expect(md).toContain('The chart. a\\]b');
+    expect(md).not.toContain('import:html-image-');
+    const loss = read.value.document.losses?.find((held) => held.code === 'image-unreadable');
+    expect(loss?.message).toContain('missing.png');
+  });
+
+  it('refuses a picture path that climbs above the archive, even when the root carries its name', async () => {
+    const read = await readHtmlArchive(archiveOf({
+      'page.html': '<html><body><p>The map. <img src="../secret.png" alt="the secret"/></p></body></html>',
+      'secret.png': pngOf(1, 1, 9),
+    }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.assetData.size).toBe(0);
+    expect(read.value.document.assets).toEqual([]);
+    const md = read.value.document.blocks.map((block) => ('md' in block ? block.md : '')).join('\n');
+    expect(md).toContain('The map. the secret');
+    expect(md).not.toContain('import:html-image-');
+    const loss = read.value.document.losses?.find((held) => held.code === 'image-unreadable');
+    expect(loss?.message).toContain('../secret.png');
+  });
+
   it('a lone page keeps the words of every relative picture it cannot resolve, and names them', () => {
     const read = readHtmlFile(enc('<html><body><p>One. <img src="images/missing.png" alt="the map"/></p><img src="other.png" alt="the lamp"/></body></html>'), 'page.html');
     expect(read.ok).toBe(true);
@@ -119,6 +146,17 @@ describe('the HTML reader (#299)', () => {
     expect(loss?.count).toBe(2);
     expect(loss?.message).toContain('images/missing.png');
     expect(loss?.message).toContain('other.png');
+  });
+
+  it('counts form controls across the pages of a web-page zip', async () => {
+    const read = await readHtmlArchive(archiveOf({
+      'one.html': '<html><body><form><input name="a"/></form><p>One.</p></body></html>',
+      'two.html': '<html><body><button>Go</button><p>Two.</p></body></html>',
+    }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.dropped.forms).toBe(3);
+    expect(JSON.stringify(read.value.document.blocks)).not.toContain('Go');
   });
 
   it('refuses an archive with no HTML page', async () => {

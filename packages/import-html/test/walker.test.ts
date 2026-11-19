@@ -179,6 +179,38 @@ describe('the XHTML walker (#299)', () => {
     expect(blocks[1]?.kind === 'para' && blocks[1].src?.pageBreakBefore).toBeUndefined();
   });
 
+  it('gives a list’s page break to its first item only, and an item’s own break still applies', () => {
+    const { blocks } = walk('<ul style="page-break-before:always"><li>one</li><li>two</li><li style="page-break-before:always">three</li></ul>');
+    expect(blocks[0]?.kind === 'para' && blocks[0].src?.pageBreakBefore).toBe(true);
+    expect(blocks[1]?.kind === 'para' && blocks[1].src?.pageBreakBefore).toBeUndefined();
+    expect(blocks[2]?.kind === 'para' && blocks[2].src?.pageBreakBefore).toBe(true);
+    // An empty first item does not take the break: the first item with words does.
+    const empty = walk('<ol style="page-break-before:always"><li></li><li>first words</li></ol>');
+    expect(empty.blocks[0]?.kind === 'para' && empty.blocks[0].src?.pageBreakBefore).toBe(true);
+    expect(empty.blocks[0]?.kind === 'para' && empty.blocks[0].text).toBe('first words');
+  });
+
+  it('fences a code block longer than any backtick run inside it, so the code cannot close its own fence', () => {
+    const plain = walk('<pre>let x = 1;</pre>');
+    expect(plain.blocks[0]?.kind === 'para' && plain.blocks[0].md).toBe('```\nlet x = 1;\n```');
+    const fenced = walk('<pre>let s = "```";\n````\n</pre>');
+    const md = fenced.blocks[0]?.kind === 'para' ? fenced.blocks[0].md : '';
+    expect(md).toBe('`````\nlet s = "```";\n````\n`````');
+  });
+
+  it('counts form controls over the whole document, so a page’s fields never leave silently', () => {
+    const { blocks, dropped } = walk('<form><label>Name</label><input name="n"/><button>Send</button></form><p>Safe text.</p><select><option>a</option></select>');
+    // The form, its input and button, and the stray select: four controls, counted once each over the whole tree.
+    expect(dropped.forms).toBe(4);
+    const text = JSON.stringify(blocks);
+    expect(text).toContain('Safe text.');
+    expect(text).not.toContain('Send');
+    const head = htmlToBlocks('<html><head><title>t</title></head><body><p>Text.</p><textarea>hidden words</textarea></body></html>');
+    if (!head.ok) throw new Error(head.error.message);
+    expect(head.value.dropped.forms).toBe(1);
+    expect(JSON.stringify(head.value.blocks)).not.toContain('hidden words');
+  });
+
   it('separates table cells and rows when it flattens them to prose', () => {
     const { blocks } = walk('<table><tr><td>Mary</td><td>Smith</td></tr><tr><td>Ann</td><td>Lee</td></tr></table>');
     expect(blocks[0]?.kind === 'para' && blocks[0].md).toBe('Mary Smith\nAnn Lee');
