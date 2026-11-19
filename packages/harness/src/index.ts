@@ -29,6 +29,7 @@ export {
   type ToolRisk,
 } from './metadata.js';
 export { createHarness, type ExternalHarness, type Harness, type HarnessOptions, type RuleCheck, type ToolListing } from './runtime.js';
+export { validateMcpReadHook, type McpReadHook } from './mcp-hooks.js';
 export {
   NO_RULES,
   evaluateRules,

@@ -127,7 +127,7 @@ import { assetRecordsOf } from '@caotang/exporter/export-metadata';
 import type { EmitFailure, ExportJob, ExportPreview, ExportPreviewRequest, ExportProof, ExporterService } from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
 import { InkCompilerNotLoaded } from '@caotang/dialogue';
-import { blockOf, checkMacro, createHookRunner, dialogueFactsOf, excludedBy, exportHookNodes, hookMessages, projectScanInput, type GoalOptions, type Harness, type HookRun, type PictureOutbox, type SourcedRule, type TranscriptionGenerationInput } from '@caotang/harness';
+import { blockOf, checkMacro, createHookRunner, dialogueFactsOf, excludedBy, exportHookNodes, hookMessages, projectScanInput, type GoalOptions, type Harness, type HookRun, type McpReadHook, type PictureOutbox, type SourcedRule, type TranscriptionGenerationInput } from '@caotang/harness';
 import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
@@ -274,6 +274,7 @@ export interface SessionOptions {
   readonly assets?: ProjectAssets;
   /** The app's MCP client (extensibility §3). With it, `tool.search` searches its servers and `mcp.invoke` reaches a loaded tool. */
   readonly mcp?: { readonly client: McpClient };
+  readonly mcpHooks?: (projectId: string) => readonly McpReadHook[];
   /** The asset ids under the project's `assets/` folder, read at each call for the image check (storyboard.md §4). Absent, none are present. */
   readonly presentAssets?: () => ReadonlySet<string>;
   /** What the agent's coherence tools read from the app (`SessionCoherence`). Absent, every check runs and no review is wired. */
@@ -401,7 +402,7 @@ export class ProjectSession {
   readonly mentions = new CodexMentions();
   private readonly registry: CommandRegistry;
   /** What the harness reads of the app, kept until it is made (`harnessReady`). */
-  private readonly harnessOptions: Pick<SessionOptions, 'mcp' | 'presentAssets' | 'coherence'>;
+  private readonly harnessOptions: Pick<SessionOptions, 'mcp' | 'mcpHooks' | 'presentAssets' | 'coherence'>;
   /** The exporter (lazy-exporter.ts), or `null` until the first compile or a folder's attach has loaded it. */
   private exporterService: ExporterService | null = null;
   private exporterModule: Promise<typeof LazyExporter> | null = null;
@@ -489,7 +490,7 @@ export class ProjectSession {
     // The browser's copy of the project's images, so a reopened project's images read back after a reload. Every read and
     // write of the assets waits for this binding (project-assets.ts), so nothing is written to a store that is not yet bound.
     void this.assets.persistFor(options.projectId);
-    this.harnessOptions = { mcp: options.mcp, presentAssets: options.presentAssets, coherence: options.coherence };
+    this.harnessOptions = { mcp: options.mcp, mcpHooks: options.mcpHooks, presentAssets: options.presentAssets, coherence: options.coherence };
     void this.refreshAssetRecords();
     // The registry's exporter port is this one function, which always asks the current exporter. Attaching a folder
     // swaps the exporter behind it, so the registry the harness holds never goes stale. The exporter is a separate download
@@ -635,6 +636,7 @@ export class ProjectSession {
         notify: () => this.afterCommand(),
         rules: () => ({ rules: this.rulesNow() }),
         ...(this.harnessOptions.mcp === undefined ? {} : { mcp: this.harnessOptions.mcp }),
+        ...(this.harnessOptions.mcpHooks === undefined ? {} : { mcpHooks: () => this.harnessOptions.mcpHooks?.(this.projectId) ?? [] }),
         ...(this.harnessOptions.presentAssets === undefined ? {} : { presentAssets: this.harnessOptions.presentAssets }),
         ...(this.harnessOptions.coherence === undefined ? {} : { coherence: this.harnessOptions.coherence }),
       });

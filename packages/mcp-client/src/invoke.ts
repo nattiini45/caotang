@@ -71,7 +71,7 @@ export interface McpInvokeNormalized extends McpInvokeParams {
 /** What a validate closes over: the client's snapshot and the turn's loaded set. It never reaches the wire. */
 export interface ValidateDeps {
   readonly client: Pick<McpClient, 'serverFor' | 'describe' | 'healthOf'>;
-  readonly loaded: LoadedTools;
+  readonly loaded: Pick<LoadedTools, 'isLoaded'>;
 }
 
 /**

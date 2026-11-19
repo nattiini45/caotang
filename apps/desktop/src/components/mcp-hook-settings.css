@@ -1,0 +1,77 @@
+.mcp-hook-settings {
+  margin-block-start: var(--space-5);
+}
+
+.mcp-hook-settings .settings-form fieldset {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.mcp-hook-settings [data-slot='field'] {
+  display: grid;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.mcp-hook-settings [data-slot='select-trigger'] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-self: start;
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+  text-align: start;
+  white-space: normal;
+}
+
+.mcp-hook-settings .settings-form [data-slot='input'],
+.mcp-hook-settings [data-slot='select-trigger'] {
+  border-color: var(--k-edge, var(--muted));
+}
+
+.mcp-hook-options {
+  z-index: 100;
+  max-inline-size: min(24rem, 90vw);
+  max-block-size: 16rem;
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.mcp-hook-options [data-slot='select-item'] {
+  padding: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.mcp-hook-options [data-highlighted] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.mcp-hook-check {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--target-min);
+  block-size: var(--target-min);
+  color: var(--ink);
+  border: 1px solid var(--k-edge, var(--muted));
+  border-radius: var(--radius-xs);
+}
+
+.mcp-hook-check svg,
+.mcp-hook-settings [data-slot='select-trigger'] svg {
+  flex: none;
+  inline-size: 1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+:root[data-shell='modern'] .mcp-hook-options [data-slot='select-item'] {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+}
