@@ -296,6 +296,29 @@ describe('the sealed provider-key vault', () => {
     expect((await h.dispatch('/v1/account/vault', { method: 'DELETE', headers: headers({ 'If-Match': '"2"' }) })).status).toBe(412);
     expect(await h.dispatch('/v1/account/vault', { headers: headers() }).then((r) => r.json())).toEqual({ version: 3, vault: third });
   });
+
+  it('keeps the version of a vault committed before the counter existed', async () => {
+    const h = await runtime();
+    await applyMigrations(h.db!, ['0004_account_key_records.sql', '0005_account_vaults.sql']);
+    await h.invite('reader-one');
+    const { session } = await h.signIn('reader-one');
+    const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session! } })).json() as { id: string };
+    const headers = (extra: Record<string, string> = {}) => ({ Cookie: session!, Origin: ORIGIN, 'X-Caotang-Account': account.id, ...extra });
+    const put = (vault: string, extra: Record<string, string>) => h.dispatch('/v1/account/vault', {
+      method: 'PUT', headers: headers({ 'Content-Type': 'application/json', ...extra }), body: JSON.stringify({ vault }),
+    });
+
+    const first = base64(new Uint8Array(80).fill(8));
+    await h.db!.prepare('INSERT INTO account_vaults (account_id, vault, version, updated_at) VALUES (?, ?, 1, ?)')
+      .bind(account.id, first, new Date().toISOString()).run();
+    await applyMigrations(h.db!, ['0006_account_vault_versions.sql']);
+
+    expect((await h.dispatch('/v1/account/vault', { method: 'DELETE', headers: headers({ 'If-Match': '"1"' }) })).status).toBe(204);
+    const recreated = await put(base64(new Uint8Array(80).fill(9)), { 'If-None-Match': '*' });
+    expect(recreated.status).toBe(201);
+    expect(recreated.headers.get('ETag')).toBe('"2"');
+    expect((await put(first, { 'If-Match': '"1"' })).status).toBe(412);
+  });
 });
 
 describe('the Worker in account mode', () => {
