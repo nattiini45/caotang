@@ -53,6 +53,7 @@ export interface CodexFrontMatter {
   /** video-prompt-pack.md §3: the entry's visual reference asset ids. Absent reads as none, and the key is written only when there are some. */
   visualRefs?: string[];
   details?: Record<string, unknown>;
+  references?: unknown[];
   /**
    * codex.md §10 K4: the entry's provenance. The writer always passes it; a file
    * written before K4 has no key, and the reader reads that absence as `'manual'`
@@ -97,6 +98,7 @@ const KEY_ORDER = [
   'origin',
   'sources',
   'details',
+  'references',
 ] as const;
 
 /**
@@ -183,6 +185,16 @@ export function parseCodexFile(raw: string): ParsedCodexFile {
     }
     if (details === undefined) coercions.push('front matter details must be a JSON object; details were not recovered');
   }
+  let references: unknown[] | undefined;
+  if (fields.has('references')) {
+    try {
+      const parsed: unknown = JSON.parse(scalar('references') ?? 'null');
+      if (Array.isArray(parsed) && jsonValueProblem(parsed, 'references') === undefined) references = parsed;
+    } catch {
+      references = undefined;
+    }
+    if (references === undefined) coercions.push('front matter references must be a JSON list; references were not recovered');
+  }
 
   return {
     frontMatter: {
@@ -198,6 +210,7 @@ export function parseCodexFile(raw: string): ParsedCodexFile {
       // Present only when the file names some, so a file written before visual references reads with the key absent.
       ...(fields.has('visualRefs') ? { visualRefs: list('visualRefs') } : {}),
       ...(details === undefined ? {} : { details }),
+      ...(references === undefined ? {} : { references }),
       origin,
       sources,
     },
@@ -289,6 +302,7 @@ export function formatCodexFrontMatter(fm: CodexFrontMatter): string {
   if (fm.sources !== undefined && fm.sources.length > 0) values.sources = emitSources(fm.sources);
   if (fm.visualRefs !== undefined && fm.visualRefs.length > 0) values.visualRefs = emitFlowSequence(fm.visualRefs);
   if (fm.details !== undefined) values.details = JSON.stringify(JSON.stringify(fm.details));
+  if (fm.references !== undefined && fm.references.length > 0) values.references = JSON.stringify(JSON.stringify(fm.references));
   const lines = KEY_ORDER.flatMap((key) => {
     const value = values[key];
     return value === undefined ? [] : [`${key}: ${value}`];
