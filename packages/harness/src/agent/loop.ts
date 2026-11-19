@@ -207,6 +207,7 @@ import { quotedProjectText } from './egress-check.js';
 import { modelResult, outsideSources, readsOutsideText, scanForInjection, sourceName, spotlight, turnNonce, type OutsideOf } from './untrusted.js';
 import { CacheWatch, stableToolOrder, watched, type TurnCacheUse } from './cache-watch.js';
 import { requestCapFor, transmittedOutputCap } from './output-cap.js';
+import { estimateModelHookRequest, MODEL_HOOK_OUTPUT_TOKENS, MODEL_HOOK_REPLY_MAX, sameModelHook, type ModelHook, type ModelHookActor } from '../model-hooks.js';
 import { fitToWindow } from './window.js';
 import { appendLanguageLine, contextOverridesOk, createContextPort, dropLinesOf, mergePreviews, type AssembledCall, type ContextPort, type ContextRequest, type LanguagePolicy } from './context.js';
 import { createSubagentRunner, framedResult, resultLine, SUBAGENT_SPECS, type ParentTurnHandle } from './subagent.js';
@@ -281,6 +282,7 @@ export interface AgentSessionOptions {
    * The prompt-pack's calls are stamped 'drafting' instead. Absent, no role is sent.
    */
   readonly role?: TaskRole;
+  readonly modelHookRoute?: () => { readonly profileId: string; readonly model: string; readonly thinking?: ThinkingLevel } | undefined;
   /**
    * The effort level a model request is sent with (`ChatRequest.thinking`) unless the turn pins its own. Absent,
    * the provider's own default applies.
@@ -653,7 +655,15 @@ interface Pins {
 
 type SkillFence = { readonly kind: 'unlogged' } | { readonly kind: 'reading' } | { readonly kind: 'committed'; readonly snapshot: string };
 
+interface BoundModelHookRoute {
+  readonly profileId: string;
+  readonly model: string;
+  readonly identity: string;
+}
+
 interface Turn {
+  readonly modelHooks: readonly ModelHook[];
+  readonly modelHookRoute: BoundModelHookRoute | undefined;
   readPolicy: string | undefined;
   readonly requestReadPolicy: string | undefined;
   readonly preparedReadBoundary: ((hasSentRequest: boolean) => boolean) | undefined;
@@ -1507,23 +1517,25 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   };
 
   /** A stream whose reservation is settled with the usage it ended with, or the estimate when the provider reported none, however it ends. */
-  async function* settling(turn: Turn, reservation: Reservation | undefined, request: ChatRequest, signal?: AbortSignal): AsyncGenerator<ChatChunk, void, undefined> {
+  async function* settling(turn: Turn, reservation: Reservation | undefined, request: ChatRequest, signal?: AbortSignal, hookGuard?: () => void): AsyncGenerator<ChatChunk, void, undefined> {
     let usage: Usage | undefined;
     let delivered = '';
     let sent = false;
     let refused = false;
     const beforeSend = (): void => {
-      try { guardRunLog(turn); guardReadBoundary(turn); } catch (error) { refused = !sent; throw error; }
+      try { guardRunLog(turn); guardReadBoundary(turn); hookGuard?.(); } catch (error) { refused = !sent; throw error; }
       turn.sentModelRequest = true;
       sent = true;
     };
     try {
       for await (const chunk of gateway.complete(request, signal, beforeSend)) {
         if (chunk.usage !== undefined) usage = chunk.usage;
-        delivered += `${chunk.delta ?? ''}${chunk.reasoningDelta ?? ''}`;
+        const delta = `${chunk.delta ?? ''}${chunk.reasoningDelta ?? ''}`;
+        delivered += hookGuard === undefined ? delta : delta.slice(0, Math.max(0, MODEL_HOOK_REPLY_MAX - delivered.length));
         yield chunk;
       }
     } finally {
+      if (hookGuard !== undefined && !sent) refused = true;
       if (refused) {
         turn.modelCalls -= 1;
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
@@ -1557,7 +1569,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * included, and is counted against the turn's bound before it is sent. The session's role is stamped on the
    * request here too (provider-gateway §6); the prompt-pack's calls pass 'drafting' for it instead.
    */
-  const modelCall = (turn: Turn, onDelta?: (delta: string) => void, role: TaskRole | undefined = options.role, planner: boolean | 'compaction' = false): ModelCall => ({
+  const modelCall = (turn: Turn, onDelta?: (delta: string) => void, role: TaskRole | undefined = options.role, planner: boolean | 'compaction' = false, hookGuard?: () => void): ModelCall => ({
     gateway: {
       complete: (request, signal) => {
         guardRunLog(turn);
@@ -1592,7 +1604,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           }
         }
         guardReadBoundary(turn);
-        if (asked.messages.some((message) => textOf(message.content).includes('<<untrusted source="mcp-history:'))) taint(turn, [{ serverName: '', label: 'earlier conversation (connected-server text)' }]);
+        hookGuard?.();
+        if (hookGuard === undefined && asked.messages.some((message) => textOf(message.content).includes('<<untrusted source="mcp-history:'))) taint(turn, [{ serverName: '', label: 'earlier conversation (connected-server text)' }]);
         const reservation = reserveCall(turn, asked);
         turn.modelCalls += 1;
         turn.calls += 1;
@@ -1603,7 +1616,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         }
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
         if (planner === 'compaction') emit({ type: 'session.compacting', turnId: turn.id });
-        return watched(turn.cache, turn.calls, sent, planner === true, settling(turn, reservation, sent, signal));
+        return watched(turn.cache, turn.calls, sent, planner === true, settling(turn, reservation, sent, signal, hookGuard));
       },
     },
     turnId: turn.id,
@@ -1619,6 +1632,62 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // turn's reasoning too: the ghost region gets `draft.delta` prose only, so nothing here lands in the editor.
     onReasoning: (delta) => emit({ type: 'model.reasoning', turnId: turn.id, delta }),
   });
+
+  const hookRoute = (profileId?: string): BoundModelHookRoute | undefined => {
+    const route = options.modelHookRoute?.();
+    if (route === undefined) return undefined;
+    const profile = gateway.profiles.get(route.profileId);
+    const foreground = profileId === undefined ? gateway.profiles.active() : gateway.profiles.get(profileId);
+    if (profile?.kind !== 'endpoint' || foreground?.kind === 'mock') return undefined;
+    const { profileId: id, model, thinking } = route;
+    return { profileId: id, model, identity: canonicalJson({ id, model, thinking: thinking ?? null, baseUrl: profile.baseUrl, preset: profile.preset ?? null, fields: profile.fields ?? null }) };
+  };
+
+  const modelHookOutput = (): number => transmittedOutputCap(
+    gateway.modelLimits(undefined, undefined, 'off', { role: 'background', maxOutputTokens: MODEL_HOOK_OUTPUT_TOKENS }),
+    MODEL_HOOK_OUTPUT_TOKENS,
+  );
+
+  function modelHookActor(turn: Turn): ModelHookActor | undefined {
+    if (turn.modelHooks.length === 0) return undefined;
+    const route = turn.modelHookRoute;
+    if (route === undefined) return { hooks: turn.modelHooks };
+    return {
+      hooks: turn.modelHooks,
+      complete: async (messages, signal, stillAllowed) => {
+        const guard = () => {
+          if (signal.aborted || turn.run?.broken === true || !stillAllowed() || hookRoute(turn.pins.profileId)?.identity !== route.identity || modelHookOutput() > MODEL_HOOK_OUTPUT_TOKENS) {
+            throw new Error('The model hook request no longer matches its execution boundary.');
+          }
+        };
+        guard();
+        await syncRun(turn, 1, 'running');
+        try {
+          const call = modelCall(turn, undefined, 'background', false, guard);
+          const request: ChatRequest = {
+            messages: [...messages],
+            turnId: turn.id,
+            privatePayload: true,
+            expectedRoute: { profileId: route.profileId, model: route.model },
+            thinking: 'off',
+            maxOutputTokens: MODEL_HOOK_OUTPUT_TOKENS,
+          };
+          let text = '';
+          let finish: ChatChunk['finishReason'];
+          for await (const chunk of call.gateway.complete(request, signal)) {
+            if (chunk.toolCalls?.length || (chunk.delta?.length ?? 0) > MODEL_HOOK_REPLY_MAX - text.length) return undefined;
+            text += chunk.delta ?? '';
+            finish = chunk.finishReason ?? finish;
+          }
+          return finish === 'stop' ? text : undefined;
+        } finally {
+          if (!signal.aborted) await syncRun(turn, 0);
+        }
+      },
+    };
+  }
+
+  const hasExecutionHook = (turn: Turn, tool: string): boolean => harness.hasMcpHook(tool) || turn.modelHooks.some((hook) => hook.tool === tool);
 
   /**
    * A delegated agent's call site (agent-harness §2, "Delegate"). The turn reserved the agent's calls up front, so these are bound by that
@@ -1950,7 +2019,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const from = planOptions.from ?? 0;
     const until = planOptions.until ?? plan.steps.length;
     if (turn.run === undefined) {
-      if (!plan.steps.slice(from, until).some((step) => harness.hasMcpHook(step.tool))) {
+      if (!plan.steps.slice(from, until).some((step) => hasExecutionHook(turn, step.tool))) {
         return harness.executePlan(executable, context, planOptions);
       }
       const preflight = harness.previewPlan(executable, { ...planOptions, turnId: context.turnId });
@@ -1973,7 +2042,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       let loggedApplied = false;
       if (turn.run !== undefined) await beginSkillAccess(turn, step.tool);
       let result: Result<PlanOutcome, CommandError>;
-      if (turn.run !== undefined && !harness.hasMcpHook(step.tool)) {
+      if (turn.run !== undefined && !hasExecutionHook(turn, step.tool)) {
         result = harness.executePlan(executable, context, { ...planOptions, from: index, until: index + 1 });
       } else {
         const preflight = turn.run === undefined
@@ -1987,8 +2056,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           const proposal = planOptions.proposals?.[index];
           const call = { name: step.tool, callId, params: step.params, ...(proposal === undefined || proposal === null ? {} : { proposal }) };
           const granted = { turnId: context.turnId, permission: { approvedPlan: true } } as const;
-          const pending = harness.hasMcpHook(step.tool)
-            ? harness.callWithMcpHooks(call, { ...granted, ...signalOf(turn) }, {
+          const pending = hasExecutionHook(turn, step.tool)
+            ? harness.callWithHooks(call, { ...granted, ...signalOf(turn) }, {
                 check: () => liveStepRefusal(turn, step),
                 beforeApply: () => { before = revisionsNow(); },
                 afterApply: (outcome) => {
@@ -1997,7 +2066,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
                   if (outcome.value.undoGroupId !== undefined) turn.undoGroupId ??= outcome.value.undoGroupId;
                   return logApplied(turn, callId, index, step.tool, outcome.value.summary, before, changedSince(before)).then(() => turn.run?.broken !== true);
                 },
-              })
+              }, modelHookActor(turn))
             : harness.call(call, granted);
           const outcome = pending instanceof Promise ? await pending : pending;
           if (outcome.ok) {
@@ -2500,9 +2569,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     guardReadBoundary(turn);
     if (loadedExternal(call.name) !== undefined) return harness.callExternal(call, { turnId: turn.id, ...signalOf(turn), onProgress: progressTo(turn, call) });
     const granted = { turnId: turn.id, sessionId: usageSessionId, ...(call.name === 'session.history' ? { sessionHistory: turn.priorTurns } : {}), ...(permission === undefined ? {} : { permission }) };
-    if (awaited(call.name)) return harness.callAsync(call, { ...granted, ...signalOf(turn) });
+    if (awaited(call.name)) return harness.callAsync(call, { ...granted, ...signalOf(turn) }, undefined, modelHookActor(turn));
     await beginSkillAccess(turn, call.name, true);
-    return harness.hasMcpHook(call.name) ? harness.callWithMcpHooks(call, { ...granted, ...signalOf(turn) }) : harness.call(call, granted);
+    return hasExecutionHook(turn, call.name)
+      ? harness.callWithHooks(call, { ...granted, ...signalOf(turn) }, undefined, modelHookActor(turn))
+      : harness.call(call, granted);
   }
 
   /** Records one read's outcome: its trace row, its step, its card's last move, and any findings it made. */
@@ -2794,6 +2865,21 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       return turn.proposals.find((entry) => entry.key === key)?.agent;
     });
     const caution = cautionFor(turn, editable, from);
+    const liveModelHooks = turn.modelHooks.length > 0 && turn.modelHookRoute !== undefined && hookRoute(turn.pins.profileId)?.identity === turn.modelHookRoute.identity
+      && harness.readPolicy() === turn.requestReadPolicy ? harness.modelHooks() : [];
+    const outputTokens = liveModelHooks.length === 0 ? 0 : modelHookOutput();
+    const modelHooks = outputTokens === 0 || outputTokens > MODEL_HOOK_OUTPUT_TOKENS ? undefined : editable.steps.map((step, index) => {
+      if (index < from || !nativeAt.includes(index) || !preflight.steps.some((row) => row.index === index && row.status === 'ready')) return [];
+      const seen = new Set<string>();
+      return turn.modelHooks.flatMap((hook) => {
+        const key = JSON.stringify([hook.event, hook.id]);
+        if (hook.tool !== step.tool || seen.has(key)) return [];
+        seen.add(key);
+        if (!liveModelHooks.some((live) => sameModelHook(live, hook))) return [];
+        const messages = harness.modelHookInput(hook, step.params, editable.proposals[index]);
+        return messages === undefined ? [] : [estimateModelHookRequest(hook, messages, outputTokens)];
+      });
+    });
     const card = planCardOf({
       id: `${turn.id}:card`,
       turnId: turn.id,
@@ -2806,6 +2892,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       previews,
       risks: editable.steps.map((step) => riskOf(step.tool)),
       staged,
+      ...(modelHooks === undefined ? {} : { modelHooks }),
       ...(turn.contextOverrides === undefined ? {} : { contextOverrides: turn.contextOverrides }),
       ...(turn.replyCut ? { replyCut: true } : {}),
       ...(proposedBy.some((agent) => agent !== undefined) ? { proposedBy } : {}),
@@ -3140,7 +3227,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const stepOverrides = step.contextOverrides ?? turn.contextOverrides;
     const asyncContext = { turnId: turn.id, sessionId: usageSessionId, ...signalOf(turn), ...(stepOverrides === undefined ? {} : { contextOverrides: stepOverrides }) };
     let loggedApplied = false;
-    const boundary = write && harness.hasMcpHook(step.tool) ? {
+    const boundary = write && hasExecutionHook(turn, step.tool) ? {
       check: () => liveStepRefusal(turn, step),
       afterApply: (result: ToolOutcome) => {
         if (!result.ok || turn.run === undefined) return;
@@ -3159,6 +3246,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
                 ? { ...asyncContext, permission: { confirmed: true } }
                 : asyncContext,
             boundary,
+            modelHookActor(turn),
           )
         : await harness.callExternal(
             call,
@@ -3409,8 +3497,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         await beginSkillAccess(turn, step.tool);
         const call = { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) };
         const granted = { turnId: turn.id, ...(grant === 'auto' ? {} : { permission: { confirmed: true } }) } as const;
-        const pending = harness.hasMcpHook(step.tool)
-          ? harness.callWithMcpHooks(call, { ...granted, ...signalOf(turn) }, {
+        const pending = hasExecutionHook(turn, step.tool)
+          ? harness.callWithHooks(call, { ...granted, ...signalOf(turn) }, {
               check: () => liveStepRefusal(turn, step),
               beforeApply: () => { before = revisionsNow(); },
               afterApply: (outcome) => {
@@ -3418,7 +3506,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
                 loggedApplied = true;
                 return logApplied(turn, id, from, step.tool, outcome.value.summary, before, changedSince(before)).then(() => turn.run?.broken !== true);
               },
-            })
+            }, modelHookActor(turn))
           : harness.call(call, granted);
         waitedForHook = pending instanceof Promise;
         outcome = pending instanceof Promise ? await pending : pending;
@@ -4248,7 +4336,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const id = `${sessionName}.turn-${turnCounter}`;
     const overrides = turnOptions.contextOverrides;
     const readPolicy = harness.readPolicy();
+    const modelHooks = harness.modelHooks().map((hook) => ({ ...hook }));
     return {
+      modelHooks,
+      modelHookRoute: modelHooks.length === 0 ? undefined : hookRoute(pins.profileId),
       automaticRules: new Map(),
       readPolicy,
       requestReadPolicy: readPolicy,

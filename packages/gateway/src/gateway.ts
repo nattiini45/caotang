@@ -361,6 +361,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       // The redaction list carries the key and headers as before, plus every image's base64 form:
       // a provider that echoes the request body in an error has the image scrubbed like a secret.
       secrets: [...revealed.redact, ...imageBase64Of(req.messages)],
+      ...(req.privatePayload === true ? { privatePayload: true as const } : {}),
       createParser: () => decodingParser(adapter.createStreamParser(ctx), names),
       promptTokens: usageFor(req.messages, '', adapter.id).promptTokens,
       ...(onAttempt === undefined ? {} : { onAttempt }),
@@ -510,6 +511,9 @@ export function createGateway(options: GatewayOptions): Gateway {
       }
       const profile = targetOf(queuedProfile.id);
       const model = req.model ?? routed?.model ?? profile.defaultModel;
+      if (req.expectedRoute !== undefined && (req.expectedRoute.profileId !== profile.id || req.expectedRoute.model !== model)) {
+        throw new EgressDeniedError('The provider or model for this request changed. No request was sent.');
+      }
       const sent: ChatRequest =
         req.thinking === undefined && routed?.thinking !== undefined ? { ...req, thinking: routed.thinking } : req;
       // §3's image gate, before anything is sent or any key is revealed: a request carrying image
@@ -522,7 +526,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       const startedAt = clock.now();
       const price = callPrice(profile.id, model, sent.thinking, sent);
       const stats: StreamStats = { attempts: 0, usage: undefined };
-      const trace = observer === undefined ? undefined : startTrace(observer, sent, profile, model);
+      const trace = observer === undefined || sent.privatePayload === true ? undefined : startTrace(observer, sent, profile, model);
 
       try {
         if (profile.kind === 'mock') {

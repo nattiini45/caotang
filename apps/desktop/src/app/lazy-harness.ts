@@ -6,7 +6,7 @@
  */
 
 import type { ActivityLog, CommandRegistry, UndoStore } from '@caotang/bus';
-import { createPictureOutbox, createProductHarness, picturePorts, withReviewLanguages, type Harness, type McpReadHook, type PictureOutbox, type SourcedRule } from '@caotang/harness';
+import { createPictureOutbox, createProductHarness, picturePorts, withReviewLanguages, type Harness, type McpReadHook, type ModelHook, type PictureOutbox, type SourcedRule } from '@caotang/harness';
 import { createImageStager, type ImageStager, type McpClient } from '@caotang/mcp-client';
 import type { ProjectState, RetryableAssetStaging } from '@caotang/store';
 
@@ -36,6 +36,7 @@ export interface HarnessHost {
   readonly rules: () => { readonly rules: readonly SourcedRule[] };
   readonly mcp?: { readonly client: McpClient };
   readonly mcpHooks?: () => readonly McpReadHook[];
+  readonly modelHooks?: () => readonly ModelHook[];
   readonly presentAssets?: () => ReadonlySet<string>;
   readonly coherence?: SessionCoherence;
 }
@@ -80,6 +81,7 @@ export function createHarnessRuntime(host: HarnessHost): HarnessRuntime {
     rules: host.rules,
     ...(host.mcp === undefined ? {} : { mcp: { ...host.mcp, images: imageStager } }),
     ...(host.mcpHooks === undefined ? {} : { mcpHooks: host.mcpHooks }),
+    ...(host.modelHooks === undefined ? {} : { modelHooks: host.modelHooks }),
     ...(host.presentAssets === undefined ? {} : { presentAssets: host.presentAssets }),
     // The agent's coherence scans read the writer's Coherence settings, and its review runs through the app's model
     // (coherence.md §5.3). The settings and the model are read at each call. The factory adds the dialogue facts and the review context.
