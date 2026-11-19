@@ -6,6 +6,10 @@
 
 - [proposed] Codex details, references and relations (#221–#223) are optional format-v1 additions; existing projects need no migration. A pre-feature build opens the same-version project for editing but drops unrecognized codex keys on save, without a codex-field warning. A project marked with a newer format version is refused outright, not opened read-only or rebuilt. Document the downgrade limit and preserve unknown detail keys in the new build.
 
+- A private Background before hook can propose a rewrite of an eligible prose field only if the rewritten call is revalidated and shown with its original on a fresh human approval card. An earlier approval and Auto mode cannot approve the rewrite. This supersedes the no-rewrite portion of the declarative-hook decision dated 2026-10-22 and of the Background model hook decision below; it does not change the project-file restrictions. [owner 2026-11-13]
+
+- A private Background turn-end hook can request a continuation of a successful interactive turn. At most two continuations share the original limits, and a third is ignored and reported. The reason is outside data, never an approval. This extends the turn-end behavior without changing pure project checks. [delegated 2026-11-19]
+
 - Background model hooks are opt-in, private to this browser and project, execute only on admitted tool calls, share turn budgets, and show an estimate before plan approval. The demo cannot run them. They never grant permission, rewrite arguments or continue a turn. [delegated 2026-11-19]
 
 - The shared provider forms size their field tracks to the Settings content box, and longer button labels and help wrap there instead of setting a wider intrinsic minimum (#659). [delegated 2026-11-18]
