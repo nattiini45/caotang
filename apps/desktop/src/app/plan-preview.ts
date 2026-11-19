@@ -8,7 +8,7 @@
 
 import { i18n, type MessageDescriptor } from '@lingui/core';
 import { msg, t } from '@lingui/core/macro';
-import { CODEX_DETAIL_DIFF_PREFIX } from '@caotang/bus';
+import { CODEX_DETAIL_DIFF_PREFIX, CODEX_REFERENCE_FIELDS } from '@caotang/bus';
 import { isolate, numberFormat } from '@caotang/i18n';
 import { costLineRef, refusalSentence } from '@caotang/harness';
 import type { ComicPreview, StepCost, TimelineCard, TimelineCardRow, TimelineDeltaFinding } from '@caotang/harness';
@@ -185,6 +185,7 @@ const FIELD_LABELS: Readonly<Record<string, MessageDescriptor>> = {
   caseSensitive: msg`Match case`,
   exclude: msg`Ignore matches in`,
   visualRefs: msg`Visual references`,
+  references: msg`External references`,
 };
 
 /** A field's writer-facing label, or the internal name for one with no label. */
@@ -297,6 +298,15 @@ function valueOfJson(text: string): unknown {
  */
 function wordsOf(field: string, value: unknown, names: ReadonlyMap<string, string>): string {
   if (value === '' && field.startsWith(CODEX_DETAIL_DIFF_PREFIX)) return t`Empty text`;
+  if (field === 'references' && Array.isArray(value)) {
+    return value.filter(isRecord).map((edit) => {
+      const action = edit['action'] === 'create' ? t`Add` : edit['action'] === 'remove' ? t`Remove` : t`Edit`;
+      const previous = typeof edit['previousTitle'] === 'string' ? [edit['previousTitle']] : [];
+      const values = CODEX_REFERENCE_FIELDS.flatMap((key) =>
+        Object.hasOwn(edit, key) ? [plainOf(key, edit[key])] : []);
+      return [action, ...previous, ...values].map(isolate).join(' · ');
+    }).join('; ');
+  }
   if (field !== 'visualRefs') return plainOf(field, value);
   const ids = Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
   return ids.length === 0 ? '(none)' : ids.map((id) => names.get(id) ?? i18n._(MISSING_PICTURE)).join(', ');
@@ -318,6 +328,9 @@ function createChangesOf(entry: Record<string, unknown>, names: ReadonlyMap<stri
       const field = `${CODEX_DETAIL_DIFF_PREFIX}${key}`;
       if (value !== null) changes.push({ field: fieldLabel(field), from: NEW_ENTRY_FROM, to: wordsOf(field, value, names) });
     }
+  }
+  if (Array.isArray(entry['referenceEdits'])) {
+    changes.push({ field: fieldLabel('references'), from: NEW_ENTRY_FROM, to: wordsOf('references', entry['referenceEdits'], names) });
   }
   return changes;
 }

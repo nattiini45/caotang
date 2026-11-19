@@ -55,7 +55,7 @@
 
 import { assertNever, defineMachine, type MachineTable } from '@caotang/machine';
 import { agentFileTexts, hasAgentFiles, parseAgentFiles, type AgentFiles } from '../agent-files.js';
-import { CODEX_DETAILS_FORMAT_VERSION, requiredManifestVersion, type Manifest } from '../manifest.js';
+import { CODEX_DETAILS_FORMAT_VERSION, CODEX_REFERENCES_FORMAT_VERSION, requiredManifestVersion, type Manifest } from '../manifest.js';
 import { createProjectState, rebuildDerived, type DocumentRecord, type ProjectState } from '../state.js';
 import { assertSessionRecord, type SessionRecord } from '../sessions.js';
 
@@ -78,7 +78,8 @@ export const RUNTIME_DB_NAME = 'caotang';
  */
 export const RUNTIME_DB_VERSION = 6;
 const CODEX_DETAILS_RUNTIME_DB_VERSION = 7;
-export const MAX_RUNTIME_DB_VERSION = CODEX_DETAILS_RUNTIME_DB_VERSION;
+const CODEX_REFERENCES_RUNTIME_DB_VERSION = 8;
+export const MAX_RUNTIME_DB_VERSION = CODEX_REFERENCES_RUNTIME_DB_VERSION;
 
 /** The manifest — structural truth, vocabulary, codex (§2). */
 export const PROJECT_STORE = 'projects';
@@ -694,14 +695,17 @@ function writeProjectTransaction<T>(store: RuntimeStore, manifest: Manifest, bod
   if (connection?.upgrading !== undefined) {
     return connection.upgrading.then(() => writeProjectTransaction(store, manifest, body));
   }
-  if (manifest.formatVersion < CODEX_DETAILS_FORMAT_VERSION || store.db.version >= CODEX_DETAILS_RUNTIME_DB_VERSION) {
+  const minimum = manifest.formatVersion >= CODEX_REFERENCES_FORMAT_VERSION ? CODEX_REFERENCES_RUNTIME_DB_VERSION
+    : manifest.formatVersion >= CODEX_DETAILS_FORMAT_VERSION ? CODEX_DETAILS_RUNTIME_DB_VERSION : RUNTIME_DB_VERSION;
+  const previousVersion = store.db.version;
+  if (minimum === RUNTIME_DB_VERSION || previousVersion >= minimum) {
     return transact(store.db, [PROJECT_STORE, DOCUMENT_STORE], 'readwrite', body);
   }
   if (connection === undefined || connection.closed || connectionStates.get(store.db)?.state.kind !== 'open') {
     return Promise.reject(new RuntimeStoreStaleError());
   }
   let written: Promise<T> | undefined;
-  const upgraded = openRuntimeConnection(connection.factory, store.name, CODEX_DETAILS_RUNTIME_DB_VERSION, (tx) => {
+  const upgraded = openRuntimeConnection(connection.factory, store.name, minimum, (tx) => {
     if (connection.closed) {
       tx.abort();
       return;
@@ -717,7 +721,7 @@ function writeProjectTransaction<T>(store: RuntimeStore, manifest: Manifest, bod
     return written;
   }, async (error: unknown) => {
     if (written !== undefined && !connection.closed) {
-      connection.active = await openRuntimeConnection(connection.factory, store.name, RUNTIME_DB_VERSION);
+      connection.active = await openRuntimeConnection(connection.factory, store.name, previousVersion);
       return written;
     }
     throw error;

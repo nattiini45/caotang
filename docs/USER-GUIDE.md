@@ -333,6 +333,10 @@ A project folder or bundle saved with these fields uses project format v2. If an
 
 Saving these fields in the browser also updates that browser's project storage. Afterward, older builds can't open any projects in that browser. Browsers where you've never saved these fields can still open projects in an older build.
 
+Under **External references**, choose **Add reference** for an article, book, website, or another source outside the manuscript. Give it a title and, if useful, a URL, publisher, publication date, or quote. Caotang opens a link only when you select it. References do not change the manuscript passages that establish the entry, and they are not automatically included in model requests.
+
+An entry with a reference raises the project to project format v3, and the first browser save of one updates that browser's project storage again. An older Caotang build then refuses those projects instead of losing the references; projects with no references keep the format they had.
+
 The include policy says when the agent sees an entry:
 
 - **Always**: with every request. These are sent whole even when together they are longer than the codex's share of the prompt; the other entries are then left out, and the prompt preview says how many tokens the Always entries need.

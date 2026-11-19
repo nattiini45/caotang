@@ -509,3 +509,4 @@ export type { HookNote, ToolData, ToolValue } from './tool-value.js';
 // The name a project with no recipes key holds (exporter.md §4). The exporter names its default recipe with it.
 export { DEFAULT_RECIPE_NAME } from './recipe-names.js';
 export * from './codex-details.js';
+export * from './codex-references.js';
