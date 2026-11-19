@@ -133,7 +133,7 @@ msgstr "- Zusammenfassung: {summary}"
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "- Turn: `{id}`"
-msgstr "- Zug: `{id}`"
+msgstr "- Durchlauf: `{id}`"
 
 #. Context budget copy. Interpolated values: answer, thinking, kept, window, sent, allowed, whole, l2, l4, l5, min, max and count are token counts; parts, capWords, windowNote and name complete the sentence; layerId is a layer key.
 #: apps/desktop/src/components/ContextSection.tsx
@@ -1475,7 +1475,7 @@ msgstr "{extraction, plural, one {# Modellaufruf} other {# Modellaufrufe}}, um d
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "{field, select, maxModelCalls {Model calls per turn} maxActiveMinutes {Minutes of work per turn} maxTokens {Tokens per turn} maxSteps {Steps per turn} maxWordsChanged {Words changed per turn} maxDocuments {Documents touched per turn} other {This limit}} is a whole number from {min} to {max}, or empty for the default."
-msgstr "{field, select, maxModelCalls {Modellaufrufe pro Zug} maxActiveMinutes {Arbeitsminuten pro Zug} maxTokens {Token pro Zug} maxSteps {Schritte pro Zug} maxWordsChanged {Geänderte Wörter pro Zug} maxDocuments {Berührte Dokumente pro Zug} other {Dieses Limit}} ist eine ganze Zahl von {min} bis {max} oder leer für den Standardwert."
+msgstr "{field, select, maxModelCalls {Modellaufrufe pro Durchlauf} maxActiveMinutes {Arbeitsminuten pro Durchlauf} maxTokens {Token pro Durchlauf} maxSteps {Schritte pro Durchlauf} maxWordsChanged {Geänderte Wörter pro Durchlauf} maxDocuments {Berührte Dokumente pro Durchlauf} other {Dieses Limit}} ist eine ganze Zahl von {min} bis {max} oder leer für den Standardwert."
 
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
@@ -1843,7 +1843,7 @@ msgstr "{name} hat keine Seitenzahl im Dateinamen, etwa 0012.jpg"
 #. Slash command replies. Interpolated values: id and name are a context layer's key and name, tokens and budget are token counts, budgetNote is the budget phrase, topic is a command name, drop is a dropped layer, number and arg are turn numbers.
 #: apps/desktop/src/app/slash-model.ts
 msgid "{name} is not in this panel. Use /restore last, or the number of a turn listed here."
-msgstr "{name} ist nicht in diesem Panel. Verwenden Sie /restore last oder die Nummer eines hier gelisteten Zugs."
+msgstr "{name} ist nicht in diesem Panel. Verwenden Sie /restore last oder die Nummer eines hier gelisteten Durchlaufs."
 
 #. Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number.
 #. Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number.
@@ -1959,12 +1959,12 @@ msgstr "{names} werden als eine Figur angesetzt. Verwenden Sie eine einzige Schr
 #. Review-bar sentences. Interpolated values: count and noun are the suggestion count and its plural phrase.
 #: apps/desktop/src/app/review-text.ts
 msgid "{noun} from the last agent turn was kept as written on reload — ‘Restore to before this turn’ is on that turn’s card in the agent panel."
-msgstr "{noun} aus dem letzten Agenten-Zug wurde beim Neuladen wie geschrieben behalten — „Zustand vor diesem Zug wiederherstellen“ steht auf der Karte dieses Zugs im Agenten-Panel."
+msgstr "{noun} aus dem letzten Agenten-Durchlauf wurde beim Neuladen wie geschrieben behalten — „Zustand vor diesem Durchlauf wiederherstellen“ steht auf der Karte dieses Durchlaufs im Agenten-Panel."
 
 #. Review-bar sentences. Interpolated values: count and noun are the suggestion count and its plural phrase.
 #: apps/desktop/src/app/review-text.ts
 msgid "{noun} from the last agent turn were kept as written on reload — ‘Restore to before this turn’ is on that turn’s card in the agent panel."
-msgstr "{noun} aus dem letzten Agenten-Zug wurden beim Neuladen wie geschrieben behalten — „Zustand vor diesem Zug wiederherstellen“ steht auf der Karte dieses Zugs im Agenten-Panel."
+msgstr "{noun} aus dem letzten Agenten-Durchlauf wurden beim Neuladen wie geschrieben behalten — „Zustand vor diesem Durchlauf wiederherstellen“ steht auf der Karte dieses Durchlaufs im Agenten-Panel."
 
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
@@ -2386,7 +2386,7 @@ msgstr "{selected} Änderungen sind ausgewählt. Annehmen und Ablehnen wirken au
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "{send} queues it for the next turn, {steer} sends it to this one"
-msgstr "{send} reiht es für den nächsten Zug in die Warteschlange ein, {steer} sendet es an diesen Zug"
+msgstr "{send} reiht es für den nächsten Durchlauf in die Warteschlange ein, {steer} sendet es an diesen Durchlauf"
 
 #. Interpolated values: reason is a local storage error; count and days are configured upper bounds; size is a formatted byte estimate.
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
@@ -2862,7 +2862,7 @@ msgstr "# Aktivität: {title}"
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "## Agent turns"
-msgstr "## Agent-Züge"
+msgstr "## Agent-Durchläufe"
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
@@ -3842,7 +3842,7 @@ msgstr "Etwa {cost} für diese Sitzung."
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "About {cost} for this turn, using recorded call costs."
-msgstr "Etwa {cost} für diesen Zug, auf Basis der erfassten Aufrufkosten."
+msgstr "Etwa {cost} für diesen Durchlauf, auf Basis der erfassten Aufrufkosten."
 
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #: apps/desktop/src/components/UsagePanel.tsx
@@ -4557,7 +4557,7 @@ msgstr "Alle Szenen"
 #. The trace panel's rows. Interpolated values: millis, startMs and durationMs are times; chars, cutChars, replyCut, paramsCut and resultCut are character counts; inTokens, outTokens, estimated, calls and tokenCount are token and call counts; messagesSent, toolsDeclared, tools, sent and attempts describe what was sent; records is a record count; statusNote is a run's status; callId is a tool call id.
 #: apps/desktop/src/components/TracePanel.tsx
 msgid "All turns in this tab"
-msgstr "Alle Züge in diesem Tab"
+msgstr "Alle Durchläufe in diesem Tab"
 
 #. Interpolated values: calls
 #. Interpolated values: calls
@@ -5832,7 +5832,7 @@ msgstr "Aufrufkontingent: {used} von {cap} reserviert oder verwendet."
 #. The trace panel's rows. Interpolated values: millis, startMs and durationMs are times; chars, cutChars, replyCut, paramsCut and resultCut are character counts; inTokens, outTokens, estimated, calls and tokenCount are token and call counts; messagesSent, toolsDeclared, tools, sent and attempts describe what was sent; records is a record count; statusNote is a run's status; callId is a tool call id.
 #: apps/desktop/src/components/TracePanel.tsx
 msgid "calls made outside a turn · "
-msgstr "Aufrufe außerhalb eines Zugs · "
+msgstr "Aufrufe außerhalb eines Durchlaufs · "
 
 #. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx
@@ -7623,12 +7623,12 @@ msgstr "Kostenlimit (USD)"
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Cost per turn is an amount in dollars above 0, or empty for no cost limit."
-msgstr "Die Kosten pro Zug sind ein Betrag in Dollar über 0 oder leer für kein Kostenlimit."
+msgstr "Die Kosten pro Durchlauf sind ein Betrag in Dollar über 0 oder leer für kein Kostenlimit."
 
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Cost per turn, in dollars"
-msgstr "Kosten pro Zug, in Dollar"
+msgstr "Kosten pro Durchlauf, in Dollar"
 
 #. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
 #: apps/desktop/src/app/run-log-export.ts
@@ -8598,7 +8598,7 @@ msgstr "Dokumente im Bereich:"
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Documents touched per turn"
-msgstr "Dokumente pro Zug"
+msgstr "Dokumente pro Durchlauf"
 
 #. Agent status sentences. Interpolated values: progress, total and cached are counts, call is a call number, cause is a reason.
 #: apps/desktop/src/app/agent-model.ts
@@ -12092,7 +12092,7 @@ msgstr "Die Grenzen gelten für Anzahl und Alter der Sitzungen, nicht für Durch
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Limits you set on your own key. A turn is held to them in every mode: it stops on a question before a model call that could pass one, and a turn that works for its minutes is ended mid-call. Leave a field empty for its default, or for no limit. The cost limit needs prices on the active profile (Settings › Providers). In Accept edits and Auto, a turn is also held to {defaultTokens} tokens and {defaultSteps} steps when those are empty."
-msgstr "Limits, die Sie für Ihren eigenen Schlüssel festlegen. Jeder Zug wird in jedem Modus an sie gehalten: Er stoppt bei einer Frage, bevor ein Modell-Aufruf eines überschreiten könnte, und ein Zug, der seine Minuten arbeitet, wird mitten im Aufruf beendet. Lassen Sie ein Feld leer für den Standardwert oder für kein Limit. Das Kostenlimit benötigt Preise im aktiven Profil (Einstellungen › Anbieter). In „Änderungen akzeptieren“ und „Auto“ wird ein Zug außerdem an {defaultTokens} Token und {defaultSteps} Schritte gehalten, wenn diese leer sind."
+msgstr "Limits, die Sie für Ihren eigenen Schlüssel festlegen. Jeder Durchlauf wird in jedem Modus an sie gehalten: Er stoppt bei einer Frage, bevor ein Modell-Aufruf eines überschreiten könnte, und ein Durchlauf, der seine Minuten arbeitet, wird mitten im Aufruf beendet. Lassen Sie ein Feld leer für den Standardwert oder für kein Limit. Das Kostenlimit benötigt Preise im aktiven Profil (Einstellungen › Anbieter). In „Änderungen akzeptieren“ und „Auto“ wird ein Durchlauf außerdem an {defaultTokens} Token und {defaultSteps} Schritte gehalten, wenn diese leer sind."
 
 #. Sentences about Ink line ids. Interpolated values: title and titles are container titles the writer wrote; line, minted and the other counts are numbers; lines, where, first and shown are lists of line positions or ids; room is the reason a line could not take an id; rest counts the ids not shown.
 #: apps/desktop/src/media/ink-model.ts
@@ -12751,7 +12751,7 @@ msgstr "Minuten"
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Minutes of work per turn"
-msgstr "Minuten Arbeit pro Zug"
+msgstr "Minuten Arbeit pro Durchlauf"
 
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #. Columns and cells of the timeline's Agenda table. Interpolated values: count is a number of scenes or findings; title, name and part are writer or part words.
@@ -12806,7 +12806,7 @@ msgstr "Modellaufrufe"
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Model calls per turn"
-msgstr "Modell-Aufrufe pro Zug"
+msgstr "Modell-Aufrufe pro Durchlauf"
 
 #. Interpolated values: calls
 #: apps/desktop/src/components/TaskAllowanceDialog.tsx
@@ -13655,7 +13655,7 @@ msgstr "Noch keine Feststellungen"
 #. Slash command replies. Interpolated values: id and name are a context layer's key and name, tokens and budget are token counts, budgetNote is the budget phrase, topic is a command name, drop is a dropped layer, number and arg are turn numbers.
 #: apps/desktop/src/app/slash-model.ts
 msgid "No finished turn has a checkpoint to restore: nothing the agent did can be put back yet."
-msgstr "Kein beendeter Zug hat einen Wiederherstellungspunkt: Nichts, was der Agent tat, kann bisher zurückgenommen werden."
+msgstr "Kein beendeter Durchlauf hat einen Wiederherstellungspunkt: Nichts, was der Agent tat, kann bisher zurückgenommen werden."
 
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #: apps/desktop/src/components/InspectorGoals.tsx
@@ -14439,7 +14439,7 @@ msgstr "Notizen, die dieser Schritt schreibt"
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Notes you sent during this turn"
-msgstr "Notizen, die Sie während dieses Zugs gesendet haben"
+msgstr "Notizen, die Sie während dieses Durchlaufs gesendet haben"
 
 #. Modern interface: the search and commands palette (Ctrl+K).
 #: apps/desktop/src/components/shell/modern/palette.tsx
@@ -15818,7 +15818,7 @@ msgstr "Vorliebe"
 #. Interpolated values: calls, cap
 #: apps/desktop/src/components/PlanOfferCard.tsx
 msgid "Prepares this plan in the current turn and may send draft requests to the model."
-msgstr "Bereitet diesen Plan im aktuellen Zug vor und kann Entwurfsanfragen an das Modell senden."
+msgstr "Bereitet diesen Plan im aktuellen Durchlauf vor und kann Entwurfsanfragen an das Modell senden."
 
 #. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx
@@ -16069,7 +16069,7 @@ msgstr "Prompt-Cache: {cached} von {total} Eingabe-Token wurden aus dem Cache de
 #. Agent status sentences. Interpolated values: progress, total and cached are counts, call is a call number, cause is a reason.
 #: apps/desktop/src/app/agent-model.ts
 msgid "Prompt cache: no input was read from the provider's cache this turn."
-msgstr "Prompt-Cache: In diesem Zug wurde keine Eingabe aus dem Cache des Anbieters gelesen."
+msgstr "Prompt-Cache: In diesem Durchlauf wurde keine Eingabe aus dem Cache des Anbieters gelesen."
 
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #: apps/desktop/src/media/ShotPromptEditor.tsx
@@ -16311,7 +16311,7 @@ msgstr "Prüfung einreihen"
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
 #: apps/desktop/src/components/AgentQueue.tsx
 msgid "Queue as next turn"
-msgstr "Als nächster Zug einreihen"
+msgstr "Als nächster Durchlauf einreihen"
 
 #. Interpolated values: calls, cap
 #. Interpolated values: calls, cap, error
@@ -17883,7 +17883,7 @@ msgstr "Rückspul-Optionen für Schritt {step}"
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Rewound the conversation to before that turn. The project was not changed."
-msgstr "Das Gespräch wurde auf den Stand vor jenem Zug zurückgespult. Das Projekt wurde nicht geändert."
+msgstr "Das Gespräch wurde auf den Stand vor jenem Durchlauf zurückgespult. Das Projekt wurde nicht geändert."
 
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -18087,7 +18087,7 @@ msgstr "„Jetzt ausführen“ entwirft in diesem Durchlauf, der höchstens {cap
 #. Interpolated values: calls, cap
 #: apps/desktop/src/components/PlanOfferCard.tsx
 msgid "Run now prepares this plan in the current turn. Its review steps still wait for the usual approval."
-msgstr "Jetzt ausführen bereitet diesen Plan im aktuellen Zug vor. Seine Prüfschritte warten weiterhin auf die übliche Freigabe."
+msgstr "Jetzt ausführen bereitet diesen Plan im aktuellen Durchlauf vor. Seine Prüfschritte warten weiterhin auf die übliche Freigabe."
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
@@ -20849,7 +20849,7 @@ msgstr "Diese Karte wartet nicht mehr auf eine Entscheidung, daher wurde nichts 
 #. Review-bar sentences. Interpolated values: count and noun are the suggestion count and its plural phrase.
 #: apps/desktop/src/app/review-text.ts
 msgid "That change could not be resolved. Ctrl+Z still undoes what you did here, and ‘Restore to before this turn’ is on that turn’s card in the agent panel."
-msgstr "Diese Änderung konnte nicht aufgelöst werden. Strg+Z macht weiterhin rückgängig, was Sie hier taten, und „Zustand vor diesem Zug wiederherstellen“ steht auf der Karte dieses Zugs im Agenten-Panel."
+msgstr "Diese Änderung konnte nicht aufgelöst werden. Strg+Z macht weiterhin rückgängig, was Sie hier taten, und „Zustand vor diesem Durchlauf wiederherstellen“ steht auf der Karte dieses Durchlaufs im Agenten-Panel."
 
 #. Session restore messages. Interpolated values: reason is why a restore stopped.
 #: apps/desktop/src/app/session.ts
@@ -21006,7 +21006,7 @@ msgstr "dieser Text kommt im Dokument mehrfach vor ({places} Stellen); wählen S
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "that turn"
-msgstr "jener Zug"
+msgstr "jener Durchlauf"
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
@@ -21199,7 +21199,7 @@ msgstr "Der Agent arbeitet an einem anderen Durchlauf. Setzen Sie den Lauf fort,
 #. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "The agent is working on another turn. Run the task when it has finished."
-msgstr "Der Agent arbeitet an einem anderen Zug. Führen Sie die Aufgabe aus, wenn er beendet ist."
+msgstr "Der Agent arbeitet an einem anderen Durchlauf. Führen Sie die Aufgabe aus, wenn er beendet ist."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -21259,7 +21259,7 @@ msgstr "die Entwürfe des Agents"
 #. Review-bar sentences. Interpolated values: count and noun are the suggestion count and its plural phrase.
 #: apps/desktop/src/app/review-text.ts
 msgid "The agent’s edit could not be marked for review, so it replaced the text. Nothing was lost: ‘Restore to before this turn’ is on that turn’s card in the agent panel."
-msgstr "Die Änderung des Agenten konnte nicht zur Prüfung markiert werden, daher ersetzte sie den Text. Nichts ging verloren: „Zustand vor diesem Zug wiederherstellen“ steht auf der Karte dieses Zugs im Agenten-Panel."
+msgstr "Die Änderung des Agenten konnte nicht zur Prüfung markiert werden, daher ersetzte sie den Text. Nichts ging verloren: „Zustand vor diesem Durchlauf wiederherstellen“ steht auf der Karte dieses Durchlaufs im Agenten-Panel."
 
 #. Review-bar sentences. Interpolated values: count and noun are the suggestion count and its plural phrase.
 #: apps/desktop/src/app/review-text.ts
@@ -21566,12 +21566,12 @@ msgstr "Die Gesprächsänderung konnte nicht gespeichert werden: {reason}. Lasse
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "The conversation could not be rewound: a turn is running."
-msgstr "Das Gespräch konnte nicht zurückgespult werden: Ein Zug läuft."
+msgstr "Das Gespräch konnte nicht zurückgespult werden: Ein Durchlauf läuft."
 
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "The conversation could not be rewound: that turn is no longer available to rewind."
-msgstr "Das Gespräch konnte nicht zurückgespult werden: Jener Zug steht zum Zurückspulen nicht mehr zur Verfügung."
+msgstr "Das Gespräch konnte nicht zurückgespult werden: Jener Durchlauf steht zum Zurückspulen nicht mehr zur Verfügung."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -22174,7 +22174,7 @@ msgstr "Der letzte Tag des Monats"
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The last turn stopped on a question. Answer it or choose Run the queue."
-msgstr "Der letzte Zug endete an einer Frage. Beantworten Sie sie oder wählen Sie „Warteschlange ausführen“."
+msgstr "Der letzte Durchlauf endete an einer Frage. Beantworten Sie sie oder wählen Sie „Warteschlange ausführen“."
 
 #: apps/desktop/src/components/StaleTabNotice.tsx
 msgid "The latest words are not in browser storage. Export a backup to keep them, then reload this tab to carry on from the saved text."
@@ -23488,7 +23488,7 @@ msgstr "Der Ablauf enthält die an das Modell gesendeten Prompts und Manuskriptt
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "The Trace tab shows what each turn sent to the model and got back. It holds your prompts and manuscript text, only in this tab’s memory, and a reload clears it. Turn it off to gather nothing."
-msgstr "Der Trace-Tab zeigt, was jeder Zug an das Modell gesendet und zurückbekommen hat. Er hält Ihre Prompts und Manuskripttexte nur im Gedächtnis dieses Tabs, und ein Neuladen löscht sie. Schalten Sie ihn aus, um nichts zu sammeln."
+msgstr "Der Trace-Tab zeigt, was jeder Durchlauf an das Modell gesendet und zurückbekommen hat. Er hält Ihre Prompts und Manuskripttexte nur im Gedächtnis dieses Tabs, und ein Neuladen löscht sie. Schalten Sie ihn aus, um nichts zu sammeln."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -23498,12 +23498,12 @@ msgstr "Das Kürzen wurde nicht abgeschlossen: {error}"
 #. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "The turn did not run."
-msgstr "Der Zug lief nicht."
+msgstr "Der Durchlauf lief nicht."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The turn stopped unexpectedly: {error}"
-msgstr "Der Zug wurde unerwartet beendet: {error}"
+msgstr "Der Durchlauf wurde unerwartet beendet: {error}"
 
 #. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
@@ -24543,7 +24543,7 @@ msgstr "Dieses Werkzeug ist für Hooks nicht mehr verfügbar. Prüfen Sie es unt
 #. The trace panel's rows. Interpolated values: millis, startMs and durationMs are times; chars, cutChars, replyCut, paramsCut and resultCut are character counts; inTokens, outTokens, estimated, calls and tokenCount are token and call counts; messagesSent, toolsDeclared, tools, sent and attempts describe what was sent; records is a record count; statusNote is a run's status; callId is a tool call id.
 #: apps/desktop/src/components/TracePanel.tsx
 msgid "This turn"
-msgstr "Dieser Zug"
+msgstr "Dieser Durchlauf"
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
@@ -24554,7 +24554,7 @@ msgstr "Dieser Durchlauf gehört zu einem Ziel. Setzen Sie stattdessen das Ziel 
 #. The trace panel's rows. Interpolated values: millis, startMs and durationMs are times; chars, cutChars, replyCut, paramsCut and resultCut are character counts; inTokens, outTokens, estimated, calls and tokenCount are token and call counts; messagesSent, toolsDeclared, tools, sent and attempts describe what was sent; records is a record count; statusNote is a run's status; callId is a tool call id.
 #: apps/desktop/src/components/TracePanel.tsx
 msgid "This turn: {turnLabel}"
-msgstr "Dieser Zug: {turnLabel}"
+msgstr "Dieser Durchlauf: {turnLabel}"
 
 #: apps/desktop/src/components/RestoreResult.tsx
 msgid "This turn’s project changes were taken back."
@@ -24818,7 +24818,7 @@ msgstr "Tokens ausgehend"
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Tokens per turn"
-msgstr "Tokens pro Zug"
+msgstr "Tokens pro Durchlauf"
 
 #. Agent rules settings. Interpolated values: text is the rule's own words.
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
@@ -25013,12 +25013,12 @@ msgstr "Dienstag"
 #. Slash command replies. Interpolated values: id and name are a context layer's key and name, tokens and budget are token counts, budgetNote is the budget phrase, topic is a command name, drop is a dropped layer, number and arg are turn numbers.
 #: apps/desktop/src/app/slash-model.ts
 msgid "Turn {arg}"
-msgstr "Zug {arg}"
+msgstr "Durchlauf {arg}"
 
 #. Slash command replies. Interpolated values: id and name are a context layer's key and name, tokens and budget are token counts, budgetNote is the budget phrase, topic is a command name, drop is a dropped layer, number and arg are turn numbers.
 #: apps/desktop/src/app/slash-model.ts
 msgid "Turn {number}"
-msgstr "Zug {number}"
+msgstr "Durchlauf {number}"
 
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -25056,7 +25056,7 @@ msgstr "Diese Erinnerung ausschalten"
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Turns"
-msgstr "Züge"
+msgstr "Durchläufe"
 
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
@@ -26137,7 +26137,7 @@ msgstr "Wörter"
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Words changed per turn"
-msgstr "Pro Zug geänderte Wörter"
+msgstr "Pro Durchlauf geänderte Wörter"
 
 #. Interpolated values: count
 #: apps/desktop/src/app/pending-journal.ts
