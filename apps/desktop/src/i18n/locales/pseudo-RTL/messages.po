@@ -3866,6 +3866,11 @@ msgstr ""
 msgid "All changes saved in this browser"
 msgstr ""
 
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
+#: apps/desktop/src/app/integrity-model.ts
+msgid "All changes saved to the project folder"
+msgstr ""
+
 #: apps/desktop/src/components/GoalRecovery.tsx
 msgid "All saved distances:"
 msgstr ""
@@ -5226,6 +5231,10 @@ msgstr ""
 msgid "Caotang cannot tell which encoding {file} is in, so it cannot import it."
 msgstr ""
 
+#: apps/desktop/src/app/native-folders.ts
+msgid "Caotang could not access the project folder. Check its permissions and try again."
+msgstr ""
+
 #. Interpolated values: error
 #: apps/desktop/src/App.tsx
 msgid "Caotang could not open its storage"
@@ -5893,6 +5902,11 @@ msgstr ""
 msgid "Choose an available read-only MCP tool."
 msgstr ""
 
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "Choose an empty folder for the new project. Nothing was copied."
+msgstr ""
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Choose an entry…"
@@ -5901,6 +5915,10 @@ msgstr ""
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
 msgid "Choose an example to fill the box"
+msgstr ""
+
+#: apps/desktop/src/app/native-folders.ts
+msgid "Choose an existing Caotang project folder or an empty folder for a new copy."
 msgstr ""
 
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
@@ -6662,6 +6680,10 @@ msgstr ""
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Copy them into a folder beside the file"
+msgstr ""
+
+#: apps/desktop/src/components/NativeFolderControls.tsx
+msgid "Copy to a folder…"
 msgstr ""
 
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
@@ -9153,6 +9175,10 @@ msgstr ""
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "For you. Never sent to the model."
+msgstr ""
+
+#: apps/desktop/src/components/NativeFolderControls.tsx
+msgid "Forget folder"
 msgstr ""
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
@@ -12815,6 +12841,11 @@ msgstr ""
 msgid "Not saved to browser storage yet. Your words are safe in this tab and are written again on the next change."
 msgstr ""
 
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
+#: apps/desktop/src/app/integrity-model.ts
+msgid "Not saved to the project folder. Check the folder, or export a backup before leaving."
+msgstr ""
+
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 #: apps/desktop/src/media/screenplay-model.ts
@@ -15206,6 +15237,10 @@ msgstr ""
 msgid "Recent distances"
 msgstr ""
 
+#: apps/desktop/src/components/NativeFolderControls.tsx
+msgid "Recent project folders"
+msgstr ""
+
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
 msgid "Recent scenes"
@@ -15640,6 +15675,7 @@ msgstr ""
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
+#: apps/desktop/src/components/NativeFolderControls.tsx
 msgid "Reopen folder"
 msgstr ""
 
@@ -17865,6 +17901,11 @@ msgstr ""
 msgid "Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave."
 msgstr ""
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Some changes have not reached the project folder, so the project stays open. Export a bundle to keep a copy."
+msgstr ""
+
 #. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts
 msgid "Some changes were taken back in this tab, but they could not be saved. Keep this tab open and retry the failed save before restoring again."
@@ -19302,6 +19343,11 @@ msgstr ""
 msgid "The choice is kept in this browser. Until you choose, the page follows the system."
 msgstr ""
 
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "The chosen folder is no longer empty. Choose another folder."
+msgstr ""
+
 #. Interpolated values: name
 #. js-lingui-explicit-id
 #: packages/store/src/read.ts
@@ -19715,6 +19761,11 @@ msgstr ""
 
 #: apps/desktop/src/components/RunHistory.tsx
 msgid "The folder-copy preference could not be read. Reopen Activity to try again."
+msgstr ""
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "The folder’s writing history could not be read, so it is not in the backup."
 msgstr ""
 
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
@@ -20279,6 +20330,19 @@ msgstr ""
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "The project cover"
+msgstr ""
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "The project folder changed outside Caotang or is in use. Reopen it before saving."
+msgstr ""
+
+#: apps/desktop/src/app/native-folders.ts
+msgid "The project folder is missing or was moved. Choose Open a folder to find it."
+msgstr ""
+
+#: apps/desktop/src/app/native-folders.ts
+msgid "The project folder is read-only. Make it writable, then try again."
 msgstr ""
 
 #. Interpolated values: calls, cap, error
@@ -22735,6 +22799,7 @@ msgid "Untitled"
 msgstr ""
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
+#. Interpolated values: count, path, reason
 #. Interpolated values: count, path, reason
 #: apps/desktop/src/app/lifecycle.ts
 #: apps/desktop/src/components/Home.tsx
