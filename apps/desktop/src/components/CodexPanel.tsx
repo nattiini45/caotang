@@ -64,6 +64,7 @@ import { EmptyState, formatCount, useDebouncedText, useReport, useSession } from
 type Outcome = Result<ExecutionOutcome, CommandError>;
 const CodexDetails = lazyView(() => import('./CodexDetails.js').then((module) => ({ default: module.CodexDetails })));
 const CodexReferences = lazyView(() => import('./CodexReferences.js').then((module) => ({ default: module.CodexReferences })));
+const CodexRelations = lazyView(() => import('./CodexRelations.js').then((module) => ({ default: module.CodexRelations })));
 
 export interface CodexPanelProps {
   readonly session: ProjectSession;
@@ -103,6 +104,7 @@ export function CodexPanel({ session, onOpenDocument, onAgentIntent, focus = nul
       session={session}
       entry={selected}
       onBack={() => setSelectedId(null)}
+      onOpenEntry={setSelectedId}
       onOpenDocument={onOpenDocument}
     />
   );
@@ -280,11 +282,14 @@ function CodexEntryEditor({
   session,
   entry,
   onBack,
+  onOpenEntry,
   onOpenDocument,
 }: {
   session: ProjectSession;
   entry: CodexEntry;
   onBack: () => void;
+  /** Opens another entry in this panel: a writer following a relation (codex.md §2.3). */
+  onOpenEntry: (entryId: string) => void;
   onOpenDocument: (docId: string, offset?: number) => void;
 }): ReactNode {
   useLingui();
@@ -416,6 +421,10 @@ function CodexEntryEditor({
 
       <LazyBoundary label={t`External references`}>
         <CodexReferences records={entry.references ?? []} onEdit={(edit) => change({ referenceEdits: [edit] })} />
+      </LazyBoundary>
+
+      <LazyBoundary label={t`Relations`}>
+        <CodexRelations entry={entry} entries={entries} onEdit={(edit) => change({ relationEdits: [edit] })} onOpen={onOpenEntry} />
       </LazyBoundary>
 
       <ChipField

@@ -2873,6 +2873,14 @@ msgstr "A long jump into the epilogue or out of the prologue is never reported a
 msgid "A mention inside one of these phrases is not counted."
 msgstr "A mention inside one of these phrases is not counted."
 
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "a missing entry"
+msgstr "a missing entry"
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "A missing entry"
+msgstr "A missing entry"
+
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "A model call’s usage was not recorded. Any token, cost or active-time limits are treated as spent."
@@ -3572,6 +3580,10 @@ msgstr "Add pattern"
 #: apps/desktop/src/components/CodexReferences.tsx
 msgid "Add reference"
 msgstr "Add reference"
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Add relation"
+msgstr "Add relation"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
@@ -5102,6 +5114,7 @@ msgstr "Camera movement"
 #: apps/desktop/src/components/BackgroundTasks.tsx
 #: apps/desktop/src/components/BinderFilters.tsx
 #: apps/desktop/src/components/CodexReferences.tsx
+#: apps/desktop/src/components/CodexRelations.tsx
 #: apps/desktop/src/components/editor-labels.ts
 #: apps/desktop/src/components/EncodingDialog.tsx
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -5892,6 +5905,14 @@ msgstr "Choose a vendor template to see the Proof of the prompt pack."
 #: apps/desktop/src/components/McpHookSettings.tsx
 msgid "Choose an available read-only MCP tool."
 msgstr "Choose an available read-only MCP tool."
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Choose an entry"
+msgstr "Choose an entry"
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Choose an entry to link to."
+msgstr "Choose an entry to link to."
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -7996,6 +8017,7 @@ msgstr "Earlier requests are summarised automatically after more than six unsumm
 #: apps/desktop/src/components/AgentQueue.tsx
 #: apps/desktop/src/components/BinderFooter.tsx
 #: apps/desktop/src/components/CodexReferences.tsx
+#: apps/desktop/src/components/CodexRelations.tsx
 #: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -8060,6 +8082,11 @@ msgstr "Edit queued message {number}"
 #: apps/desktop/src/components/CodexReferences.tsx
 msgid "Edit reference {title}"
 msgstr "Edit reference {title}"
+
+#. title is the linked entry name.
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Edit relation to {title}"
+msgstr "Edit relation to {title}"
 
 #. Interpolated values: tokens, coveredTurns
 #: apps/desktop/src/components/AgentMemory.tsx
@@ -10531,6 +10558,7 @@ msgstr "Knows before learning"
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
+#: apps/desktop/src/components/CodexRelations.tsx
 #: apps/desktop/src/components/Inspector.tsx
 msgid "Label"
 msgstr "Label"
@@ -10864,6 +10892,23 @@ msgstr "Link a picture…"
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Link to them in the project folder"
 msgstr "Link to them in the project folder"
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Linked entry"
+msgstr "Linked entry"
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Linked from"
+msgstr "Linked from"
+
+#. name is the linked entry name, or a missing entry.
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Links to {name}."
+msgstr "Links to {name}."
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Links to other codex entries. They stay out of automatic model requests."
+msgstr "Links to other codex entries. They stay out of automatic model requests."
 
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -13495,6 +13540,10 @@ msgstr "Optional context left out"
 msgid "Optional fields only: what a request needs always goes out, and a left-out max_tokens is sent as max_completion_tokens."
 msgstr "Optional fields only: what a request needs always goes out, and a left-out max_tokens is sent as max_completion_tokens."
 
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Optional, such as ally or rival."
+msgstr "Optional, such as ally or rival."
+
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
 msgid "Optional. ISBN-10 or ISBN-13, with or without hyphens. It goes into EPUB files."
@@ -15318,6 +15367,16 @@ msgstr "Refused entries"
 msgid "REGION blocks left out; they place captions on a screen."
 msgstr "REGION blocks left out; they place captions on a screen."
 
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Relation"
+msgstr "Relation"
+
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
+#: apps/desktop/src/components/CodexPanel.tsx
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Relations"
+msgstr "Relations"
+
 #. Interpolated values: subject
 #: apps/desktop/src/components/InkGate.tsx
 #: apps/desktop/src/components/lazy-view.tsx
@@ -15376,6 +15435,7 @@ msgstr "Remind me next month"
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/AgentQueue.tsx
 #: apps/desktop/src/components/CodexReferences.tsx
+#: apps/desktop/src/components/CodexRelations.tsx
 #: apps/desktop/src/components/Home.tsx
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/KnowledgeList.tsx
@@ -15478,6 +15538,11 @@ msgstr "Remove reference {number}"
 #: apps/desktop/src/components/CodexReferences.tsx
 msgid "Remove reference {title}"
 msgstr "Remove reference {title}"
+
+#. title is the linked entry name.
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Remove relation to {title}"
+msgstr "Remove relation to {title}"
 
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
@@ -16459,6 +16524,10 @@ msgstr "Save prompt"
 #: apps/desktop/src/components/CodexReferences.tsx
 msgid "Save reference"
 msgstr "Save reference"
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Save relation"
+msgstr "Save relation"
 
 #. Interpolated values: reason is a local storage error; count and days are configured upper bounds; size is a formatted byte estimate.
 #: apps/desktop/src/components/AgentSessionData.tsx
@@ -18856,6 +18925,10 @@ msgstr "That project is already in this browser, so the file opened as a separat
 #: apps/desktop/src/App.tsx
 msgid "That project is already in this browser, so the folder opened as a separate copy. This copy may differ from the folder, and saving it into that folder is refused. The original is in the projects list."
 msgstr "That project is already in this browser, so the folder opened as a separate copy. This copy may differ from the folder, and saving it into that folder is refused. The original is in the projects list."
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "That relation could not be saved."
+msgstr "That relation could not be saved."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -21543,6 +21616,10 @@ msgstr "This endpoint accepts structured output."
 #: apps/desktop/src/app/providers.ts
 msgid "This endpoint does not take a JSON response format, so the agent asks for JSON in the prompt instead."
 msgstr "This endpoint does not take a JSON response format, so the agent asks for JSON in the prompt instead."
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "This entry links to nothing yet."
+msgstr "This entry links to nothing yet."
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
