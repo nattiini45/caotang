@@ -147,29 +147,24 @@
     inset-block-start: calc(var(--page-top) + var(--document-mode-row, 0px) + var(--n-top));
   }
 
-  :root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner):has(> .modern-page-area .editor-pane.is-empty:not([hidden])) {
-    display: grid;
-    grid-template-rows: fit-content(50%) minmax(0, 1fr);
+  /* The storage banner's own row (surfaces-modern.css) keeps its room from this layout's bars and safe areas instead of the
+     desktop page's: the row starts below the top bar, and the page keeps its inline and bottom room inside that row. */
+  :root[data-shell='modern'] .modern-stage:has(.storage-banner) {
     gap: var(--space-3);
-    padding-block: calc(var(--failed-save-top, var(--page-top)) + var(--n-top)) calc(var(--page-bottom) + var(--n-bottom) - var(--page-gutter));
-    padding-inline: var(--safe-side);
   }
 
-  :root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner):has(> .modern-page-area .editor-pane.is-empty:not([hidden])) > :is(.modern-notices, .modern-page-area) {
-    position: relative;
-    inset: auto;
+  :root[data-shell='modern'] .modern-stage:has(.storage-banner) > .modern-notices {
+    margin-block-start: calc(var(--failed-save-top, var(--page-top)) + var(--document-mode-row, 0px) + var(--n-top));
+    margin-inline: var(--safe-side);
+    inline-size: auto;
   }
 
-  :root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner):has(> .modern-page-area .editor-pane.is-empty:not([hidden])) > .modern-notices {
-    min-block-size: 0;
-    overflow-y: auto;
+  :root[data-shell='modern'] .modern-stage:has(.storage-banner) > .modern-page-area {
+    inset-block: 0 calc(var(--page-bottom) + var(--n-bottom) - var(--page-gutter));
+    inset-inline: var(--safe-side);
   }
 
-  :root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner):has(> .modern-page-area .editor-pane.is-empty:not([hidden])) .modern-toast {
-    flex: none;
-  }
-
-  :root[data-shell='modern'] .modern-stage:has(> .modern-notices .storage-banner) .editor-pane.is-empty {
+  :root[data-shell='modern'] .modern-stage:has(.storage-banner) .editor-pane.is-empty {
     justify-content: safe center;
   }
 
