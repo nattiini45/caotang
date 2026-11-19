@@ -1,0 +1,67 @@
+import { mkdir } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+
+import { _electron, expect, test } from '@playwright/test';
+
+import type {} from '../src/preload.cjs';
+
+const executablePath = createRequire(import.meta.url)('electron') as string;
+const shell = fileURLToPath(new URL('..', import.meta.url));
+
+test('the sandboxed desktop window opens the built studio and its lazy Settings', async () => {
+  const profile = test.info().outputPath('profile');
+  await mkdir(profile, { recursive: true });
+  const electron = await _electron.launch({
+    executablePath,
+    args: [shell, `--user-data-dir=${profile}`],
+    chromiumSandbox: true,
+  });
+  try {
+    const page = await electron.firstWindow();
+    await expect(page.getByRole('textbox', { name: 'Project name' })).toBeVisible();
+    await expect(page).toHaveURL('app://caotang/');
+    expect(await electron.evaluate(({ app, BrowserWindow }) => {
+      const contents = BrowserWindow.getAllWindows()[0]?.webContents as { getLastWebPreferences(): object } | undefined;
+      return { preferences: contents?.getLastWebPreferences(), noSandbox: app.commandLine.hasSwitch('no-sandbox') };
+    })).toMatchObject({
+      preferences: {
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+        webSecurity: true,
+        webviewTag: false,
+      },
+      noSandbox: false,
+    });
+    expect(await page.evaluate(() => ({
+      secure: isSecureContext,
+      bridge: window.caotangDesktop,
+      node: ['require', 'process', 'Buffer'].filter((key) => key in window),
+    }))).toEqual({ secure: true, bridge: { version: 1 }, node: [] });
+
+    const response = await page.reload();
+    const policy = await response?.headerValue('content-security-policy');
+    expect(policy?.split('; ')).toEqual(expect.arrayContaining([
+      "script-src 'self'", "worker-src 'self'", "frame-ancestors 'none'", "object-src 'none'",
+    ]));
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await expect(page.getByTestId('settings')).toBeVisible();
+
+    const blockedScript = await page.evaluate(() => new Promise((resolve) => {
+      const url = 'https://example.invalid/probe.js';
+      document.addEventListener('securitypolicyviolation', (event) => {
+        if (event.blockedURI === url) resolve(event.effectiveDirective);
+      });
+      const script = document.createElement('script');
+      script.src = url;
+      document.head.append(script);
+      script.addEventListener('error', () => setTimeout(() => resolve(null), 0));
+    }));
+    expect(blockedScript).toBe('script-src-elem');
+    expect(await page.evaluate(() => window.open('https://example.invalid/') === null)).toBe(true);
+    expect(electron.windows()).toHaveLength(1);
+  } finally {
+    await electron.close();
+  }
+});
