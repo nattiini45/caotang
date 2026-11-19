@@ -102,6 +102,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - The provider request log fits a phone's Settings in both shells: on the narrow layout each request is a labelled record instead of an eight-column table, so the German headers and a long address no longer push the whole Settings pane sideways (#726).
 
+- German word counts read "22 Wörter" and "0 Wörter heute" instead of "22 Wörtern", while phrases a preposition needs stay in the dative ("bei 3 Wörtern ab", "1200 von 2.000 Wörtern"). The agent's turn menu reads **Aktionen zu dieser Anfrage** instead of **Durchgangsaktionen** (#573).
+
 - Provider setup and editing fit in narrow Settings in both shells, including the longer German action labels (#659).
 
 - Workspace errors stay readable until dismissed or replaced by another error, even if an informational notice arrives later (#563).

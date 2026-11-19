@@ -178,7 +178,7 @@ for (const width of [960, 1100]) {
       await expect(editorTools.getByRole('button', { name: 'Bild einfügen', exact: true })).toBeVisible();
       const editorStatus = page.locator('.editor-status');
       await expect(editorStatus).toHaveAttribute('aria-label', 'Dokumentstatus');
-      await expect(editorStatus).toContainText('4 Wörtern');
+      await expect(editorStatus).toContainText('4 Wörter');
       // The manuscript itself keeps the project's language and direction, and the writer's text.
       const host = page.locator('.editor-host');
       await expect(host).toContainText('The harbour was quiet.');
