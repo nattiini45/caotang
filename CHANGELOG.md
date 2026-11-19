@@ -96,6 +96,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- Ctrl+Home and Ctrl+End in the scene editor always move the caret, including right after a click at the end of the text. Before, the key could be taken and then dropped, leaving the caret where the click had put it (#665).
+
 - Provider setup and editing fit in narrow Settings in both shells, including the longer German action labels (#659).
 
 - Workspace errors stay readable until dismissed or replaced by another error, even if an informational notice arrives later (#563).
