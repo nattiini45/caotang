@@ -8,6 +8,7 @@ import { Input } from '@ui-sdk/react/input';
 import {
   CODEX_RELATION_LABEL_MAX,
   CODEX_RELATION_MAX,
+  codexRelationId,
   readCodexRelation,
   type CodexRelation,
   type CodexRelationEdit,
@@ -52,6 +53,14 @@ export function CodexRelations({ entry, entries, onEdit, onOpen }: {
       return relation?.targetId === entry.id ? [{ from: candidate, label: relation.label }] : [];
     }));
   const shown = new Set(outgoing.map((relation) => relation.targetId));
+  // A stored relation whose id reads but whose target does not keeps a row of its own, removable: leaving it out would hide a link the
+  // writer cannot clear, while it still counts against the 40 this entry may hold. It cannot be named, so it cannot be edited either.
+  const readable = new Set(outgoing.map((relation) => relation.id));
+  const broken = (entry.relations ?? []).flatMap((value) => {
+    const id = codexRelationId(value);
+    return id === undefined || readable.has(id) ? [] : [id];
+  });
+  const held = entry.relations?.length ?? 0;
 
   return (
     <section className="codex-relations" aria-labelledby={`${formId}-heading`}>
@@ -59,7 +68,7 @@ export function CodexRelations({ entry, entries, onEdit, onOpen }: {
       <p className="field-help">
         <Trans>Links to other codex entries. They stay out of automatic model requests.</Trans>
       </p>
-      {outgoing.length === 0 ? (
+      {outgoing.length === 0 && broken.length === 0 ? (
         <p className="field-help"><Trans>This entry links to nothing yet.</Trans></p>
       ) : (
         <ul className="codex-relation-list">
@@ -88,9 +97,25 @@ export function CodexRelations({ entry, entries, onEdit, onOpen }: {
               </li>
             );
           })}
+          {broken.map((id) => {
+            const title = t`A relation that cannot be shown`;
+            return (
+              <li key={id} className="codex-relation is-unreadable">
+                <span className="codex-relation-target">{title}</span>
+                <p className="field-help"><Trans>A field in this relation could not be read. Remove it and add it again.</Trans></p>
+                <div className="codex-relation-actions">
+                  <Button className="button is-quiet" disabled={editing !== null}
+                    aria-label={t({ message: `Remove relation to ${{ title }}`, comment: 'title is the linked entry name.' })}
+                    onClick={() => { if (onEdit({ action: 'remove', id })) add.current?.focus(); }}>
+                    <Trans>Remove</Trans>
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
-      <Button className="button is-quiet codex-relation-add" ref={add} disabled={editing !== null || outgoing.length >= CODEX_RELATION_MAX}
+      <Button className="button is-quiet codex-relation-add" ref={add} disabled={editing !== null || held >= CODEX_RELATION_MAX}
         onClick={(event) => {
           opener.current = event.currentTarget instanceof HTMLButtonElement ? event.currentTarget : null;
           setEditing('new');

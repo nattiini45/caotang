@@ -2764,6 +2764,10 @@ msgstr "A document with no publish date is a draft: it compiles into a preview b
 msgid "a fact that is gone"
 msgstr "a fact that is gone"
 
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "A field in this relation could not be read. Remove it and add it again."
+msgstr "A field in this relation could not be read. Remove it and add it again."
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "A field was kept as its text."
@@ -3012,6 +3016,10 @@ msgstr "A read rule now keeps a document this review approved. Approve the queue
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "A reading-system book, one file per chapter."
 msgstr "A reading-system book, one file per chapter."
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "A relation that cannot be shown"
+msgstr "A relation that cannot be shown"
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -15616,6 +15624,7 @@ msgstr "Remove reference {number}"
 msgid "Remove reference {title}"
 msgstr "Remove reference {title}"
 
+#. title is the linked entry name.
 #. title is the linked entry name.
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Remove relation to {title}"
