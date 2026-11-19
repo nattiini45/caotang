@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Chapter helpers (#47).** Ask the agent to read one chapter at a time across the Manuscript. It shows the number of chapters and maximum model calls before starting, runs helpers in parallel, and keeps finished notes if you stop it. Any proposed changes still go through the agent’s normal plan approval.
+
 - **Background model hooks (#511).** Add a private check for a built-in agent tool in Settings › Hooks. The plan previews its estimated tokens; execution uses the Background role and shares the turn's model limits. The demo cannot run these checks.
 - **Model hook rewrites and follow-ups (#511).** Let a before hook propose replacement notes or synopsis text and compare both versions on a fresh card. Even in Auto mode, the replacement needs your approval. A private turn-end hook can ask the agent to continue up to twice within the same limits.
 

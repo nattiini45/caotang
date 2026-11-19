@@ -10,11 +10,11 @@ import { describe, expect, it } from 'vitest';
 import type { ChatRequest, Gateway } from '@caotang/gateway';
 import { subagentScript } from '@caotang/gateway/mock';
 import type { MockScript } from '@caotang/gateway/mock';
-import { setBody, type ProjectState } from '@caotang/store';
+import { addDocument, addFolder, setBody, type ProjectState } from '@caotang/store';
 
 import { DELEGATE_NOTICE } from '../../src/index.js';
 import { evaluate, type Scenario } from '../../src/agent/eval.js';
-import { LANDING, makeState } from '../fixtures.js';
+import { CHAPTER_ONE, CHAPTER_TWO, FRIEND, LANDING, OPENED, makeState } from '../fixtures.js';
 import { mockGateway } from '../agent/gateway.js';
 import { answer, steps, transcript } from '../agent/scripts.js';
 import { textOf as wireTextOf } from '@caotang/gateway';
@@ -74,6 +74,123 @@ function scenario(name: string, scripts: readonly MockScript[], held: { gateway?
 }
 
 const textOf = (request: ChatRequest | undefined): string => request?.messages.map((message) => wireTextOf(message.content)).join('\n') ?? '';
+
+describe('chapter delegation', () => {
+  const chapterStep = { ...DELEGATE, params: { agent: 'general', brief: DELEGATE.params.brief, fanOut: 'per-chapter', scope: [CHAPTER_TWO, CHAPTER_ONE] } };
+  const GULL = { ...HERON, params: { entries: [{ action: 'create', name: 'Gull', type: 'other', description: 'A pale bird on the pier.' }] } };
+
+  it('asks before any child request, fences child reads, and folds ordered proposals into one undo group', async () => {
+    const held: { gateway?: Gateway } = {};
+    const planned: ChatRequest[] = [];
+    const own = new Map<string, ChatRequest>();
+    const child = subagentScript((req) => {
+      const second = req.agentPath?.endsWith('#2') === true;
+      if (repliesOf(req) === 0 && req.agentPath !== undefined) own.set(req.agentPath, req);
+      return repliesOf(req) === 0
+        ? steps(second ? READ_LANDING : { ...READ_LANDING, params: { doc: FRIEND } }, second ? GULL : HERON)
+        : answer(second ? 'Notes from the second chapter.' : 'Notes from the first chapter.');
+    });
+    const result = await evaluate(scenario('chapter delegation: two proposed entries', [
+      planner([steps(chapterStep), steps(HERON, GULL)], planned), child,
+    ], held, {
+      project: () => {
+        const state = makeState();
+        setBody(state, FRIEND, 'Sentinel found only in chapter two.', { now: OPENED });
+        return state;
+      },
+      decisions: [
+        ({ card }) => {
+          expect(own.size).toBe(0);
+          expect(card.notice).toContain('2 chapters, up to 8 helper model calls');
+          return { action: 'approve' };
+        },
+        ({ card }) => {
+          expect(card.steps.map((step) => step.proposedBy)).toEqual(['general', 'general']);
+          return { action: 'approve' };
+        },
+      ],
+      expect: { status: 'applied', restores: true, ledgerRequests: 6, cards: { matcher: 'strict', items: [
+        { kind: 'confirm', tools: ['agent.delegate'], decision: 'approved' },
+        { kind: 'plan', tools: ['codex.write', 'codex.write'], decision: 'approved' },
+      ] } },
+    }));
+    expect(result.failures).toEqual([]);
+    expect(textOf(own.get('eval.turn-1/general#1'))).not.toContain('Sentinel found only in chapter two.');
+    expect(textOf(own.get('eval.turn-1/general#2'))).not.toContain('The ferry was late, as always.');
+    expect(result.run.report.trace.filter((row) => row.agentPath !== undefined && row.tool === 'doc.read').map((row) => row.outcome)).toEqual(['refused', 'refused']);
+    const returned = textOf(planned.at(-1));
+    expect(returned.indexOf('Notes from the first chapter.')).toBeGreaterThan(-1);
+    expect(returned.indexOf('Notes from the first chapter.')).toBeLessThan(returned.indexOf('Notes from the second chapter.'));
+    expect(result.run.report.modelCalls).toBe(6);
+  });
+
+  it('refuses a batch over the aggregate call cap before charging or asking for approval', async () => {
+    const held: { gateway?: Gateway } = {};
+    const planned: ChatRequest[] = [];
+    const result = await evaluate(scenario('chapter delegation: budget refusal', [
+      planner([steps({ ...chapterStep, params: { agent: 'general', brief: 'Read each chapter.', fanOut: 'per-chapter' } }), answer('Try fewer chapters.')], planned),
+    ], held, {
+      project: () => {
+        const state = makeState();
+        for (let index = 0; index < 49; index += 1) {
+          const folder = `n_FOLD${String(index).padStart(6, '0')}`;
+          addFolder(state, { id: folder, parentId: 'manuscript', title: `Extra chapter ${index}`, now: OPENED });
+          addDocument(state, { parentId: folder, title: `Extra scene ${index}`, now: OPENED });
+        }
+        return state;
+      },
+      expect: { status: 'replied', ledgerRequests: 2, cards: { matcher: 'strict', items: [] } },
+    }));
+    expect(result.failures).toEqual([]);
+    expect(textOf(planned.at(-1))).toContain('does not fit the remaining call budget');
+  });
+
+  it('keeps the consent card in Auto and starts no helpers when the writer cancels', async () => {
+    const held: { gateway?: Gateway } = {};
+    const result = await evaluate(scenario('chapter delegation: writer cancels approval', [
+      planner([steps(chapterStep)], []),
+    ], held, {
+      modeOptions: { mode: 'auto' },
+      decisions: [{ action: 'cancel' }],
+      expect: { status: 'cancelled', reached: {}, ledgerRequests: 1, cards: { matcher: 'strict', items: [
+        { kind: 'confirm', tools: ['agent.delegate'], decision: 'cancelled' },
+      ] } },
+    }));
+    expect(result.failures).toEqual([]);
+  });
+
+  it('returns completed notes alongside an unfinished sibling', async () => {
+    const held: { gateway?: Gateway } = {};
+    const planned: ChatRequest[] = [];
+    const result = await evaluate(scenario('chapter delegation: one helper cannot finish', [
+      planner([steps(chapterStep), answer('One chapter was reviewed.')], planned),
+      subagentScript((req) => req.agentPath?.endsWith('#1') === true ? answer('The first chapter has usable notes.') : 'Not a planner reply.'),
+    ], held, { expect: { status: 'replied', ledgerRequests: 7 } }));
+    expect(result.failures).toEqual([]);
+    const returned = textOf(planned.at(-1));
+    expect(returned).toContain('1 / 2 chapter helpers completed.');
+    expect(returned).toContain('The first chapter has usable notes.');
+    expect(returned).toContain('"status":"partial"');
+  });
+
+  it('does not start helpers if the approved chapter membership changed while the card was open', async () => {
+    const held: { gateway?: Gateway } = {};
+    const state = makeState();
+    const planned: ChatRequest[] = [];
+    const result = await evaluate(scenario('chapter delegation: stale approval', [
+      planner([steps(chapterStep), answer('Ask me to review the new scope.')], planned),
+    ], held, {
+      project: () => state,
+      decisions: [() => {
+        addDocument(state, { parentId: CHAPTER_ONE, title: 'New scene', now: OPENED });
+        return { action: 'approve' };
+      }],
+      expect: { status: 'replied', ledgerRequests: 2 },
+    }));
+    expect(result.failures).toEqual([]);
+    expect(textOf(planned.at(-1))).toContain('The approved chapter scope or route changed');
+  });
+});
 
 describe('delegating read-only research', () => {
   it('hands the reading to the reader, answers from its notes, and writes nothing', async () => {

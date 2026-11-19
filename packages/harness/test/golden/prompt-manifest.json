@@ -17,7 +17,7 @@
   },
   {
     "id": "planner.tools.native.all",
-    "sha256": "93e11eec9b6b8802a895e25e9e01f8878664bf32f59651f6ff15b7390de99256"
+    "sha256": "1d24c6f4336ac8df297d3d1eec85c95c7b6fe7b66926f61a8fa32640e51d061d"
   },
   {
     "id": "compaction.system",
@@ -252,8 +252,8 @@
   },
   {
     "id": "tool.agent.delegate",
-    "sha256": "dd2da6d0ca51fded9eb0bd4a15c74c05a1deebef713b04e4eb9ad1641bf2900c",
-    "descriptionVersion": 1
+    "sha256": "3d21da62fb7cb261febfc60ebdcb2f3b3f9f30aee1653deae0a0369f1b2a82a0",
+    "descriptionVersion": 2
   },
   {
     "id": "tool.text.search",
