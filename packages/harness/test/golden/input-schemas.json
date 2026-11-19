@@ -612,14 +612,14 @@
   },
   "codex.write": {
     "type": "object",
-    "description": "The codex entries to create or update, as one batch.",
+    "description": "Codex writes.",
     "properties": {
       "entries": {
         "type": "array",
-        "description": "Entries to create or update: at most 20 per call. Each is validated before any of them is written.",
+        "description": "Validate the whole batch before writing.",
         "items": {
           "type": "object",
-          "description": "One codex entry: a create, or an update of an existing entry by id.",
+          "description": "One entry.",
           "properties": {
             "action": {
               "type": "string",
@@ -627,7 +627,7 @@
                 "create",
                 "update"
               ],
-              "description": "create makes a new entry; update changes one named by id."
+              "description": "Create or update."
             },
             "id": {
               "type": "string",
@@ -683,7 +683,17 @@
             },
             "details": {
               "type": "object",
-              "description": "Detail values by field key, checked against the project schema for this entry type. Use null to clear a value."
+              "description": "Details by key; null clears."
+            },
+            "referenceEdits": {
+              "type": "array",
+              "description": "External refs.",
+              "items": {
+                "type": "object",
+                "description": "action: create/update/remove; title on create; id on update/remove; url/publisher/date/quote (date YYYY-MM-DD, null clears)."
+              },
+              "minItems": 1,
+              "maxItems": 24
             },
             "exclude": {
               "type": "array",
@@ -716,7 +726,7 @@
             },
             "visualRefs": {
               "type": "array",
-              "description": "The image asset ids the entry's visual references are, at most 10: images already in this project, by id. An update replaces the list.",
+              "description": "Project image ids; replaces the list.",
               "items": {
                 "type": "string",
                 "description": "One image asset id.",

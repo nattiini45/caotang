@@ -314,11 +314,15 @@ Ein Comic kann ein Skript haben, ein Dokument, das Caotang nach Wahl mit dem Buc
 Zum Exportieren wählen Sie den Comic oder eine seiner Seiten und dann **Kompilieren…**. **Comic-PDF (.pdf)** bietet **Anschnitt**, **Schnittmarken** und **Papierrahmen**. **Comic-Archiv (.cbz)** und **Comic-EPUB (.epub)** verwenden den Rasterizer des Browsers; ein Kommandozeilen- oder MCP-Host verweigert diese beiden vor dem Schreiben und weist Sie an, aus der App heraus zu exportieren. Jedes Format folgt der eigenen Leserichtung des Comics, daher setzt kein Exportprofil sie fest.
 
 ## Der Kodex
-<!-- source: 0af900f6 -->
+<!-- source: 029cfbe5 -->
 
 Der Kodex ist Ihr Nachschlagewerk: Figuren, Orte, Gegenstände, Überlieferung, Nebenhandlungen und alles andere, was der Agent wissen sollte. Öffnen Sie ihn über die Registerkarte **Kodex** auf der linken Seite. Wählen Sie **Neuer Eintrag**, um einen hinzuzufügen, oder tippen Sie in das Suchfeld, um einen zu finden.
 
 Jeder Eintrag hat einen Namen, optionale Aliasnamen (**Alias hinzufügen und Eingabetaste drücken**), einen Typ (**Figur**, **Ort**, **Gegenstand**, **Überlieferung**, **Nebenhandlung** oder **Sonstiges**), eine Beschreibung mit bis zu 2.000 Zeichen, eine Einschlussrichtlinie, **Ausschlussbegriffe** (ein Treffer darin wird ignoriert) und die Dokumente, an die er angehängt ist.
+
+Wählen Sie unter **Details** die Option **Detailfeld hinzufügen**. Geben Sie dem Feld eine Bezeichnung, einen Schlüssel (zum Beispiel `sendetermin`) und einen Werttyp: Text, Zahl, Datum oder Ja/Nein. Verwenden Sie den aktuellen Eintragstyp oder geben Sie einen neuen Typnamen ein, um ihn diesem Eintrag zuzuweisen. Alle Einträge dieses Typs erhalten dasselbe Feld, behalten aber ihre eigenen Werte. Ein leerer Wert leert das Feld. Details werden nicht automatisch an das Modell gesendet.
+
+Wählen Sie unter **Externe Quellen** die Option **Quelle hinzufügen**, um einen Artikel, ein Buch, eine Website oder eine andere Quelle außerhalb des Manuskripts festzuhalten. Geben Sie einen Titel und bei Bedarf eine Internetadresse, den Verlag, das Veröffentlichungsdatum oder ein Zitat ein. Caotang öffnet einen Link erst, wenn Sie ihn auswählen. Externe Quellen ändern nichts an den Manuskriptstellen, auf die sich der Eintrag stützt, und werden nicht automatisch an das Modell gesendet.
 
 Die Einschlussrichtlinie legt fest, wann der Agent einen Eintrag sieht:
 

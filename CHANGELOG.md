@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **External codex references (#222).** Record the books, articles and sites behind an entry with a title, URL, publisher, date and quote. These references are separate from manuscript provenance and stay out of automatic model context.
+
 - **Typed codex details (#221).** Define text, number, date or yes/no fields for an entry type, including a type you name yourself. Entries of that type share the fields but keep their own values. Details stay out of automatic model context.
 
 - **Read-only MCP hooks (#511).** Settings › Hooks can call a trusted, reviewed read-only MCP tool before or after a selected built-in agent tool. The definition stays in this browser for this project, and the request sends no manuscript or tool arguments.

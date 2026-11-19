@@ -1,0 +1,46 @@
+.codex-reference-list,
+.codex-reference-form,
+.codex-reference-field {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.codex-reference-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.codex-reference-item {
+  min-inline-size: 0;
+  padding-block: var(--space-3);
+  border-block-start: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.codex-reference-title {
+  font-weight: 600;
+}
+
+.codex-reference-item blockquote {
+  margin-block: var(--space-3);
+  margin-inline: 0;
+  white-space: pre-wrap;
+}
+
+.codex-reference-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.codex-reference-add {
+  align-self: flex-start;
+}
+
+.codex-reference-link {
+  display: inline-block;
+  margin-block: var(--space-2);
+  color: var(--accent);
+}

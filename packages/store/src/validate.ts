@@ -1103,6 +1103,11 @@ function validateCodex(
       warn(`${at}.details`, 'expected a JSON object; details were ignored');
       delete entryNode.details;
     }
+    const references = entryNode.references;
+    if (references !== undefined && (!Array.isArray(references) || jsonValueProblem(references) !== undefined)) {
+      warn(`${at}.references`, 'expected a JSON list; external references were ignored');
+      delete entryNode.references;
+    }
     const visualRefs = entryNode.visualRefs;
     if (visualRefs !== undefined) {
       if (!Array.isArray(visualRefs)) {

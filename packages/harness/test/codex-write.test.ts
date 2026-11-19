@@ -16,6 +16,34 @@ function entryOf(state: ReturnType<typeof makeState>, id: string) {
 }
 
 describe('codex.write', () => {
+  it('validates external references without changing the entry’s provenance', () => {
+    const state = makeState();
+    const entry = entryOf(state, ENTRY);
+    const before = { origin: entry.origin, sources: structuredClone(entry.sources) };
+    const harness = makeHarness({}, state);
+    const outcome = valueOf(run(harness, 'codex.write', {
+      entries: [{ action: 'update', id: ENTRY, referenceEdits: [{
+        action: 'create', title: 'The Tidemaker', url: 'https://example.org/tides', publisher: 'Gull Press',
+        date: '2024-02-29', quote: 'The harbour keeps a separate tide log.',
+      }] }],
+    }, { permission: CONFIRMED }));
+    expect(entry).toMatchObject(before);
+    expect(entry.references).toEqual([expect.objectContaining({
+      id: expect.stringMatching(/^ref_/), title: 'The Tidemaker', publisher: 'Gull Press',
+    })]);
+    expect(outcome.data['diffs']).toEqual([expect.objectContaining({
+      changes: [expect.objectContaining({ field: 'references', to: expect.stringContaining('The Tidemaker') })],
+    })]);
+    const refused = refusalOf(run(harness, 'codex.write', { entries: [
+      { action: 'update', id: ENTRY, referenceEdits: [{ action: 'create', title: 'A refused link', url: 'data:text/plain,no' }] },
+    ] }, { permission: CONFIRMED }));
+    expect(refused.details?.failures?.[0]?.message).toContain('url must be an HTTP or HTTPS address without credentials');
+    expect(entry.references).toHaveLength(1);
+    harness.undo.undo(outcome.undoGroupId ?? '');
+    expect(entry.references).toBeUndefined();
+    expect(entry).toMatchObject(before);
+  });
+
   it('validates a custom entry’s detail values by key without losing other saved detail values', () => {
     const state = makeState();
     const entry = entryOf(state, ENTRY);

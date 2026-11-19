@@ -329,6 +329,8 @@ Each entry has a name, optional aliases (**Add an alias and press Enter**), a ty
 
 Under **Details**, choose **Add detail field**. Give the field a label, a key (for example, `air-date`), and a value type: text, number, date, or yes/no. Use the current entry type or enter a new type name to assign it to this entry. Every entry of that type gets the same field, but its value is individual. Leaving a value blank clears it; details are not automatically included in requests to the model.
 
+Under **External references**, choose **Add reference** for an article, book, website, or another source outside the manuscript. Give it a title and, if useful, a URL, publisher, publication date, or quote. Caotang opens a link only when you select it. References do not change the manuscript passages that establish the entry, and they are not automatically included in model requests.
+
 The include policy says when the agent sees an entry:
 
 - **Always**: with every request. These are sent whole even when together they are longer than the codex's share of the prompt; the other entries are then left out, and the prompt preview says how many tokens the Always entries need.

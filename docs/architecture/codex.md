@@ -66,12 +66,19 @@ An entry has an optional `details` object keyed by these identifiers. Kinds are 
 
 Definitions and values are absent in projects that do not use them. They are not included in automatic model context or prompt-preview content. Explicit value edits through `codex.write` are subject to normal write confirmation; its tool schema does not offer field definition edits.
 
+### 2.2 External references
+
+An entry can have an optional ordered `references` list of research citations. This is separate from `sources`, which still names manuscript passages and still governs provenance with `origin`. An external reference has a stable `ref_` id, a title, and optional URL, publisher, publication date and quote. The title and publisher are limited to 160 characters, the URL to 2,048 characters and the quote to 1,000 characters. A publication date is a real date in YYYY-MM-DD. Links open only absolute HTTP or HTTPS URLs without credentials, on the writer's explicit action; Caotang does not fetch a preview.
+
+The entry editor adds, edits and removes references. A confirmed `codex.write` can do the same with `referenceEdits`, using create/update/remove operations. Each update or removal names the reference id; updates patch only the provided fields and use null to clear an optional field. A batch is validated before execution and an entry can hold at most 24 references. Unknown keys and unrecognized records are kept on load and save, so editing one known reference cannot silently discard other data. The reference editor only interprets records and links it understands. Neither reference fields nor links reach automatic model context.
+
 ## 3. Storage & write path
 
 - **Manifest is structural truth:** `caotang.json` gains a top-level `codex[]` array (full `CodexEntry` objects, same fixed key order discipline as `tree`). Format v1 absorbs it additively — no `formatVersion` bump (versions migrate real data, not spec growth).
 - **Per-entry redundancy file:** `codex/<id>.md` — YAML front matter `{id, name, type, includePolicy, caseSensitive, aliases, exclude, attachments, keywords}` + body = `description` Markdown. Written on every entry save via the same atomic write path as documents (temp → rename; project-format §4). This is the doc front-matter pattern applied to codex: **each entry is individually meaningful and survives manifest corruption** — the direct countermeasure to the failure mode where single-asset corruption makes a whole project unreadable.
 - **Conflict rule:** manifest wins over redundancy files; missing file → rewritten from manifest; file with no manifest entry → recovered like orphan `docs/*.md` (project-format §2 validation step 4): imported as a codex entry under `codex/`-file metadata, reported in the load notice.
 - **Typed-detail recovery:** `details` is also stored in each codex Markdown file as a JSON object in a quoted front-matter scalar. Entry values survive an orphan import or a rebuild from files. Shared project-level field definitions live in the manifest and its backups; a rebuild without those backups retains the values even when it cannot reconstruct the definitions.
+- **Reference recovery:** A nonempty `references` array is also stored as JSON in a quoted front-matter scalar. It survives an orphan import or file-based rebuild and is never folded into `sources`.
 - **Recovery (project-format §5 extended):** the rebuild-from-front-matter pass also scans `codex/*.md`; rebuilt entries land with their stored policy/aliases; descriptions survive; attachment ids that no longer resolve are dropped per the dangling rule.
 - **No codex secrets rule** (project-format §2): descriptions are prose, but the no-secrets discipline applies — provider keys/URLs never belong in codex text; loader does not scan for them (documented, not enforced).
 - **Series-scope design constraint:** writing tools with a multi-book story commonly ship a shared/promotable codex; Caotang's is single-project in v0.1, but entry ids and the `codex/<id>.md` redundancy layout must assume **no project-local collision domains** (ids globally unique per install) so a future "promote entry to series scope" needs no migration. Boundary recorded in [codex-panels.md](codex-panels.md) §3.
@@ -154,6 +161,7 @@ The shared import preview ([import-preview.md](import-preview.md) §4, #267) is 
 - **Inspector:** "Codex" section on document nodes — chips for entries attached to this doc (+ attach picker), and mention chips (entries detected in this doc, click → codex panel entry).
 - **First-run:** empty codex shows the guided seed card: "Let the agent draft entries from your manuscript" → one-click `codex.write` plan (the bootstrap path, minimal form; full bootstrap wizard = v0.2 backlog).
 - The entry editor's **Details** section renders the current type's fields and lets the writer define fields for the current or a custom type.
+- The entry editor's **External references** section manages research citations independently of manuscript provenance.
 - Out of scope v0.1: editor underline highlighting, heatmap, relations editor.
 
 ## 9. Evals hooks

@@ -1,5 +1,7 @@
 # Decisions
 
+- Codex external references (#222) are ordered research records, independent of manuscript `sources` and the canon rule. The writer can open an HTTP(S) link explicitly; the app requests no remote preview and sends no reference data as automatic model context. [delegated 2026-11-19]
+
 - Codex details, external references and relations (#221–#223) stay out of automatic model context. Mention matching does not follow relations. Details and external references can be passed explicitly to `codex.write` and follow its usual confirmation path. External references stay separate from manuscript `sources` and do not change the canon rule. Verify the assembly boundary in prompt preview before shipping. [delegated 2026-11-19]
 
 - [proposed] Codex relations (#223) start in a Relations section on the selected entry rather than a standalone project map. Show incoming and outgoing links and let writers follow them to the other entry.

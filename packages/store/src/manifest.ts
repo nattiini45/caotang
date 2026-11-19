@@ -230,6 +230,7 @@ export interface CodexEntry {
    */
   visualRefs?: string[];
   details?: Record<string, unknown>;
+  references?: unknown[];
   /** additive (codex.md §10 K4) — missing on load = 'manual' */
   origin: 'manual' | 'agent' | 'import';
   sources: CodexSource[];
