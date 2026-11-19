@@ -54,6 +54,8 @@
 import { describe, expect, it } from 'vitest';
 import { isIdWithPrefix } from '@caotang/ids';
 import {
+  CODEX_REFERENCE_MAX,
+  codexReferenceId,
   createActivityLog,
   createIdempotencyCache,
   createUndoStore,
@@ -285,6 +287,35 @@ describe('codex references', () => {
     expect((await readProject(orphan)).state.manifest.codex?.[0]?.references).toEqual(entry.references);
     h.undoGroup(outcome.undoGroupId ?? '');
     expect(entry.references).toEqual([ref, { futureRecord: true }]);
+  });
+
+  it('reads the cap as the batch net effect, so a create may precede the remove that makes room', () => {
+    const h = harness();
+    const entry = h.state.manifest.codex?.find(({ id }) => id === ENTRY);
+    if (entry === undefined) throw new Error('missing fixture entry');
+    entry.references = Array.from({ length: CODEX_REFERENCE_MAX }, (_, index) => ({
+      id: `ref_${String(index).padStart(10, '0')}`,
+      title: `Reference ${String(index)}`,
+    }));
+    const oldest = `ref_${String(0).padStart(10, '0')}`;
+
+    const swapped = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: ENTRY, referenceEdits: [
+        { action: 'create', title: 'Tide Tables' },
+        { action: 'remove', id: oldest },
+      ],
+    }] } }));
+    expect(entry.references).toHaveLength(CODEX_REFERENCE_MAX);
+    expect(entry.references?.some((value) => codexReferenceId(value) === oldest)).toBe(false);
+
+    const over = execute(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: ENTRY, referenceEdits: [{ action: 'create', title: 'One' }, { action: 'create', title: 'Two' }],
+    }] } }), h.bus, h.registry);
+    expect(over.ok).toBe(false);
+    if (!over.ok) expect(JSON.stringify(over.error)).toContain(`at most ${CODEX_REFERENCE_MAX} references`);
+
+    h.undoGroup(swapped.undoGroupId ?? '');
+    expect(entry.references).toHaveLength(CODEX_REFERENCE_MAX);
   });
 });
 

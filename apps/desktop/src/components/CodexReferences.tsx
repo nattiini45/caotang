@@ -79,7 +79,12 @@ export function CodexReferences({ records, onEdit }: {
                     <Trans>Edit</Trans>
                   </Button>
                   <Button className="button is-quiet" disabled={editing !== null} aria-label={t`Remove reference ${{ title }}`}
-                    onClick={() => { if (onEdit({ action: 'remove', id: reference.id })) add.current?.focus(); }}>
+                    onClick={() => {
+                      if (!onEdit({ action: 'remove', id: reference.id })) return;
+                      // At the cap the Add button is still disabled on this render, so the heading takes focus instead.
+                      if (add.current?.disabled === true) headingElement.current?.focus();
+                      else add.current?.focus();
+                    }}>
                     <Trans>Remove</Trans>
                   </Button>
                 </div>
