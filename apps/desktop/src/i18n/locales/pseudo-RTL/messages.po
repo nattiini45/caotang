@@ -2754,6 +2754,11 @@ msgstr ""
 msgid "a fact that is gone"
 msgstr ""
 
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "A field in this reference could not be read. Remove it and add it again."
+msgstr ""
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "A field was kept as its text."
@@ -15402,6 +15407,7 @@ msgstr ""
 #. Interpolated values: name
 #. Interpolated values: parent, title, amount
 #. Interpolated values: title is the writer's reference title.
+#. Interpolated values: title is the writer's reference title.
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
@@ -15509,6 +15515,7 @@ msgstr ""
 msgid "Remove reference {number}"
 msgstr ""
 
+#. Interpolated values: title is the writer's reference title.
 #. Interpolated values: title is the writer's reference title.
 #: apps/desktop/src/components/CodexReferences.tsx
 msgid "Remove reference {title}"
@@ -22804,6 +22811,11 @@ msgstr ""
 #: apps/desktop/src/app/lifecycle.ts
 #: apps/desktop/src/components/Home.tsx
 msgid "Untitled project"
+msgstr ""
+
+#. Interpolated values: title is the writer's reference title.
+#: apps/desktop/src/components/CodexReferences.tsx
+msgid "Untitled reference"
 msgstr ""
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number

@@ -22,7 +22,7 @@ export function codexReferenceId(value: unknown): string | undefined {
 
 export function externalReferenceUrl(value: string): string | undefined {
   if (!/^https?:\/\//i.test(value) || /\s/u.test(value) || [...value].some((character) => character <= ' ' || character === '\x7f') ||
-    value.length > CODEX_REFERENCE_URL_MAX) return undefined;
+    [...value].length > CODEX_REFERENCE_URL_MAX) return undefined;
   try {
     const url = new URL(value);
     if ((url.protocol === 'https:' || url.protocol === 'http:') && url.username === '' && url.password === '') return url.href;
@@ -36,7 +36,7 @@ export function referenceFieldProblem(key: (typeof CODEX_REFERENCE_FIELDS)[numbe
   if (key !== 'title' && value === null) return undefined;
   const max = key === 'title' ? CODEX_REFERENCE_TITLE_MAX : key === 'publisher' ? CODEX_REFERENCE_PUBLISHER_MAX
     : key === 'url' ? CODEX_REFERENCE_URL_MAX : key === 'quote' ? CODEX_REFERENCE_QUOTE_MAX : 10;
-  if (typeof value !== 'string' || value.trim() === '' || value.length > max) return `must be nonblank text of at most ${max} characters`;
+  if (typeof value !== 'string' || value.trim() === '' || [...value].length > max) return `must be nonblank text of at most ${max} characters`;
   if (key === 'date' && !matchesCodexDetail('date', value)) return 'must be a real date in YYYY-MM-DD';
   if (key === 'url' && externalReferenceUrl(value) === undefined) return 'must be an HTTP or HTTPS address without credentials';
   return undefined;
@@ -49,12 +49,16 @@ export function readCodexReference(value: unknown): CodexReference | undefined {
   const reference: CodexReference = { id, title: value.title };
   for (const key of ['url', 'publisher', 'date', 'quote'] as const) {
     const field = value[key];
-    if (typeof field === 'string' && referenceFieldProblem(key, field) === undefined) reference[key] = field;
+    // A field that is present but unreadable takes the whole record out of the editor, so the panel names it as unshowable
+    // rather than drawing the record without it and letting a later edit look complete.
+    if (field === undefined || field === null) continue;
+    if (typeof field !== 'string' || referenceFieldProblem(key, field) !== undefined) return undefined;
+    reference[key] = field;
   }
   return reference;
 }
 
-export function referenceEditProblem(value: unknown, liveIds: string[], currentCount: number): string | undefined {
+export function referenceEditProblem(value: unknown, liveIds: string[], remaining: number): string | undefined {
   if (!isCodexDetailObject(value)) return 'must be an operation object';
   const { action, id } = value;
   if (action !== 'create' && action !== 'update' && action !== 'remove') return 'action must be create, update or remove';
@@ -65,7 +69,7 @@ export function referenceEditProblem(value: unknown, liveIds: string[], currentC
     return `unexpected field "${key}" for ${action}`;
   }
   if (action === 'create') {
-    if (currentCount >= CODEX_REFERENCE_MAX) return `an entry can hold at most ${CODEX_REFERENCE_MAX} references`;
+    if (remaining <= 0) return `an entry can hold at most ${CODEX_REFERENCE_MAX} references`;
   } else if (typeof id !== 'string' || liveIds.filter((candidate) => candidate === id).length !== 1) {
     return 'id must name one existing reference on this entry';
   }

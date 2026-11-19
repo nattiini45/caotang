@@ -16,6 +16,21 @@ function entryOf(state: ReturnType<typeof makeState>, id: string) {
 }
 
 describe('codex.write', () => {
+  it('shows the references an update starts from, not an empty field', () => {
+    const state = makeState();
+    const entry = entryOf(state, ENTRY);
+    entry.references = [{ id: 'ref_0000000001', title: 'Tide Tables', publisher: 'Gull Press' }];
+    const harness = makeHarness({}, state);
+    const outcome = valueOf(run(harness, 'codex.write', {
+      entries: [{ action: 'update', id: ENTRY, referenceEdits: [{ action: 'update', id: 'ref_0000000001', publisher: 'Nordufer Verlag' }] }],
+    }, { permission: CONFIRMED }));
+    const change = (outcome.data['diffs'] as { changes: { field: string; from: string }[] }[])[0]?.changes
+      .find((candidate) => candidate.field === 'references');
+    expect(change?.from).toContain('Tide Tables');
+    expect(change?.from).toContain('Gull Press');
+    expect(change?.from).not.toBe('null');
+  });
+
   it('validates external references without changing the entry’s provenance', () => {
     const state = makeState();
     const entry = entryOf(state, ENTRY);
@@ -32,7 +47,7 @@ describe('codex.write', () => {
       id: expect.stringMatching(/^ref_/), title: 'The Tidemaker', publisher: 'Gull Press',
     })]);
     expect(outcome.data['diffs']).toEqual([expect.objectContaining({
-      changes: [expect.objectContaining({ field: 'references', to: expect.stringContaining('The Tidemaker') })],
+      changes: [expect.objectContaining({ field: 'references', from: '[]', to: expect.stringContaining('The Tidemaker') })],
     })]);
     const refused = refusalOf(run(harness, 'codex.write', { entries: [
       { action: 'update', id: ENTRY, referenceEdits: [{ action: 'create', title: 'A refused link', url: 'data:text/plain,no' }] },
