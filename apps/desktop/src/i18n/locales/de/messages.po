@@ -8512,8 +8512,9 @@ msgstr "{name} als Bundle exportieren"
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: count, files
 #. Modern interface: Scene info, the inspector as a popover from the title capsule.
+#: apps/desktop/src/components/FolderChangeStatus.tsx
 #: apps/desktop/src/components/shell/modern/scene-info.tsx
 #: apps/desktop/src/components/StaleTabNotice.tsx
 #: apps/desktop/src/components/Workspace.tsx
@@ -10455,8 +10456,8 @@ msgstr "Weiter warten"
 msgid "Keep WebP pictures as they are (for Apple Books; other readers may show them blank)"
 msgstr "WebP-Bilder so behalten, wie sie sind (für Apple Books; andere Reader zeigen sie eventuell leer an)"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: count, files
+#: apps/desktop/src/components/FolderChangeStatus.tsx
 msgid "Keep writing"
 msgstr "Weiterschreiben"
 
@@ -15703,8 +15704,8 @@ msgstr "Ordner erneut öffnen"
 msgid "Reopen folder of {name}"
 msgstr "Ordner von {name} erneut öffnen"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: count, files
+#: apps/desktop/src/components/FolderChangeStatus.tsx
 msgid "Reopen the folder’s version"
 msgstr "Die Fassung aus dem Ordner öffnen"
 
@@ -20361,13 +20362,13 @@ msgstr "Das Projektcover"
 msgid "The project folder changed outside Caotang or is in use. Reopen it before saving."
 msgstr "Der Projektordner wurde außerhalb von Caotang geändert oder wird gerade verwendet. Öffne ihn vor dem Speichern erneut."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: count, files
+#: apps/desktop/src/components/FolderChangeStatus.tsx
 msgid "The project folder changed outside Caotang: {files} and {count} more. Caotang has not reloaded the folder’s version."
 msgstr "Der Projektordner wurde außerhalb von Caotang geändert: {files} und {count} weitere. Caotang hat die Fassung aus dem Ordner nicht neu geladen."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: count, files
+#: apps/desktop/src/components/FolderChangeStatus.tsx
 msgid "The project folder changed outside Caotang: {files}. Caotang has not reloaded the folder’s version."
 msgstr "Der Projektordner wurde außerhalb von Caotang geändert: {files}. Caotang hat die Fassung aus dem Ordner nicht neu geladen."
 

@@ -13,6 +13,8 @@
 /* lingui-set comment="Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words" */
 
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -24,7 +26,7 @@ import {
 } from 'react';
 import { plural, select, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { isolate, listFormat } from '@caotang/i18n';
+import { isolate } from '@caotang/i18n';
 import { pictureStorageReport, type ProjectState, type RuntimeStore, type SweepCandidate } from '@caotang/store';
 
 import { useFolderSave } from './use-folder-save.js';
@@ -57,8 +59,6 @@ import { PictureNotices } from './PictureNotices.js';
 import { saveStateWords } from '../app/integrity-model.js';
 import { nativeFolderId, nativeFoldersAvailable } from '../app/native-folders.js';
 import { useFolderWatch } from '../app/use-folder-watch.js';
-import { changeSummary } from '../app/folder-watch.js';
-import { formatterLocale } from '../i18n/format-locale.js';
 import { requestInspector } from '../app/inspector-request.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import type { StartIntent } from '../App.js';
@@ -128,6 +128,12 @@ export interface Renaming {
   readonly surface: 'binder' | 'card';
 }
 
+/**
+ * The folder-change offer and the watcher behind it load only while a native folder is open (desktop.md §External folder
+ * changes): the website neither watches a folder nor fetches this chunk.
+ */
+const FolderChangeStatus = lazy(() => import('./FolderChangeStatus.js').then((module) => ({ default: module.FolderChangeStatus })));
+
 export interface WorkspaceProps {
   readonly session: ProjectSession;
   readonly store: RuntimeStore;
@@ -158,8 +164,6 @@ export function Workspace({
 }: WorkspaceProps): ReactNode {
   useSession(session);
   const { state, view } = session;
-  // A change another program makes in the open folder waits here as an offer; nothing is reloaded by itself (desktop.md, #403).
-  const folderWatch = useFolderWatch(session);
   // The printed-key layout behind the shortcut labels the toolbar shows (keymap.ts; the same subscription as EditorPane).
   const keyboardLayout = useSyncExternalStore(keyboardLayoutStore.subscribe, keyboardLayoutStore.snapshot);
   const [rail, setRail] = useState<RailTab>('binder');
@@ -484,6 +488,9 @@ export function Workspace({
   const stopped = session.tabStop().getSnapshot();
   const stopCause = stopped.kind === 'stopped' ? stopped.cause : undefined;
   const folderCopy = session.folderBaseline()?.folder ?? null;
+  // The watch starts with the workspace, so a change made while the offer's own module is still loading is not missed;
+  // that module holds only the words and the buttons (FolderChangeStatus).
+  const folderWatch = useFolderWatch(session);
   const nativeFolder = nativeFolderId(folderCopy) !== undefined;
   const browserFolderPicker = !nativeFoldersAvailable() && folderAccessSupported();
   const saveWords = saveStateWords(saveState, stopCause, failedSaveChannels, nativeFolder);
@@ -1173,16 +1180,18 @@ export function Workspace({
             </button>}
           </div>
         ) : null}
-        {folderWatch.changed !== null && folderCopy !== null ? (
-          <FolderChangeOffer
-            changed={folderWatch.changed}
-            folder={folderCopy}
-            saved={saveState === 'saved'}
-            onReopen={onReopenFolder}
-            onExport={exportBundleOffering}
-            onDismiss={folderWatch.dismiss}
-          />
-        ) : null}
+        {folderCopy === null || folderWatch.changed === null ? null : (
+          <Suspense fallback={null}>
+            <FolderChangeStatus
+              folder={folderCopy}
+              changed={folderWatch.changed}
+              saved={saveState === 'saved'}
+              onDismiss={folderWatch.dismiss}
+              onReopen={onReopenFolder}
+              onExport={exportBundleOffering}
+            />
+          </Suspense>
+        )}
       </>
     ),
     saveState: <SaveIndicator state={saveState} words={saveWords} onExport={exportNow} />,
@@ -1322,44 +1331,6 @@ function DeleteSummary({ descendants, documents, words }: { descendants: number;
         ? t`This removes the item, the ${plural(descendants, { one: '# item', other: '# items' })} inside it, and ${plural(words, { one: '# word', other: '# words' })} across ${plural(documents, { one: '# document', other: '# documents' })}. You can undo it right after with Ctrl+Z.`
         : t`This removes the item, the ${plural(descendants, { one: '# item', other: '# items' })} inside it. You can undo it right after with Ctrl+Z.`}
     </p>
-  );
-}
-
-/**
- * The offer a change another program made in the open folder raises (desktop.md §External folder changes): it names the changed
- * files and never acts by itself. Reopening is offered when this tab has nothing unsaved; when it does, the copy that does not
- * depend on a reload comes first, so the writer's words cannot be dropped by taking the offer.
- */
-function FolderChangeOffer({ changed, folder, saved, onReopen, onExport, onDismiss }: {
-  readonly changed: readonly string[];
-  readonly folder: DirectoryHandleLike;
-  readonly saved: boolean;
-  readonly onReopen: (folder: DirectoryHandleLike) => void;
-  readonly onExport: () => void;
-  readonly onDismiss: () => void;
-}): ReactNode {
-  const summary = changeSummary(changed, (path) => path.slice(path.lastIndexOf('/') + 1));
-  const files = listFormat(formatterLocale()).format(summary.names);
-  return (
-    <div className="status-line is-info" role="status" data-testid="folder-change">
-      <span>
-        {summary.more === 0
-          ? t`The project folder changed outside Caotang: ${{ files }}. Caotang has not reloaded the folder’s version.`
-          : t`The project folder changed outside Caotang: ${{ files }} and ${{ count: summary.more }} more. Caotang has not reloaded the folder’s version.`}
-      </span>
-      {saved ? (
-        <button type="button" className="button" onClick={() => onReopen(folder)}>
-          <Trans>Reopen the folder’s version</Trans>
-        </button>
-      ) : (
-        <button type="button" className="button" onClick={onExport}>
-          <Trans>Export a backup</Trans>
-        </button>
-      )}
-      <button type="button" className="button is-quiet" onClick={onDismiss}>
-        <Trans>Keep writing</Trans>
-      </button>
-    </div>
   );
 }
 
