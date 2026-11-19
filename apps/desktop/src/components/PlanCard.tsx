@@ -59,7 +59,7 @@ import { chooseContext, contextKey, droppedContextPins } from '../app/context-ch
 import { contextDropText, contextLayerLabel } from './context-labels.js';
 import './plan-card.css';
 
-/* lingui-set comment="Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated." */
+/* lingui-set comment="Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name." */
 
 /** A step's estimated cost, as the card's step view carries it: the prompt's, or a staged review's (coherence.md §5.3). */
 type PlanStepCost = NonNullable<PlanStepView['cost']>;
@@ -213,6 +213,7 @@ export function PlanCard({ card, live, drafts, project, session, transcriptionRo
 
 /** The card's words about the turn and its external steps (issue #54). Information only: nothing here stops a step. */
 function CautionNotes({ caution }: { caution: NonNullable<PlanCardView['caution']> }): ReactNode {
+  useLingui();
   return (
     <div className="plan-caution" data-testid="plan-caution">
       {caution.lead === undefined ? null : (
@@ -222,17 +223,17 @@ function CautionNotes({ caution }: { caution: NonNullable<PlanCardView['caution'
       )}
       {caution.followsUntrusted.length === 0 ? null : (
         <p className="plan-notice is-warn" role="status" data-testid="plan-caution-taint">
-          This comes after the agent read text from {caution.followsUntrusted.join(', ')}. Check that it is what you asked for.
+          <Trans>This comes after the agent read text from {{ sources: caution.followsUntrusted.join(', ') }}. Check that it is what you asked for.</Trans>
         </p>
       )}
       {caution.quotes.map((quote) => (
         <p key={`${quote.nodeId}:${quote.argPath}:${quote.step ?? 0}`} className="plan-notice is-warn" role="status" data-testid="plan-caution-quote">
-          {quote.step === undefined ? 'The call' : `Step ${quote.step}`} sends {quote.words} words in a row from “{quote.title}” ({quote.argPath}). Approve asks twice.
+          {quote.step === undefined ? t`The call` : t`Step ${{ step: quote.step }}`} <Trans>sends</Trans> {quote.words} <Trans>words in a row from</Trans> “{quote.title}” ({quote.argPath}). <Trans>Approve asks twice.</Trans>
         </p>
       ))}
       {caution.hits.length === 0 ? null : (
         <p className="plan-notice is-warn" role="status" data-testid="plan-caution-hits">
-          Text in a step reads like instructions to an AI: {caution.hits.map((hit) => `“${hit.excerpt}”`).join(', ')}
+          <Trans>Text in a step reads like instructions to an AI: {{ hits: caution.hits.map((hit) => `“${hit.excerpt}”`).join(', ') }}</Trans>
         </p>
       )}
     </div>
@@ -331,7 +332,7 @@ function StepRow({
       {(step.hooks ?? []).map((run) =>
         run.decision.action === 'warn' ? (
           <p key={`${run.hookId}:${run.event}`} className="plan-step-hook">
-            Hook “{run.name}”: {run.decision.reason}
+            <Trans>Hook “{{ name: run.name }}”:</Trans> {run.decision.reason}
           </p>
         ) : null,
       )}

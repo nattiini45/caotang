@@ -12,7 +12,9 @@
 
 /* lingui-set comment="Interpolated values: file is the imported file name; reason is the import failure message" */
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { t } from '@lingui/core/macro';
+import { plural, t } from '@lingui/core/macro';
+import { useLingui } from '@lingui/react';
+import { Trans } from '@lingui/react/macro';
 import { isolate } from '@caotang/i18n';
 
 import type { ProjectSession } from '../app/session.js';
@@ -76,18 +78,15 @@ const FIELD_WORDS: Readonly<Record<FieldTarget, string>> = {
 
 const CODEX_TYPES = ['character', 'location', 'object', 'lore', 'subplot', 'other'] as const;
 
-function plural(count: number, one: string, many = `${one}s`): string {
-  return `${formatCount(count)} ${count === 1 ? one : many}`;
-}
-
 export default function ImportPreviewDialog({ session, request, helpers }: { session: ProjectSession; request: OpenImportPreview; helpers: PreviewHelpers }): ReactNode {
+  useLingui();
   useSession(session);
   const report = useReport();
   const { source } = request;
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
-  const [phase, setPhase] = useState<ImportPreviewPhase>(() => (source.load === undefined ? { kind: 'ready' } : { kind: 'loading', progress: `Reading ${source.fileName}…` }));
+  const [phase, setPhase] = useState<ImportPreviewPhase>(() => (source.load === undefined ? { kind: 'ready' } : { kind: 'loading', progress: t`Reading ${{ file: source.fileName }}…` }));
   const phaseRef = useRef(phase);
   const send = (event: ImportPreviewEvent): boolean => {
     const next = stepImportPreview(phaseRef.current, event);
@@ -251,11 +250,13 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
         pictures,
       }, helpers);
       if (built.params.nodes.length === 0) {
-        send({ type: 'commit-failed', message: 'Everything is left out, so there is nothing to import. Tick at least one chapter or scene.' });
+        send({ type: 'commit-failed', message: t`Everything is left out, so there is nothing to import. Tick at least one chapter or scene.` });
         return;
       }
       if (built.unkept.length > 0) {
-        send({ type: 'commit-failed', message: `${built.unkept.map((title) => `“${title}”`).join(', ')} would not come back unchanged from a save, so nothing was imported. Leave ${built.unkept.length === 1 ? 'it' : 'them'} out and import again.` });
+        const titles = built.unkept.map((title) => `“${title}”`).join(', ');
+        const leaveOut = plural({ count: built.unkept.length }, { one: 'it', other: 'them' });
+        send({ type: 'commit-failed', message: t`${titles} would not come back unchanged from a save, so nothing was imported. Leave ${leaveOut} out and import again.` });
         return;
       }
       const result = await session.importTree(built.params, built.pictures);
@@ -271,7 +272,10 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
     }
   };
 
-  const importLabel = plan === null ? 'Import' : (source.importLabel?.(plan) ?? `Import ${plural(plan.counts.chapters, 'chapter')}`);
+  const importLabel = plan === null ? t`Import` : (source.importLabel?.(plan) ?? t`Import ${plural({ chapters: plan.counts.chapters }, { one: '# chapter', other: '# chapters' })}`);
+  const manualEdits = plural({ count: editCount(edits) }, { one: '# manual edit', other: '# manual edits' });
+  const keepThem = plural({ count: editCount(edits) }, { one: 'it', other: 'them' });
+  const scanReads = plan === null ? '' : plural({ count: scan.total }, { one: '# passage reads', other: '# passages read' });
   const sourceReport = plan === null ? [] : (source.report?.(plan) ?? []);
 
   return (
@@ -295,7 +299,7 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
         ) : null}
         {phase.kind === 'failed' ? (
           <p className="import-preview-error" role="alert">
-            {source.fileName} could not be read: {phase.message}
+            <Trans>{{ name: source.fileName }} could not be read: {{ message: phase.message }}</Trans>
           </p>
         ) : null}
         {ready && reading ? (
@@ -307,23 +311,23 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
           <>
             {source.intro === undefined ? null : <p className="import-preview-intro">{source.intro}</p>}
             <p className="import-preview-detected" role="status" aria-live="polite">
-              Detected: {headerLine(plan.counts, codexRows.length)}
+              <Trans>Detected: {{ detected: headerLine(plan.counts, codexRows.length) }}</Trans>
             </p>
 
             <RuleChips source={source} settings={settings} onChange={askRule} destination={destination} folders={folders} onDestination={setDestination} customCommit={source.commit !== undefined} />
             {pendingRule === null ? null : (
-              <div className="import-preview-ask" role="group" aria-label="Keep your manual edits?">
+              <div className="import-preview-ask" role="group" aria-label={t`Keep your manual edits?`}>
                 <p>
-                  You made {plural(editCount(edits), 'manual edit')}. Keep {editCount(edits) === 1 ? 'it' : 'them'} with the new rule?
+                  <Trans>You made {manualEdits}. Keep {keepThem} with the new rule?</Trans>
                 </p>
                 <button type="button" className="button" onClick={() => changeRule(pendingRule.id, pendingRule.value, true)}>
-                  Keep my edits
+                  <Trans>Keep my edits</Trans>
                 </button>
                 <button type="button" className="button" onClick={() => changeRule(pendingRule.id, pendingRule.value, false)}>
-                  Discard them
+                  <Trans>Discard them</Trans>
                 </button>
                 <button type="button" className="button is-quiet" onClick={() => setPendingRule(null)}>
-                  Keep the old rule
+                  <Trans>Keep the old rule</Trans>
                 </button>
               </div>
             )}
@@ -369,20 +373,20 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
             </div>
 
             {fields.length === 0 ? null : (
-              <section className="import-preview-section" aria-label="Fields">
-                <h3>Fields</h3>
+              <section className="import-preview-section" aria-label={t`Fields`}>
+                <h3><Trans>Fields</Trans></h3>
                 <table className="import-preview-table">
                   <tbody>
                     {fields.map((field) => (
                       <tr key={field.key}>
                         <th scope="row">{field.key}</th>
                         <td className="import-preview-muted">
-                          {plural(field.count, 'value')}
-                          {field.samples.length === 0 ? '' : `, e.g. ${field.samples.slice(0, 2).join(', ')}`}
+                          {plural({ count: field.count }, { one: '# value', other: '# values' })}
+                          {field.samples.length === 0 ? '' : t`, e.g. ${{ samples: field.samples.slice(0, 2).join(', ') }}`}
                         </td>
                         <td>
                           <select
-                            aria-label={`Field ${field.key} becomes`}
+                            aria-label={t`Field ${{ key: field.key }} becomes`}
                             value={mapping[field.key] ?? 'ignore'}
                             onChange={(event) => {
                               const value = event.currentTarget.value as FieldTarget;
@@ -406,8 +410,8 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
             )}
 
             {codexRows.length === 0 ? null : (
-              <section className="import-preview-section" aria-label="Codex rows">
-                <h3>Codex</h3>
+              <section className="import-preview-section" aria-label={t`Codex rows`}>
+                <h3><Trans>Codex</Trans></h3>
                 <table className="import-preview-table">
                   <tbody>
                     {codexRows.map((row) => {
@@ -416,10 +420,10 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
                         <tr key={row.id}>
                           <th scope="row">
                             {row.name}
-                            {colliding.has(row.id) ? <span className="import-preview-warn"> already in the codex</span> : null}
+                            {colliding.has(row.id) ? <span className="import-preview-warn"><Trans> already in the codex</Trans></span> : null}
                           </th>
                           <td>
-                            <select aria-label={`Type of ${row.name}`} value={codexTypes[row.id] ?? row.type} onChange={(event) => {
+                            <select aria-label={t`Type of ${{ name: row.name }}`} value={codexTypes[row.id] ?? row.type} onChange={(event) => {
                               const value = event.currentTarget.value;
                               setCodexTypes((current) => ({ ...current, [row.id]: value }));
                             }}>
@@ -432,7 +436,7 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
                           </td>
                           <td>
                             <select
-                              aria-label={`What to do with ${row.name}`}
+                              aria-label={t`What to do with ${{ name: row.name }}`}
                               value={answer.action}
                               onChange={(event) => {
                                 const action = event.currentTarget.value as CodexAnswer['action'];
@@ -441,18 +445,18 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
                               }}
                             >
                               <option value="import" disabled={colliding.has(row.id)}>
-                                Import
+                                <Trans>Import</Trans>
                               </option>
-                              <option value="skip">Skip</option>
-                              <option value="rename">Rename</option>
+                              <option value="skip"><Trans>Skip</Trans></option>
+                              <option value="rename"><Trans>Rename</Trans></option>
                               <option value="page" disabled={row.page === undefined}>
-                                Import as page only
+                                <Trans>Import as page only</Trans>
                               </option>
                             </select>
                             {answer.action === 'rename' ? (
                               <input
                                 type="text"
-                                aria-label={`New name for ${row.name}`}
+                                aria-label={t`New name for ${{ name: row.name }}`}
                                 value={answer.name}
                                 onChange={(event) => {
                                   const name = event.currentTarget.value;
@@ -471,7 +475,7 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
 
             {source.options().length === 0 ? null : (
               <fieldset className="import-preview-section import-preview-options">
-                <legend>Options</legend>
+                <legend><Trans>Options</Trans></legend>
                 {source.options().map((option) => (
                   <label key={option.id}>
                     <input
@@ -489,8 +493,8 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
               </fieldset>
             )}
 
-            <section className="import-preview-section import-preview-report" aria-label="Report">
-              <h3>Report</h3>
+            <section className="import-preview-section import-preview-report" aria-label={t`Report`}>
+              <h3><Trans>Report</Trans></h3>
               {sourceReport.map((list) => (
                 <div key={list.label}>
                   {list.heading === '' ? null : <h4>{list.heading}</h4>}
@@ -502,7 +506,7 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
                 </div>
               ))}
               {plan.losses.length === 0 ? null : (
-                <ul aria-label="What the import cannot keep">
+                <ul aria-label={t`What the import cannot keep`}>
                   {plan.losses.map((loss) => (
                     <li key={`${loss.message}-${loss.blockIndex ?? ''}`}>
                       {loss.count === undefined ? '' : `${formatCount(loss.count)} × `}
@@ -512,7 +516,7 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
                 </ul>
               )}
               {plan.flags.length === 0 ? null : (
-                <ul aria-label="Checks">
+                <ul aria-label={t`Checks`}>
                   {plan.flags.map((flag) => (
                     <li key={flag.message}>
                       ⚠ {flag.message}{' '}
@@ -540,13 +544,13 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
                 </ul>
               )}
               {scan.total === 0 ? (
-                <p className="import-preview-muted">No passage reads like instructions to an AI.</p>
+                <p className="import-preview-muted"><Trans>No passage reads like instructions to an AI.</Trans></p>
               ) : (
                 <>
                   <p>
-                    {plural(scan.total, 'passage reads', 'passages read')} like instructions to an AI. The text is imported as it is; read it before you ask the agent to work from it.
+                    <Trans>{scanReads} like instructions to an AI. The text is imported as it is; read it before you ask the agent to work from it.</Trans>
                   </p>
-                  <ul aria-label="Passages that read like instructions to an AI">
+                  <ul aria-label={t`Passages that read like instructions to an AI`}>
                     {scan.rows.map((row, index) => (
                       <li key={`${row.nodeId}-${index}`}>
                         {row.nodeId === '' ? (
@@ -578,7 +582,7 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
             </button>
           )}
           <button type="button" className="button" autoFocus disabled={committing} onClick={() => close(false)}>
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
         </div>
       </div>
@@ -623,9 +627,10 @@ function RuleChips({
   onDestination: (id: string) => void;
   customCommit: boolean;
 }): ReactNode {
+  useLingui();
   const chips = source.chips();
   return (
-    <div className="import-preview-chips" role="group" aria-label="Rules">
+    <div className="import-preview-chips" role="group" aria-label={t`Rules`}>
       {chips.map((chip) => (
         <label key={chip.id}>
           <span>{chip.label}</span>
@@ -640,12 +645,12 @@ function RuleChips({
       ))}
       {customCommit ? null : (
         <label>
-          <span>Into</span>
+          <span><Trans>Into</Trans></span>
           <select value={destination} onChange={(event) => onDestination(event.currentTarget.value)}>
-            <option value="manuscript">This project, Manuscript (new folders at the end)</option>
+            <option value="manuscript"><Trans>This project, Manuscript (new folders at the end)</Trans></option>
             {folders.map((folder) => (
               <option key={folder.id} value={folder.id}>
-                This project, under “{folder.title}”
+                <Trans>This project, under “{{ title: folder.title }}”</Trans>
               </option>
             ))}
           </select>
@@ -668,30 +673,32 @@ function ValueAnswers({
   answers: Readonly<Record<string, ValueAnswer>>;
   onAnswer: (value: string, answer: ValueAnswer) => void;
 }): ReactNode {
+  useLingui();
   if (values.length === 0) return null;
+  const kindWord = kind === 'status' ? t`status` : t`label`;
   return (
-    <ul className="import-preview-values" aria-label={kind === 'status' ? 'Status values the project does not have' : 'Label values the project does not have'}>
+    <ul className="import-preview-values" aria-label={kind === 'status' ? t`Status values the project does not have` : t`Label values the project does not have`}>
       {values.map((value) => {
         const answer = answers[value] ?? { action: 'ignore' };
         const current = answer.action === 'map' ? `map:${answer.termId}` : answer.action;
         return (
           <li key={value}>
-            “{value}” is not a {kind} of this project:{' '}
+            <Trans>“{value}” is not a {kindWord} of this project:</Trans>{' '}
             <select
-              aria-label={`${kind === 'status' ? 'Status' : 'Label'} “${value}”`}
+              aria-label={kind === 'status' ? t`Status “${value}”` : t`Label “${value}”`}
               value={current}
               onChange={(event) => {
                 const picked = event.currentTarget.value;
                 onAnswer(value, picked === 'add' ? { action: 'add' } : picked === 'ignore' ? { action: 'ignore' } : { action: 'map', termId: picked.slice(4) });
               }}
             >
-              <option value="add">Add it to the vocabulary</option>
+              <option value="add"><Trans>Add it to the vocabulary</Trans></option>
               {terms.map((term) => (
                 <option key={term.id} value={`map:${term.id}`}>
-                  Use “{term.name}”
+                  <Trans>Use “{{ name: term.name }}”</Trans>
                 </option>
               ))}
-              <option value="ignore">Ignore it</option>
+              <option value="ignore"><Trans>Ignore it</Trans></option>
             </select>
           </li>
         );
@@ -700,15 +707,24 @@ function ValueAnswers({
   );
 }
 
-const ROLE_WORDS: Readonly<Record<PreviewNode['role'], string>> = {
-  part: 'part',
-  chapter: 'chapter',
-  scene: 'scene',
-  text: 'text',
-  front: 'front matter',
-  back: 'back matter',
-  container: 'container',
-};
+function roleWord(role: PreviewNode['role']): string {
+  switch (role) {
+    case 'part':
+      return t`part`;
+    case 'chapter':
+      return t`chapter`;
+    case 'scene':
+      return t`scene`;
+    case 'text':
+      return t`text`;
+    case 'front':
+      return t`front matter`;
+    case 'back':
+      return t`back matter`;
+    case 'container':
+      return t`container`;
+  }
+}
 
 function BinderPane({
   readOnly,
@@ -739,6 +755,7 @@ function BinderPane({
   onMerge: (id: string) => void;
   onMove: (id: string, by: -1 | 1) => void;
 }): ReactNode {
+  useLingui();
   const focusId = selected ?? rows[0]?.node.id ?? null;
   const items = useRef(new Map<string, HTMLLIElement>());
 
@@ -775,8 +792,8 @@ function BinderPane({
 
   return (
     <div className="import-preview-binder">
-      <h3 id="import-preview-binder-label">Binder (proposed)</h3>
-      {readOnly ? null : <p className="import-preview-hint">Arrows move, F2 renames, Space leaves out, Alt+arrows reorder, Ctrl+M merges with the next.</p>}
+      <h3 id="import-preview-binder-label"><Trans>Binder (proposed)</Trans></h3>
+      {readOnly ? null : <p className="import-preview-hint"><Trans>Arrows move, F2 renames, Space leaves out, Alt+arrows reorder, Ctrl+M merges with the next.</Trans></p>}
       <ul role="tree" aria-labelledby="import-preview-binder-label" className="import-preview-tree" onKeyDown={onKeyDown}>
         {rows.map((row) => {
           const { node } = row;
@@ -803,22 +820,22 @@ function BinderPane({
                 if (!readOnly) onRename(node.id);
               }}
             >
-              {readOnly ? null : <input type="checkbox" aria-label={`Import ${node.title}`} checked={!excluded} onChange={() => onExclude(node.id)} onClick={(event) => event.stopPropagation()} />}
+              {readOnly ? null : <input type="checkbox" aria-label={t`Import ${{ title: node.title }}`} checked={!excluded} onChange={() => onExclude(node.id)} onClick={(event) => event.stopPropagation()} />}
               {renaming === node.id ? (
-                <InlineText initial={node.title} label={`Rename ${node.title}`} onCommit={(title) => onRenamed(node.id, title)} onCancel={() => onRenamed(node.id, '')} />
+                <InlineText initial={node.title} label={t`Rename ${{ title: node.title }}`} onCommit={(title) => onRenamed(node.id, title)} onCancel={() => onRenamed(node.id, '')} />
               ) : (
                 <span className="import-preview-title">{node.title}</span>
               )}
               <span className="import-preview-muted">
                 {' '}
-                {ROLE_WORDS[node.role]} · {formatCount(node.words)} words
+                {roleWord(node.role)} · {plural({ words: node.words }, { one: '# word', other: '# words' })}
               </span>
               {canMerge && !readOnly ? (
-                <button type="button" className="button is-quiet" aria-label={`Merge ${node.title} with the next`} onClick={(event) => {
+                <button type="button" className="button is-quiet" aria-label={t`Merge ${{ title: node.title }} with the next`} onClick={(event) => {
                   event.stopPropagation();
                   onMerge(node.id);
                 }}>
-                  Merge
+                  <Trans>Merge</Trans>
                 </button>
               ) : null}
             </li>
@@ -847,6 +864,7 @@ function TextPane({
   onAddSplit: (block: number, kind: 'scene' | 'chapter') => void;
   onSelectBlock: (block: number) => void;
 }): ReactNode {
+  useLingui();
   const pane = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ top: 0, height: 480 });
   const [measured, setMeasured] = useState<ReadonlyMap<number, number>>(new Map());
@@ -909,23 +927,23 @@ function TextPane({
           index === 0 || readOnly ? null : (
             <div className="import-preview-gap">
               <button type="button" className="button is-quiet" onClick={() => onAddSplit(index, 'scene')}>
-                + split here
+                <Trans>+ split here</Trans>
               </button>
               <button type="button" className="button is-quiet" onClick={() => onAddSplit(index, 'chapter')}>
-                + chapter here
+                <Trans>+ chapter here</Trans>
               </button>
             </div>
           )
         ) : (
-          <div className={`import-preview-marker is-${marker.kind}`} role="note" aria-label={`Split: ${marker.kind}, because ${marker.reason}`}>
-            <span aria-hidden="true">✂</span> {marker.kind === 'scene' ? 'scene' : marker.kind} · {marker.reason}
-            {readOnly ? null : <button type="button" className="button is-quiet" aria-label={`Remove this split (${marker.reason})`} onClick={() => onRemoveSplit(index)}>
+          <div className={`import-preview-marker is-${marker.kind}`} role="note" aria-label={t`Split: ${{ kind: marker.kind }}, because ${{ reason: marker.reason }}`}>
+            <span aria-hidden="true">✂</span> {marker.kind === 'scene' ? t`scene` : marker.kind} · {marker.reason}
+            {readOnly ? null : <button type="button" className="button is-quiet" aria-label={t`Remove this split (${{ reason: marker.reason }})`} onClick={() => onRemoveSplit(index)}>
               ×
             </button>}
           </div>
         )}
         <p className="import-preview-text" onClick={() => onSelectBlock(index)}>
-          {block.kind === 'break' || block.kind === 'pagebreak' ? <span className="import-preview-muted">{block.text === '' ? '(page break)' : block.text}</span> : block.text}
+          {block.kind === 'break' || block.kind === 'pagebreak' ? <span className="import-preview-muted">{block.text === '' ? t`(page break)` : block.text}</span> : block.text}
         </p>
       </div>
     );
@@ -933,12 +951,12 @@ function TextPane({
 
   return (
     <div className="import-preview-textpane">
-      <h3>Text</h3>
+      <h3><Trans>Text</Trans></h3>
       <div
         ref={pane}
         className="import-preview-scroll"
         role="region"
-        aria-label="Text of the file"
+        aria-label={t`Text of the file`}
         tabIndex={0}
         onScroll={(event) => {
           const element = event.currentTarget;

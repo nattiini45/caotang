@@ -12,6 +12,7 @@
  * cannot be read is never written over: the tasks are shown empty and the file is read-only until the project is opened again, since a
  * save would replace the stored set with a partial one.
  */
+/* lingui-set comment="Tasks file problems. Interpolated values: reason is the failure's message." */
 
 import {
   TASKS_FILE,
@@ -31,6 +32,8 @@ import {
   type ArtifactFs,
   type RuntimeStore,
 } from '@caotang/store';
+
+import { t } from '@lingui/core/macro';
 
 import { StoreArtifactFs } from './coherence-io.js';
 import { SaveChannel } from './save-channel.js';
@@ -71,14 +74,14 @@ async function readFolderCopy(root: DirectoryHandleLike): Promise<FolderCopy> {
     const load = await loadTasks(fs);
     return { root, fs, load, digest: load.status === 'recovered' ? await digestOfFile(fs, TASKS_FILE) : seen };
   } catch (error) {
-    throw new Error(`tasks.json in the project folder could not be read: ${messageOf(error)}. The folder's copy is left as it is.`, { cause: error });
+    throw new Error(t`tasks.json in the project folder could not be read: ${{ reason: messageOf(error) }}. The folder's copy is left as it is.`, { cause: error });
   }
 }
 
 /** Writes `file` into the folder's copy while the folder still holds the `tasks.json` this copy read or wrote last. */
 async function saveToFolder(copy: FolderCopy, file: TasksFile): Promise<void> {
   if ((await digestOfFile(copy.fs, TASKS_FILE)) !== copy.digest) {
-    throw new FolderTasksError('tasks.json in the project folder was changed by another program since Caotang last read or saved it, so it was not replaced.');
+    throw new FolderTasksError(t`tasks.json in the project folder was changed by another program since Caotang last read or saved it, so it was not replaced.`);
   }
   await saveTasks(copy.fs, copy.load, file);
   copy.digest = await digestOfBytes(new TextEncoder().encode(serializeTasksFile(file)));
@@ -134,7 +137,7 @@ export class TasksHome {
    */
   save(next: TasksFile): Promise<string | null> {
     if (!this.writable || !this.mirror.readable) {
-      return this.saveChannel.enqueue(async () => 'tasks.json cannot be saved here: it was written by a newer Caotang, is not a Caotang tasks file, or could not be read when the project opened.');
+      return this.saveChannel.enqueue(async () => t`tasks.json cannot be saved here: it was written by a newer Caotang, is not a Caotang tasks file, or could not be read when the project opened.`);
     }
     this.file = next;
     return this.saveChannel.enqueue(async () => {
@@ -145,7 +148,7 @@ export class TasksHome {
           await saveToFolder(target, next);
           this.folderFailure = null;
         } catch (error) {
-          this.folderFailure = `Your tasks could not be saved to the folder: ${messageOf(error)}`;
+          this.folderFailure = t`Your tasks could not be saved to the folder: ${{ reason: messageOf(error) }}`;
         }
         return this.folderFailure;
       };
@@ -157,7 +160,7 @@ export class TasksHome {
         await saveTasks(this.mirror.fs, this.mirror.load, next);
         this.browserFailure = null;
       } catch (error) {
-        this.browserFailure = `Your tasks could not be saved in this browser: ${messageOf(error)}`;
+        this.browserFailure = t`Your tasks could not be saved in this browser: ${{ reason: messageOf(error) }}`;
         return this.browserFailure;
       }
       return folder !== null && !native ? saveFolder(folder) : null;
@@ -182,7 +185,7 @@ export class TasksHome {
         }
         this.folderFailure = null;
       } catch (error) {
-        this.folderFailure = `Your tasks could not be saved to the folder: ${messageOf(error)}`;
+        this.folderFailure = t`Your tasks could not be saved to the folder: ${{ reason: messageOf(error) }}`;
       }
       return this.browserFailure ?? this.folderFailure;
     }).then(() => undefined);
@@ -208,7 +211,7 @@ export async function openTasksHome(projectId: string, store: RuntimeStore, fold
     if (!(error instanceof ProjectNotFoundError)) {
       readable = false;
       notices.push(
-        `The tasks file could not be read from this browser: ${messageOf(error)}. Tasks are shown empty, and nothing is saved over the stored file until the project is opened again.`,
+        t`The tasks file could not be read from this browser: ${{ reason: messageOf(error) }}. Tasks are shown empty, and nothing is saved over the stored file until the project is opened again.`,
       );
     }
   }
@@ -224,7 +227,7 @@ export async function openTasksHome(projectId: string, store: RuntimeStore, fold
       if (nativeFolderId(folder) !== undefined || folderCopy.load.status !== 'absent') load = folderCopy.load;
     } catch (error) {
       if (nativeFolderId(folder) !== undefined) throw error;
-      notices.push(`${messageOf(error)} Tasks are kept in this browser.`);
+      notices.push(t`${{ reason: messageOf(error) }} Tasks are kept in this browser.`);
     }
   }
   notices.push(...load.notices.map((notice) => notice.message));

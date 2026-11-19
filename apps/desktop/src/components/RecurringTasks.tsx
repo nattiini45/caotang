@@ -5,7 +5,7 @@
  */
 
 import { lazy, Suspense, useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode, type RefObject } from 'react';
-import { t } from '@lingui/core/macro';
+import { plural, t } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 
@@ -24,8 +24,10 @@ const TaskAllowanceDialog = lazy(() => import('./TaskAllowanceDialog.js'));
 /* lingui-set comment="Interpolated values: calls" */
 
 function usedWords(run: RunView): string {
-  if (run.requests === 0) return 'no model calls';
-  return `${run.requests} ${run.requests === 1 ? 'model call' : 'model calls'}, ${formatCount(run.promptTokens + run.completionTokens)} tokens`;
+  if (run.requests === 0) return t`no model calls`;
+  const calls = plural({ requests: run.requests }, { one: '# model call', other: '# model calls' });
+  const tokens = formatCount(run.promptTokens + run.completionTokens);
+  return t`${calls}, ${tokens} tokens`;
 }
 
 interface Editing {
@@ -130,7 +132,7 @@ export function RecurringTasksPanel({
   const confirmRestore = (): void => {
     const run = restoring;
     setRestoring(null);
-    if (run !== null) void recurring.restoreRun(run.turnId).then((failure) => setRestoreMessage(failure ?? 'Restored to before that run.'));
+    if (run !== null) void recurring.restoreRun(run.turnId).then((failure) => setRestoreMessage(failure ?? t`Restored to before that run.`));
   };
 
   const { status } = snapshot;
@@ -142,7 +144,7 @@ export function RecurringTasksPanel({
       </p>
       {allowanceError === null ? null : <p className="form-message is-error" role="alert">{allowanceError}</p>}
       {status.notices.length > 0 ? (
-        <ul className="recurring-notices" aria-label="About the tasks file">
+        <ul className="recurring-notices" aria-label={t`About the tasks file`}>
           {status.notices.map((notice) => (
             <li key={notice}>{notice}</li>
           ))}
@@ -163,38 +165,38 @@ export function RecurringTasksPanel({
           {snapshot.message}
         </p>
       ) : null}
-      {snapshot.tasks.length === 0 && editing === null ? <p className="muted recurring-empty">No tasks yet.</p> : null}
+      {snapshot.tasks.length === 0 && editing === null ? <p className="muted recurring-empty"><Trans>No tasks yet.</Trans></p> : null}
       <ul className="recurring-list">
         {snapshot.tasks.map((task) => (
           <li key={task.id} className="recurring-task" data-task={task.id} data-enabled={task.enabled}>
             <p className="recurring-task-title">
               <strong>{task.name}</strong>
-              {task.enabled ? null : <span className="recurring-off"> (off)</span>}
-              {task.running ? <span className="recurring-running"> Running…</span> : task.staging ? <span className="recurring-running"><Trans> Preparing drafts…</Trans></span> : null}
+              {task.enabled ? null : <span className="recurring-off"><Trans> (off)</Trans></span>}
+              {task.running ? <span className="recurring-running"><Trans> Running…</Trans></span> : task.staging ? <span className="recurring-running"><Trans> Preparing drafts…</Trans></span> : null}
             </p>
             <p className="recurring-task-meta muted">
-              {task.schedule} · {task.doing} · {task.usesModel ? 'Uses the model' : 'Calls no model'} ·{' '}
-              {task.permission === 'read-only' ? 'May not change anything' : 'Asks before it changes anything'}
-              {task.maxModelCalls === null ? '' : ` · at most ${task.maxModelCalls} model calls`}
+              {task.schedule} · {task.doing} · {task.usesModel ? t`Uses the model` : t`Calls no model`} ·{' '}
+              {task.permission === 'read-only' ? t`May not change anything` : t`Asks before it changes anything`}
+              {task.maxModelCalls === null ? '' : t` · at most ${{ calls: task.maxModelCalls }} model calls`}
             </p>
             {task.problem === null ? null : <p className="recurring-problem">{task.problem}</p>}
             {task.note === null ? null : <p className="recurring-task-meta">{task.note}</p>}
             {task.consent === 'current' && task.selfStart ? <p className="recurring-task-meta"><Trans>Allowed on this browser. Nothing is applied automatically.</Trans></p> : null}
             <div className="recurring-actions">
               <button type="button" className="button" disabled={snapshot.running !== null || task.staging || task.problem !== null} onClick={() => void recurring.runNow(task.id)}>
-                Run now
+                <Trans>Run now</Trans>
                 <span className="visually-hidden"> {task.name}</span>
               </button>
               <button type="button" className="button" data-action="edit" disabled={saving} onClick={() => edit(task)}>
-                Edit
+                <Trans>Edit</Trans>
                 <span className="visually-hidden"> {task.name}</span>
               </button>
               <button type="button" className="button" aria-pressed={!task.enabled} onClick={() => void recurring.setEnabled(task.id, !task.enabled)}>
-                {task.enabled ? 'Turn off' : 'Turn on'}
+                {task.enabled ? t`Turn off` : t`Turn on`}
                 <span className="visually-hidden"> {task.name}</span>
               </button>
               <button type="button" className="button is-quiet" onClick={() => setRemoving(task)}>
-                Delete
+                <Trans>Delete</Trans>
                 <span className="visually-hidden"> {task.name}</span>
               </button>
               {task.consent === 'current' ? (
@@ -214,19 +216,19 @@ export function RecurringTasksPanel({
             {task.history.length === 0 ? null : (
               <details className="recurring-history">
                 <summary>
-                  Runs on this machine ({task.history.length})<span className="visually-hidden"> of {task.name}</span>
+                  <Trans>Runs on this machine ({{ runs: task.history.length }})<span className="visually-hidden"> of {({ name: task.name }) as unknown as ReactNode}</span></Trans>
                 </summary>
-                <ol aria-label={`Runs of ${task.name}`}>
+                <ol aria-label={t`Runs of ${{ name: task.name }}`}>
                   {task.history.map((run) => (
                     <li key={`${run.at}:${run.status}`} data-status={run.status}>
                       <span className="recurring-run-when">{formatDateTime(new Date(run.at), DATE_AND_TIME)}</span> — <strong>{run.status === 'queued' ? t`Preparing drafts` : run.status === 'ready' ? t`Ready in Inbox` : STATUS_WORDS[run.status]}</strong>
-                      {run.trigger === 'manual' ? ' (started by you)' : ''}. {run.summary}{' '}
+                      {run.trigger === 'manual' ? t` (started by you)` : ''}. {run.summary}{' '}
                       <span className="muted">({usedWords(run)})</span>
                       {run.canRestore && run.turnId !== undefined ? (
                         <>
                           {' '}
                           <button type="button" className="status-link" onClick={() => setRestoring({ turnId: run.turnId ?? '', name: task.name })}>
-                            Restore to before this run
+                            <Trans>Restore to before this run</Trans>
                           </button>
                         </>
                       ) : null}
@@ -246,18 +248,16 @@ export function RecurringTasksPanel({
       ) : (
         <TaskForm editing={editing} saving={saving} stepsRef={stepsRef} onChange={(draft) => setEditing({ ...editing, draft, error: null, stepsInvalid: false })} onSubmit={save} onCancel={cancelEdit} />
       )}
-      {!status.writable ? <p className="muted recurring-note">The tasks file cannot be saved here, so tasks cannot be made or changed.</p> : null}
+      {!status.writable ? <p className="muted recurring-note"><Trans>The tasks file cannot be saved here, so tasks cannot be made or changed.</Trans></p> : null}
 
-      <ConfirmDialog open={removing !== null} title="Delete this task?" confirmLabel="Delete" onCancel={() => setRemoving(null)} onConfirm={confirmRemove}>
+      <ConfirmDialog open={removing !== null} title={t`Delete this task?`} confirmLabel={t`Delete`} onCancel={() => setRemoving(null)} onConfirm={confirmRemove}>
         <p>
-          “{removing?.name}” is removed from tasks.json, and the runs kept for it in this browser go with it. Nothing it did to your project
-          is undone.
+          <Trans>“{{ name: removing?.name ?? '' }}” is removed from tasks.json, and the runs kept for it in this browser go with it. Nothing it did to your project is undone.</Trans>
         </p>
       </ConfirmDialog>
-      <ConfirmDialog open={restoring !== null} title="Restore to before this run?" confirmLabel="Restore" onCancel={() => setRestoring(null)} onConfirm={confirmRestore}>
+      <ConfirmDialog open={restoring !== null} title={t`Restore to before this run?`} confirmLabel={t`Restore`} onCancel={() => setRestoring(null)} onConfirm={confirmRestore}>
         <p>
-          This restores the project to its state before the run of “{restoring?.name}”. Everything you changed since then is included in the
-          restore.
+          <Trans>This restores the project to its state before the run of “{{ name: restoring?.name ?? '' }}”. Everything you changed since then is included in the restore.</Trans>
         </p>
       </ConfirmDialog>
       <Suspense fallback={<p role="status">{t`Opening allowance…`}</p>}>
@@ -297,24 +297,24 @@ function TaskForm({
     <form className="recurring-form settings-form" noValidate aria-busy={saving} aria-label={editing.id === null ? t`New task` : t`Edit task`} onSubmit={onSubmit}>
       <fieldset className="recurring-form-fields" disabled={saving}>
       <label>
-        <span>Task name</span>
+        <span><Trans>Task name</Trans></span>
         <input type="text" autoFocus value={draft.name} maxLength={80} onChange={(event) => set({ name: event.target.value })} />
       </label>
       <label>
-        <span>What it does</span>
-        <select aria-label="What it does" value={draft.body} onChange={(event) => {
+        <span><Trans>What it does</Trans></span>
+        <select aria-label={t`What it does`} value={draft.body} onChange={(event) => {
           const body = event.target.value as TaskDraft['body'];
           set(body === 'plan' && draft.steps === '' ? { body, steps: planStarter() } : { body });
         }}>
-          <option value="intent">Ask the agent</option>
+          <option value="intent"><Trans>Ask the agent</Trans></option>
           <option value="plan">{t`Run a plan`}</option>
-          <option value="scan">Scan for continuity problems</option>
+          <option value="scan"><Trans>Scan for continuity problems</Trans></option>
         </select>
       </label>
       {draft.body === 'intent' ? (
         <label>
-          <span>What to ask</span>
-          <textarea aria-label="What to ask" rows={3} value={draft.text} onChange={(event) => set({ text: event.target.value })} />
+          <span><Trans>What to ask</Trans></span>
+          <textarea aria-label={t`What to ask`} rows={3} value={draft.text} onChange={(event) => set({ text: event.target.value })} />
         </label>
       ) : null}
       {draft.body === 'plan' ? (
@@ -330,26 +330,26 @@ function TaskForm({
       ) : null}
       {draft.body === 'scan' ? (
         <label>
-          <span>What to scan</span>
-          <select aria-label="What to scan" value={draft.scope} onChange={(event) => set({ scope: event.target.value as TaskDraft['scope'] })}>
-            <option value="changed">What changed since the last scan</option>
-            <option value="full">The whole manuscript</option>
+          <span><Trans>What to scan</Trans></span>
+          <select aria-label={t`What to scan`} value={draft.scope} onChange={(event) => set({ scope: event.target.value as TaskDraft['scope'] })}>
+            <option value="changed"><Trans>What changed since the last scan</Trans></option>
+            <option value="full"><Trans>The whole manuscript</Trans></option>
           </select>
         </label>
       ) : null}
       <label>
-        <span>When</span>
-        <select aria-label="When" value={draft.schedule} onChange={(event) => set({ schedule: event.target.value as TaskDraft['schedule'] })}>
-          <option value="manual">Only when I run it</option>
-          <option value="on-open">Each time the project opens</option>
-          <option value="daily">Every day</option>
-          <option value="weekly">Every week</option>
+        <span><Trans>When</Trans></span>
+        <select aria-label={t`When`} value={draft.schedule} onChange={(event) => set({ schedule: event.target.value as TaskDraft['schedule'] })}>
+          <option value="manual"><Trans>Only when I run it</Trans></option>
+          <option value="on-open"><Trans>Each time the project opens</Trans></option>
+          <option value="daily"><Trans>Every day</Trans></option>
+          <option value="weekly"><Trans>Every week</Trans></option>
         </select>
       </label>
       {draft.schedule === 'weekly' ? (
         <label>
-          <span>On</span>
-          <select aria-label="On" value={draft.day} onChange={(event) => set({ day: event.target.value as TaskDraft['day'] })}>
+          <span><Trans>On</Trans></span>
+          <select aria-label={t`On`} value={draft.day} onChange={(event) => set({ day: event.target.value as TaskDraft['day'] })}>
             {WEEKDAYS.map((day) => (
               <option key={day} value={day}>
                 {WEEKDAY_NAMES[day]}
@@ -360,29 +360,29 @@ function TaskForm({
       ) : null}
       {timed ? (
         <label>
-          <span>From</span>
+          <span><Trans>From</Trans></span>
           <input type="time" value={draft.at} onChange={(event) => set({ at: event.target.value })} />
         </label>
       ) : null}
       <label>
-        <span>When it is due</span>
-        <select aria-label="When it is due" value={draft.whenDue} onChange={(event) => set({ whenDue: event.target.value as TaskDraft['whenDue'] })}>
-          <option value="offer">Offer it to me</option>
-          <option value="run">Start it by itself</option>
+        <span><Trans>When it is due</Trans></span>
+        <select aria-label={t`When it is due`} value={draft.whenDue} onChange={(event) => set({ whenDue: event.target.value as TaskDraft['whenDue'] })}>
+          <option value="offer"><Trans>Offer it to me</Trans></option>
+          <option value="run"><Trans>Start it by itself</Trans></option>
         </select>
       </label>
       {draft.whenDue === 'run' && draft.body !== 'scan' ? <p className="muted">{draft.body === 'plan' ? planSelfStartNote() : selfStartNote()}</p> : null}
       <label>
-        <span>What it may do</span>
-        <select aria-label="What it may do" value={draft.permission} onChange={(event) => set({ permission: event.target.value as TaskDraft['permission'] })}>
-          <option value="ask">Ask before it changes anything</option>
-          <option value="read-only">Change nothing</option>
+        <span><Trans>What it may do</Trans></span>
+        <select aria-label={t`What it may do`} value={draft.permission} onChange={(event) => set({ permission: event.target.value as TaskDraft['permission'] })}>
+          <option value="ask"><Trans>Ask before it changes anything</Trans></option>
+          <option value="read-only"><Trans>Change nothing</Trans></option>
         </select>
       </label>
       {model ? (
         <label>
-          <span>Most model calls in a run</span>
-          <input type="number" min={1} max={100} step={1} placeholder="the usual limit" value={draft.maxModelCalls} onChange={(event) => set({ maxModelCalls: event.target.value })} />
+          <span><Trans>Most model calls in a run</Trans></span>
+          <input type="number" min={1} max={100} step={1} placeholder={t`the usual limit`} value={draft.maxModelCalls} onChange={(event) => set({ maxModelCalls: event.target.value })} />
         </label>
       ) : null}
       {editing.error === null ? null : (
@@ -395,7 +395,7 @@ function TaskForm({
           {saving ? t`Saving…` : t`Save task`}
         </button>
         <button type="button" className="button" onClick={onCancel}>
-          Cancel
+          <Trans>Cancel</Trans>
         </button>
       </div>
       </fieldset>

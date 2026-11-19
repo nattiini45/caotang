@@ -11,6 +11,9 @@
  * overrides by block index, and the binder edits (rename, exclude, reorder) are applied after, by node id. The dialog asks before it
  * drops them.
  */
+/* lingui-set comment="The import preview's notices and sentences. Interpolated values: words, partCount, chapters, scenes, images, comments, footnotes and codexRows are counts; megabytes and kilobytes are sizes; label and host name a download option; title, rowName and name are node or row names; documents and folders are the import's own counts; fileName is the file's name." */
+
+import { plural, t } from '@lingui/core/macro';
 
 import type { ImportTreeCodexEntry, ImportTreeNode, ImportTreeParams } from '@caotang/bus';
 import type { importScanSentence, scanImport } from '@caotang/harness';
@@ -427,19 +430,16 @@ export function visibleRange(offsets: Float64Array, scrollTop: number, viewport:
 // The header, the report and the scan
 // ---------------------------------------------------------------------------------------------------------------------------
 
-function plural(count: number, one: string, many = `${one}s`): string {
-  return `${formatCount(count)} ${count === 1 ? one : many}`;
-}
-
 /** "84,212 words · 24 chapters · 71 scenes · 3 images · 12 comments · 9 footnotes · 4 codex rows": what was detected, zeros left out. */
 export function headerLine(counts: PreviewCounts, codexRows: number): string {
-  const parts = [plural(counts.words, 'word')];
-  if (counts.parts > 0) parts.push(plural(counts.parts, 'part'));
-  parts.push(plural(counts.chapters, 'chapter'), plural(counts.scenes, 'scene'));
-  if (counts.images > 0) parts.push(plural(counts.images, 'image'));
-  if (counts.comments > 0) parts.push(plural(counts.comments, 'comment'));
-  if (counts.footnotes > 0) parts.push(plural(counts.footnotes, 'footnote'));
-  if (codexRows > 0) parts.push(plural(codexRows, 'codex row'));
+  const { words, parts: partCount, chapters, scenes, images, comments, footnotes } = counts;
+  const parts = [plural(words, { one: '# word', other: '# words' })];
+  if (partCount > 0) parts.push(plural(partCount, { one: '# part', other: '# parts' }));
+  parts.push(plural(chapters, { one: '# chapter', other: '# chapters' }), plural(scenes, { one: '# scene', other: '# scenes' }));
+  if (images > 0) parts.push(plural(images, { one: '# image', other: '# images' }));
+  if (comments > 0) parts.push(plural(comments, { one: '# comment', other: '# comments' }));
+  if (footnotes > 0) parts.push(plural(footnotes, { one: '# footnote', other: '# footnotes' }));
+  if (codexRows > 0) parts.push(plural(codexRows, { one: '# codex row', other: '# codex rows' }));
   return parts.join(' · ');
 }
 
@@ -447,8 +447,11 @@ export function headerLine(counts: PreviewCounts, codexRows: number): string {
 export function networkLabel(option: PreviewOption): string {
   if (option.network === undefined) return option.label;
   const { host, count, bytes } = option.network;
-  const size = bytes >= 1_000_000 ? `${formatCount(Math.round(bytes / 100_000) / 10)} MB` : `${formatCount(Math.max(1, Math.round(bytes / 1000)))} kB`;
-  return `${option.label} (downloads ${plural(count, 'file')}, about ${size}, from ${host})`;
+  const megabytes = formatCount(Math.round(bytes / 100_000) / 10);
+  const kilobytes = formatCount(Math.max(1, Math.round(bytes / 1000)));
+  const size = bytes >= 1_000_000 ? t`${megabytes} MB` : t`${kilobytes} kB`;
+  const label = option.label;
+  return t`${label} (downloads ${plural(count, { one: '# file', other: '# files' })}, about ${size}, from ${host})`;
 }
 
 /** The settings a source starts from. A network option starts off whatever the source says (decision 10). */
@@ -655,7 +658,8 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
     if (node.role === 'front' || node.role === 'back') {
       const where = node.place ?? 'research';
       if (where === 'skip') {
-        notices.push(`“${node.title}” was left out, as chosen in the preview.`);
+        const title = node.title;
+        notices.push(t`“${title}” was left out, as chosen in the preview.`);
         return;
       }
       if (where === 'research') {
@@ -704,7 +708,10 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
   const bodies = nodes.map((node) => node.body ?? '').join('\n');
   const pictures = input.pictures.filter((picture) => bodies.includes(`](${picture.ref}`));
   const dropped = input.pictures.length - pictures.length;
-  if (dropped > 0) notices.push(`${plural(dropped, 'picture')} in left-out text ${dropped === 1 ? 'was' : 'were'} not imported.`);
+  if (dropped > 0) {
+    const count = plural(dropped, { one: '# picture', other: '# pictures' });
+    notices.push(dropped === 1 ? t`${count} in left-out text was not imported.` : t`${count} in left-out text were not imported.`);
+  }
 
   // The codex rows, by the writer's answers.
   const entries: ImportTreeCodexEntry[] = [];
@@ -714,7 +721,7 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
     if (answer.action === 'skip') continue;
     if (answer.action === 'page') {
       if (row.page !== undefined) pages.push({ title: row.page.title, body: row.page.body });
-      else notices.push(`“${row.name}” has no text of its own, so it was not imported as a page.`);
+      else { const rowName = row.name; notices.push(t`“${rowName}” has no text of its own, so it was not imported as a page.`); }
       continue;
     }
     const name = answer.action === 'rename' ? answer.name.trim() : row.name;
@@ -731,7 +738,8 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
       entries.push({ ...base, page: pages.length - 1, cite: { from, to: from + row.name.length, quote: row.name } });
       continue;
     }
-    notices.push(`“${row.name}” is not named in the imported text, so its codex entry was not made.`);
+    const rowName = row.name;
+    notices.push(t`“${rowName}” is not named in the imported text, so its codex entry was not made.`);
   }
 
   const vocabulary = {
@@ -771,6 +779,8 @@ function citeOf(row: PreviewCodexRow, nodes: readonly ImportTreeNode[], indexOf:
 
 /** The status line after an import: what was made, and what was left out. */
 export function importedSentence(fileName: string, commit: CommitPlan): string {
-  const made = `Imported ${plural(commit.documents, 'document')} in ${plural(commit.folders, 'folder')} from ${fileName}.`;
+  const documents = commit.documents;
+  const folders = commit.folders;
+  const made = t`Imported ${plural(documents, { one: '# document', other: '# documents' })} in ${plural(folders, { one: '# folder', other: '# folders' })} from ${fileName}.`;
   return [made, ...commit.notices].join(' ');
 }

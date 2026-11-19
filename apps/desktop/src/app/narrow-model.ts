@@ -4,6 +4,8 @@
  * What a phone does not do is named here, once, so every surface that says "Open on desktop" says it in the same words.
  */
 
+import { t } from '@lingui/core/macro';
+
 import type { ExportFormat } from '@caotang/exporter';
 
 import type { MediaKind } from '../media/route.js';
@@ -29,32 +31,42 @@ export interface DesktopFeatureNote {
   readonly detail: string;
 }
 
-export const DESKTOP_FEATURES: Readonly<Record<DesktopFeature, DesktopFeatureNote>> = {
-  corkboard: {
-    name: 'the corkboard',
-    detail: 'The board, where cards are dragged into order, needs a wider window. Your chapters and scenes are unchanged, and the binder still lists them.',
-  },
-  storyboard: {
-    name: 'the storyboard',
-    detail: 'The shot board needs a wider window. Your shots are unchanged.',
-  },
-  dialogue: {
-    name: 'the dialogue branch graph',
-    detail: 'The branch graph and its Ink text need a wider window. Your dialogue is unchanged.',
-  },
-  'screenplay-pages': {
-    name: 'the screenplay Pages view',
-    detail: 'The Script and Source views work here. Pages shows the printed layout, and the screenplay PDF is made on a desktop.',
-  },
-  mcp: {
-    name: 'MCP & tools',
-    detail: 'Connecting servers and tools is set up on a desktop. Nothing connected there is changed from here.',
-  },
-  exports: {
-    name: 'the other export formats',
-    detail: 'Word, EPUB, Fountain, Final Draft, PDF, Ink, spreadsheets, prompt packs and reports are made on a desktop. Markdown and plain text are here.',
-  },
-};
+export const DESKTOP_FEATURE_KEYS: readonly DesktopFeature[] = ['corkboard', 'dialogue', 'exports', 'mcp', 'screenplay-pages', 'storyboard'];
+
+export function desktopFeature(feature: DesktopFeature): DesktopFeatureNote {
+  switch (feature) {
+    case 'corkboard':
+      return {
+        name: t`the corkboard`,
+        detail: t`The board, where cards are dragged into order, needs a wider window. Your chapters and scenes are unchanged, and the binder still lists them.`,
+      };
+    case 'storyboard':
+      return {
+        name: t`the storyboard`,
+        detail: t`The shot board needs a wider window. Your shots are unchanged.`,
+      };
+    case 'dialogue':
+      return {
+        name: t`the dialogue branch graph`,
+        detail: t`The branch graph and its Ink text need a wider window. Your dialogue is unchanged.`,
+      };
+    case 'screenplay-pages':
+      return {
+        name: t`the screenplay Pages view`,
+        detail: t`The Script and Source views work here. Pages shows the printed layout, and the screenplay PDF is made on a desktop.`,
+      };
+    case 'mcp':
+      return {
+        name: t`MCP & tools`,
+        detail: t`Connecting servers and tools is set up on a desktop. Nothing connected there is changed from here.`,
+      };
+    case 'exports':
+      return {
+        name: t`the other export formats`,
+        detail: t`Word, EPUB, Fountain, Final Draft, PDF, Ink, spreadsheets, prompt packs and reports are made on a desktop. Markdown and plain text are here.`,
+      };
+  }
+}
 
 /** The formats a narrow window compiles. Every other format says "Open on desktop". */
 export const NARROW_EXPORT_FORMATS: readonly ExportFormat[] = ['md', 'txt'];

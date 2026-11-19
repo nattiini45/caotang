@@ -1,3 +1,6 @@
+/* lingui-set comment="Folder diff notes. Interpolated values: count, omittedContext, omittedFolderLines and omittedTabLines are omitted-line counts, kind is the line kind." */
+import { t } from '@lingui/core/macro';
+
 /** The line kind in the read-only comparison shown before a confirmed folder overwrite. */
 export type FolderDiffLineKind = 'context' | 'folder' | 'tab' | 'note';
 
@@ -14,8 +17,8 @@ const MAX_INPUT_CHARS = 128_000;
 const MAX_INPUT_LINES = 4_000;
 const MAX_LINE_CHARS = 2_000;
 const MAX_PREVIEW_CHARS = 24_000;
-const TOO_LARGE_NOTE = 'The content is too large for a safe line comparison in the question. If you choose to replace it, the full folder version is kept in .caotang-backup.';
-const TOO_LARGE_NEW_FILE_NOTE = 'The tab content is too large for a safe line comparison in the question; this file has no folder version to back up.';
+const tooLargeNote = (): string => t`The content is too large for a safe line comparison in the question. If you choose to replace it, the full folder version is kept in .caotang-backup.`;
+const tooLargeNewFileNote = (): string => t`The tab content is too large for a safe line comparison in the question; this file has no folder version to back up.`;
 
 /**
  * A bounded Myers line diff of the folder's current text and the text this tab would write. It
@@ -24,18 +27,18 @@ const TOO_LARGE_NEW_FILE_NOTE = 'The tab content is too large for a safe line co
  * large folder file cannot make the overwrite question allocate or render unbounded text.
  */
 export function folderFileDiff(folderText: string | null | undefined, tabText: string | null | undefined): FolderDiffLine[] {
-  if (folderText === null && tabText === null) return [{ kind: 'note', text: 'Neither version could be read as text; neither is known to be missing.' }];
-  if (folderText === null) return [{ kind: 'note', text: 'The folder version could not be read as text; it is not known to be missing.' }, ...(tabText === null || tabText === undefined ? [] : limitedLines(tabText, 'tab'))];
-  if (tabText === null) return [...(folderText === undefined ? [] : limitedLines(folderText, 'folder')), { kind: 'note', text: 'This tab version could not be read as text; it is not known to be missing.' }];
-  if (folderText === undefined && tabText === undefined) return [{ kind: 'note', text: 'Neither version is present for comparison.' }];
-  if (folderText === undefined) return [{ kind: 'note', text: 'No matching file is in the folder.' }, ...limitedLines(tabText ?? '', 'tab', false)];
-  if (tabText === undefined) return [...limitedLines(folderText, 'folder'), { kind: 'note', text: 'This tab has no matching file.' }];
+  if (folderText === null && tabText === null) return [{ kind: 'note', text: t`Neither version could be read as text; neither is known to be missing.` }];
+  if (folderText === null) return [{ kind: 'note', text: t`The folder version could not be read as text; it is not known to be missing.` }, ...(tabText === null || tabText === undefined ? [] : limitedLines(tabText, 'tab'))];
+  if (tabText === null) return [...(folderText === undefined ? [] : limitedLines(folderText, 'folder')), { kind: 'note', text: t`This tab version could not be read as text; it is not known to be missing.` }];
+  if (folderText === undefined && tabText === undefined) return [{ kind: 'note', text: t`Neither version is present for comparison.` }];
+  if (folderText === undefined) return [{ kind: 'note', text: t`No matching file is in the folder.` }, ...limitedLines(tabText ?? '', 'tab', false)];
+  if (tabText === undefined) return [...limitedLines(folderText, 'folder'), { kind: 'note', text: t`This tab has no matching file.` }];
 
   const folderLines = boundedLines(folderText);
   const tabLines = boundedLines(tabText);
   if (folderLines === null || tabLines === null) return tooLargePreview();
   if (folderLines.length === tabLines.length && folderLines.every((line, index) => line === tabLines[index])) {
-    return [{ kind: 'note', text: 'The visible text is the same; only the file bytes or line endings differ.' }];
+    return [{ kind: 'note', text: t`The visible text is the same; only the file bytes or line endings differ.` }];
   }
 
   const diff = myersDiff(folderLines, tabLines);
@@ -58,7 +61,7 @@ function boundedLines(text: string): string[] | null {
 }
 
 function tooLargePreview(hasFolderVersion = true): FolderDiffLine[] {
-  return [{ kind: 'note', text: hasFolderVersion ? TOO_LARGE_NOTE : TOO_LARGE_NEW_FILE_NOTE }];
+  return [{ kind: 'note', text: hasFolderVersion ? tooLargeNote() : tooLargeNewFileNote() }];
 }
 
 /** Keep the DOM payload bounded even when many changed lines are individually within the limit. */
@@ -127,7 +130,7 @@ function backtrack(trace: readonly Map<number, number>[], before: readonly strin
 /** Keep a little context around changed lines and cap long diffs without hiding that anything was omitted. */
 function compactDiff(diff: readonly FolderDiffLine[]): FolderDiffLine[] {
   const changed = diff.flatMap((line, index) => (line.kind === 'context' ? [] : [index]));
-  if (changed.length === 0) return [{ kind: 'note', text: 'The visible text is the same; only the file bytes or line endings differ.' }];
+  if (changed.length === 0) return [{ kind: 'note', text: t`The visible text is the same; only the file bytes or line endings differ.` }];
   const visibleContext = new Set<number>();
   for (const index of changed) {
     for (let near = Math.max(0, index - CONTEXT_LINES); near <= Math.min(diff.length - 1, index + CONTEXT_LINES); near += 1) {
@@ -157,18 +160,18 @@ function compactDiff(diff: readonly FolderDiffLine[]): FolderDiffLine[] {
       continue;
     }
     if (omittedContext > 0) {
-      output.push({ kind: 'note', text: `${omittedContext} unchanged lines omitted.` });
+      output.push({ kind: 'note', text: t`${omittedContext} unchanged lines omitted.` });
       omittedContext = 0;
     }
     if (line.kind === 'folder') folderLines += 1;
     if (line.kind === 'tab') tabLines += 1;
     output.push(line);
   }
-  if (omittedContext > 0) output.push({ kind: 'note', text: `${omittedContext} unchanged lines omitted.` });
+  if (omittedContext > 0) output.push({ kind: 'note', text: t`${omittedContext} unchanged lines omitted.` });
   if (omittedFolderLines > 0 || omittedTabLines > 0) {
     output.push({
       kind: 'note',
-      text: `${omittedFolderLines} folder and ${omittedTabLines} tab diff lines omitted; if you choose to replace the file, the full folder version is kept in .caotang-backup.`,
+      text: t`${omittedFolderLines} folder and ${omittedTabLines} tab diff lines omitted; if you choose to replace the file, the full folder version is kept in .caotang-backup.`,
     });
   }
   return output;
@@ -179,8 +182,8 @@ function limitedLines(text: string, kind: 'folder' | 'tab', hasFolderVersion = t
   if (all === null) return tooLargePreview(hasFolderVersion);
   const lines: FolderDiffLine[] = all.slice(0, MAX_CHANGED_LINES).map((line) => ({ kind, text: line }));
   if (all.length > MAX_CHANGED_LINES) {
-    const backupNote = hasFolderVersion ? 'the backup keeps the full file.' : 'this file has no folder version to back up.';
-    lines.push({ kind: 'note', text: `${all.length - MAX_CHANGED_LINES} more ${kind} lines omitted; ${backupNote}` });
+    const backupNote = hasFolderVersion ? t`the backup keeps the full file.` : t`this file has no folder version to back up.`;
+    lines.push({ kind: 'note', text: t`${{ count: all.length - MAX_CHANGED_LINES }} more ${kind} lines omitted; ${backupNote}` });
   }
   return boundedPreview(lines);
 }

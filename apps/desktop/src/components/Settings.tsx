@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
 import { i18n, type MessageDescriptor } from '@lingui/core';
 import { msg, plural, t } from '@lingui/core/macro';
+import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 import { isolate } from '@caotang/i18n';
 import {
@@ -225,6 +226,7 @@ function roleDraftsFor(roles: RoleSettings | undefined): Record<TaskRole, RoleDr
 }
 
 function ProvidersSection({ services, onChanged }: { services: AppServices; onChanged?: () => void }): ReactNode {
+  useLingui();
   const providers = services.providers;
   const [, refresh] = useReducer((n: number) => n + 1, 0);
   useEffect(() => providers.subscribeVerification(refresh), [providers]);
@@ -700,8 +702,8 @@ function AgentSection({ services, session }: { services: AppServices; session: P
       </label>
       <FormMessage message={message === null ? null : { text: message, tone: 'info' }} />
       <p className="settings-note">
-        The Trace tab shows what each turn sent to the model and got back. It holds your prompts and manuscript text, only in this tab’s memory, and a
-        reload clears it. Turn it off to gather nothing.
+        <Trans>The Trace tab shows what each turn sent to the model and got back. It holds your prompts and manuscript text, only in this tab’s memory, and a
+        reload clears it. Turn it off to gather nothing.</Trans>
       </p>
       <label className="settings-check">
         <input
@@ -710,11 +712,11 @@ function AgentSection({ services, session }: { services: AppServices; session: P
           data-testid="agent-keep-traces"
           onChange={(event) => {
             void services.settings.update({ agent: { keepTraces: event.target.checked } }).then((error) => {
-              setTraceMessage(error === null ? { text: 'Saved. It applies to what the agent records next.', tone: 'info' } : { text: error, tone: 'error' });
+              setTraceMessage(error === null ? { text: t`Saved. It applies to what the agent records next.`, tone: 'info' } : { text: error, tone: 'error' });
             });
           }}
         />
-        <span>Keep agent traces for this tab</span>
+        <span><Trans>Keep agent traces for this tab</Trans></span>
       </label>
       <FormMessage message={traceMessage} />
       <AgentModeSettings services={services} />
@@ -789,21 +791,21 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
           </span>
         </label>
         <label>
-          <span>When you apply an agent edit</span>
+          <span><Trans>When you apply an agent edit</Trans></span>
           <select
             value={agentEditMode}
             aria-describedby="agent-edit-help"
             onChange={(event) => setAgentEditMode(event.target.value === 'suggestions' ? 'suggestions' : 'ghost')}
           >
-            <option value="ghost">Replace the text</option>
-            <option value="suggestions">Mark the changes for review</option>
+            <option value="ghost"><Trans>Replace the text</Trans></option>
+            <option value="suggestions"><Trans>Mark the changes for review</Trans></option>
           </select>
         </label>
         <p className="muted" id="agent-edit-help">
-          Marking keeps the agent’s new text in the scene and underlines or strikes only the words that changed, so you can keep or put back
+          <Trans>Marking keeps the agent’s new text in the scene and underlines or strikes only the words that changed, so you can keep or put back
           each change. The agent’s text is already saved when the marks appear, so other tools and git see the accepted version, and rejecting
           a change is what edits the file. It covers prose scenes only, not Ink or Fountain. Closing the tab with changes still marked keeps
-          the agent’s text. A new agent edit accepts any earlier marks first. The choice applies the next time you open a document.
+          the agent’s text. A new agent edit accepts any earlier marks first. The choice applies the next time you open a document.</Trans>
         </p>
         <button type="submit" className="button is-primary">
           <Trans>Save writing settings</Trans>

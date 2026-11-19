@@ -3,6 +3,9 @@
  * so the tree is that container and the writer only reads it: what the import strips is counted first (dialogue-narrative.md §4),
  * and **Import** writes it with `dialogue.importInk`, one undo step, as before. Nothing is written on Cancel.
  */
+/* lingui-set comment="The Twine/Twee import. Interpolated values: knot is a passage name." */
+
+import { t } from '@lingui/core/macro';
 
 import { describeTweeReport, type TweeImportPlan } from '@caotang/dialogue';
 
@@ -30,7 +33,7 @@ export function tweePreviewSource(options: {
     if (line.trim() === '') continue;
     const knot = KNOT.exec(line);
     if (knot !== null) {
-      markers.push({ blockIndex: blocks.length, kind: 'scene', reason: `passage “${knot[1] ?? ''}” becomes a knot` });
+      markers.push({ blockIndex: blocks.length, kind: 'scene', reason: t`passage “${{ knot: knot[1] ?? '' }}” becomes a knot` });
       blocks.push({ kind: 'heading', text: knot[1] ?? line });
     } else {
       blocks.push({ kind: 'para', text: line });
@@ -47,17 +50,17 @@ export function tweePreviewSource(options: {
   };
   return {
     fileName,
-    title: 'Import this Twee story?',
-    intro: `${title} (${fileName}) will be one dialogue container. Read what the import changes first.`,
+    title: t`Import this Twee story?`,
+    intro: t`${title} (${fileName}) will be one dialogue container. Read what the import changes first.`,
     readOnly: true,
     chips: () => [],
     options: () => [],
     plan: () => preview,
     report: () => [
-      { heading: '', label: 'What the import does', lines: describeTweeReport(twee.report) },
-      ...(twee.report.warnings.length === 0 ? [] : [{ heading: 'Warnings', label: 'Warnings', lines: twee.report.warnings }]),
+      { heading: '', label: t`What the import does`, lines: describeTweeReport(twee.report) },
+      ...(twee.report.warnings.length === 0 ? [] : [{ heading: 'Warnings', label: t`Warnings`, lines: twee.report.warnings }]),
     ],
-    importLabel: () => 'Import',
+    importLabel: () => t`Import`,
     commit: () => {
       options.write();
       return Promise.resolve({ ok: true });
