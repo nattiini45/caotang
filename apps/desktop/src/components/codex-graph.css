@@ -95,6 +95,10 @@
   text-align: start;
 }
 
+.codex-graph-arrow {
+  color: var(--muted);
+}
+
 .codex-graph-label {
   color: var(--muted);
 }

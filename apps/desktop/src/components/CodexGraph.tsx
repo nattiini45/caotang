@@ -107,7 +107,7 @@ export function CodexGraph({ entries, onOpen }: {
                           ? t`Links to a missing entry.`
                           : t({ message: `Links to ${{ name: link.target.name }}.`, comment: 'name is the name of the codex entry the link points at.' })}
                         onClick={() => { if (link.target !== undefined) onOpen(link.target.id); }}>
-                        <span aria-hidden="true">→</span>
+                        <span className="codex-graph-arrow" aria-hidden="true">→</span>
                         <span dir="auto">{link.target === undefined ? t`A missing entry` : link.target.name}</span>
                       </Button>
                       {link.label === undefined ? null : <span className="codex-graph-label" dir="auto">{link.label}</span>}
