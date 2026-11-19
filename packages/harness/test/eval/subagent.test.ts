@@ -12,9 +12,9 @@ import { subagentScript } from '@caotang/gateway/mock';
 import type { MockScript } from '@caotang/gateway/mock';
 import { addDocument, addFolder, setBody, type ProjectState } from '@caotang/store';
 
-import { DELEGATE_NOTICE } from '../../src/index.js';
+import { createAgentPorts, createAgentSession, DELEGATE_NOTICE } from '../../src/index.js';
 import { evaluate, type Scenario } from '../../src/agent/eval.js';
-import { CHAPTER_ONE, CHAPTER_TWO, FRIEND, LANDING, OPENED, makeState } from '../fixtures.js';
+import { CHAPTER_ONE, CHAPTER_TWO, FRIEND, LANDING, OPENED, makeHarness, makeState } from '../fixtures.js';
 import { mockGateway } from '../agent/gateway.js';
 import { answer, steps, transcript } from '../agent/scripts.js';
 import { textOf as wireTextOf } from '@caotang/gateway';
@@ -189,6 +189,31 @@ describe('chapter delegation', () => {
     }));
     expect(result.failures).toEqual([]);
     expect(textOf(planned.at(-1))).toContain('The approved chapter scope or route changed');
+  });
+
+  it('admits chapter helpers against cumulative session spend without consuming planner slots', async () => {
+    const nextIntent = 'Check the chapters once more.';
+    const planned: ChatRequest[] = [];
+    const gateway = await mockGateway([
+      planner([steps(chapterStep), answer('Read both chapters.')], []),
+      transcript(nextIntent, [steps(chapterStep), answer('Try fewer chapters.')], planned),
+      subagentScript(() => answer('Notes from this chapter.')),
+    ]);
+    let approvals = 0;
+    const session = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }), gateway,
+      mode: 'auto', maxModelCalls: 2, sessionBudget: { maxModelCalls: 12 },
+      decide: async () => { approvals += 1; return { action: 'approve' }; },
+    });
+    const first = await session.submit(INTENT, { preload: ['agent.delegate'] });
+    expect(first.status).toBe('replied');
+    expect(first.modelCalls).toBe(4);
+    expect(first.budgetUse.modelCalls).toBe(4);
+    const second = await session.submit(nextIntent, { preload: ['agent.delegate'] });
+    expect(second.status).toBe('replied');
+    expect(second.modelCalls).toBe(2);
+    expect(approvals).toBe(1);
+    expect(textOf(planned.at(-1))).toContain('session model-call budget');
   });
 });
 

@@ -1222,7 +1222,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   /** The first limit a use has reached (`reached`) or passed, the turn's before the session's. */
   const hitOf = (turn: Turn, use: BudgetUse, reached: boolean): BudgetHit | undefined =>
-    budgetHit(use, turn.budget, reached) ?? budgetHit(addUse(sessionUse, use), sessionLimits(), reached, 'session');
+    budgetHit(use, turn.budget, reached) ?? budgetHit(addUse(sessionUse, { ...use, modelCalls: use.modelCalls + turn.chapterCalls }), sessionLimits(), reached, 'session');
 
   /** Notes the words in every document and where the activity log stands, so what the turn changes from here is measured. */
   const takeBase = (turn: Turn): void => {
@@ -1714,15 +1714,21 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return {
       gateway: {
         complete: (request, signal) => {
-          guardRunLog(turn);
-          if (used >= limit) throw modelCallBound(limit);
-          guardReadBoundary(turn);
-          const asked = { ...request, sessionId: usageSessionId, ...(options.role === undefined ? {} : { role: options.role }) };
-          const reservation = reserveCall(turn, asked);
-          used += 1;
-          turn.calls += 1;
-          const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
-          return settling(turn, reservation, sent, signal, undefined, chapter ? () => { turn.chapterCalls -= 1; } : undefined);
+          const refund = chapter ? () => { turn.chapterCalls -= 1; } : undefined;
+          try {
+            guardRunLog(turn);
+            if (used >= limit) throw modelCallBound(limit);
+            guardReadBoundary(turn);
+            const asked = { ...request, sessionId: usageSessionId, ...(options.role === undefined ? {} : { role: options.role }) };
+            const reservation = reserveCall(turn, asked);
+            used += 1;
+            turn.calls += 1;
+            const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
+            return settling(turn, reservation, sent, signal, undefined, refund);
+          } catch (error) {
+            refund?.();
+            throw error;
+          }
         },
       },
       turnId: turn.id,
@@ -2746,6 +2752,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const meterLeft = (turn.meter?.limits.maxModelCalls ?? Infinity) - (turn.meter?.spend().modelCalls ?? 0);
     if (calls > 200 - turn.chapterCalls || calls + 1 > meterLeft || callsLeft(turn) < 1) {
       return err(limitExceeded('The chapter batch does not fit the remaining call budget, including one planner call.', 'select fewer top-level Manuscript folders', 'agent.delegate'));
+    }
+    const sessionLeft = (sessionLimits().maxModelCalls ?? Infinity) - sessionUse.modelCalls - turn.modelCalls - turn.chapterCalls;
+    if (calls + 1 > sessionLeft) {
+      return err(limitExceeded('The chapter batch does not fit the remaining session model-call budget, including one planner call.', 'select fewer top-level Manuscript folders', 'agent.delegate'));
     }
     const limits = gateway.modelLimits(turn.pins.profileId, turn.pins.model, turn.pins.thinking, { ...(options.role === undefined ? {} : { role: options.role }) });
     const output = transmittedOutputCap(limits);
@@ -4259,7 +4269,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       ...(turn.meter === undefined ? {} : { spend: turn.meter.spend() }),
       ...(turn.notes.length === 0 ? {} : { steering: turn.notes.map((note): SteeringNote => ({ ...note })) }),
       mode: turn.mode,
-      budgetUse: usageOf(turn),
+      budgetUse: { ...usageOf(turn), modelCalls: turn.modelCalls + turn.chapterCalls },
       ...(turn.held.length === 0 ? {} : { heldSteps: turn.held }),
       ...(turn.held.length > 0 && (turn.tainted || harness.loadedSkills(turn.id).length > 0) ? { heldRequiresRestart: true as const } : {}),
       ...(turn.hooks.length === 0 ? {} : { hooks: [...turn.hooks] }),
