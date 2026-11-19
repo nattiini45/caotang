@@ -286,7 +286,11 @@ export function prepareCodexWrite(params: CallParams, context: PrepareContext): 
           const existing = before?.references?.map(readCodexReference).find((reference) => reference?.id === edit['id']);
           return { ...definedFields(edit, ['action', ...CODEX_REFERENCE_FIELDS]), ...(existing === undefined ? {} : { previousTitle: existing.title }) };
         });
-        changes.push({ field: 'references', from: 'null', to: JSON.stringify(edits) });
+        const held = (before?.references ?? []).flatMap((reference) => {
+          const read = readCodexReference(reference);
+          return read === undefined ? [] : [read];
+        });
+        changes.push({ field: 'references', from: JSON.stringify(held), to: JSON.stringify(edits) });
         continue;
       }
       const old = before === undefined ? undefined : (before as unknown as Record<string, unknown>)[field];
