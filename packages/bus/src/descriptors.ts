@@ -1415,18 +1415,24 @@ function validateCodexOp(
       const current = typeof id === 'string' ? relations.get(id) : undefined;
       const held = { ids: [...(current?.ids ?? [])], count: current?.count ?? 0 };
       const targets = (snapshot.manifest.codex ?? []).map((entry) => entry.id);
+      // The cap is the batch's net effect, so a create may precede the remove that makes room for it.
+      const removes = relationEdits.filter((edit) => isCodexDetailObject(edit) && edit['action'] === 'remove').length;
+      let remaining = CODEX_RELATION_MAX - held.count + removes;
       for (const [i, edit] of relationEdits.entries()) {
         const problem = relationEditProblem(edit, {
           liveIds: held.ids,
           targets,
           ownId: typeof id === 'string' ? id : '',
-          currentCount: held.count,
+          remaining,
         });
         if (problem !== undefined) {
           push(invalid(`relationEdits[${i}] ${problem}`, undefined, `relationEdits[${i}]`));
           continue;
         }
-        if (edit.action === 'create') held.count += 1;
+        if (edit.action === 'create') {
+          held.count += 1;
+          remaining -= 1;
+        }
         if (edit.action === 'remove') {
           held.count -= 1;
           held.ids = held.ids.filter((candidate) => candidate !== edit.id);

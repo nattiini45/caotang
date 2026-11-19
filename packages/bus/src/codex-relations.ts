@@ -17,7 +17,7 @@ export function codexRelationId(value: unknown): string | undefined {
 }
 
 export function relationLabelProblem(value: unknown): string | undefined {
-  if (typeof value !== 'string' || value.trim() === '' || value.length > CODEX_RELATION_LABEL_MAX) {
+  if (typeof value !== 'string' || value.trim() === '' || [...value].length > CODEX_RELATION_LABEL_MAX) {
     return `must be nonblank text of at most ${CODEX_RELATION_LABEL_MAX} characters`;
   }
   return undefined;
@@ -39,7 +39,8 @@ export function relationEditProblem(
     readonly liveIds: readonly string[];
     readonly targets: readonly string[];
     readonly ownId: string;
-    readonly currentCount: number;
+    /** How many relations this batch may still add: the cap, minus what the entry holds, plus what the batch removes. */
+    readonly remaining: number;
   },
 ): string | undefined {
   if (!isCodexDetailObject(value)) return 'must be an operation object';
@@ -53,7 +54,7 @@ export function relationEditProblem(
     return `unexpected field "${key}" for ${action}`;
   }
   if (action === 'create') {
-    if (facts.currentCount >= CODEX_RELATION_MAX) return `an entry can hold at most ${CODEX_RELATION_MAX} relations`;
+    if (facts.remaining <= 0) return `an entry can hold at most ${CODEX_RELATION_MAX} relations`;
     const targetId = value['targetId'];
     if (typeof targetId !== 'string' || !facts.targets.includes(targetId)) return 'targetId must name an existing codex entry';
     if (targetId === facts.ownId) return 'an entry cannot relate to itself';

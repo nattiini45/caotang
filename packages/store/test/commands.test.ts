@@ -56,6 +56,7 @@ import { isIdWithPrefix } from '@caotang/ids';
 import {
   createActivityLog,
   createIdempotencyCache,
+  CODEX_RELATION_MAX,
   createUndoStore,
   createViewState,
   execute,
@@ -319,6 +320,34 @@ describe('codex relations', () => {
 
     h.undoGroup(linked.undoGroupId ?? '');
     expect(fenn.relations).toEqual(before);
+  });
+
+  it('reads the cap as the batch net effect, so a create may precede the remove that makes room', () => {
+    const h = harness();
+    const entries = h.state.manifest.codex ?? [];
+    const fenn = entries.find(({ id }) => id === ENTRY);
+    const mara = entries.find(({ id }) => id !== ENTRY);
+    if (fenn === undefined || mara === undefined) throw new Error('missing fixture entries');
+    fenn.relations = Array.from({ length: CODEX_RELATION_MAX }, (_, index) => ({
+      id: `rel_${String(index).padStart(10, '0')}`,
+      targetId: mara.id,
+    }));
+    const oldest = `rel_${String(0).padStart(10, '0')}`;
+
+    const swapped = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: mara.id }, { action: 'remove', id: oldest }],
+    }] } }));
+    expect(fenn.relations).toHaveLength(CODEX_RELATION_MAX);
+    expect(fenn.relations?.some((value) => readCodexRelation(value)?.id === oldest)).toBe(false);
+
+    const over = execute(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: mara.id }, { action: 'create', targetId: mara.id }],
+    }] } }), h.bus, h.registry);
+    expect(over.ok).toBe(false);
+    if (!over.ok) expect(JSON.stringify(over.error)).toContain(`at most ${CODEX_RELATION_MAX} relations`);
+
+    h.undoGroup(swapped.undoGroupId ?? '');
+    expect(fenn.relations).toHaveLength(CODEX_RELATION_MAX);
   });
 });
 

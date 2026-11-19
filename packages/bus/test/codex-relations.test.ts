@@ -7,11 +7,11 @@ import {
   relationEditProblem,
 } from '../src/index.js';
 
-const facts = (over: Partial<{ liveIds: string[]; targets: string[]; ownId: string; currentCount: number }> = {}) => ({
+const facts = (over: Partial<{ liveIds: string[]; targets: string[]; ownId: string; remaining: number }> = {}) => ({
   liveIds: ['rel_0000000001'],
   targets: ['c_0000000001', 'c_0000000002'],
   ownId: 'c_0000000001',
-  currentCount: 1,
+  remaining: 1,
   ...over,
 });
 
@@ -41,8 +41,8 @@ describe('a relation edit is checked before anything is written', () => {
   });
 
   it('holds the per-entry cap at its boundary', () => {
-    expect(relationEditProblem({ action: 'create', targetId: 'c_0000000002' }, facts({ currentCount: CODEX_RELATION_MAX - 1 }))).toBeUndefined();
-    expect(relationEditProblem({ action: 'create', targetId: 'c_0000000002' }, facts({ currentCount: CODEX_RELATION_MAX })))
+    expect(relationEditProblem({ action: 'create', targetId: 'c_0000000002' }, facts({ remaining: 1 }))).toBeUndefined();
+    expect(relationEditProblem({ action: 'create', targetId: 'c_0000000002' }, facts({ remaining: 0 })))
       .toContain(`at most ${CODEX_RELATION_MAX} relations`);
   });
 
