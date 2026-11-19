@@ -379,10 +379,10 @@
   inset-block: 0 var(--page-bottom);
 }
 
-/* The binder is a wrapper with nothing in flow (its bar and sidebar are absolute): out of the rows, so its hover-out still ends
-   where the bar does. */
+/* The binder is a wrapper with nothing in flow (its bar and sidebar are absolute, and they resolve against the stage): it keeps that
+   place without taking a row, so its hover-out still ends where the bar does. */
 :root[data-shell='modern'] .modern-stage:has(.storage-banner) > .modern-binder {
-  position: absolute;
+  display: contents;
 }
 
 :root[data-shell='modern'] .modern-stage:has(.storage-banner) .modern-toast {
