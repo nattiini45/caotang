@@ -95,7 +95,7 @@ export const codexWriteParams: ObjectSpec = param.object(
           ),
           relationEdits: param.list(
             'Entry links.',
-            param.freeObject('action: create/update/remove; targetId on create; id on update/remove; label (null clears).'),
+            param.freeObject('create: targetId; update/remove: id; label, null clears.'),
             { minItems: 1, maxItems: CODEX_RELATION_MAX },
           ),
           exclude: param.list(

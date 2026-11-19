@@ -693,7 +693,7 @@
               "description": "Entry links.",
               "items": {
                 "type": "object",
-                "description": "action: create/update/remove; targetId on create; id on update/remove; label (null clears)."
+                "description": "create: targetId; update/remove: id; label, null clears."
               },
               "minItems": 1,
               "maxItems": 40
