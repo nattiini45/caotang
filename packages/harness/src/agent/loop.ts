@@ -140,7 +140,7 @@ import {
   type StatusState,
   type StepCost,
 } from './cards.js';
-import { anySignal, runLimitWords, stepLimitWords, type BudgetMeter, type BudgetSpend, type BudgetStop, type Reservation } from './budget.js';
+import { anySignal, createBudgetMeter, runLimitWords, stepLimitWords, type BudgetMeter, type BudgetSpend, type BudgetStop, type Reservation } from './budget.js';
 import {
   CHECKPOINT_LABEL,
   DEFAULT_MAX_MODEL_CALLS,
@@ -732,6 +732,7 @@ interface Turn {
   /** The delegated agents this turn has started, so each has a path of its own (`turn-3/reader#1`). */
   delegations: number;
   chapterCalls: number;
+  restoredChapterSpend?: BudgetSpend;
   /** The planner replies the provider ended with `length` this turn, parsed or not, at the cap or short of it: the report's `cutReplies`. */
   cutReplies: number;
   /** What the turn's calls got from the provider's prompt cache, and the planner calls that missed it (cache-watch.ts). */
@@ -1252,11 +1253,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const usageOf = (turn: Turn): BudgetUse => {
     const totals = gateway.ledger.turnTotals(turn.id);
     const price = options.price?.();
-    const costUsd = price === undefined ? totals.costUsd : costOf(totals, price);
+    const newCost = price === undefined ? totals.costUsd : costOf(totals, price);
+    const restored = turn.restoredChapterSpend;
+    const costUsd = newCost === undefined && restored?.costUsd === undefined ? undefined : (newCost ?? 0) + (restored?.costUsd ?? 0);
     const touched = touchedOf(turn);
     return {
       modelCalls: turn.modelCalls,
-      tokens: totals.promptTokens + totals.completionTokens,
+      tokens: totals.promptTokens + totals.completionTokens + (restored?.promptTokens ?? 0) + (restored?.completionTokens ?? 0),
       ...(costUsd === undefined ? {} : { costUsd }),
       wordsChanged: touched.words,
       documents: touched.ids.size,
@@ -1500,8 +1503,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * cap the request goes with, thinking included. A refusal ends the turn on a question, and the request is never sent. A time limit
    * that has passed is the turn's stop, ended the way the signal ends it. No meter, no reservation.
    */
-  const reserveCall = (turn: Turn, request: ChatRequest): Reservation | undefined => {
-    const { meter } = turn;
+  const reserveCall = (turn: Turn, request: ChatRequest, meter = turn.meter): Reservation | undefined => {
     if (meter === undefined) return undefined;
     // The request as sent: its own profile, model and level, and its role, which the gateway routes a request with no profile by.
     // A call under another role carries none of the session's pins, so it is reserved on the role's route, never the session's.
@@ -1513,7 +1515,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       ...(price === undefined ? {} : { price }),
     });
     if (reserved.ok) {
-      emit({ type: 'budget', turnId: turn.id, spend: meter.spend(), limits: meter.limits });
+      if (meter === turn.meter) emit({ type: 'budget', turnId: turn.id, spend: meter.spend(), limits: meter.limits });
       return reserved.value;
     }
     const stop = reserved.error;
@@ -1523,7 +1525,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   };
 
   /** A stream whose reservation is settled with the usage it ended with, or the estimate when the provider reported none, however it ends. */
-  async function* settling(turn: Turn, reservation: Reservation | undefined, request: ChatRequest, signal?: AbortSignal, hookGuard?: () => void, releaseUnsent?: () => void): AsyncGenerator<ChatChunk, void, undefined> {
+  async function* settling(turn: Turn, reservation: Reservation | undefined, request: ChatRequest, signal?: AbortSignal, hookGuard?: () => void, chapter?: { readonly refund: () => void; readonly meter?: BudgetMeter; readonly reservation?: Reservation }): AsyncGenerator<ChatChunk, void, undefined> {
     let usage: Usage | undefined;
     let delivered = '';
     let sent = false;
@@ -1541,9 +1543,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         yield chunk;
       }
     } finally {
-      if ((hookGuard !== undefined || releaseUnsent !== undefined) && !sent) refused = true;
+      if ((hookGuard !== undefined || chapter !== undefined) && !sent) refused = true;
       if (refused) {
-        if (releaseUnsent !== undefined) releaseUnsent();
+        if (chapter !== undefined) chapter.refund();
         else {
           turn.modelCalls -= 1;
           emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
@@ -1553,6 +1555,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         if (refused) turn.meter.release(reservation);
         else turn.meter.settle(reservation, usage, { promptTokens: reservation.promptTokens, completionTokens: estimateTokens(delivered) });
         emit({ type: 'budget', turnId: turn.id, spend: turn.meter.spend(), limits: turn.meter.limits });
+      }
+      if (chapter?.reservation !== undefined) {
+        if (refused) chapter.meter?.release(chapter.reservation);
+        else chapter.meter?.settle(chapter.reservation, usage, { promptTokens: chapter.reservation.promptTokens, completionTokens: estimateTokens(delivered) });
       }
     }
   }
@@ -1709,23 +1715,28 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * reservation and not counted again against the turn's bound. Each request carries the agent path for the ledger, the turn's id so the
    * turn's totals sum its children, and the session's own pins. The agent's text and reasoning never stream to the panel.
    */
-  const agentCall = (turn: Turn, agentPath: string, limit: number, chapter: boolean): ModelCall => {
+  const agentCall = (turn: Turn, agentPath: string, limit: number, chapter: boolean, chapterMeter?: BudgetMeter): ModelCall => {
     let used = 0;
     return {
       gateway: {
         complete: (request, signal) => {
           const refund = chapter ? () => { turn.chapterCalls -= 1; } : undefined;
+          let chapterReservation: Reservation | undefined;
           try {
             guardRunLog(turn);
             if (used >= limit) throw modelCallBound(limit);
             guardReadBoundary(turn);
             const asked = { ...request, sessionId: usageSessionId, ...(options.role === undefined ? {} : { role: options.role }) };
+            if (chapterMeter !== undefined) chapterReservation = reserveCall(turn, asked, chapterMeter);
             const reservation = reserveCall(turn, asked);
             used += 1;
             turn.calls += 1;
             const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
-            return settling(turn, reservation, sent, signal, undefined, refund);
+            return settling(turn, reservation, sent, signal, undefined, refund === undefined ? undefined : {
+              refund, ...(chapterMeter === undefined ? {} : { meter: chapterMeter }), ...(chapterReservation === undefined ? {} : { reservation: chapterReservation }),
+            });
           } catch (error) {
+            if (chapterReservation !== undefined) chapterMeter?.release(chapterReservation);
             refund?.();
             throw error;
           }
@@ -1892,10 +1903,28 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   };
 
   /** What the turn has spent, from its meter when it has one and from the gateway's ledger otherwise. */
-  const spendOf = (turn: Turn): BudgetSpend => {
-    if (turn.meter !== undefined) return loggable(turn.meter.spend());
+  const spendOf = (turn: Turn, pendingChapters = 0): BudgetSpend => {
+    const restored = turn.restoredChapterSpend;
+    const reservedChapterCalls = pendingChapters + (restored?.reservedChapterCalls ?? 0);
+    const chapterSpend = {
+      ...(turn.chapterCalls === 0 ? {} : { chapterCalls: turn.chapterCalls }),
+      ...(reservedChapterCalls === 0 ? {} : { reservedChapterCalls }),
+    };
+    if (turn.meter !== undefined) {
+      const spend = turn.meter.spend();
+      return loggable({ ...spend, ...chapterSpend, modelCalls: Math.max(spend.modelCalls + pendingChapters, turn.chapterCalls) });
+    }
     const totals = gateway.ledger.turnTotals(turn.id);
-    return loggable({ modelCalls: turn.modelCalls, promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, estimatedTokens: 0, steps: spentSteps(turn), activeMs: 0 });
+    const price = options.price?.();
+    const cost = turn.chapterCalls === 0 ? undefined : price === undefined ? totals.costUsd : costOf(totals, price);
+    return loggable({
+      ...chapterSpend,
+      modelCalls: turn.modelCalls + turn.chapterCalls,
+      promptTokens: totals.promptTokens + (restored?.promptTokens ?? 0),
+      completionTokens: totals.completionTokens + (restored?.completionTokens ?? 0),
+      ...(cost === undefined && restored?.costUsd === undefined ? {} : { costUsd: (cost ?? 0) + (restored?.costUsd ?? 0) }),
+      estimatedTokens: 0, steps: spentSteps(turn), activeMs: 0,
+    });
   };
 
   /**
@@ -1907,6 +1936,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const whole = (value: number): number => Math.floor(amount(value));
     return {
       modelCalls: whole(spend.modelCalls),
+      ...(spend.chapterCalls === undefined ? {} : { chapterCalls: whole(spend.chapterCalls) }),
+      ...(spend.reservedChapterCalls === undefined ? {} : { reservedChapterCalls: whole(spend.reservedChapterCalls) }),
       promptTokens: amount(spend.promptTokens),
       completionTokens: amount(spend.completionTokens),
       estimatedTokens: amount(spend.estimatedTokens),
@@ -1943,7 +1974,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * Writes loaded skills, the messages added since the last write, then the spend. `reserved` is the model calls about to be started and not settled:
    * a crash loses them, and a resume counts them as spent so the run's limits stay honest.
    */
-  async function syncRun(turn: Turn, reserved: number, status?: RunStatus): Promise<void> {
+  async function syncRun(turn: Turn, reserved: number, status?: RunStatus, pendingChapters = 0): Promise<void> {
     const run = turn.run;
     if (run === undefined) return;
     await syncSkills(turn);
@@ -1952,7 +1983,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       turn.logged = turn.messages.length;
       await run.append({ t: 'messages', turnId: turn.id, appended });
     }
-    await run.append({ t: 'spend', turnId: turn.id, spend: spendOf(turn), reservedCalls: reserved }, status === undefined ? undefined : { status });
+    await run.append({ t: 'spend', turnId: turn.id, spend: spendOf(turn, pendingChapters), reservedCalls: reserved }, status === undefined ? undefined : { status });
   }
 
   /** The card the writer is about to be shown (or the mode approved), with its drafts and what they were drafted against. */
@@ -2690,7 +2721,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return ok({ data, summary, affected: [] });
   }
 
-  function runDelegateChild(turn: Turn, step: PlanStep, params: DelegateParams, scope: readonly string[], agentPath: string, onTrace: (row: TraceEntry) => void, chapterState?: ProjectState) {
+  function runDelegateChild(turn: Turn, step: PlanStep, params: DelegateParams, scope: readonly string[], agentPath: string, onTrace: (row: TraceEntry) => void, chapterState?: ProjectState, chapterMeter?: BudgetMeter) {
     const spec = SUBAGENT_SPECS[params.agent];
     const overrides = step.contextOverrides ?? turn.contextOverrides;
     const chapterPins = chapterState === undefined ? undefined : overrides?.include?.filter((ref) =>
@@ -2719,7 +2750,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         turn.modelCalls -= unused;
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
       },
-      model: () => agentCall(turn, agentPath, spec.maxModelCalls, chapterState !== undefined),
+      model: () => agentCall(turn, agentPath, spec.maxModelCalls, chapterState !== undefined, chapterMeter),
       read: async (call) => {
         guardReadBoundary(turn);
         const context = { turnId: turn.id, agentPath, ...signalOf(turn) };
@@ -2757,9 +2788,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (calls > 200 - turn.chapterCalls || calls + 1 > meterLeft || callsLeft(turn) < 1) {
       return err(limitExceeded('The chapter batch does not fit the remaining call budget, including one planner call.', 'select fewer top-level Manuscript folders', 'agent.delegate'));
     }
-    const sessionLeft = (sessionLimits().maxModelCalls ?? Infinity) - sessionUse.modelCalls - turn.modelCalls - turn.chapterCalls;
+    const session = sessionLimits();
+    const sessionLeft = (session.maxModelCalls ?? Infinity) - sessionUse.modelCalls - turn.modelCalls - turn.chapterCalls;
     if (calls + 1 > sessionLeft) {
       return err(limitExceeded('The chapter batch does not fit the remaining session model-call budget, including one planner call.', 'select fewer top-level Manuscript folders', 'agent.delegate'));
+    }
+    if ((turn.restoredChapterSpend?.reservedChapterCalls ?? 0) > 0 && policyOf(turn).decides
+      && (turn.budget.maxTokens !== undefined || turn.budget.maxCostUsd !== undefined || session.maxTokens !== undefined || session.maxCostUsd !== undefined)) {
+      return err(limitExceeded('The interrupted chapter batch has unknown token or cost usage, so another batch cannot run within the configured budget.', 'start a new request after checking the earlier batch’s usage', 'agent.delegate'));
     }
     const limits = gateway.modelLimits(turn.pins.profileId, turn.pins.model, turn.pins.thinking, { ...(options.role === undefined ? {} : { role: options.role }) });
     const output = transmittedOutputCap(limits);
@@ -2795,6 +2831,15 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const batchPath = `${turn.id}/chapters#${turn.delegations + 1}`;
     const work = chapters.map((chapter) => ({ key: chapter.id, input: { chapter, path: `${turn.id}/${spec.name}#${++turn.delegations}` } }));
     turn.chapterCalls += calls;
+    await syncRun(turn, 0, 'running', calls);
+    const use = usageOf(turn);
+    const session = sessionLimits();
+    const tokensLeft = Math.min(turn.budget.maxTokens ?? Infinity, (session.maxTokens ?? Infinity) - sessionUse.tokens) - use.tokens;
+    const costLeft = Math.min(turn.budget.maxCostUsd ?? Infinity, (session.maxCostUsd ?? Infinity) - (sessionUse.costUsd ?? 0)) - (use.costUsd ?? 0);
+    const chapterMeter = policyOf(turn).decides && (Number.isFinite(tokensLeft) || Number.isFinite(costLeft)) ? createBudgetMeter({
+      ...(Number.isFinite(tokensLeft) ? { maxTokens: Math.max(0, tokensLeft) } : {}),
+      ...(Number.isFinite(costLeft) ? { maxCostUsd: Math.max(0, costLeft) } : {}),
+    }) : undefined;
     cardFor(turn, id, step.tool, step.params, 'running');
     let view: DelegationView = { agent: spec.name, agentPath: batchPath, reserved: calls, outcome: 'running', trace: [] };
     showDelegation(turn, id, view, { progress: 0, total: chapters.length });
@@ -2803,12 +2848,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       started += 1;
       return runDelegateChild(turn, step, params, chapter.scope, path, (row) => {
         view = { ...view, trace: [...view.trace, row] };
-      }, chapter.state);
+      }, chapter.state, chapterMeter);
     }, {
       concurrency: 4,
       ...signalOf(turn),
       onSettled: (done, total) => showDelegation(turn, id, view, { progress: done, total }),
     });
+    chapterMeter?.dispose();
     turn.chapterCalls -= (work.length - started) * spec.maxModelCalls;
     const results = outcomes.map((outcome) => {
       if (!outcome.ok) return { chapter: outcome.key, status: 'failed' as const, summary: outcome.error };
@@ -4785,7 +4831,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   ): Promise<TurnReport> {
     // The turns before this one are what L6 may show; this turn's intent is recorded for the ones after it.
     const turn = newTurn(turnOptions, recentTurns());
-    if (logPlan.mode === 'resume') turn.modelCalls = (logPlan.replay.spend?.modelCalls ?? 0) + logPlan.replay.reservedCalls;
+    if (logPlan.mode === 'resume') {
+      const spend = logPlan.replay.spend;
+      turn.chapterCalls = spend?.chapterCalls ?? 0;
+      if (spend !== undefined && turn.chapterCalls > 0) turn.restoredChapterSpend = spend;
+      turn.modelCalls = (spend?.modelCalls ?? 0) - turn.chapterCalls + logPlan.replay.reservedCalls;
+    }
     const restored = logPlan.mode === 'resume' ? harness.restoreSkills(turn.id, logPlan.replay.skills ?? []) : undefined;
     turn.run = restored?.ok === false ? undefined : await openRun(turn, intent, logPlan, turnOptions);
     const slot = started.push({ turnId: turn.id, intent, ...(turnOptions.hiddenFromPlanner === true ? { hidden: true } : {}) }) - 1;

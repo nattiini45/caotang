@@ -12,7 +12,7 @@ import { subagentScript } from '@caotang/gateway/mock';
 import type { MockScript } from '@caotang/gateway/mock';
 import { addDocument, addFolder, setBody, type ProjectState } from '@caotang/store';
 
-import { createAgentPorts, createAgentSession, DELEGATE_NOTICE } from '../../src/index.js';
+import { createAgentPorts, createAgentSession, createMemoryRunLog, DELEGATE_NOTICE, parseRunEvents, type RunLogPort } from '../../src/index.js';
 import { evaluate, type Scenario } from '../../src/agent/eval.js';
 import { CHAPTER_ONE, CHAPTER_TWO, ENTRY, FRIEND, LANDING, OPENED, makeHarness, makeState } from '../fixtures.js';
 import { mockGateway } from '../agent/gateway.js';
@@ -74,6 +74,19 @@ function scenario(name: string, scripts: readonly MockScript[], held: { gateway?
 }
 
 const textOf = (request: ChatRequest | undefined): string => request?.messages.map((message) => wireTextOf(message.content)).join('\n') ?? '';
+
+function withTinyUsage(script: MockScript): MockScript {
+  return {
+    match: script.match,
+    async *respond(request) {
+      const result = script.respond(request);
+      if ('content' in result) {
+        yield { delta: result.content };
+        yield { finishReason: 'stop', usage: { promptTokens: 1, completionTokens: 1 } };
+      } else yield* result;
+    },
+  };
+}
 
 describe('chapter delegation', () => {
   const chapterStep = { ...DELEGATE, params: { agent: 'general', brief: DELEGATE.params.brief, fanOut: 'per-chapter', scope: [CHAPTER_TWO, CHAPTER_ONE] } };
@@ -238,6 +251,92 @@ describe('chapter delegation', () => {
     expect(seen.get('general#1')).toContain('The keeper knows the evening tide table.');
     expect(seen.get('general#2')).toContain('The keeper knows the evening tide table.');
     expect(seen.get('general#2')).not.toContain('The ferry was late, as always.');
+  });
+
+  it.each([
+    ['turn tokens', { budget: { maxTokens: 400 } }],
+    ['session cost', { sessionBudget: { maxCostUsd: 0.01 }, price: () => ({ prompt: 1, completion: 1 }) }],
+  ] as const)('refuses helper requests that cannot be reserved against %s before sending', async (_name, options) => {
+    const planned: ChatRequest[] = [];
+    const gateway = await mockGateway([
+      withTinyUsage(planner([steps(chapterStep), answer('No helper has run.')], planned)),
+      subagentScript(() => answer('Should not have been sent.')),
+    ]);
+    const session = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }), gateway,
+      mode: 'auto', ...options, decide: async () => ({ action: 'approve' }),
+    });
+    const report = await session.submit(INTENT, { preload: ['agent.delegate'] });
+    expect(report.status).toBe('replied');
+    expect(report.modelCalls).toBe(2);
+    expect(report.tokens.requests).toBe(2);
+    expect(textOf(planned.at(-1))).toContain('0 / 2 chapter helpers completed.');
+  });
+
+  it('does not let concurrent helpers reserve the same cost headroom', async () => {
+    const planned: ChatRequest[] = [];
+    const gateway = await mockGateway([
+      withTinyUsage(planner([steps(chapterStep), answer('Only one helper ran.')], planned)),
+      subagentScript(() => answer('Notes.')),
+    ]);
+    const cap = gateway.modelLimits().maxOutputTokens;
+    const session = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }), gateway, mode: 'auto',
+      price: () => ({ prompt: 0, completion: 1 }), sessionBudget: { maxCostUsd: (cap + 2) / 1000 },
+      decide: async () => ({ action: 'approve' }),
+    });
+    const report = await session.submit(INTENT, { preload: ['agent.delegate'] });
+    expect(report.status).toBe('replied');
+    expect(report.tokens.requests).toBe(3);
+    expect(textOf(planned.at(-1))).toContain('1 / 2 chapter helpers completed.');
+  });
+
+  it('restores completed chapter usage before admitting another batch after a reload', async () => {
+    const log = createMemoryRunLog();
+    const state = makeState();
+    const projectId = state.manifest.project.id;
+    let drop!: () => void;
+    const dropped = new Promise<void>((resolve) => { drop = resolve; });
+    const port: RunLogPort = {
+      ...log,
+      append: (id, events, patch) => {
+        if (events.some((event) => event.t === 'spend' && event.spend.chapterCalls === 2 && event.reservedCalls === 1)) {
+          drop();
+          return new Promise(() => {});
+        }
+        return log.append(id, events, patch);
+      },
+    };
+    const firstGateway = await mockGateway([planner([steps(chapterStep), answer('Unreached.')], []), subagentScript(() => answer('Notes.'))]);
+    const first = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }, state), gateway: firstGateway,
+      decide: async () => ({ action: 'approve' }), runLog: { port, projectId, newRunId: () => 'chapter-run' },
+    });
+    void first.submit(INTENT, { preload: ['agent.delegate'] });
+    await dropped;
+    const events = parseRunEvents(await log.events('chapter-run'));
+    expect(events.ok).toBe(true);
+    if (!events.ok) return;
+    const snapshots = events.events.filter((event) => event.t === 'spend').map((event) => event.spend);
+    expect(snapshots).toContainEqual(expect.objectContaining({ chapterCalls: 8, modelCalls: 9, reservedChapterCalls: 8 }));
+    expect(snapshots.at(-1)).toMatchObject({ chapterCalls: 2, modelCalls: 3 });
+    expect(snapshots.at(-1)?.reservedChapterCalls).toBeUndefined();
+    await log.update('chapter-run', { status: 'interrupted' });
+
+    const resumed: ChatRequest[] = [];
+    const search = { tool: 'tool.search', params: { query: 'delegate a reader agent' }, expect: 'find the delegate tool' };
+    const secondGateway = await mockGateway([planner([steps(chapterStep), steps(search), steps(chapterStep), answer('Try fewer chapters.')], resumed)]);
+    let approvals = 0;
+    const second = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }, state), gateway: secondGateway,
+      sessionBudget: { maxModelCalls: 13 }, decide: async () => { approvals += 1; return { action: 'approve' }; },
+      runLog: { port: log, projectId },
+    });
+    const report = await second.resume('chapter-run');
+    expect(report.status).toBe('replied');
+    expect(report.modelCalls).toBe(6);
+    expect(approvals).toBe(0);
+    expect(textOf(resumed.at(-1))).toContain('session model-call budget');
   });
 });
 
