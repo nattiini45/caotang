@@ -4,7 +4,7 @@
 
 ## 1. Scope
 
-An optional hosted copy of Caotang at `caotang.pawcommit.com` that lets a writer reach one project from several machines. The project format does not change: the hosted store is one more `ArtifactFs` ([project-format.md §1, §4](project-format.md)), so everything above the port (the store's read and write, the bus, the exporter) runs on it as it does on a folder.
+An optional hosted instance of Caotang that lets a writer reach one project from several machines. The project format does not change: the hosted store is one more `ArtifactFs` ([project-format.md §1, §4](project-format.md)), so everything above the port (the store's read and write, the bus, the exporter) runs on it as it does on a folder.
 
 **Goals**
 
