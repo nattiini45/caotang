@@ -14,7 +14,7 @@ import { addDocument, addFolder, setBody, type ProjectState } from '@caotang/sto
 
 import { createAgentPorts, createAgentSession, DELEGATE_NOTICE } from '../../src/index.js';
 import { evaluate, type Scenario } from '../../src/agent/eval.js';
-import { CHAPTER_ONE, CHAPTER_TWO, FRIEND, LANDING, OPENED, makeHarness, makeState } from '../fixtures.js';
+import { CHAPTER_ONE, CHAPTER_TWO, ENTRY, FRIEND, LANDING, OPENED, makeHarness, makeState } from '../fixtures.js';
 import { mockGateway } from '../agent/gateway.js';
 import { answer, steps, transcript } from '../agent/scripts.js';
 import { textOf as wireTextOf } from '@caotang/gateway';
@@ -214,6 +214,30 @@ describe('chapter delegation', () => {
     expect(second.modelCalls).toBe(2);
     expect(approvals).toBe(1);
     expect(textOf(planned.at(-1))).toContain('session model-call budget');
+  });
+
+  it('respects a writer’s codex pin without adding a pinned scene to the wrong chapter', async () => {
+    const state = makeState();
+    state.manifest.codex = state.manifest.codex?.map((entry) => entry.id === ENTRY
+      ? { ...entry, includePolicy: 'manual', description: 'The keeper knows the evening tide table.' }
+      : entry);
+    const seen = new Map<string, string>();
+    const gateway = await mockGateway([
+      planner([steps(chapterStep), answer('Done.')], []),
+      subagentScript((req) => {
+        if (req.agentPath !== undefined) seen.set(req.agentPath.split('/').at(-1) ?? '', textOf(req));
+        return answer('Notes.');
+      }),
+    ]);
+    const session = createAgentSession({ harness: makeHarness({ ports: createAgentPorts() }, state), gateway, decide: async () => ({ action: 'approve' }) });
+    const report = await session.submit(INTENT, {
+      preload: ['agent.delegate'],
+      contextOverrides: { include: [{ kind: 'codex', id: ENTRY }, { kind: 'doc', id: LANDING }] },
+    });
+    expect(report.status).toBe('replied');
+    expect(seen.get('general#1')).toContain('The keeper knows the evening tide table.');
+    expect(seen.get('general#2')).toContain('The keeper knows the evening tide table.');
+    expect(seen.get('general#2')).not.toContain('The ferry was late, as always.');
   });
 });
 

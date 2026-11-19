@@ -2692,13 +2692,16 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   function runDelegateChild(turn: Turn, step: PlanStep, params: DelegateParams, scope: readonly string[], agentPath: string, onTrace: (row: TraceEntry) => void, chapterState?: ProjectState) {
     const spec = SUBAGENT_SPECS[params.agent];
+    const overrides = step.contextOverrides ?? turn.contextOverrides;
+    const chapterPins = chapterState === undefined ? undefined : overrides?.include?.filter((ref) =>
+      ref.kind === 'doc' ? scope.includes(ref.id) : chapterState.manifest.codex?.some((entry) => entry.id === ref.id && entry.includePolicy !== 'never') === true);
+    const contextOverrides = chapterState === undefined ? overrides : chapterPins === undefined || chapterPins.length === 0 ? undefined : { include: chapterPins };
     const handle: ParentTurnHandle = {
       turnId: turn.id,
       agentPath,
       native: turn.native,
-      ...(chapterState === undefined
-        ? { ...((step.contextOverrides ?? turn.contextOverrides) === undefined ? {} : { contextOverrides: step.contextOverrides ?? turn.contextOverrides }) }
-        : { chapterState }),
+      ...(chapterState === undefined ? {} : { chapterState }),
+      ...(contextOverrides === undefined ? {} : { contextOverrides }),
       ...(turn.languages === undefined ? {} : { languages: turn.languages }),
       reserve: (calls) => {
         if (chapterState !== undefined) return true;
@@ -2744,7 +2747,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   }
 
   function chapterPlan(turn: Turn, step: PlanStep, params: DelegateParams) {
-    const leaveOut = (step.contextOverrides ?? turn.contextOverrides)?.exclude ?? [];
+    const overrides = step.contextOverrides ?? turn.contextOverrides;
+    const leaveOut = overrides?.exclude ?? [];
     const hidden = new Set([...harness.withheldAnywhere(), ...leaveOut.flatMap((ref) => ref.kind === 'doc' ? [ref.id] : [])]);
     const chapters = chaptersOf(harness.state, params.scope, hidden, new Set(leaveOut.flatMap((ref) => ref.kind === 'codex' ? [ref.id] : [])));
     if (!chapters.ok) return chapters;
@@ -2767,7 +2771,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       chapters: chapters.value,
       calls,
       notice: `Chapter delegation: ${chapters.value.length} chapters, up to ${calls} helper model calls. ${forecast}`,
-      fingerprint: canonicalJson([step.params, chapters.value.map(({ id, scope }) => [id, scope]), window ?? null, output, price ?? null]),
+      fingerprint: canonicalJson([step.params, overrides ?? null, chapters.value.map(({ id, scope }) => [id, scope]), window ?? null, output, price ?? null]),
     });
   }
 
