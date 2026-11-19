@@ -243,6 +243,7 @@ describe('codex detail storage', () => {
     const loaded = await readProject(fs);
     expect(loaded.state.manifest.codexDetailFields).toEqual([{ type: 'Guest', key: 'role', label: 'Role', kind: 'text' }]);
     expect(loaded.state.manifest.codex?.find(({ id }) => id === diskId)?.details).toEqual({ futureField: ['retain', { version: 2 }], role: 'Host' });
+    expect(loaded.report.warnings.some((warning) => warning.path.endsWith('.type'))).toBe(false);
     const orphan = new MemoryArtifactFs();
     await writeProject(orphan, createProjectState(createEmptyManifest('Recovery fixture', OPENED)));
     orphan.putFile(codexFile(diskId), await fs.read(codexFile(diskId)));

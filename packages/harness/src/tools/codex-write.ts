@@ -36,7 +36,7 @@ import {
   type CommandError,
   type Result,
 } from '@caotang/bus';
-import { CODEX_INCLUDE_POLICIES, CODEX_TYPES, type ProjectState } from '@caotang/store';
+import { CODEX_INCLUDE_POLICIES, type ProjectState } from '@caotang/store';
 
 import { failure, invalidParams, limitExceeded, notFound, refusal } from '../errors.js';
 import { capOf } from '../metadata.js';
@@ -73,7 +73,7 @@ export const codexWriteParams: ObjectSpec = param.object(
             param.string('One alias.', { nonBlank: true, maxLength: CODEX_ALIAS_CHARS_MAX }),
             { maxItems: CODEX_ALIASES_MAX },
           ),
-          type: param.choice('The entry type.', [...CODEX_TYPES]),
+          type: param.string('Built-in or project-defined entry type.', { nonBlank: true }),
           description: param.string(
             `The entry description. At most ${DESCRIPTION_MAX} characters; a longer one fails the batch with a proposed truncation.`,
           ),
@@ -262,6 +262,7 @@ export function prepareCodexWrite(params: CallParams, context: PrepareContext): 
     // An update: its field changes go in the upsert, its attachments as codex.attach.
     const id = String(entry['id']);
     const fields = definedFields(entry, ['name', 'aliases', 'type', 'description', 'includePolicy', 'caseSensitive', 'exclude', 'visualRefs', 'details']);
+    if (isRecord(fields['details']) && Object.keys(fields['details']).length === 0) delete fields['details'];
     const before = existingEntry(state, id);
     const changes: { field: string; from: string; to: string }[] = [];
     for (const [field, value] of Object.entries(fields)) {

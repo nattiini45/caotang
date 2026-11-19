@@ -728,8 +728,8 @@ function validateFields(
   // `dropDanglingAttachments` already runs over the whole codex once, after the
   // imports, which is the only point at which the answer is knowable. One
   // implementation, in the one place the question has an answer.
-  validateCodex(source.codex, { fatal, warn });
-  validateCodexDetailFields(source, warn);
+  const detailFields = validateCodexDetailFields(source, warn);
+  validateCodex(source.codex, { fatal, warn }, new Set(detailFields.map((field) => field.type)));
 
   // Step 3 — the furniture the author's own saved work lives in: `filters[]`
   // (binder-filters §4) and `goals[]` (goals-progress §2.2/§3). Both are
@@ -810,13 +810,13 @@ function validateFields(
  * strict half. Two limits (2000 description, 32 × 64 keywords) are shared with
  * the bus rather than retyped; see the module header.
  */
-function validateCodexDetailFields(source: Record<string, unknown>, warn: (path: string, message: string) => void): void {
+function validateCodexDetailFields(source: Record<string, unknown>, warn: (path: string, message: string) => void): CodexDetailField[] {
   const raw = source.codexDetailFields;
-  if (raw === undefined) return;
+  if (raw === undefined) return [];
   if (!Array.isArray(raw)) {
     warn('codexDetailFields', 'expected a list of detail definitions; ignored');
     delete source.codexDetailFields;
-    return;
+    return [];
   }
   const fields: CodexDetailField[] = [];
   for (const [i, value] of raw.entries()) {
@@ -831,6 +831,7 @@ function validateCodexDetailFields(source: Record<string, unknown>, warn: (path:
   }
   if (fields.length === 0) delete source.codexDetailFields;
   else source.codexDetailFields = fields;
+  return fields;
 }
 
 function validateCodex(
@@ -839,6 +840,7 @@ function validateCodex(
     fatal: (path: string, message: string) => void;
     warn: (path: string, message: string) => void;
   },
+  declaredTypes: ReadonlySet<string>,
 ): void {
   const { fatal, warn } = sink;
   if (raw === undefined) return;
@@ -1015,7 +1017,7 @@ function validateCodex(
     // user sees, and a value nobody is told about is a value nobody can fix.
     const type = coerceType(entryNode.type);
     if (typeof entryNode.type === 'string' && entryNode.type !== '') {
-      if (!(CODEX_TYPES as readonly string[]).includes(entryNode.type)) {
+      if (!(CODEX_TYPES as readonly string[]).includes(entryNode.type) && !declaredTypes.has(entryNode.type)) {
         warn(
           `${at}.type`,
           `"${entryNode.type}" is not a v0.1 codex type; kept as-is and shown as an unknown-type chip (v0.1: ${CODEX_TYPES.join(', ')})`,

@@ -23,15 +23,18 @@ test('the prompt preview includes an Always entry without its detail values or l
 test('an explicit detail write shows the fields being proposed before approval', () => {
   const preview = stepPreviewOf('codex.write', {
     entries: [
-      { action: 'create', name: 'Fenn', details: { episode: 3 } },
-      { action: 'update', id: 'c_0000000001', name: 'Tess', changes: [{ field: 'details.episode', from: '1', to: 'null' }] },
+      { action: 'create', name: 'Fenn', details: { episode: 3, note: '' } },
+      { action: 'update', id: 'c_0000000001', name: 'Tess', changes: [{ field: 'details.note', from: '""', to: 'null' }] },
     ],
   }, project());
   expect(preview).toMatchObject({
     kind: 'codex',
     entries: [
-      { changes: expect.arrayContaining([{ field: 'Details: episode', from: NEW_ENTRY_FROM, to: '3' }]) },
-      { changes: [{ field: 'Details: episode', from: '1', to: '(none)' }] },
+      { changes: expect.arrayContaining([
+        { field: 'Details: episode', from: NEW_ENTRY_FROM, to: '3' },
+        { field: 'Details: note', from: NEW_ENTRY_FROM, to: 'Empty text' },
+      ]) },
+      { changes: [{ field: 'Details: note', from: 'Empty text', to: '(none)' }] },
     ],
   });
 });

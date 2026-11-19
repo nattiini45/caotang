@@ -296,6 +296,7 @@ function valueOfJson(text: string): unknown {
  * pictures (`names`, by asset id), and says "(none)" for an empty list; every other field reads as `plainOf` reads it.
  */
 function wordsOf(field: string, value: unknown, names: ReadonlyMap<string, string>): string {
+  if (value === '' && field.startsWith(CODEX_DETAIL_DIFF_PREFIX)) return t`Empty text`;
   if (field !== 'visualRefs') return plainOf(field, value);
   const ids = Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
   return ids.length === 0 ? '(none)' : ids.map((id) => names.get(id) ?? i18n._(MISSING_PICTURE)).join(', ');
@@ -314,7 +315,8 @@ function createChangesOf(entry: Record<string, unknown>, names: ReadonlyMap<stri
   const details = entry['details'];
   if (isRecord(details)) {
     for (const [key, value] of Object.entries(details)) {
-      if (value !== null) changes.push({ field: fieldLabel(`${CODEX_DETAIL_DIFF_PREFIX}${key}`), from: NEW_ENTRY_FROM, to: plainOf('details', value) });
+      const field = `${CODEX_DETAIL_DIFF_PREFIX}${key}`;
+      if (value !== null) changes.push({ field: fieldLabel(field), from: NEW_ENTRY_FROM, to: wordsOf(field, value, names) });
     }
   }
   return changes;

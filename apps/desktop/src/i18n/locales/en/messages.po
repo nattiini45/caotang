@@ -8053,6 +8053,11 @@ msgstr "Empty manuscript"
 msgid "Empty research"
 msgstr "Empty research"
 
+#. Interpolated values: parent, title, amount
+#: apps/desktop/src/app/plan-preview.ts
+msgid "Empty text"
+msgstr "Empty text"
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #. Read-only MCP hooks in project Settings.
 #: apps/desktop/src/components/McpHookSettings.tsx

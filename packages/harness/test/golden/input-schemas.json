@@ -653,15 +653,8 @@
             },
             "type": {
               "type": "string",
-              "enum": [
-                "character",
-                "location",
-                "object",
-                "lore",
-                "subplot",
-                "other"
-              ],
-              "description": "The entry type."
+              "description": "Built-in or project-defined entry type.",
+              "minLength": 1
             },
             "description": {
               "type": "string",
