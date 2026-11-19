@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { _electron, expect, test } from '@playwright/test';
 
-import type {} from '../src/preload.cjs';
+import type {} from '../src/folder-contract.cjs';
 
 const executablePath = createRequire(import.meta.url)('electron') as string;
 const shell = fileURLToPath(new URL('..', import.meta.url));
@@ -36,9 +36,10 @@ test('the sandboxed desktop window opens the built studio and its lazy Settings'
     });
     expect(await page.evaluate(() => ({
       secure: isSecureContext,
-      bridge: window.caotangDesktop,
+      bridge: window.caotangDesktop === undefined ? null : Object.keys(window.caotangDesktop).sort(),
+      version: window.caotangDesktop?.version,
       node: ['require', 'process', 'Buffer'].filter((key) => key in window),
-    }))).toEqual({ secure: true, bridge: { version: 1 }, node: [] });
+    }))).toEqual({ secure: true, bridge: ['folders', 'version'], version: 2, node: [] });
 
     const response = await page.reload();
     const policy = await response?.headerValue('content-security-policy');
