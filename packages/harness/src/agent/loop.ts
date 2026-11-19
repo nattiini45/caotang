@@ -4606,15 +4606,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         record({ action: 'context', text: 'The turn-end hook requested another pass.' });
         accepted = true;
         const writesBefore = spentSteps(turn);
+        let followUp: Settled;
         try {
-          settled = await converse(turn);
+          followUp = await converse(turn);
         } catch (error) {
-          if (!(error instanceof BudgetExceeded || error instanceof GenerationStopped || error instanceof ProviderError)
-            || spentSteps(turn) !== writesBefore) throw error;
-          const budgetStop = error instanceof BudgetExceeded ? error.budgetStop : undefined;
-          record({ action: 'warn', reason: 'The follow-up did not finish. The previous result was kept.' });
-          return { ...settled, ...(budgetStop === undefined ? {} : { budgetStop }) };
+          if (!(error instanceof BudgetExceeded || error instanceof GenerationStopped || error instanceof ProviderError)) throw error;
+          followUp = stoppedBy(error);
         }
+        if (followUp.status === 'failed' && spentSteps(turn) === writesBefore) {
+          record({ action: 'warn', reason: 'The follow-up did not finish. The previous result was kept.' });
+          return { ...settled, ...(followUp.budgetStop === undefined ? {} : { budgetStop: followUp.budgetStop }) };
+        }
+        settled = followUp;
         break;
       }
       if (!accepted) return settled;

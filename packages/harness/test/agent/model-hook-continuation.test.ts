@@ -93,6 +93,14 @@ it('keeps the completed reply if the planner fails during a follow-up', async ()
   expect(JSON.stringify(report)).not.toContain('provider unavailable');
 });
 
+it('keeps the completed reply when an invalid follow-up exhausts the planner budget', async () => {
+  const run = await fixture(false, [stream({ content: answer('The original answer.') }), stream({ content: 'Not a planner reply.' })], [AGAIN]);
+  const report = await createAgentSession({ ...run.options, maxModelCalls: 3, decide: async () => ({ action: 'cancel' }) }).submit(INTENT);
+  expect(report).toMatchObject({ status: 'replied', text: 'The original answer.', modelCalls: 3 });
+  expect(report.hooks?.at(-1)?.decision).toMatchObject({ action: 'warn', reason: expect.stringContaining('previous result was kept') });
+  expect(run.calls.map((call) => call.background)).toEqual([false, true, false]);
+});
+
 it('does not honor a verdict from a hook that changed before its reply could be used', async () => {
   const run = await fixture(false, [stream({ content: answer('The original answer.') })], [AGAIN], (background) => {
     if (background) run.setHooks([{ ...HOOK, prompt: 'A different check.' }]);
