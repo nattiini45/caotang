@@ -89,6 +89,7 @@ export interface Gateway extends ProviderGateway {
     readonly expected: { readonly profileId: string; readonly model: string; readonly stamp: string };
     readonly limits: ModelLimits;
   } | undefined;
+  credentialRevision(profileId: string): Promise<string>;
   /**
    * The capability row for a model on a profile's route: whether it takes native
    * tools, images, a JSON-schema response format, and which thinking levels the UI
@@ -261,9 +262,11 @@ export function createGateway(options: GatewayOptions): Gateway {
    * every value the transport must redact. Only reached after the egress check has
    * passed, so a refused request never touches key material.
    */
-  const secretsFor = async (profile: ProfileView): Promise<{ secrets: CallSecrets; redact: string[] }> => {
+  const secretsFor = async (profile: ProfileView, expectedRevision?: string): Promise<{ secrets: CallSecrets; redact: string[] }> => {
     if (profile.kind === 'mock') return { secrets: {}, redact: [] };
-    const payload = await keys.revealPayload(profile.id);
+    const payload = expectedRevision === undefined
+      ? await keys.revealPayload(profile.id)
+      : await keys.revealPayload(profile.id, expectedRevision);
     if (payload === undefined) {
       if (profile.hasKey) throw new ProfileError('key-unreadable', providerMessages.missingKey(profile.name));
       return { secrets: {}, redact: [] };
@@ -530,6 +533,11 @@ export function createGateway(options: GatewayOptions): Gateway {
         }
         beforeSend?.();
       };
+      const checkCredentials = expected?.credentialRevision === undefined ? undefined : async () => {
+        if (await credentialRevision(profile.id) !== expected.credentialRevision) {
+          throw new EgressDeniedError('The approved provider credentials changed. This attempt was not sent.');
+        }
+      };
       // §3's image gate, before anything is sent or any key is revealed: a request carrying image
       // parts needs the active model's `vision` capability and must fit the route's image caps.
       // A refusal names the remedy and never carries the bytes.
@@ -568,7 +576,7 @@ export function createGateway(options: GatewayOptions): Gateway {
             ? profile.responseFormat?.supportsJsonObject === true && resolved.ctx.caps.jsonObject !== false
             : resolved.ctx.caps.jsonObject === true);
         assertEgress(deps, `${profile.baseUrl}${resolved.adapter.completePath(model)}`, profile.id);
-        const revealed = await secretsFor(profile);
+        const revealed = await secretsFor(profile, expected?.credentialRevision);
         trace?.request(revealed.redact);
         if (signal?.aborted) {
           yield { finishReason: 'error', usage: ZERO };
@@ -576,7 +584,7 @@ export function createGateway(options: GatewayOptions): Gateway {
         }
         let limited = false;
         let finished: ChatChunk['finishReason'];
-        const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal, onRateLimit: (delayMs: number) => { limited = true; limiter.rateLimited(profile.id, delayMs); }, ...(sendGuard === undefined ? {} : { beforeSend: sendGuard }) };
+        const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal, onRateLimit: (delayMs: number) => { limited = true; limiter.rateLimited(profile.id, delayMs); }, ...(checkCredentials === undefined ? {} : { beforeAttempt: checkCredentials }), ...(sendGuard === undefined ? {} : { beforeSend: sendGuard }) };
         for await (const chunk of streamChat(deps, spec, stats)) {
           if (chunk.finishReason !== undefined) finished = chunk.finishReason;
           trace?.chunk(chunk, stats, signal);
@@ -736,6 +744,10 @@ export function createGateway(options: GatewayOptions): Gateway {
     return requestRoute(profile, request.model ?? routed?.model ?? profile.defaultModel, request.thinking ?? routed?.thinking, request);
   }
 
+  async function credentialRevision(profileId: string): Promise<string> {
+    return targetOf(profileId).kind === 'mock' ? 'mock' : keys.credentialRevision(profileId);
+  }
+
   async function probeResponseFormat(profileId?: string): Promise<boolean> {
     const profile = targetOf(profileId);
     const attempt = profile.verification?.kind === 'checking' ? profile.verification.attempt : undefined;
@@ -822,6 +834,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     listModels,
     modelLimits,
     resolveRequestRoute,
+    credentialRevision,
     modelCaps,
     accountTokens,
     probeResponseFormat,

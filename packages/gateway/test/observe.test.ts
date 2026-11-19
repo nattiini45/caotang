@@ -66,6 +66,40 @@ describe('private, route-bound requests', () => {
     expect(events).toEqual([]);
     expect(h.gateway.ledger.turnTotals('changed-price').requests).toBe(0);
   });
+
+  it.each(['before lookup', 'after lookup'] as const)('refuses a replaced sealed tenant header %s, with no provider attempt', async (timing) => {
+    const h = harness();
+    const profile = await addEndpoint(h, { customHeaders: { 'x-tenant': 'sample-tenant' } });
+    const route = h.gateway.resolveRequestRoute({ profileId: profile.id });
+    expect(route).toBeDefined();
+    if (route === undefined) return;
+    const credentialRevision = await h.gateway.credentialRevision(profile.id);
+    const replace = () => h.keys.putPayload(profile.id, { apiKey: KEY, customHeaders: { 'x-tenant': 'different-tenant' } });
+    const events: GatewayTraceEvent[] = [];
+    const gateway = createGateway({
+      profiles: h.profiles, fetch: h.net.fn, clock: h.clock, observe: (event) => events.push(event),
+      keys: {
+        ...h.keys,
+        async revealPayload(id, expectedRevision) {
+          const payload = await h.keys.revealPayload(id, expectedRevision);
+          if (timing === 'after lookup') await replace();
+          return payload;
+        },
+      },
+    });
+    if (timing === 'before lookup') await replace();
+    const { error } = await collect(gateway.complete({
+      ...userMessage('This prose must not be sent.'), turnId: 'changed-credentials', profileId: profile.id,
+      expectedRoute: { ...route.expected, credentialRevision },
+    }));
+    expect(error).toMatchObject({ message: expect.stringContaining('provider credentials changed') });
+    expect(h.net.calls).toHaveLength(0);
+    expect(gateway.ledger.turnTotals('changed-credentials').requests).toBe(0);
+    const serialized = JSON.stringify(events);
+    expect(serialized).not.toContain(credentialRevision);
+    expect(serialized).not.toContain('sample-tenant');
+    expect(serialized).not.toContain('different-tenant');
+  });
 });
 
 describe('a mock profile', () => {

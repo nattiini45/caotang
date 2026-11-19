@@ -2849,23 +2849,27 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function runChapterDelegate(turn: Turn, step: PlanStep, id: string, params: DelegateParams, approval: string | undefined): Promise<ToolOutcome> {
     const planned = chapterPlan(turn, step, params);
     if (!planned.ok) return err(planned.error);
-    const { calls, fingerprint } = planned.value;
+    const { calls, fingerprint, expectedRoute: plannedRoute } = planned.value;
+    const credentialRevision = await gateway.credentialRevision(plannedRoute.profileId);
+    const approvalFingerprint = canonicalJson([fingerprint, credentialRevision]);
     if (approval === undefined) {
       return err(refusal('permission-denied', 'Chapter delegation needs the writer’s approval before starting any helpers.', {
-        target: step.tool, details: { chapterApproval: fingerprint },
+        target: step.tool, details: { chapterApproval: approvalFingerprint },
       }));
     }
     const scopeChanged = () => err(refusal('permission-denied', 'The approved chapter scope or route changed. No helpers were started.', {
       target: step.tool, correctiveHint: 'send a new chapter delegation call for the writer to approve',
     }));
-    if (approval !== fingerprint) return scopeChanged();
+    if (approval !== approvalFingerprint) return scopeChanged();
     checkStop(turn);
     guardReadBoundary(turn);
     guardRecoveredSpend(turn);
     turn.chapterCalls += calls;
     let ready: ReturnType<typeof chapterPlan>;
+    let readyCredentials: string;
     try {
       await syncRun(turn, 0, 'running', calls);
+      readyCredentials = await gateway.credentialRevision(plannedRoute.profileId);
       checkStop(turn);
       guardReadBoundary(turn);
       ready = chapterPlan(turn, step, params, calls);
@@ -2873,7 +2877,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       turn.chapterCalls -= calls;
       throw error;
     }
-    if (!ready.ok || ready.value.fingerprint !== approval) {
+    if (!ready.ok || canonicalJson([ready.value.fingerprint, readyCredentials]) !== approval) {
       turn.chapterCalls -= calls;
       await syncRun(turn, 0);
       return scopeChanged();
@@ -2908,7 +2912,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       };
       return runDelegateChild(turn, step, params, chapter.scope, path, (row) => {
         view = { ...view, trace: [...view.trace, row] };
-      }, { state: chapter.state, expectedRoute, guard, ...(chapterMeter === undefined ? {} : { meter: chapterMeter }) });
+      }, { state: chapter.state, expectedRoute: { ...expectedRoute, credentialRevision }, guard, ...(chapterMeter === undefined ? {} : { meter: chapterMeter }) });
     }, {
       concurrency: 4,
       ...signalOf(turn),

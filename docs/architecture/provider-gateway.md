@@ -151,7 +151,7 @@ interface ProviderAdapter {
 
 The observer is the one place a body leaves the gateway, so it has rules. Every string of an event passes `redact` with the call's own secrets (the key, and a generic profile's sealed header values) before the observer sees it, and an event carries no header. Every observer call is made inside a `try`, its type returns `void`, and a throw is swallowed: a call behaves the same with any observer, and with none it gathers nothing. Its one consumer is the in-tab agent trace (agent-harness §5.2), which keeps it in memory.
 
-Callers that need consent for a particular destination can resolve its current route and pass it back as `expectedRoute`. A stamped expectation also binds the destination's transport identity, model limits and price. The gateway checks it after the provider queue and before each transport attempt, and keeps the approval stamp out of the trace. A changed route is refused, not silently used.
+Callers that need consent for a particular destination can resolve its current route and pass it back as `expectedRoute`. A stamped expectation also binds the destination's transport identity, model limits and price. It can bind the opaque revision of the sealed credential payload, including custom headers. The gateway checks the revision against the same encrypted entry it opens and reads it again before each transport attempt. No plaintext credential values or approval stamps enter the trace. A changed destination, price or credential revision is refused, not silently used.
 
 ## 4. Retries, errors, timeouts (contract, not vibes)
 

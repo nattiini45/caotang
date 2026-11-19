@@ -218,6 +218,21 @@ describe('chapter delegation', () => {
     expect(textOf(planned.at(-1))).toContain('The approved chapter scope or route changed');
   });
 
+  it('does not reuse approval when the same provider’s sealed credentials change', async () => {
+    const planned: ChatRequest[] = [];
+    const base = await mockGateway([planner([steps(chapterStep), answer('Review the provider again.')], planned)]);
+    let sealedRevision = 'initial-revision';
+    const gateway: Gateway = { ...base, credentialRevision: async () => sealedRevision };
+    const session = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }), gateway,
+      decide: async () => { sealedRevision = 'new-revision'; return { action: 'approve' }; },
+    });
+    const report = await session.submit(INTENT, { preload: ['agent.delegate'] });
+    expect(report.status).toBe('replied');
+    expect(report.tokens.requests).toBe(2);
+    expect(textOf(planned.at(-1))).toContain('The approved chapter scope or route changed');
+  });
+
   it('sends neither queued helper after prices change before dispatch', async () => {
     const planned: ChatRequest[] = [];
     const base = await mockGateway([planner([steps(chapterStep), answer('Review the changed price.')], planned)]);

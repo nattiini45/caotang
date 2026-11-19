@@ -67,6 +67,7 @@ export function microtaskSubtle(): SubtleCrypto {
     generateKey: async () => ({ type: 'secret', extractable: false, algorithm: { name: 'AES-GCM' }, usages: ['encrypt', 'decrypt'] }),
     encrypt: async (_alg: unknown, _key: unknown, data: BufferSource) => xor(data),
     decrypt: async (_alg: unknown, _key: unknown, data: BufferSource) => xor(data),
+    digest: globalThis.crypto.subtle.digest.bind(globalThis.crypto.subtle),
   } as unknown as SubtleCrypto;
 }
 
