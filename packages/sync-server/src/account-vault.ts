@@ -107,25 +107,25 @@ export async function accountVaultRoute(request: Request, account: DurableAccoun
       const claim = await db.prepare(`SELECT (COALESCE((SELECT version FROM account_vault_versions WHERE account_id = a.account_id), 0) + 1) AS version
         ${ACTIVE_SESSION}`).bind(id, githubId, revision).first<{ version: number }>();
       if (claim === null) return reply(401, 'Sign in to continue.');
-      const [inserted] = await db.batch([
+      const written = await db.batch([
         db.prepare(`INSERT INTO account_vaults (account_id, vault, version, updated_at)
           SELECT a.account_id, ?, ?, ? ${ACTIVE_SESSION}
           ON CONFLICT (account_id) DO NOTHING`).bind(body, claim.version, new Date().toISOString(), id, githubId, revision),
         remember(claim.version),
       ]);
-      if (inserted.meta.changes === 1) {
+      if (written[0]?.meta.changes === 1) {
         return Response.json({ version: claim.version }, { status: 201, headers: { ETag: `"${claim.version}"`, 'Cache-Control': 'no-store' } });
       }
       return await current() === null ? reply(401, 'Sign in to continue.') : reply(412, 'A vault already exists. Read it and commit onto its version.');
     }
     const next = (expected ?? 0) + 1;
-    const [replaced] = await db.batch([
+    const written = await db.batch([
       db.prepare(`UPDATE account_vaults SET vault = ?, version = version + 1, updated_at = ?
         WHERE version = ? AND account_id IN (SELECT a.account_id ${ACTIVE_SESSION})`)
         .bind(body, new Date().toISOString(), expected, id, githubId, revision),
       remember(next),
     ]);
-    if (replaced.meta.changes === 1) {
+    if (written[0]?.meta.changes === 1) {
       return Response.json({ version: next }, { status: 200, headers: { ETag: `"${next}"`, 'Cache-Control': 'no-store' } });
     }
     return await current() === null ? reply(401, 'Sign in to continue.') : reply(412, 'The vault changed. Read it again and commit onto its version.');
