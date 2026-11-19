@@ -336,7 +336,7 @@ function StepRow({
         ) : null,
       )}
 
-      {step.hookRewrite === undefined ? null : <HookRewriteBlock rewrite={step.hookRewrite} />}
+      {step.hookRewrite === undefined ? null : <HookRewriteBlock rewrite={step.hookRewrite} awaitingApproval={live && !done} />}
 
       {/* Modern folds a step's raw parameters under "Arguments" (#363), as a tool call's are. */}
       {done ? null : (
@@ -389,14 +389,16 @@ function StepRow({
   );
 }
 
-function HookRewriteBlock({ rewrite }: { rewrite: NonNullable<PlanStepView['hookRewrite']> }): ReactNode {
+function HookRewriteBlock({ rewrite, awaitingApproval }: { rewrite: NonNullable<PlanStepView['hookRewrite']>; awaitingApproval: boolean }): ReactNode {
   const { after } = rewrite;
   const segments = wordDiff(rewrite.before, after);
   return (
-    <figure className="plan-draft plan-hook-rewrite" aria-label={t`Model hook rewrite`}>
+    <figure className="plan-draft plan-hook-rewrite" aria-label={t`Model hook rewrite`} data-field={rewrite.field}>
       <figcaption>{rewrite.edited === true
         ? <Trans>You edited the text after the model hook “<UserText value={rewrite.name} />” proposed a rewrite.</Trans>
-        : <Trans>The model hook “<UserText value={rewrite.name} />” proposed a rewrite. Review it before you approve.</Trans>}</figcaption>
+        : <Trans>The model hook “<UserText value={rewrite.name} />” proposed a rewrite.</Trans>}
+        {awaitingApproval ? <> <Trans>You need to approve the rewrite yourself, even in Auto mode.</Trans></> : null}
+      </figcaption>
       <dl className="notes-diff">
         <dt><Trans>Original text</Trans></dt>
         <dd dir="auto">{segments.map((segment, index) => segment.kind === 'removed' ? <del key={index}>{segment.text}</del> : segment.kind === 'same' ? segment.text : null)}</dd>

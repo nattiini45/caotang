@@ -119,6 +119,7 @@ test('a model hook rewrite needs a fresh approval in Auto mode', async ({ page }
   const card = page.getByTestId('plan-card');
   const diff = card.getByRole('figure', { name: 'Model hook rewrite' });
   await expect(diff.getByText('Tide direction')).toBeVisible();
+  await expect(diff).toContainText('You need to approve the rewrite yourself, even in Auto mode.');
   await expect(diff.locator('dd').nth(0)).toHaveText(original);
   await expect(diff.locator('dd').nth(1)).toHaveText(replacement);
   expect((await projectTrace(page)).filter((name) => name === 'notes.append')).toHaveLength(0);

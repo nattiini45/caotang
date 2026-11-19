@@ -19827,7 +19827,7 @@ msgstr ""
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
-msgid "The model hook “<0/>” proposed a rewrite. Review it before you approve."
+msgid "The model hook “<0/>” proposed a rewrite."
 msgstr ""
 
 #. Interpolated values: calls, cap, error
@@ -23523,6 +23523,11 @@ msgstr ""
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "You edited the text after the model hook “<0/>” proposed a rewrite."
+msgstr ""
+
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "You need to approve the rewrite yourself, even in Auto mode."
 msgstr ""
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.

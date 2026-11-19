@@ -85,6 +85,14 @@ it('does not spend the final available call on a hook that could not continue th
   expect(run.calls.map((call) => call.background)).toEqual([false]);
 });
 
+it('keeps the completed reply if the planner fails during a follow-up', async () => {
+  const run = await fixture(false, [stream({ content: answer('The original answer.') }), new Response('provider unavailable', { status: 400 })], [AGAIN]);
+  const report = await createAgentSession({ ...run.options, decide: async () => ({ action: 'cancel' }) }).submit(INTENT);
+  expect(report).toMatchObject({ status: 'replied', text: 'The original answer.', modelCalls: 3 });
+  expect(report.hooks?.at(-1)?.decision).toMatchObject({ action: 'warn', reason: expect.stringContaining('previous result was kept') });
+  expect(JSON.stringify(report)).not.toContain('provider unavailable');
+});
+
 it('does not honor a verdict from a hook that changed before its reply could be used', async () => {
   const run = await fixture(false, [stream({ content: answer('The original answer.') })], [AGAIN], (background) => {
     if (background) run.setHooks([{ ...HOOK, prompt: 'A different check.' }]);
@@ -139,10 +147,10 @@ it('answers the native call before the untrusted reason and requires approval fo
   expect(JSON.stringify(run.records)).not.toContain(REASON);
 });
 
-it('recovers the reserved call and the untrusted reason without replaying the prior write or running more hooks', async () => {
+it('recovers the reserved call and untrusted reason without replaying the prior write', async () => {
   const note = (text: string) => stream({ content: steps({ tool: 'notes.append', params: { doc: LANDING, text }, expect: 'Add a note.' }) });
   const later = 'A resumed note.';
-  const run = await fixture(false, [note(PROSE), note(later)], [AGAIN, AGAIN]);
+  const run = await fixture(false, [note(PROSE), note(later)], [AGAIN, ALLOW]);
   let drop = (): void => {};
   const dropped = new Promise<void>((resolve) => { drop = resolve; });
   const port: RunLogPort = {
@@ -164,12 +172,31 @@ it('recovers the reserved call and the untrusted reason without replaying the pr
 
   const decide = vi.fn(async () => ({ action: 'approve' as const }));
   const report = await createAgentSession({ ...options, decide }).resume(interrupted.runId);
-  expect(report).toMatchObject({ status: 'applied', external: true, modelCalls: 4 });
+  expect(report).toMatchObject({ status: 'applied', external: true, modelCalls: 5 });
   expect(decide).toHaveBeenCalledOnce();
-  expect(run.calls.map((call) => call.background)).toEqual([false, true, false]);
-  const resumedReason = run.calls.at(-1)?.messages.find((message) => message.role === 'user' && String(message.content).includes(REASON));
+  expect(run.calls.map((call) => call.background)).toEqual([false, true, false, true]);
+  const resumedReason = run.calls[2]?.messages.find((message) => message.role === 'user' && String(message.content).includes(REASON));
   expect(resumedReason?.content).toContain('The preceding plan already applied.');
   const notes = run.state.manifest.tree.find((node) => node.id === LANDING)?.notes ?? '';
   expect(notes.split(PROSE)).toHaveLength(2);
   expect(notes).toContain(later);
+});
+
+it('answers the original native call id after applying an approved rewrite', async () => {
+  const first = stream({ tool_calls: [{ index: 0, id: 'note-to-rewrite', type: 'function', function: {
+    name: 'notes.append', arguments: JSON.stringify({ doc: LANDING, text: PROSE }),
+  } }] }, 'tool_calls');
+  const replacement = 'The tide was early.';
+  const transform = JSON.stringify({ decision: 'transform', reason: 'Tidy the note.', replacement });
+  const run = await fixture(true, [first, stream({ content: 'Follow-up complete.' })], [transform, AGAIN, ALLOW]);
+  run.setHooks([{ ...HOOK, id: 'before', event: 'tool.before', tool: 'notes.append', canTransform: true }, HOOK]);
+  const decide = vi.fn(async () => ({ action: 'approve' as const }));
+  const report = await createAgentSession({ ...run.options, mode: 'auto', loadEveryTool: () => true, decide }).submit(INTENT);
+  expect(report).toMatchObject({ status: 'replied', text: 'Follow-up complete.' });
+  expect(decide).toHaveBeenCalledOnce();
+  const planner = run.calls.filter((entry) => !entry.background).at(-1);
+  expect(planner?.messages.at(-2)).toMatchObject({ role: 'tool', tool_call_id: 'note-to-rewrite', content: expect.stringContaining('"ok":true') });
+  const notes = run.state.manifest.tree.find((node) => node.id === LANDING)?.notes ?? '';
+  expect(notes).not.toContain(PROSE);
+  expect(notes.split(replacement)).toHaveLength(2);
 });

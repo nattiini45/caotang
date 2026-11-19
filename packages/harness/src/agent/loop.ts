@@ -72,7 +72,7 @@
 import { preloadAnchorLibraries } from '@caotang/editor';
 import { entryOfCall, err, ok, type CommandError, type Result, type UndoOutcome } from '@caotang/bus';
 import { buildPreview, ContextError, memoryReadable, meterOf, RESERVED_TOKENS, summaryPrefix, type AgentTask, type AssembledPrompt, type ContextMeter, type ContextOverrides, type PromptPreview, type RecentTurn, type SessionSummary } from '@caotang/context';
-import { costOf, estimateTokens, promptTokensOf, redact, textOf, usageFor, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type ModelLimits, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
+import { costOf, estimateTokens, promptTokensOf, ProviderError, redact, textOf, usageFor, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type ModelLimits, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
 import { newId } from '@caotang/ids';
 import { SKILL_CATALOG_TOKENS } from '@caotang/skills';
 import { getBody, getRevision, type ProjectState, type RunStatus, type TreeNode } from '@caotang/store';
@@ -4542,7 +4542,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const actor = modelHookActor(turn);
     const completeHook = actor?.complete;
     let settled = initial;
-    for (let continued = 0; continued <= CONTINUATION_LIMIT; continued += 1) {
+    for (let continued = turn.messages.filter(isHookContinuation).length; continued <= CONTINUATION_LIMIT; continued += 1) {
       if ((settled.status !== 'applied' && settled.status !== 'replied') || settled.queuedInBackground === true) return settled;
       checkStop(turn);
       const atLimit = continued === CONTINUATION_LIMIT;
@@ -4605,7 +4605,16 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         taint(turn, [{ serverName: '', label: `Hook “${name}”` }]);
         record({ action: 'context', text: 'The turn-end hook requested another pass.' });
         accepted = true;
-        settled = await converse(turn);
+        const writesBefore = spentSteps(turn);
+        try {
+          settled = await converse(turn);
+        } catch (error) {
+          if (!(error instanceof BudgetExceeded || error instanceof GenerationStopped || error instanceof ProviderError)
+            || spentSteps(turn) !== writesBefore) throw error;
+          const budgetStop = error instanceof BudgetExceeded ? error.budgetStop : undefined;
+          record({ action: 'warn', reason: 'The follow-up did not finish. The previous result was kept.' });
+          return { ...settled, ...(budgetStop === undefined ? {} : { budgetStop }) };
+        }
         break;
       }
       if (!accepted) return settled;
@@ -4644,7 +4653,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         flushHooks(turn);
         const blocked = blockOf(submitted);
         settled = blocked === undefined ? await first(turn) : { status: 'failed', askBack: askBackOf({ code: 'hook_blocked', reason: `Hook “${blocked.name}”: ${blocked.decision.reason}`, options: ['change the request so the hook passes', 'change the hook in Settings › Hooks'] }) };
-        if (logPlan.mode === 'new' && logPlan.wire === 'planner' && options.role !== 'background' && options.noHuman !== true
+        if ((logPlan.mode === 'new' && logPlan.wire === 'planner' || logPlan.mode === 'resume' && logPlan.replay.wire === 'planner')
+          && options.role !== 'background' && options.noHuman !== true
           && !turn.hiddenFromPlanner && turn.converses) {
           settled = await continueTurn(turn, settled);
         }

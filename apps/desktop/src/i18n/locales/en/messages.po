@@ -19827,8 +19827,8 @@ msgstr "The model call that was in flight when the page closed was lost, and its
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
-msgid "The model hook “<0/>” proposed a rewrite. Review it before you approve."
-msgstr "The model hook “<0/>” proposed a rewrite. Review it before you approve."
+msgid "The model hook “<0/>” proposed a rewrite."
+msgstr "The model hook “<0/>” proposed a rewrite."
 
 #. Interpolated values: calls, cap, error
 #: apps/desktop/src/app/task-queue.ts
@@ -23524,6 +23524,11 @@ msgstr "You deleted the marker of footnote {label}. Its note is still at the end
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "You edited the text after the model hook “<0/>” proposed a rewrite."
 msgstr "You edited the text after the model hook “<0/>” proposed a rewrite."
+
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "You need to approve the rewrite yourself, even in Auto mode."
+msgstr "You need to approve the rewrite yourself, even in Auto mode."
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
