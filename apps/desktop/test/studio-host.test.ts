@@ -45,6 +45,22 @@ describe('the studio host seam', () => {
     expect(await service.keys.reveal(created.id)).toBe('sk-plain');
   });
 
+  it('leaves a key this device already has alone, so a save that has not reached the account is not undone', async () => {
+    const db = memoryDb();
+    const vault = new MemoryIndexedDb();
+    const first = await ProviderService.open({ db, vault });
+    const created = await first.service.profiles.create(endpoint('Endpoint', 'sk-newer-here'));
+    await first.service.persist();
+
+    // The account still holds the key this device replaced, because that save never reached it.
+    const second = await ProviderService.open({
+      db,
+      vault,
+      host: { restore: async () => [{ profileId: created.id, payload: { apiKey: 'sk-older-there' } }] },
+    });
+    expect(await second.service.keys.reveal(created.id)).toBe('sk-newer-here');
+  });
+
   it('opens when the host cannot supply its keys, leaving the profiles to report what they lost', async () => {
     const seen: { profileId: string; change: unknown }[] = [];
     const { service } = await ProviderService.open({
