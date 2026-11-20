@@ -14521,6 +14521,11 @@ msgstr ""
 msgid "Object"
 msgstr ""
 
+#. Interpolated values: calls
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "of {name}"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: model, provider, values
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
@@ -18090,7 +18095,7 @@ msgstr ""
 
 #. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx
-msgid "Runs on this machine ({runs})<0> of {name}</0>"
+msgid "Runs on this machine ({runs})"
 msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title

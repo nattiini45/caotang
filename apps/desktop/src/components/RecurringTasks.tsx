@@ -216,7 +216,7 @@ export function RecurringTasksPanel({
             {task.history.length === 0 ? null : (
               <details className="recurring-history">
                 <summary>
-                  <Trans>Runs on this machine ({{ runs: task.history.length }})<span className="visually-hidden"> of {({ name: task.name }) as unknown as ReactNode}</span></Trans>
+                  <Trans>Runs on this machine ({{ runs: task.history.length }})</Trans><span className="visually-hidden"> {t`of ${{ name: task.name }}`}</span>
                 </summary>
                 <ol aria-label={t`Runs of ${{ name: task.name }}`}>
                   {task.history.map((run) => (
