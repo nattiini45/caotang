@@ -7,6 +7,7 @@ import { _electron, expect, test } from '@playwright/test';
 import type {} from '../src/folder-contract.cjs';
 
 import { dismissDialogs } from './dialogs.js';
+import { closeShell } from './teardown.js';
 
 const executablePath = createRequire(import.meta.url)('electron') as string;
 const shell = fileURLToPath(new URL('..', import.meta.url));
@@ -66,6 +67,6 @@ test('the sandboxed desktop window opens the built studio and its lazy Settings'
     expect(await page.evaluate(() => window.open('https://example.invalid/') === null)).toBe(true);
     expect(electron.windows()).toHaveLength(1);
   } finally {
-    await electron.close();
+    await closeShell(electron);
   }
 });

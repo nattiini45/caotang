@@ -14,6 +14,7 @@ import type { ElectronApplication } from '@playwright/test';
 
 import type {} from '../src/folder-contract.cjs';
 import { dismissDialogs } from './dialogs.js';
+import { closeShell } from './teardown.js';
 
 const executablePath = createRequire(import.meta.url)('electron') as string;
 const shell = fileURLToPath(new URL('..', import.meta.url));
@@ -79,7 +80,7 @@ test('a change another program makes reaches the renderer within the detection b
     expect(received?.paths).toContain('docs/written-elsewhere.md');
     expect(received!.at - before).toBeLessThan(BUDGET_MS);
   } finally {
-    await electron.close();
+    await closeShell(electron);
   }
 });
 
@@ -124,7 +125,7 @@ test('the temp file of an artifact write never arrives as a change', async () =>
     expect(paths).toContain('docs/written-here.md');
     expect(paths.filter((path) => path.endsWith('.tmp'))).toEqual([]);
   } finally {
-    await electron.close();
+    await closeShell(electron);
   }
 });
 
@@ -161,7 +162,7 @@ test('an external edit is offered, and the writer reopening loads the folder’s
     await offer.getByRole('button', { name: 'Reopen the folder’s version', exact: true }).click();
     await expect(page.getByText('Folder Version', { exact: true })).toBeVisible();
   } finally {
-    await electron.close();
+    await closeShell(electron);
   }
 });
 
@@ -201,6 +202,6 @@ test('a watch released after a later one arrived leaves the later watch running'
     const received = await page.evaluate(() => window.folderChange);
     expect(received?.paths).toContain('docs/still-watched.md');
   } finally {
-    await electron.close();
+    await closeShell(electron);
   }
 });
