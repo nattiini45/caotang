@@ -65,7 +65,9 @@ function edited(change: (manifest: Json) => void): Json {
 function generatedBundle(bytes: number): string {
   const words = ['compile', 'document', 'binder', 'export', 'scene', 'codex', 'entry', 'project', 'folder', 'selection'];
   let seed = 12345;
-  const next = (): number => (seed = (seed * 1103515245 + 12345) & 0x7fffffff);
+  // `Math.imul` keeps the multiply exact in 32 bits: a plain product of a seed near 2^31 is past Number precision, and the
+  // rounding would leave the low bits of every later state the same, which used to pick only the odd indices of `words`.
+  const next = (): number => (seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff);
   const lines: string[] = [];
   let size = 0;
   while (size < bytes) {
@@ -483,5 +485,7 @@ describe('staging and packing', () => {
     } finally {
       removeDir(outDir);
     }
-  }, 120_000);
+    // The envelope has to cover what it holds: ten packs of up to 20 s each, plus the staging, or a slow runner would fail
+    // the test's own bound and report "Test timed out" instead of the pack that did not end.
+  }, 240_000);
 });
