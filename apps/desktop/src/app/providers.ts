@@ -261,15 +261,12 @@ export class ProviderService {
   static async open(options: ProviderOpenOptions): Promise<{ service: ProviderService; notices: string[] }> {
     const notices: string[] = [];
     const vault = options.vault === null ? createMemoryVaultPort() : createIndexedDbVaultPort({ factory: options.vault });
-    // Reading a key back and re-sealing it — what opening a stored profile does — is not a change the host needs to hear
-    // about again, so the mirror stays quiet until the studio is open.
+    // Opening a stored studio seals each restored profile's key again, which is not a change the host needs to hear about
+    // a second time — it is what the host itself supplied or what this device already had — so the mirror stays quiet
+    // until the studio is open.
     let installing = true;
     const host = options.host;
-    const keys = createKeyStore(vault, host?.keyChanged === undefined ? {} : {
-      // Only a provider key: an MCP bearer token is sealed in the same store under an `mcp:` reference, and it is
-      // not the host's to keep.
-      mirror: { changed: (profileId) => { if (!installing && PROFILE_ID_PATTERN.test(profileId)) host.keyChanged?.(profileId); } },
-    });
+    const keys = createKeyStore(vault);
     if (host?.restore !== undefined) {
       try {
         for (const restored of await host.restore()) await keys.putPayload(restored.profileId, restored.payload);
@@ -290,7 +287,14 @@ export class ProviderService {
       globalThis.crypto.getRandomValues(out);
       return out;
     };
-    const profiles = createProfileStore({ keys, randomBytes });
+    // The mirror hangs off the profile store, not the key store: only a profile knows the endpoint origin its key may be
+    // sent to, and only an endpoint profile has a key at all — an MCP bearer token is sealed in the same key store under an
+    // `mcp:` reference and never becomes a profile, so it cannot be reported to a host.
+    const profiles = createProfileStore({
+      keys,
+      randomBytes,
+      ...(host?.keyChanged === undefined ? {} : { mirror: { changed: (profileId, change) => { if (!installing) host.keyChanged?.(profileId, change); } } }),
+    });
     const ledger = new UsageLedger(options.clock);
     const requests = new RequestLog();
     // The role routing lives in this one cell: the service owns it, and the gateway's resolver reads it at request

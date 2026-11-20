@@ -7,11 +7,15 @@
  * `keyChanged` must not throw: the key is already stored when it runs, so a failure there is the host's to report to the
  * writer, not a reason for a save to fail.
  */
-import type { KeyPayload } from '@caotang/gateway';
+import type { KeyChange, KeyPayload } from '@caotang/gateway';
 
 export interface StudioHost {
-  /** A provider key was written or removed for `profileId`. */
-  keyChanged?(profileId: string): void;
+  /**
+   * A provider key was written or removed for `profileId`. `change` is null when it went away, and otherwise carries the
+   * payload and the endpoint origin it belongs to — the copy a host keeps elsewhere is sealed against that origin, and
+   * nothing in the app can reconstruct it later.
+   */
+  keyChanged?(profileId: string, change: KeyChange | null): void;
   /**
    * Keys for profiles this device has none for, installed before the stored profiles are read, so a profile whose key
    * lives on the account opens here instead of being left out with a notice.
