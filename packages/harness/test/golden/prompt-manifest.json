@@ -1,11 +1,11 @@
 [
   {
     "id": "planner.system.json",
-    "sha256": "87a4333bf4cdf1f26b73a5ce4319cb37d5ec6206e6b20139dd5e302502138b02"
+    "sha256": "8831026c274fdad30def000fb85b460736089719fa118090596f4c0bf667e7dd"
   },
   {
     "id": "planner.system.native",
-    "sha256": "b4d0c5798fc87cab9b9b9285f8378601e9e9191e4edab92834f40fe3357767cc"
+    "sha256": "5a5df6394e79cd8f3c24ba8c0c7b836d7de945eb4a820095e37fc46783940ecf"
   },
   {
     "id": "planner.more-tools-line",
@@ -17,7 +17,7 @@
   },
   {
     "id": "planner.tools.native.all",
-    "sha256": "253f18f80371b54b5c3bea8c28afc73d36dca4f85f3cd2c3860d85cecbba628d"
+    "sha256": "c71780a211171b5dc6e12382ed5ec8a602c2e4e3ba527e21930c675e4830c213"
   },
   {
     "id": "compaction.system",
@@ -162,8 +162,8 @@
   },
   {
     "id": "tool.codex.read",
-    "sha256": "c966a0f51ea841989b10226bd7b9b7b4371c3ba4634eda0899632157c7dbaf9c",
-    "descriptionVersion": 2
+    "sha256": "c6d85f278cf7a1da307cc09c781833bd400d720a5be9907e02cfb84f566a8a59",
+    "descriptionVersion": 4
   },
   {
     "id": "tool.codex.write",
@@ -252,8 +252,8 @@
   },
   {
     "id": "tool.agent.delegate",
-    "sha256": "dd2da6d0ca51fded9eb0bd4a15c74c05a1deebef713b04e4eb9ad1641bf2900c",
-    "descriptionVersion": 1
+    "sha256": "3d21da62fb7cb261febfc60ebdcb2f3b3f9f30aee1653deae0a0369f1b2a82a0",
+    "descriptionVersion": 2
   },
   {
     "id": "tool.text.search",
