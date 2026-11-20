@@ -8,11 +8,11 @@
  * merges into an entry. **Import** writes the script and the ticked rows in one undo step; **Cancel** changes nothing.
  */
 
-import { scanImport } from '@caotang/harness';
 import { useState, type ReactNode } from 'react';
 
 import { describeFdxImport, type FdxCodexSeed, type FdxImportedScript } from '@caotang/screenplay';
 
+import { seedFlagged } from '../app/import-scan.js';
 import { ChoiceDialog } from './shared.js';
 
 /** Where a row's name was read, in the writer's words. */
@@ -25,18 +25,6 @@ const SOURCE_WORDS: Readonly<Record<FdxCodexSeed['sources'][number], string>> = 
 
 function seedKey(seed: FdxCodexSeed): string {
   return `${seed.type}:${seed.name.toLowerCase()}`;
-}
-
-/**
- * Whether the import scan flags a row's name or description as reading like instructions to an AI. Such a row is added
- * with the include policy `manual`, as `codex.importBatch` adds a flagged row, so it reaches a generation only in the
- * documents it is attached to until the writer has read it.
- */
-export function seedFlagged(seed: Pick<FdxCodexSeed, 'name' | 'description'>): boolean {
-  return scanImport([
-    { where: 'name', text: seed.name },
-    { where: 'description', text: seed.description },
-  ]).total > 0;
 }
 
 export function FdxImportDialog({

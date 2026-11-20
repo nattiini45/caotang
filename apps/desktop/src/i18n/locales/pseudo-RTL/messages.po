@@ -19183,6 +19183,11 @@ msgstr ""
 msgid "The agent has not run yet"
 msgstr ""
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "the agent instructions"
+msgstr ""
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The agent is busy with another turn. Let it finish, then fix the finding."
@@ -19479,6 +19484,13 @@ msgstr ""
 msgid "The chosen folder is no longer empty. Choose another folder."
 msgstr ""
 
+#. Modern interface: the stage and the page.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/modern-shell.tsx
+msgid "the codex"
+msgstr ""
+
 #. Interpolated values: name
 #. js-lingui-explicit-id
 #: packages/store/src/read.ts
@@ -19543,6 +19555,13 @@ msgstr ""
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The conversation could not be saved: {reason}. The run log is still available in Activity. Try again before closing this project."
+msgstr ""
+
+#. Modern interface: the stage and the page.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/modern-shell.tsx
+msgid "the corkboard"
 msgstr ""
 
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
@@ -20001,6 +20020,12 @@ msgstr ""
 msgid "The import reader failed."
 msgstr ""
 
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "The import readers could not be loaded. Reload the page and try again."
+msgstr ""
+
 #: apps/desktop/src/import-preview/reader-host.ts
 msgid "The import was cancelled."
 msgstr ""
@@ -20375,6 +20400,11 @@ msgstr ""
 msgid "The picture of the shot “{title}”"
 msgstr ""
 
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "the picture picker"
+msgstr ""
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "The picture's file could not be read"
@@ -20494,6 +20524,11 @@ msgstr ""
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "The project no longer has this term, so this filter matches nothing."
+msgstr ""
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "the project panel"
 msgstr ""
 
 #: apps/desktop/src/app/run-recovery.ts
@@ -21146,6 +21181,11 @@ msgstr ""
 msgid "The skill could not be read: {reason}"
 msgstr ""
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "the Skills panel"
+msgstr ""
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "The spoken lines only, wrapped to a set width with no labels or cues, to read off a teleprompter or a sheet."
@@ -21339,6 +21379,11 @@ msgstr ""
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 msgid "The variable “{from}” has no letters or digits ink can use in a name, so it is imported as “{to}”."
+msgstr ""
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "the vocabulary editor"
 msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title

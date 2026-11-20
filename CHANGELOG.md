@@ -436,6 +436,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Plan cards show the model's window warning and the cost of a draft.** A drafted step's prompt is now measured against the window, reply cap and price of the profile and model the turn runs on. Before, the app never passed those to its prompts, so a plan card could not warn that a prompt was longer than the model's window, showed no cost for a draft (only a coherence review's own estimate), and counted the reply at 4,096 tokens whatever the profile's cap. The prompt preview in **Settings › Context** uses the Chat role's model the same way.
 
 
+### Changed
+
+- **The first screen downloads less; panels come with the click that opens them.** The project panel, **Skills**, agent instructions, the vocabulary editor, the Codex rail, the corkboard, the Import… menu's Final Draft and Twee readers and the card picture picker are now fetched the first time they are opened instead of with the page, so a cold start of Classic carries 11.9 kB gzip less. A panel whose code cannot be fetched says so on the status line instead of doing nothing. The first open after an update shows a short **Loading …** line while its code arrives; nothing in the project changes, and no dialog behaves differently.
+
 ### Known limits
 
 - Conversation compaction uses a visible provider-independent summary, not opaque provider-native checkpoints. Unknown model windows cannot be checked before a request; provider-reported limits and recorded bills remain authoritative.
