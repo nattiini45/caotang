@@ -337,6 +337,12 @@ Under **External references**, choose **Add reference** for an article, book, we
 
 An entry with a reference raises the project to project format v3, and the first browser save of one updates that browser's project storage again. An older Caotang build then refuses those projects instead of losing the references; projects with no references keep the format they had.
 
+Under **Relations**, choose **Add relation** to link this entry to another one and, if useful, give the link a word of its own: *ally*, *rival*, *mother of*. The list shows the links this entry makes and, below it under **Linked from**, the entries that link to it; select any name to open that entry. A link belongs to the entry that states it, so the other entry carries it under **Linked from** rather than in its own list, and removing a link means opening the entry that keeps it. If the linked entry is deleted, the link stays and says the entry is missing.
+
+An entry with a relation raises the project to project format v4, and the first browser save of one updates that browser's project storage again. An older Caotang build then refuses those projects instead of losing the links; projects with no relations keep the format they had.
+
+Switch the codex between **List** and **Graph** with the control beside **New entry**. The graph draws every entry as a point and every link as an arrow, and below it the same links are listed as buttons, so you can reach both ends with the keyboard. Select an entry in either place to open it.
+
 The include policy says when the agent sees an entry:
 
 - **Always**: with every request. These are sent whole even when together they are longer than the codex's share of the prompt; the other entries are then left out, and the prompt preview says how many tokens the Always entries need.
@@ -653,10 +659,10 @@ The formats come in three groups:
 | Prose | Plain text (`.txt`) | Chapter headings in capitals, with scenes set apart by a line. |
 | Prose | Word (`.docx`) | Styled headings, and a contents field filled with the chapter headings. Word offers to update the field when the file opens; a file without a contents list does not ask. In LibreOffice the entries show as written, and Tools → Update indexes fills in the page numbers. Word itself has not been checked. |
 | Prose | EPUB (`.epub`) | A reading-system book, one file per chapter. |
-| Prose | Web article (`.html`) | One self-contained HTML file per document: semantic headings and lists, the publish date, the canonical link and the description from **Publishing** in the inspector, styles in a `<style>` block and no script. Named by the document's **Slug**, else its title. A recipe can instead emit the Jekyll front matter (**Front matter**), a fragment for a site template (**HTML mode**), and the stylesheet address your site serves (**Stylesheet**). |
+| Prose | Web article (`.html`) | One self-contained HTML file per document: semantic headings and lists, the publish date, the canonical link and the description from **Publishing** in the inspector, styles in a `<style>` block and no script. A footnote can link to another note in the same article. Named by the document's **Slug**, else its title. A recipe can instead emit the Jekyll front matter (**Front matter**), a fragment for a site template (**HTML mode**), and the stylesheet address your site serves (**Stylesheet**). |
 | Prose | RSS feed (`.rss.xml`) | One feed file for the selection: an item per published document, drafts left out and named in the compile log. The recipe needs a **Site address** (the absolute `https` address of your site) — the compile refuses without it. An item gets a `<link>` only from its canonical address, never a made-up one. |
 | Prose | Atom feed (`.atom.xml`) | The same feed in the stricter Atom form, each entry carrying the article itself as its content. The recipe needs the **Site address** option too. |
-| Prose | Prose PDF (`.pdf`) | The manuscript paginated for print, for Study and Professional Hall: double-spaced Courier with one-inch margins on US Letter or A4, each chapter a page of its own with a centred heading a third of the page down, the page number on every sheet after the first, footnotes at the page's foot (or collected at the book's end by the **Footnotes** recipe setting). The recipe's **Paper size**, **Font** and **Colour emoji** settings read the same as the screenplay PDF's, and its **Profile** setting writes the file as PDF/A-2u — the archive profile a court filing or an institutional repository asks for, with the fonts embedded, the headings and reading order tagged, and the text mapped for copying. PDF/A needs an embedded font, so the Courier face is refused with it; pick Courier Prime or Cousine. |
+| Prose | Prose PDF (`.pdf`) | The manuscript paginated for print, for Study and Professional Hall: double-spaced Courier with one-inch margins on US Letter or A4, each chapter a page of its own with a centred heading a third of the page down, the page number on every sheet after the first, footnotes at the page's foot (or collected at the book's end by the **Footnotes** recipe setting). The recipe's **Paper size**, **Font** and **Colour emoji** settings read the same as the screenplay PDF's, and its **Profile** setting writes the file as PDF/A-2u — the archive profile a court filing or an institutional repository asks for, with the fonts embedded, the headings and reading order tagged, and the text mapped for copying. Prose PDF supports the same ten Indic scripts as screenplay PDF and keeps words together when they fit on the next line. PDF/A needs an embedded font, so the Courier face is refused with it; pick Courier Prime or Cousine. |
 | Media | Fountain (`.fountain`) | The screenplay as plain Fountain text, for Beat or Highland. |
 | Media | Final Draft (`.fdx`) | The screenplay in Final Draft's XML. Not yet checked in Final Draft itself. |
 | Media | Screenplay PDF (`.pdf`) | The screenplay on US Letter or A4 pages in Courier Prime, Courier or Cousine, ready to print. See [The screenplay PDF](#the-screenplay-pdf). |
@@ -675,10 +681,12 @@ The formats come in three groups:
 | Media | Timeline (`.svg` or `.pdf`) | The timeline drawing as a scalable image or a paginated document, following the project language's direction. |
 | Show | Show notes (`.md`) | The show's description and the episode's segments with their timestamps, plus chapter lines in YouTube's shape when its gates hold. |
 | Show | Transcript (`.md`) | The spoken lines with each speaker's display name, segment by segment — no cues or timings. |
-| Show | Teleprompter (`.txt`) | The spoken lines only, wrapped to a width you set in the recipe — no labels, cues or headings. |
+| Show | Teleprompter (`.txt`) | The spoken lines only, wrapped to a width you set in the recipe — no labels, cues or headings. The width stays with the recipe when you reopen a folder or restore a bundle. |
 | Show | Captions (`.vtt`) | WebVTT captions — one cue per spoken line, each speaker in a voice span. |
 | Show | Chapters (`.json`) | The Podcasting 2.0 chapters document — start, title and end per segment. |
 | Review | Coherence report (`.md` or `.json`) | The findings and the runs, for reading outside Caotang. |
+
+When you compile several episodes, the per-episode files use distinct filenames even if the episode titles differ only by case or punctuation that filenames cannot hold.
 
 The spreadsheets have one sheet each, with the column names in a bold first row that stays in view as you scroll. Shot numbers, durations and character limits are numbers, so a spreadsheet can sort and add them. Text is kept as text: a cell that starts with `=`, `+`, `-` or `@` is never run as a formula. A cell longer than 32,767 characters is cut, and the compile log says which. The spreadsheets are made in the browser, and nothing is sent anywhere.
 

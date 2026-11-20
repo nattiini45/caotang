@@ -16,6 +16,10 @@ import { crc32, deflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import { loadArabicFontInNode, loadCjkFontInNode, loadColourEmojiInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
+import {
+  loadBengaliFontInNode, loadGujaratiFontInNode, loadGurmukhiFontInNode, loadKannadaFontInNode, loadMalayalamFontInNode,
+  loadOriyaFontInNode, loadSinhalaFontInNode, loadTamilFontInNode, loadTeluguFontInNode,
+} from '@caotang/pdf-fonts/node-loader';
 import { MemoryArtifactFs, addDocument, addFolder, createEmptyManifest, createProjectState, type ExportRecipeOptions, type ProjectState } from '@caotang/store';
 import { addShotNode } from '@caotang/storyboard';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
@@ -170,6 +174,19 @@ function manuscriptWith(body: string, extra?: (state: ProjectState) => void): Pr
 
 /** The manuscript fixture's title page, which every prose case below writes as page 1. */
 const TITLE_PAGE = ['The Lighthouse Keeper', 'Ada Lovelace'] as const;
+
+const INDIC_CASES = [
+  ['devanagari', 'Devanagari', 'हिन्दी', loadDevanagariFontInNode],
+  ['bengali', 'Bengali', 'বাংলা', loadBengaliFontInNode],
+  ['gurmukhi', 'Gurmukhi', 'ਪੰਜਾਬੀ', loadGurmukhiFontInNode],
+  ['gujarati', 'Gujarati', 'ગુજરાતી', loadGujaratiFontInNode],
+  ['oriya', 'Oriya', 'ଓଡ଼ିଆ', loadOriyaFontInNode],
+  ['tamil', 'Tamil', 'தமிழ்', loadTamilFontInNode],
+  ['telugu', 'Telugu', 'తెలుగు', loadTeluguFontInNode],
+  ['kannada', 'Kannada', 'ಕನ್ನಡ', loadKannadaFontInNode],
+  ['malayalam', 'Malayalam', 'മലയാളം', loadMalayalamFontInNode],
+  ['sinhala', 'Sinhala', 'සිංහල', loadSinhalaFontInNode],
+] as const;
 
 const CORPUS: readonly Case[] = [
   {
@@ -447,6 +464,15 @@ const CORPUS: readonly Case[] = [
     size: LETTER,
     fonts: [{ name: 'CourierPrime', embedded: true, toUnicode: true }],
   },
+  ...INDIC_CASES.map(([script, font, text]): Case => ({
+    file: `prose-pdfa-2u-${script}.pdf`,
+    format: 'prose-pdf',
+    build: () => ({ state: manuscriptWith(text) }),
+    options: { pdfProfile: 'pdfa-2u' },
+    pages: [TITLE_PAGE, ['CHAPTER 1. CHAPTER ONE', text]],
+    size: LETTER,
+    fonts: [{ ...COURIER, toUnicode: true }, { name: `NotoSans${font}-Regular`, embedded: true, toUnicode: true }],
+  })),
 ];
 
 describe.skipIf(OUT === '')('the PDF write corpus', () => {
@@ -468,7 +494,7 @@ describe.skipIf(OUT === '')('the PDF write corpus', () => {
       loadColourEmoji: loadColourEmojiInNode,
       loadArabicFont: loadArabicFontInNode,
       loadHebrewFont: loadHebrewFontInNode,
-      loadIndicFonts: { devanagari: loadDevanagariFontInNode },
+      loadIndicFonts: Object.fromEntries(INDIC_CASES.map(([script, , , load]) => [script, load])),
     });
     await exporter.ready();
     state.manifest.recipes = [{ name: 'Corpus', includeRootIds: ['manuscript'], format: entry.format, options: entry.options ?? {} }];

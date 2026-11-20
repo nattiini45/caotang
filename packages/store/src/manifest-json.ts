@@ -271,6 +271,7 @@ function codexEntry(c: CodexEntry): string {
   if (c.updatedAt !== undefined) pairs.push(['updatedAt', str(c.updatedAt, 'codex.updatedAt')]);
   if (c.details !== undefined) pairs.push(['details', criterion(c.details, 'codex.details')]);
   if (c.references !== undefined && c.references.length > 0) pairs.push(['references', criterion(c.references, 'codex.references')]);
+  if (c.relations !== undefined && c.relations.length > 0) pairs.push(['relations', criterion(c.relations, 'codex.relations')]);
   return oneLine(pairs);
 }
 
@@ -553,6 +554,8 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
   if (typeof o.timelinePictures === 'boolean') pairs.push(['timelinePictures', String(o.timelinePictures)]);
   if (typeof o.colourEmoji === 'boolean') pairs.push(['colourEmoji', String(o.colourEmoji)]);
   if (o.notes === 'footnote' || o.notes === 'endnote') pairs.push(['notes', str(o.notes, 'recipe.options.notes')]);
+  const width = o.teleprompterWidth;
+  if (typeof width === 'number' && Number.isSafeInteger(width) && width >= 1) pairs.push(['teleprompterWidth', String(width)]);
   if (typeof o.frontMatter === 'boolean') pairs.push(['frontMatter', String(o.frontMatter)]);
   if (o.htmlMode === 'standalone' || o.htmlMode === 'fragment') pairs.push(['htmlMode', str(o.htmlMode, 'recipe.options.htmlMode')]);
   if (typeof o.css === 'string') pairs.push(['css', str(o.css, 'recipe.options.css')]);

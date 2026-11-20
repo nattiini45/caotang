@@ -78,6 +78,21 @@ describe('the standalone HTML article', () => {
     const html = renderHtmlArticle(article({ css: '/assets/site.css' }));
     expect(html).toContain('<link rel="stylesheet" href="/assets/site.css">');
   });
+
+  it.each([true, false])('links reachable nested notes once, in reading order (standalone=%s)', (standalone) => {
+    const parsed = parseProse([
+      'The claim[^a] and another[^c].',
+      '[^a]: First note[^b].',
+      '[^b]: Nested note[^a].',
+      '[^c]: Second note.',
+      '[^unused]: Uncited note.',
+    ].join('\n\n'));
+    const html = renderHtmlArticle(article({ ...parsed, standalone }));
+    expect([...html.matchAll(/<li id="fn-([a-z]+)">/g)].map((match) => match[1])).toEqual(['a', 'c', 'b']);
+    expect(html).toContain('First note<sup><a href="#fn-b">[3]</a></sup>.');
+    expect(html).toContain('Nested note<sup><a href="#fn-a">[1]</a></sup>.');
+    expect(html).toContain('another<sup><a href="#fn-c">[2]</a></sup>');
+  });
 });
 
 describe('the fragment', () => {

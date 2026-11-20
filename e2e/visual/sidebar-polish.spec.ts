@@ -66,6 +66,11 @@ for (const scheme of ['light', 'dark'] as const) {
     await expect(page.getByTestId('modern-sidebar').getByRole('tab')).toHaveCount(4);
     await page.mouse.move(118, 400);
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    // #644: after the reload the title's glyph raster can be one frame behind its settled layout;
+    // the fonts and two committed frames are the real conditions to wait on. A forced repaint is
+    // deliberately avoided — repainting the glass ornament bakes a different glyph phase.
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
+    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
     await expect(page).toHaveScreenshot(`modern-${scheme}-german-sidebar-count.png`, { animations: 'disabled', caret: 'hide', mask: [page.getByTestId('save-state'), page.locator('time')], maxDiffPixels: 0 });
   });
 }

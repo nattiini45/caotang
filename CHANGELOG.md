@@ -6,6 +6,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Codex relations (#223).** Link one codex entry to another, worded the way the story needs it (*ally*, *rival*, *mother of*), and see under **Linked from** which entries link back. Switch the codex between **List** and **Graph** to see the whole project's links at once; the graph is drawn on demand and lists the same links as buttons for the keyboard. A link belongs to the entry that states it, so deleting the other entry leaves it visible as a missing entry instead of removing a note you wrote. Relations stay out of automatic model context. Saving one raises the project to format v4, so a build that predates relations refuses the folder, bundle or browser store instead of dropping them; projects without relations keep their current format.
 - **Wrapped account keys for the standalone sync server.** A signed-in account can create its wrapped key record once and read it from another device. A second setup cannot overwrite the first, and the passphrase and recovery key stay on the device. The local app is unchanged.
 - **External codex references (#222).** Record the books, articles and sites behind an entry with a title, URL, publisher, date and quote. These references are separate from manuscript provenance and stay out of automatic model context. Saving one raises the project to format v3, so a build that predates references refuses the folder, bundle or browser store instead of dropping them; projects without references keep their current format.
 - **Native project folders in the desktop development shell (#402).** Pick a folder for a new project, reopen recent folders without a browser permission prompt, or copy an existing browser-only project into an empty folder without changing the original. The folder, not the local mirror, holds the manuscript. Missing or read-only folders do not open from a stale copy. The web app's storage is unchanged.
@@ -106,6 +107,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Both PDFs are checked by veraPDF in CI (#28).** The screenplay PDF and the storyboard contact sheet now go through veraPDF's PDF/A validator beside pdf.js, qpdf, Poppler, Ghostscript and MuPDF, so a file that breaks a structural or font rule fails the build instead of reaching a reader. The files claim no PDF/A or PDF/UA conformance, so the check holds them to the rules that do not depend on such a claim and names each rule a file breaks; a file whose metadata does name a flavour is validated against it in full, which is where the PDF/A-2u output (#445) will be checked. The manual Acrobat and paper-print pass is dropped: the validators in CI are what stands behind both PDFs now.
 
 ### Fixed
+
+- Prose PDFs print all ten supported Indic scripts in embedded fonts, including in PDF/A-2u. Paragraphs and notes move words that fit on the next line instead of cutting them mid-word (#755, #757).
+- HTML articles and Atom entries include footnotes cited from other notes (#756).
+- Compiling several episodes gives their files safe, distinct names, and the teleprompter width survives saving to a project folder or restoring a bundle (#758, #759).
 
 - The browser-storage warning no longer floats over the page in Modern. It takes a row of its own in every view and at every width, so a field you scroll to — the Codex's **Ausschlussbegriffe**, for one — stays clickable beside it while its backup and dismiss buttons remain in reach (#735).
 

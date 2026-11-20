@@ -510,3 +510,4 @@ export type { HookNote, ToolData, ToolValue } from './tool-value.js';
 export { DEFAULT_RECIPE_NAME } from './recipe-names.js';
 export * from './codex-details.js';
 export * from './codex-references.js';
+export * from './codex-relations.js';

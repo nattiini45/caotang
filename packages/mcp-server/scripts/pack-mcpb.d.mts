@@ -44,8 +44,14 @@ export function stageBundle(input: StageInput): { readonly staging: string; read
 /** The pinned MCPB CLI's entry point in this package's dependencies. */
 export function mcpbCliPath(packageDir?: string): string;
 
-/** Runs the MCPB CLI; a non-zero exit throws with its output. Returns the output. */
-export function runMcpb(args: readonly string[], options?: { readonly cli?: string; readonly cwd?: string }): string;
+/**
+ * Runs the MCPB CLI; a non-zero exit or a stall throws with its output and the wait. Returns the output. `timeoutMs` shortens
+ * the ceiling, for a test that runs a CLI which never answers.
+ */
+export function runMcpb(
+  args: readonly string[],
+  options?: { readonly cli?: string; readonly cwd?: string; readonly timeoutMs?: number },
+): string;
 
 export interface PackInput extends StageInput {
   /** The CLI to run, for a test that supplies another. Defaults to the pinned one. */
