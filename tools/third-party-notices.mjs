@@ -21,10 +21,16 @@
  * Windows. pnpm's `.cmd` shim cannot be spawned directly from node on Windows, so the call goes through `cmd /c`.
  */
 
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+/**
+ * How long `pnpm list` may take before the run is called stalled. A healthy listing of this workspace answers in about a
+ * second; the ceiling exists so a child that waits on a lock leaves a line in the log instead of an empty step.
+ */
+const PNPM_TIMEOUT_MS = 120_000;
 
 /** The workspace packages whose production closure ships. Paths are relative to the repository root. */
 export const SHIPPED_FILTERS = ['./apps/desktop', './packages/mcp-server', './packages/cli'];
@@ -188,11 +194,17 @@ export function listProductionTree(root, filters = SHIPPED_FILTERS) {
   const args = ['list', '--prod', '--depth', 'Infinity', '--json'];
   for (const filter of filters) args.push('--filter', filter);
   const options = { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] };
-  const output =
-    process.platform === 'win32'
-      ? execFileSync('cmd', ['/c', 'pnpm', ...args], options)
-      : execFileSync('pnpm', args, options);
-  return JSON.parse(output);
+  const command = process.platform === 'win32' ? 'cmd' : 'pnpm';
+  const commandArgs = process.platform === 'win32' ? ['/c', 'pnpm', ...args] : args;
+  const result = spawnSync(command, commandArgs, { ...options, timeout: PNPM_TIMEOUT_MS, killSignal: 'SIGTERM' });
+  // A stalled pnpm prints nothing on a pipe, so a run that never returns reads as a silent step. The timeout turns it into a
+  // line that names the command and shows what the child did say (see docs/decisions.md, "A child that never answers").
+  if (result.error !== undefined || result.status !== 0) {
+    const took = result.error?.code === 'ETIMEDOUT' ? ` did not answer within ${PNPM_TIMEOUT_MS / 1000} s` : ` exited ${String(result.status)}`;
+    throw new Error(`pnpm ${args.join(' ')}${took}:
+${result.stdout ?? ''}${result.stderr ?? ''}`.trimEnd());
+  }
+  return JSON.parse(result.stdout);
 }
 
 /**
