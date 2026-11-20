@@ -75,6 +75,29 @@ async function textOf(state: ProjectState, format: 'show-notes' | 'transcript-md
   return result.files[0]!.blob.text();
 }
 
+describe('multi-episode export filenames', () => {
+  it.each(['show-notes', 'transcript-md', 'teleprompter', 'vtt', 'chapters-json'] as const)(
+    'reserves portable, case-insensitively unique %s names after cleaning episode titles',
+    async (format) => {
+      const state = makeShowProject();
+      for (const [i, title] of ['Arrival: Part 1', 'Arrival/Part 1', 'arrival Part 1'].entries()) {
+        const episode = addDocument(state, { parentId: SHOW_ID, title, body: EPISODE_BODY, now: OPENED, id: `n_EPISODE00${i + 2}` });
+        Object.assign(episode, { kind: 'av-script' });
+      }
+      const { exporter } = rig({ state });
+      await exporter.ready();
+      const { digest } = exporter.commandPort().compile(state, { selection: { kind: 'manuscript' }, format, at: COMPILED_AT });
+      expect(digest.outputs?.every((path) => path.startsWith('exports/'))).toBe(true);
+      const names = digest.outputs?.map((path) => path.slice('exports/'.length)) ?? [];
+      expect(names).toHaveLength(4);
+      expect(names.every((name) => !/[<>:"/\\|?*]/u.test(name))).toBe(true);
+      expect(new Set(names.map((name) => name.toLowerCase())).size).toBe(4);
+      expect(names.filter((name) => name.toLowerCase().includes('arrival part 1'))).toHaveLength(3);
+      expect((await exporter.settled(digest.jobId)).state.kind).toBe('written');
+    },
+  );
+});
+
 describe('show notes', () => {
   it('lists the segments with their timestamps, the show description first, then the YouTube chapter lines', async () => {
     const text = await textOf(makeShowProject({ showMeta: { description: 'A show about lamps.' } }), 'show-notes');
