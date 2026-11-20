@@ -10852,6 +10852,11 @@ msgstr "length {from, plural, one {# day} other {# days}} → {to, plural, one {
 msgid "Lens"
 msgstr "Lens"
 
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
+#: apps/desktop/src/components/CodexPanel.tsx
+msgid "Let the agent draft entries from your manuscript"
+msgstr "Let the agent draft entries from your manuscript"
+
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
 msgid "Let the agent structure it"
@@ -12057,6 +12062,7 @@ msgstr "New document"
 msgid "New document here"
 msgstr "New document here"
 
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "New entry"

@@ -10852,6 +10852,11 @@ msgstr ""
 msgid "Lens"
 msgstr ""
 
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
+#: apps/desktop/src/components/CodexPanel.tsx
+msgid "Let the agent draft entries from your manuscript"
+msgstr ""
+
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
 msgid "Let the agent structure it"
@@ -12057,6 +12062,7 @@ msgstr ""
 msgid "New document here"
 msgstr ""
 
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "New entry"
