@@ -472,6 +472,9 @@ export class ProjectSession {
   private exportBaseline: string | null = null;
   /** What the open folder's copy said when this session last loaded it or saved to it, and the folder it was in (`setFolderBaseline`). */
   private folderCopy: FolderBaseline | null = null;
+  /** How many writes this session has outstanding into its folder copy, and what to resolve when the last of them ends. */
+  private folderWrites = 0;
+  private readonly folderWriteEnds = new Set<() => void>();
   /** The project this one is a separate copy of, when an import or folder open made it with a fresh id (`setCopiedFrom`). */
   private copiedFromId: string | null = null;
 
@@ -2164,6 +2167,32 @@ export class ProjectSession {
     titles: ReadonlyMap<string, string>,
   ): void {
     this.folderCopy = { folder, manifestText, documentIds: [...documentIds], digests: new Map(digests), titles: new Map(titles) };
+  }
+
+  /**
+   * Records that this session has started writing into its folder copy, until `endFolderWrite`: the copy the session holds is out of
+   * date from here until that write has re-digested what it wrote (`folderWritesSettled`).
+   */
+  beginFolderWrite(): void {
+    this.folderWrites += 1;
+  }
+
+  /** Records that one write into the folder copy has ended, and lets `folderWritesSettled` go when it was the last. */
+  endFolderWrite(): void {
+    this.folderWrites -= 1;
+    if (this.folderWrites > 0) return;
+    for (const done of this.folderWriteEnds) done();
+    this.folderWriteEnds.clear();
+  }
+
+  /**
+   * Resolves once this session has no write of its own into its folder copy outstanding, so a reader can judge the folder against a copy
+   * that is not halfway through a save: a save of this tab's own advances `folderBaseline()` only as it ends, however long that takes.
+   */
+  async folderWritesSettled(): Promise<void> {
+    while (this.folderWrites > 0) {
+      await new Promise<void>((done) => this.folderWriteEnds.add(done));
+    }
   }
 
   /**

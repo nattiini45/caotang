@@ -6,9 +6,17 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { ArtifactNotFoundError } from '@caotang/store';
+import { ArtifactNotFoundError, digestOfBytes } from '@caotang/store';
 
-import { changeSummary, externalChanges, folderReader, knownChanges } from '../src/app/folder-watch.js';
+import {
+  allExternalChanges,
+  changeSummary,
+  confirmedChanges,
+  externalChanges,
+  folderReader,
+  knownChanges,
+  NAMED_CHANGES,
+} from '../src/app/folder-watch.js';
 import type { DirectoryHandleLike } from '../src/app/fs-access.js';
 import type { FolderBaseline } from '../src/app/session.js';
 
@@ -92,5 +100,66 @@ describe('the offer’s names', () => {
     const paths = ['docs/n_A.md', 'docs/n_B.md', 'codex/c_C.md', 'caotang.json'];
     const summary = changeSummary(paths, (path) => path.slice(path.lastIndexOf('/') + 1));
     expect(summary).toEqual({ names: ['n_A.md', 'n_B.md', 'c_C.md'], more: 1 });
+  });
+});
+
+describe('a burst larger than one pass', () => {
+  it('judges every reported path, so a bulk edit is not cut off at the first pass', async () => {
+    const paths = Array.from({ length: 200 }, (_unused, index) => `docs/n_${index}.md`);
+    const copy = baseline(Object.fromEntries(paths.map((path) => [path, 'digest-held'])));
+    const written = Object.fromEntries(paths.map((path) => [path, 'edited in another program']));
+    const changed = await allExternalChanges(copy, paths, reader(written));
+
+    expect(changed).toHaveLength(paths.length);
+    expect(changeSummary(changed, (path) => path).more).toBe(paths.length - NAMED_CHANGES);
+  });
+
+  it('leaves the files a bulk edit did not touch alone', async () => {
+    const paths = Array.from({ length: 90 }, (_unused, index) => `docs/n_${index}.md`);
+    const untouched = Object.fromEntries(paths.map((path) => [path, `the words of ${path}`]));
+    const digests = Object.fromEntries(await Promise.all(paths.map(async (path) =>
+      [path, await digestOfBytes(new TextEncoder().encode(untouched[path]!))] as const)));
+    expect(await allExternalChanges(baseline(digests), paths, reader(untouched))).toEqual([]);
+  });
+});
+
+describe('a save of this tab is never another program’s edit', () => {
+  /** Lets the first read and the wait for the save Run their turns, as the hook's own await does. */
+  const flush = async (): Promise<void> => {
+    for (let turn = 0; turn < 4; turn += 1) await new Promise((done) => setTimeout(done, 0));
+  };
+
+  it('waits for the save to end, and then sees what it wrote as what the copy holds', async () => {
+    const written = 'the words this tab just saved';
+    const before = 'the words before the save';
+    let copy: FolderBaseline | null = baseline({ 'docs/n_A.md': await digestOfBytes(new TextEncoder().encode(before)) });
+    let endOfSave: (() => void) | null = null;
+    const writesSettled = (): Promise<void> => new Promise((done) => { endOfSave = done; });
+    const files = { 'docs/n_A.md': written };
+
+    const pending = confirmedChanges(['docs/n_A.md'], () => copy, () => reader(files), writesSettled);
+    await flush();
+    expect(endOfSave).not.toBeNull();
+    // The save finishes: the copy the session holds moves on to the bytes it wrote, however long the project took to write.
+    copy = baseline({ 'docs/n_A.md': await digestOfBytes(new TextEncoder().encode(written)) });
+    endOfSave!();
+
+    expect(await pending).toEqual([]);
+  });
+
+  it('still offers what another program changed while that save was finishing', async () => {
+    const held = 'the words of the open copy';
+    const digests = { 'docs/n_A.md': await digestOfBytes(new TextEncoder().encode(held)) };
+    const onDisk = { 'docs/n_A.md': held, 'caotang.json': '{"project":{"name":"Other"}}' };
+    let copy: FolderBaseline | null = baseline(digests);
+    let endOfSave: (() => void) | null = null;
+    const writesSettled = (): Promise<void> => new Promise((done) => { endOfSave = done; });
+
+    const pending = confirmedChanges(['docs/n_A.md', 'caotang.json'], () => copy, () => reader(onDisk), writesSettled);
+    await flush();
+    copy = baseline(digests);
+    endOfSave!();
+
+    expect(await pending).toEqual(['caotang.json']);
   });
 });
