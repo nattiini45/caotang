@@ -24,6 +24,7 @@ import { t } from '@lingui/core/macro';
 import { isolate } from '@caotang/i18n';
 import {
   PROFILE_ID_PATTERN,
+  originOf,
   createGateway,
   createIndexedDbVaultPort,
   createKeyStore,
@@ -284,18 +285,20 @@ export class ProviderService {
   static async open(options: ProviderOpenOptions): Promise<{ service: ProviderService; notices: string[] }> {
     const notices: string[] = [];
     const vault = options.vault === null ? createMemoryVaultPort() : createIndexedDbVaultPort({ factory: options.vault });
-    // Reading a key back and re-sealing it — what opening a stored profile does — is not a change the host needs to hear
-    // about again, so the mirror stays quiet until the studio is open.
+    // Opening a stored studio seals each restored profile's key again, which is not a change the host needs to hear about
+    // a second time — it is what the host itself supplied or what this device already had — so the mirror stays quiet
+    // until the studio is open.
     let installing = true;
     const host = options.host;
-    const keys = createKeyStore(vault, host?.keyChanged === undefined ? {} : {
-      // Only a provider key: an MCP bearer token is sealed in the same store under an `mcp:` reference, and it is
-      // not the host's to keep.
-      mirror: { changed: (profileId) => { if (!installing && PROFILE_ID_PATTERN.test(profileId)) host.keyChanged?.(profileId); } },
-    });
+    const keys = createKeyStore(vault);
     if (host?.restore !== undefined) {
       try {
-        for (const restored of await host.restore()) await keys.putPayload(restored.profileId, restored.payload);
+        // Read here, not later: a key for a profile whose endpoint has moved since another device saved it must not come
+        // back, and only these records say where each profile points now.
+        // Only an endpoint profile has a key, and only its base URL names an origin: a mock profile has neither.
+        const stored = ((await options.db?.get<PersistedProfile[]>(APP_KEYS.profiles)) ?? []).filter((record) => (record.kind as string) === 'endpoint' || (record.kind as string) === 'openai-compatible');
+        const origins = new Map(stored.map((record) => [record.id, originOf(record.baseUrl)]));
+        for (const restored of await host.restore(origins)) await keys.putPayload(restored.profileId, restored.payload);
       } catch {
         // A host that cannot supply its keys leaves those profiles without one, and the restore below names each of them.
       }
@@ -313,7 +316,14 @@ export class ProviderService {
       globalThis.crypto.getRandomValues(out);
       return out;
     };
-    const profiles = createProfileStore({ keys, randomBytes });
+    // The mirror hangs off the profile store, not the key store: only a profile knows the endpoint origin its key may be
+    // sent to, and only an endpoint profile has a key at all — an MCP bearer token is sealed in the same key store under an
+    // `mcp:` reference and never becomes a profile, so it cannot be reported to a host.
+    const profiles = createProfileStore({
+      keys,
+      randomBytes,
+      ...(host?.keyChanged === undefined ? {} : { mirror: { changed: (profileId, change) => { if (!installing) host.keyChanged?.(profileId, change); } } }),
+    });
     const ledger = new UsageLedger(options.clock);
     const requests = new RequestLog();
     // The role routing lives in this one cell: the service owns it, and the gateway's resolver reads it at request
