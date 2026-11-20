@@ -58,7 +58,7 @@ export function tweePreviewSource(options: {
     plan: () => preview,
     report: () => [
       { heading: '', label: t`What the import does`, lines: describeTweeReport(twee.report) },
-      ...(twee.report.warnings.length === 0 ? [] : [{ heading: 'Warnings', label: t`Warnings`, lines: twee.report.warnings }]),
+      ...(twee.report.warnings.length === 0 ? [] : [{ heading: t`Warnings`, label: t`Warnings`, lines: twee.report.warnings }]),
     ],
     importLabel: () => t`Import`,
     commit: () => {

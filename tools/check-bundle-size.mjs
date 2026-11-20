@@ -150,12 +150,13 @@ export const BUDGET = {
   // by optimising rather than by taking the space back. All JS is 8,804,463 on the merged tree: 8,786,664 of it this branch's own, the
   // chunk-boundary scaffolding for the new on-use chunks with no module in two of them, against main's 8,769,385 at 9e33899b, and 17,393
   // more from #746's relations field, the list beside its graph and their catalogue. [delegated 2026-11-19]
-  // The i18n catalogue sweep (#328) at 1,117,342 bytes gzip against main's own 1,108,912, so +8,430: about 400 hardcoded interface
-  // strings moved into the catalogue. The compiled English catalogue (locale-en, which must precede first paint, i18n.md §3.3) grew
-  // 104.8 to 115.1 kB gzip (+10.3 kB) — more than the whole first-load delta, so the about 590 t/Trans call sites in first-load
-  // modules net slightly negative against the literals they replaced. The ceiling is the measurement plus under 1 kB.
-  // [delegated 2026-11-20]
-  initialGzip: 1_118_000,
+  // The i18n catalogue sweep (#328): about 400 hardcoded interface strings moved into the catalogue. The compiled English
+  // catalogue (locale-en, which must precede first paint, i18n.md §3.3) grew 104.8 to 115.1 kB gzip (+10.3 kB) — more than the
+  // sweep's whole first-load delta against the pre-diet main, so the about 590 t/Trans call sites in first-load modules net
+  // slightly negative against the literals they replaced. Re-measured on the merge of main at b400b93a (which carries the
+  // first-load diet, #746's relations and #740's delegation): 1,105.9 kB gzip. The ceiling is the new measurement plus under
+  // 1 kB. [delegated 2026-11-20]
+  initialGzip: 1_106_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).

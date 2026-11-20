@@ -249,8 +249,8 @@ test('a save in flight holds the form and the rows inert until the write settles
 
 for (const language of ['en', 'de'] as const) {
   const words = language === 'en'
-    ? { newTask: 'New task', taskName: 'Task name', does: 'What it does', when: 'When', onlyMine: 'Only when I run it', may: 'What it may do', nothing: 'Change nothing', plan: 'Run a plan', steps: 'Plan steps', save: 'Save task', open: 'Open', mayNot: 'May not change anything', edit: 'Edit', cancel: 'Cancel', runs: 'Runs on this machine (1)' }
-    : { newTask: 'Neue Aufgabe', taskName: 'Aufgabenname', does: 'Was es tut', when: 'Wann', onlyMine: 'Nur wenn ich es ausführe', may: 'Was es darf', nothing: 'Nichts ändern', plan: 'Einen Plan ausführen', steps: 'Schritte des Plans', save: 'Aufgabe speichern', open: 'Öffnen', mayNot: 'Darf nichts ändern', edit: 'Bearbeiten', cancel: 'Abbrechen', runs: 'Durchläufe auf diesem Rechner (1)' };
+    ? { newTask: 'New task', taskName: 'Task name', does: 'What it does', when: 'When', onlyMine: 'Only when I run it', may: 'What it may do', nothing: 'Change nothing', plan: 'Run a plan', steps: 'Plan steps', save: 'Save task', open: 'Open', mayNot: 'May not change anything', edit: 'Edit', cancel: 'Cancel', runs: 'Runs on this machine (1)', runNow: 'Run now' }
+    : { newTask: 'Neue Aufgabe', taskName: 'Aufgabenname', does: 'Was es tut', when: 'Wann', onlyMine: 'Nur wenn ich es ausführe', may: 'Was es darf', nothing: 'Nichts ändern', plan: 'Einen Plan ausführen', steps: 'Schritte des Plans', save: 'Aufgabe speichern', open: 'Öffnen', mayNot: 'Darf nichts ändern', edit: 'Bearbeiten', cancel: 'Abbrechen', runs: 'Durchläufe auf diesem Rechner (1)', runNow: 'Jetzt ausführen' };
   test(`a plan is written, refused when it does not parse, edited and run from the keyboard (${language})`, async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     const counter = { calls: 0 };
@@ -336,7 +336,7 @@ for (const language of ['en', 'de'] as const) {
     await form.getByRole('button', { name: words.cancel }).click();
     await expect(kept.getByRole('button', { name: new RegExp(`^${words.edit}`) })).toBeFocused();
 
-    await kept.getByRole('button', { name: /^Run now|^Jetzt ausführen/ }).click();
+    await kept.getByRole('button', { name: new RegExp(`^${words.runNow}`) }).click();
     await expect(kept.getByText(words.runs)).toBeVisible({ timeout: LOADED });
     expect(counter.calls).toBe(0);
   });

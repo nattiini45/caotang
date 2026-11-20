@@ -25703,6 +25703,7 @@ msgstr ""
 
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
 #. The Twine/Twee import. Interpolated values: knot is a passage name.
+#. The Twine/Twee import. Interpolated values: knot is a passage name.
 #: apps/desktop/src/app/coherence-report-words.ts
 #: apps/desktop/src/app/findings-model.ts
 #: apps/desktop/src/import-preview/twee-source.ts
