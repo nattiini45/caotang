@@ -16,6 +16,7 @@ export type {
   ResponseFormatProbe,
   ProfileVerification,
   ProviderGateway,
+  AttemptTarget,
   ChatRequest,
   ChatMessage,
   MessageContent,

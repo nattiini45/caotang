@@ -115,6 +115,8 @@ export interface RoleResolution {
   readonly profile: ProfileView;
   readonly model: string;
   readonly thinking?: ThinkingLevel;
+  /** The writer's ordered fallbacks for this role, each a profile that still exists (provider-gateway §6). */
+  readonly fallbacks?: readonly { readonly profile: ProfileView; readonly model: string; readonly thinking?: ThinkingLevel }[];
 }
 
 /**
@@ -127,14 +129,33 @@ function resolveRole(profiles: ProfileStore, roles: RoleSettings | undefined, ro
   if (ref !== undefined) {
     const profile = profiles.get(ref.profileId);
     if (profile !== undefined) {
+      // A fallback is a destination the writer named for this role itself: a role that follows chat does not inherit chat's
+      // fallbacks, because consent is per role. A destination whose profile is gone, or names the role's own profile, is dropped.
+      const fallbacks = (ref.fallbacks ?? []).flatMap((target) => {
+        const fallback = profiles.get(target.profileId);
+        if (fallback === undefined || fallback.id === profile.id) return [];
+        return [{
+          profile: fallback,
+          model: target.model ?? fallback.defaultModel,
+          ...(target.thinking === undefined ? {} : { thinking: target.thinking }),
+        }];
+      });
       return {
         profile,
         model: ref.model ?? profile.defaultModel,
         ...(ref.thinking === undefined ? {} : { thinking: ref.thinking }),
+        ...(fallbacks.length === 0 ? {} : { fallbacks }),
       };
     }
   }
-  if (role !== 'chat') return resolveRole(profiles, roles, 'chat');
+  if (role !== 'chat') {
+    // A role that follows chat takes chat's profile, model and level — never its fallbacks. Consent is per role: another role's
+    // request must not reach a provider the writer authorised only for chat.
+    const inherited = resolveRole(profiles, roles, 'chat');
+    return inherited === undefined
+      ? undefined
+      : { profile: inherited.profile, model: inherited.model, ...(inherited.thinking === undefined ? {} : { thinking: inherited.thinking }) };
+  }
   const active = profiles.active();
   return active === undefined ? undefined : { profile: active, model: active.defaultModel };
 }
@@ -247,11 +268,13 @@ export class ProviderService {
   }
 
   /**
-   * Whether `profileId` is one a request under `role` may send through: the profile the role resolves to, so a
-   * following role allows what 'chat' — and under 'chat', the active profile — resolves to (provider-gateway §6, P9).
+   * Whether `profileId` is one a request under `role` may send through: the profile the role resolves to, plus the fallbacks that
+   * role itself names. A following role resolves to what 'chat' — and under 'chat', the active profile — resolves to, but not to
+   * the list chat names: consent for a fallback is per role (provider-gateway §6, P9).
    */
   roleAllows(role: TaskRole, profileId: string): boolean {
-    return resolveRole(this.profiles, this.roleState.current, role)?.profile.id === profileId;
+    const resolved = resolveRole(this.profiles, this.roleState.current, role);
+    return resolved?.profile.id === profileId || resolved?.fallbacks?.some((entry) => entry.profile.id === profileId) === true;
   }
 
   /**
@@ -325,11 +348,20 @@ export class ProviderService {
                 profileId: resolved.profile.id,
                 model: resolved.model,
                 ...(resolved.thinking === undefined ? {} : { thinking: resolved.thinking }),
+                ...(resolved.fallbacks === undefined
+                  ? {}
+                  : {
+                      fallbacks: resolved.fallbacks.map((entry) => ({
+                        profileId: entry.profile.id,
+                        model: entry.model,
+                        ...(entry.thinking === undefined ? {} : { thinking: entry.thinking }),
+                      })),
+                    }),
               };
         },
         allowed: (role) => {
           const resolved = resolveRole(profiles, roleState.current, role);
-          return resolved === undefined ? [] : [resolved.profile.id];
+          return resolved === undefined ? [] : [resolved.profile.id, ...(resolved.fallbacks ?? []).map((entry) => entry.profile.id)];
         },
       },
     });

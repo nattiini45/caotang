@@ -1843,6 +1843,11 @@ msgstr "{reused, plural, one {# Bild war bereits im Projekt.} other {# Bilder wa
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
+msgid "{role} fallback {slot}"
+msgstr "{role}-Ausweichprofil {slot}"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
 msgid "{role} model"
 msgstr "{role}-Modell"
 
@@ -3043,6 +3048,11 @@ msgstr "Die Temperatur einer Anfrage wird gesendet, auch bei einem Modell, das k
 #: apps/desktop/src/app/session.ts
 msgid "A review is running. Wait for it to finish before scanning."
 msgstr "Eine Prüfung läuft. Warte, bis sie fertig ist, bevor du scannst."
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "A role can name up to two fallbacks. One answers only when the role’s own profile is rate-limited, overloaded or unreachable, and only before any of the reply has arrived; the request, context included, then goes to that profile."
+msgstr "Eine Rolle kann bis zu zwei Ausweichprofile nennen. Eines antwortet nur, wenn das eigene Profil der Rolle ratenbegrenzt, überlastet oder nicht erreichbar ist, und nur bevor ein Teil der Antwort angekommen ist; die Anfrage geht dann samt Kontext an dieses Profil."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -8800,6 +8810,11 @@ msgstr "Fehlgeschlagen: Es konnte nichts entworfen werden"
 msgid "Failed: the review could not run"
 msgstr "Fehlgeschlagen: Die Prüfung konnte nicht ausgeführt werden."
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Fallbacks, in order"
+msgstr "Ausweichprofile, in der Reihenfolge"
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "False positive"
@@ -12322,6 +12337,11 @@ msgstr "Keine Ereignisse aufgezeichnet."
 #: apps/desktop/src/components/KnowledgeList.tsx
 msgid "No facts yet."
 msgstr "Noch keine Fakten."
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "No fallback"
+msgstr "Kein Ausweichprofil"
 
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #: apps/desktop/src/components/KnowledgeList.tsx
