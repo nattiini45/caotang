@@ -5,12 +5,27 @@
  * writes never read as someone else's.
  */
 
-import { digestOfBytes, MANIFEST_FILE } from '@caotang/store';
+import { ArtifactNotFoundError, digestOfBytes, MANIFEST_FILE } from '@caotang/store';
 
 import type { FolderBaseline } from './session.js';
 
 /** Reads a folder file as it stands, `null` when the folder no longer holds it, and rejects when it could not be read. */
 export type ChangedReader = (path: string) => Promise<Uint8Array | null>;
+
+/**
+ * The comparison's reader over a folder that throws for a file it does not hold: the adapter's own not-found is a deletion,
+ * which is offered, and every other failure stays a question the offer does not answer.
+ */
+export function folderReader(read: (path: string) => Promise<Uint8Array>): ChangedReader {
+  return async (path) => {
+    try {
+      return await read(path);
+    } catch (error) {
+      if (error instanceof ArtifactNotFoundError) return null;
+      throw error;
+    }
+  };
+}
 
 /**
  * The reported paths this copy can judge: the manifest, which it keeps as text, and the project files whose digests it holds.

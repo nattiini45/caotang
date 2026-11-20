@@ -6,7 +6,9 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { changeSummary, externalChanges, knownChanges } from '../src/app/folder-watch.js';
+import { ArtifactNotFoundError } from '@caotang/store';
+
+import { changeSummary, externalChanges, folderReader, knownChanges } from '../src/app/folder-watch.js';
 import type { DirectoryHandleLike } from '../src/app/fs-access.js';
 import type { FolderBaseline } from '../src/app/session.js';
 
@@ -52,6 +54,16 @@ describe('the changes an open copy can judge', () => {
 
   it('reports a project file the folder no longer holds, so a deletion is offered too', async () => {
     const changed = await externalChanges(copy, ['docs/n_A.md'], reader({}));
+    expect(changed).toEqual(['docs/n_A.md']);
+  });
+
+  it('offers a file the folder adapter reports as missing, which is a deletion', async () => {
+    // The folder throws for a file it does not hold, and that throw is the deletion: an offer is the only thing that tells the
+    // writer a document went away (pawcommit F7).
+    const read = folderReader(async (path: string) => {
+      throw new ArtifactNotFoundError(path);
+    });
+    const changed = await externalChanges(copy, ['docs/n_A.md'], read);
     expect(changed).toEqual(['docs/n_A.md']);
   });
 

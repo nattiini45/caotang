@@ -107,7 +107,6 @@ export async function forgetNativeFolder(id: string): Promise<void> {
   if (api) unwrap(await api.forgetFolder(id));
 }
 
-/** Starts watching an open project folder in the main process; the returned id stops it again (desktop.md §External folder changes). */
 /** One watcher per folder while anything in this tab holds it, with the subscription the main process handed out. */
 const heldWatches = new Map<string, { count: number; readonly subscription: Promise<string | null> }>();
 

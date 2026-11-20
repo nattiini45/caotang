@@ -44,14 +44,10 @@ export function useFolderWatch(session: ProjectSession): FolderWatch {
     const ask = async (paths: readonly string[]): Promise<void> => {
       const baseline = session.folderBaseline();
       if (baseline === null) return;
-      const { externalChanges } = await import('./folder-watch.js');
+      const { externalChanges, folderReader } = await import('./folder-watch.js');
       // A file the folder no longer holds is an answer; a read that fails for any other reason is a question, and the offer
       // does not answer questions by guessing that the file is gone.
-      const read = (target: typeof baseline) => (path: string): Promise<Uint8Array | null> =>
-        folderArtifactFs(target.folder).readBytes(path).catch((error: unknown) => {
-          if (error instanceof DOMException && error.name === 'NotFoundError') return null;
-          throw error;
-        });
+      const read = (target: typeof baseline) => folderReader((path: string) => folderArtifactFs(target.folder).readBytes(path));
       const first = await externalChanges(baseline, paths.slice(0, MAX_READS), read(baseline));
       if (disposed || first.length === 0) return;
       await new Promise((done) => setTimeout(done, CONFIRM_MS));
