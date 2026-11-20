@@ -2705,6 +2705,31 @@ dialog.confirm:has(.folder-file-preview) {
   font-weight: 600;
 }
 
+/* A role's fallbacks sit under its own row: the label starts the line, and the two pickers follow in order (provider-gateway §6).
+   They wrap on a narrow Settings pane before the row's own controls do, so the order stays readable. */
+.role-fallbacks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  flex-basis: 100%;
+}
+
+.role-fallbacks > .muted {
+  font-size: var(--text-md);
+  min-width: 120px;
+}
+
+.role-fallbacks select {
+  font: inherit;
+  font-size: var(--text-md);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+}
+
 .form-message {
   margin: 10px 0;
   padding: var(--space-4) 10px;

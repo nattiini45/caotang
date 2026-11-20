@@ -24,6 +24,7 @@ import { t } from '@lingui/core/macro';
 import { isolate } from '@caotang/i18n';
 import {
   PROFILE_ID_PATTERN,
+  originOf,
   createGateway,
   createIndexedDbVaultPort,
   createKeyStore,
@@ -114,6 +115,8 @@ export interface RoleResolution {
   readonly profile: ProfileView;
   readonly model: string;
   readonly thinking?: ThinkingLevel;
+  /** The writer's ordered fallbacks for this role, each a profile that still exists (provider-gateway §6). */
+  readonly fallbacks?: readonly { readonly profile: ProfileView; readonly model: string; readonly thinking?: ThinkingLevel }[];
 }
 
 /**
@@ -126,14 +129,33 @@ function resolveRole(profiles: ProfileStore, roles: RoleSettings | undefined, ro
   if (ref !== undefined) {
     const profile = profiles.get(ref.profileId);
     if (profile !== undefined) {
+      // A fallback is a destination the writer named for this role itself: a role that follows chat does not inherit chat's
+      // fallbacks, because consent is per role. A destination whose profile is gone, or names the role's own profile, is dropped.
+      const fallbacks = (ref.fallbacks ?? []).flatMap((target) => {
+        const fallback = profiles.get(target.profileId);
+        if (fallback === undefined || fallback.id === profile.id) return [];
+        return [{
+          profile: fallback,
+          model: target.model ?? fallback.defaultModel,
+          ...(target.thinking === undefined ? {} : { thinking: target.thinking }),
+        }];
+      });
       return {
         profile,
         model: ref.model ?? profile.defaultModel,
         ...(ref.thinking === undefined ? {} : { thinking: ref.thinking }),
+        ...(fallbacks.length === 0 ? {} : { fallbacks }),
       };
     }
   }
-  if (role !== 'chat') return resolveRole(profiles, roles, 'chat');
+  if (role !== 'chat') {
+    // A role that follows chat takes chat's profile, model and level — never its fallbacks. Consent is per role: another role's
+    // request must not reach a provider the writer authorised only for chat.
+    const inherited = resolveRole(profiles, roles, 'chat');
+    return inherited === undefined
+      ? undefined
+      : { profile: inherited.profile, model: inherited.model, ...(inherited.thinking === undefined ? {} : { thinking: inherited.thinking }) };
+  }
   const active = profiles.active();
   return active === undefined ? undefined : { profile: active, model: active.defaultModel };
 }
@@ -246,11 +268,13 @@ export class ProviderService {
   }
 
   /**
-   * Whether `profileId` is one a request under `role` may send through: the profile the role resolves to, so a
-   * following role allows what 'chat' — and under 'chat', the active profile — resolves to (provider-gateway §6, P9).
+   * Whether `profileId` is one a request under `role` may send through: the profile the role resolves to, plus the fallbacks that
+   * role itself names. A following role resolves to what 'chat' — and under 'chat', the active profile — resolves to, but not to
+   * the list chat names: consent for a fallback is per role (provider-gateway §6, P9).
    */
   roleAllows(role: TaskRole, profileId: string): boolean {
-    return resolveRole(this.profiles, this.roleState.current, role)?.profile.id === profileId;
+    const resolved = resolveRole(this.profiles, this.roleState.current, role);
+    return resolved?.profile.id === profileId || resolved?.fallbacks?.some((entry) => entry.profile.id === profileId) === true;
   }
 
   /**
@@ -261,18 +285,20 @@ export class ProviderService {
   static async open(options: ProviderOpenOptions): Promise<{ service: ProviderService; notices: string[] }> {
     const notices: string[] = [];
     const vault = options.vault === null ? createMemoryVaultPort() : createIndexedDbVaultPort({ factory: options.vault });
-    // Reading a key back and re-sealing it — what opening a stored profile does — is not a change the host needs to hear
-    // about again, so the mirror stays quiet until the studio is open.
+    // Opening a stored studio seals each restored profile's key again, which is not a change the host needs to hear about
+    // a second time — it is what the host itself supplied or what this device already had — so the mirror stays quiet
+    // until the studio is open.
     let installing = true;
     const host = options.host;
-    const keys = createKeyStore(vault, host?.keyChanged === undefined ? {} : {
-      // Only a provider key: an MCP bearer token is sealed in the same store under an `mcp:` reference, and it is
-      // not the host's to keep.
-      mirror: { changed: (profileId) => { if (!installing && PROFILE_ID_PATTERN.test(profileId)) host.keyChanged?.(profileId); } },
-    });
+    const keys = createKeyStore(vault);
     if (host?.restore !== undefined) {
       try {
-        for (const restored of await host.restore()) await keys.putPayload(restored.profileId, restored.payload);
+        // Read here, not later: a key for a profile whose endpoint has moved since another device saved it must not come
+        // back, and only these records say where each profile points now.
+        // Only an endpoint profile has a key, and only its base URL names an origin: a mock profile has neither.
+        const stored = ((await options.db?.get<PersistedProfile[]>(APP_KEYS.profiles)) ?? []).filter((record) => (record.kind as string) === 'endpoint' || (record.kind as string) === 'openai-compatible');
+        const origins = new Map(stored.map((record) => [record.id, originOf(record.baseUrl)]));
+        for (const restored of await host.restore(origins)) await keys.putPayload(restored.profileId, restored.payload);
       } catch {
         // A host that cannot supply its keys leaves those profiles without one, and the restore below names each of them.
       }
@@ -290,7 +316,14 @@ export class ProviderService {
       globalThis.crypto.getRandomValues(out);
       return out;
     };
-    const profiles = createProfileStore({ keys, randomBytes });
+    // The mirror hangs off the profile store, not the key store: only a profile knows the endpoint origin its key may be
+    // sent to, and only an endpoint profile has a key at all — an MCP bearer token is sealed in the same key store under an
+    // `mcp:` reference and never becomes a profile, so it cannot be reported to a host.
+    const profiles = createProfileStore({
+      keys,
+      randomBytes,
+      ...(host?.keyChanged === undefined ? {} : { mirror: { changed: (profileId, change) => { if (!installing) host.keyChanged?.(profileId, change); } } }),
+    });
     const ledger = new UsageLedger(options.clock);
     const requests = new RequestLog();
     // The role routing lives in this one cell: the service owns it, and the gateway's resolver reads it at request
@@ -315,11 +348,20 @@ export class ProviderService {
                 profileId: resolved.profile.id,
                 model: resolved.model,
                 ...(resolved.thinking === undefined ? {} : { thinking: resolved.thinking }),
+                ...(resolved.fallbacks === undefined
+                  ? {}
+                  : {
+                      fallbacks: resolved.fallbacks.map((entry) => ({
+                        profileId: entry.profile.id,
+                        model: entry.model,
+                        ...(entry.thinking === undefined ? {} : { thinking: entry.thinking }),
+                      })),
+                    }),
               };
         },
         allowed: (role) => {
           const resolved = resolveRole(profiles, roleState.current, role);
-          return resolved === undefined ? [] : [resolved.profile.id];
+          return resolved === undefined ? [] : [resolved.profile.id, ...(resolved.fallbacks ?? []).map((entry) => entry.profile.id)];
         },
       },
     });

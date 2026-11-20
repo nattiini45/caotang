@@ -72,7 +72,7 @@
 import { preloadAnchorLibraries } from '@caotang/editor';
 import { entryOfCall, err, ok, type CommandError, type Result, type UndoOutcome } from '@caotang/bus';
 import { buildPreview, ContextError, memoryReadable, meterOf, RESERVED_TOKENS, summaryPrefix, type AgentTask, type AssembledPrompt, type ContextMeter, type ContextOverrides, type PromptPreview, type RecentTurn, type SessionSummary } from '@caotang/context';
-import { costOf, estimateTokens, promptTokensOf, ProviderError, redact, textOf, usageFor, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type ModelLimits, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
+import { costOf, estimateTokens, promptTokensOf, ProviderError, redact, textOf, usageFor, type AttemptTarget, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type ModelLimits, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
 import { newId } from '@caotang/ids';
 import { SKILL_CATALOG_TOKENS } from '@caotang/skills';
 import { getBody, getRevision, type ProjectState, type RunStatus, type TreeNode } from '@caotang/store';
@@ -1519,32 +1519,47 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * cap the request goes with, thinking included. A refusal ends the turn on a question, and the request is never sent. A time limit
    * that has passed is the turn's stop, ended the way the signal ends it. No meter, no reservation.
    */
-  const reserveCall = (turn: Turn, request: ChatRequest, meter = turn.meter): Reservation | undefined => {
-    guardRecoveredSpend(turn);
-    if (meter === undefined) return undefined;
+  /**
+   * A request's worst case at one target: its prompt estimate plus the output cap that target transmits, thinking included, priced
+   * at that target's rate. A route's fallback is sized by its own row, never the primary's (provider-gateway §6).
+   */
+  const worstCaseOf = (request: ChatRequest, target?: AttemptTarget): Omit<Reservation, 'id'> => {
     // The request as sent: its own profile, model and level, and its role, which the gateway routes a request with no profile by.
     // A call under another role carries none of the session's pins, so it is reserved on the role's route, never the session's.
-    const limits = gateway.modelLimits(request.profileId, request.model, request.thinking, request);
+    const limits = gateway.modelLimits(target?.profileId ?? request.profileId, target?.model ?? request.model, target?.thinking ?? request.thinking, request);
     const basePrice = options.price?.() ?? limits.pricePer1k;
     const writeMultiplier = request.expectedRoute?.stamp === undefined ? 1 : Math.max(1, limits.cache?.writeMultiplier ?? 1);
     const price = basePrice === undefined ? undefined : { prompt: basePrice.prompt * writeMultiplier, completion: basePrice.completion };
-    const reserved = meter.reserve({
+    return {
       promptTokens: usageFor(request.messages, '').promptTokens,
       maxOutputTokens: transmittedOutputCap(limits, request.maxOutputTokens),
       ...(price === undefined ? {} : { price }),
-    });
+    };
+  };
+
+  /** The error that ends the turn on a limit the meter refused, naming the profile that would have run and what the call needed. */
+  const stopError = (turn: Turn, request: ChatRequest, stop: BudgetStop, profileName?: string): Error => {
+    if (stop.dimension === 'active-time' || stop.dimension === 'deadline') return new TurnStopped();
+    const profile = profileName === undefined
+      ? gateway.profiles.get(request.profileId ?? turn.pins.profileId ?? '') ?? gateway.profiles.active()
+      : undefined;
+    return new BudgetExceeded({ ...runLimitWords(stop, profileName ?? profile?.name), code: 'budget_exhausted' }, stop);
+  };
+
+  const reserveCall = (turn: Turn, request: ChatRequest, meter = turn.meter): Reservation | undefined => {
+    guardRecoveredSpend(turn);
+    if (meter === undefined) return undefined;
+    const reserved = meter.reserve(worstCaseOf(request));
     if (reserved.ok) {
       if (meter === turn.meter) emit({ type: 'budget', turnId: turn.id, spend: meter.spend(), limits: meter.limits });
       return reserved.value;
     }
-    const stop = reserved.error;
-    if (stop.dimension === 'active-time' || stop.dimension === 'deadline') throw new TurnStopped();
-    const profile = gateway.profiles.get(request.profileId ?? turn.pins.profileId ?? '') ?? gateway.profiles.active();
-    throw new BudgetExceeded({ ...runLimitWords(stop, profile?.name), code: 'budget_exhausted' }, stop);
+    throw stopError(turn, request, reserved.error);
   };
 
   /** A stream whose reservation is settled with the usage it ended with, or the estimate when the provider reported none, however it ends. */
   async function* settling(turn: Turn, reservation: Reservation | undefined, request: ChatRequest, signal?: AbortSignal, hookGuard?: () => void, chapter?: { readonly refund: () => void; readonly guard: () => void; readonly meter?: BudgetMeter; readonly reservation?: Reservation }): AsyncGenerator<ChatChunk, void, undefined> {
+    let held = reservation;
     let usage: Usage | undefined;
     let delivered = '';
     let sent = false;
@@ -1554,8 +1569,27 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       turn.sentModelRequest = true;
       sent = true;
     };
+    /**
+     * The route's admission of a fallback target (provider-gateway §6): the attempt that just ended is counted as spend with what it
+     * used, and the destination's own worst case takes the call's place before its request opens. Sized this way, a fallback can
+     * never spend against only the primary's reservation. A refusal ends the turn here, with no request sent to that profile.
+     */
+    const admitAttempt = (target: AttemptTarget): void => {
+      // A chapter helper's own reservation is not this turn's, and its request is stamped to one profile: the route moves nowhere.
+      if (turn.meter === undefined || held === undefined || (chapter?.reservation !== undefined && chapter.reservation === held)) return;
+      const next = turn.meter.renew(held, usage, { promptTokens: held.promptTokens, completionTokens: estimateTokens(delivered) }, worstCaseOf(request, target));
+      // The attempt before the move is spend now, and the text it delivered belongs to it: the next one starts its own estimate.
+      usage = undefined;
+      delivered = '';
+      if (!next.ok) {
+        held = undefined;
+        throw stopError(turn, request, next.error, gateway.profiles.get(target.profileId)?.name);
+      }
+      held = next.value;
+      emit({ type: 'budget', turnId: turn.id, spend: turn.meter.spend(), limits: turn.meter.limits });
+    };
     try {
-      for await (const chunk of gateway.complete(request, signal, beforeSend)) {
+      for await (const chunk of gateway.complete(request, signal, beforeSend, admitAttempt)) {
         if (chunk.usage !== undefined) usage = chunk.usage;
         const delta = `${chunk.delta ?? ''}${chunk.reasoningDelta ?? ''}`;
         delivered += hookGuard === undefined ? delta : delta.slice(0, Math.max(0, MODEL_HOOK_REPLY_MAX - delivered.length));
@@ -1570,9 +1604,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
         }
       }
-      if (reservation !== undefined && turn.meter !== undefined) {
-        if (refused) turn.meter.release(reservation);
-        else turn.meter.settle(reservation, usage, { promptTokens: reservation.promptTokens, completionTokens: estimateTokens(delivered) });
+      if (held !== undefined && turn.meter !== undefined) {
+        if (refused) turn.meter.release(held);
+        else turn.meter.settle(held, usage, { promptTokens: held.promptTokens, completionTokens: estimateTokens(delivered) });
         emit({ type: 'budget', turnId: turn.id, spend: turn.meter.spend(), limits: turn.meter.limits });
       }
       if (chapter?.reservation !== undefined) {
@@ -1603,6 +1637,19 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * included, and is counted against the turn's bound before it is sent. The session's role is stamped on the
    * request here too (provider-gateway §6); the prompt-pack's calls pass 'drafting' for it instead.
    */
+  /**
+   * Whether a turn's own pin names exactly the role's current primary (provider-gateway §6): then the pin is redundant, the
+   * request is routed by its role, and the role's authorised fallbacks may answer. A pin naming anything else is a destination of
+   * its own, and the request is sent there alone.
+   */
+  const pinIsRolePrimary = (turn: Turn, role: TaskRole | undefined): boolean => {
+    if (role === undefined || role !== options.role || turn.pins.profileId === undefined) return false;
+    const route = gateway.resolveRoleRoute?.(role);
+    return route !== undefined && route.profileId === turn.pins.profileId
+      && (turn.pins.model ?? route.model) === route.model
+      && (turn.pins.thinking ?? route.thinking) === route.thinking;
+  };
+
   const modelCall = (turn: Turn, onDelta?: (delta: string) => void, role: TaskRole | undefined = options.role, planner: boolean | 'compaction' = false, hookGuard?: () => void): ModelCall => ({
     gateway: {
       complete: (request, signal) => {
@@ -1656,11 +1703,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     },
     turnId: turn.id,
     ...signalOf(turn),
-    // The turn's pins apply to the session's own role only: a call under another role resolves that role's
-    // profile, model and thinking at the gateway instead of borrowing the session's.
-    ...(turn.pins.profileId === undefined || role !== options.role ? {} : { profileId: turn.pins.profileId }),
-    ...(turn.pins.model === undefined || role !== options.role ? {} : { model: turn.pins.model }),
-    ...(turn.pins.thinking === undefined || role !== options.role ? {} : { thinking: turn.pins.thinking }),
+    // The turn's pins apply to the session's own role only: a call under another role resolves that role's profile, model and
+    // thinking at the gateway instead of borrowing the session's. A pin that is the role's own primary is left off, so its
+    // authorised fallbacks may answer; anything else is sent to the pinned destination alone.
+    ...(pinIsRolePrimary(turn, role) ? {} : {
+      ...(turn.pins.profileId === undefined || role !== options.role ? {} : { profileId: turn.pins.profileId }),
+      ...(turn.pins.model === undefined || role !== options.role ? {} : { model: turn.pins.model }),
+      ...(turn.pins.thinking === undefined || role !== options.role ? {} : { thinking: turn.pins.thinking }),
+    }),
     // A draft's deltas go to its scene's ghost region (`draft.delta`), and every other call's to the panel's stream tail.
     onDelta: onDelta ?? ((delta) => emit({ type: 'model.delta', turnId: turn.id, delta })),
     // Reasoning has one sink on every call — the panel's collapsed "Thinking" block. A draft's reasoning is the

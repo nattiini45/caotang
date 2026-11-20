@@ -155,8 +155,10 @@ export const BUDGET = {
   // sweep's whole first-load delta against the pre-diet main, so the about 590 t/Trans call sites in first-load modules net
   // slightly negative against the literals they replaced. Re-measured on the merge of main at 6e271846 (which carries the
   // first-load diet, #746's relations, #740's delegation, #769's codex.read ids, #773's provider key events and #752's
-  // folder watch): 1,106,979 bytes. The ceiling is the new measurement plus under 1 kB. [delegated 2026-11-20]
-  initialGzip: 1_107_900,
+  // folder watch): 1,106,979 bytes. Re-measured on the merge of main at 3b1c6cdc (#782's endpoint origins and #777's
+  // role fallbacks, which raised its own pin to 1,099,972 on a tree without the sweep): 1,108,155 bytes. The ceiling is
+  // the new measurement plus under 1 kB. [delegated 2026-11-20]
+  initialGzip: 1_109_100,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -236,8 +238,10 @@ export const BUDGET = {
   // cataloguing the about 400 remaining literals; the call sites net negative. Re-measured on the merge of main at 6e271846
   // (which carries #746's relations, #740's agent delegation, #769's codex.read ids, #773's provider key events and #752's
   // folder watch): 8,879,683 bytes — the +5.3 kB over the earlier measurement is main's own landed work, not the sweep's.
-  // The ceiling is the new measurement rounded up to the thousand. [delegated 2026-11-20]
-  totalJs: 8_880_000,
+  // Re-measured on the merge of main at 3b1c6cdc (#782 and #777): 8,885,946 bytes — the +6.3 kB over the earlier
+  // measurement is again main's own landed work. The ceiling is the new measurement rounded up to the thousand.
+  // [delegated 2026-11-20]
+  totalJs: 8_886_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

@@ -176,6 +176,19 @@ export interface RoleRef {
   readonly profileId: string;
   readonly model?: string;
   readonly thinking?: ThinkingLevel;
+  /**
+   * The profiles this role may move to when its own profile cannot answer (provider-gateway §6): at most two, in the order the
+   * writer chose. Naming one is the writer's consent to send that role's requests, context included, through it; an absent or empty
+   * list keeps the role on its own profile.
+   */
+  readonly fallbacks?: readonly RoleTargetRef[];
+}
+
+/** One fallback destination: a profile, and the model and level it defaults to. It can hold no fallbacks of its own. */
+export interface RoleTargetRef {
+  readonly profileId: string;
+  readonly model?: string;
+  readonly thinking?: ThinkingLevel;
 }
 
 /**
@@ -357,8 +370,7 @@ export function targetOf(value: unknown): number | undefined {
  * has no one to follow but the active profile), and a `RoleRef` keeps the fields it recognises. A malformed entry
  * is dropped to absent, which is what following reads as.
  */
-function normalizeRoleRef(value: unknown, followAllowed: boolean): RoleRef | 'follow' | undefined {
-  if (value === 'follow') return followAllowed ? 'follow' : undefined;
+function normalizeRoleTarget(value: unknown): RoleTargetRef | undefined {
   if (!isRecord(value)) return undefined;
   const profileId = value['profileId'];
   if (typeof profileId !== 'string' || profileId.length === 0) return undefined;
@@ -370,6 +382,42 @@ function normalizeRoleRef(value: unknown, followAllowed: boolean): RoleRef | 'fo
     ...(typeof thinking === 'string' && (THINKING_LEVELS as readonly string[]).includes(thinking)
       ? { thinking: thinking as ThinkingLevel }
       : {}),
+  };
+}
+
+/**
+ * A role's fallback list as it loads: at most two destinations, in order, each a profile with the fields recognised. The role's
+ * own profile and a profile named twice are dropped, and so is anything malformed, so a hand-edited record can never widen a role
+ * past the profiles it lists.
+ */
+function normalizeRoleFallbacks(value: unknown, ownProfileId: string | undefined): readonly RoleTargetRef[] {
+  if (!Array.isArray(value)) return [];
+  const kept: RoleTargetRef[] = [];
+  for (const raw of value) {
+    const target = normalizeRoleTarget(raw);
+    if (target === undefined || target.profileId === ownProfileId) continue;
+    if (kept.some((entry) => entry.profileId === target.profileId)) continue;
+    kept.push(target);
+    if (kept.length === 2) break;
+  }
+  return kept;
+}
+
+function normalizeRoleRef(value: unknown, followAllowed: boolean): RoleRef | 'follow' | undefined {
+  if (value === 'follow') return followAllowed ? 'follow' : undefined;
+  if (!isRecord(value)) return undefined;
+  const profileId = value['profileId'];
+  if (typeof profileId !== 'string' || profileId.length === 0) return undefined;
+  const model = value['model'];
+  const thinking = value['thinking'];
+  const fallbacks = normalizeRoleFallbacks(value['fallbacks'], profileId);
+  return {
+    profileId,
+    ...(typeof model === 'string' && model.length > 0 ? { model } : {}),
+    ...(typeof thinking === 'string' && (THINKING_LEVELS as readonly string[]).includes(thinking)
+      ? { thinking: thinking as ThinkingLevel }
+      : {}),
+    ...(fallbacks.length === 0 ? {} : { fallbacks }),
   };
 }
 
