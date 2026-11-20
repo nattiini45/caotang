@@ -82,9 +82,12 @@ export function parseRetryAfter(value: string | null, now: number): number | und
  * has qualify; an auth, protocol, context-length or cancelled failure does not.
  */
 export function fallbackReasonOf(error: unknown): FallbackReason | undefined {
-  if (!(error instanceof ProviderError) || error.permanent) return undefined;
-  if (error.kind === 'rate_limit') return 'rate_limit';
+  if (!(error instanceof ProviderError)) return undefined;
+  // A profile on this computer that is down, CORS-blocked or denied is not worth a second try at that address (`isRetryable` says
+  // so), but another provider may well answer, so the route may move: transport trouble is classified before the permanent gate.
   if (error.kind === 'network') return 'network';
+  if (error.permanent) return undefined;
+  if (error.kind === 'rate_limit') return 'rate_limit';
   if (error.kind === 'provider') return error.status === undefined || error.status >= 500 ? 'overloaded' : undefined;
   if (error.kind === 'endpoint') return error.status === 404 ? 'model_gone' : undefined;
   return undefined;

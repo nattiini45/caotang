@@ -184,6 +184,43 @@ describe('complete() — ordered role fallbacks (provider-gateway §6)', () => {
     expect(hostsOf(net)).toEqual(['b.example']);
   });
 
+  it('moves to a fallback when a profile on this computer cannot be reached', async () => {
+    // A local server that is down is a permanent failure for that address — a second try cannot change a browser's answer — but the
+    // route may still move: the writer's sentence says "rate-limited, overloaded or unreachable".
+    const keys = createKeyStore(createMemoryVaultPort(), { subtle: microtaskSubtle() });
+    const profiles = createProfileStore({ keys });
+    const hosts: string[] = [];
+    let local = '';
+    let remote = '';
+    const roles: RoleResolver = {
+      resolve: (role: TaskRole) => (role === 'chat' && local !== '' && remote !== '' ? { profileId: local, model: 'llama3.2', fallbacks: [{ profileId: remote }] } : undefined),
+      allowed: () => [local, remote],
+    };
+    const gateway = createGateway({
+      profiles,
+      keys,
+      clock: createManualClock(START),
+      random: () => 0.5,
+      fetch: (url, init) => {
+        const host = new URL(String(url)).host;
+        hosts.push(host);
+        if (host === '127.0.0.1:11434') return Promise.reject(new TypeError('Failed to fetch'));
+        return Promise.resolve(sseResponse([delta('from the fallback'), finish('stop'), '[DONE]']));
+      },
+      retry: { maxRetries: 0, delaysMs: [0], jitter: 0 },
+      supportsAddressSpace: () => false,
+      loopbackPermission: async () => 'denied',
+      roles,
+    });
+    local = (await profiles.create({ name: 'Local', kind: 'endpoint', preset: 'ollama', defaultModel: 'llama3.2' })).id;
+    remote = (await profiles.create({ name: 'Remote', kind: 'endpoint', baseUrl: 'https://b.example/v1', apiKey: `${KEY}b`, defaultModel: 'model-y' })).id;
+
+    const { chunks, error } = await collect(gateway.complete({ ...userMessage('one request'), role: 'chat' }));
+    expect(error).toBeUndefined();
+    expect(deltasOf(chunks)).toBe('from the fallback');
+    expect(hosts).toContain('b.example');
+  });
+
   it('keeps a request that carries an approval stamp on its own destination', async () => {
     // A model hook names its route with `expectedRoute`: it is pinned to that profile, so the role's list never applies, and the
     // provider's own fault reaches the caller instead of an admission refusal for a destination it never asked for.
