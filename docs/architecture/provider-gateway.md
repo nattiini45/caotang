@@ -151,6 +151,8 @@ interface ProviderAdapter {
 
 The observer is the one place a body leaves the gateway, so it has rules. Every string of an event passes `redact` with the call's own secrets (the key, and a generic profile's sealed header values) before the observer sees it, and an event carries no header. Every observer call is made inside a `try`, its type returns `void`, and a throw is swallowed: a call behaves the same with any observer, and with none it gathers nothing. Its one consumer is the in-tab agent trace (agent-harness §5.2), which keeps it in memory.
 
+Callers that need consent for a particular destination can resolve its current route and pass it back as `expectedRoute`. A stamped expectation also binds the destination's transport identity, model limits and price. It can bind the opaque revision of the sealed credential payload, including custom headers. The gateway checks the revision against the same encrypted entry it opens and reads it again before each transport attempt. No plaintext credential values or approval stamps enter the trace. A changed destination, price or credential revision is refused, not silently used.
+
 ## 4. Retries, errors, timeouts (contract, not vibes)
 
 ### Shared completion queue
@@ -223,6 +225,7 @@ Existing actionable local-server CORS/permission guidance is retained separately
 
 - Browser: keys in IndexedDB **outside** the project DB, encrypted at rest with AES-GCM via **non-extractable WebCrypto key**. Plaintext never enters `localStorage` and never syncs. **Threat model:** this protects against *casual* theft (dumped IndexedDB blobs, shared machines) — **not** against XSS in the app origin or a compromised device (origin JS can *use* the key while the app is open). No stronger primitive exists for a no-backend web app; the honest assumption is recorded here, and the desktop app on the roadmap upgrades to OS keychains. The MCP bearer-token vault (extensibility.md §3.6) reuses this exact store.
 - The sealed payload is versioned: `{v: 2, apiKey, headers?}` carries a generic profile's sealed custom headers with the key; entries sealed before v2 (a bare key string) decode as `{apiKey}` unchanged.
+- A host that keeps the writer's keys somewhere else can be told what changed: `createKeyStore` takes an optional `mirror`, whose `changed(profileId)` runs after a payload is sealed or removed and never before. It is a notification rather than a transaction — the local save has already committed — so a mirror must not throw and cannot fail a save. Nothing in the store finds a mirror by itself; a host that passes none behaves exactly as before.
 - Never written to any file in the project artifact (project-format.md §2 forbids secrets there).
 - Mock/dev: `MOCK` profile type needs no key.
 

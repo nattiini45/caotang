@@ -20,18 +20,41 @@ export async function aeadSeal(
   random: RandomBytes = systemRandom,
   format: number = FORMAT_TAG,
 ): Promise<Uint8Array> {
+  return aeadSealWith(await aesKey(key, 'encrypt'), associatedData, plaintext, random, format);
+}
+
+export async function aeadOpen(
+  key: Uint8Array,
+  associatedData: Uint8Array,
+  sealed: Uint8Array,
+  format: number = FORMAT_TAG,
+): Promise<Uint8Array> {
+  return aeadOpenWith(await aesKey(key, 'decrypt'), associatedData, sealed, format);
+}
+
+/**
+ * The same seal taking a key that is already a {@link CryptoKey} — a non-extractable one, when the raw bytes are not to
+ * be held here at all. The key must be AES-GCM with the usage this call needs.
+ */
+export async function aeadSealWith(
+  key: CryptoKey,
+  associatedData: Uint8Array,
+  plaintext: Uint8Array,
+  random: RandomBytes = systemRandom,
+  format: number = FORMAT_TAG,
+): Promise<Uint8Array> {
   const nonce = random(NONCE_BYTES);
   if (nonce.length !== NONCE_BYTES) throw new CryptoError('invalid-argument', 'the nonce source returned the wrong length');
   const sealed = await globalThis.crypto.subtle.encrypt(
     { name: 'AES-GCM', iv: buf(nonce), additionalData: buf(associatedData), tagLength: TAG_BYTES * 8 },
-    await aesKey(key, 'encrypt'),
+    key,
     buf(plaintext),
   );
   return concat(Uint8Array.of(format), nonce, new Uint8Array(sealed));
 }
 
-export async function aeadOpen(
-  key: Uint8Array,
+export async function aeadOpenWith(
+  key: CryptoKey,
   associatedData: Uint8Array,
   sealed: Uint8Array,
   format: number = FORMAT_TAG,
@@ -43,7 +66,7 @@ export async function aeadOpen(
   try {
     const plain = await globalThis.crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: buf(nonce), additionalData: buf(associatedData), tagLength: TAG_BYTES * 8 },
-      await aesKey(key, 'decrypt'),
+      key,
       buf(body),
     );
     return new Uint8Array(plain);
