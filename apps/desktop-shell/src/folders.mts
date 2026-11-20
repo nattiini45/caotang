@@ -118,6 +118,8 @@ export async function registerFolderIpc(profile: string, entryUrl: string): Prom
    */
   const watches = new Map<string, { readonly subscription: Promise<AsyncSubscription>; readonly holders: Set<string> }>();
   const holders = new Map<string, string>();
+  /** The windows already being watched for destruction, so one window has one listener however many watchers it opens. */
+  const watchedWindows = new Set<number>();
   const watchKey = (grant: Grant, contents: WebContents): string => `${grant.id}\u0000${contents.id}`;
   /** Ends one holder's watch, and stops the watcher when it was the folder and window's last one. */
   const dropWatch = async (subscriptionId: string): Promise<void> => {
@@ -237,15 +239,30 @@ export async function registerFolderIpc(profile: string, entryUrl: string): Prom
         }
       }, { ignore: UNWATCHED }), holders: new Set<string>() };
       watches.set(key, created);
-      // One listener per watcher, not one per watch call: a window that goes drops every holder it handed out.
-      contents.once('destroyed', () => {
-        for (const held of [...created.holders]) void dropWatch(held);
-      });
+      // One listener per window, not one per watcher: a window that goes drops every holder of every folder it watches.
+      if (!watchedWindows.has(contents.id)) {
+        watchedWindows.add(contents.id);
+        contents.once('destroyed', () => {
+          watchedWindows.delete(contents.id);
+          for (const [watched, opened] of watches) {
+            if (!watched.endsWith(`\u0000${contents.id}`)) continue;
+            for (const held of [...opened.holders]) void dropWatch(held);
+          }
+        });
+      }
       record = created;
     }
     const subscriptionId = randomUUID();
     record.holders.add(subscriptionId);
     holders.set(subscriptionId, key);
+    // A watcher that would not start answers as a refusal and leaves nothing behind, so the next ask tries again instead of this
+    // window believing it watches a folder it does not.
+    try {
+      await record.subscription;
+    } catch (error) {
+      await dropWatch(subscriptionId);
+      throw error;
+    }
     return subscriptionId;
   });
   handle('unwatch', (_event, subscription) => {
