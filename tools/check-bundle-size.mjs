@@ -129,6 +129,12 @@ export const BUDGET = {
   // messages (+1,254 raw), which must precede first paint (i18n.md §3.3), and the entry's lazy loader for the command (+892 raw). The
   // reader, its preview source and the Worker stay on use. The ceiling is the measurement plus about 1%, rounded up to the thousand.
   // [delegated 2026-11-18]
+  // Codex relations and the project-wide graph (#223) on main at c62c25e1: 1,108,807 bytes gzip measured against main's own 1,107,212,
+  // so +1,595 on a ceiling with 788 bytes of room. Measured by removing each part in turn: the relationEdits validation in the codex
+  // descriptor is 535 bytes (1,108,272 without it) and the panel's List/Graph switch 55 (1,108,699); what is left is the store's read and
+  // write path for the field and the English catalogue, both of which must precede first paint. The entry's Relations section, its editor
+  // dialog, the unreadable-record row, the graph and both stylesheets already load on use. The ceiling is the measurement plus under 1 kB,
+  // not the old one plus 12, so later work gets no free room. [owner 2026-11-19]
   // The first-load diet, measured on main at 77a1e605 which had taken codex relations (#746) and the export settings fix (#760):
   // 1,096,587 bytes gzip against that main's own 1,108,807, so −12,220. On its own base at 9e33899b it measured 1,095,339 against main's
   // own 1,107,274 (−11,935); #746's relations added 1,243 and #760 added 5. Named, per change, as each landed: the toolbar's four panels (project, Skills, agent
@@ -144,7 +150,12 @@ export const BUDGET = {
   // by optimising rather than by taking the space back. All JS is 8,804,463 on the merged tree: 8,786,664 of it this branch's own, the
   // chunk-boundary scaffolding for the new on-use chunks with no module in two of them, against main's 8,769,385 at 9e33899b, and 17,393
   // more from #746's relations field, the list beside its graph and their catalogue. [delegated 2026-11-19]
-  initialGzip: 1_098_587,
+  // The i18n catalogue sweep (#328) at 1,117,342 bytes gzip against main's own 1,108,912, so +8,430: about 400 hardcoded interface
+  // strings moved into the catalogue. The compiled English catalogue (locale-en, which must precede first paint, i18n.md §3.3) grew
+  // 104.8 to 115.1 kB gzip (+10.3 kB) — more than the whole first-load delta, so the about 590 t/Trans call sites in first-load
+  // modules net slightly negative against the literals they replaced. The ceiling is the measurement plus under 1 kB.
+  // [delegated 2026-11-20]
+  initialGzip: 1_118_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -219,7 +230,11 @@ export const BUDGET = {
   // and the Worker load on use. The ceiling is the measurement plus about 1%, rounded up to the thousand. [delegated 2026-11-18]
   // Typed codex details add an atomic, lazy browser-storage upgrade. The shared format predicate and existing open/transaction
   // handlers avoid a second storage implementation; the details editor stays lazy. Measured 8,745,967 bytes with no new dependency.
-  totalJs: 8_834_000,
+  // The i18n catalogue sweep (#328): 8,842,182 bytes measured against 8,786,688 on main (+55,494) — the compiled English catalogue
+  // +27.6 kB raw (first load, required before first paint) and the German catalogue +31.8 kB raw (on use), the fixed cost of
+  // cataloguing the about 400 remaining literals; the call sites net negative. The ceiling is the measurement plus under 1 kB.
+  // [delegated 2026-11-20]
+  totalJs: 8_843_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
