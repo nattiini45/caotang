@@ -294,9 +294,9 @@ const ROWS: readonly ToolRow[] = [
     risk: 'read',
     undoable: false,
     response_token_cap: 8000,
-    descriptionVersion: 2,
+    descriptionVersion: 4,
     description:
-      'Read codex entries: names, aliases, type, policy, a description preview and attachments. Read-only. An empty result is a result: use codex.write to create an entry.',
+      'Read codex entries: names, aliases, type, policy, description preview, attachments, and saved references and relations with the ids codex.write takes. Read-only. An empty result is a result: use codex.write to create an entry.',
     surface: 'v0.1',
     load: 'core',
   },

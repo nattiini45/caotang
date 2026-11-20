@@ -66,10 +66,15 @@ export {
 } from './seal.js';
 export {
   VAULT_FORMAT_TAG,
+  importVaultKey,
   openVault,
   openVaultEntry,
+  openVaultEntryWith,
+  openVaultWith,
   sealVault,
   sealVaultEntry,
+  sealVaultEntryWith,
+  sealVaultWith,
   sealedVaultLength,
   type VaultContext,
   type VaultEntryContext,
