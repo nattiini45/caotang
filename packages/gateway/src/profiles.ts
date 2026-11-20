@@ -27,7 +27,7 @@ export const DEFAULT_MAX_OUTPUT_TOKENS = 4_096;
 
 import { MOCK_BASE_URL, normalizeBaseUrl, normalizeLocalBaseUrl, originOf } from './base-url.js';
 import { ProfileError } from './errors.js';
-import type { KeyStore } from './keys/key-store.js';
+import type { KeyPayload, KeyStore } from './keys/key-store.js';
 import { presetFor, type PresetDef } from './presets/index.js';
 import { providerVerificationMachine } from './verification.js';
 import type { NewProfile, ProfileKind, ProfilePatch, ProfileVerification, ProfileView, RequestParams, ResponseFormatProbe, ThinkingLevel } from './types.js';
@@ -50,10 +50,28 @@ export interface ProfileStore {
   recordVerification(id: string, verification: ProfileVerification): void;
 }
 
+/** What changed for one profile's key: where that key may be sent, and the payload now sealed for it. */
+export interface KeyChange {
+  readonly origin: string;
+  readonly payload: KeyPayload;
+}
+
+/**
+ * Told after a profile's key payload is written or removed, so a host that keeps a copy of the writer's keys somewhere
+ * else — the account vault of a hosted instance — can follow what changed here. It is a notification, not a transaction:
+ * the key is already stored when it runs, so it must not throw, and its own work cannot undo the save. It carries the
+ * endpoint origin because the copy elsewhere is sealed against it, and only this store knows where a profile points.
+ */
+export interface KeyMirror {
+  changed(profileId: string, change: KeyChange | null): void;
+}
+
 export interface ProfileStoreOptions {
   keys: KeyStore;
   /** injected so tests can pin ids; defaults to `crypto.getRandomValues` */
   randomBytes?: (n: number) => Uint8Array<ArrayBuffer>;
+  /** A host following this device's provider keys elsewhere. */
+  mirror?: KeyMirror;
 }
 
 /** The mock's model id, and the one a mock profile reports when no model is given. */
@@ -360,6 +378,12 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
   const { keys } = options;
   const randomBytes = options.randomBytes ?? defaultRandomBytes;
   const records = new Map<string, StoredProfile>();
+  const mirror = options.mirror;
+  // `null` says the key went away, so a host can drop its copy. The origin is read off the record the write just made,
+  // which is why every report below runs after that write rather than beside it.
+  const report = (record: StoredProfile, payload: KeyPayload | null): void => {
+    mirror?.changed(record.id, payload === null ? null : { origin: originOf(record.baseUrl), payload });
+  };
 
   const requireRecord = (id: string): StoredProfile => {
     const rec = records.get(id);
@@ -384,9 +408,11 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
       // The key is sealed before the record exists, so a failed seal leaves no profile
       // that claims a key it does not have. Custom headers ride inside the same payload —
       // they are secrets, and the vault is where secrets live.
-      if (key !== '' || fields.customHeaders !== undefined) {
-        await keys.putPayload(id, { apiKey: key, ...(fields.customHeaders === undefined ? {} : { customHeaders: fields.customHeaders }) });
-      }
+      const payload: KeyPayload | null =
+        key !== '' || fields.customHeaders !== undefined
+          ? { apiKey: key, ...(fields.customHeaders === undefined ? {} : { customHeaders: fields.customHeaders }) }
+          : null;
+      if (payload !== null) await keys.putPayload(id, payload);
 
       // Re-read the active state after the await: another create may have landed meanwhile.
       const anyActive = [...records.values()].some((r) => r.isActive);
@@ -407,7 +433,9 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         isActive: activate,
         hasKey: key !== '',
       });
-      return toView(requireRecord(id));
+      const created = requireRecord(id);
+      if (payload !== null) report(created, payload);
+      return toView(created);
     },
 
     async update(id, patch) {
@@ -437,6 +465,8 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
 
       let hasKey = rec.hasKey;
       let keyChanged = false;
+      let written: KeyPayload | null = null;
+      let keyRemoved = false;
       if (rec.kind === 'endpoint') {
         const keyOptional = preset?.keyOptional === true;
         // A secret belongs to the origin it was entered for. Keeping it across an origin change would
@@ -464,8 +494,13 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
               throw new ProfileError('invalid', 'Enter the extra headers again for the new endpoint.', 'customHeaders');
             }
           }
-          if (key === '' && (headers === undefined || Object.keys(headers).length === 0)) await keys.remove(id);
-          else await keys.putPayload(id, { apiKey: key, ...(headers === undefined ? {} : { customHeaders: headers }) });
+          if (key === '' && (headers === undefined || Object.keys(headers).length === 0)) {
+            await keys.remove(id);
+            keyRemoved = true;
+          } else {
+            written = { apiKey: key, ...(headers === undefined ? {} : { customHeaders: headers }) };
+            await keys.putPayload(id, written);
+          }
           hasKey = key !== '';
           keyChanged = true;
         } else {
@@ -499,6 +534,9 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         rec.responseFormat = undefined;
         rec.verification = providerVerificationMachine.step(rec.verification ?? { kind: 'unknown' }, { type: 'invalidate' });
       }
+      // After the record holds the new fields, so a host sealing against the origin is told the address that save chose.
+      if (written !== null) report(rec, written);
+      else if (keyRemoved) report(rec, null);
       return toView(rec);
     },
 
@@ -513,6 +551,7 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         const next = records.values().next().value;
         if (next !== undefined) next.isActive = true;
       }
+      if (rec.kind === 'endpoint') report(rec, null);
     },
 
     get(id) {
