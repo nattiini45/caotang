@@ -416,23 +416,33 @@ export const memoryReadResult = param.object(
   [],
 );
 
+const helperResultFields = {
+  agent: param.choice('Which agent ran.', ['reader', 'general']),
+  agentPath: param.string('Where the agent sat in the turn.'),
+  status: param.choice('How the agent ended.', ['done', 'partial', 'failed']),
+  summary: param.string('The agent\'s summary.'),
+  proposedSteps: param.list('The steps the agent would take.', param.freeObject('One plan step.')),
+  read: strings('The ids of the documents the agent read.'),
+  usage: param.object(
+    'What the agent used.',
+    { modelCalls: param.integer('Model calls.'), promptTokens: param.integer('Prompt tokens.'), completionTokens: param.integer('Completion tokens.') },
+    ['modelCalls', 'promptTokens', 'completionTokens'],
+  ),
+};
+
 export const agentDelegateResult = param.object(
-  'What the delegated agent found, framed as data.',
+  'One helper result or an ordered list of chapter helper results, framed as data.',
   {
     notice: param.string('The fixed notice that the result is data and approves nothing.'),
-    agent: param.choice('Which agent ran.', ['reader', 'general']),
-    agentPath: param.string('Where the agent sat in the turn.'),
-    status: param.choice('How the agent ended.', ['done', 'partial', 'failed']),
-    summary: param.string('The agent\'s summary.'),
-    proposedSteps: param.list('The steps the agent would take.', param.freeObject('One plan step.')),
-    read: strings('The ids of the documents the agent read.'),
-    usage: param.object(
-      'What the agent used.',
-      { modelCalls: param.integer('Model calls.'), promptTokens: param.integer('Prompt tokens.'), completionTokens: param.integer('Completion tokens.') },
-      ['modelCalls', 'promptTokens', 'completionTokens'],
-    ),
+    ...helperResultFields,
+    results: param.list('The chapter results in binder order.', param.object(
+      'One chapter result, with more details when they fit.',
+      { chapter: param.string('The chapter folder id.'), ...helperResultFields },
+      ['chapter', 'status', 'summary'],
+    )),
+    omitted: param.string('A note when the result cap prevented returning all the chapter details.'),
   },
-  ['notice', 'agent', 'agentPath', 'status', 'summary', 'proposedSteps', 'read', 'usage'],
+  ['notice', 'summary'],
 );
 
 const briefParts = {
@@ -628,6 +638,16 @@ type Names = readonly string[];
 
 /** One card of the codex, as `@caotang/codex` shapes it. Declared open in the spec: an entry carries what its type needs. */
 type CodexCard = Readonly<Record<string, unknown>>;
+
+type DelegateHelperData = {
+  readonly agent: 'reader' | 'general';
+  readonly agentPath: string;
+  readonly status: 'done' | 'partial' | 'failed';
+  readonly summary: string;
+  readonly proposedSteps: readonly Readonly<Record<string, unknown>>[];
+  readonly read: Names;
+  readonly usage: { readonly modelCalls: number; readonly promptTokens: number; readonly completionTokens: number };
+};
 
 type Brief = {
   readonly briefId: string;
@@ -872,15 +892,11 @@ export interface ToolResults {
   };
   'session.history': SessionHistoryPage;
   'text.search': TextSearchData;
-  'agent.delegate': {
+  'agent.delegate': Partial<Omit<DelegateHelperData, 'summary'>> & {
     readonly notice: string;
-    readonly agent: 'reader' | 'general';
-    readonly agentPath: string;
-    readonly status: 'done' | 'partial' | 'failed';
     readonly summary: string;
-    readonly proposedSteps: readonly Readonly<Record<string, unknown>>[];
-    readonly read: Names;
-    readonly usage: { readonly modelCalls: number; readonly promptTokens: number; readonly completionTokens: number };
+    readonly results?: readonly ({ readonly chapter: string } & Pick<DelegateHelperData, 'status' | 'summary'> & Partial<Omit<DelegateHelperData, 'status' | 'summary'>>)[];
+    readonly omitted?: string;
   };
   'scene.brief': Brief & { readonly doc: Ref; readonly mode: 'draft' | 'continue' | 'rewrite_selection' };
   'scene.apply': SceneDraft;

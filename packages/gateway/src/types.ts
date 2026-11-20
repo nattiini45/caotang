@@ -410,7 +410,7 @@ export interface ChatRequest {
   /** Keep this request and its response out of the trace and omit provider excerpts from its request log. */
   privatePayload?: true;
   /** Refuse unless the resolved destination still matches the one the caller reviewed. */
-  expectedRoute?: { readonly profileId: string; readonly model: string };
+  expectedRoute?: { readonly profileId: string; readonly model: string; readonly stamp?: string; readonly credentialRevision?: string };
 }
 
 /**

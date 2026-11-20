@@ -10,11 +10,11 @@ import { describe, expect, it } from 'vitest';
 import type { ChatRequest, Gateway } from '@caotang/gateway';
 import { subagentScript } from '@caotang/gateway/mock';
 import type { MockScript } from '@caotang/gateway/mock';
-import { setBody, type ProjectState } from '@caotang/store';
+import { addDocument, addFolder, moveNode, setBody, type ProjectState } from '@caotang/store';
 
-import { DELEGATE_NOTICE } from '../../src/index.js';
+import { createAgentPorts, createAgentSession, createBudgetMeter, createMemoryRunLog, DELEGATE_NOTICE, parseRunEvents, type RunLogPort } from '../../src/index.js';
 import { evaluate, type Scenario } from '../../src/agent/eval.js';
-import { LANDING, makeState } from '../fixtures.js';
+import { CHAPTER_ONE, CHAPTER_TWO, ENTRY, FRIEND, LANDING, OPENED, makeHarness, makeState } from '../fixtures.js';
 import { mockGateway } from '../agent/gateway.js';
 import { answer, steps, transcript } from '../agent/scripts.js';
 import { textOf as wireTextOf } from '@caotang/gateway';
@@ -74,6 +74,395 @@ function scenario(name: string, scripts: readonly MockScript[], held: { gateway?
 }
 
 const textOf = (request: ChatRequest | undefined): string => request?.messages.map((message) => wireTextOf(message.content)).join('\n') ?? '';
+
+function withTinyUsage(script: MockScript): MockScript {
+  return {
+    match: script.match,
+    async *respond(request) {
+      const result = script.respond(request);
+      if ('content' in result) {
+        yield { delta: result.content };
+        yield { finishReason: 'stop', usage: { promptTokens: 1, completionTokens: 1 } };
+      } else yield* result;
+    },
+  };
+}
+
+describe('chapter delegation', () => {
+  const chapterStep = { ...DELEGATE, params: { agent: 'general', brief: DELEGATE.params.brief, fanOut: 'per-chapter', scope: [CHAPTER_TWO, CHAPTER_ONE] } };
+  const GULL = { ...HERON, params: { entries: [{ action: 'create', name: 'Gull', type: 'other', description: 'A pale bird on the pier.' }] } };
+
+  it('asks before any child request, fences child reads, and folds ordered proposals into one undo group', async () => {
+    const held: { gateway?: Gateway } = {};
+    const planned: ChatRequest[] = [];
+    const own = new Map<string, ChatRequest>();
+    const child = subagentScript((req) => {
+      const second = req.agentPath?.endsWith('#2') === true;
+      if (repliesOf(req) === 0 && req.agentPath !== undefined) own.set(req.agentPath, req);
+      return repliesOf(req) === 0
+        ? steps(second ? READ_LANDING : { ...READ_LANDING, params: { doc: FRIEND } }, second ? GULL : HERON)
+        : answer(second ? 'Notes from the second chapter.' : 'Notes from the first chapter.');
+    });
+    const result = await evaluate(scenario('chapter delegation: two proposed entries', [
+      planner([steps(chapterStep), steps(HERON, GULL)], planned), child,
+    ], held, {
+      project: () => {
+        const state = makeState();
+        setBody(state, FRIEND, 'Sentinel found only in chapter two.', { now: OPENED });
+        return state;
+      },
+      decisions: [
+        ({ card }) => {
+          expect(own.size).toBe(0);
+          expect(card.notice).toContain('2 chapters, up to 8 helper model calls');
+          return { action: 'approve' };
+        },
+        ({ card }) => {
+          expect(card.steps.map((step) => step.proposedBy)).toEqual(['general', 'general']);
+          return { action: 'approve' };
+        },
+      ],
+      expect: { status: 'applied', restores: true, ledgerRequests: 6, cards: { matcher: 'strict', items: [
+        { kind: 'confirm', tools: ['agent.delegate'], decision: 'approved' },
+        { kind: 'plan', tools: ['codex.write', 'codex.write'], decision: 'approved' },
+      ] } },
+    }));
+    expect(result.failures).toEqual([]);
+    expect(textOf(own.get('eval.turn-1/general#1'))).not.toContain('Sentinel found only in chapter two.');
+    expect(textOf(own.get('eval.turn-1/general#2'))).not.toContain('The ferry was late, as always.');
+    expect(result.run.report.trace.filter((row) => row.agentPath !== undefined && row.tool === 'doc.read').map((row) => row.outcome)).toEqual(['refused', 'refused']);
+    const returned = textOf(planned.at(-1));
+    expect(returned.indexOf('Notes from the first chapter.')).toBeGreaterThan(-1);
+    expect(returned.indexOf('Notes from the first chapter.')).toBeLessThan(returned.indexOf('Notes from the second chapter.'));
+    expect(result.run.report.modelCalls).toBe(6);
+  });
+
+  it('refuses a batch over the aggregate call cap before charging or asking for approval', async () => {
+    const held: { gateway?: Gateway } = {};
+    const planned: ChatRequest[] = [];
+    const result = await evaluate(scenario('chapter delegation: budget refusal', [
+      planner([steps({ ...chapterStep, params: { agent: 'general', brief: 'Read each chapter.', fanOut: 'per-chapter' } }), answer('Try fewer chapters.')], planned),
+    ], held, {
+      project: () => {
+        const state = makeState();
+        for (let index = 0; index < 49; index += 1) {
+          const folder = `n_FOLD${String(index).padStart(6, '0')}`;
+          addFolder(state, { id: folder, parentId: 'manuscript', title: `Extra chapter ${index}`, now: OPENED });
+          addDocument(state, { parentId: folder, title: `Extra scene ${index}`, now: OPENED });
+        }
+        return state;
+      },
+      expect: { status: 'replied', ledgerRequests: 2, cards: { matcher: 'strict', items: [] } },
+    }));
+    expect(result.failures).toEqual([]);
+    expect(textOf(planned.at(-1))).toContain('does not fit the remaining call budget');
+  });
+
+  it('keeps the consent card in Auto and starts no helpers when the writer cancels', async () => {
+    const held: { gateway?: Gateway } = {};
+    const result = await evaluate(scenario('chapter delegation: writer cancels approval', [
+      planner([steps(chapterStep)], []),
+    ], held, {
+      modeOptions: { mode: 'auto' },
+      decisions: [{ action: 'cancel' }],
+      expect: { status: 'cancelled', reached: {}, ledgerRequests: 1, cards: { matcher: 'strict', items: [
+        { kind: 'confirm', tools: ['agent.delegate'], decision: 'cancelled' },
+      ] } },
+    }));
+    expect(result.failures).toEqual([]);
+  });
+
+  it('returns completed notes alongside an unfinished sibling', async () => {
+    const held: { gateway?: Gateway } = {};
+    const planned: ChatRequest[] = [];
+    const result = await evaluate(scenario('chapter delegation: one helper cannot finish', [
+      planner([steps(chapterStep), answer('One chapter was reviewed.')], planned),
+      subagentScript((req) => req.agentPath?.endsWith('#1') === true ? answer('The first chapter has usable notes.') : 'Not a planner reply.'),
+    ], held, { expect: { status: 'replied', ledgerRequests: 7 } }));
+    expect(result.failures).toEqual([]);
+    const returned = textOf(planned.at(-1));
+    expect(returned).toContain('1 / 2 chapter helpers completed.');
+    expect(returned).toContain('The first chapter has usable notes.');
+    expect(returned).toContain('"status":"partial"');
+  });
+
+  it('does not start helpers if the approved chapter membership changed while the card was open', async () => {
+    const held: { gateway?: Gateway } = {};
+    const state = makeState();
+    const planned: ChatRequest[] = [];
+    const result = await evaluate(scenario('chapter delegation: stale approval', [
+      planner([steps(chapterStep), answer('Ask me to review the new scope.')], planned),
+    ], held, {
+      project: () => state,
+      decisions: [() => {
+        addDocument(state, { parentId: CHAPTER_ONE, title: 'New scene', now: OPENED });
+        return { action: 'approve' };
+      }],
+      expect: { status: 'replied', ledgerRequests: 2 },
+    }));
+    expect(result.failures).toEqual([]);
+    expect(textOf(planned.at(-1))).toContain('The approved chapter scope or route changed');
+  });
+
+  it('does not reuse approval when the active provider changes to an identically priced profile', async () => {
+    const planned: ChatRequest[] = [];
+    const gateway = await mockGateway([planner([steps(chapterStep), answer('Choose the new provider explicitly.')], planned)]);
+    const second = await gateway.profiles.create({ name: 'Another profile', kind: 'mock' });
+    const session = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }), gateway,
+      decide: async () => { gateway.profiles.activate(second.id); return { action: 'approve' }; },
+    });
+    const report = await session.submit(INTENT, { preload: ['agent.delegate'] });
+    expect(report.status).toBe('replied');
+    expect(report.tokens.requests).toBe(2);
+    expect(textOf(planned.at(-1))).toContain('The approved chapter scope or route changed');
+  });
+
+  it('does not reuse approval when the same provider’s sealed credentials change', async () => {
+    const planned: ChatRequest[] = [];
+    const base = await mockGateway([planner([steps(chapterStep), answer('Review the provider again.')], planned)]);
+    let sealedRevision = 'initial-revision';
+    const gateway: Gateway = { ...base, credentialRevision: async () => sealedRevision };
+    const session = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }), gateway,
+      decide: async () => { sealedRevision = 'new-revision'; return { action: 'approve' }; },
+    });
+    const report = await session.submit(INTENT, { preload: ['agent.delegate'] });
+    expect(report.status).toBe('replied');
+    expect(report.tokens.requests).toBe(2);
+    expect(textOf(planned.at(-1))).toContain('The approved chapter scope or route changed');
+  });
+
+  it('sends neither queued helper after prices change before dispatch', async () => {
+    const planned: ChatRequest[] = [];
+    const base = await mockGateway([planner([steps(chapterStep), answer('Review the changed price.')], planned)]);
+    const profile = base.profiles.active();
+    expect(profile).toBeDefined();
+    if (profile === undefined) return;
+    let changed: Promise<unknown> | undefined;
+    const gateway: Gateway = {
+      ...base,
+      async *complete(req, signal, beforeSend) {
+        if (req.agentPath !== undefined) {
+          changed ??= base.profiles.update(profile.id, { pricePer1k: { prompt: 2, completion: 2 } });
+          await changed;
+        }
+        yield* base.complete(req, signal, beforeSend);
+      },
+    };
+    const session = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }), gateway, decide: async () => ({ action: 'approve' }),
+    });
+    const report = await session.submit(INTENT, { preload: ['agent.delegate'] });
+    expect(changed).toBeDefined();
+    expect(report.status).toBe('replied');
+    expect(report.modelCalls).toBe(2);
+    expect(report.tokens.requests).toBe(2);
+    expect(textOf(planned.at(-1))).toContain('0 / 2 chapter helpers completed.');
+  });
+
+  it.each(['saving the approved reservation', 'waiting for provider dispatch'] as const)('does not send a moved scene while %s', async (timing) => {
+    const state = makeState();
+    const log = createMemoryRunLog();
+    const planned: ChatRequest[] = [];
+    const base = await mockGateway([
+      planner([steps(chapterStep), answer('Ask me to review the new scope.')], planned),
+      subagentScript(() => answer('This request should not have been sent.')),
+    ]);
+    let moved = false;
+    const move = () => {
+      if (moved) return;
+      moved = true;
+      moveNode(state, LANDING, { parentId: CHAPTER_TWO });
+    };
+    const port: RunLogPort = {
+      ...log,
+      append: async (id, events, patch) => {
+        await log.append(id, events, patch);
+        if (timing === 'saving the approved reservation' && events.some((event) => event.t === 'spend' && event.spend.reservedChapterCalls === 8)) move();
+      },
+    };
+    const gateway: Gateway = {
+      ...base,
+      async *complete(req, signal, beforeSend) {
+        if (timing === 'waiting for provider dispatch' && req.agentPath !== undefined) {
+          await Promise.resolve();
+          move();
+        }
+        yield* base.complete(req, signal, beforeSend);
+      },
+    };
+    const session = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }, state), gateway, decide: async () => ({ action: 'approve' }),
+      runLog: { port, projectId: state.manifest.project.id, newRunId: () => 'chapter-move' },
+    });
+    const report = await session.submit(INTENT, { preload: ['agent.delegate'] });
+    expect(moved).toBe(true);
+    expect(report.status).toBe('replied');
+    expect(report.modelCalls).toBe(2);
+    expect(report.tokens.requests).toBe(2);
+    expect(textOf(planned.at(-1))).toContain(timing === 'saving the approved reservation'
+      ? 'The approved chapter scope or route changed' : '0 / 2 chapter helpers completed.');
+    const events = parseRunEvents(await log.events('chapter-move'));
+    expect(events.ok).toBe(true);
+    if (events.ok) {
+      const settled = events.events.findLast((event) => event.t === 'spend');
+      expect(settled).toMatchObject({ spend: { modelCalls: 2 } });
+      expect(settled?.spend.chapterCalls).toBeUndefined();
+    }
+  });
+
+  it('admits chapter helpers against cumulative session spend without consuming planner slots', async () => {
+    const nextIntent = 'Check the chapters once more.';
+    const planned: ChatRequest[] = [];
+    const gateway = await mockGateway([
+      planner([steps(chapterStep), answer('Read both chapters.')], []),
+      transcript(nextIntent, [steps(chapterStep), answer('Try fewer chapters.')], planned),
+      subagentScript(() => answer('Notes from this chapter.')),
+    ]);
+    let approvals = 0;
+    const session = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }), gateway,
+      mode: 'auto', maxModelCalls: 2, sessionBudget: { maxModelCalls: 12 },
+      decide: async () => { approvals += 1; return { action: 'approve' }; },
+    });
+    const first = await session.submit(INTENT, { preload: ['agent.delegate'] });
+    expect(first.status).toBe('replied');
+    expect(first.modelCalls).toBe(4);
+    expect(first.budgetUse.modelCalls).toBe(4);
+    const second = await session.submit(nextIntent, { preload: ['agent.delegate'] });
+    expect(second.status).toBe('replied');
+    expect(second.modelCalls).toBe(2);
+    expect(approvals).toBe(1);
+    expect(textOf(planned.at(-1))).toContain('session model-call budget');
+  });
+
+  it('respects a writer’s codex pin without adding a pinned scene to the wrong chapter', async () => {
+    const state = makeState();
+    state.manifest.codex = state.manifest.codex?.map((entry) => entry.id === ENTRY
+      ? { ...entry, includePolicy: 'manual', description: 'The keeper knows the evening tide table.' }
+      : entry);
+    const seen = new Map<string, string>();
+    const gateway = await mockGateway([
+      planner([steps(chapterStep), answer('Done.')], []),
+      subagentScript((req) => {
+        if (req.agentPath !== undefined) seen.set(req.agentPath.split('/').at(-1) ?? '', textOf(req));
+        return answer('Notes.');
+      }),
+    ]);
+    const session = createAgentSession({ harness: makeHarness({ ports: createAgentPorts() }, state), gateway, decide: async () => ({ action: 'approve' }) });
+    const report = await session.submit(INTENT, {
+      preload: ['agent.delegate'],
+      contextOverrides: { include: [{ kind: 'codex', id: ENTRY }, { kind: 'doc', id: LANDING }] },
+    });
+    expect(report.status).toBe('replied');
+    expect(seen.get('general#1')).toContain('The keeper knows the evening tide table.');
+    expect(seen.get('general#2')).toContain('The keeper knows the evening tide table.');
+    expect(seen.get('general#2')).not.toContain('The ferry was late, as always.');
+  });
+
+  it.each([
+    ['turn tokens', { budget: { maxTokens: 400 } }],
+    ['session cost', { sessionBudget: { maxCostUsd: 0.01 }, price: () => ({ prompt: 1, completion: 1 }) }],
+  ] as const)('refuses helper requests that cannot be reserved against %s before sending', async (_name, options) => {
+    const planned: ChatRequest[] = [];
+    const gateway = await mockGateway([
+      withTinyUsage(planner([steps(chapterStep), answer('No helper has run.')], planned)),
+      subagentScript(() => answer('Should not have been sent.')),
+    ]);
+    const session = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }), gateway,
+      mode: 'auto', ...options, decide: async () => ({ action: 'approve' }),
+    });
+    const report = await session.submit(INTENT, { preload: ['agent.delegate'] });
+    expect(report.status).toBe('replied');
+    expect(report.modelCalls).toBe(2);
+    expect(report.tokens.requests).toBe(2);
+    expect(textOf(planned.at(-1))).toContain('0 / 2 chapter helpers completed.');
+  });
+
+  it('does not let concurrent helpers reserve the same cost headroom', async () => {
+    const planned: ChatRequest[] = [];
+    const gateway = await mockGateway([
+      withTinyUsage(planner([steps(chapterStep), answer('Only one helper ran.')], planned)),
+      subagentScript(() => answer('Notes.')),
+    ]);
+    const cap = gateway.modelLimits().maxOutputTokens;
+    const session = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }), gateway, mode: 'auto',
+      price: () => ({ prompt: 0, completion: 1 }), sessionBudget: { maxCostUsd: (cap + 2) / 1000 },
+      decide: async () => ({ action: 'approve' }),
+    });
+    const report = await session.submit(INTENT, { preload: ['agent.delegate'] });
+    expect(report.status).toBe('replied');
+    expect(report.tokens.requests).toBe(3);
+    expect(textOf(planned.at(-1))).toContain('1 / 2 chapter helpers completed.');
+  });
+
+  it.each(['completed batch', 'in-flight batch with an automatic cost limit', 'in-flight batch with a run token limit'] as const)('recovers a %s without exceeding the active budget', async (scenarioName) => {
+    const completed = scenarioName === 'completed batch';
+    const log = createMemoryRunLog();
+    const state = makeState();
+    const projectId = state.manifest.project.id;
+    let drop!: () => void;
+    const dropped = new Promise<void>((resolve) => { drop = resolve; });
+    const port: RunLogPort = {
+      ...log,
+      append: async (id, events, patch) => {
+        const atDrop = events.some((event) => event.t === 'spend' && (completed
+          ? event.spend.chapterCalls === 2 && event.reservedCalls === 1
+          : event.spend.chapterCalls === 2 && event.reservedCalls === 0));
+        if (atDrop) {
+          drop();
+          return new Promise(() => {});
+        }
+        return log.append(id, events, patch);
+      },
+    };
+    const firstGateway = await mockGateway([planner([steps(chapterStep), answer('Unreached.')], []), subagentScript(() => answer('Notes.'))]);
+    const first = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }, state), gateway: firstGateway,
+      decide: async () => ({ action: 'approve' }), runLog: { port, projectId, newRunId: () => 'chapter-run' },
+    });
+    void first.submit(INTENT, { preload: ['agent.delegate'] });
+    await dropped;
+    const events = parseRunEvents(await log.events('chapter-run'));
+    expect(events.ok).toBe(true);
+    if (!events.ok) return;
+    const snapshots = events.events.filter((event) => event.t === 'spend').map((event) => event.spend);
+    expect(snapshots).toContainEqual(expect.objectContaining({ chapterCalls: 8, modelCalls: 9, reservedChapterCalls: 8 }));
+    if (completed) {
+      expect(snapshots.at(-1)).toMatchObject({ chapterCalls: 2, modelCalls: 3 });
+      expect(snapshots.at(-1)?.reservedChapterCalls).toBeUndefined();
+    }
+    await log.update('chapter-run', { status: 'interrupted' });
+
+    const resumed: ChatRequest[] = [];
+    const search = { tool: 'tool.search', params: { query: 'delegate a reader agent' }, expect: 'find the delegate tool' };
+    const secondGateway = await mockGateway([planner([steps(chapterStep), steps(search), steps(chapterStep), answer('Try fewer chapters.')], resumed)]);
+    let approvals = 0;
+    const second = createAgentSession({
+      harness: makeHarness({ ports: createAgentPorts() }, state), gateway: secondGateway,
+      sessionBudget: { maxModelCalls: 13 }, decide: async () => { approvals += 1; return { action: 'approve' }; },
+      ...(scenarioName === 'in-flight batch with an automatic cost limit' ? { mode: 'auto', budget: { maxCostUsd: 100 } } : {}),
+      ...(scenarioName === 'in-flight batch with a run token limit' ? { meter: createBudgetMeter({ maxTokens: 100_000 }) } : {}),
+      runLog: { port: log, projectId },
+    });
+    const report = await second.resume('chapter-run');
+    expect(approvals).toBe(0);
+    if (completed) {
+      expect(report.status).toBe('replied');
+      expect(report.modelCalls).toBe(6);
+      expect(textOf(resumed.at(-1))).toContain('session model-call budget');
+    } else {
+      expect(report.status).toBe('failed');
+      expect(report.modelCalls).toBe(9);
+      expect(report.tokens.requests).toBe(0);
+      expect(resumed).toEqual([]);
+      expect(report.askBack?.reason).toContain('unknown token or cost usage');
+    }
+  });
+});
 
 describe('delegating read-only research', () => {
   it('hands the reading to the reader, answers from its notes, and writes nothing', async () => {
