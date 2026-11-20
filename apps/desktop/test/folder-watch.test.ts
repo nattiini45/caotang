@@ -55,6 +55,15 @@ describe('the changes an open copy can judge', () => {
     expect(changed).toEqual(['docs/n_A.md']);
   });
 
+  it('says nothing for a file it could not read, rather than calling it deleted', async () => {
+    // A read can fail for reasons that say nothing about the file (a locked handle, a folder another program holds). An offer
+    // raised on that guess would ask the writer to reopen a folder that never changed (pawcommit F3).
+    const changed = await externalChanges(copy, ['docs/n_A.md'], async () => {
+      throw new DOMException('The file is held by another program.', 'NotReadableError');
+    });
+    expect(changed).toEqual([]);
+  });
+
   it('reads nothing for a file the project does not own', async () => {
     let reads = 0;
     const changed = await externalChanges(copy, ['exports/Harbour.docx'], async () => {

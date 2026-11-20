@@ -20,6 +20,8 @@ const shell = fileURLToPath(new URL('..', import.meta.url));
 
 /** The detection budget the issue names: from the write in another program to the renderer hearing about it. */
 const BUDGET_MS = 500;
+/** How long the temp-write spec keeps listening after the target arrives, so a later batch is still seen. */
+const SETTLE_MS = 400;
 
 interface Received {
   readonly paths: readonly string[];
@@ -91,7 +93,7 @@ test('the temp file of an artifact write never arrives as a change', async () =>
     await page.getByRole('textbox', { name: 'Project name' }).fill('Lark Notebook');
     await page.getByRole('button', { name: 'Create project', exact: true }).click();
     await expect(page.getByText('Lark Notebook', { exact: true })).toBeVisible();
-    const paths = await page.evaluate(async () => {
+    const paths = await page.evaluate(async (settleMs) => {
       const api = window.caotangDesktop?.folders;
       if (!api) throw new Error('Native folder bridge missing');
       const folders = await api.recentFolders();
@@ -100,19 +102,25 @@ test('the temp file of an artifact write never arrives as a change', async () =>
       const watched = await api.watch(id);
       if (!watched.ok) throw new Error(`The folder could not be watched: ${watched.error}`);
       const seen: string[] = [];
+      // The listener stays open through the burst after the target arrives: a temp path that lands in a later batch is exactly
+      // what this test is about, so stopping at the first batch would prove less than it claims.
       const done = new Promise<void>((resolve) => {
+        let settling = false;
         const stop = api.onChanged((change) => {
           seen.push(...change.paths);
-          if (seen.some((path) => path === 'docs/written-here.md')) {
-            stop();
-            resolve();
+          if (!settling && seen.some((path) => path === 'docs/written-here.md')) {
+            settling = true;
+            setTimeout(() => {
+              stop();
+              resolve();
+            }, settleMs);
           }
         });
       });
       await api.write(id, 'docs/written-here.md', new TextEncoder().encode('Saved by Caotang.'));
       await done;
       return seen;
-    });
+    }, SETTLE_MS);
     expect(paths).toContain('docs/written-here.md');
     expect(paths.filter((path) => path.endsWith('.tmp'))).toEqual([]);
   } finally {
@@ -130,6 +138,17 @@ test('an external edit is offered, and the writer reopening loads the folder’s
     await page.getByRole('textbox', { name: 'Project name' }).fill('Wren Notebook');
     await page.getByRole('button', { name: 'Create project', exact: true }).click();
     await expect(page.getByText('Wren Notebook', { exact: true })).toBeVisible();
+
+    // The app starts its watch without waiting for it, so the test waits for the subscription the main process hands out
+    // before it writes: an edit made before the watcher exists is an edit nothing reports (pawcommit F5).
+    await page.evaluate(async () => {
+      const api = window.caotangDesktop?.folders;
+      if (!api) throw new Error('Native folder bridge missing');
+      const folders = await api.recentFolders();
+      if (!folders.ok || !folders.value[0]) throw new Error('No recent project folder');
+      const watched = await api.watch(folders.value[0].id);
+      if (!watched.ok) throw new Error(`The folder could not be watched: ${watched.error}`);
+    });
 
     const manifest = join(dir, 'caotang.json');
     const onDisk = await readFile(manifest, 'utf8');

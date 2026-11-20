@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { folderArtifactFs } from './fs-access.js';
-import { nativeFolderId, onNativeFolderChange, unwatchNativeFolder, watchNativeFolder } from './native-folders.js';
+import { holdNativeFolderWatch, nativeFolderId, onNativeFolderChange } from './native-folders.js';
 import type { ProjectSession } from './session.js';
 import type { NativeFolderChange } from '../../../desktop-shell/src/folder-contract.cjs';
 
@@ -36,7 +36,6 @@ export function useFolderWatch(session: ProjectSession): FolderWatch {
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let pending: string[] = [];
-    let subscription: string | null = null;
 
     /**
      * Reads the reported paths twice: the second read decides, once any write of this tab's own has reached the folder. The
@@ -46,8 +45,13 @@ export function useFolderWatch(session: ProjectSession): FolderWatch {
       const baseline = session.folderBaseline();
       if (baseline === null) return;
       const { externalChanges } = await import('./folder-watch.js');
+      // A file the folder no longer holds is an answer; a read that fails for any other reason is a question, and the offer
+      // does not answer questions by guessing that the file is gone.
       const read = (target: typeof baseline) => (path: string): Promise<Uint8Array | null> =>
-        folderArtifactFs(target.folder).readBytes(path).catch(() => null);
+        folderArtifactFs(target.folder).readBytes(path).catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === 'NotFoundError') return null;
+          throw error;
+        });
       const first = await externalChanges(baseline, paths.slice(0, MAX_READS), read(baseline));
       if (disposed || first.length === 0) return;
       await new Promise((done) => setTimeout(done, CONFIRM_MS));
@@ -71,21 +75,12 @@ export function useFolderWatch(session: ProjectSession): FolderWatch {
     };
 
     const stopListening = onNativeFolderChange(onChange);
-    void watchNativeFolder(folderId).then(
-      (id) => {
-        if (disposed) {
-          if (id !== null) void unwatchNativeFolder(id);
-          return;
-        }
-        subscription = id;
-      },
-      () => undefined,
-    );
+    const release = holdNativeFolderWatch(folderId);
     return () => {
       disposed = true;
       if (timer !== undefined) clearTimeout(timer);
       stopListening();
-      if (subscription !== null) void unwatchNativeFolder(subscription);
+      release();
     };
   }, [session, folder, folderId]);
 

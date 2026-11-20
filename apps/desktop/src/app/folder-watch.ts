@@ -9,7 +9,7 @@ import { digestOfBytes, MANIFEST_FILE } from '@caotang/store';
 
 import type { FolderBaseline } from './session.js';
 
-/** Reads a folder file as it stands, or `null` when the folder no longer holds it. */
+/** Reads a folder file as it stands, `null` when the folder no longer holds it, and rejects when it could not be read. */
 export type ChangedReader = (path: string) => Promise<Uint8Array | null>;
 
 /**
@@ -31,7 +31,9 @@ export async function externalChanges(
 ): Promise<readonly string[]> {
   const changed: string[] = [];
   for (const path of knownChanges(baseline, paths)) {
-    const bytes = await read(path).catch(() => null);
+    // A read that fails says nothing about the file: a locked or briefly missing handle is not an edit to offer.
+    const bytes = await read(path).catch(() => undefined);
+    if (bytes === undefined) continue;
     if (bytes === null) {
       changed.push(path);
       continue;

@@ -108,14 +108,40 @@ export async function forgetNativeFolder(id: string): Promise<void> {
 }
 
 /** Starts watching an open project folder in the main process; the returned id stops it again (desktop.md §External folder changes). */
-export async function watchNativeFolder(id: string): Promise<string | null> {
-  const api = bridge();
-  return api ? unwrap(await api.watch(id)) : null;
-}
+/** One watcher per folder while anything in this tab holds it, with the subscription the main process handed out. */
+const heldWatches = new Map<string, { count: number; readonly subscription: Promise<string | null> }>();
 
-export async function unwatchNativeFolder(subscription: string): Promise<void> {
-  const api = bridge();
-  if (api) unwrap(await api.unwatch(subscription));
+/**
+ * Holds a watcher on one folder, and returns the function that lets it go. The main process hands the same subscription to
+ * every holder of a folder, so a holder that goes away must not take another's watcher with it: the watcher is stopped only
+ * when the last holder releases it.
+ */
+export function holdNativeFolderWatch(folderId: string): () => void {
+  let held = heldWatches.get(folderId);
+  if (held === undefined) {
+    const api = bridge();
+    held = {
+      count: 0,
+      subscription: api === undefined ? Promise.resolve(null) : api.watch(folderId).then((reply) => (reply.ok ? reply.value : null)),
+    };
+    heldWatches.set(folderId, held);
+  }
+  const mine = held;
+  mine.count += 1;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    mine.count -= 1;
+    if (mine.count > 0) return;
+    heldWatches.delete(folderId);
+    void mine.subscription
+      .then(async (subscription) => {
+        const api = bridge();
+        if (subscription !== null && api !== undefined) unwrap(await api.unwatch(subscription));
+      })
+      .catch(() => undefined);
+  };
 }
 
 /** Listens for the changes the main process reports for a watched folder. The returned function stops listening. */
