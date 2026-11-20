@@ -58,6 +58,24 @@ function edited(change: (manifest: Json) => void): Json {
   return copy;
 }
 
+/**
+ * A server bundle of varied generated code, so it deflates the way the built one does: one line repeated would compress in a
+ * fraction of the time, and the pack's cost is the deflate. The sequence is seeded, so two runs of the test stage the same bytes.
+ */
+function generatedBundle(bytes: number): string {
+  const words = ['compile', 'document', 'binder', 'export', 'scene', 'codex', 'entry', 'project', 'folder', 'selection'];
+  let seed = 12345;
+  const next = (): number => (seed = (seed * 1103515245 + 12345) & 0x7fffffff);
+  const lines: string[] = [];
+  let size = 0;
+  while (size < bytes) {
+    const line = `function ${words[next() % words.length]}${next() % 1_000_000}(value) {\n  return ${next() % 1_000_000_000} + "${words[next() % words.length]}";\n}\n`;
+    lines.push(line);
+    size += line.length;
+  }
+  return lines.join('');
+}
+
 function serverOf(manifest: Json): Json {
   return manifest['server'] as Json;
 }
@@ -442,8 +460,8 @@ describe('staging and packing', () => {
     try {
       const require = createRequire(import.meta.url);
       const serverBundle = join(outDir, 'caotang-mcp.mjs');
-      // The size of the built bundle, and mostly text, so it deflates the way the server's own bundle does.
-      writeFileSync(serverBundle, 'export const caotang = "bundle";\n'.repeat(300_000));
+      // The size of the built bundle, and varied the way it is, so this pack costs what the step's pack costs.
+      writeFileSync(serverBundle, generatedBundle(10 * 1024 * 1024));
       const fonts = [CJK_FONT_FILE, CJK_COMMON_FONT_FILE, CJK_BOLD_FONT_FILE, CJK_BOLD_COMMON_FONT_FILE].map((file) =>
         require.resolve(`@caotang/font-noto-cjk/${file}`),
       );
