@@ -153,10 +153,10 @@ export const BUDGET = {
   // The i18n catalogue sweep (#328): about 400 hardcoded interface strings moved into the catalogue. The compiled English
   // catalogue (locale-en, which must precede first paint, i18n.md §3.3) grew 104.8 to 115.1 kB gzip (+10.3 kB) — more than the
   // sweep's whole first-load delta against the pre-diet main, so the about 590 t/Trans call sites in first-load modules net
-  // slightly negative against the literals they replaced. Re-measured on the merge of main at d1428843 (which carries the
-  // first-load diet, #746's relations, #740's delegation, #769's codex.read ids and #773's provider key events): 1,106.1 kB
-  // gzip. The ceiling is the new measurement plus under 1 kB. [delegated 2026-11-20]
-  initialGzip: 1_107_000,
+  // slightly negative against the literals they replaced. Re-measured on the merge of main at 6e271846 (which carries the
+  // first-load diet, #746's relations, #740's delegation, #769's codex.read ids, #773's provider key events and #752's
+  // folder watch): 1,106,979 bytes. The ceiling is the new measurement plus under 1 kB. [delegated 2026-11-20]
+  initialGzip: 1_107_900,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -233,11 +233,11 @@ export const BUDGET = {
   // handlers avoid a second storage implementation; the details editor stays lazy. Measured 8,745,967 bytes with no new dependency.
   // The i18n catalogue sweep (#328): 8,842,182 bytes measured against 8,786,688 on main (+55,494) — the compiled English catalogue
   // +27.6 kB raw (first load, required before first paint) and the German catalogue +31.8 kB raw (on use), the fixed cost of
-  // cataloguing the about 400 remaining literals; the call sites net negative. Re-measured on the merge of main at d1428843
-  // (which carries #746's relations, #740's agent delegation, #769's codex.read ids and #773's provider key events):
-  // 8,874.4 kB — the +1.0 kB over the earlier measurement is main's own landed work, not the sweep's. The ceiling is the
-  // new measurement rounded up to the thousand. [delegated 2026-11-20]
-  totalJs: 8_875_000,
+  // cataloguing the about 400 remaining literals; the call sites net negative. Re-measured on the merge of main at 6e271846
+  // (which carries #746's relations, #740's agent delegation, #769's codex.read ids, #773's provider key events and #752's
+  // folder watch): 8,879,683 bytes — the +5.3 kB over the earlier measurement is main's own landed work, not the sweep's.
+  // The ceiling is the new measurement rounded up to the thousand. [delegated 2026-11-20]
+  totalJs: 8_880_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
