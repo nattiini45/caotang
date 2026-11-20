@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 import type { DesktopBridge } from './folder-contract.cjs';
+import type { NativeFolderChange } from './folder-contract.cjs';
+import type { IpcRendererEvent } from 'electron';
 
 const bridge: DesktopBridge = {
   version: 2,
@@ -14,6 +16,13 @@ const bridge: DesktopBridge = {
     write: (id, path, bytes) => ipcRenderer.invoke('folders:write', id, path, bytes),
     mkdir: (id, path) => ipcRenderer.invoke('folders:mkdir', id, path),
     remove: (id, path) => ipcRenderer.invoke('folders:remove', id, path),
+    watch: (id) => ipcRenderer.invoke('folders:watch', id),
+    unwatch: (subscription) => ipcRenderer.invoke('folders:unwatch', subscription),
+    onChanged: (listener) => {
+      const notify = (_event: IpcRendererEvent, change: NativeFolderChange): void => listener(change);
+      ipcRenderer.on('folders:changed', notify);
+      return () => { ipcRenderer.off('folders:changed', notify); };
+    },
   },
 };
 contextBridge.exposeInMainWorld('caotangDesktop', bridge);

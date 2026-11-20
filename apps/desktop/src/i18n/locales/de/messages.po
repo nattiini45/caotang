@@ -5298,6 +5298,11 @@ msgstr "Caotang hat keine Aufzeichnung darüber, was dieser Ordner enthielt, als
 msgid "Caotang kept {saved, plural, one {# unsaved change} other {# unsaved changes}} from before the reload and saved {saved, plural, one {it} other {them}}."
 msgstr "Caotang hat {saved, plural, one {# ungespeicherte Änderung} other {# ungespeicherte Änderungen}} von vor dem erneuten Laden behalten und {saved, plural, one {sie} other {sie}} gespeichert."
 
+#. Interpolated values: error
+#: apps/desktop/src/App.tsx
+msgid "Caotang needs an answer to open this folder, so it is not reopened here. Open it from the projects list."
+msgstr "Caotang braucht eine Antwort, um diesen Ordner zu öffnen, deshalb wird er hier nicht erneut geöffnet. Öffne ihn in der Projektliste."
+
 #. Interpolated values: model, name, provider, total
 #: apps/desktop/src/components/ProviderSetup.tsx
 msgid "Caotang recognises the provider from the key. The key is encrypted in this browser and never written into a project."
@@ -8562,7 +8567,9 @@ msgstr "{name} als Bundle exportieren"
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: count, files
 #. Modern interface: Scene info, the inspector as a popover from the title capsule.
+#: apps/desktop/src/components/FolderChangeStatus.tsx
 #: apps/desktop/src/components/shell/modern/scene-info.tsx
 #: apps/desktop/src/components/StaleTabNotice.tsx
 #: apps/desktop/src/components/Workspace.tsx
@@ -10505,6 +10512,11 @@ msgstr "Weiter warten"
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Keep WebP pictures as they are (for Apple Books; other readers may show them blank)"
 msgstr "WebP-Bilder so behalten, wie sie sind (für Apple Books; andere Reader zeigen sie eventuell leer an)"
+
+#. Interpolated values: count, files
+#: apps/desktop/src/components/FolderChangeStatus.tsx
+msgid "Keep writing"
+msgstr "Weiterschreiben"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -15808,6 +15820,11 @@ msgstr "Ordner erneut öffnen"
 msgid "Reopen folder of {name}"
 msgstr "Ordner von {name} erneut öffnen"
 
+#. Interpolated values: count, files
+#: apps/desktop/src/components/FolderChangeStatus.tsx
+msgid "Reopen the folder’s version"
+msgstr "Die Fassung aus dem Ordner öffnen"
+
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
 msgid "Replace cover…"
@@ -20503,6 +20520,21 @@ msgstr "Das Projektcover"
 #: apps/desktop/src/app/lifecycle.ts
 msgid "The project folder changed outside Caotang or is in use. Reopen it before saving."
 msgstr "Der Projektordner wurde außerhalb von Caotang geändert oder wird gerade verwendet. Öffne ihn vor dem Speichern erneut."
+
+#. Interpolated values: count, files
+#: apps/desktop/src/components/FolderChangeStatus.tsx
+msgid "The project folder changed outside Caotang: {files} and {count} more. Caotang has not reloaded the folder’s version."
+msgstr "Der Projektordner wurde außerhalb von Caotang geändert: {files} und {count} weitere. Caotang hat die Fassung aus dem Ordner nicht neu geladen."
+
+#. Interpolated values: count, files
+#: apps/desktop/src/components/FolderChangeStatus.tsx
+msgid "The project folder changed outside Caotang: {files}. Caotang has not reloaded the folder’s version."
+msgstr "Der Projektordner wurde außerhalb von Caotang geändert: {files}. Caotang hat die Fassung aus dem Ordner nicht neu geladen."
+
+#. Interpolated values: error
+#: apps/desktop/src/App.tsx
+msgid "The project folder could not be reopened: {error}"
+msgstr "Der Projektordner konnte nicht erneut geöffnet werden: {error}"
 
 #: apps/desktop/src/app/native-folders.ts
 msgid "The project folder is missing or was moved. Choose Open a folder to find it."
