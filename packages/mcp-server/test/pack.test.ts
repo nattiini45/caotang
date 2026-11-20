@@ -179,6 +179,21 @@ describe('the MCPB CLI this package pins', () => {
     expect(installed.version).toBe(declared);
     expect(existsSync(mcpbCliPath(PACKAGE_DIR))).toBe(true);
   });
+
+  it('names a CLI that never answers, instead of waiting for it', () => {
+    // A step that stalls must leave a line behind: the command, how long it waited and whatever the child printed. The
+    // ceiling is the same one a real pack runs under, shortened here so the test need not wait for it.
+    const dir = tempDir('pack-stall');
+    try {
+      const cli = join(dir, 'stall.mjs');
+      writeFileSync(cli, 'setInterval(() => {}, 1000);\n');
+      expect(() => runMcpb(['validate', 'manifest.json'], { cli, timeoutMs: 300 })).toThrow(
+        /mcpb validate manifest\.json did not answer within 0\.3 s after [\d.]+ s/,
+      );
+    } finally {
+      removeDir(dir);
+    }
+  });
 });
 
 describe('staging and packing', () => {
