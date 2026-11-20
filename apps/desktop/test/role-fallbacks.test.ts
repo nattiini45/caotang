@@ -3,8 +3,18 @@
  * a repeated profile never among them, malformed entries dropped, and a record written before fallbacks existed read unchanged.
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ProviderService } from '../src/app/providers.js';
 import { normalizeRoleSettings } from '../src/app/settings.js';
+
+beforeEach(() => {
+  vi.stubGlobal('document', new EventTarget());
+  vi.stubGlobal('window', new EventTarget());
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('normalizeRoleSettings — role fallbacks (provider-gateway §6)', () => {
   it('keeps an ordered list of two destinations with their model and level', () => {
@@ -39,5 +49,24 @@ describe('normalizeRoleSettings — role fallbacks (provider-gateway §6)', () =
     expect(normalizeRoleSettings({
       chat: { profileId: 'prv_a', fallbacks: [{ profileId: 'prv_b', fallbacks: [{ profileId: 'prv_c' }] }] },
     })).toEqual({ chat: { profileId: 'prv_a', fallbacks: [{ profileId: 'prv_b' }] } });
+  });
+});
+
+describe('a role that follows chat (provider-gateway §6)', () => {
+  it('takes chat’s profile, model and level but never chat’s fallbacks', async () => {
+    const providers = (await ProviderService.open({ db: null, vault: null })).service;
+    const chatProfile = await providers.addProfile({ name: 'Chat', kind: 'mock', isActive: true, defaultModel: 'mock/echo-1' });
+    const spare = await providers.addProfile({ name: 'Spare', kind: 'mock', defaultModel: 'mock/echo-1' });
+    providers.applyRoleSettings({
+      chat: { profileId: chatProfile.view.id, fallbacks: [{ profileId: spare.view.id }] },
+      drafting: 'follow',
+      background: 'follow',
+    });
+
+    expect(providers.resolveForRole('chat')?.fallbacks?.map((entry) => entry.profile.id)).toEqual([spare.view.id]);
+    // Consent is per role: drafting follows chat's destination and inherits none of its list, so it may not send to Spare.
+    expect(providers.resolveForRole('drafting')).toMatchObject({ profile: { id: chatProfile.view.id } });
+    expect(providers.resolveForRole('drafting')?.fallbacks).toBeUndefined();
+    expect(providers.roleAllows('drafting', spare.view.id)).toBe(false);
   });
 });

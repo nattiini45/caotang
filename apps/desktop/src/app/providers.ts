@@ -146,7 +146,14 @@ function resolveRole(profiles: ProfileStore, roles: RoleSettings | undefined, ro
       };
     }
   }
-  if (role !== 'chat') return resolveRole(profiles, roles, 'chat');
+  if (role !== 'chat') {
+    // A role that follows chat takes chat's profile, model and level — never its fallbacks. Consent is per role: another role's
+    // request must not reach a provider the writer authorised only for chat.
+    const inherited = resolveRole(profiles, roles, 'chat');
+    return inherited === undefined
+      ? undefined
+      : { profile: inherited.profile, model: inherited.model, ...(inherited.thinking === undefined ? {} : { thinking: inherited.thinking }) };
+  }
   const active = profiles.active();
   return active === undefined ? undefined : { profile: active, model: active.defaultModel };
 }
@@ -257,8 +264,9 @@ export class ProviderService {
   }
 
   /**
-   * Whether `profileId` is one a request under `role` may send through: the profile the role resolves to, so a
-   * following role allows what 'chat' — and under 'chat', the active profile — resolves to (provider-gateway §6, P9).
+   * Whether `profileId` is one a request under `role` may send through: the profile the role resolves to, plus the fallbacks that
+   * role itself names. A following role resolves to what 'chat' — and under 'chat', the active profile — resolves to, but not to
+   * the list chat names: consent for a fallback is per role (provider-gateway §6, P9).
    */
   roleAllows(role: TaskRole, profileId: string): boolean {
     const resolved = resolveRole(this.profiles, this.roleState.current, role);
