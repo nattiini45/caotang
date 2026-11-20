@@ -1034,7 +1034,7 @@ function episodeFileName(base: string, what: string, ext: string, episodes: read
     episodes.filter((other) => other.node.title === ep.node.title).length > 1
       ? `${ep.node.title} ${ep.node.id}`
       : ep.node.title;
-  return `${base} (${title}, ${what}).${ext}`;
+  return `${base} (${fileStem(title)}, ${what}).${ext}`;
 }
 
 /**
@@ -1043,13 +1043,21 @@ function episodeFileName(base: string, what: string, ext: string, episodes: read
  * extension — the first use keeps the clean name.
  */
 function distinctFileNames(files: MediaFile[]): MediaFile[] {
-  const seen = new Map<string, number>();
+  const seen = new Set<string>();
+  const nextSuffix = new Map<string, number>();
   return files.map((file) => {
-    const count = (seen.get(file.name) ?? 0) + 1;
-    seen.set(file.name, count);
-    if (count === 1) return file;
-    const stem = file.name.replace(/\.[^.]+$/, '');
-    return { ...file, name: `${stem} (${count})${file.name.slice(stem.length)}` };
+    const key = file.name.toLowerCase();
+    let name = file.name;
+    if (seen.has(key)) {
+      const dot = name.lastIndexOf('.');
+      let n = nextSuffix.get(key) ?? 2;
+      do {
+        name = `${file.name.slice(0, dot)} (${n++})${file.name.slice(dot)}`;
+      } while (seen.has(name.toLowerCase()));
+      nextSuffix.set(key, n);
+    }
+    seen.add(name.toLowerCase());
+    return name === file.name ? file : { ...file, name };
   });
 }
 

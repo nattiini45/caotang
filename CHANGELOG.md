@@ -110,6 +110,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- Prose PDFs print all ten supported Indic scripts in embedded fonts, including in PDF/A-2u. Paragraphs and notes move words that fit on the next line instead of cutting them mid-word (#755, #757).
+- HTML articles and Atom entries include footnotes cited from other notes (#756).
+- Compiling several episodes gives their files safe, distinct names, and the teleprompter width survives saving to a project folder or restoring a bundle (#758, #759).
+
 - The browser-storage warning no longer floats over the page in Modern. It takes a row of its own in every view and at every width, so a field you scroll to — the Codex's **Ausschlussbegriffe**, for one — stays clickable beside it while its backup and dismiss buttons remain in reach (#735).
 
 - Ctrl+Home and Ctrl+End in the scene editor always move the caret, including right after a click at the end of the text. Before, the key could be taken and then dropped, leaving the caret where the click had put it (#665).
@@ -432,6 +436,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Typing Chinese, Japanese or Korean with an input method.** The Enter that confirms a candidate no longer acts on the field: it does not commit a codex name or chip, add a keyword, save a Project panel field, blur an inspector or plan-card field, create a skill, add or save a vocabulary entry, finish an inline rename, commit a queued message's edit, send or complete in the agent's Intent box, or rewrite a screenplay cue. The Enter you press after the candidate is chosen does what it did before (#188).
 - **Plan cards show the model's window warning and the cost of a draft.** A drafted step's prompt is now measured against the window, reply cap and price of the profile and model the turn runs on. Before, the app never passed those to its prompts, so a plan card could not warn that a prompt was longer than the model's window, showed no cost for a draft (only a coherence review's own estimate), and counted the reply at 4,096 tokens whatever the profile's cap. The prompt preview in **Settings › Context** uses the Chat role's model the same way.
 
+
+### Changed
+
+- **The first screen downloads less; panels come with the click that opens them.** The project panel, **Skills**, agent instructions, the vocabulary editor, the Codex rail, the corkboard, the Import… menu's Final Draft and Twee readers and the card picture picker are now fetched the first time they are opened instead of with the page, so a cold start of Classic carries 11.9 kB gzip less. A panel whose code cannot be fetched says so on the status line instead of doing nothing. The first open after an update shows a short **Loading …** line while its code arrives; nothing in the project changes, and no dialog behaves differently.
 
 ### Known limits
 

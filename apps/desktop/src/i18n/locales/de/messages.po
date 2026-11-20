@@ -19201,6 +19201,11 @@ msgstr "Der Agent hat keine Notizen geliefert."
 msgid "The agent has not run yet"
 msgstr "Der Agent wurde noch nicht ausgeführt"
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "the agent instructions"
+msgstr "Die Anleitung"
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The agent is busy with another turn. Let it finish, then fix the finding."
@@ -19497,6 +19502,13 @@ msgstr "Die Auswahl wird in diesem Browser gespeichert. Bis Sie sich entscheiden
 msgid "The chosen folder is no longer empty. Choose another folder."
 msgstr "Der gewählte Ordner ist nicht mehr leer. Wähle einen anderen Ordner."
 
+#. Modern interface: the stage and the page.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/modern-shell.tsx
+msgid "the codex"
+msgstr "Der Kodex"
+
 #. Interpolated values: name
 #. js-lingui-explicit-id
 #: packages/store/src/read.ts
@@ -19562,6 +19574,13 @@ msgstr "Das Gespräch konnte nicht gespeichert werden: {reason}. Lassen Sie dies
 #: apps/desktop/src/app/agent.ts
 msgid "The conversation could not be saved: {reason}. The run log is still available in Activity. Try again before closing this project."
 msgstr "Das Gespräch konnte nicht gespeichert werden: {reason}. Das Laufprotokoll ist weiterhin unter Aktivität verfügbar. Versuchen Sie es erneut, bevor Sie dieses Projekt schließen."
+
+#. Modern interface: the stage and the page.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/modern-shell.tsx
+msgid "the corkboard"
+msgstr "Die Pinnwand"
 
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
@@ -20019,6 +20038,12 @@ msgstr "Der Import-Reader konnte nicht gestartet werden."
 msgid "The import reader failed."
 msgstr "Der Import-Reader ist fehlgeschlagen."
 
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "The import readers could not be loaded. Reload the page and try again."
+msgstr "Die Import-Leser konnten nicht geladen werden. Laden Sie die Seite neu und versuchen Sie es erneut."
+
 #: apps/desktop/src/import-preview/reader-host.ts
 msgid "The import was cancelled."
 msgstr "Der Import wurde abgebrochen."
@@ -20393,6 +20418,11 @@ msgstr "das Bild ist dort nicht mehr platziert"
 msgid "The picture of the shot “{title}”"
 msgstr "Das Bild der Einstellung „{title}“"
 
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "the picture picker"
+msgstr "Die Bildauswahl"
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "The picture's file could not be read"
@@ -20528,6 +20558,11 @@ msgstr "Das Projekt muss in diesem Tab geöffnet bleiben. Geänderter Text, Lese
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "The project no longer has this term, so this filter matches nothing."
 msgstr "Das Projekt hat diesen Begriff nicht mehr, daher liefert dieser Filter keine Treffer."
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "the project panel"
+msgstr "Der Projektbereich"
 
 #: apps/desktop/src/app/run-recovery.ts
 msgid "The project was restored in this tab, but it could not be saved. Keep this tab open and retry the failed save."
@@ -21179,6 +21214,11 @@ msgstr "Der Skill „{folder}“ wurde nicht übernommen: Eine Datei darin hat e
 msgid "The skill could not be read: {reason}"
 msgstr "Der Skill konnte nicht gelesen werden: {reason}"
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "the Skills panel"
+msgstr "Der Skills-Bereich"
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "The spoken lines only, wrapped to a set width with no labels or cues, to read off a teleprompter or a sheet."
@@ -21373,6 +21413,11 @@ msgstr "Der Wert, der für jede Stufe gesendet wird. Lassen Sie eine Stufe leer,
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 msgid "The variable “{from}” has no letters or digits ink can use in a name, so it is imported as “{to}”."
 msgstr "Die Variable „{from}“ enthält keine Buchstaben oder Ziffern, die ink in einem Namen verwenden kann, daher wird sie als „{to}“ importiert."
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "the vocabulary editor"
+msgstr "Der Vokabular-Editor"
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts

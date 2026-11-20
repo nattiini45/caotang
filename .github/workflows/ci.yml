@@ -127,8 +127,12 @@ jobs:
         if: matrix.node == '24'
         run: node tools/check-site-size.mjs
 
+      # A bounded step, because an unbounded one took the whole job's budget when a child stalled: five minutes is over a
+      # hundred times what this pack takes, so a red step here means something is wrong rather than slow. The script itself
+      # bounds its own children and names the one that stalled (pack-mcpb.mjs, third-party-notices.mjs).
       - name: Pack the MCP server bundle (manifest checked by the pinned MCPB CLI)
         if: matrix.node == '24'
+        timeout-minutes: 5
         run: pnpm --filter @caotang/mcp-server run pack
 
       - name: Build the caotang command-line bundle (one file, with its fonts/)

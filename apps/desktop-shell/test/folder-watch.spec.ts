@@ -10,9 +10,10 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { _electron, expect, test } from '@playwright/test';
-import type { ElectronApplication, Page } from '@playwright/test';
+import type { ElectronApplication } from '@playwright/test';
 
 import type {} from '../src/folder-contract.cjs';
+import { dismissDialogs } from './dialogs.js';
 
 const executablePath = createRequire(import.meta.url)('electron') as string;
 const shell = fileURLToPath(new URL('..', import.meta.url));
@@ -35,12 +36,8 @@ async function launch(profile: string): Promise<ElectronApplication> {
   await mkdir(profile, { recursive: true });
   const electron = await _electron.launch({ executablePath, args: [shell, `--user-data-dir=${profile}`], chromiumSandbox: true });
   // A session with words still to write warns before its window unloads, and Playwright's own handling of that dialog races the
-  // window going away. Dismissing from here keeps a teardown from being the thing that fails.
-  const dismiss = (page: Page): void => {
-    page.on('dialog', (dialog) => void dialog.dismiss().catch(() => undefined));
-  };
-  for (const page of electron.windows()) dismiss(page);
-  electron.on('window', dismiss);
+  // window going away. Dismissing from here keeps a teardown from being the thing that fails (dialogs.ts).
+  dismissDialogs(electron);
   return electron;
 }
 

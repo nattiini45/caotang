@@ -64,12 +64,11 @@ import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme
 import type { StartIntent } from '../App.js';
 import { RecurringTasks } from '../app/recurring-tasks.js';
 import { Binder, type CenterMode } from './Binder.js';
-import { CodexPanel } from './CodexPanel.js';
 import { mediaKindOf, mediaPortsFor, mediaViewFor } from '../media/index.js';
 import type { PictureFocusRequest } from '../media/picture-board-model.js';
 import type { SourceRoute } from '../media/element-menu.js';
 
-import { Corkboard } from './Corkboard.js';
+
 import { LazyBoundary, lazyView } from './lazy-view.js';
 import type { TimelineFocusRequest } from '../app/timeline-model.js';
 import { clearTray, pendingRows } from '../app/timeline-tray.js';
@@ -78,14 +77,10 @@ import { BinderFooter } from './BinderFooter.js';
 import { whenAgent } from '../app/agent-registry.js';
 import { openFindingCount, openFindingsOfScene } from '../app/findings-model.js';
 import type { ExportSelection } from './ExportDialog.js';
-import { openDialog } from './dialog-requests.js';
+import { closeDialog, openDialog, useDialogRequest } from './dialog-requests.js';
 import { ModalStackState, useModalValue } from './modal.js';
 import { modalStack } from './modal-stack.js';
 import { currentInterface } from '../app/interface.js';
-import { ProjectPanel } from './ProjectPanel.js';
-import { AgentInstructionsPanel } from './AgentInstructionsPanel.js';
-import { SkillsPanel } from './SkillsPanel.js';
-import { VocabularyEditor } from './VocabularyEditor.js';
 import { ImportPreviewHost } from '../import-preview/ImportPreviewHost.js';
 import { Inspector } from './Inspector.js';
 import { Settings, type SettingsSection } from './LazySettings.js';
@@ -107,6 +102,9 @@ import { railTabId } from './shell/ClassicShell.js';
 import { minimapDots } from './shell/minimap.js';
 import type { AgentActivity, RailTab, ShellRegions } from './shell/regions.js';
 import { Shell } from './shell/Shell.js';
+// The toolbar's project name and the dialogs other chunks draw (.export-field, .project-dialog-row, .project-dialog) are styled from
+// this sheet, so the workspace keeps it in the entry stylesheet even though the panels that used to bring it now load on use.
+import './project-dialogs.css';
 
 /** The timeline is its own chunk: the view and its package are fetched when the writer first opens it. */
 const PictureBoard = lazyView(() => import('../media/PictureBoard.js').then((module) => ({ default: module.PictureBoard })));
@@ -117,6 +115,15 @@ const ExportDialog = lazyView(() => import('./ExportDialog.js').then((module) =>
 const FindingsPanel = lazyView(() => import('./FindingsPanel.js').then((module) => ({ default: module.FindingsPanel })));
 const ActivityPanel = lazyView(() => import('./ActivityPanel.js').then((module) => ({ default: module.ActivityPanel })));
 const TracePanel = lazyView(() => import('./TracePanel.js').then((module) => ({ default: module.TracePanel })));
+// The Codex rail and the corkboard are views the writer switches to; both load with the switch, as the timeline and the pictures do.
+const CodexPanel = lazyView(() => import('./CodexPanel.js').then((module) => ({ default: module.CodexPanel })));
+const Corkboard = lazyView(() => import('./Corkboard.js').then((module) => ({ default: module.Corkboard })));
+// The panels the toolbar opens over the page: each is read when its request opens, so its code and the package behind it stay out of
+// the first load (dialog-requests.ts).
+const ProjectPanel = lazyView(() => import('./ProjectPanel.js').then((module) => ({ default: module.ProjectPanel })));
+const SkillsPanel = lazyView(() => import('./SkillsPanel.js').then((module) => ({ default: module.SkillsPanel })));
+const AgentInstructionsPanel = lazyView(() => import('./AgentInstructionsPanel.js').then((module) => ({ default: module.AgentInstructionsPanel })));
+const VocabularyEditor = lazyView(() => import('./VocabularyEditor.js').then((module) => ({ default: module.VocabularyEditor })));
 
 /**
  * The one title in rename mode, and where it is shown. The binder and the corkboard can both
@@ -166,6 +173,8 @@ export function Workspace({
   const { state, view } = session;
   // The printed-key layout behind the shortcut labels the toolbar shows (keymap.ts; the same subscription as EditorPane).
   const keyboardLayout = useSyncExternalStore(keyboardLayoutStore.subscribe, keyboardLayoutStore.snapshot);
+  // Which dialog the toolbar opened, so only that panel's code is fetched (dialog-requests.ts).
+  const dialog = useDialogRequest();
   const [rail, setRail] = useState<RailTab>('binder');
   const [center, setCenterNow] = useState<CenterMode>('editor');
   /** Where the writer asked to go while proposed timeline changes were waiting, until they have answered the question that asks. */
@@ -1260,10 +1269,26 @@ export function Workspace({
             <ExportDialog session={session} selection={exportSelection} onClose={() => setExporting(false)} />
           </LazyBoundary>
         ) : null}
-        <ProjectPanel session={session} />
-        <SkillsPanel session={session} />
-        <AgentInstructionsPanel session={session} services={services} onAgentIntent={runAgentIntent} />
-        <VocabularyEditor session={session} />
+        {dialog?.kind === 'project' ? (
+          <LazyBoundary label={t`the project panel`} variant="toast" onDismiss={closeDialog}>
+            <ProjectPanel session={session} />
+          </LazyBoundary>
+        ) : null}
+        {dialog?.kind === 'skills' ? (
+          <LazyBoundary label={t`the Skills panel`} variant="toast" onDismiss={closeDialog}>
+            <SkillsPanel session={session} />
+          </LazyBoundary>
+        ) : null}
+        {dialog?.kind === 'agent-instructions' ? (
+          <LazyBoundary label={t`the agent instructions`} variant="toast" onDismiss={closeDialog}>
+            <AgentInstructionsPanel session={session} services={services} onAgentIntent={runAgentIntent} />
+          </LazyBoundary>
+        ) : null}
+        {dialog?.kind === 'vocabulary' ? (
+          <LazyBoundary label={t`the vocabulary editor`} variant="toast" onDismiss={closeDialog}>
+            <VocabularyEditor session={session} />
+          </LazyBoundary>
+        ) : null}
         <ImportPreviewHost session={session} />
 
 

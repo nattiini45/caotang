@@ -1,4 +1,4 @@
-import { statSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 
 import { expect, test, type Page } from '@playwright/test';
 
@@ -11,14 +11,33 @@ import { createProject, waitForSaved } from './support.js';
  */
 
 /** A chapter, one scene with words in it, saved: enough manuscript for every renderer to have something to write. */
-async function manuscriptWithScene(page: Page): Promise<void> {
+async function manuscriptWithScene(page: Page, text = 'The boat came in with the tide. Nobody was on it.'): Promise<void> {
   await page.getByRole('button', { name: 'Create Chapter 1' }).click();
   await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
   await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('The Landing');
   await page.keyboard.press('Enter');
-  await page.getByRole('textbox', { name: 'Document text' }).fill('The boat came in with the tide. Nobody was on it.');
+  await page.getByRole('textbox', { name: 'Document text' }).fill(text);
   await waitForSaved(page);
 }
+
+test('a prose PDF download embeds Bengali and wraps a word that fits on the next line', async ({ page }) => {
+  const first = 'a'.repeat(57);
+  await createProject(page, 'Prose PDF');
+  await manuscriptWithScene(page, `${first} harbor বাংলা`);
+
+  await page.getByRole('button', { name: 'Compile…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Export' });
+  await dialog.getByRole('radio', { name: /^Prose PDF \(\.pdf\)/ }).check();
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    dialog.getByRole('button', { name: 'Compile', exact: true }).click(),
+  ]);
+  const pdf = readFileSync(await download.path(), 'latin1');
+  expect(pdf).toContain(`(${first}) Tj`);
+  expect(pdf).toMatch(/\(harbor ?\) Tj/);
+  expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansBengali-Regular/);
+  expect(/\/ActualText <(FEFF[0-9A-F]+)>/.exec(pdf)?.[1]).toBe('FEFF09AC09BE098209B209BE');
+});
 
 const FORMATS = [
   { label: /^Markdown \(\.md\)/, extension: 'md' },
