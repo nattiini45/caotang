@@ -271,6 +271,7 @@ function codexEntry(c: CodexEntry): string {
   if (c.updatedAt !== undefined) pairs.push(['updatedAt', str(c.updatedAt, 'codex.updatedAt')]);
   if (c.details !== undefined) pairs.push(['details', criterion(c.details, 'codex.details')]);
   if (c.references !== undefined && c.references.length > 0) pairs.push(['references', criterion(c.references, 'codex.references')]);
+  if (c.relations !== undefined && c.relations.length > 0) pairs.push(['relations', criterion(c.relations, 'codex.relations')]);
   return oneLine(pairs);
 }
 
