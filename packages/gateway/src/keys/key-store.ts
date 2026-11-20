@@ -48,9 +48,19 @@ export interface KeyStore {
   remove(profileId: string): Promise<void>;
 }
 
+/**
+ * Told after a profile's sealed payload is written or removed, so a host that keeps a copy of the writer's keys somewhere
+ * else — the account vault of a hosted instance — can follow what changed here. It is a notification, not a transaction:
+ * the key is already stored when it runs, so it must not throw, and its own work cannot undo the save.
+ */
+export interface KeyMirror {
+  changed(profileId: string): void;
+}
+
 export interface KeyStoreOptions {
   subtle?: SubtleCrypto;
   randomBytes?: (n: number) => Uint8Array<ArrayBuffer>;
+  mirror?: KeyMirror;
 }
 
 const IV_BYTES = 12;
@@ -101,6 +111,7 @@ function decodePayload(plain: string): { payload: KeyPayload; legacy: boolean } 
 export function createKeyStore(port: KeyVaultPort, options: KeyStoreOptions = {}): KeyStore {
   const subtle = options.subtle ?? globalThis.crypto.subtle;
   const randomBytes = options.randomBytes ?? defaultRandomBytes;
+  const mirror = options.mirror;
 
   // Resolved at most once per store, so two concurrent first saves in one tab share one key.
   // Across tabs the vault arbitrates: a candidate is generated, and `putWrappingKeyIfAbsent`
@@ -130,6 +141,7 @@ export function createKeyStore(port: KeyVaultPort, options: KeyStoreOptions = {}
       encodePayload(payload),
     );
     await port.putEntry(profileId, { iv, ciphertext: new Uint8Array(sealed) });
+    mirror?.changed(profileId);
   };
 
   const open = async (profileId: string): Promise<KeyPayload | undefined> => {
@@ -186,6 +198,7 @@ export function createKeyStore(port: KeyVaultPort, options: KeyStoreOptions = {}
 
     async remove(profileId) {
       await port.deleteEntry(profileId);
+      mirror?.changed(profileId);
     },
   };
 }
