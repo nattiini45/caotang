@@ -125,7 +125,7 @@ describe('the loader', () => {
 
   it('warms the shipped non-source catalogues without activating one', async () => {
     activateEnglish();
-    await expect(preloadCatalogues()).resolves.toBeUndefined();
+    await expect(preloadCatalogues()).resolves.toEqual(['de']);
     expect(activeTag()).toBe('en');
     await expect(loadMessages('de')).resolves.toBeTypeOf('object');
   });

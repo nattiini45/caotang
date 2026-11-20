@@ -147,17 +147,23 @@ export function withEnglishFallback(messages: Messages): Messages {
 }
 
 /**
- * Warms every non-English, non-pseudo catalogue the build ships, without activating one. The browser's
- * module map is shared with the switch's own dynamic import, so a catalogue loaded here resolves for
- * the later switch from cache instead of the network. A warm that fails is ignored: the switch's
- * `loadMessages` retries through `loadGerman`'s fresh-URL path and owns the notice. Pseudo catalogues
- * are never warmed — they exist only for dev/test and are picked deliberately.
+ * Warms every non-English, non-pseudo catalogue the build ships, without activating one, and resolves
+ * to the ids it loaded. The browser's module map is shared with the switch's own dynamic import, so a
+ * catalogue loaded here resolves for the later switch from cache instead of the network. A warm that
+ * fails is ignored — its id is absent — and the switch's `loadMessages` retries through `loadGerman`'s
+ * fresh-URL path and owns the notice. Pseudo catalogues are never warmed — they exist only for
+ * dev/test and are picked deliberately.
  */
-export function preloadCatalogues(): Promise<void> {
+export function preloadCatalogues(): Promise<string[]> {
   const loads = INTERFACE_CATALOGUES.filter((catalogue) => catalogue.id !== SOURCE_LOCALE_TAG && !catalogue.pseudo).map(
-    (catalogue) => loadCatalogue(catalogue.id),
+    async (catalogue) => {
+      await loadCatalogue(catalogue.id);
+      return catalogue.id;
+    },
   );
-  return Promise.allSettled(loads).then(() => undefined);
+  return Promise.allSettled(loads).then((results) =>
+    results.filter((result): result is PromiseFulfilledResult<string> => result.status === 'fulfilled').map((result) => result.value),
+  );
 }
 
 /**
