@@ -164,3 +164,43 @@ test('an external edit is offered, and the writer reopening loads the folder’s
     await electron.close();
   }
 });
+
+test('a watch released after a later one arrived leaves the later watch running', async () => {
+  const dir = test.info().outputPath('Shared folder');
+  await mkdir(dir, { recursive: true });
+  const electron = await launch(test.info().outputPath('profile'));
+  try {
+    await choose(electron, dir);
+    const page = await electron.firstWindow();
+    await page.getByRole('textbox', { name: 'Project name' }).fill('Kestrel Notebook');
+    await page.getByRole('button', { name: 'Create project', exact: true }).click();
+    await expect(page.getByText('Kestrel Notebook', { exact: true })).toBeVisible();
+
+    // A reload is two holds in a row: the first is released after the second has already asked for its own subscription. Both get
+    // their own id, so the release of the first takes nothing with it (pawcommit F1).
+    const ids = await page.evaluate(async () => {
+      const api = window.caotangDesktop?.folders;
+      if (!api) throw new Error('Native folder bridge missing');
+      const folders = await api.recentFolders();
+      if (!folders.ok || !folders.value[0]) throw new Error('No recent project folder');
+      const first = await api.watch(folders.value[0].id);
+      const second = await api.watch(folders.value[0].id);
+      if (!first.ok || !second.ok) throw new Error('The folder could not be watched');
+      const watching = new Promise<string>((resolve) => {
+        api.onChanged((change) => resolve(change.paths.join(',')));
+      });
+      await api.unwatch(first.value);
+      window.folderChange = new Promise<Received>((resolve) => {
+        void watching.then((paths) => resolve({ paths: paths.split(','), at: Date.now() }));
+      });
+      return [first.value, second.value];
+    });
+    expect(ids[0]).not.toBe(ids[1]);
+
+    await writeFile(join(dir, 'docs', 'still-watched.md'), 'Written after the release.');
+    const received = await page.evaluate(() => window.folderChange);
+    expect(received?.paths).toContain('docs/still-watched.md');
+  } finally {
+    await electron.close();
+  }
+});

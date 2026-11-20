@@ -112,12 +112,23 @@ export async function registerFolderIpc(profile: string, entryUrl: string): Prom
     return '[]';
   });
   for (const record of grantsIn(registryBytes)) recent.set(record.id, record);
-  const watches = new Map<string, { readonly grant: Grant; readonly subscription: AsyncSubscription; readonly contents: WebContents }>();
-  /** Ends a watch and stops the watcher behind it. A window that goes away takes its watch with it. */
+  /**
+   * The watchers behind the open folders, one per folder and window, and the ids handed out for each of them. A watch belongs to
+   * the caller that asked for it: a reload or a second holder gets its own id, so a late release takes only its own id with it.
+   */
+  const watches = new Map<string, { readonly subscription: AsyncSubscription; readonly holders: Set<string> }>();
+  const holders = new Map<string, string>();
+  const watchKey = (grant: Grant, contents: WebContents): string => `${grant.id}\u0000${contents.id}`;
+  /** Ends one holder's watch, and stops the watcher when it was the folder and window's last one. */
   const dropWatch = async (subscriptionId: string): Promise<void> => {
-    const record = watches.get(subscriptionId);
+    const key = holders.get(subscriptionId);
+    if (key === undefined) return;
+    holders.delete(subscriptionId);
+    const record = watches.get(key);
     if (record === undefined) return;
-    watches.delete(subscriptionId);
+    record.holders.delete(subscriptionId);
+    if (record.holders.size > 0) return;
+    watches.delete(key);
     await record.subscription.unsubscribe().catch(() => undefined);
   };
   let writes = Promise.resolve();
@@ -205,25 +216,33 @@ export async function registerFolderIpc(profile: string, entryUrl: string): Prom
     await fs.remove(target);
     return null;
   }));
-  // One watcher per folder and window: a reload asks again, and the watch it already has answers with the same subscription.
+  // One watcher per folder and window, and an id per watch call on it: a holder that goes away after a successor arrives releases
+  // only its own id, and the successor's watch goes on until it releases too.
   handle('watch', async (event, id) => {
     const grant = granted(id);
     await checkRoot(grant, false);
     const contents = event.sender;
-    for (const [subscriptionId, record] of watches) {
-      if (record.grant.id === grant.id && record.contents === contents) return subscriptionId;
+    const key = watchKey(grant, contents);
+    let record = watches.get(key);
+    if (record === undefined) {
+      const subscription = await subscribe(grant.root, (_error, events) => {
+        const paths = changedPaths(grant.root, events);
+        if (paths.length === 0) return;
+        const change: NativeFolderChange = { folderId: grant.id, paths };
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed()) window.webContents.send('folders:changed', change);
+        }
+      }, { ignore: UNWATCHED });
+      record = { subscription, holders: new Set() };
+      watches.set(key, record);
     }
-    const subscription = await subscribe(grant.root, (_error, events) => {
-      const paths = changedPaths(grant.root, events);
-      if (paths.length === 0) return;
-      const change: NativeFolderChange = { folderId: grant.id, paths };
-      for (const window of BrowserWindow.getAllWindows()) {
-        if (!window.isDestroyed()) window.webContents.send('folders:changed', change);
-      }
-    }, { ignore: UNWATCHED });
+    const created = record;
     const subscriptionId = randomUUID();
-    watches.set(subscriptionId, { grant, subscription, contents });
-    contents.once('destroyed', () => void dropWatch(subscriptionId));
+    created.holders.add(subscriptionId);
+    holders.set(subscriptionId, key);
+    contents.once('destroyed', () => {
+      for (const held of [...created.holders]) void dropWatch(held);
+    });
     return subscriptionId;
   });
   handle('unwatch', (_event, subscription) => {

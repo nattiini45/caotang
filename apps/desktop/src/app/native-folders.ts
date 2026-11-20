@@ -107,37 +107,22 @@ export async function forgetNativeFolder(id: string): Promise<void> {
   if (api) unwrap(await api.forgetFolder(id));
 }
 
-/** One watcher per folder while anything in this tab holds it, with the subscription the main process handed out. */
-const heldWatches = new Map<string, { count: number; readonly subscription: Promise<string | null> }>();
-
 /**
- * Holds a watcher on one folder, and returns the function that lets it go. The main process hands the same subscription to
- * every holder of a folder, so a holder that goes away must not take another's watcher with it: the watcher is stopped only
- * when the last holder releases it.
+ * Holds a watcher on one folder, and returns the function that lets it go. Every hold gets its own subscription from the main
+ * process, so a hold that goes away late takes only its own with it and never the watcher a successor is relying on.
  */
 export function holdNativeFolderWatch(folderId: string): () => void {
-  let held = heldWatches.get(folderId);
-  if (held === undefined) {
-    const api = bridge();
-    held = {
-      count: 0,
-      subscription: api === undefined ? Promise.resolve(null) : api.watch(folderId).then((reply) => (reply.ok ? reply.value : null)),
-    };
-    heldWatches.set(folderId, held);
-  }
-  const mine = held;
-  mine.count += 1;
+  const api = bridge();
+  if (api === undefined) return () => undefined;
+  const subscription = api.watch(folderId).then((reply) => (reply.ok ? reply.value : null));
   let released = false;
   return () => {
     if (released) return;
     released = true;
-    mine.count -= 1;
-    if (mine.count > 0) return;
-    heldWatches.delete(folderId);
-    void mine.subscription
-      .then(async (subscription) => {
-        const api = bridge();
-        if (subscription !== null && api !== undefined) unwrap(await api.unwatch(subscription));
+    void subscription
+      .then(async (id) => {
+        const live = bridge();
+        if (id !== null && live !== undefined) unwrap(await live.unwatch(id));
       })
       .catch(() => undefined);
   };
