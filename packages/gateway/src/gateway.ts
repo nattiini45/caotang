@@ -23,7 +23,6 @@ import type { KeyStore } from './keys/key-store.js';
 import { UsageLedger } from './ledger.js';
 import { createMockProvider, type MockProvider } from './mock/mock-provider.js';
 import { collectOnce } from './once.js';
-import { redactDeep } from './redact.js';
 import { RequestLog, type RequestLogEntry, type RequestOutcome } from './request-log.js';
 import { DEFAULT_RETRY, DEFAULT_TIMEOUTS, type RetryPolicy, type TransportTimeouts } from './retry.js';
 import {
@@ -385,102 +384,6 @@ export function createGateway(options: GatewayOptions): Gateway {
     };
   };
 
-  /**
-   * The observer's view of one call (`GatewayOptions.observe`). Every event is scrubbed with the secrets known when it is told,
-   * and a throwing observer is swallowed, so nothing here can change what the caller gets. `request` is told once the key
-   * is revealed, so a call refused before that still reports a request, with nothing to scrub.
-   */
-  function startTrace(observe: (event: GatewayTraceEvent) => void, req: ChatRequest, profile: ProfileView, model: string) {
-    calls += 1;
-    const id = calls;
-    let secrets: readonly string[] = [];
-    let requested = false;
-    let first = false;
-    let responded = false;
-    let content = '';
-    let reasoningText = '';
-    let failure: { kind: string; message: string } | undefined;
-    const tell = (event: GatewayTraceEvent): void => {
-      try {
-        observe(redactDeep(event, secrets));
-      } catch {
-        // display only: the call is the writer's, the trace is not
-      }
-    };
-    const request = (revealed: readonly string[]): void => {
-      if (requested) return;
-      requested = true;
-      secrets = revealed;
-      const { expectedRoute: _approval, ...display } = req;
-      tell({ type: 'request', id, req: display, profileId: profile.id, ...(profile.preset === undefined ? {} : { preset: profile.preset }), model, at: clock.now() });
-    };
-    const respond = (stats: StreamStats, terminal: ChatChunk | undefined, signal: AbortSignal | undefined): void => {
-      if (responded) return;
-      responded = true;
-      request([]);
-      const finishReason: FinishReason = terminal?.finishReason ?? 'error';
-      const abandoned = signal?.aborted === true && signal.reason === ITERATOR_ABANDONED;
-      const cancelled = signal?.aborted === true && !abandoned;
-      if (profile.kind === 'mock') {
-        const outcome: RequestOutcome = finishReason !== 'error' ? 'ok' : cancelled ? 'cancelled' : 'failed';
-        tell({ type: 'attempt', id, attempt: 0, outcome, at: clock.now() });
-      }
-      if (failure === undefined && finishReason === 'error') {
-        failure =
-          cancelled
-            ? { kind: 'cancelled', message: 'The call was stopped.' }
-            : abandoned || terminal === undefined
-              ? { kind: 'abandoned', message: 'The caller stopped reading before the reply finished.' }
-              : { kind: 'error', message: 'The reply ended with an error.' };
-      }
-      tell({
-        type: 'response',
-        id,
-        finishReason,
-        content,
-        reasoningText,
-        ...(terminal?.reasoning === undefined ? {} : { reasoning: terminal.reasoning }),
-        ...(terminal?.toolCalls === undefined ? {} : { toolCalls: terminal.toolCalls }),
-        usage: terminal?.usage ?? stats.usage ?? ZERO,
-        usageSource: stats.usageSource ?? 'estimate',
-        attempts: stats.attempts,
-        ...(failure === undefined ? {} : { error: failure }),
-        at: clock.now(),
-      });
-    };
-    return {
-      request,
-      attempt: (entry: RequestLogEntry): void =>
-        tell({
-          type: 'attempt',
-          id,
-          attempt: entry.attempt,
-          outcome: entry.outcome,
-          ...(entry.status === undefined ? {} : { status: entry.status }),
-          ...(entry.errorKind === undefined ? {} : { errorKind: entry.errorKind }),
-          ...(entry.note === undefined ? {} : { note: entry.note }),
-          at: entry.at,
-        }),
-      chunk: (chunk: ChatChunk, stats: StreamStats, signal: AbortSignal | undefined): void => {
-        const text = (chunk.delta ?? '') + (chunk.reasoningDelta ?? '');
-        if (!first && text !== '') {
-          first = true;
-          tell({ type: 'first-token', id, at: clock.now() });
-        }
-        content += chunk.delta ?? '';
-        reasoningText += chunk.reasoningDelta ?? '';
-        if (chunk.finishReason !== undefined) respond(stats, chunk, signal);
-      },
-      fail: (error: unknown): void => {
-        failure = {
-          kind: error instanceof ProviderError ? error.kind : error instanceof Error ? error.name : 'error',
-          message: error instanceof Error ? error.message : String(error),
-        };
-      },
-      end: (stats: StreamStats, signal: AbortSignal | undefined): void => respond(stats, undefined, signal),
-    };
-  }
-
   function complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncIterableIterator<ChatChunk> {
     const controller = new AbortController();
     const combined = signal === undefined ? controller.signal : AbortSignal.any([signal, controller.signal]);
@@ -552,10 +455,25 @@ export function createGateway(options: GatewayOptions): Gateway {
       const startedAt = clock.now();
       const price = callPrice(profile.id, model, sent.thinking, sent);
       const stats: StreamStats = { attempts: 0, usage: undefined };
-      const trace = observer === undefined || sent.privatePayload === true ? undefined : startTrace(observer, sent, profile, model);
+      const observe = observer;
+      const traceReady = observe === undefined || sent.privatePayload === true
+        ? undefined
+        : import('./trace.js').then(
+          ({ startTrace }) => startTrace(observe, sent, profile, model, ++calls, clock, ITERATOR_ABANDONED),
+          () => undefined,
+        );
+      let trace: Awaited<typeof traceReady>;
 
       try {
         if (profile.kind === 'mock') {
+          if (traceReady !== undefined) {
+            trace = await traceReady;
+            if (signal?.aborted) {
+              yield { finishReason: 'error', usage: ZERO };
+              return;
+            }
+            assertRoleAllows(req.role, routed);
+          }
           sendGuard?.();
           stats.attempts = 1;
           trace?.request([]);
@@ -581,11 +499,13 @@ export function createGateway(options: GatewayOptions): Gateway {
             : resolved.ctx.caps.jsonObject === true);
         assertEgress(deps, `${profile.baseUrl}${resolved.adapter.completePath(model)}`, profile.id);
         const revealed = await secretsFor(profile, expected?.credentialRevision);
+        if (traceReady !== undefined) trace = await traceReady;
         trace?.request(revealed.redact);
         if (signal?.aborted) {
           yield { finishReason: 'error', usage: ZERO };
           return;
         }
+        if (traceReady !== undefined) assertRoleAllows(req.role, routed);
         let limited = false;
         let finished: ChatChunk['finishReason'];
         const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal, onRateLimit: (delayMs: number) => { limited = true; limiter.rateLimited(profile.id, delayMs); }, ...(checkCredentials === undefined ? {} : { beforeAttempt: checkCredentials }), ...(sendGuard === undefined ? {} : { beforeSend: sendGuard }) };
@@ -596,6 +516,7 @@ export function createGateway(options: GatewayOptions): Gateway {
         }
         if (!limited && finished !== undefined && finished !== 'error') limiter.succeeded(profile.id);
       } catch (error) {
+        if (trace === undefined && traceReady !== undefined) trace = await traceReady;
         trace?.fail(error);
         throw error;
       } finally {
