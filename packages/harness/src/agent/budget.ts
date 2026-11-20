@@ -28,6 +28,8 @@ export interface RunLimits extends Partial<Pick<TurnBudget, 'maxModelCalls' | 'm
 /** A superset of `BudgetUse` for the dimensions a meter owns. */
 export interface BudgetSpend {
   readonly modelCalls: number;
+  readonly chapterCalls?: number;
+  readonly reservedChapterCalls?: number;
   readonly promptTokens: number;
   readonly completionTokens: number;
   /** Tokens counted from the local estimate because the provider reported no usage for that call. */

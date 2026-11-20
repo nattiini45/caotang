@@ -1,5 +1,7 @@
 # Caotang
 
+Ask the agent to review Manuscript chapters separately. It asks before starting parallel helpers, and any changes they propose still have to go through the parent agent’s plan.
+
 Choose **Goal** in the Agent panel to set deterministic checks and shared run limits, then **Start the goal**. Choose the whole manuscript, changed documents or a named binder document/folder; choosing a named scope or picking a binder item also sets the write scope. Repairing a requested check scope keeps the write scope you already chose. Its saved progress shows check results, distances and spend. Findings can prefill a goal with **Fix all in scope until clean**, without starting it. Interrupted goals wait for **Resume the goal** or **Discard the goal record**; they never restart automatically. Start and Resume need Web Locks to prevent concurrent runs in two tabs; ordinary projects remain usable without it. Recovery explains unrecorded model usage and conservatively consumes the affected limits. Stop remains available during setup, and ordinary approval rules still apply.
 
 **Independent review** is optional in goal setup. Give the Background provider a criterion for bounded changed passages, without sharing the actor's conversation or reasoning. Its verdict is advisory unless you explicitly choose **Require this review to pass**. Each review shares the goal's existing limits; its result and coverage notes appear separately from deterministic distances. A possibly sent request is never silently repeated after a crash.
