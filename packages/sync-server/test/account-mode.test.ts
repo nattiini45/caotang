@@ -215,9 +215,14 @@ describe('the sealed provider-key vault', () => {
       method: 'PUT', headers: headers({ 'Content-Type': 'application/json', ...extra }), body: JSON.stringify({ vault }),
     });
 
-    expect((await h.dispatch('/v1/account/vault', { headers: headers() })).status).toBe(404);
+    const empty = await h.dispatch('/v1/account/vault', { headers: headers() });
+    expect(empty.status).toBe(404);
+    expect(await empty.json()).toEqual({ version: 1 });
     const first = base64(new Uint8Array(1 + 12 + 40 + 16).fill(2));
-    const created = await put(first, { 'If-None-Match': '*' });
+    expect((await put(first, { 'If-None-Match': '*' })).status).toBe(400);
+    expect((await put(first, { 'If-None-Match': '*', 'X-Caotang-Vault-Version': '2' })).status).toBe(412);
+    expect(await h.db!.prepare('SELECT count(*) AS count FROM account_vaults').first('count')).toBe(0);
+    const created = await put(first, { 'If-None-Match': '*', 'X-Caotang-Vault-Version': '1' });
     expect(created.status).toBe(201);
     expect(created.headers.get('ETag')).toBe('"1"');
     expect(await created.json()).toEqual({ version: 1 });
@@ -229,6 +234,8 @@ describe('the sealed provider-key vault', () => {
     expect(await loaded.json()).toEqual({ version: 1, vault: first });
 
     expect((await put(first, { 'If-Match': '"7"' })).status).toBe(412);
+    expect((await put(first, { 'If-Match': '"2147483646"' })).status).toBe(412);
+    expect(await h.db!.prepare('SELECT version FROM account_vault_versions').first('version')).toBe(1);
     const second = base64(new Uint8Array(1 + 12 + 48 + 16).fill(3));
     const replaced = await put(second, { 'If-Match': '"1"' });
     expect(replaced.status).toBe(200);
@@ -251,13 +258,13 @@ describe('the sealed provider-key vault', () => {
     const headers = (extra: Record<string, string> = {}) => ({ Cookie: session!, Origin: ORIGIN, 'X-Caotang-Account': account.id, ...extra });
     const oversized = base64(new Uint8Array(64 * 1024 + 1));
     const refused = await h.dispatch('/v1/account/vault', {
-      method: 'PUT', headers: headers({ 'Content-Type': 'application/json', 'If-None-Match': '*' }), body: JSON.stringify({ vault: oversized }),
+      method: 'PUT', headers: headers({ 'Content-Type': 'application/json', 'If-None-Match': '*', 'X-Caotang-Vault-Version': '1' }), body: JSON.stringify({ vault: oversized }),
     });
     expect(refused.status).toBe(400);
     expect(await h.db!.prepare('SELECT count(*) AS count FROM account_vaults').first('count')).toBe(0);
 
     const vault = base64(new Uint8Array(80).fill(4));
-    expect((await h.dispatch('/v1/account/vault', { method: 'PUT', headers: headers({ 'Content-Type': 'application/json', 'If-None-Match': '*' }), body: JSON.stringify({ vault }) })).status).toBe(201);
+    expect((await h.dispatch('/v1/account/vault', { method: 'PUT', headers: headers({ 'Content-Type': 'application/json', 'If-None-Match': '*', 'X-Caotang-Vault-Version': '1' }), body: JSON.stringify({ vault }) })).status).toBe(201);
     expect((await h.dispatch('/v1/account/vault', { method: 'DELETE', headers: headers() })).status).toBe(400);
     expect((await h.dispatch('/v1/account/vault', { method: 'DELETE', headers: headers({ 'If-Match': '"9"' }) })).status).toBe(412);
     expect((await h.dispatch('/v1/account/vault', { method: 'DELETE', headers: headers({ 'If-Match': '"1"' }) })).status).toBe(204);
@@ -278,16 +285,19 @@ describe('the sealed provider-key vault', () => {
 
     const first = base64(new Uint8Array(80).fill(5));
     const second = base64(new Uint8Array(80).fill(6));
-    expect((await put(first, { 'If-None-Match': '*' })).status).toBe(201);
+    expect((await put(first, { 'If-None-Match': '*', 'X-Caotang-Vault-Version': '1' })).status).toBe(201);
     const replaced = await put(second, { 'If-Match': '"1"' });
     expect(replaced.status).toBe(200);
     expect(replaced.headers.get('ETag')).toBe('"2"');
 
     expect((await h.dispatch('/v1/account/vault', { method: 'DELETE', headers: headers({ 'If-Match': '"2"' }) })).status).toBe(204);
-    expect((await h.dispatch('/v1/account/vault', { headers: headers() })).status).toBe(404);
+    const empty = await h.dispatch('/v1/account/vault', { headers: headers() });
+    expect(empty.status).toBe(404);
+    expect(await empty.json()).toEqual({ version: 3 });
 
     const third = base64(new Uint8Array(80).fill(7));
-    const recreated = await put(third, { 'If-None-Match': '*' });
+    expect((await put(third, { 'If-None-Match': '*', 'X-Caotang-Vault-Version': '1' })).status).toBe(412);
+    const recreated = await put(third, { 'If-None-Match': '*', 'X-Caotang-Vault-Version': '3' });
     expect(recreated.status).toBe(201);
     expect(recreated.headers.get('ETag')).toBe('"3"');
     expect(await recreated.json()).toEqual({ version: 3 });
@@ -314,7 +324,7 @@ describe('the sealed provider-key vault', () => {
     await applyMigrations(h.db!, ['0006_account_vault_versions.sql']);
 
     expect((await h.dispatch('/v1/account/vault', { method: 'DELETE', headers: headers({ 'If-Match': '"1"' }) })).status).toBe(204);
-    const recreated = await put(base64(new Uint8Array(80).fill(9)), { 'If-None-Match': '*' });
+    const recreated = await put(base64(new Uint8Array(80).fill(9)), { 'If-None-Match': '*', 'X-Caotang-Vault-Version': '2' });
     expect(recreated.status).toBe(201);
     expect(recreated.headers.get('ETag')).toBe('"2"');
     expect((await put(first, { 'If-Match': '"1"' })).status).toBe(412);
