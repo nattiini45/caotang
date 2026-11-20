@@ -40,6 +40,10 @@
 # Details that are load-bearing rather than tidy:
 #   - permissions stay `contents: read`: the workflow needs no write token, so a pull request from a fork cannot use it to
 #     change the repository. First-time contributors' runs wait for a maintainer's approval (a repository setting).
+#   - `merge_group` is here for the merge queue on `main`: the queue runs the required `verify` on the merge group's own
+#     head, and a workflow without that trigger never reports there, so the group would sit until the queue's check
+#     timeout. No job reads pull-request context, and `github.ref` is the group's own ref, so the concurrency group
+#     still cancels only the same group.
 #   - CI uses the exact pnpm release and integrity in the packageManager field. The Node 22 leg tests the 22 floor, 22.19.0 since Lingui 6
 #     (#322); Node 22.12.0's bundled Corepack 0.29.4 could not verify pnpm 12.9.1's current signing key, and an updated Corepack
 #     left an incomplete cache on the hosted runner, so that leg still installs the pinned pnpm tarball only after checking its SHA-512 against packageManager; Node 24 uses Corepack.
@@ -50,6 +54,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
 
 permissions:
   contents: read

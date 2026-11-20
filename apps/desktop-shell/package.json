@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "@caotang/artifact-fs-node": "workspace:*",
-    "@caotang/store": "workspace:*"
+    "@caotang/store": "workspace:*",
+    "@parcel/watcher": "2.6.0"
   },
   "devDependencies": {
     "electron": "45.4.1"

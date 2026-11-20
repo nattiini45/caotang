@@ -60,6 +60,7 @@ import { APP_KEYS, type AppDb } from './app-db.js';
 import { normalizeSettings, type RoleSettings } from './settings.js';
 import { TabTrace } from './trace-store.js';
 import { SaveChannel } from './save-channel.js';
+import type { StudioHost } from './studio-host.js';
 import { probeFailureOf, type ProbeFailure } from './provider-probe.js';
 import { SetupError, type SetupDiscovery, type SetupInput } from './provider-setup.js';
 
@@ -160,6 +161,8 @@ function resolveRole(profiles: ProfileStore, roles: RoleSettings | undefined, ro
 
 export interface ProviderOpenOptions {
   readonly db: AppDb | null;
+  /** The host of this app, when something other than the folder app is running it ({@link StudioHost}). */
+  readonly host?: StudioHost;
   /** The browser's `indexedDB` for the vault, or `null` for an in-memory vault (no keys survive a reload then). */
   readonly vault: IDBFactory | null;
   readonly fetch?: FetchLike;
@@ -281,7 +284,22 @@ export class ProviderService {
   static async open(options: ProviderOpenOptions): Promise<{ service: ProviderService; notices: string[] }> {
     const notices: string[] = [];
     const vault = options.vault === null ? createMemoryVaultPort() : createIndexedDbVaultPort({ factory: options.vault });
-    const keys = createKeyStore(vault);
+    // Reading a key back and re-sealing it — what opening a stored profile does — is not a change the host needs to hear
+    // about again, so the mirror stays quiet until the studio is open.
+    let installing = true;
+    const host = options.host;
+    const keys = createKeyStore(vault, host?.keyChanged === undefined ? {} : {
+      // Only a provider key: an MCP bearer token is sealed in the same store under an `mcp:` reference, and it is
+      // not the host's to keep.
+      mirror: { changed: (profileId) => { if (!installing && PROFILE_ID_PATTERN.test(profileId)) host.keyChanged?.(profileId); } },
+    });
+    if (host?.restore !== undefined) {
+      try {
+        for (const restored of await host.restore()) await keys.putPayload(restored.profileId, restored.payload);
+      } catch {
+        // A host that cannot supply its keys leaves those profiles without one, and the restore below names each of them.
+      }
+    }
 
     // The ids of new profiles are random. A restored profile's id is handed back through this one slot.
     let pinned: Uint8Array<ArrayBuffer> | null = null;
@@ -351,6 +369,7 @@ export class ProviderService {
         roleState.current = undefined;
       }
     }
+    installing = false;
     if (profiles.list().length === 0) {
       await profiles.create({ name: DEMO_PROFILE_NAME, kind: 'mock', isActive: true });
       await service.persist();

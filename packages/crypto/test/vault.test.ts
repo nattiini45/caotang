@@ -9,10 +9,15 @@ import { FORMAT_TAG } from '../src/aead.js';
 import {
   CryptoError,
   SecretKey,
+  importVaultKey,
   openVault,
   openVaultEntry,
+  openVaultEntryWith,
+  openVaultWith,
   sealVault,
   sealVaultEntry,
+  sealVaultEntryWith,
+  sealVaultWith,
   sealedVaultLength,
   VAULT_FORMAT_TAG,
 } from '../src/index.js';
@@ -103,5 +108,31 @@ describe('the vault as the server holds it', () => {
     const plain = new Uint8Array(700);
     const sealed = await sealVault(master(), vaultContext, plain);
     expect(sealed.length).toBe(sealedVaultLength(plain.length));
+  });
+
+  it('seals and opens the same vault through the imported key, which the holder cannot export', async () => {
+    const key = await importVaultKey(master());
+    const plain = new Uint8Array([1, 2, 3, 4]);
+    const sealed = await sealVaultWith(key, vaultContext, plain);
+    expect(Array.from(await openVaultWith(key, vaultContext, sealed))).toEqual([1, 2, 3, 4]);
+    expect(Array.from(await openVault(master(), vaultContext, sealed))).toEqual([1, 2, 3, 4]);
+
+    const entry = await sealVaultEntryWith(key, entryContext, plain);
+    expect(Array.from(await openVaultEntryWith(key, entryContext, entry))).toEqual([1, 2, 3, 4]);
+
+    expect(key.extractable).toBe(false);
+    await expect(crypto.subtle.exportKey('raw', key)).rejects.toThrow();
+  });
+
+  it('binds the imported key the same way, to the account, the version, the profile and the origin', async () => {
+    const key = await importVaultKey(master());
+    const other = await importVaultKey(new SecretKey('master', new Uint8Array(32).fill(6)));
+    const sealed = await sealVaultWith(key, vaultContext, new Uint8Array(4));
+    expect(await rejected(openVaultWith(other, vaultContext, sealed))).toBe('unauthentic');
+    expect(await rejected(openVaultWith(key, { ...vaultContext, version: vaultContext.version + 1 }, sealed))).toBe('unauthentic');
+    expect(await rejected(openVaultWith(key, { ...vaultContext, accountId: 'another-account' }, sealed))).toBe('unauthentic');
+
+    const entry = await sealVaultEntryWith(key, entryContext, new Uint8Array(4));
+    expect(await rejected(openVaultEntryWith(key, { ...entryContext, origin: 'https://other.test' }, entry))).toBe('unauthentic');
   });
 });

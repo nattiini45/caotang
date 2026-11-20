@@ -230,6 +230,7 @@ Existing actionable local-server CORS/permission guidance is retained separately
 
 - Browser: keys in IndexedDB **outside** the project DB, encrypted at rest with AES-GCM via **non-extractable WebCrypto key**. Plaintext never enters `localStorage` and never syncs. **Threat model:** this protects against *casual* theft (dumped IndexedDB blobs, shared machines) — **not** against XSS in the app origin or a compromised device (origin JS can *use* the key while the app is open). No stronger primitive exists for a no-backend web app; the honest assumption is recorded here, and the desktop app on the roadmap upgrades to OS keychains. The MCP bearer-token vault (extensibility.md §3.6) reuses this exact store.
 - The sealed payload is versioned: `{v: 2, apiKey, headers?}` carries a generic profile's sealed custom headers with the key; entries sealed before v2 (a bare key string) decode as `{apiKey}` unchanged.
+- A host that keeps the writer's keys somewhere else can be told what changed: `createKeyStore` takes an optional `mirror`, whose `changed(profileId)` runs after a payload is sealed or removed and never before. It is a notification rather than a transaction — the local save has already committed — so a mirror must not throw and cannot fail a save. Nothing in the store finds a mirror by itself; a host that passes none behaves exactly as before.
 - Never written to any file in the project artifact (project-format.md §2 forbids secrets there).
 - Mock/dev: `MOCK` profile type needs no key.
 

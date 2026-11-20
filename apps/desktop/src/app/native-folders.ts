@@ -1,6 +1,6 @@
 import { t } from '@lingui/core/macro';
 
-import type { FolderReply, NativeFolder, NativeFolderBridge } from '../../../desktop-shell/src/folder-contract.cjs';
+import type { FolderReply, NativeFolder, NativeFolderBridge, NativeFolderChange } from '../../../desktop-shell/src/folder-contract.cjs';
 
 import type { DirectoryHandleLike, FileHandleLike, HandleLike } from './fs-access.js';
 
@@ -105,4 +105,31 @@ export async function rememberNativeFolder(id: string): Promise<void> {
 export async function forgetNativeFolder(id: string): Promise<void> {
   const api = bridge();
   if (api) unwrap(await api.forgetFolder(id));
+}
+
+/**
+ * Holds a watcher on one folder, and returns the function that lets it go. Every hold gets its own subscription from the main
+ * process, so a hold that goes away late takes only its own with it and never the watcher a successor is relying on.
+ */
+export function holdNativeFolderWatch(folderId: string): () => void {
+  const api = bridge();
+  if (api === undefined) return () => undefined;
+  const subscription = api.watch(folderId).then((reply) => (reply.ok ? reply.value : null));
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    void subscription
+      .then(async (id) => {
+        const live = bridge();
+        if (id !== null && live !== undefined) unwrap(await live.unwatch(id));
+      })
+      .catch(() => undefined);
+  };
+}
+
+/** Listens for the changes the main process reports for a watched folder. The returned function stops listening. */
+export function onNativeFolderChange(listener: (change: NativeFolderChange) => void): () => void {
+  const api = bridge();
+  return api ? api.onChanged(listener) : () => undefined;
 }
