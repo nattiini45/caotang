@@ -54,6 +54,7 @@ export interface CodexFrontMatter {
   visualRefs?: string[];
   details?: Record<string, unknown>;
   references?: unknown[];
+  relations?: unknown[];
   /**
    * codex.md §10 K4: the entry's provenance. The writer always passes it; a file
    * written before K4 has no key, and the reader reads that absence as `'manual'`
@@ -99,6 +100,7 @@ const KEY_ORDER = [
   'sources',
   'details',
   'references',
+  'relations',
 ] as const;
 
 /**
@@ -195,6 +197,16 @@ export function parseCodexFile(raw: string): ParsedCodexFile {
     }
     if (references === undefined) coercions.push('front matter references must be a JSON list; references were not recovered');
   }
+  let relations: unknown[] | undefined;
+  if (fields.has('relations')) {
+    try {
+      const parsed: unknown = JSON.parse(scalar('relations') ?? 'null');
+      if (Array.isArray(parsed) && jsonValueProblem(parsed, 'relations') === undefined) relations = parsed;
+    } catch {
+      relations = undefined;
+    }
+    if (relations === undefined) coercions.push('front matter relations must be a JSON list; entry relations were not recovered');
+  }
 
   return {
     frontMatter: {
@@ -211,6 +223,7 @@ export function parseCodexFile(raw: string): ParsedCodexFile {
       ...(fields.has('visualRefs') ? { visualRefs: list('visualRefs') } : {}),
       ...(details === undefined ? {} : { details }),
       ...(references === undefined ? {} : { references }),
+      ...(relations === undefined ? {} : { relations }),
       origin,
       sources,
     },
@@ -303,6 +316,7 @@ export function formatCodexFrontMatter(fm: CodexFrontMatter): string {
   if (fm.visualRefs !== undefined && fm.visualRefs.length > 0) values.visualRefs = emitFlowSequence(fm.visualRefs);
   if (fm.details !== undefined) values.details = JSON.stringify(JSON.stringify(fm.details));
   if (fm.references !== undefined && fm.references.length > 0) values.references = JSON.stringify(JSON.stringify(fm.references));
+  if (fm.relations !== undefined && fm.relations.length > 0) values.relations = JSON.stringify(JSON.stringify(fm.relations));
   const lines = KEY_ORDER.flatMap((key) => {
     const value = values[key];
     return value === undefined ? [] : [`${key}: ${value}`];

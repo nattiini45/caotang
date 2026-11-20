@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   MANIFEST_FILE,
-  MAX_RUNTIME_DB_VERSION,
   RUNTIME_DB_VERSION,
   MemoryArtifactFs,
   MemoryIndexedDb,
@@ -162,11 +161,28 @@ describe('the codex artifact format boundary', () => {
     await writeProjectState(store, createProjectState(manifest));
     manifest.codex = [{ ...entry, references: [reference] }];
     await commitProject(store, { projectId: manifest.project.id, manifest });
-    expect(store.db.version).toBe(MAX_RUNTIME_DB_VERSION);
+    expect(store.db.version).toBe(RUNTIME_DB_VERSION + 2);
     await expect(openUnprotectedVersion(factory, store.name)).rejects.toMatchObject({ name: 'VersionError' });
     expect((await readProjectState(store, manifest.project.id)).manifest).toMatchObject({
       formatVersion: 3,
       codex: [{ references: [reference] }],
+    });
+    store.close();
+  });
+
+  it('commits entry relations at the browser version that refuses a references build', async () => {
+    const factory = new MemoryIndexedDb();
+    const store = await openRuntimeStore(factory);
+    const manifest = createEmptyManifest('The Lantern', NOW);
+    await writeProjectState(store, createProjectState(manifest));
+    const relation = { id: 'rel_7K3M2Q8XZC', targetId: 'c_0000000002', label: 'ally' };
+    manifest.codex = [{ ...entry, relations: [relation] }];
+    await commitProject(store, { projectId: manifest.project.id, manifest });
+    expect(store.db.version).toBe(RUNTIME_DB_VERSION + 3);
+    await expect(openUnprotectedVersion(factory, store.name)).rejects.toMatchObject({ name: 'VersionError' });
+    expect((await readProjectState(store, manifest.project.id)).manifest).toMatchObject({
+      formatVersion: 4,
+      codex: [{ relations: [relation] }],
     });
     store.close();
   });
