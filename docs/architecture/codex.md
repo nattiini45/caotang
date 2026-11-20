@@ -74,13 +74,26 @@ The entry editor adds, edits and removes references. A confirmed `codex.write` c
 
 An entry with at least one reference needs format v3, so a build that shipped typed details only refuses the folder, bundle or browser store rather than dropping the references on save. A project with no references stays at v2 or v1.
 
+### 2.3 Relations
+
+An entry can have an optional ordered `relations` list of links to other entries: a stable `rel_` id, the `targetId` of another entry in the same project, and an optional label of up to 60 characters. An entry holds at most 40 relations. A relation lives on the entry that states it, so the list is one-directional as stored: a link from Fenn to Mara is not a link from Mara to Fenn until Mara's own entry states one.
+
+The entry inspector's **Relations** section lists the links the entry makes and, below them, the entries that link to it. The outgoing list is the stored one, so what the writer edits is exactly what the manifest holds; the incoming list is derived from every entry on open and is read-only, because removing a link means opening the entry that holds it. Either list opens the other entry. A relation whose target no longer exists stays stored and is shown as a missing entry that opens nothing, so a load never quietly rewrites the writer's links.
+
+A confirmed `codex.write` can edit relations with `relationEdits`, using create, update and remove operations. A create names the target entry; an update and a removal name the relation id; an update patches the label and uses null to clear it. A batch is validated before execution and refuses a target that is not an entry in the project, a link an entry makes to itself, a relation id the entry does not hold, and an entry past the cap — each refusal naming the op. Unknown keys and unrecognized records are kept on load and save, so editing one known relation cannot silently discard other data.
+
+An entry with at least one relation needs format v4, so a build that shipped external references only refuses the folder, bundle or browser store rather than dropping the links on save. A project with no relations stays at v3 or lower. Relations are not included in automatic model context, and mention matching does not follow them: a link is a writer's note about the story, never an implicit reference between entries.
+
+**The graph.** The codex panel's toolbar switches between the list and a project-wide graph: every entry a node on one circle, every stored relation an arrow from the entry that states it, so the picture is derived from the manifest and nothing else. It is a read-only view; a link is added, changed or removed in the entry that holds it. The drawing is decoration for a sighted reader and carries `aria-hidden`, and the list beside it is the surface keyboard and screen-reader users work: each linked entry, the links it makes as buttons that open the other end, and the names that link back. An entry with no link in either direction is counted rather than listed, so a large codex stays readable. The graph loads on demand, like the entry sections, and never enters the first load.
+
 ## 3. Storage & write path
 
-- **Manifest is structural truth:** `caotang.json` holds a top-level `codex[]` array (full `CodexEntry` objects, same fixed key order discipline as `tree`). Basic codex entries are supported in format v1; see §2.1 and §2.2 for the typed-details and references boundaries.
+- **Manifest is structural truth:** `caotang.json` holds a top-level `codex[]` array (full `CodexEntry` objects, same fixed key order discipline as `tree`). Basic codex entries are supported in format v1; see §2.1, §2.2 and §2.3 for the typed-details, references and relations boundaries.
 - **Per-entry redundancy file:** `codex/<id>.md` — YAML front matter `{id, name, type, includePolicy, caseSensitive, aliases, exclude, attachments, keywords}` + body = `description` Markdown. Written on every entry save via the same atomic write path as documents (temp → rename; project-format §4). This is the doc front-matter pattern applied to codex: **each entry is individually meaningful and survives manifest corruption** — the direct countermeasure to the failure mode where single-asset corruption makes a whole project unreadable.
 - **Conflict rule:** manifest wins over redundancy files; missing file → rewritten from manifest; file with no manifest entry → recovered like orphan `docs/*.md` (project-format §2 validation step 4): imported as a codex entry under `codex/`-file metadata, reported in the load notice.
 - **Typed-detail recovery:** `details` is also stored in each codex Markdown file as a JSON object in a quoted front-matter scalar. Entry values survive an orphan import or a rebuild from files. Shared project-level field definitions live in the manifest and its backups; a rebuild without those backups retains the values even when it cannot reconstruct the definitions.
 - **Reference recovery:** A nonempty `references` array is also stored as JSON in a quoted front-matter scalar. It survives an orphan import or file-based rebuild and is never folded into `sources`.
+- **Relation recovery:** A nonempty `relations` array is stored the same way, as JSON in a quoted front-matter scalar, so the links survive an orphan import or a file-based rebuild. A target that no longer exists in the project is kept: the next open shows it as a missing entry.
 - **Recovery (project-format §5 extended):** the rebuild-from-front-matter pass also scans `codex/*.md`; rebuilt entries land with their stored policy/aliases; descriptions survive; attachment ids that no longer resolve are dropped per the dangling rule.
 - **No codex secrets rule** (project-format §2): descriptions are prose, but the no-secrets discipline applies — provider keys/URLs never belong in codex text; loader does not scan for them (documented, not enforced).
 - **Series-scope design constraint:** writing tools with a multi-book story commonly ship a shared/promotable codex; Caotang's is single-project in v0.1, but entry ids and the `codex/<id>.md` redundancy layout must assume **no project-local collision domains** (ids globally unique per install) so a future "promote entry to series scope" needs no migration. Boundary recorded in [codex-panels.md](codex-panels.md) §3.
@@ -164,7 +177,7 @@ The shared import preview ([import-preview.md](import-preview.md) §4, #267) is 
 - **First-run:** empty codex shows the guided seed card: "Let the agent draft entries from your manuscript" → one-click `codex.write` plan (the bootstrap path, minimal form; full bootstrap wizard = v0.2 backlog).
 - The entry editor's **Details** section renders the current type's fields and lets the writer define fields for the current or a custom type.
 - The entry editor's **External references** section manages research citations independently of manuscript provenance.
-- Out of scope v0.1: editor underline highlighting, heatmap, relations editor.
+- The entry editor's **Relations** section lists the links the entry makes and the entries that link to it, and opens either end.
 
 ## 9. Evals hooks
 

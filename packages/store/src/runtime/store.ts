@@ -55,7 +55,7 @@
 
 import { assertNever, defineMachine, type MachineTable } from '@caotang/machine';
 import { agentFileTexts, hasAgentFiles, parseAgentFiles, type AgentFiles } from '../agent-files.js';
-import { CODEX_DETAILS_FORMAT_VERSION, CODEX_REFERENCES_FORMAT_VERSION, requiredManifestVersion, type Manifest } from '../manifest.js';
+import { CODEX_DETAILS_FORMAT_VERSION, CODEX_RELATIONS_FORMAT_VERSION, CODEX_REFERENCES_FORMAT_VERSION, requiredManifestVersion, type Manifest } from '../manifest.js';
 import { createProjectState, rebuildDerived, type DocumentRecord, type ProjectState } from '../state.js';
 import { assertSessionRecord, type SessionRecord } from '../sessions.js';
 
@@ -79,7 +79,8 @@ export const RUNTIME_DB_NAME = 'caotang';
 export const RUNTIME_DB_VERSION = 6;
 const CODEX_DETAILS_RUNTIME_DB_VERSION = 7;
 const CODEX_REFERENCES_RUNTIME_DB_VERSION = 8;
-export const MAX_RUNTIME_DB_VERSION = CODEX_REFERENCES_RUNTIME_DB_VERSION;
+const CODEX_RELATIONS_RUNTIME_DB_VERSION = 9;
+export const MAX_RUNTIME_DB_VERSION = CODEX_RELATIONS_RUNTIME_DB_VERSION;
 
 /** The manifest — structural truth, vocabulary, codex (§2). */
 export const PROJECT_STORE = 'projects';
@@ -695,7 +696,8 @@ function writeProjectTransaction<T>(store: RuntimeStore, manifest: Manifest, bod
   if (connection?.upgrading !== undefined) {
     return connection.upgrading.then(() => writeProjectTransaction(store, manifest, body));
   }
-  const minimum = manifest.formatVersion >= CODEX_REFERENCES_FORMAT_VERSION ? CODEX_REFERENCES_RUNTIME_DB_VERSION
+  const minimum = manifest.formatVersion >= CODEX_RELATIONS_FORMAT_VERSION ? CODEX_RELATIONS_RUNTIME_DB_VERSION
+    : manifest.formatVersion >= CODEX_REFERENCES_FORMAT_VERSION ? CODEX_REFERENCES_RUNTIME_DB_VERSION
     : manifest.formatVersion >= CODEX_DETAILS_FORMAT_VERSION ? CODEX_DETAILS_RUNTIME_DB_VERSION : RUNTIME_DB_VERSION;
   const previousVersion = store.db.version;
   if (minimum === RUNTIME_DB_VERSION || previousVersion >= minimum) {

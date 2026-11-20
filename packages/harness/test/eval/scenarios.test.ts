@@ -44,8 +44,9 @@ const scenarios: Scenario[] = [
       // tracks the core band: 13 rows and tool.search, with export.compile's recipeName parameter and codex.write's
       // `visualRefs`, and the outside-text rule that system prompt v2 adds. Measured at 4903, so the ceiling was 4950 (it
       // was 8000 when every wired tool was listed). Merge: the AV script's captions and chapters formats joined export.compile's
-      // enum, measured at 4954, so the ceiling is 5000.
-      maxTokens: 5000,
+      // enum, measured at 4954, so the ceiling is 5000. Merge: codex.write's relationEdits joined the schema. Its wording
+      // was trimmed to the terse style first (5024 → 5015), so the ceiling is 5025.
+      maxTokens: 5025,
       state: (state) => (state.manifest.tree.find((node) => node.id === FRIEND)?.label === 'act-2' ? [] : ['The Friend is not labelled act-2']),
     },
   },
@@ -124,8 +125,9 @@ const scenarios: Scenario[] = [
       // calls), measured at 10178, so the ceiling was 10200. Merge: the AV script's show and VO formats joined the same
       // enum, measured at 10218, so the ceiling was 10250. Merge: the AV script's captions and chapters formats joined the
       // same enum, measured at 10212, so the ceiling was 10250. Merge: the prose PDF format joined the same enum,
-      // measured at 10252, so the ceiling is 10300.
-      maxTokens: 10300,
+      // measured at 10252, so the ceiling is 10300. Merge: codex.write's relationEdits joined the schema. Its wording was
+      // trimmed first (10370 → 10352), so the ceiling is 10360.
+      maxTokens: 10360,
       maxModelCalls: 3,
       state: (state) => {
         const node = state.manifest.tree.find((candidate) => candidate.id === STORM);
