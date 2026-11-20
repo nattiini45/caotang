@@ -24,7 +24,7 @@ export const HTML_OPTIONS = { pictures: 'pictures' } as const;
 export function htmlErrorText(error: HtmlError): string {
   switch (error.kind) {
     case 'ask-encoding':
-      return t`Its text encoding could not be recognised. Save it as UTF-8 and import it again.`;
+      return t`Unknown encoding. Save it as UTF-8 and import again.`;
     case 'too-large':
       return t`It is larger than an HTML import reads.`;
     case 'too-many-lines':
@@ -32,7 +32,7 @@ export function htmlErrorText(error: HtmlError): string {
     case 'no-html':
       return t`It holds no HTML page.`;
     case 'not-xml':
-      return t`Its markup is not well-formed, so the import cannot read it.`;
+      return t`Its markup is not well-formed XML; it cannot be read.`;
     case 'archive':
       return error.message;
   }
@@ -44,7 +44,7 @@ export function htmlErrorText(error: HtmlError): string {
  */
 export function htmlSizeRefusal(fileName: string, size: number, maxBytes: number): string | undefined {
   if (size <= maxBytes) return undefined;
-  return t`${{ file: fileName }} is too large to import as HTML: the import reads files up to ${{ limit: formatCount(Math.round(maxBytes / (1024 * 1024))) }} MB.`;
+  return t`${{ file: fileName }} is too large to import as HTML (${{ limit: formatCount(Math.round(maxBytes / (1024 * 1024))) }} MB max).`;
 }
 
 /** A saved HTML page or a web-page zip in the preview, read in the Worker. */
@@ -113,15 +113,16 @@ function makeHtmlSource(fileName: string, openReq: ReaderOpen): ImportPreviewSou
       const forms = read.dropped.forms;
       const eventAttrs = read.dropped.eventAttrs;
       const unsafeLinks = read.dropped.unsafeLinks;
-      if (scripts > 0) dropped.push(plural(scripts, { one: '# script was removed', other: '# scripts were removed' }));
-      if (styles > 0) dropped.push(plural(styles, { one: '# stylesheet was not kept; only alignment, bold and page breaks come through', other: '# stylesheets were not kept; only alignment, bold and page breaks come through' }));
-      if (iframes > 0) dropped.push(plural(iframes, { one: '# iframe was removed', other: '# iframes were removed' }));
-      if (forms > 0) dropped.push(plural(forms, { one: '# form control was removed', other: '# form controls were removed' }));
-      if (eventAttrs > 0) dropped.push(plural(eventAttrs, { one: '# event handler was removed', other: '# event handlers were removed' }));
-      if (unsafeLinks > 0) dropped.push(plural(unsafeLinks, { one: '# unsafe link kept its text only', other: '# unsafe links kept their text only' }));
+      // Each line shares its tail across the plural, so the catalogue stores the words once, not once per form.
+      if (scripts > 0) dropped.push(t`${plural(scripts, { one: '# script', other: '# scripts' })} removed.`);
+      if (styles > 0) dropped.push(t`${plural(styles, { one: '# stylesheet', other: '# stylesheets' })} dropped; only alignment, bold and page breaks are kept.`);
+      if (iframes > 0) dropped.push(t`${plural(iframes, { one: '# iframe', other: '# iframes' })} removed.`);
+      if (forms > 0) dropped.push(t`${plural(forms, { one: '# form control', other: '# form controls' })} removed.`);
+      if (eventAttrs > 0) dropped.push(t`${plural(eventAttrs, { one: '# event handler', other: '# event handlers' })} removed.`);
+      if (unsafeLinks > 0) dropped.push(t`${plural(unsafeLinks, { one: '# unsafe link', other: '# unsafe links' })} kept text only.`);
       if (dropped.length > 0) lists.push({ heading: t`HTML safety`, label: t`What the import removed`, lines: dropped });
       const remote = read.remoteImages.length;
-      if (remote > 0) lists.push({ heading: t`Remote pictures`, label: t`What was not downloaded`, lines: [plural(remote, { one: '# picture on the internet was not downloaded', other: '# pictures on the internet were not downloaded' })] });
+      if (remote > 0) lists.push({ heading: t`Remote pictures`, label: t`What was not downloaded`, lines: [t`${plural(remote, { one: '# picture', other: '# pictures' })} on the internet not downloaded.`] });
       return lists;
     },
   });

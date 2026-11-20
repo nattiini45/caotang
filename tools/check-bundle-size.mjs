@@ -129,7 +129,12 @@ export const BUDGET = {
   // messages (+1,254 raw), which must precede first paint (i18n.md §3.3), and the entry's lazy loader for the command (+892 raw). The
   // reader, its preview source and the Worker stay on use. The ceiling is the measurement plus about 1%, rounded up to the thousand.
   // [delegated 2026-11-18]
-  initialGzip: 1_108_000,
+  // The HTML import (#299) on main after the codex details/references (#733, #745, #750): 1,108,006 bytes gzip measured. The codex
+  // catalogue grew the first load past the old ceiling; the HTML report plurals were restructured to share their tails and the
+  // encoding/markup/size messages tightened first (about 25 bytes gzip; gzip already dedups repeated text), and the XHTML walker,
+  // reader, preview source and Worker stay on use. The ceiling is the measurement plus about 1%, rounded up to the thousand.
+  // [owner 2026-11-19]
+  initialGzip: 1_120_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).

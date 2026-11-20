@@ -86,8 +86,8 @@ test('a web-page zip opens with its script removed and remote picture listed, an
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('.import-preview-detected')).toContainText('2 chapters');
   // The report names the removed script and the remote picture that was not downloaded.
-  await expect(dialog.getByRole('list', { name: 'What the import removed' })).toContainText('1 script was removed');
-  await expect(dialog.getByRole('list', { name: 'What was not downloaded' })).toContainText('1 picture on the internet was not downloaded');
+  await expect(dialog.getByRole('list', { name: 'What the import removed' })).toContainText('1 script removed');
+  await expect(dialog.getByRole('list', { name: 'What was not downloaded' })).toContainText('1 picture on the internet not downloaded');
 
   // Cancel writes nothing.
   await dialog.getByRole('button', { name: 'Cancel' }).click();

@@ -35,7 +35,7 @@ The walker turns the page into the import block list (`import-core`) with the si
   whole document**, the head and the inside of dropped elements included, so a page's own `<script>` in its head is reported.
 - **Stylesheets are counted over the whole document**, head included: every `<style>` element and every `<link rel="stylesheet">`.
   The body walk never reaches the head, so counting only what it drops would report nothing for the usual export. The report says the
-  stylesheet was not kept and that only alignment, bold and page breaks come through, since those are the signals `classStyles` reads.
+  stylesheet was dropped and that only alignment, bold and page breaks are kept, since those are the signals `classStyles` reads.
 - Links pass the safe-href rule (http(s), mailto, or a relative target); a `javascript:` or other scheme keeps its text and is counted.
   The destination is written percent-encoded wherever it carries `\`, `(`, `)`, `<`, `>`, a quote, a bracket or whitespace, so an href
   cannot close its own link and have the rest read as new markup the safe-href rule never saw.

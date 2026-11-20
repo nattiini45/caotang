@@ -68,8 +68,8 @@ describe('the HTML preview source (#299)', () => {
   it('names a script in the head and a remote picture in its report', async () => {
     const source = await open('<html><head><script>alert(1)</script></head><body><h1>One</h1><p>The ferry.</p><img src="https://example.com/x.png" alt="x"/></body></html>');
     const lists = source.report();
-    expect(lists.find((list) => list.label === 'What the import removed')?.lines.join(' ')).toContain('1 script was removed');
-    expect(lists.find((list) => list.label === 'What was not downloaded')?.lines.join(' ')).toContain('1 picture on the internet was not downloaded');
+    expect(lists.find((list) => list.label === 'What the import removed')?.lines.join(' ')).toContain('1 script removed');
+    expect(lists.find((list) => list.label === 'What was not downloaded')?.lines.join(' ')).toContain('1 picture on the internet not downloaded');
   });
 
   it('offers only pictures the store will take, and keeps the words of the one it will not', async () => {
