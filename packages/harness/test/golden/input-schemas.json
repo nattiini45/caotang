@@ -1482,12 +1482,20 @@
         "minLength": 1,
         "maxLength": 4000
       },
+      "fanOut": {
+        "type": "string",
+        "enum": [
+          "none",
+          "per-chapter"
+        ],
+        "description": "Run one helper per top-level Manuscript folder, or omit this for one helper."
+      },
       "scope": {
         "type": "array",
-        "description": "Documents the agent starts from: titles or ids, at most 20. Omit it and the agent finds what it needs with its read tools.",
+        "description": "Titles or ids, at most 20. Name documents for one helper or top-level Manuscript folders for per-chapter. Omit to use all eligible chapters in per-chapter mode.",
         "items": {
           "type": "string",
-          "description": "One document: a title, or an id.",
+          "description": "One document or chapter: a title, or an id.",
           "minLength": 1
         },
         "maxItems": 20

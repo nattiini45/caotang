@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Chapter helpers (#47).** Ask the agent to read one chapter at a time across the Manuscript. It shows the number of chapters and maximum model calls before starting, runs helpers in parallel, and keeps finished notes if you stop it. Any proposed changes still go through the agent’s normal plan approval.
+
 - **Codex relations (#223).** Link one codex entry to another, worded the way the story needs it (*ally*, *rival*, *mother of*), and see under **Linked from** which entries link back. Switch the codex between **List** and **Graph** to see the whole project's links at once; the graph is drawn on demand and lists the same links as buttons for the keyboard. A link belongs to the entry that states it, so deleting the other entry leaves it visible as a missing entry instead of removing a note you wrote. Relations stay out of automatic model context. Saving one raises the project to format v4, so a build that predates relations refuses the folder, bundle or browser store instead of dropping them; projects without relations keep their current format.
 - **The agent can find a codex reference or link it already made.** Reading the codex now returns each entry's saved references and links with their ids, so an agent can change or remove one through `codex.write` instead of only adding new ones. These ids stay out of automatic model context, as the references and links themselves do.
 - **Wrapped account keys for the standalone sync server.** A signed-in account can create its wrapped key record once and read it from another device. A second setup cannot overwrite the first, and the passphrase and recovery key stay on the device. The local app is unchanged.
