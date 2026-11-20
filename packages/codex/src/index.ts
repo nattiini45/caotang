@@ -61,9 +61,12 @@ export {
   CODEX_READ_TOKEN_CAP,
   CODEX_READ_WINDOW,
   codexRead,
+  type CodexEntryLinks,
   type CodexMatchField,
   type CodexReadItem,
   type CodexReadQuery,
+  type CodexReadReference,
+  type CodexReadRelation,
   type CodexReadResult,
   type CodexReadSource,
 } from './read.js';
