@@ -1,11 +1,11 @@
 [
   {
     "id": "planner.system.json",
-    "sha256": "87a4333bf4cdf1f26b73a5ce4319cb37d5ec6206e6b20139dd5e302502138b02"
+    "sha256": "8831026c274fdad30def000fb85b460736089719fa118090596f4c0bf667e7dd"
   },
   {
     "id": "planner.system.native",
-    "sha256": "b4d0c5798fc87cab9b9b9285f8378601e9e9191e4edab92834f40fe3357767cc"
+    "sha256": "5a5df6394e79cd8f3c24ba8c0c7b836d7de945eb4a820095e37fc46783940ecf"
   },
   {
     "id": "planner.more-tools-line",
@@ -17,7 +17,7 @@
   },
   {
     "id": "planner.tools.native.all",
-    "sha256": "253f18f80371b54b5c3bea8c28afc73d36dca4f85f3cd2c3860d85cecbba628d"
+    "sha256": "b86cb0488a569a6a86562239bfabc30ffe08906fc2555e1f2265dc03184b39ef"
   },
   {
     "id": "compaction.system",
@@ -162,8 +162,8 @@
   },
   {
     "id": "tool.codex.read",
-    "sha256": "c966a0f51ea841989b10226bd7b9b7b4371c3ba4634eda0899632157c7dbaf9c",
-    "descriptionVersion": 2
+    "sha256": "c6d85f278cf7a1da307cc09c781833bd400d720a5be9907e02cfb84f566a8a59",
+    "descriptionVersion": 4
   },
   {
     "id": "tool.codex.write",
