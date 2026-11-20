@@ -39,7 +39,7 @@ import { altOf, dragKindOf, PICTURE_DRAG_TYPE } from '../media/picture-board-mod
 import { placePicture, removePlacement } from '../media/picture-actions.js';
 import { usePictureImage, usePictureImporter } from '../media/picture-hooks.js';
 import '../media/pictures.css';
-import { CardPictureDialog } from './CardPictureDialog.js';
+import { LazyBoundary, lazyView } from './lazy-view.js';
 import { SynopsisField } from './SynopsisField.js';
 import { ZoomControl } from './ZoomControl.js';
 import { createNode, createdNodeId, explain, moveNode, renameNode, selectNode } from './actions.js';
@@ -75,6 +75,9 @@ interface Hover {
   readonly zone: DropZone;
   readonly refusal: DropRefusal | null;
 }
+
+/** The card's picture picker, read when a card asks for one: the first paint draws cards, never the picker. */
+const CardPictureDialog = lazyView(() => import('./CardPictureDialog.js').then((module) => ({ default: module.CardPictureDialog })));
 
 export function Corkboard(props: CorkboardProps): ReactNode {
   const { session, zoom, onZoom, renaming, onRename, onAskDelete } = props;
@@ -411,31 +414,34 @@ export function Corkboard(props: CorkboardProps): ReactNode {
       {cardMenu !== null ? (
         <Menu label={cardMenu.label} anchor={cardMenu.anchor} items={cardMenu.items} onClose={() => setCardMenu(null)} />
       ) : null}
-      <CardPictureDialog
-        session={session}
-        nodeId={pictureFor}
-        title={cards.find((card) => card.id === pictureFor)?.title ?? ''}
-        currentAssetId={pictureFor === null ? undefined : cardAssetOf(state.manifest.assetLinks ?? [], pictureFor)}
-        busy={importer.busy}
-        onUse={(assetId) => {
-          if (pictureFor !== null && setCardPicture(pictureFor, assetId)) setPictureFor(null);
-        }}
-        onChooseFiles={(files) => {
-          const nodeId = pictureFor;
-          setPictureFor(null);
-          if (nodeId !== null) void importForCard(nodeId, files);
-        }}
-        onTakeOff={() => {
-          if (pictureFor === null) return;
-          const link = linksOf(state.manifest.assetLinks ?? [], { kind: 'node', nodeId: pictureFor }).find((candidate) => candidate.role === 'card');
-          if (link !== undefined && removePlacement(session, report, link.id)) setPictureFor(null);
-        }}
-        onClose={() => {
-          const nodeId = pictureFor;
-          setPictureFor(null);
-          if (nodeId !== null) requestAnimationFrame(() => focusCard(nodeId));
-        }}
-      />
+      {pictureFor !== null ? (
+        <LazyBoundary label={t`the picture picker`} variant="toast" onDismiss={() => setPictureFor(null)}>
+          <CardPictureDialog
+            session={session}
+            nodeId={pictureFor}
+            title={cards.find((card) => card.id === pictureFor)?.title ?? ''}
+            currentAssetId={cardAssetOf(state.manifest.assetLinks ?? [], pictureFor)}
+            busy={importer.busy}
+            onUse={(assetId) => {
+              if (setCardPicture(pictureFor, assetId)) setPictureFor(null);
+            }}
+            onChooseFiles={(files) => {
+              const nodeId = pictureFor;
+              setPictureFor(null);
+              void importForCard(nodeId, files);
+            }}
+            onTakeOff={() => {
+              const link = linksOf(state.manifest.assetLinks ?? [], { kind: 'node', nodeId: pictureFor }).find((candidate) => candidate.role === 'card');
+              if (link !== undefined && removePlacement(session, report, link.id)) setPictureFor(null);
+            }}
+            onClose={() => {
+              const nodeId = pictureFor;
+              setPictureFor(null);
+              requestAnimationFrame(() => focusCard(nodeId));
+            }}
+          />
+        </LazyBoundary>
+      ) : null}
       {importer.dialog}
     </div>
   );
