@@ -232,9 +232,11 @@ export const BUDGET = {
   // handlers avoid a second storage implementation; the details editor stays lazy. Measured 8,745,967 bytes with no new dependency.
   // The i18n catalogue sweep (#328): 8,842,182 bytes measured against 8,786,688 on main (+55,494) — the compiled English catalogue
   // +27.6 kB raw (first load, required before first paint) and the German catalogue +31.8 kB raw (on use), the fixed cost of
-  // cataloguing the about 400 remaining literals; the call sites net negative. The ceiling is the measurement plus under 1 kB.
+  // cataloguing the about 400 remaining literals; the call sites net negative. Re-measured on the rebase onto main at 5c88c936
+  // (which carried #746's relations field, its list and graph and their catalogue): 8,860,115 bytes, the +17,933 over the earlier
+  // measurement being main's own landed work, not the sweep's. The ceiling is the new measurement rounded up to the thousand.
   // [delegated 2026-11-20]
-  totalJs: 8_843_000,
+  totalJs: 8_861_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
