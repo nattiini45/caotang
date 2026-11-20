@@ -127,6 +127,7 @@ import {
   advance,
   canAdvance,
   cardStatusTable,
+  formatUsd,
   MODEL_BACKED_TOOLS as MODEL_BACKED,
   planCardOf,
   reviewCostAt,
@@ -139,7 +140,7 @@ import {
   type StatusState,
   type StepCost,
 } from './cards.js';
-import { anySignal, runLimitWords, stepLimitWords, type BudgetMeter, type BudgetSpend, type BudgetStop, type Reservation } from './budget.js';
+import { anySignal, createBudgetMeter, runLimitWords, stepLimitWords, type BudgetMeter, type BudgetSpend, type BudgetStop, type Reservation } from './budget.js';
 import {
   CHECKPOINT_LABEL,
   DEFAULT_MAX_MODEL_CALLS,
@@ -210,7 +211,9 @@ import { requestCapFor, transmittedOutputCap } from './output-cap.js';
 import { estimateModelHookRequest, MODEL_HOOK_OUTPUT_TOKENS, MODEL_HOOK_REPLY_MAX, MODEL_HOOK_REWRITE_PENDING, invokeModelHook, modelHookMessages, sameModelHook, type ModelHook, type ModelHookActor, type ModelHookRewrite } from '../model-hooks.js';
 import { fitToWindow } from './window.js';
 import { appendLanguageLine, contextOverridesOk, createContextPort, dropLinesOf, mergePreviews, type AssembledCall, type ContextPort, type ContextRequest, type LanguagePolicy } from './context.js';
-import { createSubagentRunner, framedResult, resultLine, SUBAGENT_SPECS, type ParentTurnHandle } from './subagent.js';
+import { createSubagentRunner, DELEGATE_NOTICE, framedResult, resultLine, SUBAGENT_SPECS, type ParentTurnHandle } from './subagent.js';
+import { chaptersOf } from './chapters.js';
+import { fanOut } from './fanout.js';
 import {
   BACKGROUND_OFFER_MIN_CALLS,
   backgroundEligibility,
@@ -728,6 +731,8 @@ interface Turn {
   readonly wireReplies: WireReply[];
   /** The delegated agents this turn has started, so each has a path of its own (`turn-3/reader#1`). */
   delegations: number;
+  chapterCalls: number;
+  restoredChapterSpend?: BudgetSpend;
   /** The planner replies the provider ended with `length` this turn, parsed or not, at the cap or short of it: the report's `cutReplies`. */
   cutReplies: number;
   /** What the turn's calls got from the provider's prompt cache, and the planner calls that missed it (cache-watch.ts). */
@@ -855,7 +860,7 @@ function callIdFor(kind: 'plan' | 'confirm', prefix: string, index: number): str
 
 /** Whether a refusal is a scope over the document guard, which the writer approves on a one-step card (coherence.md §7 tool 15). */
 function needsWriterApproval(error: CommandError): boolean {
-  return error.details?.[LARGE_SCOPE_APPROVAL_KEY] === LARGE_SCOPE_APPROVAL;
+  return error.details?.[LARGE_SCOPE_APPROVAL_KEY] === LARGE_SCOPE_APPROVAL || typeof error.details?.['chapterApproval'] === 'string';
 }
 
 function messageOf(error: unknown): string {
@@ -1218,7 +1223,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   /** The first limit a use has reached (`reached`) or passed, the turn's before the session's. */
   const hitOf = (turn: Turn, use: BudgetUse, reached: boolean): BudgetHit | undefined =>
-    budgetHit(use, turn.budget, reached) ?? budgetHit(addUse(sessionUse, use), sessionLimits(), reached, 'session');
+    budgetHit(use, turn.budget, reached) ?? budgetHit(addUse(sessionUse, { ...use, modelCalls: use.modelCalls + turn.chapterCalls }), sessionLimits(), reached, 'session');
 
   /** Notes the words in every document and where the activity log stands, so what the turn changes from here is measured. */
   const takeBase = (turn: Turn): void => {
@@ -1248,11 +1253,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const usageOf = (turn: Turn): BudgetUse => {
     const totals = gateway.ledger.turnTotals(turn.id);
     const price = options.price?.();
-    const costUsd = price === undefined ? totals.costUsd : costOf(totals, price);
+    const newCost = price === undefined ? totals.costUsd : costOf(totals, price);
+    const restored = turn.restoredChapterSpend;
+    const costUsd = newCost === undefined && restored?.costUsd === undefined ? undefined : (newCost ?? 0) + (restored?.costUsd ?? 0);
     const touched = touchedOf(turn);
     return {
       modelCalls: turn.modelCalls,
-      tokens: totals.promptTokens + totals.completionTokens,
+      tokens: totals.promptTokens + totals.completionTokens + (restored?.promptTokens ?? 0) + (restored?.completionTokens ?? 0),
       ...(costUsd === undefined ? {} : { costUsd }),
       wordsChanged: touched.words,
       documents: touched.ids.size,
@@ -1491,6 +1498,22 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return meter.stepsLeft();
   };
 
+  const guardRecoveredSpend = (turn: Turn): void => {
+    if ((turn.restoredChapterSpend?.reservedChapterCalls ?? 0) === 0) return;
+    const run = turn.meter?.limits;
+    const session = sessionLimits();
+    const runBounded = run?.maxTokens !== undefined || run?.maxCostUsd !== undefined;
+    const automaticBounded = policyOf(turn).decides
+      && (turn.budget.maxTokens !== undefined || turn.budget.maxCostUsd !== undefined || session.maxTokens !== undefined || session.maxCostUsd !== undefined);
+    if (runBounded || automaticBounded) {
+      throw new BudgetExceeded({
+        code: 'budget_exhausted',
+        reason: 'The interrupted chapter batch has unknown token or cost usage. No further model requests were sent.',
+        options: ['Check the earlier batch’s usage before starting a new request', 'Discard the interrupted run'],
+      });
+    }
+  };
+
   /**
    * Reserves a request's worst case from the turn's meter before it is sent (agent-harness §7.1): the prompt's estimate plus the output
    * cap the request goes with, thinking included. A refusal ends the turn on a question, and the request is never sent. A time limit
@@ -1504,7 +1527,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // The request as sent: its own profile, model and level, and its role, which the gateway routes a request with no profile by.
     // A call under another role carries none of the session's pins, so it is reserved on the role's route, never the session's.
     const limits = gateway.modelLimits(target?.profileId ?? request.profileId, target?.model ?? request.model, target?.thinking ?? request.thinking, request);
-    const price = options.price?.() ?? limits.pricePer1k;
+    const basePrice = options.price?.() ?? limits.pricePer1k;
+    const writeMultiplier = request.expectedRoute?.stamp === undefined ? 1 : Math.max(1, limits.cache?.writeMultiplier ?? 1);
+    const price = basePrice === undefined ? undefined : { prompt: basePrice.prompt * writeMultiplier, completion: basePrice.completion };
     return {
       promptTokens: usageFor(request.messages, '').promptTokens,
       maxOutputTokens: transmittedOutputCap(limits, request.maxOutputTokens),
@@ -1521,26 +1546,26 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return new BudgetExceeded({ ...runLimitWords(stop, profileName ?? profile?.name), code: 'budget_exhausted' }, stop);
   };
 
-  const reserveCall = (turn: Turn, request: ChatRequest): Reservation | undefined => {
-    const { meter } = turn;
+  const reserveCall = (turn: Turn, request: ChatRequest, meter = turn.meter): Reservation | undefined => {
+    guardRecoveredSpend(turn);
     if (meter === undefined) return undefined;
     const reserved = meter.reserve(worstCaseOf(request));
     if (reserved.ok) {
-      emit({ type: 'budget', turnId: turn.id, spend: meter.spend(), limits: meter.limits });
+      if (meter === turn.meter) emit({ type: 'budget', turnId: turn.id, spend: meter.spend(), limits: meter.limits });
       return reserved.value;
     }
     throw stopError(turn, request, reserved.error);
   };
 
   /** A stream whose reservation is settled with the usage it ended with, or the estimate when the provider reported none, however it ends. */
-  async function* settling(turn: Turn, reservation: Reservation | undefined, request: ChatRequest, signal?: AbortSignal, hookGuard?: () => void): AsyncGenerator<ChatChunk, void, undefined> {
+  async function* settling(turn: Turn, reservation: Reservation | undefined, request: ChatRequest, signal?: AbortSignal, hookGuard?: () => void, chapter?: { readonly refund: () => void; readonly guard: () => void; readonly meter?: BudgetMeter; readonly reservation?: Reservation }): AsyncGenerator<ChatChunk, void, undefined> {
     let held = reservation;
     let usage: Usage | undefined;
     let delivered = '';
     let sent = false;
     let refused = false;
     const beforeSend = (): void => {
-      try { guardRunLog(turn); guardReadBoundary(turn); hookGuard?.(); } catch (error) { refused = !sent; throw error; }
+      try { guardRunLog(turn); guardReadBoundary(turn); guardRecoveredSpend(turn); chapter?.guard(); hookGuard?.(); } catch (error) { refused = !sent; throw error; }
       turn.sentModelRequest = true;
       sent = true;
     };
@@ -1550,7 +1575,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
      * never spend against only the primary's reservation. A refusal ends the turn here, with no request sent to that profile.
      */
     const admitAttempt = (target: AttemptTarget): void => {
-      if (turn.meter === undefined || held === undefined) return;
+      // A chapter helper's own reservation is not this turn's, and its request is stamped to one profile: the route moves nowhere.
+      if (turn.meter === undefined || held === undefined || (chapter?.reservation !== undefined && chapter.reservation === held)) return;
       const next = turn.meter.renew(held, usage, { promptTokens: held.promptTokens, completionTokens: estimateTokens(delivered) }, worstCaseOf(request, target));
       // The attempt before the move is spend now, and the text it delivered belongs to it: the next one starts its own estimate.
       usage = undefined;
@@ -1570,15 +1596,22 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         yield chunk;
       }
     } finally {
-      if (hookGuard !== undefined && !sent) refused = true;
+      if ((hookGuard !== undefined || chapter !== undefined) && !sent) refused = true;
       if (refused) {
-        turn.modelCalls -= 1;
-        emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
+        if (chapter !== undefined) chapter.refund();
+        else {
+          turn.modelCalls -= 1;
+          emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
+        }
       }
       if (held !== undefined && turn.meter !== undefined) {
         if (refused) turn.meter.release(held);
         else turn.meter.settle(held, usage, { promptTokens: held.promptTokens, completionTokens: estimateTokens(delivered) });
         emit({ type: 'budget', turnId: turn.id, spend: turn.meter.spend(), limits: turn.meter.limits });
+      }
+      if (chapter?.reservation !== undefined) {
+        if (refused) chapter.meter?.release(chapter.reservation);
+        else chapter.meter?.settle(chapter.reservation, usage, { promptTokens: chapter.reservation.promptTokens, completionTokens: estimateTokens(delivered) });
       }
     }
   }
@@ -1751,20 +1784,32 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * reservation and not counted again against the turn's bound. Each request carries the agent path for the ledger, the turn's id so the
    * turn's totals sum its children, and the session's own pins. The agent's text and reasoning never stream to the panel.
    */
-  const agentCall = (turn: Turn, agentPath: string, limit: number): ModelCall => {
+  const agentCall = (turn: Turn, agentPath: string, limit: number, chapter?: { readonly expectedRoute: NonNullable<ChatRequest['expectedRoute']>; readonly guard: () => void; readonly meter?: BudgetMeter }): ModelCall => {
     let used = 0;
     return {
       gateway: {
         complete: (request, signal) => {
-          guardRunLog(turn);
-          if (used >= limit) throw modelCallBound(limit);
-          guardReadBoundary(turn);
-          const asked = { ...request, sessionId: usageSessionId, ...(options.role === undefined ? {} : { role: options.role }) };
-          const reservation = reserveCall(turn, asked);
-          used += 1;
-          turn.calls += 1;
-          const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
-          return settling(turn, reservation, sent, signal);
+          const chapterMeter = chapter?.meter;
+          let chapterReservation: Reservation | undefined;
+          try {
+            guardRunLog(turn);
+            if (used >= limit) throw modelCallBound(limit);
+            guardReadBoundary(turn);
+            chapter?.guard();
+            const asked = { ...request, sessionId: usageSessionId, ...(options.role === undefined ? {} : { role: options.role }), ...(chapter === undefined ? {} : { expectedRoute: chapter.expectedRoute }) };
+            if (chapterMeter !== undefined) chapterReservation = reserveCall(turn, asked, chapterMeter);
+            const reservation = reserveCall(turn, asked);
+            used += 1;
+            turn.calls += 1;
+            const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
+            return settling(turn, reservation, sent, signal, undefined, chapter === undefined ? undefined : {
+              ...chapter, refund: () => { turn.chapterCalls -= 1; }, ...(chapterReservation === undefined ? {} : { reservation: chapterReservation }),
+            });
+          } catch (error) {
+            if (chapterReservation !== undefined) chapterMeter?.release(chapterReservation);
+            if (chapter !== undefined) turn.chapterCalls -= 1;
+            throw error;
+          }
         },
       },
       turnId: turn.id,
@@ -1928,10 +1973,28 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   };
 
   /** What the turn has spent, from its meter when it has one and from the gateway's ledger otherwise. */
-  const spendOf = (turn: Turn): BudgetSpend => {
-    if (turn.meter !== undefined) return loggable(turn.meter.spend());
+  const spendOf = (turn: Turn, pendingChapters = 0): BudgetSpend => {
+    const restored = turn.restoredChapterSpend;
+    const reservedChapterCalls = pendingChapters + (restored?.reservedChapterCalls ?? 0);
+    const chapterSpend = {
+      ...(turn.chapterCalls === 0 ? {} : { chapterCalls: turn.chapterCalls }),
+      ...(reservedChapterCalls === 0 ? {} : { reservedChapterCalls }),
+    };
+    if (turn.meter !== undefined) {
+      const spend = turn.meter.spend();
+      return loggable({ ...spend, ...chapterSpend, modelCalls: Math.max(spend.modelCalls + pendingChapters, turn.chapterCalls) });
+    }
     const totals = gateway.ledger.turnTotals(turn.id);
-    return loggable({ modelCalls: turn.modelCalls, promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, estimatedTokens: 0, steps: spentSteps(turn), activeMs: 0 });
+    const price = options.price?.();
+    const cost = turn.chapterCalls === 0 ? undefined : price === undefined ? totals.costUsd : costOf(totals, price);
+    return loggable({
+      ...chapterSpend,
+      modelCalls: turn.modelCalls + turn.chapterCalls,
+      promptTokens: totals.promptTokens + (restored?.promptTokens ?? 0),
+      completionTokens: totals.completionTokens + (restored?.completionTokens ?? 0),
+      ...(cost === undefined && restored?.costUsd === undefined ? {} : { costUsd: (cost ?? 0) + (restored?.costUsd ?? 0) }),
+      estimatedTokens: 0, steps: spentSteps(turn), activeMs: 0,
+    });
   };
 
   /**
@@ -1943,6 +2006,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const whole = (value: number): number => Math.floor(amount(value));
     return {
       modelCalls: whole(spend.modelCalls),
+      ...(spend.chapterCalls === undefined ? {} : { chapterCalls: whole(spend.chapterCalls) }),
+      ...(spend.reservedChapterCalls === undefined ? {} : { reservedChapterCalls: whole(spend.reservedChapterCalls) }),
       promptTokens: amount(spend.promptTokens),
       completionTokens: amount(spend.completionTokens),
       estimatedTokens: amount(spend.estimatedTokens),
@@ -1979,7 +2044,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * Writes loaded skills, the messages added since the last write, then the spend. `reserved` is the model calls about to be started and not settled:
    * a crash loses them, and a resume counts them as spent so the run's limits stay honest.
    */
-  async function syncRun(turn: Turn, reserved: number, status?: RunStatus): Promise<void> {
+  async function syncRun(turn: Turn, reserved: number, status?: RunStatus, pendingChapters = 0): Promise<void> {
+    if (reserved > 0 || pendingChapters > 0) guardRecoveredSpend(turn);
     const run = turn.run;
     if (run === undefined) return;
     await syncSkills(turn);
@@ -1988,7 +2054,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       turn.logged = turn.messages.length;
       await run.append({ t: 'messages', turnId: turn.id, appended });
     }
-    await run.append({ t: 'spend', turnId: turn.id, spend: spendOf(turn), reservedCalls: reserved }, status === undefined ? undefined : { status });
+    await run.append({ t: 'spend', turnId: turn.id, spend: spendOf(turn, pendingChapters), reservedCalls: reserved }, status === undefined ? undefined : { status });
   }
 
   /** The card the writer is about to be shown (or the mode approved), with its drafts and what they were drafted against. */
@@ -2653,12 +2719,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return { tool: step.tool, ok: false, body: reason };
   }
 
-  /** Shows a delegated agent's view on its call's card, and reports the card. */
-  const showDelegation = (turn: Turn, id: string, delegation: DelegationView): void => {
+  /** Shows delegation notes or progress on the existing call card. */
+  const showDelegation = (turn: Turn, id: string, delegation: DelegationView, progress?: WireProgress): void => {
     const index = turn.statusCards.findIndex((card) => card.id === id);
     const card = turn.statusCards[index];
     if (card === undefined) return;
-    const next: StatusCard = { ...card, delegation };
+    const next: StatusCard = { ...card, delegation, ...(progress === undefined ? {} : { progress }) };
     turn.statusCards[index] = next;
     emit({ type: 'card', turnId: turn.id, card: next });
   };
@@ -2670,12 +2736,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * data that carries no approval. A write it proposes is only remembered here, so the plan card can say who proposed a step; nothing is
    * run or added to a plan.
    */
-  async function runDelegate(turn: Turn, step: PlanStep, id: string): Promise<ToolOutcome> {
+  async function runDelegate(turn: Turn, step: PlanStep, id: string, chapterApproval?: string): Promise<ToolOutcome> {
     const checked = harness.previewPlan({ steps: [toolStep(step)] }, { turnId: turn.id });
     const refused = checked.ok ? checked.value.steps.find((entry) => entry.status === 'refused')?.error : checked.error;
     if (refused !== undefined) return err(refused);
     const params = step.params as unknown as DelegateParams;
     const spec = SUBAGENT_SPECS[params.agent];
+    if (params.fanOut === 'per-chapter') return runChapterDelegate(turn, step, id, params, chapterApproval);
     const scope: string[] = [];
     for (const [at, ref] of (params.scope ?? []).entries()) {
       const node = resolveNode(harness.state, ref, DOCUMENT, 'document', `scope[${at}]`);
@@ -2691,47 +2758,17 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         }),
       );
     }
-    turn.delegations += 1;
-    const agentPath = `${turn.id}/${spec.name}#${turn.delegations}`;
+    const agentPath = `${turn.id}/${spec.name}#${++turn.delegations}`;
     let view: DelegationView = { agent: spec.name, agentPath, reserved: spec.maxModelCalls, outcome: 'running', trace: [] };
     cardFor(turn, id, step.tool, step.params, 'running');
     showDelegation(turn, id, view);
-    const handle: ParentTurnHandle = {
-      turnId: turn.id,
-      agentPath,
-      native: turn.native,
-      ...((step.contextOverrides ?? turn.contextOverrides) === undefined ? {} : { contextOverrides: step.contextOverrides ?? turn.contextOverrides }),
-      ...(turn.languages === undefined ? {} : { languages: turn.languages }),
-      reserve: (calls) => {
-        if (callsLeft(turn) < calls + 1) return false;
-        turn.modelCalls += calls;
-        emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
-        return true;
-      },
-      release: (unused) => {
-        if (unused <= 0) return;
-        turn.modelCalls -= unused;
-        emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
-      },
-      model: () => agentCall(turn, agentPath, spec.maxModelCalls),
-      read: async (call) => {
-        guardReadBoundary(turn);
-        const context = { turnId: turn.id, agentPath, ...signalOf(turn) };
-        return awaited(call.name) ? harness.callAsync(call, context) : harness.call(call, context);
-      },
-      trace: (entry) => {
-        const row: TraceEntry = { ...entry, agentPath };
-        pushRow(turn, row);
-        view = { ...view, trace: [...view.trace, row] };
-        showDelegation(turn, id, view);
-      },
-    };
-    const result = await subagents.run(spec, { agent: spec.name, brief: params.brief, ...(scope.length === 0 ? {} : { scope }) }, handle, turn.signal);
-    turn.dropped.push(...result.dropped);
-    for (const proposed of result.proposedSteps) turn.proposals.push({ agent: spec.name, key: canonicalJson({ tool: proposed.tool, params: proposed.params }) });
+    const result = await runDelegateChild(turn, step, params, scope, agentPath, (row) => {
+      view = { ...view, trace: [...view.trace, row] };
+      showDelegation(turn, id, view);
+    });
+    rememberDelegate(turn, result);
     view = { ...view, outcome: result.status, result: result.summary, proposed: result.proposedSteps.length };
     showDelegation(turn, id, view);
-    // The writer's Stop ends the turn here, after the agent's unused calls were released and its card shows how far it got.
     if (turn.signal?.aborted === true) {
       moveCard(turn, id, 'failed', { error: STOPPED_STEP });
       throw new TurnStopped();
@@ -2739,12 +2776,228 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (result.status === 'failed') {
       return err(refusal('internal', `the ${spec.name} agent failed: ${result.summary} Nothing was changed.`, { target: 'agent.delegate', correctiveHint: 'read the documents yourself with doc.read, or tell the writer what failed' }));
     }
-    const data = framedResult(result);
+    return delegationOutcome(framedResult(result), resultLine(result));
+  }
+
+  function rememberDelegate(turn: Turn, result: Awaited<ReturnType<typeof subagents.run>>): void {
+    turn.dropped.push(...result.dropped);
+    for (const proposed of result.proposedSteps) turn.proposals.push({ agent: result.agent, key: canonicalJson({ tool: proposed.tool, params: proposed.params }) });
+  }
+
+  function delegationOutcome(data: Readonly<Record<string, unknown>>, summary: string): ToolOutcome {
     const cap = harness.tools().find((listing) => listing.name === 'agent.delegate')?.response_token_cap ?? 0;
     if (!fitsCap(data, cap)) {
-      return err(limitExceeded(`the ${spec.name} agent's result is over the ${cap}-token cap, so it was not returned.`, 'delegate a narrower brief or scope, and ask for fewer proposed steps', 'agent.delegate'));
+      return err(limitExceeded(`the delegated result is over the ${cap}-token cap, so it was not returned.`, 'delegate a narrower brief or scope, and ask for fewer proposed steps', 'agent.delegate'));
     }
-    return ok({ data, summary: resultLine(result), affected: [] });
+    return ok({ data, summary, affected: [] });
+  }
+
+  function runDelegateChild(turn: Turn, step: PlanStep, params: DelegateParams, scope: readonly string[], agentPath: string, onTrace: (row: TraceEntry) => void, chapter?: { readonly state: ProjectState; readonly expectedRoute: NonNullable<ChatRequest['expectedRoute']>; readonly guard: () => void; readonly meter?: BudgetMeter }) {
+    const spec = SUBAGENT_SPECS[params.agent];
+    const chapterState = chapter?.state;
+    const overrides = step.contextOverrides ?? turn.contextOverrides;
+    const chapterPins = chapterState === undefined ? undefined : overrides?.include?.filter((ref) =>
+      ref.kind === 'doc' ? scope.includes(ref.id) : chapterState.manifest.codex?.some((entry) => entry.id === ref.id && entry.includePolicy !== 'never') === true);
+    const contextOverrides = chapterState === undefined ? overrides : chapterPins === undefined || chapterPins.length === 0 ? undefined : { include: chapterPins };
+    const handle: ParentTurnHandle = {
+      turnId: turn.id,
+      agentPath,
+      native: turn.native,
+      ...(chapterState === undefined ? {} : { chapterState }),
+      ...(contextOverrides === undefined ? {} : { contextOverrides }),
+      ...(turn.languages === undefined ? {} : { languages: turn.languages }),
+      reserve: (calls) => {
+        if (chapterState !== undefined) return true;
+        if (callsLeft(turn) < calls + 1) return false;
+        turn.modelCalls += calls;
+        emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
+        return true;
+      },
+      release: (unused) => {
+        if (chapterState !== undefined) {
+          turn.chapterCalls -= unused;
+          return;
+        }
+        if (unused <= 0) return;
+        turn.modelCalls -= unused;
+        emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
+      },
+      model: () => agentCall(turn, agentPath, spec.maxModelCalls, chapter),
+      read: async (call) => {
+        guardReadBoundary(turn);
+        const context = { turnId: turn.id, agentPath, ...signalOf(turn) };
+        if (chapterState !== undefined) {
+          const input = isRecord(call.params) ? call.params : {};
+          const ref = input['doc'];
+          const node = typeof ref === 'string' ? resolveNode(chapterState, ref, DOCUMENT, 'document', 'params.doc') : undefined;
+          const chapterId = chapterState.manifest.tree.find((item) => item.type === 'folder' && item.parentId === 'manuscript')?.id;
+          if ((call.name !== 'doc.read' && call.name !== 'notes.read') || node?.ok !== true || chapterId === undefined
+            || !harness.state.manifest.tree.some((item) => item.id === chapterId && item.parentId === 'manuscript')
+            || !descendantsOf(harness.state, chapterId).some((item) => item.id === node.value.id)) {
+            return err(refusal('permission-denied', 'A chapter helper can read only documents still in its chapter.', { target: call.name }));
+          }
+          return harness.call({ ...call, params: { ...input, doc: node.value.id } }, context);
+        }
+        return awaited(call.name) ? harness.callAsync(call, context) : harness.call(call, context);
+      },
+      trace: (entry) => {
+        const row: TraceEntry = { ...entry, agentPath };
+        pushRow(turn, row);
+        onTrace(row);
+      },
+    };
+    return subagents.run(spec, { agent: spec.name, brief: params.brief, ...(scope.length === 0 ? {} : { scope }) }, handle, turn.signal);
+  }
+
+  function chapterScope(scope: readonly string[] | undefined, overrides: ContextOverrides | undefined) {
+    const leaveOut = overrides?.exclude ?? [];
+    const hidden = new Set([...harness.withheldAnywhere(), ...leaveOut.flatMap((ref) => ref.kind === 'doc' ? [ref.id] : [])]);
+    return chaptersOf(harness.state, scope, hidden, new Set(leaveOut.flatMap((ref) => ref.kind === 'codex' ? [ref.id] : [])));
+  }
+
+  const chapterRoute = (turn: Turn) => gateway.resolveRequestRoute({
+    ...(turn.pins.profileId === undefined ? {} : { profileId: turn.pins.profileId }),
+    ...(turn.pins.model === undefined ? {} : { model: turn.pins.model }),
+    ...(turn.pins.thinking === undefined ? {} : { thinking: turn.pins.thinking }),
+    ...(options.role === undefined ? {} : { role: options.role }),
+  });
+
+  function chapterPlan(turn: Turn, step: PlanStep, params: DelegateParams, alreadyReserved = 0) {
+    const overrides = step.contextOverrides ?? turn.contextOverrides;
+    const chapters = chapterScope(params.scope, overrides);
+    if (!chapters.ok) return chapters;
+    const calls = chapters.value.length * SUBAGENT_SPECS[params.agent].maxModelCalls;
+    const meterLeft = (turn.meter?.limits.maxModelCalls ?? Infinity) - (turn.meter?.spend().modelCalls ?? 0);
+    if (calls > 200 - turn.chapterCalls + alreadyReserved || calls + 1 > meterLeft || callsLeft(turn) < 1) {
+      return err(limitExceeded('The chapter batch does not fit the remaining call budget, including one planner call.', 'select fewer top-level Manuscript folders', 'agent.delegate'));
+    }
+    const session = sessionLimits();
+    const sessionLeft = (session.maxModelCalls ?? Infinity) - sessionUse.modelCalls - turn.modelCalls - turn.chapterCalls + alreadyReserved;
+    if (calls + 1 > sessionLeft) {
+      return err(limitExceeded('The chapter batch does not fit the remaining session model-call budget, including one planner call.', 'select fewer top-level Manuscript folders', 'agent.delegate'));
+    }
+    const route = chapterRoute(turn);
+    if (route === undefined) return err(refusal('invalid-params', 'Choose an authorised provider before requesting chapter helpers.', { target: step.tool }));
+    const { expected, limits } = route;
+    const output = transmittedOutputCap(limits);
+    const price = limits.pricePer1k;
+    const window = limits.contextWindow;
+    const cacheWrite = Math.max(1, limits.cache?.writeMultiplier ?? 1);
+    const ceiling = window === undefined || price === undefined ? undefined : calls * (window * price.prompt * cacheWrite + output * price.completion) / 1000;
+    const forecast = ceiling === undefined ? 'A cost ceiling is unavailable for this route.' : `At most ${formatUsd(ceiling)} at this route’s listed price, before any cache discount.`;
+    const priceOverride = canonicalJson(options.price?.() ?? null);
+    return ok({
+      chapters: chapters.value,
+      calls,
+      expectedRoute: expected,
+      priceOverride,
+      notice: `Chapter delegation: ${chapters.value.length} chapters, up to ${calls} helper model calls. ${forecast}`,
+      fingerprint: canonicalJson([step.params, overrides ?? null, chapters.value.map(({ id, scope }) => [id, scope]), expected.stamp, priceOverride]),
+    });
+  }
+
+  async function runChapterDelegate(turn: Turn, step: PlanStep, id: string, params: DelegateParams, approval: string | undefined): Promise<ToolOutcome> {
+    const planned = chapterPlan(turn, step, params);
+    if (!planned.ok) return err(planned.error);
+    const { calls, fingerprint, expectedRoute: plannedRoute } = planned.value;
+    const credentialRevision = await gateway.credentialRevision(plannedRoute.profileId);
+    const approvalFingerprint = canonicalJson([fingerprint, credentialRevision]);
+    if (approval === undefined) {
+      return err(refusal('permission-denied', 'Chapter delegation needs the writer’s approval before starting any helpers.', {
+        target: step.tool, details: { chapterApproval: approvalFingerprint },
+      }));
+    }
+    const scopeChanged = () => err(refusal('permission-denied', 'The approved chapter scope or route changed. No helpers were started.', {
+      target: step.tool, correctiveHint: 'send a new chapter delegation call for the writer to approve',
+    }));
+    if (approval !== approvalFingerprint) return scopeChanged();
+    checkStop(turn);
+    guardReadBoundary(turn);
+    guardRecoveredSpend(turn);
+    turn.chapterCalls += calls;
+    let ready: ReturnType<typeof chapterPlan>;
+    let readyCredentials: string;
+    try {
+      await syncRun(turn, 0, 'running', calls);
+      readyCredentials = await gateway.credentialRevision(plannedRoute.profileId);
+      checkStop(turn);
+      guardReadBoundary(turn);
+      ready = chapterPlan(turn, step, params, calls);
+    } catch (error) {
+      turn.chapterCalls -= calls;
+      throw error;
+    }
+    if (!ready.ok || canonicalJson([ready.value.fingerprint, readyCredentials]) !== approval) {
+      turn.chapterCalls -= calls;
+      await syncRun(turn, 0);
+      return scopeChanged();
+    }
+    const { chapters, expectedRoute, priceOverride } = ready.value;
+    const spec = SUBAGENT_SPECS[params.agent];
+    const batchPath = `${turn.id}/chapters#${turn.delegations + 1}`;
+    const work = chapters.map((chapter) => ({ key: chapter.id, input: { chapter, path: `${turn.id}/${spec.name}#${++turn.delegations}` } }));
+    const use = usageOf(turn);
+    const session = sessionLimits();
+    const tokensLeft = Math.min(turn.budget.maxTokens ?? Infinity, (session.maxTokens ?? Infinity) - sessionUse.tokens) - use.tokens;
+    const costLeft = Math.min(turn.budget.maxCostUsd ?? Infinity, (session.maxCostUsd ?? Infinity) - (sessionUse.costUsd ?? 0)) - (use.costUsd ?? 0);
+    const chapterMeter = policyOf(turn).decides && (Number.isFinite(tokensLeft) || Number.isFinite(costLeft)) ? createBudgetMeter({
+      ...(Number.isFinite(tokensLeft) ? { maxTokens: Math.max(0, tokensLeft) } : {}),
+      ...(Number.isFinite(costLeft) ? { maxCostUsd: Math.max(0, costLeft) } : {}),
+    }) : undefined;
+    cardFor(turn, id, step.tool, step.params, 'running');
+    let view: DelegationView = { agent: spec.name, agentPath: batchPath, reserved: calls, outcome: 'running', trace: [] };
+    showDelegation(turn, id, view, { progress: 0, total: chapters.length });
+    let started = 0;
+    const outcomes = await fanOut(work, async ({ chapter, path }) => {
+      started += 1;
+      const guard = () => {
+        if (chapterRoute(turn)?.expected.stamp !== expectedRoute.stamp || canonicalJson(options.price?.() ?? null) !== priceOverride) {
+          throw new Error('The approved provider, model or price changed. Ask the writer to approve the new route.');
+        }
+        const live = chapterScope([chapter.id], step.contextOverrides ?? turn.contextOverrides);
+        const current = live.ok ? live.value[0] : undefined;
+        if (current?.id !== chapter.id || canonicalJson(current.scope) !== canonicalJson(chapter.scope)) {
+          throw new Error('The approved chapter scope changed. This helper request was not sent; ask the writer to approve the new scope.');
+        }
+      };
+      return runDelegateChild(turn, step, params, chapter.scope, path, (row) => {
+        view = { ...view, trace: [...view.trace, row] };
+      }, { state: chapter.state, expectedRoute: { ...expectedRoute, credentialRevision }, guard, ...(chapterMeter === undefined ? {} : { meter: chapterMeter }) });
+    }, {
+      concurrency: 4,
+      ...signalOf(turn),
+      onSettled: (done, total) => showDelegation(turn, id, view, { progress: done, total }),
+    });
+    chapterMeter?.dispose();
+    turn.chapterCalls -= (work.length - started) * spec.maxModelCalls;
+    const results = outcomes.map((outcome) => {
+      if (!outcome.ok) return { chapter: outcome.key, status: 'failed' as const, summary: outcome.error };
+      const result = outcome.value;
+      rememberDelegate(turn, result);
+      const { dropped: _dropped, ...data } = result;
+      return { chapter: outcome.key, ...data, summary: result.summary.slice(0, Math.floor(8000 / chapters.length)) };
+    });
+    const completed = results.filter((result) => result.status === 'done').length;
+    const summary = `${completed} / ${chapters.length} chapter helpers completed.`;
+    view = {
+      ...view,
+      outcome: turn.signal?.aborted === true ? 'partial' : completed > 0 ? 'done' : 'failed',
+      result: [summary, ...results.map((result) => result.summary)].join('\n'),
+      proposed: outcomes.reduce((count, outcome) => count + (outcome.ok ? outcome.value.proposedSteps.length : 0), 0),
+    };
+    showDelegation(turn, id, view);
+    if (turn.signal?.aborted === true) {
+      moveCard(turn, id, 'failed', { error: STOPPED_STEP });
+      throw new TurnStopped();
+    }
+    const outcome = delegationOutcome({ notice: DELEGATE_NOTICE, summary, results }, summary);
+    if (outcome.ok) return outcome;
+    return delegationOutcome({
+      notice: DELEGATE_NOTICE,
+      summary,
+      omitted: 'Some chapter details did not fit the response. Delegate fewer chapters to read their proposed changes.',
+      results: results.map(({ chapter, status, summary: notes }) => ({ chapter, status, summary: notes.slice(0, Math.floor(4800 / chapters.length)) })),
+    }, summary);
   }
 
   /**
@@ -2770,7 +3023,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         // A read a rule asks about goes to the writer's card first, as a scan over the document guard does.
         const ruled = ruleOf(step, turn.id);
         const asked = ruled.ask !== undefined;
-        const first: ToolOutcome = ruled.denied !== undefined ? err(ruled.denied) : asked
+        const isChapter = step.tool === 'agent.delegate' && step.params['fanOut'] === 'per-chapter';
+        const first: ToolOutcome = ruled.denied !== undefined ? err(ruled.denied) : isChapter
+          ? await runDelegate(turn, step, id)
+          : asked
           ? err(refusal('permission-denied', `a rule asks for the writer’s confirmation of ${step.tool}`, { target: step.tool }))
           : step.tool === 'agent.delegate'
             ? await runDelegate(turn, step, id)
@@ -2782,7 +3038,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         }
         let callId = id;
         let outcome: ToolOutcome = first;
-        if (!first.ok && (asked || needsWriterApproval(first.error))) {
+        if (!first.ok && ((!isChapter && asked) || needsWriterApproval(first.error))) {
           // The refusal came before the scan ran, so nothing has run. The writer decides on a card of its own.
           callId = `${id}.confirm`;
           activeRead = { index, step, callId };
@@ -2806,7 +3062,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
             // agent.delegate is answered by the loop, not by the harness, so an approved one starts its agent the way an unasked one does.
             outcome =
               approved.tool === 'agent.delegate'
-                ? await runDelegate(turn, approved, callId)
+                ? await runDelegate(turn, approved, callId, typeof first.error.details?.['chapterApproval'] === 'string' ? first.error.details['chapterApproval'] : undefined)
                 : await invokeRead(turn, { name: approved.tool, callId, params: approved.params, ...(proposal === undefined ? {} : { proposal }) }, { confirmed: true });
             if (!outcome.ok && turn.signal?.aborted === true) {
               moveCard(turn, callId, 'failed', { error: STOPPED_STEP });
@@ -2917,6 +3173,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       ),
     };
     const previews = editable.steps.map((step, index) => previewFor(harness.state, step.tool, step.params, editable.proposals[index]));
+    const chapterNotices = editable.steps.flatMap((step, index) => {
+      if (index < from || step.tool !== 'agent.delegate' || step.params['fanOut'] !== 'per-chapter' || !preflight.steps.some((row) => row.index === index && row.status === 'ready')) return [];
+      const planned = chapterPlan(turn, step, step.params as unknown as DelegateParams);
+      return planned.ok ? [planned.value.notice] : [planned.error.message];
+    });
+    const cardNotice = [...(notice === undefined ? [] : [notice]), ...chapterNotices].join(' ');
     const staged = editable.proposals.map((proposal) => stagedOf(proposal));
     // A step equal to one a delegated agent proposed carries its badge; an edited step is a different step and has none.
     const proposedBy = editable.steps.map((step) => {
@@ -2955,7 +3217,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       ...(turn.contextOverrides === undefined ? {} : { contextOverrides: turn.contextOverrides }),
       ...(turn.replyCut ? { replyCut: true } : {}),
       ...(proposedBy.some((agent) => agent !== undefined) ? { proposedBy } : {}),
-      ...(notice === undefined ? {} : { notice }),
+      ...(cardNotice === '' ? {} : { notice: cardNotice }),
       ...(caution === undefined ? {} : { caution }),
     });
     return { card, preflight };
@@ -3228,6 +3490,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     proposal: unknown,
   ): Promise<Executed> {
     guardRunLog(turn);
+    if (step.tool === 'coherence.review') guardRecoveredSpend(turn);
     const write = grant !== 'read';
     const card = cardFor(turn, id, step.tool, step.params, write ? 'pending-approval' : 'running');
     if (card.status !== 'running') moveCard(turn, id, 'running');
@@ -4163,7 +4426,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       ...(settled.askBack === undefined ? {} : { askBack: settled.askBack }),
       tokens,
       dropped: turn.dropped,
-      modelCalls: turn.modelCalls,
+      modelCalls: turn.modelCalls + turn.chapterCalls,
       ...(turn.cutReplies === 0 ? {} : { cutReplies: turn.cutReplies }),
       ...cacheField(turn.cache.report()),
       ...(settled.stop === undefined ? {} : { stop: settled.stop }),
@@ -4171,7 +4434,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       ...(turn.meter === undefined ? {} : { spend: turn.meter.spend() }),
       ...(turn.notes.length === 0 ? {} : { steering: turn.notes.map((note): SteeringNote => ({ ...note })) }),
       mode: turn.mode,
-      budgetUse: usageOf(turn),
+      budgetUse: { ...usageOf(turn), modelCalls: turn.modelCalls + turn.chapterCalls },
       ...(turn.held.length === 0 ? {} : { heldSteps: turn.held }),
       ...(turn.held.length > 0 && (turn.tainted || harness.loadedSkills(turn.id).length > 0) ? { heldRequiresRestart: true as const } : {}),
       ...(turn.hooks.length === 0 ? {} : { hooks: [...turn.hooks] }),
@@ -4485,6 +4748,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       native: false,
       wireReplies: [],
       delegations: 0,
+      chapterCalls: 0,
       cutReplies: 0,
       cache: new CacheWatch(),
       unreadCuts: 0,
@@ -4682,7 +4946,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   ): Promise<TurnReport> {
     // The turns before this one are what L6 may show; this turn's intent is recorded for the ones after it.
     const turn = newTurn(turnOptions, recentTurns());
-    if (logPlan.mode === 'resume') turn.modelCalls = (logPlan.replay.spend?.modelCalls ?? 0) + logPlan.replay.reservedCalls;
+    if (logPlan.mode === 'resume') {
+      const spend = logPlan.replay.spend;
+      turn.chapterCalls = spend?.chapterCalls ?? 0;
+      if (spend !== undefined && turn.chapterCalls > 0) turn.restoredChapterSpend = spend;
+      turn.modelCalls = (spend?.modelCalls ?? 0) - turn.chapterCalls + logPlan.replay.reservedCalls;
+    }
     const restored = logPlan.mode === 'resume' ? harness.restoreSkills(turn.id, logPlan.replay.skills ?? []) : undefined;
     turn.run = restored?.ok === false ? undefined : await openRun(turn, intent, logPlan, turnOptions);
     const slot = started.push({ turnId: turn.id, intent, ...(turnOptions.hiddenFromPlanner === true ? { hidden: true } : {}) }) - 1;

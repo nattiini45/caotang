@@ -23,7 +23,6 @@ import type { KeyStore } from './keys/key-store.js';
 import { UsageLedger } from './ledger.js';
 import { createMockProvider, type MockProvider } from './mock/mock-provider.js';
 import { collectOnce } from './once.js';
-import { redactDeep } from './redact.js';
 import { RequestLog, type RequestLogEntry, type RequestOutcome } from './request-log.js';
 import { DEFAULT_RETRY, DEFAULT_TIMEOUTS, fallbackReasonOf, type RetryPolicy, type TransportTimeouts } from './retry.js';
 import {
@@ -89,6 +88,11 @@ export interface Gateway extends ProviderGateway {
    * profile's, and its model and thinking level fill the ones not named.
    */
   modelLimits(profileId?: string, model?: string, thinking?: ThinkingLevel, request?: ModelLimitsRequest): ModelLimits;
+  resolveRequestRoute(request: Pick<ChatRequest, 'role' | 'profileId' | 'model' | 'thinking'> & ModelLimitsRequest): {
+    readonly expected: { readonly profileId: string; readonly model: string; readonly stamp: string };
+    readonly limits: ModelLimits;
+  } | undefined;
+  credentialRevision(profileId: string): Promise<string>;
   /**
    * The capability row for a model on a profile's route: whether it takes native
    * tools, images, a JSON-schema response format, and which thinking levels the UI
@@ -262,6 +266,15 @@ export function createGateway(options: GatewayOptions): Gateway {
   const roleRoute = (role: TaskRole | undefined, profileId: string | undefined): ReturnType<RoleResolver['resolve']> =>
     role === undefined || profileId !== undefined ? undefined : options.roles?.resolve(role);
 
+  const roleAllows = (role: TaskRole | undefined, routed: ReturnType<RoleResolver['resolve']>): boolean =>
+    routed === undefined || (role !== undefined && options.roles?.allowed(role).includes(routed.profileId) === true);
+
+  function assertRoleAllows(role: TaskRole | undefined, routed: ReturnType<RoleResolver['resolve']>): void {
+    if (!roleAllows(role, routed)) {
+      throw new EgressDeniedError(`Refused a request under the "${role}" role: it resolved to a profile that role may not use.`);
+    }
+  }
+
   const targetOf = (profileId: string | undefined): ProfileView => {
     if (profileId !== undefined) {
       const found = profiles.get(profileId);
@@ -278,9 +291,11 @@ export function createGateway(options: GatewayOptions): Gateway {
    * every value the transport must redact. Only reached after the egress check has
    * passed, so a refused request never touches key material.
    */
-  const secretsFor = async (profile: ProfileView): Promise<{ secrets: CallSecrets; redact: string[] }> => {
+  const secretsFor = async (profile: ProfileView, expectedRevision?: string): Promise<{ secrets: CallSecrets; redact: string[] }> => {
     if (profile.kind === 'mock') return { secrets: {}, redact: [] };
-    const payload = await keys.revealPayload(profile.id);
+    const payload = expectedRevision === undefined
+      ? await keys.revealPayload(profile.id)
+      : await keys.revealPayload(profile.id, expectedRevision);
     if (payload === undefined) {
       if (profile.hasKey) throw new ProfileError('key-unreadable', providerMessages.missingKey(profile.name));
       return { secrets: {}, redact: [] };
@@ -390,104 +405,6 @@ export function createGateway(options: GatewayOptions): Gateway {
     };
   };
 
-  /**
-   * The observer's view of one call (`GatewayOptions.observe`). Every event is scrubbed with the secrets known when it is told,
-   * and a throwing observer is swallowed, so nothing here can change what the caller gets. `request` is told once the key
-   * is revealed, so a call refused before that still reports a request, with nothing to scrub.
-   */
-  function startTrace(observe: (event: GatewayTraceEvent) => void, req: ChatRequest, profile: ProfileView, model: string, moved?: MovedFrom) {
-    calls += 1;
-    const id = calls;
-    let secrets: readonly string[] = [];
-    let requested = false;
-    let first = false;
-    let responded = false;
-    let content = '';
-    let reasoningText = '';
-    let failure: { kind: string; message: string } | undefined;
-    const tell = (event: GatewayTraceEvent): void => {
-      try {
-        observe(redactDeep(event, secrets));
-      } catch {
-        // display only: the call is the writer's, the trace is not
-      }
-    };
-    const request = (revealed: readonly string[]): void => {
-      if (requested) return;
-      requested = true;
-      secrets = revealed;
-      tell({ type: 'request', id, req, profileId: profile.id, ...(profile.preset === undefined ? {} : { preset: profile.preset }), model, at: clock.now() });
-      // A route that moved says so under the call that answered: the switch belongs to this call's record, not to a call of
-      // its own, so a reader sees which provider took over and the fault that ended the attempt before it (§3.1, §6).
-      if (moved !== undefined) tell({ type: 'fallback', id, from: moved.from, to: { profileId: profile.id, model }, reason: moved.reason, at: clock.now() });
-    };
-    const respond = (stats: StreamStats, terminal: ChatChunk | undefined, signal: AbortSignal | undefined): void => {
-      if (responded) return;
-      responded = true;
-      request([]);
-      const finishReason: FinishReason = terminal?.finishReason ?? 'error';
-      const abandoned = signal?.aborted === true && signal.reason === ITERATOR_ABANDONED;
-      const cancelled = signal?.aborted === true && !abandoned;
-      if (profile.kind === 'mock') {
-        const outcome: RequestOutcome = finishReason !== 'error' ? 'ok' : cancelled ? 'cancelled' : 'failed';
-        tell({ type: 'attempt', id, attempt: 0, outcome, at: clock.now() });
-      }
-      if (failure === undefined && finishReason === 'error') {
-        failure =
-          cancelled
-            ? { kind: 'cancelled', message: 'The call was stopped.' }
-            : abandoned || terminal === undefined
-              ? { kind: 'abandoned', message: 'The caller stopped reading before the reply finished.' }
-              : { kind: 'error', message: 'The reply ended with an error.' };
-      }
-      tell({
-        type: 'response',
-        id,
-        finishReason,
-        content,
-        reasoningText,
-        ...(terminal?.reasoning === undefined ? {} : { reasoning: terminal.reasoning }),
-        ...(terminal?.toolCalls === undefined ? {} : { toolCalls: terminal.toolCalls }),
-        usage: terminal?.usage ?? stats.usage ?? ZERO,
-        usageSource: stats.usageSource ?? 'estimate',
-        attempts: stats.attempts,
-        ...(failure === undefined ? {} : { error: failure }),
-        at: clock.now(),
-      });
-    };
-    return {
-      request,
-      attempt: (entry: RequestLogEntry): void =>
-        tell({
-          type: 'attempt',
-          id,
-          attempt: entry.attempt,
-          outcome: entry.outcome,
-          ...(entry.status === undefined ? {} : { status: entry.status }),
-          ...(entry.errorKind === undefined ? {} : { errorKind: entry.errorKind }),
-          ...(entry.note === undefined ? {} : { note: entry.note }),
-          at: entry.at,
-        }),
-      chunk: (chunk: ChatChunk, stats: StreamStats, signal: AbortSignal | undefined): void => {
-        const text = (chunk.delta ?? '') + (chunk.reasoningDelta ?? '');
-        if (!first && text !== '') {
-          first = true;
-          tell({ type: 'first-token', id, at: clock.now() });
-        }
-        content += chunk.delta ?? '';
-        reasoningText += chunk.reasoningDelta ?? '';
-        if (chunk.finishReason !== undefined) respond(stats, chunk, signal);
-      },
-      fail: (error: unknown): void => {
-        failure = {
-          kind: error instanceof ProviderError ? error.kind : error instanceof Error ? error.name : 'error',
-          message: error instanceof Error ? error.message : String(error),
-        };
-      },
-      end: (stats: StreamStats, signal: AbortSignal | undefined): void => respond(stats, undefined, signal),
-    };
-  }
-
   function complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void, admitAttempt?: (target: AttemptTarget) => void): AsyncIterableIterator<ChatChunk> {
     const controller = new AbortController();
     const combined = signal === undefined ? controller.signal : AbortSignal.any([signal, controller.signal]);
@@ -513,9 +430,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     const routed = roleRoute(req.role, req.profileId);
     // The role-referenced set is the egress allow-list for a routed request: a role may only ever send
     // through a profile the resolver names for it. This refusal lands before any profile lookup or key reveal.
-    if (routed !== undefined && req.role !== undefined && options.roles?.allowed(req.role).includes(routed.profileId) !== true) {
-      throw new EgressDeniedError(`Refused a request under the "${req.role}" role: it resolved to a profile that role may not use.`);
-    }
+    assertRoleAllows(req.role, routed);
     const queuedProfile = targetOf(routed?.profileId ?? req.profileId);
     let release: () => void;
     try {
@@ -530,16 +445,28 @@ export function createGateway(options: GatewayOptions): Gateway {
         yield { finishReason: 'error', usage: ZERO };
         return;
       }
-      if (routed !== undefined && req.role !== undefined && options.roles?.allowed(req.role).includes(routed.profileId) !== true) {
-        throw new EgressDeniedError(`Refused a request under the "${req.role}" role: it resolved to a profile that role may not use.`);
-      }
+      assertRoleAllows(req.role, routed);
       const profile = targetOf(queuedProfile.id);
       const model = req.model ?? routed?.model ?? profile.defaultModel;
-      if (req.expectedRoute !== undefined && (req.expectedRoute.profileId !== profile.id || req.expectedRoute.model !== model)) {
-        throw new EgressDeniedError('The provider or model for this request changed. No request was sent.');
-      }
       const sent: ChatRequest =
         req.thinking === undefined && routed?.thinking !== undefined ? { ...req, thinking: routed.thinking } : req;
+      const expected = req.expectedRoute;
+      if (expected !== undefined && (expected.profileId !== profile.id || expected.model !== model
+        || (expected.stamp !== undefined && expected.stamp !== requestRoute(profile, model, sent.thinking, sent).expected.stamp))) {
+        throw new EgressDeniedError('The approved route changed. No request was sent.');
+      }
+      const sendGuard = expected?.stamp === undefined && routed === undefined ? beforeSend : () => {
+        if (expected?.stamp === undefined) assertRoleAllows(req.role, routed);
+        else if (resolveRequestRoute(req)?.expected.stamp !== expected.stamp) {
+          throw new EgressDeniedError('The approved route changed. This attempt was not sent.');
+        }
+        beforeSend?.();
+      };
+      const checkCredentials = expected?.credentialRevision === undefined ? undefined : async () => {
+        if (await credentialRevision(profile.id) !== expected.credentialRevision) {
+          throw new EgressDeniedError('The approved provider credentials changed. This attempt was not sent.');
+        }
+      };
       // §3's image gate, before anything is sent or any key is revealed: a request carrying image
       // parts needs the active model's `vision` capability and must fit the route's image caps.
       // A refusal names the remedy and never carries the bytes.
@@ -550,11 +477,26 @@ export function createGateway(options: GatewayOptions): Gateway {
       const startedAt = clock.now();
       const price = callPrice(profile.id, model, sent.thinking, sent);
       const stats: StreamStats = { attempts: 0, usage: undefined };
-      const trace = observer === undefined || sent.privatePayload === true ? undefined : startTrace(observer, sent, profile, model, moved);
+      const observe = observer;
+      const traceId = observe === undefined || sent.privatePayload === true ? undefined : ++calls;
+      const traceReady = observe === undefined || traceId === undefined
+        ? undefined
+        : import('./trace.js').then(
+          ({ startTrace }) => startTrace(observe, sent, profile, model, traceId, clock, ITERATOR_ABANDONED, moved),
+          () => undefined,
+        );
+      let trace: Awaited<typeof traceReady>;
 
       try {
         if (profile.kind === 'mock') {
-          beforeSend?.();
+          if (traceReady !== undefined) {
+            trace = await traceReady;
+            if (signal?.aborted) {
+              yield { finishReason: 'error', usage: ZERO };
+              return;
+            }
+          }
+          sendGuard?.();
           stats.attempts = 1;
           trace?.request([]);
           for await (const chunk of mock.complete(sent, signal)) {
@@ -578,7 +520,8 @@ export function createGateway(options: GatewayOptions): Gateway {
             ? profile.responseFormat?.supportsJsonObject === true && resolved.ctx.caps.jsonObject !== false
             : resolved.ctx.caps.jsonObject === true);
         assertEgress(deps, `${profile.baseUrl}${resolved.adapter.completePath(model)}`, profile.id);
-        const revealed = await secretsFor(profile);
+        const revealed = await secretsFor(profile, expected?.credentialRevision);
+        if (traceReady !== undefined) trace = await traceReady;
         trace?.request(revealed.redact);
         if (signal?.aborted) {
           yield { finishReason: 'error', usage: ZERO };
@@ -586,7 +529,7 @@ export function createGateway(options: GatewayOptions): Gateway {
         }
         let limited = false;
         let finished: ChatChunk['finishReason'];
-        const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal, onRateLimit: (delayMs: number) => { limited = true; limiter.rateLimited(profile.id, delayMs); }, ...(beforeSend === undefined ? {} : { beforeSend }) };
+        const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal, onRateLimit: (delayMs: number) => { limited = true; limiter.rateLimited(profile.id, delayMs); }, ...(checkCredentials === undefined ? {} : { beforeAttempt: checkCredentials }), ...(sendGuard === undefined ? {} : { beforeSend: sendGuard }) };
         // The transport ends an exhausted stream with `finishReason: 'error'` and throws nothing, so the fault it gave up on is
         // handed over here: §6's ordered route decides a fallback from it, and every other caller ignores it.
         let exhausted: ProviderError | undefined;
@@ -600,6 +543,7 @@ export function createGateway(options: GatewayOptions): Gateway {
         }
         if (!limited && finished !== undefined && finished !== 'error') limiter.succeeded(profile.id);
       } catch (error) {
+        if (trace === undefined && traceReady !== undefined) trace = await traceReady;
         trace?.fail(error);
         throw error;
       } finally {
@@ -815,6 +759,28 @@ export function createGateway(options: GatewayOptions): Gateway {
     };
   }
 
+  function requestRoute(profile: ProfileView, model: string, thinking: ThinkingLevel | undefined, request: ModelLimitsRequest) {
+    const limits = modelLimits(profile.id, model, thinking, request);
+    const stamp = JSON.stringify([
+      profile.id, profile.kind, profile.baseUrl, profile.preset,
+      Object.entries(profile.fields ?? {}).sort(), resolveRoute(profile, model).adapter, model, thinking, request.maxOutputTokens, limits,
+    ]);
+    return { expected: { profileId: profile.id, model, stamp }, limits };
+  }
+
+  function resolveRequestRoute(request: Pick<ChatRequest, 'role' | 'profileId' | 'model' | 'thinking'> & ModelLimitsRequest) {
+    const routed = roleRoute(request.role, request.profileId);
+    if (!roleAllows(request.role, routed)) return undefined;
+    const target = routed?.profileId ?? request.profileId;
+    const profile = target === undefined ? profiles.active() : profiles.get(target);
+    if (profile === undefined) return undefined;
+    return requestRoute(profile, request.model ?? routed?.model ?? profile.defaultModel, request.thinking ?? routed?.thinking, request);
+  }
+
+  async function credentialRevision(profileId: string): Promise<string> {
+    return targetOf(profileId).kind === 'mock' ? 'mock' : keys.credentialRevision(profileId);
+  }
+
   async function probeResponseFormat(profileId?: string): Promise<boolean> {
     const profile = targetOf(profileId);
     const attempt = profile.verification?.kind === 'checking' ? profile.verification.attempt : undefined;
@@ -900,6 +866,8 @@ export function createGateway(options: GatewayOptions): Gateway {
     completeOnce: (req, signal, beforeSend) => collectOnce(complete(req, signal, beforeSend), signal),
     listModels,
     modelLimits,
+    resolveRequestRoute,
+    credentialRevision,
     modelCaps,
     accountTokens,
     probeResponseFormat,
