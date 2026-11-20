@@ -569,7 +569,9 @@ export function createGateway(options: GatewayOptions): Gateway {
    */
   async function* runRouted(req: ChatRequest, signal: AbortSignal, beforeSend?: () => void, admitAttempt?: (target: AttemptTarget) => void): AsyncGenerator<ChatChunk, void, undefined> {
     const routed = roleRoute(req.role, req.profileId);
-    const targets: readonly RoleTarget[] = routed === undefined ? [] : [routed, ...(routed.fallbacks ?? [])];
+    // A request that carries an approval stamp names its own destination (`expectedRoute`), so it is pinned like one that names a
+    // profile: one target, and its own refusal or fault reaches the caller instead of the route moving on.
+    const targets: readonly RoleTarget[] = routed === undefined || req.expectedRoute !== undefined ? [] : [routed, ...(routed.fallbacks ?? [])];
     if (targets.length <= 1) {
       yield* runComplete(req, signal, beforeSend);
       return;

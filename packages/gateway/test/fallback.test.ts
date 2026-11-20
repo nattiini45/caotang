@@ -184,6 +184,23 @@ describe('complete() — ordered role fallbacks (provider-gateway §6)', () => {
     expect(hostsOf(net)).toEqual(['b.example']);
   });
 
+  it('keeps a request that carries an approval stamp on its own destination', async () => {
+    // A model hook names its route with `expectedRoute`: it is pinned to that profile, so the role's list never applies, and the
+    // provider's own fault reaches the caller instead of an admission refusal for a destination it never asked for.
+    const net = new ScriptedFetch().push(() => json(429, { error: { message: 'slow down' } }));
+    let ids: { primary: string; fallback: string } = { primary: '', fallback: '' };
+    const h = fallbackHarness(() => (ids.primary === '' ? undefined : { profileId: ids.primary, model: 'model-x', fallbacks: [{ profileId: ids.fallback }] }), { net });
+    ids = await pair(h);
+
+    const { error } = await collect(h.gateway.complete({
+      ...userMessage('a hook request'),
+      role: 'chat',
+      expectedRoute: { profileId: ids.primary, model: 'model-x' },
+    }));
+    expect(error).toBeDefined();
+    expect(hostsOf(net)).toEqual(['a.example']);
+  });
+
   it('reports the route a role resolves right now, fallbacks included', async () => {
     let ids: { primary: string; fallback: string } = { primary: '', fallback: '' };
     const h = fallbackHarness(() => (ids.primary === '' ? undefined : { profileId: ids.primary, model: 'model-x', fallbacks: [{ profileId: ids.fallback }] }));
