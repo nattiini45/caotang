@@ -1,5 +1,7 @@
 # Decisions
 
+- `main` lands pull requests through a merge queue, so `ci.yml` runs on `merge_group` too: the queue reports the required `verify` on the merge group's own head, and the checks it requires are `verify` and `pawcommit-review`. Why: a workflow without that trigger never reports on a merge group, so every group would fail on the queue's check timeout, and `pawcommit-review` is a review of the pull request's own head rather than of a group. [delegated 2026-11-20]
+
 - Codex external references (#222) are ordered research records, independent of manuscript `sources` and the canon rule. The writer can open an HTTP(S) link explicitly; the app requests no remote preview and sends no reference data as automatic model context. [delegated 2026-11-19]
 
 - Codex details, external references and relations (#221–#223) stay out of automatic model context. Mention matching does not follow relations. Details and external references can be passed explicitly to `codex.write` and follow its usual confirmation path. External references stay separate from manuscript `sources` and do not change the canon rule. Verify the assembly boundary in prompt preview before shipping. [delegated 2026-11-19]
