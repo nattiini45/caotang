@@ -15,7 +15,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { droppedFieldsSentence } from './app/integrity-model.js';
 import type { DirectoryHandleLike } from './app/fs-access.js';
 import { languageRevision, subscribeLanguage } from './i18n/language.js';
-import { openDemoSample, type Opened } from './app/lifecycle.js';
+import { openDemoSample, openFolder, type Opened } from './app/lifecycle.js';
 import { useBootPhase } from './app/use-boot-phase.js';
 import { DemoStart } from './app/demo-start.js';
 import { browserStorageHost, requestDurability } from './app/storage.js';
@@ -81,6 +81,36 @@ export function App(): ReactNode {
     if (previous !== null) closeSession(previous);
   };
 
+  /**
+   * Reloads an open project folder's own version, after another program changed it (Workspace's change offer): the session
+   * settles and closes first, so the folder's project is not held by the tab that is leaving, and then the folder opens as it
+   * stands. An opening that needs an answer — a manifest that will not load, a copy that differs — is not decided here: the
+   * projects list asks the question, so the writer is sent there with the words that say so.
+   */
+  const reopenFolder = (folder: DirectoryHandleLike): void => {
+    const previous = current.current;
+    serial.current += 1;
+    const token = serial.current;
+    current.current = null;
+    setNotice(null);
+    setSaveToFolder(null);
+    setSession(null);
+    setStartIntent(null);
+    void (async () => {
+      if (previous !== null) await previous.closeSafely().catch(() => undefined);
+      const outcome = await openFolder(store, folder);
+      if (token !== serial.current) return;
+      if (outcome.kind === 'opened') {
+        show(outcome.opened);
+        return;
+      }
+      setNotice(t`Caotang needs an answer to open this folder, so it is not reopened here. Open it from the projects list.`);
+    })().catch((error: unknown) => {
+      if (token !== serial.current) return;
+      setNotice(t`The project folder could not be reopened: ${{ error: error instanceof Error ? error.message : String(error) }}`);
+    });
+  };
+
   /** Ends a session. A writing session that could not be recorded is said, not dropped in silence. */
   const closeSession = (leaving: ProjectSession): void => {
     void leaving.closeSafely().catch((error: unknown) => {
@@ -144,6 +174,7 @@ export function App(): ReactNode {
         notice={shownNotice}
         startIntent={startIntent}
         saveToFolder={saveToFolder}
+        onReopenFolder={reopenFolder}
       />
     );
   }
