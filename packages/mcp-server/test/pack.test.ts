@@ -25,7 +25,17 @@ import { NOTO_COLOUR_EMOJI_BYTES } from '../../pdf-fonts/src/coverage/noto-colou
 import { cjkFontCandidates, emojiFontCandidates } from '@caotang/pdf-fonts/node-loader';
 import { WEBP_DECODER_FILE, webpDecoderCandidates } from '@caotang/exporter/picture-transcoder-node';
 
-import { BUNDLE_ENTRY, BUNDLE_FONTS, BUNDLE_SERVER, manifestProblems, mcpbCliPath, packBundle, runMcpb, stageBundle } from '../scripts/pack-mcpb.mjs';
+import {
+  BUNDLE_ENTRY,
+  BUNDLE_FONTS,
+  BUNDLE_SERVER,
+  MCPB_NODE_FLAGS,
+  manifestProblems,
+  mcpbCliPath,
+  packBundle,
+  runMcpb,
+  stageBundle,
+} from '../scripts/pack-mcpb.mjs';
 import { removeDir, tempDir } from './support.js';
 
 const PACKAGE_DIR = resolve(__dirname, '..');
@@ -190,6 +200,22 @@ describe('the MCPB CLI this package pins', () => {
       expect(() => runMcpb(['validate', 'manifest.json'], { cli, timeoutMs: 300 })).toThrow(
         /mcpb validate manifest\.json did not answer within 0\.3 s after [\d.]+ s/,
       );
+    } finally {
+      removeDir(dir);
+    }
+  });
+
+  it('runs its child with no compiler in the background, so the child’s own exit cannot wait on one', () => {
+    // `pack` finishes with `process.exit(0)` the moment its synchronous zip returns. An exit that lands while V8 still has a
+    // compile job mid-allocation deadlocks against the collection that job is waiting for (MCPB_NODE_FLAGS, pack-mcpb.mjs).
+    // A fixture that reports its own switches shows what the child really runs under, not just what the script asks for.
+    const dir = tempDir('pack-args');
+    try {
+      const cli = join(dir, 'report-args.mjs');
+      writeFileSync(cli, 'process.stdout.write(JSON.stringify(process.execArgv));\n');
+      const printed = runMcpb(['pack', 'directory', 'bundle.mcpb'], { cli });
+      expect(JSON.parse(printed)).toEqual([...MCPB_NODE_FLAGS]);
+      expect(MCPB_NODE_FLAGS).toContain('--single-threaded');
     } finally {
       removeDir(dir);
     }
@@ -407,4 +433,37 @@ describe('staging and packing', () => {
     }
     // Four CLI processes (validate, pack, info, unpack): each is about a second on Windows, and more under a full parallel run.
   }, 60_000);
+
+  it('packs a bundle of this size again and again, and every pack ends', () => {
+    // The bug this pins: `pack` wrote and printed the whole archive and then never exited, one run in six on the real
+    // bundle, because its own exit waited on a compile job V8 had started in the background (MCPB_NODE_FLAGS, scripts/pack-mcpb.mjs).
+    // A run that deadlocks is caught by the pack's own ceiling, so a regression fails here, cheaply, instead of in a factory step.
+    const outDir = tempDir('pack-repeats');
+    try {
+      const require = createRequire(import.meta.url);
+      const serverBundle = join(outDir, 'caotang-mcp.mjs');
+      // The size of the built bundle, and mostly text, so it deflates the way the server's own bundle does.
+      writeFileSync(serverBundle, 'export const caotang = "bundle";\n'.repeat(300_000));
+      const fonts = [CJK_FONT_FILE, CJK_COMMON_FONT_FILE, CJK_BOLD_FONT_FILE, CJK_BOLD_COMMON_FONT_FILE].map((file) =>
+        require.resolve(`@caotang/font-noto-cjk/${file}`),
+      );
+      const { staging } = stageBundle({
+        outDir,
+        serverBundle,
+        manifestPath: MANIFEST_PATH,
+        version: '0.1.0',
+        notices: '# notices\n',
+        license: join(REPO_ROOT, 'LICENSE'),
+        fonts,
+      });
+      for (let run = 1; run <= 10; run += 1) {
+        expect(
+          () => runMcpb(['pack', staging, join(outDir, `caotang-mcp-repeats-${run}.mcpb`)], { timeoutMs: 20_000 }),
+          `pack ${run} of 10 ends`,
+        ).not.toThrow();
+      }
+    } finally {
+      removeDir(outDir);
+    }
+  }, 120_000);
 });
