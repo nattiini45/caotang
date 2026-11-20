@@ -174,7 +174,11 @@ function PageContent({ regions, view, agentOnPage }: { regions: ShellRegions; vi
       <div className="modern-editor-host" hidden={view === 'codex'}>
         {regions.editor}
       </div>
-      {view === 'codex' ? <div className="modern-codex-view">{regions.codex}</div> : null}
+      {view === 'codex' ? (
+        <div className="modern-codex-view">
+          <LazyBoundary label={t`the codex`}>{regions.codex}</LazyBoundary>
+        </div>
+      ) : null}
       {center === 'corkboard' && regions.media === null && narrow ? (
         <OpenOnDesktop
           feature="corkboard"
@@ -185,7 +189,7 @@ function PageContent({ regions, view, agentOnPage }: { regions: ShellRegions; vi
           }
         />
       ) : null}
-      {center === 'corkboard' && regions.media === null && !narrow ? regions.corkboard : null}
+      {center === 'corkboard' && regions.media === null && !narrow ? <LazyBoundary label={t`the corkboard`}>{regions.corkboard}</LazyBoundary> : null}
       {center === 'pictures' ? <LazyBoundary label={t`the pictures`}>{regions.pictures}</LazyBoundary> : null}
       {center === 'timeline' ? <LazyBoundary label={t`the timeline`}>{regions.timeline}</LazyBoundary> : null}
       {agentOnPage && !hideRails ? <LazyBoundary label={t`the agent`}>{regions.agent}</LazyBoundary> : null}

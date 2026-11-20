@@ -177,7 +177,7 @@ export function ClassicLayout({ regions }: { regions: ShellRegions }): ReactNode
             {rail === 'binder'
               ? <>{regions.binder}{regions.binderFooter}</>
               : rail === 'codex'
-                ? regions.codex
+                ? <LazyBoundary label={t`the codex`}>{regions.codex}</LazyBoundary>
                 : rail === 'findings'
                   ? <LazyBoundary label={t`Findings`}>{regions.findings}</LazyBoundary>
                   : rail === 'trace'
@@ -250,7 +250,7 @@ export function ClassicLayout({ regions }: { regions: ShellRegions }): ReactNode
             }
           />
         ) : null}
-        {center === 'corkboard' && regions.media === null && !narrow ? regions.corkboard : null}
+        {center === 'corkboard' && regions.media === null && !narrow ? <LazyBoundary label={t`the corkboard`}>{regions.corkboard}</LazyBoundary> : null}
         {center === 'pictures' ? <LazyBoundary label={t`the pictures`}>{regions.pictures}</LazyBoundary> : null}
         {center === 'timeline' ? <LazyBoundary label={t`the timeline`}>{regions.timeline}</LazyBoundary> : null}
         {hideRails ? null : <LazyBoundary label={t`the agent`}>{regions.agent}</LazyBoundary>}
