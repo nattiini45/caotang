@@ -201,7 +201,7 @@ describe('complete() — ordered role fallbacks (provider-gateway §6)', () => {
       keys,
       clock: createManualClock(START),
       random: () => 0.5,
-      fetch: (url, init) => {
+      fetch: (url) => {
         const host = new URL(String(url)).host;
         hosts.push(host);
         if (host === '127.0.0.1:11434') return Promise.reject(new TypeError('Failed to fetch'));
