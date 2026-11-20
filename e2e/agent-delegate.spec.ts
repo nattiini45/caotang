@@ -116,3 +116,28 @@ test('a change the agent proposes is a badged step of the planner’s own plan, 
   await expect(page.getByTestId('checkpoint')).toBeVisible();
   expect((await projectTrace(page)).filter((name) => name === 'codex.upsert')).toEqual(['codex.upsert']);
 });
+
+test('chapter helpers start only after the writer approves their combined call allowance', async ({ page }) => {
+  let helpers = 0;
+  await fakeEndpoint(page, (request) => {
+    if (request.system.startsWith(SUBAGENT_PREFIX)) {
+      helpers += 1;
+      return { text: 'Notes from this chapter.' };
+    }
+    if (request.assistantTurns === 0) return { text: '', toolCalls: [call('find', 'tool.search', { query: 'delegate reading to a helper agent' })] };
+    if (request.assistantTurns === 1) {
+      return { text: '', toolCalls: [call('chapters', 'agent.delegate', { agent: 'reader', brief: BRIEF, fanOut: 'per-chapter' })] };
+    }
+    return { text: 'The chapter notes are ready.' };
+  });
+  await useFakeEndpoint(page);
+  await openSample(page);
+  await sendIntent(page, 'Read each chapter separately.');
+  const card = page.getByTestId('plan-card');
+  await expect(card).toContainText('2 chapters, up to 6 helper model calls');
+  expect(helpers).toBe(0);
+  await card.getByRole('button', { name: 'Approve', exact: true }).click();
+  await expect(page.locator('.agent-turn').last()).toContainText('The chapter notes are ready.');
+  expect(helpers).toBe(2);
+  await expect(page.getByTestId('checkpoint')).toHaveCount(0);
+});
