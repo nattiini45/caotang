@@ -340,7 +340,9 @@ const isAmount = (v: unknown): v is number => typeof v === 'number' && Number.is
 function spendOk(value: unknown): value is BudgetSpend {
   if (!isRecord(value)) return false;
   // The meter counts calls and steps one at a time, so those two are whole numbers.
-  return isCount(value['modelCalls']) && isCount(value['steps']) && ['promptTokens', 'completionTokens', 'estimatedTokens', 'activeMs'].every((key) => isAmount(value[key])) && (value['costUsd'] === undefined || isAmount(value['costUsd']));
+  return isCount(value['modelCalls']) && (value['chapterCalls'] === undefined || (isCount(value['chapterCalls']) && value['chapterCalls'] <= value['modelCalls']))
+    && (value['reservedChapterCalls'] === undefined || (isCount(value['reservedChapterCalls']) && isCount(value['chapterCalls']) && value['reservedChapterCalls'] <= value['chapterCalls']))
+    && isCount(value['steps']) && ['promptTokens', 'completionTokens', 'estimatedTokens', 'activeMs'].every((key) => isAmount(value[key])) && (value['costUsd'] === undefined || isAmount(value['costUsd']));
 }
 
 function outsidePromptOk(value: unknown): value is OutsidePrompt {
@@ -768,7 +770,7 @@ export function summarizeRun(rows: readonly unknown[], revisions: (docId: string
     total: Math.max(replay.card?.steps.length ?? 0, replay.applied.length),
     ...(replay.spend === undefined ? {} : { spend: replay.spend }),
     restoredSpend: { ...(replay.spend ?? NO_SPEND), modelCalls: (replay.spend?.modelCalls ?? 0) + replay.reservedCalls },
-    reservedCalls: replay.reservedCalls,
+    reservedCalls: replay.reservedCalls + (replay.spend?.reservedChapterCalls ?? 0),
   };
   if (!verdict.ok) return { ...base, resumable: false, note: `${verdict.detail}.` };
   const stale = replay.card === undefined ? 0 : replay.card.revisions.filter((read, index) => read !== undefined && !(replay.card?.completed ?? []).includes(index) && Object.entries(read).some(([id, revision]) => revisions(id) !== revision)).length;

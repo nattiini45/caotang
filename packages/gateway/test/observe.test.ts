@@ -47,6 +47,86 @@ describe('private, route-bound requests', () => {
     expect(h.gateway.requestLog.entries()).toEqual([]);
     expect(h.gateway.ledger.turnTotals('hook-turn').requests).toBe(0);
   });
+
+  it('keeps a route approval out of traces and refuses it after the same profile changes price', async () => {
+    const { h, events } = watched();
+    const profile = await h.profiles.create({ name: 'Demo', kind: 'mock', pricePer1k: { prompt: 1, completion: 1 } });
+    const route = h.gateway.resolveRequestRoute({ profileId: profile.id });
+    expect(route).toBeDefined();
+    if (route === undefined) return;
+    const request = { ...userMessage('hello'), profileId: profile.id, expectedRoute: route.expected };
+    await collect(h.gateway.complete(request));
+    expect(events[0]).toMatchObject({ type: 'request' });
+    expect(events[0]).not.toHaveProperty('req.expectedRoute');
+    events.length = 0;
+
+    await h.profiles.update(profile.id, { pricePer1k: { prompt: 2, completion: 1 } });
+    const { error } = await collect(h.gateway.complete({ ...request, turnId: 'changed-price' }));
+    expect(error).toMatchObject({ message: expect.stringContaining('No request was sent.') });
+    expect(events).toEqual([]);
+    expect(h.gateway.ledger.turnTotals('changed-price').requests).toBe(0);
+  });
+
+  it.each(['before lookup', 'after lookup'] as const)('refuses a replaced sealed tenant header %s, with no provider attempt', async (timing) => {
+    const h = harness();
+    const profile = await addEndpoint(h, { customHeaders: { 'x-tenant': 'sample-tenant' } });
+    const route = h.gateway.resolveRequestRoute({ profileId: profile.id });
+    expect(route).toBeDefined();
+    if (route === undefined) return;
+    const credentialRevision = await h.gateway.credentialRevision(profile.id);
+    const replace = () => h.keys.putPayload(profile.id, { apiKey: KEY, customHeaders: { 'x-tenant': 'different-tenant' } });
+    const events: GatewayTraceEvent[] = [];
+    const gateway = createGateway({
+      profiles: h.profiles, fetch: h.net.fn, clock: h.clock, observe: (event) => events.push(event),
+      keys: {
+        ...h.keys,
+        async revealPayload(id, expectedRevision) {
+          const payload = await h.keys.revealPayload(id, expectedRevision);
+          if (timing === 'after lookup') await replace();
+          return payload;
+        },
+      },
+    });
+    if (timing === 'before lookup') await replace();
+    const { error } = await collect(gateway.complete({
+      ...userMessage('This prose must not be sent.'), turnId: 'changed-credentials', profileId: profile.id,
+      expectedRoute: { ...route.expected, credentialRevision },
+    }));
+    expect(error).toMatchObject({ message: expect.stringContaining('provider credentials changed') });
+    expect(h.net.calls).toHaveLength(0);
+    expect(gateway.ledger.turnTotals('changed-credentials').requests).toBe(0);
+    const serialized = JSON.stringify(events);
+    expect(serialized).not.toContain(credentialRevision);
+    expect(serialized).not.toContain('sample-tenant');
+    expect(serialized).not.toContain('different-tenant');
+  });
+
+  it.each([true, false])('refuses a role revoked during credential lookup (stamped: %s)', async (stamped) => {
+    const h = harness();
+    const profile = await addEndpoint(h);
+    let allowed = true;
+    const gateway = createGateway({
+      profiles: h.profiles, fetch: h.net.fn, clock: h.clock,
+      roles: { resolve: () => ({ profileId: profile.id }), allowed: () => allowed ? [profile.id] : [] },
+      keys: {
+        ...h.keys,
+        async revealPayload(id) {
+          const payload = await h.keys.revealPayload(id);
+          allowed = false;
+          return payload;
+        },
+      },
+    });
+    const route = gateway.resolveRequestRoute({ role: 'chat' });
+    if (route === undefined) throw new Error('Expected the initial role to resolve.');
+    const { error } = await collect(gateway.complete({
+      ...userMessage('This prose must not be sent.'), role: 'chat', ...(stamped ? { expectedRoute: route.expected } : {}),
+    }));
+    expect(error).toMatchObject({ message: expect.stringContaining(stamped
+      ? 'The approved route changed. This attempt was not sent.'
+      : 'it resolved to a profile that role may not use.') });
+    expect(h.net.calls).toHaveLength(0);
+  });
 });
 
 describe('a mock profile', () => {

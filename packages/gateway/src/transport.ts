@@ -83,6 +83,7 @@ export interface CallSpec {
   /** the prompt's estimated size, the fallback when a provider sends no usage */
   readonly promptTokens: number;
   readonly signal?: AbortSignal;
+  readonly beforeAttempt?: () => Promise<void>;
   readonly beforeSend?: () => void;
   readonly onRateLimit?: (delayMs: number) => void;
   /** overrides the policy's retry count. The §5 probe makes exactly one attempt. */
@@ -612,6 +613,13 @@ export async function* streamChat(
   let controller: AbortController | undefined;
   try {
     for (;;) {
+      if (spec.beforeAttempt !== undefined) {
+        await spec.beforeAttempt();
+        if (spec.signal?.aborted === true) {
+          yield { finishReason: 'error', usage: stats.usage ?? { promptTokens: 0, completionTokens: 0 } };
+          return;
+        }
+      }
       spec.beforeSend?.();
       const attempt = stats.attempts;
       stats.attempts += 1;
