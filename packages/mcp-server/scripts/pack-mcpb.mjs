@@ -45,6 +45,12 @@ export const BUNDLE_FONTS = 'server/fonts';
 /** The folder of the files the server reads beside its bundle: the WebP decoder. */
 export const BUNDLE_SERVER = 'server';
 
+/**
+ * How long one MCPB CLI call may take before it is called stalled. Validating, packing and reading a bundle of this size takes
+ * a fraction of a second; the ceiling exists so a child that never answers leaves a line naming it instead of a silent step.
+ */
+const MCPB_TIMEOUT_MS = 120_000;
+
 /** The one switch a manifest must carry for writes: the setting it reads, and the variable it sets from it. */
 export const WRITE_SETTING = 'allow_writes';
 export const WRITE_VARIABLE = 'CAOTANG_MCP_ALLOW_WRITES';
@@ -161,12 +167,26 @@ export function mcpbCliPath(packageDir = PACKAGE_DIR) {
   return cli;
 }
 
-/** Runs the MCPB CLI with the given arguments. A non-zero exit throws with what the CLI printed. */
+/** Runs the MCPB CLI with the given arguments. A non-zero exit or a stall throws with what the CLI printed. */
 export function runMcpb(args, options = {}) {
   const cli = options.cli ?? mcpbCliPath();
-  const result = spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8', cwd: options.cwd ?? PACKAGE_DIR });
-  if (result.status !== 0) {
-    throw new Error(`mcpb ${args.join(' ')} exited ${result.status}:\n${result.stdout ?? ''}${result.stderr ?? ''}`);
+  const started = Date.now();
+  // The CLI's own stdin is closed, never inherited: a child that reads it would otherwise wait for a terminal that a factory
+  // step does not have. The ceiling turns a stall into a line that names the command and what it printed.
+  const timeout = options.timeoutMs ?? MCPB_TIMEOUT_MS;
+  const result = spawnSync(process.execPath, [cli, ...args], {
+    encoding: 'utf8',
+    cwd: options.cwd ?? PACKAGE_DIR,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout,
+    killSignal: 'SIGKILL',
+  });
+  if (result.error !== undefined || result.status !== 0) {
+    const took =
+      result.error?.code === 'ETIMEDOUT'
+        ? ` did not answer within ${timeout / 1000} s`
+        : ` exited ${String(result.status)}`;
+    throw new Error(`mcpb ${args.join(' ')}${took} after ${((Date.now() - started) / 1000).toFixed(1)} s:\n${result.stdout ?? ''}${result.stderr ?? ''}`.trimEnd());
   }
   return `${result.stdout ?? ''}${result.stderr ?? ''}`;
 }
@@ -200,6 +220,11 @@ function supportedNodeRange() {
   }
 }
 
+/** One line per phase on stderr, so a step that never finishes still says how far it got. */
+function phase(what) {
+  process.stderr.write(`pack-mcpb: ${what}\n`);
+}
+
 async function main() {
   const { version } = JSON.parse(readFileSync(join(PACKAGE_DIR, 'package.json'), 'utf8'));
   const outDir = join(PACKAGE_DIR, 'dist');
@@ -216,8 +241,10 @@ async function main() {
   if (!existsSync(serverBundle)) {
     throw new Error(`${serverBundle} is missing: run the bundle build first (pnpm --filter @caotang/mcp-server build)`);
   }
+  phase('listing the production tree for the notices');
   const { generateNotices } = await import('../../../tools/third-party-notices.mjs');
   const notices = generateNotices({ root: REPO_ROOT, filters: ['./packages/mcp-server'] });
+  phase('staging, validating, packing and reading the bundle');
   const result = packBundle({
     outDir,
     serverBundle,
