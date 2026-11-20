@@ -25,7 +25,7 @@ import { createMockProvider, type MockProvider } from './mock/mock-provider.js';
 import { collectOnce } from './once.js';
 import { redactDeep } from './redact.js';
 import { RequestLog, type RequestLogEntry, type RequestOutcome } from './request-log.js';
-import { DEFAULT_RETRY, DEFAULT_TIMEOUTS, type RetryPolicy, type TransportTimeouts } from './retry.js';
+import { DEFAULT_RETRY, DEFAULT_TIMEOUTS, fallbackReasonOf, type RetryPolicy, type TransportTimeouts } from './retry.js';
 import {
   assertEgress,
   probeJsonObject,
@@ -55,9 +55,12 @@ import type {
   ToolCall,
   ModelCaps,
   ModelInfo,
+  FallbackReason,
   ModelLimits,
   ModelLimitsRequest,
   ProfileView,
+  RoleResolution,
+  RoleTarget,
   ProviderGateway,
   RoleResolver,
   TaskRole,
@@ -94,6 +97,8 @@ export interface Gateway extends ProviderGateway {
    * answers with the mock's own row.
    */
   modelCaps(profileId?: string, model?: string): ModelCaps;
+  /** The model a request goes out as at `profileId`, exactly as `complete` settles it from the role's route (§6). */
+  modelFor(profileId: string, request: Pick<ChatRequest, 'role' | 'model' | 'profileId'> & ModelLimitsRequest): string;
   /**
    * §5: asks the endpoint once whether it accepts `response_format: json_object`, and
    * caches the answer on the profile. The settings screen calls this at save time. Until
@@ -110,6 +115,12 @@ export interface Gateway extends ProviderGateway {
    * observer gathers nothing: the app detaches it when the writer turns traces off.
    */
   setObserver(observe: ((event: GatewayTraceEvent) => void) | undefined): void;
+  /**
+   * §6's route for a role right now: its primary target and the fallbacks the writer authorised for it, in order. A caller that
+   * pins a profile itself reads this to tell a pin that is the role's own primary, which may use the fallbacks, from one that is
+   * not, which sends to that profile alone.
+   */
+  resolveRoleRoute?(role: TaskRole): RoleResolution | undefined;
 }
 
 /**
@@ -120,6 +131,8 @@ export interface Gateway extends ProviderGateway {
 export type GatewayTraceEvent =
   /** The request after role routing, so the resolved profile, model and thinking level are known. */
   | { readonly type: 'request'; readonly id: number; readonly req: ChatRequest; readonly profileId: string; readonly preset?: string; readonly model: string; readonly at: number }
+  /** The request moved to its next target: the primary refused with a fault another provider may not have (§6). */
+  | { readonly type: 'fallback'; readonly id: number; readonly from: { readonly profileId: string; readonly model: string }; readonly to: { readonly profileId: string; readonly model: string }; readonly reason: FallbackReason; readonly at: number }
   /** The first delta of text or reasoning reached the caller. */
   | { readonly type: 'first-token'; readonly id: number; readonly at: number }
   /** One attempt ended, with the outcome its request-log line carries. A retry is an attempt of its own. */
@@ -240,6 +253,11 @@ export function createGateway(options: GatewayOptions): Gateway {
    */
   const roleRoute = (role: TaskRole | undefined, profileId: string | undefined): ReturnType<RoleResolver['resolve']> =>
     role === undefined || profileId !== undefined ? undefined : options.roles?.resolve(role);
+
+
+  /** The model a request goes out as at `profileId`, as `complete` settles it: the request's own, else the role's, else the profile's. */
+  const modelFor = (profileId: string, request: Pick<ChatRequest, 'role' | 'model' | 'profileId'> & ModelLimitsRequest): string =>
+    request.model ?? roleRoute(request.role, request.profileId)?.model ?? targetOf(profileId).defaultModel;
 
   const targetOf = (profileId: string | undefined): ProfileView => {
     if (profileId !== undefined) {
@@ -467,7 +485,7 @@ export function createGateway(options: GatewayOptions): Gateway {
   function complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncIterableIterator<ChatChunk> {
     const controller = new AbortController();
     const combined = signal === undefined ? controller.signal : AbortSignal.any([signal, controller.signal]);
-    const iterator = runComplete(req, combined, beforeSend);
+    const iterator = runRouted(req, combined, beforeSend);
     return {
       [Symbol.asyncIterator]() { return this; },
       next: (...args) => iterator.next(...args),
@@ -482,7 +500,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     };
   }
 
-  async function* runComplete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncGenerator<ChatChunk, void, undefined> {
+  async function* runComplete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void, gaveUp?: (fault: unknown) => void): AsyncGenerator<ChatChunk, void, undefined> {
     // §6: a request that names a role and no profile resolves through the injected router. The answer is the
     // profile it sends through, and the model and thinking level become the defaults the request's own fields
     // still beat. A resolver with no answer leaves the named-or-active rule in place, as a roleless request.
@@ -563,8 +581,14 @@ export function createGateway(options: GatewayOptions): Gateway {
         let limited = false;
         let finished: ChatChunk['finishReason'];
         const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal, onRateLimit: (delayMs: number) => { limited = true; limiter.rateLimited(profile.id, delayMs); }, ...(beforeSend === undefined ? {} : { beforeSend }) };
-        for await (const chunk of streamChat(deps, spec, stats)) {
-          if (chunk.finishReason !== undefined) finished = chunk.finishReason;
+        // The transport ends an exhausted stream with `finishReason: 'error'` and throws nothing, so the fault it gave up on is
+        // handed over here: §6's ordered route decides a fallback from it, and every other caller ignores it.
+        let exhausted: ProviderError | undefined;
+        for await (const chunk of streamChat(deps, spec, stats, (fault) => { exhausted = fault; })) {
+          if (chunk.finishReason !== undefined) {
+            finished = chunk.finishReason;
+            if (chunk.finishReason === 'error') gaveUp?.(exhausted);
+          }
           trace?.chunk(chunk, stats, signal);
           yield chunk;
         }
@@ -584,6 +608,96 @@ export function createGateway(options: GatewayOptions): Gateway {
       }
     } finally {
       release();
+    }
+  }
+
+  /**
+   * §6's ordered route: the role's primary, then each fallback the writer listed for it, in order. A target is left for the next
+   * one only on a fault another provider may not share, and only before any output reached the caller. Authorisation, a partial
+   * answer, a cancelled turn and every request with no fallbacks behave exactly as they did before the list existed: the single
+   * target's own refusal or error reaches the caller unchanged.
+   */
+  async function* runRouted(req: ChatRequest, signal: AbortSignal, beforeSend?: () => void): AsyncGenerator<ChatChunk, void, undefined> {
+    const routed = roleRoute(req.role, req.profileId);
+    const targets: readonly RoleTarget[] = routed === undefined ? [] : [routed, ...(routed.fallbacks ?? [])];
+    if (targets.length <= 1) {
+      yield* runComplete(req, signal, beforeSend);
+      return;
+    }
+    const allowed = req.role === undefined ? [] : options.roles?.allowed(req.role) ?? [];
+    let pending: unknown;
+    // Whether any output reached the caller, over every target: once the writer has seen part of an answer, another provider may
+    // not silently begin it again (the transport's own rule, kept for the route).
+    let deliveredToCaller = false;
+    for (const [index, target] of targets.entries()) {
+      const profile = profiles.get(target.profileId);
+      if (index === 0) {
+        // The primary's own failures, and a primary whose profile is gone, reach the caller as they always have.
+        let fault: unknown;
+        try {
+          for await (const chunk of runComplete(req, signal, beforeSend, (error) => { fault = error; })) {
+            if ((chunk.delta ?? '') !== '' || (chunk.reasoningDelta ?? '') !== '') deliveredToCaller = true;
+            yield chunk;
+          }
+          return;
+        } catch (error) {
+          fault = error;
+        }
+        const reason = fallbackReasonOf(fault);
+        if (reason === undefined || deliveredToCaller || signal.aborted) throw fault;
+        pending = fault;
+        const next = profiles.get(targets[1]?.profileId ?? '');
+        if (next !== undefined) tellFallback(req, target, next, targets[1], reason, (at) => modelFor(at.profileId, req));
+        continue;
+      }
+      if (profile === undefined || !allowed.includes(profile.id)) {
+        // A fallback the writer removed, deleted or never authorised is not a destination: skip it, or refuse when nothing else
+        // is left, so a misconfigured route can never send to a profile the role does not allow.
+        if (index === targets.length - 1) {
+          if (profile !== undefined) throw new EgressDeniedError(`Refused a request under the “${req.role}” role: its fallback names a profile that role may not use.`);
+          throw pending;
+        }
+        const later = targets.slice(index + 1).find((candidate) => profiles.get(candidate.profileId) !== undefined);
+        if (later === undefined) throw pending;
+        continue;
+      }
+      const attempt: ChatRequest = {
+        ...req,
+        profileId: profile.id,
+        ...(target.model === undefined ? {} : { model: target.model }),
+        ...(target.thinking === undefined ? {} : { thinking: target.thinking }),
+      };
+      let delivered = false;
+      let ended = false;
+      let fault: unknown;
+      try {
+        for await (const chunk of runComplete(attempt, signal, beforeSend, (error) => { fault = error; })) {
+          if ((chunk.delta ?? '') !== '' || (chunk.reasoningDelta ?? '') !== '') delivered = deliveredToCaller = true;
+          if (chunk.finishReason !== undefined) ended = true;
+          yield chunk;
+        }
+        return;
+      } catch (error) {
+        fault = error;
+      }
+      const reason = fallbackReasonOf(fault);
+      const nextIndex = targets.findIndex((candidate, at) => at > index && profiles.get(candidate.profileId) !== undefined && allowed.includes(candidate.profileId));
+      if (reason === undefined || delivered || ended || signal.aborted || nextIndex === -1) throw fault;
+      pending = fault;
+      const next = targets[nextIndex];
+      if (next !== undefined) tellFallback(req, target, profiles.get(next.profileId), next, reason, (at) => modelFor(at.profileId, attempt));
+    }
+    if (pending !== undefined) throw pending;
+  }
+
+  /** Reports a switch to the next target, so the activity view can say which provider answered and why (§6). */
+  function tellFallback(req: ChatRequest, fromTarget: RoleTarget, to: ProfileView | undefined, toTarget: RoleTarget | undefined, reason: FallbackReason, sentModel: (at: RoleTarget) => string): void {
+    if (observer === undefined || req.privatePayload === true || toTarget === undefined) return;
+    calls += 1;
+    try {
+      observer({ type: 'fallback', id: calls, from: { profileId: fromTarget.profileId, model: sentModel(fromTarget) }, to: { profileId: toTarget.profileId, model: toTarget.model ?? to?.defaultModel ?? '' }, reason, at: clock.now() });
+    } catch {
+      // display only: the call is the writer's, the trace is not
     }
   }
 
@@ -790,6 +904,8 @@ export function createGateway(options: GatewayOptions): Gateway {
     modelCaps,
     accountTokens,
     probeResponseFormat,
+    resolveRoleRoute: (role) => roleRoute(role, undefined),
+    modelFor,
     setObserver: (observe) => {
       observer = observe;
     },

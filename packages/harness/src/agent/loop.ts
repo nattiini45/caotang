@@ -1571,6 +1571,19 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * included, and is counted against the turn's bound before it is sent. The session's role is stamped on the
    * request here too (provider-gateway §6); the prompt-pack's calls pass 'drafting' for it instead.
    */
+  /**
+   * Whether a turn's own pin names exactly the role's current primary (provider-gateway §6): then the pin is redundant, the
+   * request is routed by its role, and the role's authorised fallbacks may answer. A pin naming anything else is a destination of
+   * its own, and the request is sent there alone.
+   */
+  const pinIsRolePrimary = (turn: Turn, role: TaskRole | undefined): boolean => {
+    if (role === undefined || role !== options.role || turn.pins.profileId === undefined) return false;
+    const route = gateway.resolveRoleRoute?.(role);
+    return route !== undefined && route.profileId === turn.pins.profileId
+      && (turn.pins.model ?? route.model) === route.model
+      && (turn.pins.thinking ?? route.thinking) === route.thinking;
+  };
+
   const modelCall = (turn: Turn, onDelta?: (delta: string) => void, role: TaskRole | undefined = options.role, planner: boolean | 'compaction' = false, hookGuard?: () => void): ModelCall => ({
     gateway: {
       complete: (request, signal) => {
@@ -1624,11 +1637,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     },
     turnId: turn.id,
     ...signalOf(turn),
-    // The turn's pins apply to the session's own role only: a call under another role resolves that role's
-    // profile, model and thinking at the gateway instead of borrowing the session's.
-    ...(turn.pins.profileId === undefined || role !== options.role ? {} : { profileId: turn.pins.profileId }),
-    ...(turn.pins.model === undefined || role !== options.role ? {} : { model: turn.pins.model }),
-    ...(turn.pins.thinking === undefined || role !== options.role ? {} : { thinking: turn.pins.thinking }),
+    // The turn's pins apply to the session's own role only: a call under another role resolves that role's profile, model and
+    // thinking at the gateway instead of borrowing the session's. A pin that is the role's own primary is left off, so its
+    // authorised fallbacks may answer; anything else is sent to the pinned destination alone.
+    ...(pinIsRolePrimary(turn, role) ? {} : {
+      ...(turn.pins.profileId === undefined || role !== options.role ? {} : { profileId: turn.pins.profileId }),
+      ...(turn.pins.model === undefined || role !== options.role ? {} : { model: turn.pins.model }),
+      ...(turn.pins.thinking === undefined || role !== options.role ? {} : { thinking: turn.pins.thinking }),
+    }),
     // A draft's deltas go to its scene's ghost region (`draft.delta`), and every other call's to the panel's stream tail.
     onDelta: onDelta ?? ((delta) => emit({ type: 'model.delta', turnId: turn.id, delta })),
     // Reasoning has one sink on every call — the panel's collapsed "Thinking" block. A draft's reasoning is the
