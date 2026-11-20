@@ -32,6 +32,7 @@ import type { ToolName } from '../metadata.js';
 import type { PlanPreflight, PlanStep } from '../plan.js';
 import { PLAN_STEPS_MAX } from '../plan.js';
 import type { ToolListing } from '../runtime.js';
+import type { ProjectState } from '@caotang/store';
 import { SUBAGENT_BLURBS, type DelegateParams, type SubagentName } from '../tools/delegate.js';
 import type { ToolCall, ToolOutcome } from '../types.js';
 import { canonicalJson } from '../util.js';
@@ -170,6 +171,7 @@ export interface SubagentHost {
  */
 export interface ParentTurnHandle {
   readonly contextOverrides?: ContextOverrides;
+  readonly chapterState?: ProjectState;
   readonly turnId: string;
   readonly agentPath: string;
   /** Whether the turn speaks native tool calls: the child speaks the wire the parent does. */
@@ -217,7 +219,8 @@ function readIds(data: Readonly<Record<string, unknown>>): string[] {
 export function createSubagentRunner(host: SubagentHost): SubagentRunner {
   return {
     async run(spec, params, parent, signal) {
-      const tools = childTools(spec, host.tools());
+      const tools = childTools(spec, host.tools()).filter((tool) =>
+        parent.chapterState === undefined || tool.risk !== 'read' || tool.name === 'doc.read' || tool.name === 'notes.read');
       const listed = tools.map((tool) => tool.name);
       const proposed: PlanStep[] = [];
       const proposedKeys = new Set<string>();
@@ -283,6 +286,7 @@ export function createSubagentRunner(host: SubagentHost): SubagentRunner {
         const scope = params.scope === undefined ? {} : { scope: params.scope };
         const assembled = host.context.assemble({
           nonce: turnNonce(parent.turnId),
+          ...(parent.chapterState === undefined ? {} : { state: parent.chapterState }),
           task: { tool: 'delegate', instruction: `Brief: ${params.brief}`, params: { agent: spec.name }, ...scope, ...(parent.contextOverrides === undefined ? {} : { overrides: parent.contextOverrides }) },
           role: system,
           ...(parent.languages === undefined ? {} : { languages: parent.languages }),
