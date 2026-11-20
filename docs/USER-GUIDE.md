@@ -337,6 +337,12 @@ Under **External references**, choose **Add reference** for an article, book, we
 
 An entry with a reference raises the project to project format v3, and the first browser save of one updates that browser's project storage again. An older Caotang build then refuses those projects instead of losing the references; projects with no references keep the format they had.
 
+Under **Relations**, choose **Add relation** to link this entry to another one and, if useful, give the link a word of its own: *ally*, *rival*, *mother of*. The list shows the links this entry makes and, below it under **Linked from**, the entries that link to it; select any name to open that entry. A link belongs to the entry that states it, so the other entry carries it under **Linked from** rather than in its own list, and removing a link means opening the entry that keeps it. If the linked entry is deleted, the link stays and says the entry is missing.
+
+An entry with a relation raises the project to project format v4, and the first browser save of one updates that browser's project storage again. An older Caotang build then refuses those projects instead of losing the links; projects with no relations keep the format they had.
+
+Switch the codex between **List** and **Graph** with the control beside **New entry**. The graph draws every entry as a point and every link as an arrow, and below it the same links are listed as buttons, so you can reach both ends with the keyboard. Select an entry in either place to open it.
+
 The include policy says when the agent sees an entry:
 
 - **Always**: with every request. These are sent whole even when together they are longer than the codex's share of the prompt; the other entries are then left out, and the prompt preview says how many tokens the Always entries need.

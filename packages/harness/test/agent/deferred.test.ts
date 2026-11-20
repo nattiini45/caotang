@@ -62,9 +62,10 @@ describe('the planner declares the core rows, and the deferred ones once the tur
   });
 
   it('pins the declaration size for the fixture before a search, and shows it larger only after a search or a preload', () => {
-    // 18040 characters at the time of writing; the ceiling leaves room for a description edit, not for a row.
+    // 18040 characters at the time of writing, then 18526 once codex.write gained its relationEdits parameter; the ceiling
+    // leaves room for a description edit, not for a row.
     const before = JSON.stringify(core).length;
-    expect(before).toBeLessThanOrEqual(18_500);
+    expect(before).toBeLessThanOrEqual(18_600);
 
     const turnId = 'turn-size';
     valueOf(run(harness, 'tool.search', { query: 'coherence' }, { turnId }));

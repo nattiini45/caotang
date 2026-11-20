@@ -303,6 +303,9 @@ test.describe('the localized touch Inbox', () => {
   test.use({ hasTouch: true, viewport: { width: 1280, height: 900 } });
 
   test('Modern keeps a German review and its return action usable in a narrow dark window', { tag: '@modern' }, async ({ page }) => {
+    // The same queue-and-report flow as the costed review above, plus the settings, language switch and the 390 px layout; it measured
+    // 26 s on Firefox locally, so the default 30 s deadline is what failed on a loaded runner, not the flow (§8.3's narrow walk).
+    test.setTimeout(90_000);
     await page.addInitScript(() => {
       localStorage.setItem('caotang.interface', 'modern');
       localStorage.setItem('caotang.theme', 'dark');
