@@ -261,21 +261,18 @@ export class ProviderService {
   static async open(options: ProviderOpenOptions): Promise<{ service: ProviderService; notices: string[] }> {
     const notices: string[] = [];
     const vault = options.vault === null ? createMemoryVaultPort() : createIndexedDbVaultPort({ factory: options.vault });
-    // Installing the keys a host supplies is not a change the host needs to hear about again, so the mirror stays quiet
-    // until the studio is open.
-    let installing = false;
+    // Reading a key back and re-sealing it — what opening a stored profile does — is not a change the host needs to hear
+    // about again, so the mirror stays quiet until the studio is open.
+    let installing = true;
     const host = options.host;
     const keys = createKeyStore(vault, host?.keyChanged === undefined ? {} : {
       mirror: { changed: (profileId) => { if (!installing) host.keyChanged?.(profileId); } },
     });
     if (host?.restore !== undefined) {
-      installing = true;
       try {
         for (const restored of await host.restore()) await keys.putPayload(restored.profileId, restored.payload);
       } catch {
         // A host that cannot supply its keys leaves those profiles without one, and the restore below names each of them.
-      } finally {
-        installing = false;
       }
     }
 
@@ -338,6 +335,7 @@ export class ProviderService {
         roleState.current = undefined;
       }
     }
+    installing = false;
     if (profiles.list().length === 0) {
       await profiles.create({ name: DEMO_PROFILE_NAME, kind: 'mock', isActive: true });
       await service.persist();

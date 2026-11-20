@@ -4,7 +4,20 @@
  * what it had just read back.
  */
 import { describe, expect, it } from 'vitest';
+import { MemoryIndexedDb } from '@caotang/store';
 import { ProviderService } from '../src/app/providers.js';
+import type { AppDb } from '../src/app/app-db.js';
+
+function memoryDb(): AppDb {
+  const rows = new Map<string, unknown>();
+  return {
+    async get<T>(key: string) { return structuredClone(rows.get(key)) as T | undefined; },
+    async put(key, value) { rows.set(key, structuredClone(value)); },
+    async delete(key) { rows.delete(key); },
+    async list<T>(prefix: string) { return [...rows].filter(([key]) => key.startsWith(prefix)).map(([key, value]) => ({ key, value: structuredClone(value) as T })); },
+    close() {},
+  };
+}
 
 describe('the studio host seam', () => {
   it('installs the keys a host supplies without reporting them as changes, and tells the host about a save', async () => {
@@ -45,5 +58,20 @@ describe('the studio host seam', () => {
     expect(changed).toEqual([]);
     await service.keys.put('prv_AFTER', 'sk-after');
     expect(changed).toEqual(['prv_AFTER']);
+  });
+
+  it('does not report the keys it reads back while opening the stored studio', async () => {
+    const db = memoryDb();
+    const vault = new MemoryIndexedDb();
+    const first = await ProviderService.open({ db, vault });
+    const created = await first.service.profiles.create({ name: 'Endpoint', kind: 'endpoint', preset: 'openai', apiKey: 'sk-stored', defaultModel: 'gpt-test' });
+    await first.service.persist();
+
+    const changed: string[] = [];
+    const second = await ProviderService.open({ db, vault, host: { keyChanged: (profileId) => changed.push(profileId) } });
+    expect(changed).toEqual([]);
+    expect(await second.service.keys.reveal(created.id)).toBe('sk-stored');
+    await second.service.keys.put('prv_LATER', 'sk-later');
+    expect(changed).toEqual(['prv_LATER']);
   });
 });
