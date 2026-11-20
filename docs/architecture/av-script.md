@@ -152,6 +152,8 @@ A cue **ends** at `atSec + forSec` when it has a duration; a cue with no `forSec
 
 All join `EXPORT_FORMATS`, appended so the frozen order holds, and `MEDIA_FORMATS`, since they compile through `media.ts` rather than the prose pipeline ([exporter.md](exporter.md) §3). `vo-script-xlsx` joins `BINARY_FORMATS` (`packages/exporter/src/types.ts`) and needs the bus's byte binding, as `dialogue-xlsx` and `shot-list-xlsx` do ([exporter.md](exporter.md)); it is also added to `isBinaryPath` in `apps/desktop/src/app/exports.ts`. Every other AV format is text.
 
+When a selection spans multiple episodes, show notes, transcripts, teleprompter text, WebVTT captions and chapter JSON files use a sanitized episode title in each filename. The filenames are made unique without regard to case before reservation. The episode’s displayed title is unchanged.
+
 **A feed references audio; it never contains it.** `enclosure` carries a `url`, a `length` in bytes and a `type` from the set Apple accepts (`audio/mpeg`, `audio/x-m4a`, `video/mp4`, `video/x-m4v`, `video/quicktime`, `application/pdf`), and the URL is one the writer publishes elsewhere. Caotang stores no audio and no video: project files are plain text (SD10). The feed is a valid static XML file — Apple needs the *enclosure and artwork hosts* to answer HTTP HEAD and byte-range requests, not the feed's host to run anything — but a writer who has no audio host yet has a feed with no episodes in it, and the compile log names each episode left out and why.
 
 ## 6. Timeline and storyboard

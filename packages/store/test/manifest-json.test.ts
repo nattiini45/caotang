@@ -222,6 +222,14 @@ describe('manifest serializer', () => {
     }
   });
 
+  it.each([0, -1, 1.5, '32', null, Number.MAX_SAFE_INTEGER + 1])('warns on an invalid saved teleprompter width (%s) and keeps the recipe', (teleprompterWidth) => {
+    const recipe = { name: 'Reading copy', includeRootIds: ['manuscript'], format: 'teleprompter' };
+    const result = validateManifest({ ...rich(), recipes: [{ ...recipe, options: { teleprompterWidth } }] });
+    expect(result.ok).toBe(true);
+    expect(result.warnings.map((warning) => warning.path)).toContain('recipes[0].options');
+    expect(result.manifest?.recipes).toEqual([recipe]);
+  });
+
   it('keeps the contact sheet’s paper size, A4 or Letter, through a save and a load, and drops any other value with a warning', () => {
     for (const good of ['A4', 'Letter'] as const) {
       const m = rich();

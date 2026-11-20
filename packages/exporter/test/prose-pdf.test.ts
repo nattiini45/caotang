@@ -178,6 +178,26 @@ describe('prose-pdf — the layout', () => {
     expect(texts.some((text) => text.startsWith('[1] The note’s own words.'))).toBe(true);
   });
 
+  it('moves a word to the next line when it fits there whole', () => {
+    const first = 'a'.repeat(57);
+    const layout = layoutProsePdf(inputOf(`${first} harbor`), {});
+    expect(layout.pages.flatMap((page) => page.lines.map((line) => line.text)).filter(Boolean)).toEqual([first, 'harbor']);
+  });
+
+  it('splits a word wider than a full line without losing any letters', () => {
+    const word = 'a'.repeat(80);
+    const layout = layoutProsePdf(inputOf(word), {});
+    expect(layout.pages.flatMap((page) => page.lines.map((line) => line.text)).filter(Boolean)).toEqual(['a'.repeat(60), 'a'.repeat(20)]);
+  });
+
+  it('uses shaped widths when wrapping Indic words in the manuscript and its notes', () => {
+    const body = 'বাংলা ভাষা[^a]\n\n[^a]: বাংলা ভাষা';
+    const layout = layoutProsePdf(inputOf(body), {}, () => 40);
+    const lines = layout.pages.flatMap((page) => page.lines);
+    expect(lines.filter((line) => line.tag === 'P' && line.text !== '').map((line) => line.text)).toEqual(['বাংলা', 'ভাষা[1]']);
+    expect(lines.filter((line) => line.tag === 'Note').map((line) => line.text)).toEqual(['[1] বাংলা', 'ভাষা']);
+  });
+
   it('puts endnotes on pages of their own at the book’s end, headed NOTES', () => {
     const body = 'A line with a note.[^1]\n\n[^1]: The note’s own words.';
     const layout = layoutProsePdf(inputOf(body), { notes: 'endnote' });
@@ -248,6 +268,12 @@ describe('prose-pdf — the layout', () => {
     const texts = (title?.lines ?? []).map((line) => line.text);
     expect(texts.filter((text) => text.startsWith('A')).length).toBeGreaterThan(1);
     for (const line of title?.lines ?? []) expect(line.x).toBeGreaterThanOrEqual(72);
+  });
+
+  it.each(['—', '―', '〜'])('keeps %s at the preceding line end when a CJK line fills its measure', (closer) => {
+    const first = '日'.repeat(30);
+    const layout = layoutProsePdf(inputOf(`${first}${closer}次`), {});
+    expect(layout.pages.flatMap((page) => page.lines.map((line) => line.text)).filter(Boolean)).toEqual([`${first}${closer}`, '次']);
   });
 });
 
