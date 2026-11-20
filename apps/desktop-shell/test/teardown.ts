@@ -1,5 +1,5 @@
 /**
- * Ending a shell spec's application (#787). A spec that is finished with the app is not a writer being asked whether to keep their
+ * Ending a shell spec’s application (#788). A spec that is finished with the app is not a writer being asked whether to keep their
  * words, but `electron.close()` goes through the window's unload, where the app's `beforeunload` guard asks exactly that question
  * whenever the session has not finished saving. Chromium raises the warning, the answer races Playwright's own teardown of the page,
  * and a warning answered with "stay" cancels the unload: the window stays up, the application never quits, and the test spends its
