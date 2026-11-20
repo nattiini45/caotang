@@ -103,6 +103,8 @@ describe('complete() — ordered role fallbacks (provider-gateway §6)', () => {
     expect(events.filter((event) => event.type === 'request').at(-1)).toMatchObject({ profileId: ids.fallback });
     const switchEvent = events.find((event) => event.type === 'fallback');
     expect(switchEvent).toMatchObject({ type: 'fallback', from: { profileId: ids.primary }, to: { profileId: ids.fallback }, reason: 'rate_limit' });
+    // The switch is told under the call that answered, so a trace reader files it in that call's record rather than losing it.
+    expect(switchEvent?.id).toBe(events.filter((event) => event.type === 'request').at(-1)?.id);
     // The models named are the ones each profile actually sends: the primary's `model-x`, the fallback's own default.
     expect(switchEvent?.type === 'fallback' ? switchEvent.from.model : undefined).toBe(String(net.bodyOf(0)['model']));
     expect(switchEvent?.type === 'fallback' ? switchEvent.to.model : undefined).toBe(String(net.bodyOf(1)['model']));
