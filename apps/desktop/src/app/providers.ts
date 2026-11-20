@@ -266,7 +266,9 @@ export class ProviderService {
     let installing = true;
     const host = options.host;
     const keys = createKeyStore(vault, host?.keyChanged === undefined ? {} : {
-      mirror: { changed: (profileId) => { if (!installing) host.keyChanged?.(profileId); } },
+      // Only a provider key: an MCP bearer token is sealed in the same store under an `mcp:` reference, and it is
+      // not the host's to keep.
+      mirror: { changed: (profileId) => { if (!installing && PROFILE_ID_PATTERN.test(profileId)) host.keyChanged?.(profileId); } },
     });
     if (host?.restore !== undefined) {
       try {

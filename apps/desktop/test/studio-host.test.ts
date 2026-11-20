@@ -27,22 +27,22 @@ describe('the studio host seam', () => {
       vault: null,
       host: {
         keyChanged: (profileId) => changed.push(profileId),
-        restore: async () => [{ profileId: 'prv_RESTORED', payload: { apiKey: 'sk-restored' } }],
+        restore: async () => [{ profileId: 'prv_0000000001', payload: { apiKey: 'sk-restored' } }],
       },
     });
     expect(changed).toEqual([]);
-    expect(await service.keys.reveal('prv_RESTORED')).toBe('sk-restored');
+    expect(await service.keys.reveal('prv_0000000001')).toBe('sk-restored');
 
-    await service.keys.putPayload('prv_SAVED', { apiKey: 'sk-saved' });
-    expect(changed).toEqual(['prv_SAVED']);
-    await service.keys.remove('prv_SAVED');
-    expect(changed).toEqual(['prv_SAVED', 'prv_SAVED']);
+    await service.keys.putPayload('prv_0000000002', { apiKey: 'sk-saved' });
+    expect(changed).toEqual(['prv_0000000002']);
+    await service.keys.remove('prv_0000000002');
+    expect(changed).toEqual(['prv_0000000002', 'prv_0000000002']);
   });
 
   it('opens without a host exactly as the folder app does', async () => {
     const { service } = await ProviderService.open({ db: null, vault: null });
-    await service.keys.put('prv_PLAIN', 'sk-plain');
-    expect(await service.keys.reveal('prv_PLAIN')).toBe('sk-plain');
+    await service.keys.put('prv_0000000003', 'sk-plain');
+    expect(await service.keys.reveal('prv_0000000003')).toBe('sk-plain');
   });
 
   it('opens when the host cannot supply its keys, leaving the profiles to report what they lost', async () => {
@@ -56,8 +56,11 @@ describe('the studio host seam', () => {
       },
     });
     expect(changed).toEqual([]);
-    await service.keys.put('prv_AFTER', 'sk-after');
-    expect(changed).toEqual(['prv_AFTER']);
+    await service.keys.put('prv_0000000004', 'sk-after');
+    expect(changed).toEqual(['prv_0000000004']);
+    // An MCP bearer token lives in the same store under its own reference, and it is not a provider key.
+    await service.keys.put('mcp:server-one', 'token-value');
+    expect(changed).toEqual(['prv_0000000004']);
   });
 
   it('does not report the keys it reads back while opening the stored studio', async () => {
@@ -71,7 +74,7 @@ describe('the studio host seam', () => {
     const second = await ProviderService.open({ db, vault, host: { keyChanged: (profileId) => changed.push(profileId) } });
     expect(changed).toEqual([]);
     expect(await second.service.keys.reveal(created.id)).toBe('sk-stored');
-    await second.service.keys.put('prv_LATER', 'sk-later');
-    expect(changed).toEqual(['prv_LATER']);
+    await second.service.keys.put('prv_0000000005', 'sk-later');
+    expect(changed).toEqual(['prv_0000000005']);
   });
 });
