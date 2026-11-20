@@ -513,7 +513,8 @@ function RolesPanel({ services, onSaved }: { services: AppServices; onSaved: (te
               <select
                 aria-label={t`${{ role: labelText }} profile`}
                 value={pinned?.id ?? ''}
-                onChange={(event) => setDrafts({ ...drafts, [id]: { profileId: event.target.value, model: '', thinking: '' } })}
+                // The row keeps the fallbacks it already lists: picking a profile resets the model and level, never the order.
+                onChange={(event) => setDrafts({ ...drafts, [id]: { ...draft, profileId: event.target.value, model: '', thinking: '' } })}
               >
                 <option value="">{id === 'chat' ? t`Active profile` : t`Follow chat`}</option>
                 {profiles.map((profile) => (
