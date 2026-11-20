@@ -434,8 +434,9 @@ export function createGateway(options: GatewayOptions): Gateway {
         || (expected.stamp !== undefined && expected.stamp !== requestRoute(profile, model, sent.thinking, sent).expected.stamp))) {
         throw new EgressDeniedError('The approved route changed. No request was sent.');
       }
-      const sendGuard = expected?.stamp === undefined ? beforeSend : () => {
-        if (resolveRequestRoute(req)?.expected.stamp !== expected.stamp) {
+      const sendGuard = expected?.stamp === undefined && routed === undefined ? beforeSend : () => {
+        if (expected?.stamp === undefined) assertRoleAllows(req.role, routed);
+        else if (resolveRequestRoute(req)?.expected.stamp !== expected.stamp) {
           throw new EgressDeniedError('The approved route changed. This attempt was not sent.');
         }
         beforeSend?.();
@@ -456,10 +457,11 @@ export function createGateway(options: GatewayOptions): Gateway {
       const price = callPrice(profile.id, model, sent.thinking, sent);
       const stats: StreamStats = { attempts: 0, usage: undefined };
       const observe = observer;
-      const traceReady = observe === undefined || sent.privatePayload === true
+      const traceId = observe === undefined || sent.privatePayload === true ? undefined : ++calls;
+      const traceReady = observe === undefined || traceId === undefined
         ? undefined
         : import('./trace.js').then(
-          ({ startTrace }) => startTrace(observe, sent, profile, model, ++calls, clock, ITERATOR_ABANDONED),
+          ({ startTrace }) => startTrace(observe, sent, profile, model, traceId, clock, ITERATOR_ABANDONED),
           () => undefined,
         );
       let trace: Awaited<typeof traceReady>;
@@ -472,7 +474,6 @@ export function createGateway(options: GatewayOptions): Gateway {
               yield { finishReason: 'error', usage: ZERO };
               return;
             }
-            assertRoleAllows(req.role, routed);
           }
           sendGuard?.();
           stats.attempts = 1;
@@ -505,7 +506,6 @@ export function createGateway(options: GatewayOptions): Gateway {
           yield { finishReason: 'error', usage: ZERO };
           return;
         }
-        if (traceReady !== undefined) assertRoleAllows(req.role, routed);
         let limited = false;
         let finished: ChatChunk['finishReason'];
         const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal, onRateLimit: (delayMs: number) => { limited = true; limiter.rateLimited(profile.id, delayMs); }, ...(checkCredentials === undefined ? {} : { beforeAttempt: checkCredentials }), ...(sendGuard === undefined ? {} : { beforeSend: sendGuard }) };

@@ -101,7 +101,7 @@ describe('private, route-bound requests', () => {
     expect(serialized).not.toContain('different-tenant');
   });
 
-  it('reports that the approved route is no longer valid when its role loses access during credential lookup', async () => {
+  it.each([true, false])('refuses a role revoked during credential lookup (stamped: %s)', async (stamped) => {
     const h = harness();
     const profile = await addEndpoint(h);
     let allowed = true;
@@ -120,9 +120,11 @@ describe('private, route-bound requests', () => {
     const route = gateway.resolveRequestRoute({ role: 'chat' });
     if (route === undefined) throw new Error('Expected the initial role to resolve.');
     const { error } = await collect(gateway.complete({
-      ...userMessage('This prose must not be sent.'), role: 'chat', expectedRoute: route.expected,
+      ...userMessage('This prose must not be sent.'), role: 'chat', ...(stamped ? { expectedRoute: route.expected } : {}),
     }));
-    expect(error).toMatchObject({ message: 'The approved route changed. This attempt was not sent.' });
+    expect(error).toMatchObject({ message: expect.stringContaining(stamped
+      ? 'The approved route changed. This attempt was not sent.'
+      : 'it resolved to a profile that role may not use.') });
     expect(h.net.calls).toHaveLength(0);
   });
 });
