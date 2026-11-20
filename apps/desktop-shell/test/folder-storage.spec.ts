@@ -9,12 +9,16 @@ import { createEmptyManifest, createProjectState, exportProjectZip } from '@caot
 
 import type {} from '../src/folder-contract.cjs';
 
+import { dismissDialogs } from './dialogs.js';
+
 const executablePath = createRequire(import.meta.url)('electron') as string;
 const shell = fileURLToPath(new URL('..', import.meta.url));
 
 async function launch(profile: string): Promise<ElectronApplication> {
   await mkdir(profile, { recursive: true });
-  return _electron.launch({ executablePath, args: [shell, `--user-data-dir=${profile}`], chromiumSandbox: true });
+  const electron = await _electron.launch({ executablePath, args: [shell, `--user-data-dir=${profile}`], chromiumSandbox: true });
+  dismissDialogs(electron);
+  return electron;
 }
 
 async function choose(electron: ElectronApplication, path: string): Promise<void> {

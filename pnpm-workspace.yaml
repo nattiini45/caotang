@@ -16,4 +16,5 @@ patchedDependencies:
   pdfjs-dist@6.4.299: patches/pdfjs-dist@6.4.299.patch
   pseudolocale@3.1.0: patches/pseudolocale@3.1.0.patch
 allowBuilds:
+  '@parcel/watcher': false
   workerd: true

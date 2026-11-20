@@ -184,6 +184,7 @@ function isCharLimit(v: unknown): boolean {
 function isRecipeOptions(v: unknown): boolean {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
   const o = v as Record<string, unknown>;
+  const width = o['teleprompterWidth'];
   return (
     (o['titlePage'] === undefined || typeof o['titlePage'] === 'boolean') &&
     (o['toc'] === undefined || typeof o['toc'] === 'boolean') &&
@@ -208,6 +209,7 @@ function isRecipeOptions(v: unknown): boolean {
     (o['keepPictureMetadata'] === undefined || typeof o['keepPictureMetadata'] === 'boolean') &&
     (o['timelinePictures'] === undefined || typeof o['timelinePictures'] === 'boolean') &&
     (o['notes'] === undefined || o['notes'] === 'footnote' || o['notes'] === 'endnote') &&
+    (width === undefined || (typeof width === 'number' && Number.isSafeInteger(width) && width >= 1)) &&
     (o['frontMatter'] === undefined || typeof o['frontMatter'] === 'boolean') &&
     (o['htmlMode'] === undefined || o['htmlMode'] === 'standalone' || o['htmlMode'] === 'fragment') &&
     (o['css'] === undefined || typeof o['css'] === 'string') &&
@@ -484,7 +486,7 @@ function validateFields(
           // a saved selection the writer chose, and the options it cannot read fall back to the template's defaults.
           const options = (recipe as Record<string, unknown>)['options'];
           if (options !== undefined && !isRecipeOptions(options)) {
-            warn(`recipes[${i}].options`, 'not a set of recipe options (titlePage, toc, author, charLimit, sceneNumbers, continued, pageSize, scriptFont, paperFrames, colourEmoji, bleed, cropMarks, contentsLabel, pictures, epubImageMaxPx, epubKeepWebp, keepPictureMetadata, timelinePictures, notes); dropped, and the recipe uses the template defaults');
+            warn(`recipes[${i}].options`, 'not a set of recipe options (titlePage, toc, author, charLimit, sceneNumbers, continued, pageSize, scriptFont, paperFrames, colourEmoji, bleed, cropMarks, contentsLabel, pictures, epubImageMaxPx, epubKeepWebp, keepPictureMetadata, timelinePictures, notes, teleprompterWidth); dropped, and the recipe uses the template defaults');
             delete (recipe as Record<string, unknown>)['options'];
           }
           return true;
@@ -1111,6 +1113,11 @@ function validateCodex(
     if (references !== undefined && (!Array.isArray(references) || jsonValueProblem(references) !== undefined)) {
       warn(`${at}.references`, 'expected a JSON list; external references were ignored');
       delete entryNode.references;
+    }
+    const relations = entryNode.relations;
+    if (relations !== undefined && (!Array.isArray(relations) || jsonValueProblem(relations) !== undefined)) {
+      warn(`${at}.relations`, 'expected a JSON list; entry relations were ignored');
+      delete entryNode.relations;
     }
     const visualRefs = entryNode.visualRefs;
     if (visualRefs !== undefined) {

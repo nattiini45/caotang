@@ -6,8 +6,14 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Chapter helpers (#47).** Ask the agent to read one chapter at a time across the Manuscript. It shows the number of chapters and maximum model calls before starting, runs helpers in parallel, and keeps finished notes if you stop it. Any proposed changes still go through the agent’s normal plan approval.
+
+- **Codex relations (#223).** Link one codex entry to another, worded the way the story needs it (*ally*, *rival*, *mother of*), and see under **Linked from** which entries link back. Switch the codex between **List** and **Graph** to see the whole project's links at once; the graph is drawn on demand and lists the same links as buttons for the keyboard. A link belongs to the entry that states it, so deleting the other entry leaves it visible as a missing entry instead of removing a note you wrote. Relations stay out of automatic model context. Saving one raises the project to format v4, so a build that predates relations refuses the folder, bundle or browser store instead of dropping them; projects without relations keep their current format.
+- **The agent can find a codex reference or link it already made.** Reading the codex now returns each entry's saved references and links with their ids, so an agent can change or remove one through `codex.write` instead of only adding new ones. These ids stay out of automatic model context, as the references and links themselves do.
 - **Wrapped account keys for the standalone sync server.** A signed-in account can create its wrapped key record once and read it from another device. A second setup cannot overwrite the first, and the passphrase and recovery key stay on the device. The local app is unchanged.
 - **External codex references (#222).** Record the books, articles and sites behind an entry with a title, URL, publisher, date and quote. These references are separate from manuscript provenance and stay out of automatic model context. Saving one raises the project to format v3, so a build that predates references refuses the folder, bundle or browser store instead of dropping them; projects without references keep their current format.
+- **External folder changes in the desktop shell (#403).** While a project is open from its folder, a change another program makes in that folder raises an offer naming the changed files. **Reopen the folder’s version** reloads the folder once nothing is unsaved; when words are still unsaved the offer asks for an export first, so a reload cannot drop them. Nothing reloads or merges by itself, and a save into a folder that changed is still refused and questioned.
+
 - **Native project folders in the desktop development shell (#402).** Pick a folder for a new project, reopen recent folders without a browser permission prompt, or copy an existing browser-only project into an empty folder without changing the original. The folder, not the local mirror, holds the manuscript. Missing or read-only folders do not open from a stale copy. The web app's storage is unchanged.
 
 - **Typed codex details (#221).** Define text, number, date or yes/no fields for an entry type, including a type you name yourself. Entries of that type share the fields but keep their own values. Details stay out of automatic model context. A folder or bundle saved with typed details requires a Caotang build that supports project format v2. The first browser save with typed details also updates that browser's project storage, so older builds refuse it rather than losing data. Ordinary v1 artifacts and browsers that never save the new fields stay compatible.
@@ -108,6 +114,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Both PDFs are checked by veraPDF in CI (#28).** The screenplay PDF and the storyboard contact sheet now go through veraPDF's PDF/A validator beside pdf.js, qpdf, Poppler, Ghostscript and MuPDF, so a file that breaks a structural or font rule fails the build instead of reaching a reader. The files claim no PDF/A or PDF/UA conformance, so the check holds them to the rules that do not depend on such a claim and names each rule a file breaks; a file whose metadata does name a flavour is validated against it in full, which is where the PDF/A-2u output (#445) will be checked. The manual Acrobat and paper-print pass is dropped: the validators in CI are what stands behind both PDFs now.
 
 ### Fixed
+
+- Prose PDFs print all ten supported Indic scripts in embedded fonts, including in PDF/A-2u. Paragraphs and notes move words that fit on the next line instead of cutting them mid-word (#755, #757).
+- HTML articles and Atom entries include footnotes cited from other notes (#756).
+- Compiling several episodes gives their files safe, distinct names, and the teleprompter width survives saving to a project folder or restoring a bundle (#758, #759).
 
 - The browser-storage warning no longer floats over the page in Modern. It takes a row of its own in every view and at every width, so a field you scroll to — the Codex's **Ausschlussbegriffe**, for one — stays clickable beside it while its backup and dismiss buttons remain in reach (#735).
 
@@ -431,6 +441,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Typing Chinese, Japanese or Korean with an input method.** The Enter that confirms a candidate no longer acts on the field: it does not commit a codex name or chip, add a keyword, save a Project panel field, blur an inspector or plan-card field, create a skill, add or save a vocabulary entry, finish an inline rename, commit a queued message's edit, send or complete in the agent's Intent box, or rewrite a screenplay cue. The Enter you press after the candidate is chosen does what it did before (#188).
 - **Plan cards show the model's window warning and the cost of a draft.** A drafted step's prompt is now measured against the window, reply cap and price of the profile and model the turn runs on. Before, the app never passed those to its prompts, so a plan card could not warn that a prompt was longer than the model's window, showed no cost for a draft (only a coherence review's own estimate), and counted the reply at 4,096 tokens whatever the profile's cap. The prompt preview in **Settings › Context** uses the Chat role's model the same way.
 
+
+### Changed
+
+- **The first screen downloads less; panels come with the click that opens them.** The project panel, **Skills**, agent instructions, the vocabulary editor, the Codex rail, the corkboard, the Import… menu's Final Draft and Twee readers and the card picture picker are now fetched the first time they are opened instead of with the page, so a cold start of Classic carries 11.9 kB gzip less. A panel whose code cannot be fetched says so on the status line instead of doing nothing. The first open after an update shows a short **Loading …** line while its code arrives; nothing in the project changes, and no dialog behaves differently.
 
 ### Known limits
 

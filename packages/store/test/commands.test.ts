@@ -55,6 +55,7 @@ import { describe, expect, it } from 'vitest';
 import { isIdWithPrefix } from '@caotang/ids';
 import {
   CODEX_REFERENCE_MAX,
+  CODEX_RELATION_MAX,
   codexReferenceId,
   createActivityLog,
   createIdempotencyCache,
@@ -63,6 +64,7 @@ import {
   execute,
   lookupCommand,
   readCodexReference,
+  readCodexRelation,
   resolveCommand,
   type BusContext,
   type Command,
@@ -346,6 +348,98 @@ describe('codex references', () => {
     h.undoGroup(removed.undoGroupId ?? '');
     expect(entry.references).toHaveLength(CODEX_REFERENCE_MAX);
     expect(entry.references?.[0]).toBe(broken);
+  });
+});
+
+describe('codex relations', () => {
+  it('links two entries by name, refuses a bad target by name, and an undo takes the list back', () => {
+    const h = harness();
+    const entries = h.state.manifest.codex ?? [];
+    const fenn = entries.find(({ id }) => id === ENTRY);
+    const mara = entries.find(({ id }) => id !== ENTRY);
+    if (fenn === undefined || mara === undefined) throw new Error('missing fixture entries');
+    const before = fenn.relations;
+
+    const linked = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: mara.id, label: 'ally' }],
+    }] } }));
+    const relations = (fenn.relations ?? []).flatMap((value) => readCodexRelation(value) ?? []);
+    expect(relations).toHaveLength(1);
+    expect(relations[0]).toMatchObject({ targetId: mara.id, label: 'ally' });
+
+    const selfLink = execute(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: fenn.id }],
+    }] } }), h.bus, h.registry);
+    expect(selfLink.ok).toBe(false);
+    if (!selfLink.ok) expect(selfLink.error.message).toContain('cannot relate to itself');
+
+    const missing = execute(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: 'c_NOSUCHENTRY' }],
+    }] } }), h.bus, h.registry);
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) expect(missing.error.message).toContain('must name an existing codex entry');
+
+    h.undoGroup(linked.undoGroupId ?? '');
+    expect(fenn.relations).toEqual(before);
+  });
+
+  it('reads the cap as the batch net effect, so a create may precede the remove that makes room', () => {
+    const h = harness();
+    const entries = h.state.manifest.codex ?? [];
+    const fenn = entries.find(({ id }) => id === ENTRY);
+    const mara = entries.find(({ id }) => id !== ENTRY);
+    if (fenn === undefined || mara === undefined) throw new Error('missing fixture entries');
+    fenn.relations = Array.from({ length: CODEX_RELATION_MAX }, (_, index) => ({
+      id: `rel_${String(index).padStart(10, '0')}`,
+      targetId: mara.id,
+    }));
+    const oldest = `rel_${String(0).padStart(10, '0')}`;
+
+    const swapped = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: mara.id }, { action: 'remove', id: oldest }],
+    }] } }));
+    expect(fenn.relations).toHaveLength(CODEX_RELATION_MAX);
+    expect(fenn.relations?.some((value) => readCodexRelation(value)?.id === oldest)).toBe(false);
+
+    const over = execute(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: mara.id }, { action: 'create', targetId: mara.id }],
+    }] } }), h.bus, h.registry);
+    expect(over.ok).toBe(false);
+    if (!over.ok) expect(JSON.stringify(over.error)).toContain(`at most ${CODEX_RELATION_MAX} relations`);
+
+    h.undoGroup(swapped.undoGroupId ?? '');
+    expect(fenn.relations).toHaveLength(CODEX_RELATION_MAX);
+  });
+
+  it('removes a relation whose target does not read, so none is stuck in the project for good', () => {
+    const h = harness();
+    const entries = h.state.manifest.codex ?? [];
+    const fenn = entries.find(({ id }) => id === ENTRY);
+    const mara = entries.find(({ id }) => id !== ENTRY);
+    if (fenn === undefined || mara === undefined) throw new Error('missing fixture entries');
+    fenn.relations = Array.from({ length: CODEX_RELATION_MAX }, (_, index) => ({
+      id: `rel_${String(index).padStart(10, '0')}`,
+      targetId: mara.id,
+    }));
+    const broken = fenn.relations[0];
+    if (typeof broken !== 'object' || broken === null) throw new Error('missing fixture relation');
+    (broken as Record<string, unknown>)['targetId'] = 7;
+    expect(readCodexRelation(broken)).toBeUndefined();
+
+    const removed = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'remove', id: 'rel_0000000000' }],
+    }] } }));
+    expect(fenn.relations).toHaveLength(CODEX_RELATION_MAX - 1);
+
+    const room = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: mara.id, label: 'ally' }],
+    }] } }));
+    expect(fenn.relations).toHaveLength(CODEX_RELATION_MAX);
+
+    h.undoGroup(room.undoGroupId ?? '');
+    h.undoGroup(removed.undoGroupId ?? '');
+    expect(fenn.relations).toHaveLength(CODEX_RELATION_MAX);
+    expect(fenn.relations?.[0]).toEqual(broken);
   });
 });
 

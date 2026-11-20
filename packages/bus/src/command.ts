@@ -10,6 +10,7 @@
 import type { CommandError, Result } from './result.js';
 import type { CodexDetailChanges, CodexDetailField } from './codex-details.js';
 import type { CodexReferenceEdit } from './codex-references.js';
+import type { CodexRelationEdit } from './codex-relations.js';
 import type { ActivityReport } from './activity-log.js';
 import type { CoherenceStatusName, ScenePatch, SceneMetaRecord } from './coherence.js';
 import type {
@@ -325,6 +326,7 @@ export interface ValidationCodexEntry {
   /** The asset ids of the entry's visual references (video-prompt-pack.md §3). A use of each picture. */
   readonly visualRefs?: readonly string[] | undefined;
   readonly references?: readonly unknown[];
+  readonly relations?: readonly unknown[];
 }
 
 export interface ValidationDocument {
@@ -926,6 +928,7 @@ export type CodexUpsertOp = {
   visualRefs?: string[];
   details?: CodexDetailChanges;
   referenceEdits?: CodexReferenceEdit[];
+  relationEdits?: CodexRelationEdit[];
 };
 
 /*

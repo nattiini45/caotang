@@ -64,6 +64,21 @@ export {
   type FileContext,
   type ManifestContext,
 } from './seal.js';
+export {
+  VAULT_FORMAT_TAG,
+  importVaultKey,
+  openVault,
+  openVaultEntry,
+  openVaultEntryWith,
+  openVaultWith,
+  sealVault,
+  sealVaultEntry,
+  sealVaultEntryWith,
+  sealVaultWith,
+  sealedVaultLength,
+  type VaultContext,
+  type VaultEntryContext,
+} from './vault.js';
 export { hashPath } from './paths.js';
 export { decodeRecoveryKey, encodeRecoveryKey } from './recovery.js';
 export { HighWaterMarks } from './highwater.js';
