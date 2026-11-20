@@ -275,9 +275,13 @@ export class ProviderService {
         // Only an endpoint profile has a key, and only its base URL names an origin: a mock profile has neither.
         const stored = ((await options.db?.get<PersistedProfile[]>(APP_KEYS.profiles)) ?? []).filter((record) => (record.kind as string) === 'endpoint' || (record.kind as string) === 'openai-compatible');
         const origins = new Map(stored.map((record) => [record.id, originOf(record.baseUrl)]));
-        // Only for a profile this device has none for: a key saved here that has not reached the account yet is newer than
-        // the account's copy, and installing that copy over it would undo the save the writer just made.
-        for (const restored of await host.restore(origins)) if (!(await keys.has(restored.profileId))) await keys.putPayload(restored.profileId, restored.payload);
+        // Only for a profile this device has no usable key for. One it holds and can open is newer than the account's copy —
+        // a save that has not reached the account yet — and installing over it would undo what the writer just did. An entry
+        // it cannot open is not a key at all, so the account's copy repairs it, which is what this seam exists for.
+        for (const restored of await host.restore(origins)) {
+          const local = await keys.revealPayload(restored.profileId);
+          if (local === undefined) await keys.putPayload(restored.profileId, restored.payload);
+        }
       } catch {
         // A host that cannot supply its keys leaves those profiles without one, and the restore below names each of them.
       }
