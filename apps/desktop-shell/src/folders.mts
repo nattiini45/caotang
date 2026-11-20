@@ -116,7 +116,7 @@ export async function registerFolderIpc(profile: string, entryUrl: string): Prom
    * The watchers behind the open folders, one per folder and window, and the ids handed out for each of them. A watch belongs to
    * the caller that asked for it: a reload or a second holder gets its own id, so a late release takes only its own id with it.
    */
-  const watches = new Map<string, { readonly subscription: AsyncSubscription; readonly holders: Set<string> }>();
+  const watches = new Map<string, { readonly subscription: Promise<AsyncSubscription>; readonly holders: Set<string> }>();
   const holders = new Map<string, string>();
   const watchKey = (grant: Grant, contents: WebContents): string => `${grant.id}\u0000${contents.id}`;
   /** Ends one holder's watch, and stops the watcher when it was the folder and window's last one. */
@@ -129,7 +129,8 @@ export async function registerFolderIpc(profile: string, entryUrl: string): Prom
     record.holders.delete(subscriptionId);
     if (record.holders.size > 0) return;
     watches.delete(key);
-    await record.subscription.unsubscribe().catch(() => undefined);
+    const subscription = await record.subscription.catch(() => null);
+    await subscription?.unsubscribe().catch(() => undefined);
   };
   let writes = Promise.resolve();
   const updateRecents = (action: (next: Map<string, Grant>) => void): Promise<null> => {
@@ -225,24 +226,26 @@ export async function registerFolderIpc(profile: string, entryUrl: string): Prom
     const key = watchKey(grant, contents);
     let record = watches.get(key);
     if (record === undefined) {
-      const subscription = await subscribe(grant.root, (_error, events) => {
+      // The record is in the map before the watcher is awaited: two calls that overlap share one subscription instead of the
+      // second replacing the first and leaving it running.
+      const created = { subscription: subscribe(grant.root, (_error, events) => {
         const paths = changedPaths(grant.root, events);
         if (paths.length === 0) return;
         const change: NativeFolderChange = { folderId: grant.id, paths };
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) window.webContents.send('folders:changed', change);
         }
-      }, { ignore: UNWATCHED });
-      record = { subscription, holders: new Set() };
-      watches.set(key, record);
+      }, { ignore: UNWATCHED }), holders: new Set<string>() };
+      watches.set(key, created);
+      // One listener per watcher, not one per watch call: a window that goes drops every holder it handed out.
+      contents.once('destroyed', () => {
+        for (const held of [...created.holders]) void dropWatch(held);
+      });
+      record = created;
     }
-    const created = record;
     const subscriptionId = randomUUID();
-    created.holders.add(subscriptionId);
+    record.holders.add(subscriptionId);
     holders.set(subscriptionId, key);
-    contents.once('destroyed', () => {
-      for (const held of [...created.holders]) void dropWatch(held);
-    });
     return subscriptionId;
   });
   handle('unwatch', (_event, subscription) => {
