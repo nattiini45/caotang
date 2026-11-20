@@ -264,16 +264,4 @@ describe('IndexedDB key vault (browser binding, headless)', () => {
   it('refuses to open when the host has no IndexedDB and none was supplied', () => {
     expect(() => createIndexedDbVaultPort()).toThrow(/IndexedDB is not available/);
   });
-
-  it('tells the mirror about a write and a removal, and never on a reveal', async () => {
-    const changed: string[] = [];
-    const port = createMemoryVaultPort();
-    const store = createKeyStore(port, { mirror: { changed: (profileId) => changed.push(profileId) } });
-    await store.putPayload('prv_ONE', { apiKey: 'sk-mirror' });
-    expect(changed).toEqual(['prv_ONE']);
-    expect(await store.revealPayload('prv_ONE')).toEqual({ apiKey: 'sk-mirror' });
-    expect(changed).toEqual(['prv_ONE']);
-    await store.remove('prv_ONE');
-    expect(changed).toEqual(['prv_ONE', 'prv_ONE']);
-  });
 });

@@ -595,6 +595,8 @@ export async function* streamChat(
   base: TransportDeps,
   spec: CallSpec,
   stats: StreamStats,
+  /** Receives the fault the last attempt ended on: an exhausted stream ends with `finishReason: 'error'` and throws nothing. */
+  gaveUp?: (fault: ProviderError | undefined) => void,
 ): AsyncGenerator<ChatChunk, void, undefined> {
   const deps = scoped(base, spec);
   const { clock } = deps;
@@ -678,6 +680,7 @@ export async function* streamChat(
         }
 
         logAttempt(deps, spec, attempt, outcomeOf(err), { status, error: err });
+        gaveUp?.(err instanceof ProviderError ? err : undefined);
         throw err;
       }
     }

@@ -25,7 +25,17 @@ import { NOTO_COLOUR_EMOJI_BYTES } from '../../pdf-fonts/src/coverage/noto-colou
 import { cjkFontCandidates, emojiFontCandidates } from '@caotang/pdf-fonts/node-loader';
 import { WEBP_DECODER_FILE, webpDecoderCandidates } from '@caotang/exporter/picture-transcoder-node';
 
-import { BUNDLE_ENTRY, BUNDLE_FONTS, BUNDLE_SERVER, manifestProblems, mcpbCliPath, packBundle, runMcpb, stageBundle } from '../scripts/pack-mcpb.mjs';
+import {
+  BUNDLE_ENTRY,
+  BUNDLE_FONTS,
+  BUNDLE_SERVER,
+  MCPB_NODE_FLAGS,
+  manifestProblems,
+  mcpbCliPath,
+  packBundle,
+  runMcpb,
+  stageBundle,
+} from '../scripts/pack-mcpb.mjs';
 import { removeDir, tempDir } from './support.js';
 
 const PACKAGE_DIR = resolve(__dirname, '..');
@@ -46,6 +56,26 @@ function edited(change: (manifest: Json) => void): Json {
   const copy = realManifest();
   change(copy);
   return copy;
+}
+
+/**
+ * A server bundle of varied generated code, so it deflates the way the built one does: one line repeated would compress in a
+ * fraction of the time, and the pack's cost is the deflate. The sequence is seeded, so two runs of the test stage the same bytes.
+ */
+function generatedBundle(bytes: number): string {
+  const words = ['compile', 'document', 'binder', 'export', 'scene', 'codex', 'entry', 'project', 'folder', 'selection'];
+  let seed = 12345;
+  // `Math.imul` keeps the multiply exact in 32 bits: a plain product of a seed near 2^31 is past Number precision, and the
+  // rounding would leave the low bits of every later state the same, which used to pick only the odd indices of `words`.
+  const next = (): number => (seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff);
+  const lines: string[] = [];
+  let size = 0;
+  while (size < bytes) {
+    const line = `function ${words[next() % words.length]}${next() % 1_000_000}(value) {\n  return ${next() % 1_000_000_000} + "${words[next() % words.length]}";\n}\n`;
+    lines.push(line);
+    size += line.length;
+  }
+  return lines.join('');
 }
 
 function serverOf(manifest: Json): Json {
@@ -190,6 +220,22 @@ describe('the MCPB CLI this package pins', () => {
       expect(() => runMcpb(['validate', 'manifest.json'], { cli, timeoutMs: 300 })).toThrow(
         /mcpb validate manifest\.json did not answer within 0\.3 s after [\d.]+ s/,
       );
+    } finally {
+      removeDir(dir);
+    }
+  });
+
+  it('runs its child with no compiler in the background, so the child’s own exit cannot wait on one', () => {
+    // `pack` finishes with `process.exit(0)` the moment its synchronous zip returns. An exit that lands while V8 still has a
+    // compile job mid-allocation deadlocks against the collection that job is waiting for (MCPB_NODE_FLAGS, pack-mcpb.mjs).
+    // A fixture that reports its own switches shows what the child really runs under, not just what the script asks for.
+    const dir = tempDir('pack-args');
+    try {
+      const cli = join(dir, 'report-args.mjs');
+      writeFileSync(cli, 'process.stdout.write(JSON.stringify(process.execArgv));\n');
+      const printed = runMcpb(['pack', 'directory', 'bundle.mcpb'], { cli });
+      expect(JSON.parse(printed)).toEqual([...MCPB_NODE_FLAGS]);
+      expect(MCPB_NODE_FLAGS).toContain('--single-threaded');
     } finally {
       removeDir(dir);
     }
@@ -407,4 +453,39 @@ describe('staging and packing', () => {
     }
     // Four CLI processes (validate, pack, info, unpack): each is about a second on Windows, and more under a full parallel run.
   }, 60_000);
+
+  it('packs a bundle of this size again and again, and every pack ends', () => {
+    // The bug this pins: `pack` wrote and printed the whole archive and then never exited, one run in six on the real
+    // bundle, because its own exit waited on a compile job V8 had started in the background (MCPB_NODE_FLAGS, scripts/pack-mcpb.mjs).
+    // A run that deadlocks is caught by the pack's own ceiling, so a regression fails here, cheaply, instead of in a factory step.
+    const outDir = tempDir('pack-repeats');
+    try {
+      const require = createRequire(import.meta.url);
+      const serverBundle = join(outDir, 'caotang-mcp.mjs');
+      // The size of the built bundle, and varied the way it is, so this pack costs what the step's pack costs.
+      writeFileSync(serverBundle, generatedBundle(10 * 1024 * 1024));
+      const fonts = [CJK_FONT_FILE, CJK_COMMON_FONT_FILE, CJK_BOLD_FONT_FILE, CJK_BOLD_COMMON_FONT_FILE].map((file) =>
+        require.resolve(`@caotang/font-noto-cjk/${file}`),
+      );
+      const { staging } = stageBundle({
+        outDir,
+        serverBundle,
+        manifestPath: MANIFEST_PATH,
+        version: '0.1.0',
+        notices: '# notices\n',
+        license: join(REPO_ROOT, 'LICENSE'),
+        fonts,
+      });
+      for (let run = 1; run <= 10; run += 1) {
+        expect(
+          () => runMcpb(['pack', staging, join(outDir, `caotang-mcp-repeats-${run}.mcpb`)], { timeoutMs: 20_000 }),
+          `pack ${run} of 10 ends`,
+        ).not.toThrow();
+      }
+    } finally {
+      removeDir(outDir);
+    }
+    // The envelope has to cover what it holds: ten packs of up to 20 s each, plus the staging, or a slow runner would fail
+    // the test's own bound and report "Test timed out" instead of the pack that did not end.
+  }, 240_000);
 });
