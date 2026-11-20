@@ -18,9 +18,11 @@ export interface StudioHost {
   keyChanged?(profileId: string, change: KeyChange | null): void;
   /**
    * Keys for profiles this device has none for, installed before the stored profiles are read, so a profile whose key
-   * lives on the account opens here instead of being left out with a notice.
+   * lives on the account opens here instead of being left out with a notice. `origins` names where each stored profile
+   * points: a key returns only for the origin it was entered for, because a secret may not travel to another address
+   * just because another device edited the profile.
    */
-  restore?(): Promise<readonly { readonly profileId: string; readonly payload: KeyPayload }[]>;
+  restore?(origins: ReadonlyMap<string, string>): Promise<readonly { readonly profileId: string; readonly payload: KeyPayload }[]>;
 }
 
 let host: StudioHost | null = null;

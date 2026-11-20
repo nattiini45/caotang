@@ -24,6 +24,7 @@ import { t } from '@lingui/core/macro';
 import { isolate } from '@caotang/i18n';
 import {
   PROFILE_ID_PATTERN,
+  originOf,
   createGateway,
   createIndexedDbVaultPort,
   createKeyStore,
@@ -269,7 +270,12 @@ export class ProviderService {
     const keys = createKeyStore(vault);
     if (host?.restore !== undefined) {
       try {
-        for (const restored of await host.restore()) await keys.putPayload(restored.profileId, restored.payload);
+        // Read here, not later: a key for a profile whose endpoint has moved since another device saved it must not come
+        // back, and only these records say where each profile points now.
+        // Only an endpoint profile has a key, and only its base URL names an origin: a mock profile has neither.
+        const stored = ((await options.db?.get<PersistedProfile[]>(APP_KEYS.profiles)) ?? []).filter((record) => (record.kind as string) === 'endpoint' || (record.kind as string) === 'openai-compatible');
+        const origins = new Map(stored.map((record) => [record.id, originOf(record.baseUrl)]));
+        for (const restored of await host.restore(origins)) await keys.putPayload(restored.profileId, restored.payload);
       } catch {
         // A host that cannot supply its keys leaves those profiles without one, and the restore below names each of them.
       }

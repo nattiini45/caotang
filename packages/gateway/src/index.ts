@@ -90,7 +90,7 @@ export {
 export { detectProvider, FEATURED_PROVIDERS, type KeyDetection } from './detect.js';
 export { chooseModels, type ModelChoice } from './model-catalog.js';
 export { defaultConcurrency, type ConcurrencyPolicy } from './limiter.js';
-export { normalizeBaseUrl, normalizeLocalBaseUrl, MOCK_BASE_URL, isLoopbackBase, isLocalBase } from './base-url.js';
+export { normalizeBaseUrl, normalizeLocalBaseUrl, originOf, MOCK_BASE_URL, isLoopbackBase, isLocalBase } from './base-url.js';
 export { isLoopbackHost, isLoopbackLiteral } from './loopback.js';
 
 export {

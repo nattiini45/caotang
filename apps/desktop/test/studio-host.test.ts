@@ -72,7 +72,17 @@ describe('the studio host seam', () => {
     await first.service.persist();
 
     const seen: { profileId: string; change: unknown }[] = [];
-    const second = await ProviderService.open({ db, vault, host: { keyChanged: (profileId, change) => seen.push({ profileId, change }) } });
+    const asked: string[][] = [];
+    const second = await ProviderService.open({
+      db,
+      vault,
+      host: {
+        keyChanged: (profileId, change) => seen.push({ profileId, change }),
+        // The studio names where each stored profile points, so a key cannot come back for an address it was not entered at.
+        restore: async (origins) => { asked.push([...origins].map(([id, origin]) => `${id} ${origin}`)); return []; },
+      },
+    });
+    expect(asked).toEqual([[`${created.id} https://a.example`]]);
     expect(seen).toEqual([]);
     expect(await second.service.keys.reveal(created.id)).toBe('sk-stored');
     await second.service.profiles.create(endpoint('Second', 'sk-later'));
