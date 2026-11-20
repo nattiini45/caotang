@@ -188,15 +188,17 @@ interface Collected {
 const round = (value: number): number => Math.round(value * 100) / 100;
 
 /** The glyphs of a shaped run placed from `start` (points from the run's left edge), each with the CID of its (glyph, text) pair. */
-function placeGlyphs(glyphs: readonly ShapedGlyph[], font: Font, start: number, target: Collected): { cid: number; x: number; y: number; final?: true }[] {
+function placeGlyphs(glyphs: readonly ShapedGlyph[], font: Font, start: number, target: Collected, script: ShapedScript): { cid: number; x: number; y: number; final?: true }[] {
   const scale = SIZE / font.unitsPerEm;
+  const useNominalWidths = script !== 'arabic' && script !== 'hebrew';
   let x = start;
   return glyphs.map((glyph) => {
     const key = `${glyph.id}:${glyph.text}`;
     let cid = target.cids.get(key);
     if (cid === undefined) {
       cid = target.numbering.next(glyph.text);
-      target.units.push({ glyphId: glyph.id, width: Math.round(glyph.advance * (1000 / font.unitsPerEm)), text: glyph.text, cid });
+      const width = useNominalWidths ? font.getGlyph(glyph.id).advanceWidth : glyph.advance;
+      target.units.push({ glyphId: glyph.id, width: Math.round(width * (1000 / font.unitsPerEm)), text: glyph.text, cid });
       target.cids.set(key, cid);
     }
     const placed = { cid, x: round(x + glyph.dx * scale), y: round(glyph.dy * scale), ...(glyph.final === true ? { final: true as const } : {}) };
@@ -242,7 +244,7 @@ function planText(
       // The engine could not shape the word: it prints as "?", the columns the layout counted.
       items.push({ kind: 'plain', column: at.column, text: run.text, source: run.text, order: at.order });
     } else {
-      const glyphs = placeGlyphs(word.glyphs, font, 0, collected[script]);
+      const glyphs = placeGlyphs(word.glyphs, font, 0, collected[script], script);
       items.push({ kind: 'shaped', font: script, column: at.column, glyphs, source: run.text, order: at.order });
     }
     at.column += support.measure(run.text);
@@ -278,7 +280,7 @@ function planLine(text: string, rtl: boolean, support: RtlSupport, collected: Re
     }
     // The room left in the cell goes to the side the run ends: the left of a right-to-left word.
     const start = direction === 'rtl' ? Math.max(0, columns * LAYOUT.charWidth - shaped.advance * (SIZE / font.unitsPerEm)) : 0;
-    const glyphs = placeGlyphs(withMarkGlyphs(shaped.glyphs, run.source, direction, blankGlyphOf(font)), font, start, collected[run.script]);
+    const glyphs = placeGlyphs(withMarkGlyphs(shaped.glyphs, run.source, direction, blankGlyphOf(font)), font, start, collected[run.script], run.script);
     items.push({ kind: 'shaped', font: run.script, column: at.column, glyphs, source: run.source, order: run.order });
     at.column += columns;
   }
