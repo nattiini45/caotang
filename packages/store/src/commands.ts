@@ -153,8 +153,10 @@ import {
   type ProjectDeleteNodeParams,
   CODEX_REFERENCE_FIELDS,
   codexReferenceId,
+  codexRelationId,
   isCodexDetailObject,
   type CodexReferenceEdit,
+  type CodexRelationEdit,
 } from '@caotang/bus';
 import { createBinderNode } from './commands-media.js';
 import {
@@ -1186,6 +1188,33 @@ export function createProjectCommandRegistry(
     else entry.details = Object.fromEntries(details);
   }
 
+  function applyCodexRelations(entry: CodexEntry, edits: readonly CodexRelationEdit[]): void {
+    const relations = [...(entry.relations ?? [])];
+    const taken = new Set(relations.flatMap((value) => codexRelationId(value) ?? []));
+    for (const edit of edits) {
+      if (edit.action === 'create') {
+        const id = newId('rel', { taken });
+        taken.add(id);
+        relations.push({ id, targetId: edit.targetId, ...(edit.label === undefined ? {} : { label: edit.label }) });
+        continue;
+      }
+      const at = relations.findIndex((value) => codexRelationId(value) === edit.id);
+      if (at === -1) throw new Error('relation edit reached apply without a matching relation');
+      if (edit.action === 'remove') {
+        relations.splice(at, 1);
+        continue;
+      }
+      const previous = relations[at];
+      if (!isCodexDetailObject(previous)) throw new Error('relation update reached apply without a matching relation');
+      const updated = { ...previous };
+      if (edit.label === null) delete updated['label'];
+      else if (edit.label !== undefined) updated['label'] = edit.label;
+      relations[at] = updated;
+    }
+    if (relations.length === 0) delete entry.relations;
+    else entry.relations = relations;
+  }
+
   function applyCodexReferences(entry: CodexEntry, edits: readonly CodexReferenceEdit[]): void {
     const references = [...(entry.references ?? [])];
     const taken = new Set(references.flatMap((value) => codexReferenceId(value) ?? []));
@@ -1227,6 +1256,7 @@ export function createProjectCommandRegistry(
       keywords: [...entry.keywords],
       sources: entry.sources.map((source) => ({ ...source })),
       ...(entry.visualRefs === undefined ? {} : { visualRefs: [...entry.visualRefs] }),
+      ...(entry.relations === undefined ? {} : { relations: entry.relations.map((relation) => ({ ...(relation as Record<string, unknown>) })) }),
     };
   }
 
@@ -1330,6 +1360,7 @@ export function createProjectCommandRegistry(
         };
         if (op.details !== undefined) applyCodexDetails(entry, op.details);
         if (op.referenceEdits !== undefined) applyCodexReferences(entry, op.referenceEdits);
+        if (op.relationEdits !== undefined) applyCodexRelations(entry, op.relationEdits);
         taken.add(entry.id);
         // `detachFrom` on a create is inert rather than an error: a list of ids
         // nothing is attached to, on an entry that was not attached to anything.
@@ -1359,6 +1390,7 @@ export function createProjectCommandRegistry(
       if (op.visualRefs !== undefined) entry.visualRefs = [...new Set(op.visualRefs)];
       if (op.details !== undefined) applyCodexDetails(entry, op.details);
       if (op.referenceEdits !== undefined) applyCodexReferences(entry, op.referenceEdits);
+      if (op.relationEdits !== undefined) applyCodexRelations(entry, op.relationEdits);
       if (op.attachTo !== undefined || op.detachFrom !== undefined) {
         applyAttachmentDelta(entry, op.attachTo ?? [], op.detachFrom ?? []);
       }
@@ -1399,6 +1431,7 @@ export function createProjectCommandRegistry(
           if (!('visualRefs' in before)) delete entry.visualRefs;
           if (!('details' in before)) delete entry.details;
           if (!('references' in before)) delete entry.references;
+          if (!('relations' in before)) delete entry.relations;
         }
         for (const entry of [...created].reverse()) {
           const at = codex.findIndex((candidate) => candidate.id === entry.id);
