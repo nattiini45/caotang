@@ -936,6 +936,11 @@ msgstr ""
 msgid "{count} documents could not be drafted and are left out of the review."
 msgstr ""
 
+#. count is a number of codex entries that have no link in either direction.
+#: apps/desktop/src/components/CodexGraph.tsx
+msgid "{count} entries link to nothing."
+msgstr ""
+
 #. Interpolated values: scope, title
 #: apps/desktop/src/components/Corkboard.tsx
 msgid "{count} items"
@@ -1137,6 +1142,11 @@ msgstr ""
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
 msgid "{encoding} — the best reading"
+msgstr ""
+
+#. entries counts codex entries and links the links between them; both are formatted numbers.
+#: apps/desktop/src/components/CodexGraph.tsx
+msgid "{entries} entries with {links} links."
 msgstr ""
 
 #. Interpolated values: error
@@ -2759,6 +2769,10 @@ msgstr ""
 msgid "A field in this reference could not be read. Remove it and add it again."
 msgstr ""
 
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "A field in this relation could not be read. Remove it and add it again."
+msgstr ""
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "A field was kept as its text."
@@ -2876,6 +2890,15 @@ msgstr ""
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "A mention inside one of these phrases is not counted."
+msgstr ""
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "a missing entry"
+msgstr ""
+
+#: apps/desktop/src/components/CodexGraph.tsx
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "A missing entry"
 msgstr ""
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
@@ -2997,6 +3020,10 @@ msgstr ""
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "A reading-system book, one file per chapter."
+msgstr ""
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "A relation that cannot be shown"
 msgstr ""
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
@@ -3576,6 +3603,10 @@ msgstr ""
 #. Interpolated values: title is the writer's reference title.
 #: apps/desktop/src/components/CodexReferences.tsx
 msgid "Add reference"
+msgstr ""
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Add relation"
 msgstr ""
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
@@ -5112,6 +5143,7 @@ msgstr ""
 #: apps/desktop/src/components/BackgroundTasks.tsx
 #: apps/desktop/src/components/BinderFilters.tsx
 #: apps/desktop/src/components/CodexReferences.tsx
+#: apps/desktop/src/components/CodexRelations.tsx
 #: apps/desktop/src/components/editor-labels.ts
 #: apps/desktop/src/components/EncodingDialog.tsx
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -5917,6 +5949,14 @@ msgstr ""
 msgid "Choose an empty folder for the new project. Nothing was copied."
 msgstr ""
 
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Choose an entry"
+msgstr ""
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Choose an entry to link to."
+msgstr ""
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Choose an entry…"
@@ -6196,6 +6236,11 @@ msgstr ""
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "Codex included"
+msgstr ""
+
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
+#: apps/desktop/src/components/CodexPanel.tsx
+msgid "Codex view"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -8028,6 +8073,7 @@ msgstr ""
 #: apps/desktop/src/components/AgentQueue.tsx
 #: apps/desktop/src/components/BinderFooter.tsx
 #: apps/desktop/src/components/CodexReferences.tsx
+#: apps/desktop/src/components/CodexRelations.tsx
 #: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -8091,6 +8137,11 @@ msgstr ""
 #. Interpolated values: title is the writer's reference title.
 #: apps/desktop/src/components/CodexReferences.tsx
 msgid "Edit reference {title}"
+msgstr ""
+
+#. title is the linked entry name.
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Edit relation to {title}"
 msgstr ""
 
 #. Interpolated values: tokens, coveredTurns
@@ -8316,6 +8367,10 @@ msgstr ""
 
 #: apps/desktop/src/app/keymap.ts
 msgid "Enter or Space"
+msgstr ""
+
+#: apps/desktop/src/components/CodexGraph.tsx
+msgid "Entries and their links"
 msgstr ""
 
 #: apps/desktop/src/components/CodexDetails.tsx
@@ -9392,7 +9447,9 @@ msgstr ""
 msgid "Got it"
 msgstr ""
 
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
+#: apps/desktop/src/components/CodexPanel.tsx
 #: apps/desktop/src/media/DialogueView.tsx
 msgid "Graph"
 msgstr ""
@@ -10574,6 +10631,7 @@ msgstr ""
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
+#: apps/desktop/src/components/CodexRelations.tsx
 #: apps/desktop/src/components/Inspector.tsx
 msgid "Label"
 msgstr ""
@@ -10906,6 +10964,39 @@ msgstr ""
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Link to them in the project folder"
+msgstr ""
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Linked entry"
+msgstr ""
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Linked from"
+msgstr ""
+
+#. names is the list of codex entry names that link to this entry.
+#: apps/desktop/src/components/CodexGraph.tsx
+msgid "Linked from {names}."
+msgstr ""
+
+#. name is the linked entry name, or a missing entry.
+#. name is the name of the codex entry the link points at.
+#: apps/desktop/src/components/CodexGraph.tsx
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Links to {name}."
+msgstr ""
+
+#: apps/desktop/src/components/CodexGraph.tsx
+msgid "Links to a missing entry."
+msgstr ""
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Links to other codex entries. They stay out of automatic model requests."
+msgstr ""
+
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
+#: apps/desktop/src/components/CodexPanel.tsx
+msgid "List"
 msgstr ""
 
 #. js-lingui-explicit-id
@@ -12215,6 +12306,10 @@ msgstr ""
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "No entries match"
+msgstr ""
+
+#: apps/desktop/src/components/CodexGraph.tsx
+msgid "No entry links yet."
 msgstr ""
 
 #. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
@@ -13541,6 +13636,10 @@ msgstr ""
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "Optional fields only: what a request needs always goes out, and a left-out max_tokens is sent as max_completion_tokens."
+msgstr ""
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Optional, such as ally or rival."
 msgstr ""
 
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
@@ -15370,6 +15469,16 @@ msgstr ""
 msgid "REGION blocks left out; they place captions on a screen."
 msgstr ""
 
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Relation"
+msgstr ""
+
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
+#: apps/desktop/src/components/CodexPanel.tsx
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Relations"
+msgstr ""
+
 #. Interpolated values: subject
 #: apps/desktop/src/components/InkGate.tsx
 #: apps/desktop/src/components/lazy-view.tsx
@@ -15429,6 +15538,7 @@ msgstr ""
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/AgentQueue.tsx
 #: apps/desktop/src/components/CodexReferences.tsx
+#: apps/desktop/src/components/CodexRelations.tsx
 #: apps/desktop/src/components/Home.tsx
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/KnowledgeList.tsx
@@ -15531,6 +15641,12 @@ msgstr ""
 #. Interpolated values: title is the writer's reference title.
 #: apps/desktop/src/components/CodexReferences.tsx
 msgid "Remove reference {title}"
+msgstr ""
+
+#. title is the linked entry name.
+#. title is the linked entry name.
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Remove relation to {title}"
 msgstr ""
 
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
@@ -16518,6 +16634,10 @@ msgstr ""
 #. Interpolated values: title is the writer's reference title.
 #: apps/desktop/src/components/CodexReferences.tsx
 msgid "Save reference"
+msgstr ""
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "Save relation"
 msgstr ""
 
 #. Interpolated values: reason is a local storage error; count and days are configured upper bounds; size is a formatted byte estimate.
@@ -18922,6 +19042,10 @@ msgstr ""
 msgid "That project is already in this browser, so the folder opened as a separate copy. This copy may differ from the folder, and saving it into that folder is refused. The original is in the projects list."
 msgstr ""
 
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "That relation could not be saved."
+msgstr ""
+
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "That review preview is no longer held. Approve the queue preview again."
@@ -19845,6 +19969,11 @@ msgstr ""
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The goal’s interruption could not be saved. Reopen the project to try again, or discard the goal record."
+msgstr ""
+
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
+#: apps/desktop/src/components/CodexPanel.tsx
+msgid "the graph"
 msgstr ""
 
 #. Interpolated values: count, number, total
@@ -21645,6 +21774,10 @@ msgstr ""
 #. Interpolated values: error, name
 #: apps/desktop/src/app/providers.ts
 msgid "This endpoint does not take a JSON response format, so the agent asks for JSON in the prompt instead."
+msgstr ""
+
+#: apps/desktop/src/components/CodexRelations.tsx
+msgid "This entry links to nothing yet."
 msgstr ""
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail

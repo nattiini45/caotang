@@ -201,6 +201,71 @@ describe('wrapped account key records', () => {
   });
 });
 
+describe('the sealed provider-key vault', () => {
+  const base64 = (bytes: Uint8Array): string => Buffer.from(bytes).toString('base64');
+
+  it('commits once, replaces under a version precondition, and never parses what it stores', async () => {
+    const h = await runtime();
+    await applyMigrations(h.db!, ['0004_account_key_records.sql', '0005_account_vaults.sql']);
+    await h.invite('reader-one');
+    const { session } = await h.signIn('reader-one');
+    const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session! } })).json() as { id: string };
+    const headers = (extra: Record<string, string> = {}) => ({ Cookie: session!, Origin: ORIGIN, 'X-Caotang-Account': account.id, ...extra });
+    const put = (vault: string, extra: Record<string, string>) => h.dispatch('/v1/account/vault', {
+      method: 'PUT', headers: headers({ 'Content-Type': 'application/json', ...extra }), body: JSON.stringify({ vault }),
+    });
+
+    expect((await h.dispatch('/v1/account/vault', { headers: headers() })).status).toBe(404);
+    const first = base64(new Uint8Array(1 + 12 + 40 + 16).fill(2));
+    const created = await put(first, { 'If-None-Match': '*' });
+    expect(created.status).toBe(201);
+    expect(created.headers.get('ETag')).toBe('"1"');
+    expect(await created.json()).toEqual({ version: 1 });
+
+    const loaded = await h.dispatch('/v1/account/vault', { headers: headers() });
+    expect(loaded.status).toBe(200);
+    expect(loaded.headers.get('ETag')).toBe('"1"');
+    expect(loaded.headers.get('Cache-Control')).toBe('no-store');
+    expect(await loaded.json()).toEqual({ version: 1, vault: first });
+
+    expect((await put(first, { 'If-Match': '"7"' })).status).toBe(412);
+    const second = base64(new Uint8Array(1 + 12 + 48 + 16).fill(3));
+    const replaced = await put(second, { 'If-Match': '"1"' });
+    expect(replaced.status).toBe(200);
+    expect(replaced.headers.get('ETag')).toBe('"2"');
+    expect(await h.dispatch('/v1/account/vault', { headers: headers() }).then((r) => r.json())).toEqual({ version: 2, vault: second });
+
+    expect((await put(base64(new Uint8Array(4)), {})).status).toBe(400);
+    expect((await put('not base64', { 'If-Match': '"2"' })).status).toBe(400);
+    expect((await put(base64(new Uint8Array(4)), { 'If-Match': '"2"' })).status).toBe(200);
+    expect((await h.dispatch('/v1/account/vault', { headers: headers({ 'X-Caotang-Account': 'some-other-account' }) })).status).toBe(412);
+    expect((await h.dispatch('/v1/account/vault', { method: 'POST', headers: headers() })).status).toBe(405);
+  });
+
+  it('removes the vault under its version, and refuses an oversized body without storing anything', async () => {
+    const h = await runtime();
+    await applyMigrations(h.db!, ['0004_account_key_records.sql', '0005_account_vaults.sql']);
+    await h.invite('reader-one');
+    const { session } = await h.signIn('reader-one');
+    const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session! } })).json() as { id: string };
+    const headers = (extra: Record<string, string> = {}) => ({ Cookie: session!, Origin: ORIGIN, 'X-Caotang-Account': account.id, ...extra });
+    const oversized = base64(new Uint8Array(64 * 1024 + 1));
+    const refused = await h.dispatch('/v1/account/vault', {
+      method: 'PUT', headers: headers({ 'Content-Type': 'application/json', 'If-None-Match': '*' }), body: JSON.stringify({ vault: oversized }),
+    });
+    expect(refused.status).toBe(400);
+    expect(await h.db!.prepare('SELECT count(*) AS count FROM account_vaults').first('count')).toBe(0);
+
+    const vault = base64(new Uint8Array(80).fill(4));
+    expect((await h.dispatch('/v1/account/vault', { method: 'PUT', headers: headers({ 'Content-Type': 'application/json', 'If-None-Match': '*' }), body: JSON.stringify({ vault }) })).status).toBe(201);
+    expect((await h.dispatch('/v1/account/vault', { method: 'DELETE', headers: headers() })).status).toBe(400);
+    expect((await h.dispatch('/v1/account/vault', { method: 'DELETE', headers: headers({ 'If-Match': '"9"' }) })).status).toBe(412);
+    expect((await h.dispatch('/v1/account/vault', { method: 'DELETE', headers: headers({ 'If-Match': '"1"' }) })).status).toBe(204);
+    expect((await h.dispatch('/v1/account/vault', { headers: headers() })).status).toBe(404);
+    expect((await h.dispatch('/v1/account/vault', { method: 'DELETE', headers: headers({ 'If-Match': '"1"' }) })).status).toBe(412);
+  });
+});
+
 describe('the Worker in account mode', () => {
   it('claims an invited numeric identity at sign-in and serves its own account and usage', async () => {
     const h = await runtime();
