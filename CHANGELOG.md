@@ -109,6 +109,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- Prose PDFs print all ten supported Indic scripts in embedded fonts, including in PDF/A-2u. Paragraphs and notes move words that fit on the next line instead of cutting them mid-word (#755, #757).
+- HTML articles and Atom entries include footnotes cited from other notes (#756).
+- Compiling several episodes gives their files safe, distinct names, and the teleprompter width survives saving to a project folder or restoring a bundle (#758, #759).
+
 - The browser-storage warning no longer floats over the page in Modern. It takes a row of its own in every view and at every width, so a field you scroll to — the Codex's **Ausschlussbegriffe**, for one — stays clickable beside it while its backup and dismiss buttons remain in reach (#735).
 
 - Ctrl+Home and Ctrl+End in the scene editor always move the caret, including right after a click at the end of the text. Before, the key could be taken and then dropped, leaving the caret where the click had put it (#665).
