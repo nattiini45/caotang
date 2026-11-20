@@ -48,6 +48,7 @@ import { modelRowFor, presetFor, presetForProfile, resolveRoute } from './preset
 import type { AdapterContext, CallSecrets, ProviderAdapter, RouteSpec } from './adapters/types.js';
 import { decodingParser, encodeToolNames, toolNameCodec, toolNamesOf } from './tool-names.js';
 import type {
+  AttemptTarget,
   ChatChunk,
   ChatRequest,
   FinishReason,
@@ -487,10 +488,10 @@ export function createGateway(options: GatewayOptions): Gateway {
     };
   }
 
-  function complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncIterableIterator<ChatChunk> {
+  function complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void, admitAttempt?: (target: AttemptTarget) => void): AsyncIterableIterator<ChatChunk> {
     const controller = new AbortController();
     const combined = signal === undefined ? controller.signal : AbortSignal.any([signal, controller.signal]);
-    const iterator = runRouted(req, combined, beforeSend);
+    const iterator = runRouted(req, combined, beforeSend, admitAttempt);
     return {
       [Symbol.asyncIterator]() { return this; },
       next: (...args) => iterator.next(...args),
@@ -622,7 +623,7 @@ export function createGateway(options: GatewayOptions): Gateway {
    * answer, a cancelled turn and every request with no fallbacks behave exactly as they did before the list existed: the single
    * target's own refusal or error reaches the caller unchanged.
    */
-  async function* runRouted(req: ChatRequest, signal: AbortSignal, beforeSend?: () => void): AsyncGenerator<ChatChunk, void, undefined> {
+  async function* runRouted(req: ChatRequest, signal: AbortSignal, beforeSend?: () => void, admitAttempt?: (target: AttemptTarget) => void): AsyncGenerator<ChatChunk, void, undefined> {
     const routed = roleRoute(req.role, req.profileId);
     const targets: readonly RoleTarget[] = routed === undefined ? [] : [routed, ...(routed.fallbacks ?? [])];
     if (targets.length <= 1) {
@@ -674,6 +675,9 @@ export function createGateway(options: GatewayOptions): Gateway {
         ...(target.model === undefined ? {} : { model: target.model }),
         ...(target.thinking === undefined ? {} : { thinking: target.thinking }),
       };
+      // Before this target's request opens, the caller holds the attempt to the destination's own limits and price (§6). A refusal
+      // here is the caller's, not a fault of the route: it ends the call, and the fault it came from is never rethrown.
+      admitAttempt?.({ profileId: profile.id, model: attempt.model ?? profile.defaultModel, ...(attempt.thinking === undefined ? {} : { thinking: attempt.thinking }) });
       let delivered = false;
       let ended = false;
       let fault: unknown;
@@ -892,7 +896,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     profiles,
     ledger,
     requestLog,
-    complete: (req, signal, beforeSend) => complete(req, signal, beforeSend),
+    complete: (req, signal, beforeSend, admitAttempt) => complete(req, signal, beforeSend, admitAttempt),
     completeOnce: (req, signal, beforeSend) => collectOnce(complete(req, signal, beforeSend), signal),
     listModels,
     modelLimits,

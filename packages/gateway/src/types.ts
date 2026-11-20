@@ -511,8 +511,19 @@ export interface RoleResolution extends RoleTarget {
 /** Why a request moved to its next target. Only these faults are worth another provider (§4, §6). */
 export type FallbackReason = 'rate_limit' | 'overloaded' | 'network' | 'model_gone';
 
+/** A route's next destination, as it will be sent (§6): what a caller sizes its admission of the attempt to. */
+export interface AttemptTarget {
+  readonly profileId: string;
+  readonly model: string;
+  readonly thinking?: ThinkingLevel;
+}
+
 export interface ProviderGateway {
-  complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncIterable<ChatChunk>;
+  /**
+   * `admitAttempt` is asked once per fallback target, before that target's request opens, so a caller can hold the attempt to
+   * the destination's own limits and price; throwing there refuses the fallback and ends the call at its primary's fault (§6).
+   */
+  complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void, admitAttempt?: (target: AttemptTarget) => void): AsyncIterable<ChatChunk>;
   completeOnce(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): Promise<ChatMessage>;
   listModels(profileId: string): Promise<ModelInfo[]>;
   /**
