@@ -35,6 +35,7 @@ import {
   type AgentEditMode,
   type RoleRef,
   type RoleSettings,
+  type RoleTargetRef,
 } from '../app/settings.js';
 import { applyInterface, interfaceStatus, rememberInterface, subscribeInterface, type Interface } from '../app/interface.js';
 import { readModernPreferences, setModernPreference, type ModernPreferences } from '../app/modern-preferences.js';
@@ -209,7 +210,11 @@ interface RoleDraft {
   readonly profileId: string;
   readonly model: string;
   readonly thinking: string;
+  /** The role's fallbacks, in order: at most two, and none until the writer picks one. */
+  readonly fallbacks: readonly { readonly profileId: string }[];
 }
+
+const EMPTY_FALLBACK = { profileId: '' };
 
 const ROLE_LEVEL_NAMES: Readonly<Record<ThinkingLevel, MessageDescriptor>> = {
   off: msg`Off`,
@@ -224,9 +229,27 @@ const ROLE_LEVEL_NAMES: Readonly<Record<ThinkingLevel, MessageDescriptor>> = {
 function roleDraftsFor(roles: RoleSettings | undefined): Record<TaskRole, RoleDraft> {
   const draft = (ref: RoleRef | 'follow' | undefined): RoleDraft =>
     ref === undefined || ref === 'follow'
-      ? { profileId: '', model: '', thinking: '' }
-      : { profileId: ref.profileId, model: ref.model ?? '', thinking: ref.thinking ?? '' };
+      ? { profileId: '', model: '', thinking: '', fallbacks: [] }
+      : {
+          profileId: ref.profileId,
+          model: ref.model ?? '',
+          thinking: ref.thinking ?? '',
+          fallbacks: (ref.fallbacks ?? []).map((target) => ({ profileId: target.profileId })),
+        };
   return { chat: draft(roles?.chat), drafting: draft(roles?.drafting), background: draft(roles?.background) };
+}
+
+/** One role's fallbacks as the form writes them: the picked profiles in order, unsaved slots left out. */
+function fallbacksOf(draft: RoleDraft): readonly RoleTargetRef[] {
+  const seen = new Set<string>();
+  const kept: RoleTargetRef[] = [];
+  for (const entry of draft.fallbacks) {
+    if (entry.profileId === '' || entry.profileId === draft.profileId || seen.has(entry.profileId)) continue;
+    seen.add(entry.profileId);
+    kept.push({ profileId: entry.profileId });
+    if (kept.length === 2) break;
+  }
+  return kept;
 }
 
 function ProvidersSection({ services, onChanged }: { services: AppServices; onChanged?: () => void }): ReactNode {
@@ -437,10 +460,12 @@ function RolesPanel({ services, onSaved }: { services: AppServices; onSaved: (te
     const ref = (draft: RoleDraft): RoleRef | undefined => {
       const profile = profiles.find((entry) => entry.id === draft.profileId);
       if (profile === undefined) return undefined;
+      const fallbacks = fallbacksOf(draft);
       return {
         profileId: profile.id,
         ...(draft.model.trim() === '' ? {} : { model: draft.model.trim() }),
         ...(draft.thinking === '' ? {} : { thinking: draft.thinking as ThinkingLevel }),
+        ...(fallbacks.length === 0 ? {} : { fallbacks }),
       };
     };
     const chat = ref(drafts.chat);
@@ -470,6 +495,12 @@ function RolesPanel({ services, onSaved }: { services: AppServices; onSaved: (te
           they are pinned; chat with no pin is the active profile.
         </Trans>
       </p>
+      <p className="muted">
+        <Trans>
+          A role can name up to two fallbacks. One answers only when the role’s own profile is rate-limited, overloaded or unreachable,
+          and only before any of the reply has arrived; the request, context included, then goes to that profile.
+        </Trans>
+      </p>
       <form className="role-rows" onKeyDown={ime.noteKey} onSubmit={save}>
         {ROLE_NAMES.map(({ id, label, hint }) => {
           const labelText = i18n._(label);
@@ -487,7 +518,8 @@ function RolesPanel({ services, onSaved }: { services: AppServices; onSaved: (te
               <select
                 aria-label={t`${{ role: labelText }} profile`}
                 value={pinned?.id ?? ''}
-                onChange={(event) => setDrafts({ ...drafts, [id]: { profileId: event.target.value, model: '', thinking: '' } })}
+                // The row keeps the fallbacks it already lists: picking a profile resets the model and level, never the order.
+                onChange={(event) => setDrafts({ ...drafts, [id]: { ...draft, profileId: event.target.value, model: '', thinking: '' } })}
               >
                 <option value="">{id === 'chat' ? t`Active profile` : t`Follow chat`}</option>
                 {profiles.map((profile) => (
@@ -528,6 +560,33 @@ function RolesPanel({ services, onSaved }: { services: AppServices; onSaved: (te
                   ) : null}
                 </>
               ) : null}
+              <div className="role-fallbacks">
+                <span className="muted">{t`Fallbacks, in order`}</span>
+                {[0, 1].map((slot) => {
+                  const value = draft.fallbacks[slot]?.profileId ?? '';
+                  // The other slot's profile and the role's own are never offered: a list names each destination once.
+                  const taken = new Set([pinned?.id ?? '', draft.fallbacks[slot === 0 ? 1 : 0]?.profileId ?? '']);
+                  return (
+                    <select
+                      key={slot}
+                      aria-label={t`${{ role: labelText }} fallback ${{ slot: slot + 1 }}`}
+                      value={value}
+                      onChange={(event) => {
+                        const next = [draft.fallbacks[0] ?? EMPTY_FALLBACK, draft.fallbacks[1] ?? EMPTY_FALLBACK];
+                        next[slot] = { profileId: event.target.value };
+                        setDrafts({ ...drafts, [id]: { ...draft, fallbacks: next } });
+                      }}
+                    >
+                      <option value="">{t`No fallback`}</option>
+                      {profiles.filter((profile) => !taken.has(profile.id)).map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          {profile.name}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })}
+              </div>
             </div>
           );
         })}

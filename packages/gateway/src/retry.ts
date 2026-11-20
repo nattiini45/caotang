@@ -9,7 +9,8 @@
  *    part of an answer and a second attempt would repeat it.
  */
 
-import type { ProviderError } from './errors.js';
+import { ProviderError } from './errors.js';
+import type { FallbackReason } from './types.js';
 
 export interface RetryPolicy {
   /** retries after the first attempt */
@@ -75,6 +76,23 @@ export function parseRetryAfter(value: string | null, now: number): number | und
  * refusal, a malformed stream, and a provider's in-stream error are the same answer on
  * every try, so retrying them only delays the message.
  */
+/**
+ * Why a failed request may be sent to the role's next target, or undefined when no other provider would answer differently
+ * (provider-gateway §6). Rate limits, transport trouble, an overloaded or failing provider and a model the route no longer
+ * has qualify; an auth, protocol, context-length or cancelled failure does not.
+ */
+export function fallbackReasonOf(error: unknown): FallbackReason | undefined {
+  if (!(error instanceof ProviderError)) return undefined;
+  // A profile on this computer that is down, CORS-blocked or denied is not worth a second try at that address (`isRetryable` says
+  // so), but another provider may well answer, so the route may move: transport trouble is classified before the permanent gate.
+  if (error.kind === 'network') return 'network';
+  if (error.permanent) return undefined;
+  if (error.kind === 'rate_limit') return 'rate_limit';
+  if (error.kind === 'provider') return error.status === undefined || error.status >= 500 ? 'overloaded' : undefined;
+  if (error.kind === 'endpoint') return error.status === 404 ? 'model_gone' : undefined;
+  return undefined;
+}
+
 export function isRetryable(error: ProviderError): boolean {
   if (error.permanent) return false;
   if (error.kind === 'network' || error.kind === 'rate_limit') return true;
