@@ -144,13 +144,15 @@ export const BUDGET = {
   // by optimising rather than by taking the space back. All JS is 8,804,463 on the merged tree: 8,786,664 of it this branch's own, the
   // chunk-boundary scaffolding for the new on-use chunks with no module in two of them, against main's 8,769,385 at 9e33899b, and 17,393
   // more from #746's relations field, the list beside its graph and their catalogue. [delegated 2026-11-19]
-  // #777's role fallbacks measured 1,098,948 gzip on the tree that merges main 6e271846, 361 bytes over the 1,098,587 above: the ordered
-  // route and its per-destination admission in the gateway and the harness, the two pickers per role row and their catalogue strings. The
-  // harness route is the entry's own code, because the agent call it serves is; the trace half went to the on-use trace chunk main had
-  // already split out, and the fallback adds no dependency and no new first-load module. What was tried first: the route reuses the
-  // single-target send rather than a second code path, `BudgetMeter.renew` replaced a second reserve, and the removed public `modelFor`
-  // gave back its bytes. The ceiling is that measurement plus about 1%, so the next PR still fits by optimising. [owner 2026-11-20]
-  initialGzip: 1_109_940,
+  // #777's role fallbacks measured 1,098,948 gzip on the tree that merges main 6e271846, 361 bytes over the 1,098,587 above, so this is
+  // the bundle-raise rule's smallest step: that measurement plus 1 kB. What grew, by where it ships: the ordered route and its
+  // per-destination admission in the entry's gateway code (the harness half rides the on-use harness chunk), the Settings role rows
+  // (their own on-use chunk) and four catalogue messages in the entry's English catalogue. What was checked first and kept: the route
+  // reuses the single-target send rather than a second code path, `BudgetMeter.renew` replaced a second reservation, the trace half is
+  // in the on-use trace chunk main had already split out, the removed public `modelFor` gave back its bytes, and no dependency or
+  // first-load module was added. The 361 bytes are spread across three chunks, none of them a split or a duplicate: what remains would
+  // be the consent sentence the screen must state, or lazy-loading a route the first model call awaits. [bundle-raise rule 2026-11-20]
+  initialGzip: 1_099_972,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
