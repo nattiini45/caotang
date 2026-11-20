@@ -321,6 +321,9 @@ importers:
       '@caotang/import-highland':
         specifier: workspace:*
         version: link:../../packages/import-highland
+      '@caotang/import-html':
+        specifier: workspace:*
+        version: link:../../packages/import-html
       '@caotang/import-inklewriter':
         specifier: workspace:*
         version: link:../../packages/import-inklewriter
@@ -988,6 +991,15 @@ importers:
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../screenplay
+
+  packages/import-html:
+    dependencies:
+      '@caotang/import-core':
+        specifier: workspace:*
+        version: link:../import-core
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../import-read
 
   packages/import-inklewriter:
     dependencies:

@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
+import { textZip } from '../packages/import-read/test/zip-fixtures.js';
 import { NO_PIN } from './classic-pin.js';
 import { createGoalScene } from './goal-scene-flow.js';
 import { searchWhileTyping } from './text-search-flow.js';
@@ -85,6 +86,34 @@ function watchChunks(page: Page): () => string[] {
 async function violations(page: Page): Promise<string[]> {
   return page.evaluate(() => window.__cspViolations ?? ['the violation listener was not installed']);
 }
+
+test('a web-page zip imports in a lazy same-origin Worker under the production CSP', async ({ page }) => {
+  const problems = await watchForProblems(page);
+  const chunks = watchChunks(page);
+  await createProject(page, 'Production HTML Import');
+  expect(chunks()).not.toContain('reader.worker');
+  const started = page.waitForEvent('worker', (worker) => /\/assets\/reader\.worker-[\w-]+\.js$/.test(new URL(worker.url()).pathname));
+  await page.locator('input[type="file"][aria-label="HTML file"]').setInputFiles({
+    name: 'production.zip',
+    mimeType: 'application/zip',
+    buffer: Buffer.from(textZip({
+      'page.html': '<html><head><title>Production</title></head><body>' +
+        '<h1>Chapter One</h1><p>The ferry came at noon.</p>' +
+        '<h1>Chapter Two</h1><p>The letter arrived on a Tuesday.</p></body></html>',
+    })),
+  });
+  const worker = await started;
+  expect(new URL(worker.url()).origin).toBe(new URL(page.url()).origin);
+  const dialog = page.getByRole('dialog', { name: 'Import “production.zip”' });
+  await expect(dialog).toHaveAttribute('data-state', 'ready');
+  await expect(dialog.getByRole('tree', { name: 'Binder (proposed)' })).toContainText('Chapter Two');
+  await dialog.getByRole('button', { name: 'Import 2 chapters' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText('Imported 2 documents in 2 folders from production.zip.', { exact: true })).toBeVisible();
+  await waitForSaved(page);
+  expect(await violations(page)).toEqual([]);
+  expect(problems).toEqual([]);
+});
 
 test('the goal form and its saved no-turn result work under the production CSP', async ({ page }) => {
   const problems = await watchForProblems(page);
