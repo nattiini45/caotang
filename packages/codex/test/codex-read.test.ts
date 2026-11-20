@@ -277,3 +277,39 @@ describe('codexRead — cached mention counts', () => {
     expect(item).not.toHaveProperty('mentions');
   });
 });
+
+describe('codexRead — the ids codex.write takes', () => {
+  const LINKS = new Map([['c_Elena', {
+    references: [{ id: 'ref_0000000001', title: 'Tide Tables' }],
+    relations: [{ id: 'rel_0000000001', targetId: 'c_Harbor', target: 'Harbor', label: 'ally' }],
+  }]]);
+
+  it('carries a supplied entry’s references and relations on its item, list and id fetch alike', () => {
+    const [listed] = codexRead({ query: 'cartographer' }, { entries: [ELENA, HARBOR], links: LINKS }).entries;
+    expect(listed).toMatchObject({
+      references: [{ id: 'ref_0000000001', title: 'Tide Tables' }],
+      relations: [{ id: 'rel_0000000001', targetId: 'c_Harbor', target: 'Harbor', label: 'ally' }],
+    });
+    const [fetched] = codexRead({ id: 'c_Elena' }, { entries: [ELENA, HARBOR], links: LINKS }).entries;
+    expect(fetched?.references?.[0]?.id).toBe('ref_0000000001');
+  });
+
+  it('carries neither field for an entry the caller supplied none for, or when no links were supplied at all', () => {
+    const harbor = codexRead({}, { entries: [ELENA, HARBOR], links: LINKS }).entries.find((item) => item.id === 'c_Harbor');
+    expect(harbor).not.toHaveProperty('references');
+    expect(harbor).not.toHaveProperty('relations');
+    const [plain] = codexRead({ id: 'c_Elena' }, SOURCE).entries;
+    expect(plain).not.toHaveProperty('references');
+    expect(plain).not.toHaveProperty('relations');
+  });
+
+  it('counts the ids against the 8k cap, so a result is never over because of them', () => {
+    const links = new Map([['c_Elena', {
+      references: Array.from({ length: 1500 }, (_, index) => ({ id: `ref_${String(index).padStart(10, '0')}`, title: 'Tide Tables' })),
+    }]]);
+    const result = codexRead({}, { entries: [ELENA, HARBOR], links });
+    expect(result.entries.map((item) => item.id)).not.toContain('c_Elena');
+    expect(result.note).toContain('8k tokens');
+    expect(JSON.stringify(result).length).toBeLessThanOrEqual(CODEX_READ_TOKEN_CAP * 4);
+  });
+});
