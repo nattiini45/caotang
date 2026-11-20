@@ -13,6 +13,8 @@
 /* lingui-set comment="Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words" */
 
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -56,6 +58,7 @@ import { ExportSweepOffer, sweepBeforeExport, sweepOfferBeforeExport } from '../
 import { PictureNotices } from './PictureNotices.js';
 import { saveStateWords } from '../app/integrity-model.js';
 import { nativeFolderId, nativeFoldersAvailable } from '../app/native-folders.js';
+import { useFolderWatch } from '../app/use-folder-watch.js';
 import { requestInspector } from '../app/inspector-request.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import type { StartIntent } from '../App.js';
@@ -132,6 +135,12 @@ export interface Renaming {
   readonly surface: 'binder' | 'card';
 }
 
+/**
+ * The folder-change offer and the watcher behind it load only while a native folder is open (desktop.md §External folder
+ * changes): the website neither watches a folder nor fetches this chunk.
+ */
+const FolderChangeStatus = lazy(() => import('./FolderChangeStatus.js').then((module) => ({ default: module.FolderChangeStatus })));
+
 export interface WorkspaceProps {
   readonly session: ProjectSession;
   readonly store: RuntimeStore;
@@ -146,6 +155,8 @@ export interface WorkspaceProps {
    * `answerFolderDiffers`). The save is the folder save, so a document it would write over is asked about first.
    */
   readonly saveToFolder?: DirectoryHandleLike | null;
+  /** Reloads the open project folder's own version, after the folder changed outside Caotang (App `reopenFolder`). */
+  readonly onReopenFolder: (folder: DirectoryHandleLike) => void;
 }
 
 export function Workspace({
@@ -156,6 +167,7 @@ export function Workspace({
   notice = null,
   startIntent = null,
   saveToFolder: pendingFolder = null,
+  onReopenFolder,
 }: WorkspaceProps): ReactNode {
   useSession(session);
   const { state, view } = session;
@@ -484,7 +496,11 @@ export function Workspace({
   const failedSaveChannels = session.failedSaveChannels();
   const stopped = session.tabStop().getSnapshot();
   const stopCause = stopped.kind === 'stopped' ? stopped.cause : undefined;
-  const nativeFolder = nativeFolderId(session.folderBaseline()?.folder ?? null) !== undefined;
+  const folderCopy = session.folderBaseline()?.folder ?? null;
+  // The watch starts with the workspace, so a change made while the offer's own module is still loading is not missed;
+  // that module holds only the words and the buttons (FolderChangeStatus).
+  const folderWatch = useFolderWatch(session);
+  const nativeFolder = nativeFolderId(folderCopy) !== undefined;
   const browserFolderPicker = !nativeFoldersAvailable() && folderAccessSupported();
   const saveWords = saveStateWords(saveState, stopCause, failedSaveChannels, nativeFolder);
   // The export dialog compiles the item the binder has selected, unless that is a section (then it is the whole manuscript).
@@ -1136,7 +1152,7 @@ export function Workspace({
         {...(browserFolderPicker ? { onSaveToFolder: saveToFolder } : {})}
       />
     ),
-    status: message === null && !folderSaving && review.kind !== 'running' ? null : (
+    status: message === null && !folderSaving && review.kind !== 'running' && folderWatch.changed === null ? null : (
       <>
         {review.kind === 'running' ? (
           <div className="status-line" role="status" data-testid="review-status" data-state="running">
@@ -1173,6 +1189,18 @@ export function Workspace({
             </button>}
           </div>
         ) : null}
+        {folderCopy === null || folderWatch.changed === null ? null : (
+          <Suspense fallback={null}>
+            <FolderChangeStatus
+              folder={folderCopy}
+              changed={folderWatch.changed}
+              saved={saveState === 'saved'}
+              onDismiss={folderWatch.dismiss}
+              onReopen={onReopenFolder}
+              onExport={exportBundleOffering}
+            />
+          </Suspense>
+        )}
       </>
     ),
     saveState: <SaveIndicator state={saveState} words={saveWords} onExport={exportNow} />,

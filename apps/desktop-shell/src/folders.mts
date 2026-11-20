@@ -1,14 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { access, lstat, readdir, readFile, realpath, stat } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { basename, join, relative, sep } from 'node:path';
 
 import { ArtifactPathError, NodeArtifactFs, resolveWithin } from '@caotang/artifact-fs-node';
 import { ArtifactNotFoundError } from '@caotang/store/artifact-fs';
+import { subscribe } from '@parcel/watcher';
+import type { AsyncSubscription, Event } from '@parcel/watcher';
 import { BrowserWindow, dialog, ipcMain } from 'electron';
-import type { IpcMainInvokeEvent } from 'electron';
+import type { IpcMainInvokeEvent, WebContents } from 'electron';
 
-import type { FolderReply, NativeFolder, NativeFolderEntry } from './folder-contract.cjs';
+import type { FolderReply, NativeFolder, NativeFolderChange, NativeFolderEntry } from './folder-contract.cjs';
 
 type FolderError = Extract<FolderReply<never>, { ok: false }>['error'];
 type Grant = NativeFolder & { readonly root: string; readonly dev: number; readonly ino: number };
@@ -86,6 +88,20 @@ function grantsIn(bytes: string): Grant[] {
   });
 }
 
+/** The temp name an artifact write uses before its rename (artifact-fs-node): a watcher sees it come and go, and it is not the project. */
+const TEMP_FILE = /(?:^|\/)\.[^/]*\.tmp$/u;
+
+/** Folders whose contents are not the project's text: another program's data, backups and exports the app wrote itself. */
+const UNWATCHED = ['**/.git/**', '**/node_modules/**', '**/exports/**', '**/.caotang-backup/**', '**/.caotang-mcp.lock', '**/*.tmp'];
+
+/** The project-relative paths a burst of watcher events names, without the temp writes and repeats. */
+function changedPaths(root: string, events: readonly Event[]): readonly string[] {
+  const paths = events
+    .map((event) => relative(root, event.path).split(sep).join('/'))
+    .filter((path) => path !== '' && !path.startsWith('../') && !TEMP_FILE.test(path));
+  return [...new Set(paths)];
+}
+
 export async function registerFolderIpc(profile: string, entryUrl: string): Promise<void> {
   const registryFs = new NodeArtifactFs(profile);
   const registry = 'native-project-folders.json';
@@ -96,6 +112,28 @@ export async function registerFolderIpc(profile: string, entryUrl: string): Prom
     return '[]';
   });
   for (const record of grantsIn(registryBytes)) recent.set(record.id, record);
+  /**
+   * The watchers behind the open folders, one per folder and window, and the ids handed out for each of them. A watch belongs to
+   * the caller that asked for it: a reload or a second holder gets its own id, so a late release takes only its own id with it.
+   */
+  const watches = new Map<string, { readonly subscription: Promise<AsyncSubscription>; readonly holders: Set<string> }>();
+  const holders = new Map<string, string>();
+  /** The windows already being watched for destruction, so one window has one listener however many watchers it opens. */
+  const watchedWindows = new Set<number>();
+  const watchKey = (grant: Grant, contents: WebContents): string => `${grant.id}\u0000${contents.id}`;
+  /** Ends one holder's watch, and stops the watcher when it was the folder and window's last one. */
+  const dropWatch = async (subscriptionId: string): Promise<void> => {
+    const key = holders.get(subscriptionId);
+    if (key === undefined) return;
+    holders.delete(subscriptionId);
+    const record = watches.get(key);
+    if (record === undefined) return;
+    record.holders.delete(subscriptionId);
+    if (record.holders.size > 0) return;
+    watches.delete(key);
+    const subscription = await record.subscription.catch(() => null);
+    await subscription?.unsubscribe().catch(() => undefined);
+  };
   let writes = Promise.resolve();
   const updateRecents = (action: (next: Map<string, Grant>) => void): Promise<null> => {
     const write = writes.then(async () => {
@@ -181,4 +219,54 @@ export async function registerFolderIpc(profile: string, entryUrl: string): Prom
     await fs.remove(target);
     return null;
   }));
+  // One watcher per folder and window, and an id per watch call on it: a holder that goes away after a successor arrives releases
+  // only its own id, and the successor's watch goes on until it releases too.
+  handle('watch', async (event, id) => {
+    const grant = granted(id);
+    await checkRoot(grant, false);
+    const contents = event.sender;
+    const key = watchKey(grant, contents);
+    let record = watches.get(key);
+    if (record === undefined) {
+      // The record is in the map before the watcher is awaited: two calls that overlap share one subscription instead of the
+      // second replacing the first and leaving it running.
+      const created = { subscription: subscribe(grant.root, (_error, events) => {
+        const paths = changedPaths(grant.root, events);
+        if (paths.length === 0) return;
+        const change: NativeFolderChange = { folderId: grant.id, paths };
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed()) window.webContents.send('folders:changed', change);
+        }
+      }, { ignore: UNWATCHED }), holders: new Set<string>() };
+      watches.set(key, created);
+      // One listener per window, not one per watcher: a window that goes drops every holder of every folder it watches.
+      if (!watchedWindows.has(contents.id)) {
+        watchedWindows.add(contents.id);
+        contents.once('destroyed', () => {
+          watchedWindows.delete(contents.id);
+          for (const [watched, opened] of watches) {
+            if (!watched.endsWith(`\u0000${contents.id}`)) continue;
+            for (const held of [...opened.holders]) void dropWatch(held);
+          }
+        });
+      }
+      record = created;
+    }
+    const subscriptionId = randomUUID();
+    record.holders.add(subscriptionId);
+    holders.set(subscriptionId, key);
+    // A watcher that would not start answers as a refusal and leaves nothing behind, so the next ask tries again instead of this
+    // window believing it watches a folder it does not.
+    try {
+      await record.subscription;
+    } catch (error) {
+      await dropWatch(subscriptionId);
+      throw error;
+    }
+    return subscriptionId;
+  });
+  handle('unwatch', (_event, subscription) => {
+    void dropWatch(typeof subscription === 'string' ? subscription : '');
+    return Promise.resolve(null);
+  });
 }

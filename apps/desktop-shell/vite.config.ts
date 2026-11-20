@@ -11,6 +11,6 @@ export default defineConfig({
       formats: ['es'],
       fileName: () => 'main.mjs',
     },
-    rolldownOptions: { external: ['electron', /^node:/] },
+    rolldownOptions: { external: ['electron', '@parcel/watcher', /^node:/] },
   },
 });
