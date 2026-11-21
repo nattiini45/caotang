@@ -1614,11 +1614,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
      * request starts, until the turn ends. It is written only for a request routed by its role, so a pinned destination never becomes
      * the start of a route the writer did not choose.
      */
-    const remembers = request.role !== undefined && request.profileId === undefined && request.expectedRoute === undefined;
+    const routeRole = request.role;
+    const remembers = routeRole !== undefined && request.profileId === undefined && request.expectedRoute === undefined;
     const route: RouteHooks = {
       ...(start === undefined ? {} : { startAt: start.profileId }),
       admitAttempt,
-      ...(remembers ? { answered: (target: AttemptTarget): void => { turn.answeredAt.set(request.role as TaskRole, target); } } : {}),
+      ...(remembers && routeRole !== undefined ? { answered: (target: AttemptTarget): void => { turn.answeredAt.set(routeRole, target); } } : {}),
     };
     try {
       for await (const chunk of gateway.complete(request, signal, beforeSend, route)) {
