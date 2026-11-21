@@ -118,7 +118,7 @@ export {
 } from './keys/key-store.js';
 export { createMemoryVaultPort, type KeyVaultPort, type SealedEntry } from './keys/vault.js';
 export type { KeyChange, KeyMirror } from './profiles.js';
-export { createIndexedDbVaultPort, type IndexedDbVaultOptions } from './keys/indexeddb-vault.js';
+export { createIndexedDbVaultPort, PROVIDER_KEY_DB_NAME, type IndexedDbVaultOptions } from './keys/indexeddb-vault.js';
 
 export { createGateway, type Gateway, type GatewayOptions, type GatewayTraceEvent } from './gateway.js';
 export type { FetchLike } from './transport.js';

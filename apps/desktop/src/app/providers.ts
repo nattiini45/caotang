@@ -27,6 +27,7 @@ import {
   originOf,
   createGateway,
   createIndexedDbVaultPort,
+  PROVIDER_KEY_DB_NAME,
   createKeyStore,
   createMemoryVaultPort,
   chooseModels,
@@ -58,6 +59,7 @@ import {
 import { DEMO_FALLBACK_REPLY, appMockProvider, type MockProvider } from '@caotang/gateway/mock';
 
 import { APP_KEYS, type AppDb } from './app-db.js';
+import { scopedStoreName } from './storage-scope.js';
 import { normalizeSettings, type RoleSettings } from './settings.js';
 import { TabTrace } from './trace-store.js';
 import { SaveChannel } from './save-channel.js';
@@ -284,7 +286,9 @@ export class ProviderService {
    */
   static async open(options: ProviderOpenOptions): Promise<{ service: ProviderService; notices: string[] }> {
     const notices: string[] = [];
-    const vault = options.vault === null ? createMemoryVaultPort() : createIndexedDbVaultPort({ factory: options.vault });
+    const vault = options.vault === null
+      ? createMemoryVaultPort()
+      : createIndexedDbVaultPort({ factory: options.vault, name: scopedStoreName(PROVIDER_KEY_DB_NAME) });
     // Opening a stored studio seals each restored profile's key again, which is not a change the host needs to hear about
     // a second time — it is what the host itself supplied or what this device already had — so the mirror stays quiet
     // until the studio is open.
