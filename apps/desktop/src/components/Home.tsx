@@ -46,6 +46,7 @@ import {
   type RecoveryAnswers,
   type RecoveryOutcome,
 } from '../app/lifecycle.js';
+import { openInTurn } from '../app/open-queue.js';
 import type { AppServices } from '../app/services.js';
 import { ChoiceDialog, ConfirmDialog, EmptyState, documentsLabel, useComposingEnter, wordsLabel } from './shared.js';
 import { EncodingDialog } from './EncodingDialog.js';
@@ -220,7 +221,9 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
     setError(null);
     setNotice(null);
     try {
-      await work();
+      // An opening asked for here takes its turn from the same queue the change offer's reopen uses (open-queue.ts), so the two never
+      // clear or replace each other's session in flight (#774).
+      await openInTurn(work);
     } catch (failure) {
       setError(failedText(action === 'openingDemo' ? 'openingProject' : action, errorText(failure)));
     } finally {
