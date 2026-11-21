@@ -13,7 +13,7 @@
  * The public surface is `openProject` and the types around it. Nothing from an internal package is re-exported as a value.
  */
 
-export { openProject, type CaotangProject, type OpenOptions, type RunOptions } from './open.js';
+export { openProject, type CaotangProject, type OpenOptions, type ReplayInput, type RunOptions } from './open.js';
 export type { ApprovalPolicy, ApproveToolsPolicy, DecisionRecord } from './approval.js';
 export type { ProviderConfig } from './providers.js';
 export type { AgentRun } from './run.js';
@@ -22,7 +22,9 @@ export { LOCK_FILE, ProjectLockedError } from './lock.js';
 export { FolderChangedError, NoProjectError } from './folder.js';
 
 // The types a caller meets on the events, the cards and the reports, so it need not depend on the internal packages to name them.
-export type { AgentEvent, Decision, PendingCard, ToolOutcome, TurnReport } from '@caotang/harness';
+export type { AgentEvent, Decision, PendingCard, StepDiff, ToolOutcome, TurnReport } from '@caotang/harness';
+// Replay's own answers, so a caller can read a comparison without depending on the internal packages (§8.1).
+export type { ReplayEstimate, ReplayMode, ReplayResult, ReplayStop, UsageSummary } from '@caotang/harness';
 export type { NewProfile, TaskRole, ThinkingLevel } from '@caotang/gateway';
 export type { LoadNotice, ProjectState } from '@caotang/store';
 export type { CommandError, Result, UndoOutcome } from '@caotang/bus';

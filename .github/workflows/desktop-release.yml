@@ -9,9 +9,10 @@
 #     folder watcher ships a prebuilt binary per platform and architecture and nothing is compiled here.
 #   - The same jobs run on workflow_dispatch, which publishes nothing: it leaves the packages and their checksums as workflow
 #     artifacts, so packaging can be proved without releasing anything.
-#   - The repository's gate (`pnpm verify`) is ci.yml's business, and it runs on every pull request and on `main`. The Linux and
-#     macOS legs run it again for the released commit; the Windows leg runs `pnpm run typecheck` instead, because the suite is not
-#     ported to that runner today and a release must not wait on that work.
+#   - The repository's gate (`pnpm verify`) is ci.yml's business, and it runs on every pull request and on `main`. Every leg here
+#     runs it again for the released commit, Windows included, matching its ci.yml counterpart: the macOS and Linux legs run the
+#     whole gate, and the Windows leg leaves out the two sync-server Worker suites that boot a runtime per case (#815) with
+#     CAOTANG_SKIP_WORKER_SUITES=1, exactly as ci.yml's `verify (Windows)` job does.
 #   - Tags are desktop-v<version>, never v<version>: release.yml owns v* tags for the MCP and command-line bundles, and the two
 #     releases must not start each other. The version must equal apps/desktop-shell/package.json's, because SignPath enforces it as
 #     every signed file's product version (.signpath/artifact-configuration.xml).
@@ -93,11 +94,12 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      # The repository's own gate, `pnpm verify`, runs in ci.yml on every pull request and on `main`; it is not portable to this
-      # runner today (57 of packages/mcp-server/test/server.test.ts's 87 tests fail on Windows for reasons that have nothing to do
-      # with packaging), so this job proves the tree compiles and packages it, and the Linux leg below runs the whole gate.
-      - name: Typecheck
-        run: pnpm run typecheck
+      # The same gate ci.yml's `verify (Windows)` job runs on every pull request, so a released commit is gated here too. Only #815's
+      # two sync-server Worker suites stay out.
+      - name: Lint, typecheck and every unit suite, less the two Worker suites (#815)
+        env:
+          CAOTANG_SKIP_WORKER_SUITES: '1'
+        run: pnpm verify
 
       # Packages the app without an installer (--dir), and applies the electron fuses and the ASAR integrity data to the binary,
       # which is why this pass comes before signing. It leaves apps/desktop-shell/release/win-unpacked/ with Caotang.exe in it.

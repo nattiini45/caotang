@@ -470,6 +470,71 @@ Streaming responses render progressively in the agent panel; tool-call cards col
 
 The legacy `AgentSessionOptions.price` override remains a budget-check price and is reflected in `budgetUse`, using the gateway's shared cost formula. It never changes recorded `usage` or `costUsd`. Without that override, budget use reads the recorded cost too; the app supplies no whole-turn price override.
 
+### 8.1 Replay
+
+**A recording is re-run against another model, on a copy.** `packages/harness/src/agent/replay.ts` owns three modes over one
+`ReplaySource` (a `TraceStore`, or `indexTrace(parseTrace(file))` for an exported file): **call** sends one recorded request's messages
+to the target profile and model in a single `completeOnce` and runs no tool; **turn** re-runs the recording's intent through a fresh
+session pinned to the target, over `cloneProjectState` of the pre-turn snapshot; **cassette** runs that same turn with its replies
+answered by `cassetteScripts`, so a bug report reproduces with no key and no cost. A replay never writes to the writer's project: the
+copy is a state nobody else holds, so the project's bytes, undo store and activity log gain nothing, and adopting a result is later,
+an ordinary turn through `submitPlan` and never the engine's doing.
+
+**Decisions come from the recording only where they still fit.** The recorded cards are `CardRecord`s: kind, the tools the card ran,
+and the decision. A new card whose tool multiset equals the recorded one's gets the recorded decision (`cancelled` cancels, anything
+else approves); a card that differs stops the replay with `decision-mismatch` and the caller's `decide` answers, which is where the
+dialog asks the writer. Nothing is auto-approved that the writer has not seen the like of.
+
+**External tools are never re-run.** The replay harness is built with the product's ports and no MCP client, so a step that names an
+external tool is refused by the runtime: a server's side effects are not Caotang's to repeat or undo (decisions.md). The engine names
+such a step in `stoppedAt` with `external-tool` and the tool.
+
+**A cassette reproduces a session's first turn.** A replay session starts fresh, so the recording's earlier conversation is not rebuilt:
+a cassette replay of a later turn would report a prompt change of its own making. It refuses with `mid-session` and says to replay the
+session's first turn or the turn against a provider. The refusal is read from the recording as well as from the turn list, because a trace
+exported for one turn holds only that turn: a recorded request that carries the conversation block is a later turn's, whatever the file
+says. Only the session's own records seed a replay; nothing is reconstructed.
+
+**The estimate comes first.** `estimateReplay` reads the recording's own provider-reported input tokens for the calls that would run
+and the target's output cap per call, `maxOutputTokens` plus `thinkingTokens`, and prices them from the target's `pricePer1k` when it
+has one. A caller shows that before it spends anything: `caotang replay` prints it and waits for `y`, and the app's dialog will show
+it the same way (§8's cost rule for a review).
+
+**A bound is a bound.** `maxModelCalls` is the replayed session's bound, and the estimate multiplies the target's cap by no more calls
+than that, so the number a writer confirms is the number the run may spend. `caotang replay` passes the `agent` command's flag through;
+`--plan-file` is refused, because a replay runs the recording's steps and never a plan the caller names.
+
+**A recorded prompt cannot be filtered.** A call replay sends the messages the recording holds, so a read-deny the writer added since
+would not apply to them. When the project has rules, a call replay checks them and refuses with `withheld-text` (or `no-snapshot` when
+it cannot check) rather than send text the writer currently withholds, and says to replay the whole turn — which is assembled again
+under the rules. A JSON request's schema travels in the recording (`responseFormatHint`); a recording that asks for JSON and kept no
+schema refuses with `no-schema` instead of sending an empty one.
+
+**What is compared** is what a writer can act on: the steps, their params (`stepDiffs`), the reply of a call replay, both sides' usage
+and the replay's own report. Two drafts' words are the dialog's to diff, because the original text lives in the panel and not in the
+engine's hands.
+
+**A cassette is a function of its recording.** `cassetteScripts` answers the turn's requests in the order they were made and compares
+each against the recorded messages; a request whose messages differ ends the turn as a protocol error naming the first differing
+message and the character it moved at, so a prompt change reads as a diff rather than a wrong answer. The envelope id an untrusted region
+carries is masked on both sides before the comparison, because that id is a digest of the turn id and a replay is a turn of its own: it
+is the engine's own value, never a prompt change to report. The wire is the recording's too:
+the harness picks the native or JSON planner prompt from the model's capability row, so the cassette's mock reports the capabilities its
+own recording spoke — a trace whose requests declared tools is answered on the native wire. Tool definitions are not compared: a trace
+names the tools a request declared and not their descriptions. A provider's reasoning payload is never replayed —
+only its size is recorded — so a replay on the same model starts its reasoning fresh.
+
+**Retry, not replay.** The ghost region's **Retry** regenerates one draft from the same assembled context with the same seed (§8);
+that is the loop's own second attempt. Replay against another model is §8.1.
+
+### 8.2 Headless and command-line replay
+
+`CaotangProject.replayEstimate(input)` and `replay(input)` (sdk) do the same over one project's provider: the destination is the
+profile the project was opened with, so a replay can only be sent where the caller already pointed it. `caotang replay <trace.jsonl>`
+does it from a shell, with `--mode call|turn|cassette`, `--turn`, `--call`, the `agent` command's provider and key flags, `--yes` to
+skip the confirmation, and `--output-format json`. A trace made elsewhere describes a project that has moved on: a turn replay runs on
+the project as it is now and the comparison is read, not the bytes.
+
 ## 9. Evals (deterministic, mock-provider)
 
 Scenarios run headless against the mock provider (provider-gateway §8): scripted intent → expected plan/confirm cards → tool-call trace assertions (ordered, with param digests) → final project-state assertions (project-format schema validation) → response-shape assertions (caps respected, errors model-facing, and every successful result matching the `resultSchema` of its row, with the JSON path of a mismatch). Tool descriptions are **versioned, tested artifacts**, enforced by the prompt manifest golden (below): eval transcripts feed description revisions (an iterate loop). v0.1 suite ≥10 scenarios covering: single-op turns, multi-step plans, verify-failure recovery, permission batches, undo replay. **Codex scenarios** ([codex.md](codex.md) §9): mention pulls entry into `scene.draft` context; `never`/`manual` policy behavior; `always` present without mention; budget-prune determinism (fixed entries + tiny budget → stable drop list); `codex.write` batch-validation failure → plan card rejects pre-execution. Assembled-context assertions are possible because assembly is deterministic ([context-assembly.md](context-assembly.md) §2/§4) — the prompt-preview payload doubles as the eval fixture. **Plan-edit validation scenarios:** the §2 dependency check is a pure pass over plan data — headless fixtures assert that dropping a step whose output feeds a later step's anchor/doc-id param flags the dependent with the "will re-resolve at execution" badge payload, and that re-approved edited cards re-enter preview.
