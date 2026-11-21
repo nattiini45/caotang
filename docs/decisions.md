@@ -1,6 +1,6 @@
 # Decisions
 
-- `main` lands pull requests through a merge queue, so `ci.yml` runs on `merge_group` too: the queue reports the required `verify` on the merge group's own head, and the checks it requires are `verify` and `pawcommit-review`. Why: a workflow without that trigger never reports on a merge group, so every group would fail on the queue's check timeout, and `pawcommit-review` is a review of the pull request's own head rather than of a group. [delegated 2026-11-20]
+- `main` takes pull requests without requiring the branch to be up to date with it, so nobody syncs a branch by hand before merging; `verify` and `pawcommit-review` stay required, and `ci.yml` still runs on `merge_group` so a merge queue can be switched on without a workflow change. Why: GitHub offers merge queues only in organization-owned repositories, and this repository belongs to a personal account, so the queue this trigger was written for cannot be enabled here. A merge group is not a pull request, so `pawcommit-review` passes its grouped pull requests' own verdicts through rather than reporting nothing. [delegated 2026-11-21]
 
 - Codex external references (#222) are ordered research records, independent of manuscript `sources` and the canon rule. The writer can open an HTTP(S) link explicitly; the app requests no remote preview and sends no reference data as automatic model context. [delegated 2026-11-19]
 
