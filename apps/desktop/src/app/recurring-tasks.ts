@@ -237,7 +237,7 @@ function defaultEvery(tick: () => void, ms: number): () => void {
 
 const cut = (text: string, limit = 280): string => (text.length <= limit ? text : `${text.slice(0, limit - 1).trimEnd()}…`);
 
-/* lingui-set comment="Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names." */
+/* lingui-set comment="Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count." */
 
 export class RecurringTasks {
   private runs: TaskRuns | null;

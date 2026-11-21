@@ -17,6 +17,7 @@ import { TaskRuns } from '../src/app/task-runs.js';
 import { TaskStore } from '../src/app/task-store.js';
 import { openTasksHome } from '../src/app/tasks-io.js';
 import { messages } from '../src/i18n/locales/en/messages.po';
+import { messages as germanMessages } from '../src/i18n/locales/de/messages.po';
 
 const cleanup: Array<() => Promise<void>> = [];
 beforeEach(() => {
@@ -289,4 +290,17 @@ it('does not admit automatic work while disabling the task is still being saved'
   expect(f.agent.taskViews()).toHaveLength(0);
   release();
   expect(await disabling).toBeNull();
+});
+
+it('says the schedule and the plan summary through the interface catalogue', async () => {
+  i18n.load('de', germanMessages);
+  i18n.activate('de');
+  try {
+    const f = await fixture();
+    const row = f.recurring.snapshot().tasks[0]!;
+    expect(row.schedule).toBe('Jeden Tag ab 00:00');
+    expect(row.doing).toBe('Einen Plan mit 1 Schritt ausführen');
+  } finally {
+    i18n.activate('en');
+  }
 });
