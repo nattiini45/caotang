@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "package:prepare": "node scripts/icon.mjs && pnpm --filter @caotang/desktop run build && pnpm run build",
     "package:win:dir": "pnpm run package:prepare && electron-builder --config electron-builder.yml --win --x64 --dir --publish never",
-    "package:win:installer": "electron-builder --config electron-builder.yml --win --x64 --nsis --prepackaged release/win-unpacked --publish never",
+    "package:win:installer": "electron-builder --config electron-builder.yml --win nsis --x64 --prepackaged release/win-unpacked --publish never",
     "package:mac-arm64": "pnpm run package:prepare && electron-builder --config electron-builder.yml --mac --arm64 --publish never",
     "package:mac-x64": "pnpm run package:prepare && electron-builder --config electron-builder.yml --mac --x64 --publish never",
     "package:linux": "pnpm run package:prepare && electron-builder --config electron-builder.yml --linux --x64 --publish never",
