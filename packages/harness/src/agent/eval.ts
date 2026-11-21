@@ -258,9 +258,9 @@ export interface Evaluation {
 function recording(base: Gateway, into: ChatRequest[]): Gateway {
   return {
     ...base,
-    complete: (request, signal, beforeSend, admitAttempt) => {
+    complete: (request, signal, beforeSend, route) => {
       into.push(request);
-      return base.complete(request, signal, beforeSend, admitAttempt);
+      return base.complete(request, signal, beforeSend, route);
     },
   };
 }

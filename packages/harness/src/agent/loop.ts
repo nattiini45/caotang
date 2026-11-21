@@ -72,7 +72,7 @@
 import { preloadAnchorLibraries } from '@caotang/editor';
 import { entryOfCall, err, ok, type CommandError, type Result, type UndoOutcome } from '@caotang/bus';
 import { buildPreview, ContextError, memoryReadable, meterOf, RESERVED_TOKENS, summaryPrefix, type AgentTask, type AssembledPrompt, type ContextMeter, type ContextOverrides, type PromptPreview, type RecentTurn, type SessionSummary } from '@caotang/context';
-import { costOf, estimateTokens, promptTokensOf, ProviderError, redact, textOf, usageFor, type AttemptTarget, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type ModelLimits, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
+import { costOf, estimateTokens, promptTokensOf, ProviderError, redact, textOf, usageFor, type AttemptTarget, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type ModelLimits, type RoleTarget, type RouteHooks, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
 import { newId } from '@caotang/ids';
 import { SKILL_CATALOG_TOKENS } from '@caotang/skills';
 import { getBody, getRevision, type ProjectState, type RunStatus, type TreeNode } from '@caotang/store';
@@ -693,6 +693,12 @@ interface Turn {
   metered: number;
   /** The profile, model and thinking level this turn's calls run on: its own pins over the session's. */
   readonly pins: Pins;
+  /**
+   * The destination that answered each role's last request in this turn (provider-gateway §6). A role's next request starts there, so a
+   * fallback that answered is not abandoned one call later; the turn's own area, dropped with it. A pin naming another destination
+   * sends the request to that destination alone and leaves this untouched.
+   */
+  readonly answeredAt: Map<TaskRole, AttemptTarget>;
   /** The interface and project languages as they stood when the turn started: a switch during the turn applies to the next one. */
   readonly languages: LanguagePolicy | undefined;
   /** The phase the turn last reported: what a stop says it happened during. */
@@ -1523,7 +1529,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * A request's worst case at one target: its prompt estimate plus the output cap that target transmits, thinking included, priced
    * at that target's rate. A route's fallback is sized by its own row, never the primary's (provider-gateway §6).
    */
-  const worstCaseOf = (request: ChatRequest, target?: AttemptTarget): Omit<Reservation, 'id'> => {
+  const worstCaseOf = (request: ChatRequest, target?: RoleTarget): Omit<Reservation, 'id'> => {
     // The request as sent: its own profile, model and level, and its role, which the gateway routes a request with no profile by.
     // A call under another role carries none of the session's pins, so it is reserved on the role's route, never the session's.
     const limits = gateway.modelLimits(target?.profileId ?? request.profileId, target?.model ?? request.model, target?.thinking ?? request.thinking, request);
@@ -1546,19 +1552,34 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return new BudgetExceeded({ ...runLimitWords(stop, profileName ?? profile?.name), code: 'budget_exhausted' }, stop);
   };
 
-  const reserveCall = (turn: Turn, request: ChatRequest, meter = turn.meter): Reservation | undefined => {
+  const reserveCall = (turn: Turn, request: ChatRequest, meter = turn.meter, start?: RoleTarget): Reservation | undefined => {
     guardRecoveredSpend(turn);
     if (meter === undefined) return undefined;
-    const reserved = meter.reserve(worstCaseOf(request));
+    const reserved = meter.reserve(worstCaseOf(request, start));
     if (reserved.ok) {
       if (meter === turn.meter) emit({ type: 'budget', turnId: turn.id, spend: meter.spend(), limits: meter.limits });
       return reserved.value;
     }
-    throw stopError(turn, request, reserved.error);
+    throw stopError(turn, request, reserved.error, start === undefined ? undefined : gateway.profiles.get(start.profileId)?.name);
+  };
+
+  /**
+   * Where a request starts when this turn already saw that role's route move (provider-gateway §6): the destination that answered the
+   * role's last request, as the role's route names it now. A route the writer changed mid-turn, or a profile that is gone, is no
+   * destination, so the request starts at the role's primary again. A request naming a destination of its own carries its pin's
+   * destination untouched, and a stamped request is pinned too.
+   */
+  const startAtOf = (turn: Turn, request: ChatRequest): RoleTarget | undefined => {
+    if (request.role === undefined || request.profileId !== undefined || request.expectedRoute !== undefined) return undefined;
+    const answered = turn.answeredAt.get(request.role);
+    if (answered === undefined) return undefined;
+    const route = gateway.resolveRoleRoute?.(request.role);
+    if (route === undefined) return undefined;
+    return [route, ...(route.fallbacks ?? [])].find((target) => target.profileId === answered.profileId);
   };
 
   /** A stream whose reservation is settled with the usage it ended with, or the estimate when the provider reported none, however it ends. */
-  async function* settling(turn: Turn, reservation: Reservation | undefined, request: ChatRequest, signal?: AbortSignal, hookGuard?: () => void, chapter?: { readonly refund: () => void; readonly guard: () => void; readonly meter?: BudgetMeter; readonly reservation?: Reservation }): AsyncGenerator<ChatChunk, void, undefined> {
+  async function* settling(turn: Turn, reservation: Reservation | undefined, request: ChatRequest, signal?: AbortSignal, hookGuard?: () => void, chapter?: { readonly refund: () => void; readonly guard: () => void; readonly meter?: BudgetMeter; readonly reservation?: Reservation }, start?: RoleTarget): AsyncGenerator<ChatChunk, void, undefined> {
     let held = reservation;
     let usage: Usage | undefined;
     let delivered = '';
@@ -1588,8 +1609,20 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       held = next.value;
       emit({ type: 'budget', turnId: turn.id, spend: turn.meter.spend(), limits: turn.meter.limits });
     };
+    /**
+     * The turn's memory of where a role's route moved (provider-gateway §6): the destination that answered is where that role's next
+     * request starts, until the turn ends. It is written only for a request routed by its role, so a pinned destination never becomes
+     * the start of a route the writer did not choose.
+     */
+    const routeRole = request.role;
+    const remembers = routeRole !== undefined && request.profileId === undefined && request.expectedRoute === undefined;
+    const route: RouteHooks = {
+      ...(start === undefined ? {} : { startAt: start.profileId }),
+      admitAttempt,
+      ...(remembers && routeRole !== undefined ? { answered: (target: AttemptTarget): void => { turn.answeredAt.set(routeRole, target); } } : {}),
+    };
     try {
-      for await (const chunk of gateway.complete(request, signal, beforeSend, admitAttempt)) {
+      for await (const chunk of gateway.complete(request, signal, beforeSend, route)) {
         if (chunk.usage !== undefined) usage = chunk.usage;
         const delta = `${chunk.delta ?? ''}${chunk.reasoningDelta ?? ''}`;
         delivered += hookGuard === undefined ? delta : delta.slice(0, Math.max(0, MODEL_HOOK_REPLY_MAX - delivered.length));
@@ -1661,8 +1694,17 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           if (hit !== undefined) throw new BudgetExceeded(budgetStop(hit));
         }
         let asked = { ...request, sessionId: usageSessionId, ...(role === undefined ? {} : { role }) };
+        // A turn's earlier request under this role may have moved the route (provider-gateway §6): the destination that answered is
+        // where this one starts, so its window, cap and price are what the fit, the meter and the reservation are read against.
+        const start = startAtOf(turn, asked);
+        const limitsOf = (at: ChatRequest) => gateway.modelLimits(
+          start?.profileId ?? at.profileId,
+          start?.model ?? at.model,
+          start?.thinking ?? at.thinking,
+          at,
+        );
         if (planner) {
-          const limits = gateway.modelLimits(asked.profileId, asked.model, asked.thinking, asked);
+          const limits = limitsOf(asked);
           const reserveTokens = transmittedOutputCap(limits, asked.maxOutputTokens) + RESERVED_TOKENS;
           const fitted = fitToWindow(asked.messages, {
             ...(limits.contextWindow === undefined ? {} : { windowTokens: limits.contextWindow }),
@@ -1688,17 +1730,17 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         hookGuard?.();
         if (planner === true && asked.messages.some(isHookContinuation)) asked = { ...asked, privatePayload: true };
         if (hookGuard === undefined && asked.messages.some((message) => textOf(message.content).includes('<<untrusted source="mcp-history:'))) taint(turn, [{ serverName: '', label: 'earlier conversation (connected-server text)' }]);
-        const reservation = reserveCall(turn, asked);
+        const reservation = reserveCall(turn, asked, undefined, start);
         turn.modelCalls += 1;
         turn.calls += 1;
         const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
         if (planner && turn.plannerPrompt !== undefined) {
-          const limits = gateway.modelLimits(sent.profileId, sent.model, sent.thinking, sent);
+          const limits = limitsOf(sent);
           emit({ type: 'context-meter', turnId: turn.id, ...requestContext(turn.plannerPrompt, sent.messages, limits) });
         }
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
         if (planner === 'compaction') emit({ type: 'session.compacting', turnId: turn.id });
-        return watched(turn.cache, turn.calls, sent, planner === true, settling(turn, reservation, sent, signal, hookGuard));
+        return watched(turn.cache, turn.calls, sent, planner === true, settling(turn, reservation, sent, signal, hookGuard, undefined, start));
       },
     },
     turnId: turn.id,
@@ -1797,14 +1839,15 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
             guardReadBoundary(turn);
             chapter?.guard();
             const asked = { ...request, sessionId: usageSessionId, ...(options.role === undefined ? {} : { role: options.role }), ...(chapter === undefined ? {} : { expectedRoute: chapter.expectedRoute }) };
-            if (chapterMeter !== undefined) chapterReservation = reserveCall(turn, asked, chapterMeter);
-            const reservation = reserveCall(turn, asked);
+            const start = startAtOf(turn, asked);
+            if (chapterMeter !== undefined) chapterReservation = reserveCall(turn, asked, chapterMeter, start);
+            const reservation = reserveCall(turn, asked, undefined, start);
             used += 1;
             turn.calls += 1;
             const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
             return settling(turn, reservation, sent, signal, undefined, chapter === undefined ? undefined : {
               ...chapter, refund: () => { turn.chapterCalls -= 1; }, ...(chapterReservation === undefined ? {} : { reservation: chapterReservation }),
-            });
+            }, start);
           } catch (error) {
             if (chapterReservation !== undefined) chapterMeter?.release(chapterReservation);
             if (chapter !== undefined) turn.chapterCalls -= 1;
@@ -4732,6 +4775,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       meter,
       metered: 0,
       pins,
+      answeredAt: new Map(),
       languages,
       phase: 'started',
       skills: { kind: 'unlogged' },

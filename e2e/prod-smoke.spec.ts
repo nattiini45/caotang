@@ -199,22 +199,23 @@ test('a failed production German download changes nothing and choosing Deutsch a
   // The aborted download is a console error by design, so only the policy-violation listener this installs is read here.
   await watchForProblems(page);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  const settings = page.getByTestId('settings');
-  await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
-  const german = settings.locator('input[name="interface-language"][value="de"]');
-  const system = settings.locator('input[name="interface-language"][value="system"]');
   const catalogueRequest = /\/assets\/.*messages.*\.js(?:\?.*)?$/;
   let aborted = 0;
   await page.route(catalogueRequest, (route) => {
     aborted += 1;
     return route.abort('failed');
   });
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByTestId('settings');
+  await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
+  const german = settings.locator('input[name="interface-language"][value="de"]');
+  const system = settings.locator('input[name="interface-language"][value="system"]');
   const notice =
     'The interface language could not be loaded, so nothing changed. Check your connection and choose the language again.';
+  // Opening Settings warms the German catalogue (#721): its aborted request comes before each click's own.
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     await german.click();
-    await expect.poll(() => aborted).toBe(attempt);
+    await expect.poll(() => aborted).toBe(attempt + 1);
     await expect(settings.getByRole('alert')).toHaveText(notice);
     await expect(system).toBeChecked();
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');

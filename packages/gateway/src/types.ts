@@ -511,19 +511,33 @@ export interface RoleResolution extends RoleTarget {
 /** Why a request moved to its next target. Only these faults are worth another provider (§4, §6). */
 export type FallbackReason = 'rate_limit' | 'overloaded' | 'network' | 'model_gone';
 
-/** A route's next destination, as it will be sent (§6): what a caller sizes its admission of the attempt to. */
+/** A route's destination, as it will be sent (§6): what a caller sizes its admission of the attempt to, and what it remembers. */
 export interface AttemptTarget {
   readonly profileId: string;
   readonly model: string;
   readonly thinking?: ThinkingLevel;
 }
 
-export interface ProviderGateway {
+/** What a caller that owns a turn tells the route (§6): where to start, whether a destination may be tried, and who answered. */
+export interface RouteHooks {
   /**
-   * `admitAttempt` is asked once per fallback target, before that target's request opens, so a caller can hold the attempt to
-   * the destination's own limits and price; throwing there refuses the fallback and ends the call at its primary's fault (§6).
+   * The profile this request starts at, when the caller remembers one for the turn. It is put first in the route and every other
+   * rule still applies: a profile the role no longer allows, or that is gone, is not a destination, and the route starts at the
+   * role's own primary instead.
    */
-  complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void, admitAttempt?: (target: AttemptTarget) => void): AsyncIterable<ChatChunk>;
+  readonly startAt?: string;
+  /**
+   * Asked once per fallback destination, before that destination's request opens, so a caller can hold the attempt to its own
+   * limits and price; throwing there refuses the fallback and ends the call at its primary's fault (§6).
+   */
+  readonly admitAttempt?: (target: AttemptTarget) => void;
+  /** The destination that answered, told once, so a caller that owns a turn can start that turn's next request there. */
+  readonly answered?: (target: AttemptTarget) => void;
+}
+
+export interface ProviderGateway {
+  /** `route` carries §6's caller hooks: where to start, whether a destination may be tried, and who answered. */
+  complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void, route?: RouteHooks): AsyncIterable<ChatChunk>;
   completeOnce(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): Promise<ChatMessage>;
   listModels(profileId: string): Promise<ModelInfo[]>;
   /**
