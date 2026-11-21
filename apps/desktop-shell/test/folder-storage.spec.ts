@@ -167,3 +167,45 @@ test('explicit copy leaves an IndexedDB-only project available', async () => {
     await closeShell(electron);
   }
 });
+
+test('a recovery accepted in a native folder saves to that folder, not to a copy in the browser', async () => {
+  const dir = test.info().outputPath('Recovered folder');
+  const profile = test.info().outputPath('profile');
+  const manifest = join(dir, 'caotang.json');
+  await mkdir(dir, { recursive: true });
+  const electron = await launch(profile);
+  try {
+    await choose(electron, dir);
+    const page = await electron.firstWindow();
+    await page.getByRole('textbox', { name: 'Project name' }).fill('Kelp Notebook');
+    await page.getByRole('button', { name: 'Create project', exact: true }).click();
+    await expect(page.getByText('Kelp Notebook', { exact: true })).toBeVisible();
+    // A chapter, so the folder holds a document the ladder can rebuild the project from.
+    await page.getByRole('button', { name: 'New chapter', exact: true }).first().click();
+    await expect.poll(() => readFile(manifest, 'utf8')).toContain('"title": "Untitled"');
+  } finally {
+    await closeShell(electron);
+  }
+
+  // The manifest another program broke: the folder's open offers the recovery ladder instead of refusing.
+  await writeFile(manifest, '{"project": "not a manifest"');
+
+  const reopened = await launch(profile);
+  try {
+    const page = await reopened.firstWindow();
+    await page.getByRole('button', { name: 'Reopen folder', exact: true }).click();
+    const dialog = page.getByTestId('recovery-dialog');
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: /Rebuild the project|Open this copy/ }).click();
+    // The recovered project is open, and the folder is its home: a save after the recovery reaches the folder (#744). A copy in the
+    // browser would leave the manifest on disk as the recovery wrote it.
+    const newChapter = page.getByRole('button', { name: 'New chapter', exact: true }).first();
+    await expect(newChapter).toBeVisible();
+    const recovered = await readFile(manifest, 'utf8');
+    await newChapter.click();
+    await expect.poll(async () => (await readFile(manifest, 'utf8')) !== recovered, { timeout: 10_000 }).toBe(true);
+    await expect.poll(() => readFile(manifest, 'utf8')).toContain('"title": "Untitled"');
+  } finally {
+    await closeShell(reopened);
+  }
+});
