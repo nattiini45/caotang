@@ -174,6 +174,29 @@ describe('usage ledger — turn rows (§6)', () => {
     expect(h.gateway.ledger.dayRows()).toHaveLength(1);
   });
 
+  it('splits a turn by the step each request was for, and keeps the day row by role', async () => {
+    // Planning and drafting are different work on one profile: the turn says which step spent what, so a writer can see that a plan
+    // cost little and its draft cost most. The day row is the day's spend by role, so the split stays the turn's.
+    const h = harness();
+    const mock = await h.profiles.create({ name: 'Offline', kind: 'mock' });
+
+    await collect(h.gateway.complete({ ...userMessage('plan the scene'), turnId: 'turn-11', step: 'plan' }));
+    await collect(h.gateway.complete({ ...userMessage('open the scene'), turnId: 'turn-11', step: 'draft' }));
+    await collect(h.gateway.complete({ ...userMessage('open it again'), turnId: 'turn-11', step: 'draft' }));
+
+    const rows = h.gateway.ledger.turnRows();
+    expect(rows.map((row) => [row.step, row.requests]).sort()).toEqual([
+      ['draft', 2],
+      ['plan', 1],
+    ]);
+    expect(rows.every((row) => row.profileId === mock.id && row.model === 'mock/echo-1')).toBe(true);
+    expect(h.gateway.ledger.turnTotals('turn-11')).toMatchObject({ requests: 3 });
+    expect(h.gateway.ledger.dayRows()).toEqual([
+      expect.objectContaining({ profileId: mock.id, role: 'chat', requests: 3 }),
+    ]);
+    expect(h.gateway.ledger.dayRows()[0]).not.toHaveProperty('step');
+  });
+
   it('keeps every turn beyond the old 200-row cap, including after a snapshot reload', () => {
     const h = harness();
     for (let i = 0; i < 205; i += 1) {

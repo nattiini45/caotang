@@ -54,11 +54,12 @@ import {
   type ThinkingLevel,
   UsageLedger,
   systemClock,
+  type StepClass,
 } from '@caotang/gateway';
 import { DEMO_FALLBACK_REPLY, appMockProvider, type MockProvider } from '@caotang/gateway/mock';
 
 import { APP_KEYS, type AppDb } from './app-db.js';
-import { normalizeSettings, type RoleSettings } from './settings.js';
+import { normalizeSettings, type RoleRef, type RoleSettings } from './settings.js';
 import { TabTrace } from './trace-store.js';
 import { SaveChannel } from './save-channel.js';
 import type { StudioHost } from './studio-host.js';
@@ -124,22 +125,24 @@ export interface RoleResolution {
  * resolves to the active profile. A role pinned to a profile that is gone falls back to following rather than
  * failing — the settings tolerate the stale id. Undefined only when no profile exists at all.
  */
-function resolveRole(profiles: ProfileStore, roles: RoleSettings | undefined, role: TaskRole): RoleResolution | undefined {
+function resolveRole(profiles: ProfileStore, roles: RoleSettings | undefined, role: TaskRole, step?: StepClass): RoleResolution | undefined {
   const ref = roles?.[role] === 'follow' ? undefined : roles?.[role];
   if (ref !== undefined) {
     const profile = profiles.get(ref.profileId);
     if (profile !== undefined) {
-      // A fallback is a destination the writer named for this role itself: a role that follows chat does not inherit chat's
-      // fallbacks, because consent is per role. A destination whose profile is gone, or names the role's own profile, is dropped.
-      const fallbacks = (ref.fallbacks ?? []).flatMap((target) => {
-        const fallback = profiles.get(target.profileId);
-        if (fallback === undefined || fallback.id === profile.id) return [];
-        return [{
-          profile: fallback,
-          model: target.model ?? fallback.defaultModel,
-          ...(target.thinking === undefined ? {} : { thinking: target.thinking }),
-        }];
-      });
+      // A step the writer routed on its own is this role's primary for that step: its target stands where the role's own choice
+      // would, with the role's fallbacks behind it. A step that follows, or names a profile that is gone, keeps the role's choice.
+      const own = step === undefined ? undefined : ref.steps?.[step];
+      const stepTarget = own === undefined ? undefined : profiles.get(own.profileId);
+      if (own !== undefined && stepTarget !== undefined) {
+        return {
+          profile: stepTarget,
+          model: own.model ?? stepTarget.defaultModel,
+          ...(own.thinking === undefined ? {} : { thinking: own.thinking }),
+          ...(roleFallbacks(profiles, ref, stepTarget).length === 0 ? {} : { fallbacks: roleFallbacks(profiles, ref, stepTarget) }),
+        };
+      }
+      const fallbacks = roleFallbacks(profiles, ref, profile);
       return {
         profile,
         model: ref.model ?? profile.defaultModel,
@@ -149,8 +152,8 @@ function resolveRole(profiles: ProfileStore, roles: RoleSettings | undefined, ro
     }
   }
   if (role !== 'chat') {
-    // A role that follows chat takes chat's profile, model and level — never its fallbacks. Consent is per role: another role's
-    // request must not reach a provider the writer authorised only for chat.
+    // A role that follows chat takes chat's profile, model and level — never its fallbacks, and not its step choices either:
+    // consent is per role, so another role's request must not reach a provider the writer authorised only for chat.
     const inherited = resolveRole(profiles, roles, 'chat');
     return inherited === undefined
       ? undefined
@@ -158,6 +161,23 @@ function resolveRole(profiles: ProfileStore, roles: RoleSettings | undefined, ro
   }
   const active = profiles.active();
   return active === undefined ? undefined : { profile: active, model: active.defaultModel };
+}
+
+/**
+ * The writer's ordered fallbacks for one role, as targets a route can name: a destination whose profile is gone, or that is the
+ * profile the role (or the step) already sends to, is dropped. A fallback is a destination the writer named for this role itself
+ * (provider-gateway §6), so it is read from the role's own list whatever step resolved the primary.
+ */
+function roleFallbacks(profiles: ProfileStore, ref: RoleRef, primary: ProfileView): NonNullable<RoleResolution['fallbacks']> {
+  return (ref.fallbacks ?? []).flatMap((target) => {
+    const fallback = profiles.get(target.profileId);
+    if (fallback === undefined || fallback.id === primary.id) return [];
+    return [{
+      profile: fallback,
+      model: target.model ?? fallback.defaultModel,
+      ...(target.thinking === undefined ? {} : { thinking: target.thinking }),
+    }];
+  });
 }
 
 export interface ProviderOpenOptions {
@@ -253,8 +273,8 @@ export class ProviderService {
    * names one that still exists, else whatever 'chat' resolves to — and 'chat' resolves to the active profile.
    * Undefined only when no profile exists at all.
    */
-  resolveForRole(role: TaskRole): RoleResolution | undefined {
-    return resolveRole(this.profiles, this.roleState.current, role);
+  resolveForRole(role: TaskRole, step?: StepClass): RoleResolution | undefined {
+    return resolveRole(this.profiles, this.roleState.current, role, step);
   }
 
   /**
@@ -262,8 +282,8 @@ export class ProviderService {
    * gateway knows them. Read at each call, so a preview before any turn shows the window and the cost of the active Chat role.
    * Undefined only when no profile exists at all.
    */
-  limitsForRole(role: TaskRole): ModelLimits | undefined {
-    const resolved = this.resolveForRole(role);
+  limitsForRole(role: TaskRole, step?: StepClass): ModelLimits | undefined {
+    const resolved = this.resolveForRole(role, step);
     return resolved === undefined ? undefined : this.gateway.modelLimits(resolved.profile.id, resolved.model, resolved.thinking);
   }
 
@@ -274,7 +294,10 @@ export class ProviderService {
    */
   roleAllows(role: TaskRole, profileId: string): boolean {
     const resolved = resolveRole(this.profiles, this.roleState.current, role);
-    return resolved?.profile.id === profileId || resolved?.fallbacks?.some((entry) => entry.profile.id === profileId) === true;
+    if (resolved?.profile.id === profileId || resolved?.fallbacks?.some((entry) => entry.profile.id === profileId) === true) return true;
+    // A step's own destination is one the writer named for this role too (provider-gateway §6).
+    const ref = this.roleState.current?.[role] === 'follow' ? undefined : this.roleState.current?.[role];
+    return ref === undefined ? false : Object.values(ref.steps ?? {}).some((entry) => entry?.profileId === profileId);
   }
 
   /**
@@ -346,8 +369,8 @@ export class ProviderService {
       // §6's resolver seam, over the shared cell: `resolve` is `resolveForRole` in the gateway's shape, and
       // `allowed` is the role-referenced set — the one profile the role resolves to.
       roles: {
-        resolve: (role) => {
-          const resolved = resolveRole(profiles, roleState.current, role);
+        resolve: (role, step) => {
+          const resolved = resolveRole(profiles, roleState.current, role, step);
           return resolved === undefined
             ? undefined
             : {
@@ -365,9 +388,15 @@ export class ProviderService {
                     }),
               };
         },
-        allowed: (role) => {
-          const resolved = resolveRole(profiles, roleState.current, role);
-          return resolved === undefined ? [] : [resolved.profile.id, ...(resolved.fallbacks ?? []).map((entry) => entry.profile.id)];
+        allowed: (role, step) => {
+          // The egress set a routed request is checked against: the destination this role and step resolve to, and every profile
+          // the role names for itself — its own target, its own fallbacks and its steps' targets — never another role's.
+          const ref = roleState.current?.[role] === 'follow' ? undefined : roleState.current?.[role];
+          const named = ref === undefined ? [] : [ref.profileId, ...(ref.fallbacks ?? []).map((entry) => entry.profileId),
+            ...Object.values(ref.steps ?? {}).flatMap((entry) => (entry === undefined ? [] : [entry.profileId]))];
+          const resolved = resolveRole(profiles, roleState.current, role, step);
+          if (resolved === undefined) return [];
+          return [...new Set([resolved.profile.id, ...(resolved.fallbacks ?? []).map((entry) => entry.profile.id), ...named])];
         },
       },
     });
