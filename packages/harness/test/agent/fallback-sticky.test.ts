@@ -26,6 +26,7 @@ import {
   createBudgetMeter,
   createContextPort,
   createHarness,
+  type AgentEvent,
   type BudgetMeter,
 } from '../../src/index.js';
 import { clock, makeState, STORM } from '../fixtures.js';
@@ -86,24 +87,40 @@ async function routed(primary: NewProfile, fallback: NewProfile, replies: (() =>
   return Object.assign(route, { gateway, primary: primaryView, fallback: fallbackView, calls, setRoute: (next: Parameters<Route['setRoute']>[0]) => { current = next; } });
 }
 
-async function sessionFor(base: Gateway, limits: Parameters<typeof createBudgetMeter>[0] = {}): Promise<{ session: ReturnType<typeof createAgentSession>; meter: BudgetMeter }> {
+type MeterEvent = Extract<AgentEvent, { type: 'context-meter' }>;
+
+async function sessionFor(
+  base: Gateway,
+  limits: Parameters<typeof createBudgetMeter>[0] = {},
+  windows?: (profileId: string | undefined) => number | undefined,
+): Promise<{ session: ReturnType<typeof createAgentSession>; meter: BudgetMeter; meters: MeterEvent[] }> {
   const meter = createBudgetMeter(limits, { clock: createManualClock(1_000_000) });
   const state = makeState();
+  const meters: MeterEvent[] = [];
   // The planner answers in the JSON plan here rather than on the wire: the sticky rule is the same either way, and a scripted plan is
   // what makes a turn ask a second question.
-  const gateway: Gateway = { ...base, modelCaps: (...args: Parameters<typeof base.modelCaps>) => ({ ...base.modelCaps(...args), tools: false }) };
+  const gateway: Gateway = {
+    ...base,
+    modelCaps: (...args: Parameters<typeof base.modelCaps>) => ({ ...base.modelCaps(...args), tools: false }),
+    modelLimits: (...args: Parameters<typeof base.modelLimits>) => {
+      const found = base.modelLimits(...args);
+      const window = windows?.(args[0]);
+      return window === undefined ? found : { ...found, contextWindow: window };
+    },
+  };
   return {
     session: createAgentSession({
       harness: createHarness({ state, ports: createAgentPorts(), clock: clock.now }),
       gateway,
       context: createContextPort({ state }),
       decide: async () => ({ action: 'approve' }),
-      emit: () => undefined,
+      emit: (event) => { if (event.type === 'context-meter') meters.push(event); },
       meter,
       role: 'chat',
       sessionId: 'fallback-sticky',
     }),
     meter,
+    meters,
   };
 }
 
@@ -156,6 +173,29 @@ describe('a fallback sticks within one turn (provider-gateway §6)', () => {
     const report = await session.submit('Say hello.');
     expect(report.status).toBe('replied');
     expect(hostsOf(route)).toEqual(['a.example', 'b.example', 'a.example']);
+  });
+
+  it('fits and meters a request that starts at the remembered fallback to that fallback’s window', async () => {
+    // The fallback is a small local model. The turn's second question is a request the fallback will be sent, so it is fitted to the
+    // fallback's window and the panel's meter describes that window — not the primary's, which the request never reaches again.
+    const route = await routed(endpoint('Primary', 'a.example', { prompt: 0.01, completion: 0.01 }, 4_096), endpoint('Second', 'b.example', { prompt: 0.01, completion: 0.01 }, 2_048), [limited, reading(STORM), answering('Answered by the fallback.')]);
+    const { session, meters } = await sessionFor(route.gateway, {}, (profileId) => (profileId === route.fallback.id ? 16_000 : 200_000));
+
+    const report = await session.submit('Say hello.');
+    expect(report.status).toBe('replied');
+    expect(meters.map((event) => event.meter.windowTokens)).toEqual([200_000, 16_000]);
+  });
+
+  it('refuses a request that cannot fit the remembered fallback’s window, naming that window', async () => {
+    // The fallback's window is too small for the turn's next question. It is never sent there: the turn stops on the window the
+    // request would actually have arrived with, which is the fallback's — read from the primary's, the fit would have passed it.
+    const route = await routed(endpoint('Primary', 'a.example', { prompt: 0.01, completion: 0.01 }, 4_096), endpoint('Second', 'b.example', { prompt: 0.01, completion: 0.01 }, 2_048), [limited, reading(STORM), answering('never sent')]);
+    const { session } = await sessionFor(route.gateway, {}, (profileId) => (profileId === route.fallback.id ? 8_000 : 200_000));
+
+    const report = await session.submit('Say hello.');
+    expect(report.status).toBe('failed');
+    expect(report.askBack?.reason).toContain('8000');
+    expect(hostsOf(route)).toEqual(['a.example', 'b.example']);
   });
 
   it('admits a request that starts at the remembered fallback on that fallback’s own worst case', async () => {

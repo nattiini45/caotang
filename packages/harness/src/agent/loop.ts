@@ -1694,8 +1694,17 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           if (hit !== undefined) throw new BudgetExceeded(budgetStop(hit));
         }
         let asked = { ...request, sessionId: usageSessionId, ...(role === undefined ? {} : { role }) };
+        // A turn's earlier request under this role may have moved the route (provider-gateway §6): the destination that answered is
+        // where this one starts, so its window, cap and price are what the fit, the meter and the reservation are read against.
+        const start = startAtOf(turn, asked);
+        const limitsOf = (at: ChatRequest) => gateway.modelLimits(
+          start?.profileId ?? at.profileId,
+          start?.model ?? at.model,
+          start?.thinking ?? at.thinking,
+          at,
+        );
         if (planner) {
-          const limits = gateway.modelLimits(asked.profileId, asked.model, asked.thinking, asked);
+          const limits = limitsOf(asked);
           const reserveTokens = transmittedOutputCap(limits, asked.maxOutputTokens) + RESERVED_TOKENS;
           const fitted = fitToWindow(asked.messages, {
             ...(limits.contextWindow === undefined ? {} : { windowTokens: limits.contextWindow }),
@@ -1721,15 +1730,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         hookGuard?.();
         if (planner === true && asked.messages.some(isHookContinuation)) asked = { ...asked, privatePayload: true };
         if (hookGuard === undefined && asked.messages.some((message) => textOf(message.content).includes('<<untrusted source="mcp-history:'))) taint(turn, [{ serverName: '', label: 'earlier conversation (connected-server text)' }]);
-        // A turn's earlier request under this role may have moved the route (provider-gateway §6): the destination that answered is
-        // where this one starts, and it is sized against that destination's own limits, so the guard covers the request as sent.
-        const start = startAtOf(turn, asked);
         const reservation = reserveCall(turn, asked, undefined, start);
         turn.modelCalls += 1;
         turn.calls += 1;
         const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
         if (planner && turn.plannerPrompt !== undefined) {
-          const limits = gateway.modelLimits(sent.profileId, sent.model, sent.thinking, sent);
+          const limits = limitsOf(sent);
           emit({ type: 'context-meter', turnId: turn.id, ...requestContext(turn.plannerPrompt, sent.messages, limits) });
         }
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
