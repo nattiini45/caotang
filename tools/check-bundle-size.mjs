@@ -262,7 +262,9 @@ export const BUDGET = {
   // is +136 bytes, and 72 bytes were left under the old ceiling. Checked first and kept: the check is one predicate beside the existing one,
   // it reads the parent's document once and adds no dependency, it lands in a chunk that is already on the first load, and the picker's own
   // path is unchanged. The ceiling is the measurement rounded up to the thousand. [bundle-raise rule 2026-11-21]
-  totalJs: 8_896_000,
+    // Re-measured on this branch's merge over main at 7ed8a64b (#738's codex buttons): 8,896,131 bytes — the catalogued
+  // recurring-tasks words cost 131 bytes over the shared ceiling. Rounded up to the thousand. [bundle-raise rule 2026-11-21]
+totalJs: 8_897_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
