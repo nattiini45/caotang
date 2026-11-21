@@ -35,7 +35,13 @@ function base64(value: unknown, min: number, max: number): string | null {
   return bytes.length >= min && bytes.length <= max && btoa(bytes) === value ? bytes : null;
 }
 
-async function readRecord(request: Request, accountId: string, requireBound = false): Promise<string | null> {
+/**
+ * Reads the record a create or a replacement carries. A create always stores a format-2 record: only a record that replaces
+ * an existing one can be part-way through a rotation, and offering to store a rotating one first would leave an account whose
+ * vault has never been sealed under the key it opens with. A replacement accepts either shape, because a rotation stores its
+ * format-3 record at one version and the finished format-2 one at the next.
+ */
+async function readRecord(request: Request, accountId: string, mode: 'create' | 'replace' = 'create'): Promise<string | null> {
   if (request.headers.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json' || !request.body) return null;
   const reader = request.body.getReader();
   const bytes = new Uint8Array(MAX_RECORD_BYTES);
@@ -49,17 +55,19 @@ async function readRecord(request: Request, accountId: string, requireBound = fa
       length += value.length;
     }
     const record: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(bytes.subarray(0, length)));
-    const legacy = exactObject(record, ['format', 'kdf', 'salt', 'wrappedMaster']) && record.format === 1;
+    const legacy = mode === 'create' && exactObject(record, ['format', 'kdf', 'salt', 'wrappedMaster']) && record.format === 1;
     // Format 2 binds the record to the account that stored it; a record naming another account is refused rather than stored.
     const bound = exactObject(record, ['format', 'accountId', 'kdf', 'salt', 'wrappedMaster', 'verifier']) && record.format === 2;
-    if (!legacy && !bound) return null;
-    // A replacement is always bound: the record it replaces belongs to this account, and a legacy shape cannot name it.
-    if (requireBound && !bound) return null;
-    const body = record as { accountId?: unknown; kdf: unknown; salt: unknown; wrappedMaster: unknown; verifier?: unknown };
-    const { accountId: named, kdf, salt, wrappedMaster, verifier } = body;
-    if (bound) {
+    // Format 3 is the record a rotation stores between its two steps: the bound shape plus the master key it retires.
+    const rotating = mode === 'replace' && exactObject(record, ['format', 'accountId', 'kdf', 'salt', 'wrappedMaster', 'verifier', 'retired']) && record.format === 3;
+    if (!legacy && !bound && !rotating) return null;
+    const body = record as { accountId?: unknown; kdf: unknown; salt: unknown; wrappedMaster: unknown; verifier?: unknown; retired?: unknown };
+    const { accountId: named, kdf, salt, wrappedMaster, verifier, retired } = body;
+    if (bound || rotating) {
       if (named !== accountId) return null;
       if (base64(verifier, 32, 32) === null) return null;
+      // The retired key is a sealed master key — format byte, nonce, 32 bytes and a tag — and nothing else opens anything.
+      if (rotating && base64(retired, 61, 61)?.charCodeAt(0) !== 1) return null;
     }
     if (!exactObject(kdf, ['id', 'params']) || kdf.id !== 'argon2id') return null;
     if (!exactObject(kdf.params, ['memoryKiB', 'iterations', 'parallelism'])) return null;
@@ -67,6 +75,7 @@ async function readRecord(request: Request, accountId: string, requireBound = fa
     if (!integer(parallelism, 1, 4) || !integer(iterations, 1, 10) || !integer(memoryKiB, 8 * parallelism, 262_144)) return null;
     if (base64(salt, 16, 64) === null || base64(wrappedMaster, 61, 61)?.charCodeAt(0) !== 1) return null;
     const canonical = { kdf: { id: 'argon2id', params: { memoryKiB, iterations, parallelism } }, salt, wrappedMaster };
+    if (rotating) return JSON.stringify({ format: 3, accountId, ...canonical, verifier, retired });
     return bound
       ? JSON.stringify({ format: 2, accountId, ...canonical, verifier })
       : JSON.stringify({ format: 1, ...canonical });
@@ -107,7 +116,7 @@ export async function accountKeyRecordRoute(request: Request, account: DurableAc
     if (request.method === 'PUT') {
       // A replacement is always bound to the account and always lands on the version it was prepared against, so two browsers
       // changing the passphrase at once cannot overwrite each other: the loser reads the record again.
-      const record = await readRecord(request, id, true);
+      const record = await readRecord(request, id, 'replace');
       if (record === null) return reply(400, 'Send a valid wrapped account key record bound to this account.');
       const expected = version(request.headers.get('If-Match'), /^"?(\d+)"?$/);
       if (expected === null) return reply(400, 'Send If-Match with the record version to replace it.');
@@ -128,7 +137,7 @@ export async function accountKeyRecordRoute(request: Request, account: DurableAc
       }
       return await current() === null ? reply(401, 'Sign in to continue.') : reply(412, 'The account key record changed. Read it again and replace it at its version.');
     }
-    const record = await readRecord(request, id);
+    const record = await readRecord(request, id, 'create');
     if (record === null) return reply(400, 'Send a valid wrapped account key record.');
     const inserted = await db.batch([
       db.prepare(`INSERT INTO account_key_records (account_id, record_json)

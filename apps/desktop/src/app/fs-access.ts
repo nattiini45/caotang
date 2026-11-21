@@ -49,9 +49,28 @@ export interface DirectoryHandleLike extends HandleLike {
   entries(): AsyncIterable<[string, HandleLike]>;
 }
 
-/** Whether this browser can open or save a real folder at all. */
+/**
+ * Whether this page may read the frame out of its own origin. A picker is refused in a frame whose origin is not the top
+ * document's — Chromium answers `SecurityError`, by design — so a document that cannot ask must not offer to.
+ */
+function framedByAnotherOrigin(): boolean {
+  if (typeof window === 'undefined' || window.top === null || window.top === window) return false;
+  try {
+    // A same-origin parent answers; a frame whose parent is another origin throws here, which is the case to detect.
+    void window.top.document;
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Whether this browser can open or save a real folder at all. A frame on another origin cannot: the picker requires the
+ * frame's origin to be its top document's, so the hosted studio (a second origin in a frame) is honestly reported as having
+ * no folder access rather than offering a button that throws.
+ */
 export function folderAccessSupported(): boolean {
-  return typeof window !== 'undefined' && typeof (window as { showDirectoryPicker?: unknown }).showDirectoryPicker === 'function';
+  return typeof window !== 'undefined' && typeof (window as { showDirectoryPicker?: unknown }).showDirectoryPicker === 'function' && !framedByAnotherOrigin();
 }
 
 /**

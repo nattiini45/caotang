@@ -35,6 +35,13 @@ const wrappedRecord = (fill: number) => ({
   wrappedMaster: Buffer.concat([Buffer.of(1), Buffer.alloc(60, fill)]).toString('base64'),
 });
 
+/** A format-3 record: what a rotation stores between its two steps, bound like a format-2 one plus its retired key. */
+const rotatingRecord = (accountId: string, fill: number) => ({
+  ...boundRecord(accountId, fill),
+  format: 3,
+  retired: Buffer.concat([Buffer.of(1), Buffer.alloc(60, fill)]).toString('base64'),
+});
+
 /** A format-2 record: bound to the account that writes it, with a 32-byte verifier for its master key. */
 const boundRecord = (accountId: string, fill: number) => ({
   format: 2,
@@ -254,6 +261,44 @@ describe('wrapped account key records', () => {
     // A revoked session cannot replace anything.
     await h.revoke('reader-one');
     expect((await replace(JSON.stringify(boundRecord(account.id, 51)), '"3"')).status).toBe(401);
+  });
+
+  it('accepts a rotation’s record at the version it read, and only as a replacement', async () => {
+    const h = await runtime();
+    await applyMigrations(h.db!, ['0004_account_key_records.sql', '0007_account_key_record_versions.sql']);
+    await h.invite('reader-one');
+    const { session } = await h.signIn('reader-one');
+    const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session! } })).json() as { id: string };
+    const headers = { Cookie: session!, 'X-Caotang-Account': account.id };
+    const create = (body: string) => h.dispatch(KEY_RECORD_PATH, {
+      method: 'POST', headers: { ...headers, Origin: ORIGIN, 'Content-Type': 'application/json' }, body,
+    });
+    const replace = (body: string, precondition?: string) => h.dispatch(KEY_RECORD_PATH, {
+      method: 'PUT',
+      headers: { ...headers, Origin: ORIGIN, 'Content-Type': 'application/json', ...(precondition === undefined ? {} : { 'If-Match': precondition }) },
+      body,
+    });
+
+    // A rotation cannot be the first record an account has: there is no vault sealed under the key it would retire.
+    expect((await create(JSON.stringify(rotatingRecord(account.id, 61)))).status).toBe(400);
+    expect((await create(JSON.stringify(boundRecord(account.id, 62)))).status).toBe(201);
+
+    // The rotating record is a replacement, stored under the version it was read at and read back exactly as stored.
+    const rotating = rotatingRecord(account.id, 63);
+    const replaced = await replace(JSON.stringify(rotating), '"1"');
+    expect(replaced.status).toBe(200);
+    expect(replaced.headers.get('ETag')).toBe('"2"');
+    const read = await h.dispatch(KEY_RECORD_PATH, { headers });
+    expect(await read.json()).toEqual(rotating);
+    expect(await h.db!.prepare('SELECT record_json FROM account_key_records').first('record_json')).toBe(JSON.stringify(rotating));
+
+    // The finished record replaces it in turn, and the retired field is what tells the two apart.
+    const finished = boundRecord(account.id, 64);
+    expect((await replace(JSON.stringify({ ...rotating, retired: 'AAAA' }), '"2"')).status).toBe(400);
+    expect((await replace(JSON.stringify({ ...rotating, retired: undefined }), '"2"')).status).toBe(400);
+    expect((await replace(JSON.stringify({ ...rotating, accountId: TWO }), '"2"')).status).toBe(400);
+    expect((await replace(JSON.stringify(finished), '"2"')).status).toBe(200);
+    expect(await h.dispatch(KEY_RECORD_PATH, { headers }).then((r) => r.json())).toEqual(finished);
   });
 
   it('refuses a wrapped record no browser could unlock, leaving the account’s single slot free', async () => {

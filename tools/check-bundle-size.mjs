@@ -256,6 +256,10 @@ export const BUDGET = {
   // rules check a call replay makes; the replay engine itself is not in the app's bundle at all (tree-shaken out, checked in dist), and
   // `projectBytes` moved out of the eval runner into its own module so the engine never pulls the runner in. The ceiling is the
   // measurement rounded up to the next thousand, leaving a kilobyte for the build's own run-to-run noise. [bundle-raise rule 2026-11-20]
+  // The frame's folder-access answer measured 8,895,064 bytes on main at 38d83bce, which measured 8,894,928 on the same build: the change
+  // is +136 bytes, and 72 bytes were left under the old ceiling. Checked first and kept: the check is one predicate beside the existing one,
+  // it reads the parent's document once and adds no dependency, it lands in a chunk that is already on the first load, and the picker's own
+  // path is unchanged. The ceiling is the measurement rounded up to the thousand. [bundle-raise rule 2026-11-21]
   totalJs: 8_896_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
