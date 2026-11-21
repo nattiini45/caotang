@@ -17,20 +17,29 @@ import {
   createAgentSession,
   createContextPort,
   createProductHarness,
+  estimateReplay,
   gatewayCoherenceModel,
+  indexTrace,
+  parseTrace,
+  replay as replayTrace,
   type AgentEvent,
   type AgentSession,
   type Decision,
   type PendingCard,
+  type ReplayEstimate,
+  type ReplayMode,
+  type ReplayResult,
+  type ReplaySource,
   type ToolOutcome,
   type TurnReport,
 } from '@caotang/harness';
-import type { LoadNotice, ProjectState } from '@caotang/store';
+import type { ThinkingLevel } from '@caotang/gateway';
+import { cloneProjectState, type LoadNotice, type ProjectState } from '@caotang/store';
 
 import { allowsAutoWrites, askBackFor, explainDecision, withAskBack, withoutAutoWrites, type ApprovalPolicy, type DecisionRecord } from './approval.js';
 import { diffFolder, renderOwned, type FileChange } from './diff.js';
 import { openFolder } from './folder.js';
-import { createNodeProviders, type ProviderConfig } from './providers.js';
+import { createNodeProviders, type NodeProviders, type ProviderConfig } from './providers.js';
 import { projectRules } from './rules.js';
 import { createEventQueue, type AgentRun } from './run.js';
 import { MCP_VOICE, type FolderVoice } from './voice.js';
@@ -55,6 +64,21 @@ export interface OpenOptions {
   readonly clock?: () => number;
 }
 
+/**
+ * What to replay: a trace file's JSONL, a mode, and which turn and call. The provider the project was opened with is the
+ * destination, so a replay can only be sent where the caller already pointed this project (agent-harness §8.1).
+ */
+export interface ReplayInput {
+  /** The `caotang.trace/1` file's contents: one record per line. */
+  readonly trace: string;
+  /** `call` (default) replays one recorded model call, `turn` a whole turn against this project's provider, `cassette` a whole turn answered from the recording. */
+  readonly mode?: ReplayMode;
+  /** The turn to replay. Default: the last turn the recording holds. */
+  readonly turnId?: string;
+  /** Which request of the turn, for mode `call`. Default: the turn's first. */
+  readonly callIndex?: number;
+}
+
 export interface RunOptions {
   readonly signal?: AbortSignal;
   /** A plan the caller wrote (`{ steps: [{ tool, params, expect }] }`): the turn runs it with no planner call, and its cards are decided like any other. */
@@ -76,6 +100,17 @@ export interface CaotangProject extends AsyncDisposable {
   diff(): Promise<readonly FileChange[]>;
   /** Restores to before a turn of this process. The undo history is in memory, so a turn cannot be restored by a later process. */
   restore(turnId: string): Result<UndoOutcome, CommandError>;
+  /**
+   * What a replay would cost, in tokens and money, before any of it is sent (agent-harness §8.1): the recording's own input tokens
+   * against this project's provider.
+   */
+  replayEstimate(input: ReplayInput): ReplayEstimate;
+  /**
+   * Replays a recording against this project's provider. Nothing is written: a turn or a cassette runs on a copy of the project as
+   * it is now, and the result is the caller's to print. A recording made elsewhere describes a project that has moved on, so the
+   * copy is the current one and the caller is told to read the comparison, not the bytes.
+   */
+  replay(input: ReplayInput): Promise<ReplayResult>;
   /** Writes the folder. Refused unless the project was opened with `write: true`. */
   save(): Promise<void>;
   /** Waits for the running turns, saves if `write` is true, and releases the lock. */
@@ -94,6 +129,39 @@ const SDK_VOICE: FolderVoice = {
 
 /** The answer for a card nobody approved: the turn ends as a cancelled one, with a report. */
 const CANCEL: Decision = { action: 'cancel' };
+
+/** Where a headless replay is sent: the one profile this project was opened with, which is a destination the caller named. */
+function replayTargetOf(providers: NodeProviders): { readonly profileId: string; readonly model?: string; readonly thinking?: ThinkingLevel } {
+  return {
+    profileId: providers.profile.id,
+    ...(providers.model === undefined ? {} : { model: providers.model }),
+    ...(providers.thinking === undefined ? {} : { thinking: providers.thinking }),
+  };
+}
+
+/** A trace file read into the engine's terms: the records, the turn it names, and the mode. */
+function replayInputOf(input: ReplayInput): {
+  readonly mode: ReplayMode;
+  readonly source: ReplaySource;
+  readonly turnId: string;
+  readonly callIndex?: number;
+} {
+  const parsed = parseTrace(input.trace);
+  if (!parsed.ok) throw new Error(`this trace cannot be replayed: ${parsed.error}`);
+  const records = parsed.value;
+  const turns = records.filter((record): record is Extract<(typeof records)[number], { kind: 'turn.start' }> => record.kind === 'turn.start');
+  const turnId = input.turnId ?? turns[turns.length - 1]?.turnId;
+  if (turnId === undefined) throw new Error('this trace holds no turn: a replay needs one turn’s records, not a bare header.');
+  if (input.turnId !== undefined && !turns.some((turn) => turn.turnId === turnId)) {
+    throw new Error(`this trace holds no turn ${turnId}. It holds: ${turns.map((turn) => turn.turnId).join(', ') || 'none'}.`);
+  }
+  return {
+    mode: input.mode ?? 'call',
+    source: indexTrace(records),
+    turnId,
+    ...(input.callIndex === undefined ? {} : { callIndex: input.callIndex }),
+  };
+}
 
 export async function openProject(options: OpenOptions): Promise<CaotangProject> {
   const policy = options.approval ?? 'read-only';
@@ -316,6 +384,30 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
       diff: () => diffFolder(state, folder.fs, baseline),
 
       restore: (turnId) => agent.restore(turnId),
+
+      replayEstimate: (input) =>
+        estimateReplay(
+          { ...replayInputOf(input), target: replayTargetOf(providers) },
+          (profileId, model, thinking) => providers.gateway.modelLimits(profileId, model, thinking),
+        ),
+
+      replay(input) {
+        assertOpen();
+        return inSequence(() => {
+          const parsed = replayInputOf(input);
+          return replayTrace({
+            ...parsed,
+            // The project's own provider is the only destination a headless caller has, and it is one the writer configured.
+            target: replayTargetOf(providers),
+            // A recording describes a project that has moved on; the copy is the project as it is now, and nothing writes to it.
+            snapshot: cloneProjectState(state),
+            gateway: providers.gateway,
+            // The project's policy answers a card the recording does not have, exactly as it answers a turn's.
+            decide: (pending) => decide(pending),
+            clock,
+          });
+        });
+      },
 
       async save() {
         assertOpen();
