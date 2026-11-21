@@ -1187,7 +1187,7 @@ async function finishFolderOpen(
     try {
       holdFolderCopy(opened.session, root, baselineText, digests);
       opened.session.persistence.setArtifactSaver(async () => {
-        const outcome = await writeFolder(opened.session, root, {}, true);
+        const outcome = await withFolderWrite(opened.session, () => writeFolder(opened.session, root, {}, true));
         if (outcome.kind === 'refused') throw new Error(t`The project folder changed outside Caotang or is in use. Reopen it before saving.`);
       });
       await rememberNativeFolder(nativeId);
@@ -1810,7 +1810,21 @@ export async function saveFolder(
     throw new Error('This tab cannot save: another tab has newer text for this project. Export a backup to keep the words in this tab.');
   }
   await session.settle();
-  return writeFolder(session, root, answers, false);
+  return withFolderWrite(session, () => writeFolder(session, root, answers, false));
+}
+
+/**
+ * Runs a write into the open folder with the copy the session holds marked out of date until the write ends: the copy advances only
+ * as the save finishes, however many files it re-digests, and a reader of the folder waits for that instead of judging a save in
+ * progress as another program's edit (#778).
+ */
+async function withFolderWrite<T>(session: ProjectSession, work: () => Promise<T>): Promise<T> {
+  session.beginFolderWrite();
+  try {
+    return await work();
+  } finally {
+    session.endFolderWrite();
+  }
 }
 
 async function writeFolder(

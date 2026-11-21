@@ -18,6 +18,7 @@ import { languageRevision, subscribeLanguage } from './i18n/language.js';
 import { openDemoSample, openFolder, type Opened } from './app/lifecycle.js';
 import { useBootPhase } from './app/use-boot-phase.js';
 import { DemoStart } from './app/demo-start.js';
+import { openInTurn } from './app/open-queue.js';
 import { browserStorageHost, requestDurability } from './app/storage.js';
 import type { ProjectSession } from './app/session.js';
 import { installTestHook } from './app/test-hook.js';
@@ -71,6 +72,9 @@ export function App(): ReactNode {
 
   const goHome = (): void => {
     const previous = current.current;
+    // Leaving the workspace also retires an opening still in flight, so a folder reopened a moment later does not put a session back
+    // in front of a writer who has gone to the projects list.
+    serial.current += 1;
     current.current = null;
     setNotice(null);
     setSaveToFolder(null);
@@ -88,15 +92,17 @@ export function App(): ReactNode {
    * projects list asks the question, so the writer is sent there with the words that say so.
    */
   const reopenFolder = (folder: DirectoryHandleLike): void => {
-    const previous = current.current;
     serial.current += 1;
     const token = serial.current;
-    current.current = null;
-    setNotice(null);
-    setSaveToFolder(null);
-    setSession(null);
-    setStartIntent(null);
-    void (async () => {
+    // An opening from the projects list takes its turn from the same queue (open-queue.ts), so neither clears a session the other
+    // has just put in front of the writer.
+    void openInTurn(async () => {
+      const previous = current.current;
+      current.current = null;
+      setNotice(null);
+      setSaveToFolder(null);
+      setSession(null);
+      setStartIntent(null);
       if (previous !== null) await previous.closeSafely().catch(() => undefined);
       const outcome = await openFolder(store, folder);
       if (token !== serial.current) return;
@@ -105,7 +111,7 @@ export function App(): ReactNode {
         return;
       }
       setNotice(t`Caotang needs an answer to open this folder, so it is not reopened here. Open it from the projects list.`);
-    })().catch((error: unknown) => {
+    }).catch((error: unknown) => {
       if (token !== serial.current) return;
       setNotice(t`The project folder could not be reopened: ${{ error: error instanceof Error ? error.message : String(error) }}`);
     });
