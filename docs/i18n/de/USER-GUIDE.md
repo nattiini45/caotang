@@ -691,10 +691,12 @@ Der MCP-Server ist auch als `.mcpb`-Datei erhältlich, die ein Host wie Claude D
 Der Server läuft auf Ihrem Computer und öffnet keinen Netzwerkport. Die Deinstallation lässt Ihren Projektordner unberührt. Die Formulierung des Dialogs unterscheidet sich je nach Host und Version. Das Bundle ist nicht signiert, und es wurde noch nicht in einem echten Host getestet.
 
 ## Caotang per Skript steuern
-<!-- source: 288c79cd -->
+<!-- source: 90e817bb -->
 > **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Ein Entwickler kann den Agenten mit dem Paket `@caotang/sdk` von einem Node-Skript, einer Kommandozeile oder CI aus gegen einen Projektordner laufen lassen. Dort gibt es keine Karten anzuklicken, daher wählt das Skript eine Richtlinie, die an ihrer Stelle antwortet: jede Änderung verweigern (der Standard), jede Karte genehmigen oder eine eigene Funktion. Es wird nichts gespeichert, es sei denn, das Skript fordert es an, und es kann das Diff zuerst lesen. Sein README ist [packages/sdk/README.md](../packages/sdk/README.md). Greifen Sie mit App und Skript nicht gleichzeitig auf denselben Ordner zu: Das Skript hinterlässt dieselbe Sperrdatei wie der MCP-Server, und die App fragt nach, bevor sie darüber speichert.
+
+Eine aufgezeichnete Runde lässt sich gegen ein anderes Modell wiederholen, ohne das Manuskript anzufassen. In der App werden Zug-Spuren nur behalten, solange **Agentenspuren für diesen Tab behalten** an ist (Einstellungen › Agent); eine Spalte exportieren Sie aus der Spurenansicht. `caotang replay <trace.jsonl>` druckt dann, was das Wiederholen kostet — die aufgezeichneten Prompt-Token gegen das Modell, das Sie nennen — und wartet auf Ihre Zustimmung, bevor es etwas sendet. Mit `--yes` entfällt die Rückfrage in einem Skript, `--mode turn` wiederholt die ganze aufgezeichnete Runde gegen Ihren Anbieter (die aufgezeichneten Genehmigungen gelten wieder, und eine Karte, die die Aufzeichnung nicht hat, hält die Wiederholung für Ihre Antwort an), `--mode cassette` wiederholt sie aus den aufgezeichneten Antworten ohne Schlüssel und ohne Kosten, so wird eine Fehlermeldung nachvollzogen. Aus einem Skript leisten `project.replayEstimate(...)` und `project.replay(...)` dasselbe. Der Projektordner wird nur gelesen und der Vergleich gedruckt: Es wird nichts geschrieben, und eine neue Fassung erreicht das Manuskript nur, wenn Sie den Agenten selbst darum bitten.
 
 ## Wenn etwas nicht stimmt
 <!-- source: 0028e42a -->

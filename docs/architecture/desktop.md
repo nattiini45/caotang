@@ -72,5 +72,11 @@ written into the executable, so a modified archive refuses to start. Electron's 
 `LICENSE.electron.txt` ship in the package root, and the studio's `THIRD-PARTY-NOTICES.md` ships in
 `resources/desktop/dist`, which the app serves at `app://caotang/THIRD-PARTY-NOTICES.md`.
 
+Each build leg runs the repository's gate (`pnpm verify`) for the commit it packages, the same gate
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on every pull request, so a released commit is never gated by
+less than a merged one. The Windows leg leaves out the two sync-server Worker suites that boot a Worker runtime per case, with
+`CAOTANG_SKIP_WORKER_SUITES=1`, exactly as ci.yml's `verify (Windows)` job does while #815 moves those files onto one shared
+runtime.
+
 The job that builds packages also runs on `workflow_dispatch`, so the packaging can be proved without releasing anything: a
 dispatch publishes nothing and only leaves the packages and their checksums as workflow artifacts.

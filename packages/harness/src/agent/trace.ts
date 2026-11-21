@@ -122,6 +122,11 @@ export interface ModelRequestRecord extends Base {
   readonly messages: readonly string[];
   readonly tools?: readonly { readonly name: string }[];
   readonly responseFormat?: 'text' | 'json';
+  /**
+   * The JSON schema hint the request carried, so a replay sends the instruction the recording sent rather than a made-up one. Absent
+   * when the request was `text`, or when a recording predates this field.
+   */
+  readonly responseFormatHint?: unknown;
 }
 export interface ModelResponseRecord extends Base {
   readonly kind: 'model.response';
@@ -765,6 +770,7 @@ export function traceGateway(sink: TraceSink): (event: GatewayTraceEvent) => voi
         messages: req.messages,
         ...(req.tools === undefined || req.tools.length === 0 ? {} : { tools: req.tools.map((tool) => ({ name: tool.name })) }),
         ...(req.responseFormat === undefined ? {} : { responseFormat: req.responseFormat === 'text' ? ('text' as const) : ('json' as const) }),
+        ...(req.responseFormat === undefined || req.responseFormat === 'text' ? {} : { responseFormatHint: req.responseFormat.jsonSchemaHint }),
       });
       return;
     }
