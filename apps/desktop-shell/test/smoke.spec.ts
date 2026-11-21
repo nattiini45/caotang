@@ -83,9 +83,11 @@ test('a teardown of an app that has already gone is not reported as a failure', 
   try {
     await electron.firstWindow();
     // An app that ended on its own — the shell's own `fail()` exits this way — has already emitted its close, so the teardown must
-    // resolve instead of waiting for an event it can no longer hear (#792).
-    await electron.evaluate(({ app }) => app.exit(0));
-    await new Promise<void>((resolve) => electron.process().once('exit', () => resolve()));
+    // resolve instead of waiting for an event it can no longer hear (#792). The exit is asked for and its reply is not awaited: the
+    // app goes before it can answer, so the process's own exit is what says it has gone.
+    const child = electron.process();
+    void electron.evaluate(({ app }) => { app.exit(0); }).catch(() => undefined);
+    await new Promise<void>((resolve) => child.once('exit', () => resolve()));
     // A spec reaches its `finally` after whatever it was doing, so the app it finds gone has been gone for a while: wait long enough
     // that the close the process emitted is behind us, which is the case that used to be reported as a teardown failure.
     await new Promise((resolve) => setTimeout(resolve, 250));
