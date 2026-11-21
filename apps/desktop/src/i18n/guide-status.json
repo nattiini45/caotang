@@ -90,6 +90,10 @@
         "installing-the-mcp-bundle": {
           "hash": "4651f5c6",
           "anchor": "das-mcp-bundle-installieren"
+        },
+        "scripting-caotang": {
+          "hash": "90e817bb",
+          "anchor": "caotang-per-skript-steuern"
         }
       }
     }
