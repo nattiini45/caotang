@@ -453,12 +453,20 @@ export function cassetteScripts(source: ReplaySource, turnId: string): MockScrip
  * import anywhere on that path stops the browser build (the replay engine itself is tree-shaken out, but only a module the bundler can
  * read is).
  */
-async function cassetteGateway(scripts: readonly MockScript[]): Promise<Gateway> {
+async function cassetteGateway(scripts: readonly MockScript[], tools: boolean): Promise<Gateway> {
   const clock = createManualClock(0);
   const keys = createKeyStore(createMemoryVaultPort());
   const profiles = createProfileStore({ keys });
   await profiles.create({ name: 'Cassette', kind: 'mock', isActive: true });
-  return createGateway({ profiles, keys, clock, mock: createMockProvider({ scripts: [...scripts] }) });
+  // The recorded wire is the mock's capability too: a trace from a real provider is a native-tools recording, and the harness picks
+  // its wire — and so its planner system text — from the capability row. Answering a native recording on the JSON wire would report a
+  // prompt change nobody made.
+  return createGateway({ profiles, keys, clock, mock: createMockProvider({ scripts: [...scripts], capsTools: tools }) });
+}
+
+/** Whether a recording was made on the native-tools wire, which is the one that declares tools on a request (agent-harness §2). */
+function recordedNative(calls: readonly RecordedCall[]): boolean {
+  return calls.some((call) => (call.request.tools?.length ?? 0) > 0);
 }
 
 /** Where two texts first differ, as a sentence that quotes both sides, so a prompt change reads as the words that moved. */
@@ -555,7 +563,7 @@ async function turnReplay(request: ReplayRequest, calls: readonly RecordedCall[]
     );
   }
   const gateway =
-    request.mode === 'cassette' ? await cassetteGateway(cassetteScripts(request.source, request.turnId)) : request.gateway;
+    request.mode === 'cassette' ? await cassetteGateway(cassetteScripts(request.source, request.turnId), recordedNative(calls)) : request.gateway;
   if (gateway === undefined) throw new ReplayRefusal('no-target', 'A turn replay needs the gateway to send through.');
   // A cassette answers from the mock's own profile store, so pinning the caller's target there would name a profile it does not hold:
   // the mode's destination is the recording itself, and the target is not used (§8.1).

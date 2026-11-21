@@ -34,6 +34,22 @@ export function transcript(intent: string, replies: readonly string[], seen?: Ch
   });
 }
 
+/**
+ * The same intent's replies on the native wire: the first planner call asks for one tool, and a later one answers
+ * `done` without calling anything. A native request is the one that declares tools, which is also how the wire tells
+ * itself apart from JSON mode.
+ */
+export function nativeTranscript(intent: string, call: { readonly tool: string; readonly params: Record<string, unknown> }, done: string): MockScript {
+  return {
+    match: (req: ChatRequest) => (req.tools?.length ?? 0) > 0 && userTextOf(req).includes(`Request: ${intent}`),
+    respond: (req: ChatRequest, callIndex?: number) => {
+      const replies = req.messages.filter((message) => message.role === 'assistant').length;
+      if (replies > 0) return { content: done };
+      return { content: '', toolCalls: [{ id: `call_mock_${callIndex ?? 1}`, name: call.tool, argumentsJson: JSON.stringify(call.params) }] };
+    },
+  };
+}
+
 /** Prose for a drafting call whose user text carries the marker. Prose is asked for as `'text'`. */
 export function prose(marker: string, text: string): MockScript {
   return draftScript((req) => (req.responseFormat === 'text' && userTextOf(req).includes(marker) ? text : undefined));

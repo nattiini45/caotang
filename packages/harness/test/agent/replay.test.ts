@@ -31,7 +31,7 @@ import {
 } from '../../src/index.js';
 import { clock, makeHarness, makeState } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
-import { prose, steps, transcript } from './scripts.js';
+import { nativeTranscript, prose, steps, transcript } from './scripts.js';
 
 const INTENT = 'Fill in the synopsis of The Storm.';
 const SYNOPSIS = steps({ tool: 'synopsis.fill', params: { docs: ['n_TEMPEST001'], source: 'text', max_words: 20 }, expect: 'The Storm has a synopsis' });
@@ -48,11 +48,19 @@ interface Recording {
 }
 
 /** One recorded turn: the mock plans a draft, the prose answers, and the trace is kept as the app keeps it. */
-async function record(options: { readonly reply?: string } = {}): Promise<Recording> {
+async function record(options: { readonly reply?: string; readonly native?: boolean } = {}): Promise<Recording> {
   const state = makeState();
   const before = cloneProjectState(state);
   const store = createTraceStore({ sessionId: 'record', project: () => 'The Lighthouse Keeper' });
-  const gateway = await mockGateway([transcript(INTENT, [options.reply ?? SYNOPSIS]), prose('Document "The Storm":', SYNOPSIS_PROSE)]);
+  // `native` records on the wire a real provider uses, which is the one that declares tools on every request.
+  const gateway =
+    options.native === true
+      ? await mockGateway(
+          [nativeTranscript(INTENT, { tool: 'synopsis.fill', params: { docs: ['n_TEMPEST001'], source: 'text', max_words: 20 } }, 'The synopsis is in.'), prose('Document "The Storm":', SYNOPSIS_PROSE)],
+          undefined,
+          { tools: true },
+        )
+      : await mockGateway([transcript(INTENT, [options.reply ?? SYNOPSIS]), prose('Document "The Storm":', SYNOPSIS_PROSE)]);
   // The app attaches the gateway's observer itself; the recording needs it as much as the turn's own records.
   gateway.setObserver(traceGateway(store));
   const session = createAgentSession({
@@ -127,6 +135,19 @@ describe('replay: the cassette answers a recorded turn', () => {
     expect(result.stoppedAt?.detail).toContain('Request 1 differs from the recorded one');
     expect(result.stoppedAt?.detail).toContain('message 1');
     expect(result.steps.every((step) => step.replay === undefined)).toBe(true);
+  });
+
+  it('replays a recording made on the native-tools wire, which is the wire every real provider records on', async () => {
+    const run = await record({ native: true });
+    const calls = recordedCalls(run.store, run.turnId);
+    // The recording declares its tools, which is what tells the engine its wire; a JSON-wire recording declares none.
+    expect((calls[0]?.request.tools?.length ?? 0) > 0).toBe(true);
+
+    const result = await replay({ mode: 'cassette', source: run.store, turnId: run.turnId, snapshot: run.before, clock: clock.now });
+
+    expect(result.stoppedAt).toBeUndefined();
+    expect(result.report?.status).toBe('applied');
+    expect(result.projectBytes).toBe(run.body);
   });
 
   it('ignores a caller’s target: a cassette answers from its own mock, whatever the app passes', async () => {
