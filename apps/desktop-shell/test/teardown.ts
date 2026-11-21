@@ -21,7 +21,7 @@ const EXIT_MS = 8_000;
  * closed — so the answer is found by asking it something harmless; an app that does not answer at all is left to the exit below, which
  * reports it.
  */
-async function answers(electron: ElectronApplication): Promise<boolean> {
+export async function applicationAnswers(electron: ElectronApplication): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const stalled = new Promise<boolean>((resolve) => { timer = setTimeout(() => resolve(true), PROBE_MS); });
   const probe = Promise.resolve().then(() => electron.evaluate(() => true)).then(() => true, () => false);
@@ -38,7 +38,7 @@ export async function closeShell(electron: ElectronApplication): Promise<void> {
   const closed = electron.waitForEvent('close').then(() => true, () => true);
   // A spec reaches its `finally` after whatever it was doing, and an app that ended on its own — the shell's own `fail()` exits that
   // way — has been gone for a while by then. There is nothing to end, and the failure that ended it is the one worth reporting.
-  if (!await answers(electron)) return;
+  if (!await applicationAnswers(electron)) return;
   /** What the exit request came to, or `null` while it has not answered: an app that exits answers by closing the connection. */
   let request: string | null = null;
   // Asked for and not awaited: the app goes before the reply can come back, so a reply is not something to wait for.

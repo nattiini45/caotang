@@ -7,7 +7,7 @@ import { _electron, expect, test } from '@playwright/test';
 import type {} from '../src/folder-contract.cjs';
 
 import { dismissDialogs } from './dialogs.js';
-import { closeShell } from './teardown.js';
+import { applicationAnswers, closeShell } from './teardown.js';
 
 const executablePath = createRequire(import.meta.url)('electron') as string;
 const shell = fileURLToPath(new URL('..', import.meta.url));
@@ -87,10 +87,10 @@ test('a teardown of an app that has already gone is not reported as a failure', 
     // app goes before it can answer, so the process's own exit is what says it has gone.
     const child = electron.process();
     void electron.evaluate(({ app }) => { app.exit(0); }).catch(() => undefined);
-    await new Promise<void>((resolve) => child.once('exit', () => resolve()));
-    // A spec reaches its `finally` after whatever it was doing, so the app it finds gone has been gone for a while: wait long enough
-    // that the close the process emitted is behind us, which is the case that used to be reported as a teardown failure.
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    // Both waits are conditions rather than sleeps: the process has exited, and the app no longer answers anything Playwright asks,
+    // which is the state a spec's `finally` finds and the one that used to be reported as a teardown failure.
+    await expect.poll(() => child.exitCode !== null, { timeout: 8_000 }).toBe(true);
+    await expect.poll(() => applicationAnswers(electron), { timeout: 8_000 }).toBe(false);
 
     await expect(closeShell(electron)).resolves.toBeUndefined();
   } finally {
