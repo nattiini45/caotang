@@ -104,6 +104,23 @@ describe('replay: the cassette answers a recorded turn', () => {
     expect(result.steps.every((step) => step.replay === undefined)).toBe(true);
   });
 
+  it('ignores a caller’s target: a cassette answers from its own mock, whatever the app passes', async () => {
+    const run = await record();
+    const result = await replay({
+      mode: 'cassette',
+      source: run.store,
+      turnId: run.turnId,
+      snapshot: run.before,
+      // The app passes the writer's chosen destination for every mode; a cassette must not pin it, because its gateway holds only
+      // the mock's own profile.
+      target: { profileId: 'prv_someone_else', model: 'another-model' },
+      clock: clock.now,
+    });
+
+    expect(result.report?.status).toBe('applied');
+    expect(result.projectBytes).toBe(run.body);
+  });
+
   it('serves the recorded replies in order, so two calls in one turn are not swapped', async () => {
     const run = await record();
     const scripts = cassetteScripts(run.store, run.turnId);

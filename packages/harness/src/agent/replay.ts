@@ -32,7 +32,7 @@ import {
 import type { MockResponse, MockScript } from '@caotang/gateway/mock';
 import { cloneProjectState, type ProjectState } from '@caotang/store';
 
-import { createHarness } from '../runtime.js';
+import { createHarness, type HarnessOptions } from '../runtime.js';
 import { canonicalJson } from '../util.js';
 import { createContextPort } from './context.js';
 import { scriptedGateway } from './cassette.js';
@@ -259,6 +259,11 @@ export interface ReplayRequest {
   readonly signal?: AbortSignal;
   /** Names the replay's own session and turn, so its ledger rows never fold into the original's. */
   readonly sessionId?: string;
+  /**
+   * The project's own rules (agent-harness §4), as the app passes them: a read-deny keeps its nodes out of the replay's requests too,
+   * so a replay can never send text the writer withheld.
+   */
+  readonly rules?: HarnessOptions['rules'];
   readonly clock?: () => number;
 }
 
@@ -489,9 +494,17 @@ async function turnReplay(request: ReplayRequest, calls: readonly RecordedCall[]
   const gateway =
     request.mode === 'cassette' ? await scriptedGateway(cassetteScripts(request.source, request.turnId)) : request.gateway;
   if (gateway === undefined) throw new ReplayRefusal('no-target', 'A turn replay needs the gateway to send through.');
+  // A cassette answers from the mock's own profile store, so pinning the caller's target there would name a profile it does not hold:
+  // the mode's destination is the recording itself, and the target is not used (§8.1).
+  const pinned = request.mode === 'cassette' ? undefined : target;
 
   const scratch = cloneProjectState(snapshot);
-  const harness = createHarness({ state: scratch, ports: createAgentPorts(), ...(request.clock === undefined ? {} : { clock: request.clock }) });
+  const harness = createHarness({
+    state: scratch,
+    ports: createAgentPorts(),
+    ...(request.clock === undefined ? {} : { clock: request.clock }),
+    ...(request.rules === undefined ? {} : { rules: request.rules }),
+  });
   const decisions = recordedDecisions(request.source, request.turnId);
   const collected: TraceInput[] = [];
   const sink: TraceSink = { write: (record) => { collected.push(record); } };
@@ -520,9 +533,10 @@ async function turnReplay(request: ReplayRequest, calls: readonly RecordedCall[]
   const session = createAgentSession({
     harness,
     gateway,
-    context: createContextPort({ state: scratch }),
+    // The project's read-deny withholds its nodes from this assembly too, as the app's port does.
+    context: createContextPort({ state: scratch, config: {}, withheld: (tool) => harness.withheld(tool) }),
     decide,
-    ...(target === undefined ? {} : { profileId: target.profileId, ...(target.model === undefined ? {} : { model: target.model }), ...(target.thinking === undefined ? {} : { thinking: target.thinking }) }),
+    ...(pinned === undefined ? {} : { profileId: pinned.profileId, ...(pinned.model === undefined ? {} : { model: pinned.model }), ...(pinned.thinking === undefined ? {} : { thinking: pinned.thinking }) }),
     // Its own name, so a replay's ledger rows never fold into the original turn's (§8.1).
     sessionId: request.sessionId ?? `replay-${request.turnId}`,
     ...(request.clock === undefined ? {} : { clock: request.clock }),

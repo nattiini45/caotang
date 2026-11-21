@@ -8,13 +8,18 @@ import { loadInkCompiler, runCli as runMcp, type RunIo } from '@caotang/mcp-serv
 
 import { ExitCode } from './output.js';
 import { runAgent, type AgentIo } from './run-agent.js';
-import { runReplayCommand, type ReplayIo } from './run-replay.js';
+import { runReplayCommand } from './run-replay.js';
 import { runScanCommand } from './run-scan.js';
 import { runTasksCommand } from './run-tasks.js';
 
 export interface MainIo extends AgentIo {
   /** Waits until a served MCP server should stop (see `RunIo.untilDone` of `@caotang/mcp-server`). */
   readonly untilDone: RunIo['untilDone'];
+  /**
+   * One line from the terminal, for a command that asks a question; Enter ends it, where `readStdin` waits for Ctrl-D. Absent, a
+   * command that asks uses `readStdin`, which is right for a pipe.
+   */
+  readonly readLine?: () => Promise<string>;
 }
 
 export const USAGE = `usage: caotang agent -p <intent> [flags]       run the agent on a project folder (caotang agent --help)
@@ -34,7 +39,7 @@ export async function main(argv: readonly string[], io: MainIo): Promise<number>
   // `scan` loads the Ink compiler itself, so it can also be called as a function.
   if (command === 'scan') return runScanCommand(rest, io);
   if (command === 'tasks') return runTasksCommand(rest, io);
-  if (command === 'replay') return runReplayCommand(rest, io as ReplayIo);
+  if (command === 'replay') return runReplayCommand(rest, io);
   if (command === 'agent' || command === 'mcp') {
     // The dialogue checks compile Ink synchronously, so the compiler loads before either command opens a project.
     await loadInkCompiler();

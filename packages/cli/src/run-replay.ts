@@ -15,20 +15,17 @@ import { FolderChangedError, NoProjectError, ProjectLockedError, openProject, ty
 import { ProfileError } from '@caotang/gateway';
 
 import { UsageError } from './agent-args.js';
-import { ExitCode } from './output.js';
+import { ExitCode, exitCodeOf } from './output.js';
 import { policyFor } from './policy.js';
-import { providerConfig } from './run-agent.js';
+import { providerConfig, type AgentIo } from './run-agent.js';
 import { REPLAY_USAGE, parseReplayArgs } from './replay-args.js';
 
-export interface ReplayIo {
-  readonly env: NodeJS.ProcessEnv;
-  readonly cwd: string;
-  readonly stdout: (text: string) => void;
-  readonly stderr: (text: string) => void;
-  /** Everything stdin holds: the answer to the confirmation. */
-  readonly readStdin: () => Promise<string>;
-  readonly fetch?: typeof fetch;
-  readonly signal?: AbortSignal;
+export interface ReplayIo extends AgentIo {
+  /**
+   * One line from the terminal: the answer to the confirmation, so Enter ends it. Absent, `readStdin` is used, which waits for the
+   * stream to end — right for a pipe, wrong for a person.
+   */
+  readonly readLine?: () => Promise<string>;
 }
 
 const note = (text: string): string => `caotang replay: ${text}\n`;
@@ -74,7 +71,17 @@ function report(result: ReplayResult): string {
 
 /** The machine-readable form, for a script: the mode, the steps, both sides' usage and where it stopped. */
 function jsonOf(result: ReplayResult, project: string): string {
-  return `${JSON.stringify({ type: 'replay', version: 1, project, mode: result.mode, steps: result.steps, usage: result.usage, ...(result.reply === undefined ? {} : { reply: result.reply }), ...(result.stoppedAt === undefined ? {} : { stopped: result.stoppedAt }) }, null, 2)}\n`;
+  return `${JSON.stringify({
+    type: 'replay',
+    version: 1,
+    project,
+    mode: result.mode,
+    steps: result.steps,
+    usage: result.usage,
+    ...(result.reply === undefined ? {} : { reply: result.reply }),
+    ...(result.report === undefined ? {} : { status: result.report.status, summary: result.report.summary, tokens: result.report.tokens, ...(result.report.costUsd === undefined ? {} : { costUsd: result.report.costUsd }) }),
+    ...(result.stoppedAt === undefined ? {} : { stopped: result.stoppedAt }),
+  }, null, 2)}\n`;
 }
 
 export async function runReplayCommand(argv: readonly string[], io: ReplayIo): Promise<number> {
@@ -116,7 +123,7 @@ export async function runReplayCommand(argv: readonly string[], io: ReplayIo): P
 
     if (!parsed.confirmed) {
       io.stderr(note('run it? y to spend that, anything else to stop: '));
-      const answer = (await io.readStdin()).trim().toLowerCase();
+      const answer = (await (io.readLine ?? io.readStdin)()).trim().toLowerCase();
       if (answer !== 'y' && answer !== 'yes') {
         io.stderr(note('nothing was sent; the recording is unchanged.'));
         return ExitCode.Ok;
@@ -125,7 +132,10 @@ export async function runReplayCommand(argv: readonly string[], io: ReplayIo): P
 
     const result = await project.replay(input);
     io.stdout(parsed.agent.outputFormat === 'json' ? jsonOf(result, root) : report(result));
-    return result.stoppedAt === undefined ? ExitCode.Ok : ExitCode.NeedsInput;
+    // A replay that stopped on a card or an external step needs a person; one whose turn failed or was cancelled says so in its own
+    // status, exactly as `caotang agent` maps that report.
+    if (result.stoppedAt !== undefined) return ExitCode.NeedsInput;
+    return result.report === undefined ? ExitCode.Ok : exitCodeOf(result.report);
   } catch (error) {
     if (error instanceof UsageError) {
       io.stderr(`caotang replay: ${error.message}\n\n${REPLAY_USAGE}`);

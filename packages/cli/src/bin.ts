@@ -13,6 +13,19 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
+/**
+ * One line from stdin, for a command that asks a question: `readStdin` waits for the stream to end, which on a terminal is Ctrl-D
+ * and not Enter. This resolves at the first newline, so `y` and Enter is an answer.
+ */
+async function readLine(): Promise<string> {
+  if (process.stdin.isTTY !== true) return readStdin();
+  const { createInterface } = await import('node:readline');
+  const lines = createInterface({ input: process.stdin, terminal: true });
+  const answer = await new Promise<string>((resolve) => lines.once('line', resolve));
+  lines.close();
+  return answer;
+}
+
 // SIGINT and SIGTERM end an agent turn the way the app's Stop does: the waiting card is cancelled, the turn ends, the lock is
 // released, and the exit code says which signal it was (130, 143). The MCP server has its own handlers (`untilDone`).
 const controller = new AbortController();
@@ -36,6 +49,7 @@ main(process.argv.slice(2), {
     process.stderr.write(text);
   },
   readStdin,
+  readLine,
   signal: controller.signal,
   stoppedBy: () => stopped,
   untilDone,

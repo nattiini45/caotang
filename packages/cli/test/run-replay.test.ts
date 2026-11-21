@@ -3,7 +3,7 @@
  * an answer, and nothing written to the project. The provider is the mock, so no test needs a key or the network.
  */
 
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -13,6 +13,7 @@ import { runReplayCommand } from '../src/run-replay.js';
 import { capture, folderBytes, removeDir, seedProject, tempDir } from './support.js';
 
 const KEY = 'sk-replay-test-0123456789';
+const STORM = 'n_TEMPEST001';
 const PROVIDER = ['--provider', 'generic', '--base-url', 'https://llm.example.test/v1', '--model', 'cheap-model', '--key-env', 'MY_KEY'] as const;
 
 let root = '';
@@ -77,6 +78,14 @@ function traceFile(turnId = 'record.turn-1'): string {
   return file;
 }
 
+/** A read-deny in the project file, the way Settings › Agent writes one. */
+function denyStorm(): void {
+  const path = join(root, 'caotang.json');
+  const manifest = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
+  manifest['agent'] = { rules: [{ effect: 'deny', tool: '*', scope: { subtree: STORM }, access: 'read', note: 'Not for a model' }] };
+  writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
 describe('caotang replay', () => {
   it('prints the estimate first, and sends nothing when the answer is not y', async () => {
     const file = traceFile();
@@ -123,6 +132,30 @@ describe('caotang replay', () => {
     expect(parsed.type).toBe('replay');
     expect(parsed.mode).toBe('call');
     expect(parsed.usage.original.promptTokens).toBe(1200);
+  });
+
+  it('holds the project’s read-deny: a replayed turn never sends what the writer withheld', async () => {
+    const file = traceFile();
+    denyStorm();
+    const scripted = endpoint(() => ({ kind: 'text', text: 'A cheaper answer.' }));
+    const io = capture({ cwd: root, stdin: '', env: { MY_KEY: KEY }, fetch: scripted.fetch });
+
+    // A turn replay assembles the project; the denied scene must be nowhere in what it sends.
+    await runReplayCommand([file, ...PROVIDER, '--yes', '--mode', 'turn'], io);
+
+    expect(scripted.requests.length).toBeGreaterThan(0);
+    const sent = scripted.requests.map((request) => `${request.system}\n${request.user}`).join('\n');
+    expect(sent).not.toContain('The lamp failed');
+  });
+
+  it('exits 4 when a turn replay’s own turn failed, as caotang agent does', async () => {
+    const file = traceFile();
+    // A 400 is terminal, so the turn fails at once instead of retrying: the point is the exit code, not the retry table.
+    const scripted = endpoint(() => ({ kind: 'error', status: 400, body: JSON.stringify({ error: { message: 'that model is not available' } }) }));
+    const io = capture({ cwd: root, stdin: '', env: { MY_KEY: KEY }, fetch: scripted.fetch });
+
+    expect(await runReplayCommand([file, ...PROVIDER, '--yes', '--mode', 'turn'], io)).toBe(4);
+    expect(io.out.join('')).toContain('failed');
   });
 
   it('refuses a trace whose turn is not in it, naming the turns it holds', async () => {

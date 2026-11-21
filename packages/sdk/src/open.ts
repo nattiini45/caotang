@@ -402,6 +402,8 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
             // A recording describes a project that has moved on; the copy is the project as it is now, and nothing writes to it.
             snapshot: cloneProjectState(state),
             gateway: providers.gateway,
+            // The project's read-deny binds a replay as it binds a turn: what the writer withheld never reaches a provider.
+            rules,
             // The project's policy answers a card the recording does not have, exactly as it answers a turn's.
             decide: (pending) => decide(pending),
             clock,
