@@ -17,6 +17,8 @@ export type {
   ProfileVerification,
   ProviderGateway,
   AttemptTarget,
+  RouteHooks,
+  RoleTarget,
   ChatRequest,
   ChatMessage,
   MessageContent,

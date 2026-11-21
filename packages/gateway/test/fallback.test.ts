@@ -246,3 +246,126 @@ describe('complete() — ordered role fallbacks (provider-gateway §6)', () => {
     expect(h.gateway.resolveRoleRoute?.('drafting')).toBeUndefined();
   });
 });
+
+describe('complete() — a fallback that answered starts the turn’s next request (provider-gateway §6)', () => {
+  const routes = (ids: () => { primary: string; fallback: string }) => () =>
+    (ids().primary === '' ? undefined : { profileId: ids().primary, model: 'model-x', fallbacks: [{ profileId: ids().fallback }] });
+
+  it('sends a request that names a remembered target there first, and nowhere else', async () => {
+    const net = new ScriptedFetch().push(() => sseResponse([delta('still the fallback'), finish('stop'), '[DONE]']));
+    let ids: { primary: string; fallback: string } = { primary: '', fallback: '' };
+    const h = fallbackHarness(routes(() => ids), { net });
+    ids = await pair(h);
+    const answered: unknown[] = [];
+
+    const { chunks, error } = await collect(h.gateway.complete(
+      { ...userMessage('the turn’s second request'), role: 'chat' },
+      undefined,
+      undefined,
+      { startAt: ids.fallback, answered: (target) => answered.push(target) },
+    ));
+    expect(error).toBeUndefined();
+    expect(deltasOf(chunks)).toBe('still the fallback');
+    expect(hostsOf(net)).toEqual(['b.example']);
+    // The caller is told the destination that answered, in the terms it hands back next time.
+    expect(answered).toEqual([{ profileId: ids.fallback, model: expect.any(String) }]);
+  });
+
+  it('keeps the rest of the route behind a remembered target that fails again', async () => {
+    // The remembered target is first, not exempt: it is admitted like any other fallback, and its own fault moves on to the primary.
+    const net = new ScriptedFetch()
+      .push(() => json(429, { error: { message: 'slow down' } }))
+      .push(() => sseResponse([delta('the primary answers'), finish('stop'), '[DONE]']));
+    let ids: { primary: string; fallback: string } = { primary: '', fallback: '' };
+    const h = fallbackHarness(routes(() => ids), { net });
+    ids = await pair(h);
+    const admitted: unknown[] = [];
+    const answered: unknown[] = [];
+
+    const { chunks, error } = await collect(h.gateway.complete(
+      { ...userMessage('the turn’s third request'), role: 'chat' },
+      undefined,
+      undefined,
+      { startAt: ids.fallback, admitAttempt: (target) => admitted.push(target), answered: (target) => answered.push(target) },
+    ));
+    expect(error).toBeUndefined();
+    expect(deltasOf(chunks)).toBe('the primary answers');
+    expect(hostsOf(net)).toEqual(['b.example', 'a.example']);
+    expect(admitted).toEqual([{ profileId: ids.primary, model: 'model-x' }]);
+    expect(answered).toEqual([{ profileId: ids.primary, model: 'model-x' }]);
+  });
+
+  it('starts at the role’s primary again when the remembered target is gone from the route', async () => {
+    const net = new ScriptedFetch().push(() => sseResponse([delta('from the primary'), finish('stop'), '[DONE]']));
+    let ids: { primary: string; fallback: string } = { primary: '', fallback: '' };
+    const h = fallbackHarness(routes(() => ids), { net });
+    ids = await pair(h);
+
+    const { chunks, error } = await collect(h.gateway.complete(
+      { ...userMessage('after the writer edited the list'), role: 'chat' },
+      undefined,
+      undefined,
+      { startAt: 'a-profile-that-is-not-in-the-route', answered: () => {} },
+    ));
+    expect(error).toBeUndefined();
+    expect(deltasOf(chunks)).toBe('from the primary');
+    expect(hostsOf(net)).toEqual(['a.example']);
+  });
+
+  it('never sends to a remembered target the role may no longer use', async () => {
+    // A stale memory cannot widen what a role may reach: the route starts at its primary, and nothing is sent to the other profile.
+    const net = new ScriptedFetch().push(() => sseResponse([delta('from the primary'), finish('stop'), '[DONE]']));
+    let ids: { primary: string; fallback: string } = { primary: '', fallback: '' };
+    const h = fallbackHarness(routes(() => ids), { net, allowed: () => [ids.primary] });
+    ids = await pair(h);
+
+    const { chunks, error } = await collect(h.gateway.complete(
+      { ...userMessage('after the writer withdrew it'), role: 'chat' },
+      undefined,
+      undefined,
+      { startAt: ids.fallback },
+    ));
+    expect(error).toBeUndefined();
+    expect(deltasOf(chunks)).toBe('from the primary');
+    expect(hostsOf(net)).toEqual(['a.example']);
+  });
+
+  it('does not remember a destination whose stream ended on a fault', async () => {
+    // A filtered reply is a finished stream with no answer in it: the caller must not start its next request there.
+    const net = new ScriptedFetch().push(() => sseResponse([delta('part'), finish('content_filter'), '[DONE]']));
+    let ids: { primary: string; fallback: string } = { primary: '', fallback: '' };
+    const h = fallbackHarness(routes(() => ids), { net });
+    ids = await pair(h);
+    const answered: unknown[] = [];
+
+    const { chunks } = await collect(h.gateway.complete(
+      { ...userMessage('a filtered reply'), role: 'chat' },
+      undefined,
+      undefined,
+      { startAt: ids.fallback, answered: (target) => answered.push(target) },
+    ));
+    expect(deltasOf(chunks)).toBe('part');
+    expect(hostsOf(net)).toEqual(['b.example']);
+    expect(answered).toEqual([]);
+  });
+
+  it('ignores a remembered target on a request that is pinned to its own destination', async () => {
+    // A stamped request names its route, so the turn’s memory has nothing to say about it.
+    const net = new ScriptedFetch().push(() => sseResponse([delta('the pinned answer'), finish('stop'), '[DONE]']));
+    let ids: { primary: string; fallback: string } = { primary: '', fallback: '' };
+    const h = fallbackHarness(routes(() => ids), { net });
+    ids = await pair(h);
+    const answered: unknown[] = [];
+
+    const { chunks, error } = await collect(h.gateway.complete(
+      { ...userMessage('a pinned call'), role: 'chat', expectedRoute: { profileId: ids.primary, model: 'model-x' } },
+      undefined,
+      undefined,
+      { startAt: ids.fallback, answered: (target) => answered.push(target) },
+    ));
+    expect(error).toBeUndefined();
+    expect(deltasOf(chunks)).toBe('the pinned answer');
+    expect(hostsOf(net)).toEqual(['a.example']);
+    expect(answered).toEqual([]);
+  });
+});

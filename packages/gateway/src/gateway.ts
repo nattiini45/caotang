@@ -61,6 +61,7 @@ import type {
   ProfileView,
   RoleResolution,
   RoleTarget,
+  RouteHooks,
   ProviderGateway,
   RoleResolver,
   TaskRole,
@@ -405,10 +406,10 @@ export function createGateway(options: GatewayOptions): Gateway {
     };
   };
 
-  function complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void, admitAttempt?: (target: AttemptTarget) => void): AsyncIterableIterator<ChatChunk> {
+  function complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void, route?: RouteHooks): AsyncIterableIterator<ChatChunk> {
     const controller = new AbortController();
     const combined = signal === undefined ? controller.signal : AbortSignal.any([signal, controller.signal]);
-    const iterator = runRouted(req, combined, beforeSend, admitAttempt);
+    const iterator = runRouted(req, combined, beforeSend, route);
     return {
       [Symbol.asyncIterator]() { return this; },
       next: (...args) => iterator.next(...args),
@@ -423,11 +424,13 @@ export function createGateway(options: GatewayOptions): Gateway {
     };
   }
 
-  async function* runComplete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void, gaveUp?: (fault: unknown) => void, moved?: MovedFrom): AsyncGenerator<ChatChunk, void, undefined> {
+  async function* runComplete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void, gaveUp?: (fault: unknown) => void, moved?: MovedFrom, target?: RoleTarget): AsyncGenerator<ChatChunk, void, undefined> {
     // §6: a request that names a role and no profile resolves through the injected router. The answer is the
     // profile it sends through, and the model and thinking level become the defaults the request's own fields
     // still beat. A resolver with no answer leaves the named-or-active rule in place, as a roleless request.
-    const routed = roleRoute(req.role, req.profileId);
+    // `target` is the destination the route chose for this attempt (§6): it stands in for the role's own resolution, so the
+    // allow-list below still decides whether this request may be sent at all.
+    const routed = target ?? roleRoute(req.role, req.profileId);
     // The role-referenced set is the egress allow-list for a routed request: a role may only ever send
     // through a profile the resolver names for it. This refusal lands before any profile lookup or key reveal.
     assertRoleAllows(req.role, routed);
@@ -567,16 +570,38 @@ export function createGateway(options: GatewayOptions): Gateway {
    * answer, a cancelled turn and every request with no fallbacks behave exactly as they did before the list existed: the single
    * target's own refusal or error reaches the caller unchanged.
    */
-  async function* runRouted(req: ChatRequest, signal: AbortSignal, beforeSend?: () => void, admitAttempt?: (target: AttemptTarget) => void): AsyncGenerator<ChatChunk, void, undefined> {
+  async function* runRouted(req: ChatRequest, signal: AbortSignal, beforeSend?: () => void, route?: RouteHooks): AsyncGenerator<ChatChunk, void, undefined> {
     const routed = roleRoute(req.role, req.profileId);
     // A request that carries an approval stamp names its own destination (`expectedRoute`), so it is pinned like one that names a
     // profile: one target, and its own refusal or fault reaches the caller instead of the route moving on.
-    const targets: readonly RoleTarget[] = routed === undefined || req.expectedRoute !== undefined ? [] : [routed, ...(routed.fallbacks ?? [])];
+    const written: readonly RoleTarget[] = routed === undefined || req.expectedRoute !== undefined ? [] : [routed, ...(routed.fallbacks ?? [])];
+    const allowed = req.role === undefined ? [] : options.roles?.allowed(req.role) ?? [];
+    // §6's stickiness: a caller that owns a turn names the destination that answered its last request, and that destination starts
+    // the route, with the rest of the route behind it. It is only ever a target the role names now and may still use, so a profile the
+    // writer removed mid-turn leaves the route as written and the request starts at the role's primary again.
+    const start = written.find((candidate) => candidate.profileId === route?.startAt && allowed.includes(candidate.profileId));
+    const first = start ?? written[0];
+    const targets: readonly RoleTarget[] = first === undefined ? [] : [first, ...written.filter((candidate) => candidate !== first)];
+    // What the caller is told answered: the destination as it was sent, which is what its next request starts at.
+    const answeredAt = (profile: ProfileView, target: RoleTarget | undefined): AttemptTarget => {
+      const thinking = req.thinking ?? target?.thinking;
+      return {
+        profileId: profile.id,
+        model: req.model ?? target?.model ?? profile.defaultModel,
+        ...(thinking === undefined ? {} : { thinking }),
+      };
+    };
     if (targets.length <= 1) {
-      yield* runComplete(req, signal, beforeSend);
+      const profile = first === undefined ? undefined : profiles.get(first.profileId);
+      // A stream that ended on a fault chunk did not answer, so it is not remembered as the destination that did.
+      let faulted = false;
+      for await (const chunk of runComplete(req, signal, beforeSend, undefined, undefined, first)) {
+        if (chunk.finishReason === 'error') faulted = true;
+        yield chunk;
+      }
+      if (profile !== undefined && !faulted) route?.answered?.(answeredAt(profile, first));
       return;
     }
-    const allowed = req.role === undefined ? [] : options.roles?.allowed(req.role) ?? [];
     let pending: unknown;
     // What the next call's trace reports it took over from: the target most recently sent to, named as it was sent, and the fault
     // that ended it. A move with nothing after it never starts a call, so nothing is written to a trace.
@@ -587,13 +612,16 @@ export function createGateway(options: GatewayOptions): Gateway {
     for (const [index, target] of targets.entries()) {
       const profile = profiles.get(target.profileId);
       if (index === 0) {
-        // The primary's own failures, and a primary whose profile is gone, reach the caller as they always have.
+        // The first target's own failures, and a first target whose profile is gone, reach the caller as they always have.
         let fault: unknown;
+        let faulted = false;
         try {
-          for await (const chunk of runComplete(req, signal, beforeSend, (error) => { fault = error; })) {
+          for await (const chunk of runComplete(req, signal, beforeSend, (error) => { fault = error; }, undefined, target)) {
             if ((chunk.delta ?? '') !== '' || (chunk.reasoningDelta ?? '') !== '') deliveredToCaller = true;
+            if (chunk.finishReason === 'error') faulted = true;
             yield chunk;
           }
+          if (profile !== undefined && !faulted) route?.answered?.(answeredAt(profile, target));
           return;
         } catch (error) {
           fault = error;
@@ -601,7 +629,7 @@ export function createGateway(options: GatewayOptions): Gateway {
         const reason = fallbackReasonOf(fault);
         if (reason === undefined || deliveredToCaller || signal.aborted) throw fault;
         pending = fault;
-        moved = { from: { profileId: target.profileId, model: req.model ?? routed?.model ?? targetOf(target.profileId).defaultModel }, reason };
+        moved = { from: { profileId: target.profileId, model: req.model ?? target.model ?? targetOf(target.profileId).defaultModel }, reason };
         continue;
       }
       if (profile === undefined || !allowed.includes(profile.id)) {
@@ -623,16 +651,20 @@ export function createGateway(options: GatewayOptions): Gateway {
       };
       // Before this target's request opens, the caller holds the attempt to the destination's own limits and price (§6). A refusal
       // here is the caller's, not a fault of the route: it ends the call, and the fault it came from is never rethrown.
-      admitAttempt?.({ profileId: profile.id, model: attempt.model ?? profile.defaultModel, ...(attempt.thinking === undefined ? {} : { thinking: attempt.thinking }) });
+      const admitted = answeredAt(profile, target);
+      route?.admitAttempt?.(admitted);
       let delivered = false;
       let ended = false;
+      let faulted = false;
       let fault: unknown;
       try {
         for await (const chunk of runComplete(attempt, signal, beforeSend, (error) => { fault = error; }, moved)) {
           if ((chunk.delta ?? '') !== '' || (chunk.reasoningDelta ?? '') !== '') delivered = deliveredToCaller = true;
           if (chunk.finishReason !== undefined) ended = true;
+          if (chunk.finishReason === 'error') faulted = true;
           yield chunk;
         }
+        if (!faulted) route?.answered?.(admitted);
         return;
       } catch (error) {
         fault = error;
@@ -864,7 +896,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     profiles,
     ledger,
     requestLog,
-    complete: (req, signal, beforeSend, admitAttempt) => complete(req, signal, beforeSend, admitAttempt),
+    complete: (req, signal, beforeSend, route) => complete(req, signal, beforeSend, route),
     completeOnce: (req, signal, beforeSend) => collectOnce(complete(req, signal, beforeSend), signal),
     listModels,
     modelLimits,
