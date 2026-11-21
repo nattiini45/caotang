@@ -410,6 +410,22 @@ describe('complete() — a window refusal moves only to a window that holds the 
     expect(net.calls.map((call) => new URL(call.url).host)).toEqual(['127.0.0.1:1234', 'b.example']);
   });
 
+  it('measures the cap the destination would transmit, not the cap the request names', async () => {
+    // The request asks for no output cap, so the target's own is what it would carry: the window has to hold the prompt plus that.
+    // A target that only looks big enough against "no cap at all" is skipped, and the smaller prompt moves on to the wider window.
+    const narrow: NewProfile = { name: 'Narrow', kind: 'endpoint', preset: 'lmstudio', baseUrl: 'http://127.0.0.1:1235/v1', defaultModel: 'local-model' };
+    const wide: NewProfile = { name: 'Wide', kind: 'endpoint', preset: 'deepseek', baseUrl: 'https://b.example/v1', apiKey: `${KEY}b`, defaultModel: 'deepseek-flash' };
+    const { h, net } = await windowed([narrow, wide]);
+    net.push(overflow).push(() => sseResponse([delta('from the wide window'), finish('stop'), '[DONE]']));
+
+    // About 3,000 tokens of prompt: under the narrow target's 4,096 window on its own, but not with the 4,096 it would also send.
+    const { chunks, error } = await collect(h.gateway.complete({ ...userMessage('a long prompt '.repeat(1_500)), role: 'chat' }));
+
+    expect(error).toBeUndefined();
+    expect(deltasOf(chunks)).toBe('from the wide window');
+    expect(net.calls.map((call) => new URL(call.url).host)).toEqual(['127.0.0.1:1234', 'b.example']);
+  });
+
   it('never sends a prompt a target’s own window cannot hold', async () => {
     // The fallback's window is unknown (a hand-rolled endpoint states none), so it is not a destination for a window refusal: the
     // provider's own refusal reaches the caller instead of a second request that could only fail the same way.

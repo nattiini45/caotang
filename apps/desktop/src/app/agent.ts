@@ -3410,6 +3410,8 @@ export class AgentController {
     const agent = loop.createAgentSession({
       harness,
       gateway: this.providers.gateway,
+      // A model hook is pinned to the Background role's own destination: its consent names one profile, and the turn's request carries
+      // that as its approved route, so it is never routed by a step.
       modelHookRoute: () => pinsOf(this.providers.resolveForRole?.('background')),
       pictureOutbox: this.session.pictureOutbox,
       transcribe: (input) => this.session.transcribePictures(input),

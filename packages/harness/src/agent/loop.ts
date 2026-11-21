@@ -1568,8 +1568,24 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * The limits of the model one call under this role and step is sent to (§6), for assembling its prompt: the step's own
    * destination when it names one, else the pins' where they still apply, else the role's route.
    */
+  /**
+   * Whether a turn's own pin names exactly the destination the role's planning runs on (provider-gateway §6): then the pin is
+   * redundant, the request is routed by its role and step, and the role's authorised fallbacks may answer. A pin naming anything
+   * else is a destination of its own, and the request is sent there alone. A session the app pins names the plan step's destination,
+   * so a writer who routed planning to a profile of its own still gets that profile's route, fallbacks included.
+   */
+  const pinIsRolePrimary = (turn: Turn, role: TaskRole | undefined): boolean => {
+    if (role === undefined || role !== options.role || turn.pins.profileId === undefined) return false;
+    const route = gateway.resolveRoleRoute?.(role, 'plan') ?? gateway.resolveRoleRoute?.(role);
+    return route !== undefined && route.profileId === turn.pins.profileId
+      && (turn.pins.model ?? route.model) === route.model
+      && (turn.pins.thinking ?? route.thinking) === route.thinking;
+  };
+
   const limitsFor = (turn: Turn, role: TaskRole | undefined, step: StepClass): ModelLimits => {
-    const pins = role === options.role && !stepRouted(role, step) ? turn.pins : undefined;
+    // The same predicate `modelCall` sends with: a step assembled on a destination it will not be sent to would be fitted to the
+    // wrong window, so a pin the send drops is not read here either.
+    const pins = role === options.role && !(pinIsRolePrimary(turn, role) || stepRouted(role, step)) ? turn.pins : undefined;
     return gateway.modelLimits(pins?.profileId, pins?.model, pins?.thinking, { role, step });
   };
 
@@ -1692,20 +1708,6 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       && (at.profileId !== own.profileId || at.model !== own.model || at.thinking !== own.thinking);
   };
 
-  /**
-   * Whether a turn's own pin names exactly the destination the role's planning runs on (provider-gateway §6): then the pin is
-   * redundant, the request is routed by its role and step, and the role's authorised fallbacks may answer. A pin naming anything
-   * else is a destination of its own, and the request is sent there alone. A session the app pins names the plan step's destination,
-   * so a writer who routed planning to a profile of its own still gets that profile's route, fallbacks included.
-   */
-  const pinIsRolePrimary = (turn: Turn, role: TaskRole | undefined): boolean => {
-    if (role === undefined || role !== options.role || turn.pins.profileId === undefined) return false;
-    const route = gateway.resolveRoleRoute?.(role, 'plan') ?? gateway.resolveRoleRoute?.(role);
-    return route !== undefined && route.profileId === turn.pins.profileId
-      && (turn.pins.model ?? route.model) === route.model
-      && (turn.pins.thinking ?? route.thinking) === route.thinking;
-  };
-
   const modelCall = (turn: Turn, choices: ModelCallOptions = {}): ModelCall => {
     const role = choices.role ?? options.role;
     const planner = choices.plan ?? false;
@@ -1722,7 +1724,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           const hit = hitOf(turn, usageOf(turn), true);
           if (hit !== undefined) throw new BudgetExceeded(budgetStop(hit));
         }
-        let asked = { ...request, sessionId: usageSessionId, ...(role === undefined ? {} : { role }), ...(step === undefined ? {} : { step }) };
+        // A request that names its own destination, or carries the approval stamp of one, is never routed by a step: the destination
+        // the caller named is the whole route, and stamping a step would make the gateway look for a different one.
+        const stamped = request.profileId !== undefined || request.expectedRoute !== undefined;
+        let asked = { ...request, sessionId: usageSessionId, ...(role === undefined ? {} : { role }), ...(step === undefined || stamped ? {} : { step }) };
         // A turn's earlier request under this role may have moved the route (provider-gateway §6): the destination that answered is
         // where this one starts, so its window, cap and price are what the fit, the meter and the reservation are read against.
         const start = startAtOf(turn, asked);
@@ -1827,7 +1832,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         guard();
         await syncRun(turn, 1, 'running');
         try {
-          const call = modelCall(turn, { role: 'background', hookGuard: guard, step: 'utility' });
+          // A hook is not routed by a step: its consent named one destination, which `expectedRoute` holds it to.
+          const call = modelCall(turn, { role: 'background', hookGuard: guard });
           const request: ChatRequest = {
             messages: [...messages],
             turnId: turn.id,

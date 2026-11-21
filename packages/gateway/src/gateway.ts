@@ -607,12 +607,16 @@ export function createGateway(options: GatewayOptions): Gateway {
       return;
     }
     let pending: unknown;
-    // A window refusal is the one move that needs a destination that can hold the request: the prompt estimate plus the cap the
-    // request carries. A target whose known window is smaller is skipped, and one whose window nobody knows is not tried on a guess.
-    const neededTokens = usageFor(req.messages, '').promptTokens + (req.maxOutputTokens ?? 0);
+    // A window refusal is the one move that needs a destination that can hold the request: its prompt estimate plus the output cap
+    // the attempt will actually be sent with. That cap is the target's own settlement — the request's cap or the profile's, plus the
+    // thinking its level adds — and the level is the target's, exactly as the attempt above applies it. A target whose known window is
+    // smaller is skipped, and one whose window nobody knows is not tried on a guess.
+    const promptTokens = usageFor(req.messages, '').promptTokens;
     const holdsRequest = (target: RoleTarget): boolean => {
-      const window = modelLimits(target.profileId, target.model, target.thinking, req).contextWindow;
-      return window !== undefined && window >= neededTokens;
+      const limits = modelLimits(target.profileId, target.model ?? req.model, target.thinking ?? req.thinking, req);
+      if (limits.contextWindow === undefined) return false;
+      const cap = (req.maxOutputTokens ?? limits.maxOutputTokens) + (limits.thinkingTokens ?? 0);
+      return limits.contextWindow >= promptTokens + cap;
     };
     // The first target after `index` this route may still move to, for the fault that ended the attempt: a destination the role
     // still names and allows, and — for a window refusal — one whose window can take the request.
