@@ -488,12 +488,42 @@ export interface UsageAttribution {
  * rule unchanged.
  */
 export interface RoleResolver {
-  resolve(role: TaskRole): { profileId: string; model?: string; thinking?: ThinkingLevel } | undefined;
+  resolve(role: TaskRole): RoleResolution | undefined;
   allowed(role: TaskRole): readonly string[];
 }
 
+/** One ordered place a role's calls can go (provider-gateway §6): a profile, and the model and level it defaults to. */
+export interface RoleTarget {
+  readonly profileId: string;
+  readonly model?: string;
+  readonly thinking?: ThinkingLevel;
+}
+
+/**
+ * What a role resolves to now: its primary target, then the fallbacks the writer listed for that role, in order. A role with
+ * no fallbacks sends through its primary alone, exactly as before the list existed.
+ */
+export interface RoleResolution extends RoleTarget {
+  /** Up to two targets tried in order after the primary, and only the ones the writer authorised for this role. */
+  readonly fallbacks?: readonly RoleTarget[];
+}
+
+/** Why a request moved to its next target. Only these faults are worth another provider (§4, §6). */
+export type FallbackReason = 'rate_limit' | 'overloaded' | 'network' | 'model_gone';
+
+/** A route's next destination, as it will be sent (§6): what a caller sizes its admission of the attempt to. */
+export interface AttemptTarget {
+  readonly profileId: string;
+  readonly model: string;
+  readonly thinking?: ThinkingLevel;
+}
+
 export interface ProviderGateway {
-  complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncIterable<ChatChunk>;
+  /**
+   * `admitAttempt` is asked once per fallback target, before that target's request opens, so a caller can hold the attempt to
+   * the destination's own limits and price; throwing there refuses the fallback and ends the call at its primary's fault (§6).
+   */
+  complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void, admitAttempt?: (target: AttemptTarget) => void): AsyncIterable<ChatChunk>;
   completeOnce(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): Promise<ChatMessage>;
   listModels(profileId: string): Promise<ModelInfo[]>;
   /**

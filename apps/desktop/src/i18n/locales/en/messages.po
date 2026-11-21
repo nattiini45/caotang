@@ -1842,6 +1842,11 @@ msgstr "{reused, plural, one {# picture was already in the project.} other {# pi
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
+msgid "{role} fallback {slot}"
+msgstr "{role} fallback {slot}"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
 msgid "{role} model"
 msgstr "{role} model"
 
@@ -3042,6 +3047,11 @@ msgstr "A request’s temperature goes out, even on a model that takes none."
 #: apps/desktop/src/app/session.ts
 msgid "A review is running. Wait for it to finish before scanning."
 msgstr "A review is running. Wait for it to finish before scanning."
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "A role can name up to two fallbacks. One answers only when the role’s own profile is rate-limited, overloaded or unreachable, and only before any of the reply has arrived; the request, context included, then goes to that profile."
+msgstr "A role can name up to two fallbacks. One answers only when the role’s own profile is rate-limited, overloaded or unreachable, and only before any of the reply has arrived; the request, context included, then goes to that profile."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -8799,6 +8809,11 @@ msgstr "Failed: nothing could be drafted"
 msgid "Failed: the review could not run"
 msgstr "Failed: the review could not run"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Fallbacks, in order"
+msgstr "Fallbacks, in order"
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "False positive"
@@ -12321,6 +12336,11 @@ msgstr "No events recorded."
 #: apps/desktop/src/components/KnowledgeList.tsx
 msgid "No facts yet."
 msgstr "No facts yet."
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "No fallback"
+msgstr "No fallback"
 
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #: apps/desktop/src/components/KnowledgeList.tsx
