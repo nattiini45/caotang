@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -205,6 +205,56 @@ test('a recovery accepted in a native folder saves to that folder, not to a copy
     await newChapter.click();
     await expect.poll(async () => (await readFile(manifest, 'utf8')) !== recovered, { timeout: 10_000 }).toBe(true);
     await expect.poll(() => readFile(manifest, 'utf8')).toContain('"title": "Untitled"');
+  } finally {
+    await closeShell(reopened);
+  }
+});
+
+test('a recovery that pauses on a file that is not UTF-8 text still opens and saves in its folder', async () => {
+  const dir = test.info().outputPath('Paused recovery folder');
+  const profile = test.info().outputPath('profile');
+  const manifest = join(dir, 'caotang.json');
+  await mkdir(dir, { recursive: true });
+  const electron = await launch(profile);
+  try {
+    await choose(electron, dir);
+    const page = await electron.firstWindow();
+    await page.getByRole('textbox', { name: 'Project name' }).fill('Driftwood Notebook');
+    await page.getByRole('button', { name: 'Create project', exact: true }).click();
+    await expect(page.getByText('Driftwood Notebook', { exact: true })).toBeVisible();
+    // A scene with text, so the folder holds a document the recovered project names and has to read.
+    await page.getByRole('button', { name: 'New', exact: true }).click();
+    await page.getByRole('menuitem', { name: /^Scene/ }).click();
+    await page.getByRole('textbox', { name: 'Document text' }).fill('The ferry leaves at dusk.');
+    await expect.poll(async () => (await readdir(join(dir, 'docs'))).filter((name) => name.endsWith('.md')).length).toBe(1);
+  } finally {
+    await closeShell(electron);
+  }
+
+  // The scene's document replaced by bytes that are not UTF-8 text, so the recovery pauses for the writer's answer before the
+  // project opens, and a manifest another program broke, so the folder offers the ladder instead of refusing.
+  const documents = (await readdir(join(dir, 'docs'))).filter((name) => name.endsWith('.md'));
+  expect(documents).toHaveLength(1);
+  await writeFile(join(dir, 'docs', documents[0] as string), Buffer.from([0x54, 0x68, 0x65, 0x20, 0xe9, 0x74, 0xe9, 0x0a]));
+  await writeFile(manifest, '{"project": "not a manifest"');
+
+  const reopened = await launch(profile);
+  try {
+    const page = await reopened.firstWindow();
+    await page.getByRole('button', { name: 'Reopen folder', exact: true }).click();
+    const recovery = page.getByTestId('recovery-dialog');
+    await expect(recovery).toBeVisible();
+    await recovery.getByRole('button', { name: /Rebuild the project|Open this copy/ }).click();
+    // The answer about the unreadable file is what completes the recovery, and it must not leave the project in the browser.
+    const encoding = page.getByTestId('encoding-dialog');
+    await expect(encoding).toBeVisible();
+    await encoding.getByRole('radio', { name: /^Leave it/ }).check();
+    await encoding.getByRole('button', { name: 'Open the project', exact: true }).click();
+    const newChapter = page.getByRole('button', { name: 'New chapter', exact: true }).first();
+    await expect(newChapter).toBeVisible();
+    const recovered = await readFile(manifest, 'utf8');
+    await newChapter.click();
+    await expect.poll(async () => (await readFile(manifest, 'utf8')) !== recovered, { timeout: 10_000 }).toBe(true);
   } finally {
     await closeShell(reopened);
   }
