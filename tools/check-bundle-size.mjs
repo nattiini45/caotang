@@ -252,8 +252,10 @@ export const BUDGET = {
   // copies of the model field, the model list and the level select; a step's route rides the gateway's existing single-target send and its
   // window check reuses `modelLimits`; no dependency was added and no module moved to the first load. The ceiling is the measurement rounded
   // up to the thousand, as above. [bundle-raise rule 2026-11-20]
-  // Re-measured on this branch's merge over main at 8c7e2741: 8,895,059 bytes — the codex empty state's two catalogued buttons
-  // and their German entries cost 59 bytes over #793's ceiling. Rounded up to the thousand, as above. [bundle-raise rule 2026-11-21]
+  // The frame's folder-access answer measured 8,895,064 bytes on main at 38d83bce, which measured 8,894,928 on the same build: the change
+  // is +136 bytes, and 72 bytes were left under the old ceiling. Checked first and kept: the check is one predicate beside the existing one,
+  // it reads the parent's document once and adds no dependency, it lands in a chunk that is already on the first load, and the picker's own
+  // path is unchanged. The ceiling is the measurement rounded up to the thousand. [bundle-raise rule 2026-11-21]
   totalJs: 8_896_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
