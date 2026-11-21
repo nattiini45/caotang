@@ -491,7 +491,9 @@ such a step in `stoppedAt` with `external-tool` and the tool.
 
 **A cassette reproduces a session's first turn.** A replay session starts fresh, so the recording's earlier conversation is not rebuilt:
 a cassette replay of a later turn would report a prompt change of its own making. It refuses with `mid-session` and says to replay the
-session's first turn or the turn against a provider. Only the session's own records seed a replay; nothing is reconstructed.
+session's first turn or the turn against a provider. The refusal is read from the recording as well as from the turn list, because a trace
+exported for one turn holds only that turn: a recorded request that carries the conversation block is a later turn's, whatever the file
+says. Only the session's own records seed a replay; nothing is reconstructed.
 
 **The estimate comes first.** `estimateReplay` reads the recording's own provider-reported input tokens for the calls that would run
 and the target's output cap per call, `maxOutputTokens` plus `thinkingTokens`, and prices them from the target's `pricePer1k` when it
