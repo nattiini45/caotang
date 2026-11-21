@@ -1517,29 +1517,10 @@ export async function completeRecovery(
     };
   }
   const root = recovery.folder;
-  const nativeRoot = root === null ? undefined : nativeFolderId(root);
   // The recovery's own notes say which copy was used, and the dialog has already said it, so they are not repeated as field notices.
-  if (root !== null && nativeRoot !== undefined) {
-    // The folder is the project's home: the recovered project replaces what that folder's cache held and opens the way a native open
-    // opens, with the folder's own pictures and a save that writes the folder. Adopting it as a new project would make it a copy of
-    // the project the folder already holds — which cannot be saved back into the folder (#744).
-    const cache = await nativeRuntimeStore(nativeRoot);
-    const opened = await openStored(
-      cache,
-      offer.state.manifest.project.id,
-      root,
-      { notices: [], droppedFields: [], folderLog: recovery.sessions },
-      await folderPictures(root),
-      offer.state,
-    );
-    try {
-      // The recovery wrote the folder, so the digests are taken as the folder now stands: the next save is checked against what it holds.
-      await liveInItsFolder(opened, root, (await readManifestText(recovery.fs)) ?? '', await projectFileDigests(recovery.fs));
-      return { kind: 'opened', opened };
-    } catch (error) {
-      await opened.session.closeSafely().catch(() => undefined);
-      throw error;
-    }
+  if (root !== null) {
+    const opened = await openRecoveredInItsFolder(recovery.fs, root, offer.state, recovery.sessions, []);
+    if (opened !== null) return { kind: 'opened', opened };
   }
   const opened = await adopt(store, offer.state, recovery.sessions, [], [], root);
   if (root !== null) {
@@ -1548,6 +1529,42 @@ export async function completeRecovery(
     holdFolderCopy(opened.session, root, (await readManifestText(recovery.fs)) ?? '', await projectFileDigests(recovery.fs));
   }
   return { kind: 'opened', opened };
+}
+
+/**
+ * Opens a recovered project in the folder it came from, when that folder is a native one: the recovered state is stored in the
+ * folder's own cache under the project id the recovered manifest names — a snapshot rung keeps that id, while a rebuild mints a new
+ * one, so the row the cache held before stays beside it and is simply not named by the folder — and the session lives in the folder,
+ * so it opens the way a native open opens and every later save writes the folder. Returns `null` for a folder picked in the browser,
+ * which is not a project's home; the caller adopts it instead. A pause for non-UTF-8 files goes through here too, so the answers
+ * cannot land the project in the browser store (#744).
+ */
+async function openRecoveredInItsFolder(
+  fs: ArtifactFs,
+  root: DirectoryHandleLike,
+  state: ProjectState,
+  sessions: readonly SessionRecord[],
+  notices: readonly string[],
+): Promise<Opened | null> {
+  const nativeRoot = nativeFolderId(root);
+  if (nativeRoot === undefined) return null;
+  const cache = await nativeRuntimeStore(nativeRoot);
+  const opened = await openStored(
+    cache,
+    state.manifest.project.id,
+    root,
+    { notices, droppedFields: [], folderLog: sessions },
+    await folderPictures(root),
+    state,
+  );
+  try {
+    // The recovery wrote the folder, so the digests are taken as the folder now stands: the next save is checked against what it holds.
+    await liveInItsFolder(opened, root, (await readManifestText(fs)) ?? '', await projectFileDigests(fs));
+    return opened;
+  } catch (error) {
+    await opened.session.closeSafely().catch(() => undefined);
+    throw error;
+  }
 }
 
 /**
@@ -1630,7 +1647,12 @@ export async function completeEncodingReview(
       };
     case 'recovery': {
       // As the accepted recovery itself would open it: the conversion lines are the whole report, since the recovery
-      // dialog already said which copy was used.
+      // dialog already said which copy was used. The answers are what completes the recovery, so a paused one takes the
+      // folder path too instead of opening a copy in the browser (#744).
+      if (resume.folder !== null) {
+        const opened = await openRecoveredInItsFolder(pending.fs, resume.folder, loaded.state, resume.sessions, lines);
+        if (opened !== null) return { kind: 'opened', opened };
+      }
       const opened = await adopt(store, loaded.state, resume.sessions, lines, [], resume.folder);
       if (resume.folder !== null) {
         holdFolderCopy(opened.session, resume.folder, (await readManifestText(pending.fs)) ?? '', await projectFileDigests(pending.fs));
