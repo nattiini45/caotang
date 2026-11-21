@@ -330,7 +330,7 @@ for (const language of ['en', 'de'] as const) {
     await binderTitle(page, 'Opening').click();
     await openDrawer();
     const kept = tasks.locator('[data-task]', { hasText: 'Weekly plan scan' });
-    await expect(kept).toContainText('Run a plan of 1 step');
+    await expect(kept).toContainText(words.planOf1);
     await kept.getByRole('button', { name: new RegExp(`^${words.edit}`) }).click();
     await expect(form.getByLabel(words.steps)).toHaveValue(JSON.stringify(changed, null, 2));
     await form.getByRole('button', { name: words.cancel }).click();
