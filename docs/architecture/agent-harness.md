@@ -514,8 +514,10 @@ engine's hands.
 
 **A cassette is a function of its recording.** `cassetteScripts` answers the turn's requests in the order they were made and compares
 each against the recorded messages; a request whose messages differ ends the turn as a protocol error naming the first differing
-message and the character it moved at, so a prompt change reads as a diff rather than a wrong answer. Tool definitions are not
-compared: a trace names the tools a request declared and not their descriptions. A provider's reasoning payload is never replayed —
+message and the character it moved at, so a prompt change reads as a diff rather than a wrong answer. The wire is the recording's too:
+the harness picks the native or JSON planner prompt from the model's capability row, so the cassette's mock reports the capabilities its
+own recording spoke — a trace whose requests declared tools is answered on the native wire. Tool definitions are not compared: a trace
+names the tools a request declared and not their descriptions. A provider's reasoning payload is never replayed —
 only its size is recorded — so a replay on the same model starts its reasoning fresh.
 
 **Retry, not replay.** The ghost region's **Retry** regenerates one draft from the same assembled context with the same seed (§8);
