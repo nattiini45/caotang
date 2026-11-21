@@ -75,6 +75,7 @@ export {
 export {
   ProviderError,
   providerMessages,
+  providerRefs,
   EgressDeniedError,
   ProfileError,
   type ProviderErrorKind,

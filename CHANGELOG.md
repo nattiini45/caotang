@@ -4,6 +4,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ## Unreleased
 
+### Changed
+
+- **Gateway recovery messages follow the interface language (#596).** The fixed text `ProviderError` and `ProfileError` carry — "Key rejected by {host}. Check the profile in Settings.", the profile-validation messages and the local-server guidance — renders in German through the catalogue. The provider's own reply and host-supplied values stay exactly as sent. Extraction only; call logic is unchanged.
+
 ### Added
 
 - **Packages for Windows, macOS and Linux (#401).** Caotang for desktop now builds as an installer for Windows, a disk image for macOS on Apple silicon and Intel, and an AppImage for Linux, from a tagged commit in GitHub Actions rather than by hand. The builds are unsigned for now, so Windows and macOS each show their own warning the first time you open one; every package ships beside a `SHA256SUMS` file you can check, and [docs/INSTALL.md](docs/INSTALL.md) walks through the first open on each platform. The packaged app runs the studio from the same fixed origin as the development shell, with Electron's Node mode, environment overrides and inspector switched off and the app's archive validated against integrity data in the executable, and its folder of notices carries Electron's and Chromium's licences beside the studio's own.

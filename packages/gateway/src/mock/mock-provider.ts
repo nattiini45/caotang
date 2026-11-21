@@ -24,7 +24,7 @@
 
 import { MOCK_BASE_URL } from '../base-url.js';
 import { createManualClock } from '../clock.js';
-import { providerMessages, ProviderError } from '../errors.js';
+import { providerMessages, providerRefs, ProviderError } from '../errors.js';
 import { collectOnce } from '../once.js';
 import { UsageLedger } from '../ledger.js';
 import type {
@@ -48,25 +48,27 @@ function isAsyncIterable(value: unknown): value is AsyncIterable<ChatChunk> {
  * The message a scripted failure carries: the gateway's own text for its kind, so the
  * harness sees what a real failure would show. The host is the mock's base URL.
  */
-function scriptedMessage(req: ChatRequest, error: MockError): string {
-  if (error.message !== undefined) return error.message;
+function scriptedMessage(req: ChatRequest, error: MockError): { readonly message: string; readonly messageRef?: ReturnType<typeof providerRefs.auth> } {
+  if (error.message !== undefined) return { message: error.message };
   const host = MOCK_BASE_URL;
   switch (error.kind) {
     case 'network':
-      return providerMessages.network(host, error.detail);
+      return { message: providerMessages.network(host, error.detail), messageRef: providerRefs.network(host, error.detail) };
     case 'auth':
-      return providerMessages.auth(host);
+      return { message: providerMessages.auth(host), messageRef: providerRefs.auth(host) };
     case 'endpoint':
-      return providerMessages.endpoint('/chat/completions', host);
+      return { message: providerMessages.endpoint('/chat/completions', host), messageRef: providerRefs.endpoint('/chat/completions', host) };
     case 'rate_limit':
-      return providerMessages.rateLimit(host);
+      return { message: providerMessages.rateLimit(host), messageRef: providerRefs.rateLimit(host) };
     case 'provider':
-      return providerMessages.provider(host, error.status ?? 500, error.detail ?? '');
+      return { message: providerMessages.provider(host, error.status ?? 500, error.detail ?? ''), messageRef: providerRefs.provider(host, error.status ?? 500, error.detail ?? '') };
     case 'protocol':
-      return providerMessages.protocol(host, error.detail ?? '');
+      return { message: providerMessages.protocol(host, error.detail ?? ''), messageRef: providerRefs.protocol(host, error.detail ?? '') };
     case 'context_length': {
       const model = MOCK_MODELS.find((m) => m.id === req.model) ?? MOCK_MODELS[0];
-      return providerMessages.contextLength(usageFor(req.messages, '').promptTokens, model?.contextWindow ?? 'unknown');
+      const prompt = usageFor(req.messages, '').promptTokens;
+      const window = model?.contextWindow ?? 'unknown';
+      return { message: providerMessages.contextLength(prompt, window), messageRef: providerRefs.contextLength(prompt, window) };
     }
   }
 }
@@ -75,10 +77,12 @@ function scriptedMessage(req: ChatRequest, error: MockError): string {
 async function* responseChunks(req: ChatRequest, response: MockResponse): AsyncGenerator<ChatChunk> {
   if (response.error !== undefined) {
     const { error } = response;
-    throw new ProviderError(error.kind, scriptedMessage(req, error), {
+    const text = scriptedMessage(req, error);
+    throw new ProviderError(error.kind, text.message, {
       status: error.status,
       detail: error.detail,
       retryAfterMs: error.retryAfterMs,
+      ...(text.messageRef === undefined ? {} : { messageRef: text.messageRef }),
     });
   }
   if (response.content.length > 0) yield { delta: response.content };
