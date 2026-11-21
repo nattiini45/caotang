@@ -21,6 +21,8 @@ import {
   createAgentSession,
   createTraceStore,
   estimateReplay,
+  indexTrace,
+  parseTrace,
   projectBytes,
   recordedCalls,
   recordedDecisions,
@@ -189,6 +191,18 @@ describe('replay: the cassette answers a recorded turn', () => {
     // The session's first turn is the one a cassette can reproduce.
     const first = await replay({ mode: 'cassette', source: run.store, turnId: turns[0] as string, snapshot: run.before, clock: clock.now });
     expect(first.report?.status).toBe('applied');
+  });
+
+  it('refuses a later turn exported on its own, which the turn list cannot tell from a session’s first', async () => {
+    const run = await recordTwoTurns();
+    // The app's trace view exports one turn at a time, so the file holds this later turn and nothing before it.
+    const parsed = parseTrace(run.store.toJsonl({ turnId: run.turnId }));
+    if (!parsed.ok) throw new Error(parsed.error);
+    const source = indexTrace(parsed.value);
+    expect(source.records().filter((record) => record.kind === 'turn.start')).toHaveLength(1);
+
+    // Its recorded request carries the conversation block a fresh session would not rebuild: the recording says so itself.
+    await expect(replay({ mode: 'cassette', source, turnId: run.turnId, snapshot: run.before })).rejects.toThrow(/not the first of its session/);
   });
 
   it('serves the recorded replies in order, so two calls in one turn are not swapped', async () => {

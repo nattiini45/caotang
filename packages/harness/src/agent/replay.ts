@@ -34,6 +34,7 @@ import {
   type ThinkingLevel,
   type Usage,
 } from '@caotang/gateway';
+import { LAYER_NAMES } from '@caotang/context';
 import { createMockProvider, type MockResponse, type MockScript } from '@caotang/gateway/mock';
 import { cloneProjectState, type ProjectState } from '@caotang/store';
 
@@ -566,7 +567,7 @@ async function turnReplay(request: ReplayRequest, calls: readonly RecordedCall[]
   if (request.mode === 'turn' && target === undefined) {
     throw new ReplayRefusal('no-target', 'Choose the profile to replay on first: a replay is sent to a saved profile of the writer’s.');
   }
-  if (request.mode === 'cassette' && earlierTurns(request.source, request.turnId)) {
+  if (request.mode === 'cassette' && (earlierTurns(request.source, request.turnId) || carriedConversation(calls))) {
     throw new ReplayRefusal(
       'mid-session',
       'This turn is not the first of its session, and a cassette replay starts a fresh session: the recording’s earlier conversation is not rebuilt, so its first request could not match. Replay the session’s first turn as a cassette, or replay this turn against a provider.',
@@ -656,6 +657,15 @@ async function turnReplay(request: ReplayRequest, calls: readonly RecordedCall[]
 }
 
 /** Whether the recording holds a turn before this one, which a cassette replay cannot reproduce without its conversation. */
+/**
+ * Whether the recording's own requests carry the conversation block (L6). A turn exported on its own holds one `turn.start`, so the turn
+ * list cannot say whether it was the first of its session; the block says it, and a cassette cannot rebuild what it held.
+ */
+function carriedConversation(calls: readonly RecordedCall[]): boolean {
+  const heading = `# ${LAYER_NAMES.L6}`;
+  return calls.some((call) => call.messages.some((message) => message.role === 'user' && textOf(message.content).includes(heading)));
+}
+
 function earlierTurns(source: ReplaySource, turnId: string): boolean {
   const turns = source.records().filter((record): record is Extract<TraceRecord, { kind: 'turn.start' }> => record.kind === 'turn.start');
   const at = turns.findIndex((turn) => turn.turnId === turnId);
