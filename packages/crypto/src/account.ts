@@ -181,6 +181,13 @@ export interface ChangePassphraseOptions {
  * rewritten: the master key is unchanged, so every project key and sealed byte stays valid.
  */
 export async function changeAccountPassphrase(options: ChangePassphraseOptions): Promise<{ record: AccountKeyRecord; master: SecretKey }> {
+  // A record that retires a key carries the only stored path to that key, and a passphrase change replaces the record with a
+  // plain one. Allowed during a pending rotation, it would drop the retired seal while the vault is still under the retired
+  // key — an interruption that could no longer be finished. The rotation has to be finished (or abandoned by finishing it)
+  // first, exactly as starting a second one is refused.
+  if (rotationPending(options.record)) {
+    throw new CryptoError('invalid-argument', 'a rotation of this account is waiting to be finished; finish it before changing the passphrase');
+  }
   const master = await unlockAccountKeys({ passphrase: options.oldPassphrase, accountId: options.accountId, record: options.record, resolveKdf: options.resolveKdf });
   const descriptor = options.newDescriptor ?? options.record.kdf;
   const kdf = options.resolveKdf(descriptor);

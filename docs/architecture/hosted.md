@@ -56,6 +56,8 @@ Two operations touch the account's keys and they guarantee different things, so 
 
 **Changing the passphrase** derives a new KEK from a fresh salt, re-wraps the **same** MK (optionally at a new KDF cost) and replaces the record under its version (§2.1). Nothing else moves: every project key and every sealed byte stays valid, no file is rewritten, a device that already remembers the MK stays unlocked, and a printed recovery key — which *is* the MK (§4) — still opens the account. The dialog states all of that rather than leaving it to be assumed.
 
+A passphrase change is **refused while a rotation is waiting to be finished**. The plain record it writes carries no retired key, and until the rotation's last write the account's vault is still sealed under that key, so a change allowed there would drop the only stored path to it and make the interruption permanent. The refusal says which operation to finish first; finishing the rotation and changing the passphrase afterwards is the supported order.
+
 **Rotating the master key** — *Revoke other devices and the old recovery key* — replaces the MK itself:
 
 1. A new MK is generated and the record is rewritten under a fresh KEK derived from the **same passphrase**, carrying the new MK's verifier. So a rotation revokes the *key*, not the passphrase: a device that knows the passphrase unlocks again, while a device that had remembered the retired MK, and any printed recovery key, stop opening what the account holds.

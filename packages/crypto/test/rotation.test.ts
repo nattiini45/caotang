@@ -10,6 +10,7 @@ import {
   ACCOUNT_RECORD_FORMAT_ROTATING,
   CryptoError,
   beginAccountRotation,
+  changeAccountPassphrase,
   createProjectKey,
   deriveVaultKey,
   finishAccountRotation,
@@ -123,6 +124,19 @@ describe('rotating the account master key', () => {
     await expect(beginAccountRotation({ accountId, record: rotation.record, passphrase, resolveKdf: resolveFast })).rejects.toThrow(/waiting to be finished/);
     await expect(beginAccountRotation({ accountId, record, passphrase: 'not the passphrase', resolveKdf: resolveFast })).rejects.toBeInstanceOf(CryptoError);
     expect(() => finishAccountRotation({ accountId, record })).toThrow(/not waiting for a rotation/);
+  });
+
+  it('refuses a passphrase change while a rotation waits, keeping the only path to the retired key', async () => {
+    const { record } = await account();
+    const rotation = await beginAccountRotation({ accountId, record, passphrase, resolveKdf: resolveFast });
+    // A plain record replaces the retired seal, and the vault is still under the retired key until the rotation finishes.
+    await expect(changeAccountPassphrase({ oldPassphrase: passphrase, newPassphrase: 'a different passphrase', accountId, record: rotation.record, resolveKdf: resolveFast }))
+      .rejects.toThrow(/finish it before changing the passphrase/);
+    // The record the caller held is untouched, so the rotation is still resumable with what is stored.
+    expect(rotationPending(rotation.record)).toBe(true);
+    const finished = finishAccountRotation({ accountId, record: rotation.record });
+    const master = await unlockAccountKeys({ passphrase, accountId, record: finished, resolveKdf: resolveFast });
+    expect(Buffer.from(master.export())).toEqual(Buffer.from(rotation.master.export()));
   });
 
   it('refuses a record from another account and an altered retired key', async () => {
