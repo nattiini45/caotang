@@ -82,7 +82,7 @@ export function indexTrace(records: readonly TraceRecord[]): ReplaySource {
 }
 
 /** Why a replay could not be offered, said plainly to the caller. */
-export type ReplayRefusalCode = 'no-call' | 'no-intent' | 'no-snapshot' | 'no-target' | 'text-omitted';
+export type ReplayRefusalCode = 'no-call' | 'no-intent' | 'no-snapshot' | 'no-target' | 'text-omitted' | 'no-schema' | 'withheld-text' | 'mid-session';
 
 export class ReplayRefusal extends Error {
   constructor(readonly code: ReplayRefusalCode, message: string) {
@@ -162,6 +162,8 @@ export interface ReplayEstimateRequest {
   readonly turnId: string;
   readonly callIndex?: number;
   readonly target?: ReplayTarget;
+  /** The most model calls the replayed turn may make. Absent, the recording's own count bounds the estimate. */
+  readonly maxModelCalls?: number;
 }
 
 /** What a replay would cost before it is run: the recording's own input tokens, the target's output cap, and its price. */
@@ -190,12 +192,14 @@ export function estimateReplay(
   }
   const promptTokens = calls.reduce((sum, call) => sum + (call.response?.['gen_ai.usage.input_tokens'] ?? 0), 0);
   const cap = model.maxOutputTokens + (model.thinkingTokens ?? 0);
-  const maxCompletionTokens = cap * calls.length;
+  // The bound is what the session may spend: a turn can make more calls than the recording did, up to its own bound, and never more.
+  const calls2 = input.mode === 'call' ? calls.length : Math.min(calls.length, input.maxModelCalls ?? calls.length);
+  const maxCompletionTokens = cap * calls2;
   const price = model.pricePer1k;
   return {
     promptTokens,
     maxCompletionTokens,
-    modelCalls: calls.length,
+    modelCalls: calls2,
     ...(price === undefined
       ? {}
       : { costUsd: (promptTokens / 1000) * price.prompt + (maxCompletionTokens / 1000) * price.completion }),
@@ -259,6 +263,8 @@ export interface ReplayRequest {
   readonly signal?: AbortSignal;
   /** Names the replay's own session and turn, so its ledger rows never fold into the original's. */
   readonly sessionId?: string;
+  /** The most model calls the replayed turn may make, so the estimate's bound and the run's bound are the same number. */
+  readonly maxModelCalls?: number;
   /**
    * The project's own rules (agent-harness §4), as the app passes them: a read-deny keeps its nodes out of the replay's requests too,
    * so a replay can never send text the writer withheld.
@@ -286,9 +292,20 @@ function recordedRequest(call: RecordedCall, target: ReplayTarget, turnId: strin
     profileId: target.profileId,
     ...(target.model === undefined ? {} : { model: target.model }),
     ...(target.thinking === undefined ? {} : { thinking: target.thinking }),
+    // The instruction the recording carried, never one made up here: a `json` request keeps the schema it was sent with, and a
+    // recording that predates the hint cannot be replayed truthfully, so it says so.
     ...(call.request.responseFormat === undefined
       ? {}
-      : { responseFormat: call.request.responseFormat === 'json' ? { jsonSchemaHint: {} } : 'text' }),
+      : call.request.responseFormat === 'text'
+        ? { responseFormat: 'text' as const }
+        : call.request.responseFormatHint === undefined
+          ? (() => {
+              throw new ReplayRefusal(
+                'no-schema',
+                'This recording asked for JSON without keeping the schema it asked for, so a call replay would send a different instruction; replay the whole turn instead, or record again.',
+              );
+            })()
+          : { responseFormat: { jsonSchemaHint: call.request.responseFormatHint as object } }),
     turnId,
   };
 }
@@ -459,6 +476,20 @@ async function callReplay(request: ReplayRequest, calls: readonly RecordedCall[]
   if (target === undefined) throw new ReplayRefusal('no-target', 'Choose the profile to replay on first: a replay is sent to a saved profile of the writer’s.');
   const gateway = request.gateway;
   if (gateway === undefined) throw new ReplayRefusal('no-target', 'A call replay needs the gateway to send through.');
+  // A call replay sends a prompt that was rendered when it was recorded, so a rule the writer added since cannot be applied to it:
+  // what can be done is to refuse when the project withholds anything at all, and say which way to replay instead.
+  if (request.rules !== undefined) {
+    if (request.snapshot === undefined) {
+      throw new ReplayRefusal('no-snapshot', 'This project has rules, and a call replay cannot check a rendered prompt against them; replay the turn instead, which is assembled again under the rules.');
+    }
+    const guarded = createHarness({ state: cloneProjectState(request.snapshot), ports: createAgentPorts(), rules: request.rules });
+    if (guarded.withheldAnywhere().size > 0) {
+      throw new ReplayRefusal(
+        'withheld-text',
+        'This project withholds some of its text from the model, and a recorded prompt cannot be filtered: replay the whole turn instead, which is assembled again under the project’s rules.',
+      );
+    }
+  }
   const call = callAt(calls, request.callIndex);
   const turnId = `${request.sessionId ?? `replay-${request.turnId}`}.turn-1`;
   const message = await gateway.completeOnce(recordedRequest(call, target, turnId), request.signal);
@@ -490,6 +521,12 @@ async function turnReplay(request: ReplayRequest, calls: readonly RecordedCall[]
   const target = request.target;
   if (request.mode === 'turn' && target === undefined) {
     throw new ReplayRefusal('no-target', 'Choose the profile to replay on first: a replay is sent to a saved profile of the writer’s.');
+  }
+  if (request.mode === 'cassette' && earlierTurns(request.source, request.turnId)) {
+    throw new ReplayRefusal(
+      'mid-session',
+      'This turn is not the first of its session, and a cassette replay starts a fresh session: the recording’s earlier conversation is not rebuilt, so its first request could not match. Replay the session’s first turn as a cassette, or replay this turn against a provider.',
+    );
   }
   const gateway =
     request.mode === 'cassette' ? await scriptedGateway(cassetteScripts(request.source, request.turnId)) : request.gateway;
@@ -539,6 +576,7 @@ async function turnReplay(request: ReplayRequest, calls: readonly RecordedCall[]
     ...(pinned === undefined ? {} : { profileId: pinned.profileId, ...(pinned.model === undefined ? {} : { model: pinned.model }), ...(pinned.thinking === undefined ? {} : { thinking: pinned.thinking }) }),
     // Its own name, so a replay's ledger rows never fold into the original turn's (§8.1).
     sessionId: request.sessionId ?? `replay-${request.turnId}`,
+    ...(request.maxModelCalls === undefined ? {} : { maxModelCalls: request.maxModelCalls }),
     ...(request.clock === undefined ? {} : { clock: request.clock }),
     trace: sink,
   });
@@ -570,6 +608,13 @@ async function turnReplay(request: ReplayRequest, calls: readonly RecordedCall[]
     projectBytes: projectBytes(scratch),
     ...(stop === undefined ? {} : { stoppedAt: stop }),
   };
+}
+
+/** Whether the recording holds a turn before this one, which a cassette replay cannot reproduce without its conversation. */
+function earlierTurns(source: ReplaySource, turnId: string): boolean {
+  const turns = source.records().filter((record): record is Extract<TraceRecord, { kind: 'turn.start' }> => record.kind === 'turn.start');
+  const at = turns.findIndex((turn) => turn.turnId === turnId);
+  return at > 0;
 }
 
 function intentOf(source: ReplaySource, turnId: string): string | undefined {

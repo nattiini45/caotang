@@ -489,10 +489,24 @@ dialog asks the writer. Nothing is auto-approved that the writer has not seen th
 external tool is refused by the runtime: a server's side effects are not Caotang's to repeat or undo (decisions.md). The engine names
 such a step in `stoppedAt` with `external-tool` and the tool.
 
+**A cassette reproduces a session's first turn.** A replay session starts fresh, so the recording's earlier conversation is not rebuilt:
+a cassette replay of a later turn would report a prompt change of its own making. It refuses with `mid-session` and says to replay the
+session's first turn or the turn against a provider. Only the session's own records seed a replay; nothing is reconstructed.
+
 **The estimate comes first.** `estimateReplay` reads the recording's own provider-reported input tokens for the calls that would run
 and the target's output cap per call, `maxOutputTokens` plus `thinkingTokens`, and prices them from the target's `pricePer1k` when it
 has one. A caller shows that before it spends anything: `caotang replay` prints it and waits for `y`, and the app's dialog will show
 it the same way (§8's cost rule for a review).
+
+**A bound is a bound.** `maxModelCalls` is the replayed session's bound, and the estimate multiplies the target's cap by no more calls
+than that, so the number a writer confirms is the number the run may spend. `caotang replay` passes the `agent` command's flag through;
+`--plan-file` is refused, because a replay runs the recording's steps and never a plan the caller names.
+
+**A recorded prompt cannot be filtered.** A call replay sends the messages the recording holds, so a read-deny the writer added since
+would not apply to them. When the project has rules, a call replay checks them and refuses with `withheld-text` (or `no-snapshot` when
+it cannot check) rather than send text the writer currently withholds, and says to replay the whole turn — which is assembled again
+under the rules. A JSON request's schema travels in the recording (`responseFormatHint`); a recording that asks for JSON and kept no
+schema refuses with `no-schema` instead of sending an empty one.
 
 **What is compared** is what a writer can act on: the steps, their params (`stepDiffs`), the reply of a call replay, both sides' usage
 and the replay's own report. Two drafts' words are the dialog's to diff, because the original text lives in the panel and not in the

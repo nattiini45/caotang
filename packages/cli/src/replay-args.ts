@@ -103,6 +103,9 @@ export function parseReplayArgs(argv: readonly string[]): ReplayArgs | 'help' {
     }
   }
   if (trace === undefined) throw new UsageError('name the trace file to replay: caotang replay <trace.jsonl>');
+  // `--plan-file` is the agent command's way to run a plan nobody planned; a replay's steps come from the recording, so the flag
+  // would be silently ignored and say something untrue about the run.
+  if (theirs.includes('--plan-file')) throw new UsageError('--plan-file is not accepted: a replay runs the steps the recording holds, never a plan you name');
   // The agent parser owns the destination's flags, including the refusals a key on the command line gets.
   const agent = parseAgentArgs(['-p', 'replay', ...theirs]);
   if (agent === 'help') return 'help';

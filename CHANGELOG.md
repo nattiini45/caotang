@@ -450,7 +450,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Known limits
 
-- Replay reaches a terminal and a script: `caotang replay` and `project.replay(...)`. The app itself has no **Replay…** action yet, so a comparison is read outside the tab, and a recording is kept only for the last turns of a tab while traces are on. A turn replay runs on the project as it is now, not on the project as it was when the recorded turn started: the copy is current, and the comparison is the point.
+- A cassette replay reproduces a session's first turn: a later turn's recording carries a conversation a replay session does not rebuild, so replaying it says so instead of reporting a prompt change of its own making. A recording that asked for JSON without keeping the schema is refused for the same reason, and a call replay refuses when the project withholds text, because a recorded prompt cannot be filtered. The app itself has no **Replay…** action yet, so a comparison is read outside the tab, and a recording is kept only for the last turns of a tab while traces are on. A turn replay runs on the project as it is now, not on the project as it was when the recorded turn started: the copy is current, and the comparison is the point.
 
 - Conversation compaction uses a visible provider-independent summary, not opaque provider-native checkpoints. Unknown model windows cannot be checked before a request; provider-reported limits and recorded bills remain authoritative.
 

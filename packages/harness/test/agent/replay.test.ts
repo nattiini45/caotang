@@ -11,6 +11,8 @@ import { describe, expect, it } from 'vitest';
 import { cloneProjectState, type ProjectState } from '@caotang/store';
 import type { ChatRequest, Gateway } from '@caotang/gateway';
 
+import { canonicalJson } from '../../src/util.js';
+
 import {
   ReplayRefusal,
   cassetteScripts,
@@ -60,6 +62,28 @@ async function record(options: { readonly reply?: string } = {}): Promise<Record
     sessionId: 'record',
     trace: store,
   });
+  const report = await session.submit(INTENT);
+  return { state, before, store, turnId: report.turnId, gateway, body: projectBytes(state) };
+}
+
+/**
+ * The demo provider answers the three demo requests only, so a recorded turn in these tests is the planner's. Two turns in one
+ * session is what a mid-session recording looks like.
+ */
+async function recordTwoTurns(): Promise<Recording> {
+  const state = makeState();
+  const before = cloneProjectState(state);
+  const store = createTraceStore({ sessionId: 'record', project: () => 'The Lighthouse Keeper' });
+  const gateway = await mockGateway([transcript(INTENT, [SYNOPSIS]), prose('Document "The Storm":', SYNOPSIS_PROSE)]);
+  gateway.setObserver(traceGateway(store));
+  const session = createAgentSession({
+    harness: makeHarness({ ports: createAgentPorts() }, state),
+    gateway,
+    decide: async () => ({ action: 'approve' }),
+    sessionId: 'record',
+    trace: store,
+  });
+  await session.submit(INTENT);
   const report = await session.submit(INTENT);
   return { state, before, store, turnId: report.turnId, gateway, body: projectBytes(state) };
 }
@@ -119,6 +143,17 @@ describe('replay: the cassette answers a recorded turn', () => {
 
     expect(result.report?.status).toBe('applied');
     expect(result.projectBytes).toBe(run.body);
+  });
+
+  it('refuses a turn that is not its session’s first, rather than report a prompt change of its own making', async () => {
+    const run = await recordTwoTurns();
+    const turns = run.store.turns().map((turn) => turn.turnId);
+    expect(turns.length).toBe(2);
+
+    await expect(replay({ mode: 'cassette', source: run.store, turnId: run.turnId, snapshot: run.before })).rejects.toThrow(/not the first of its session/);
+    // The session's first turn is the one a cassette can reproduce.
+    const first = await replay({ mode: 'cassette', source: run.store, turnId: turns[0] as string, snapshot: run.before, clock: clock.now });
+    expect(first.report?.status).toBe('applied');
   });
 
   it('serves the recorded replies in order, so two calls in one turn are not swapped', async () => {
@@ -205,6 +240,63 @@ describe('replay: a turn against another destination', () => {
 });
 
 describe('replay: one recorded call', () => {
+  it('sends the schema the recording asked for, never one made up here', async () => {
+    const run = await record();
+    const recorded = run.store.records(run.turnId).find((record): record is Extract<typeof record, { kind: 'model.request' }> => record.kind === 'model.request');
+    expect(recorded?.responseFormat).toBe('json');
+    expect(recorded?.responseFormatHint).toBeDefined();
+    const base = await mockGateway([mockRespond('A cheaper plan.')]);
+    const seen: ChatRequest[] = [];
+    const gateway: Gateway = {
+      ...base,
+      completeOnce: (request, signal, before) => {
+        seen.push(request);
+        return base.completeOnce(request, signal, before);
+      },
+    };
+
+    await replay({ mode: 'call', source: run.store, turnId: run.turnId, callIndex: 1, target: { profileId: await profileOf(base) }, gateway, sessionId: 'replay-hint' });
+
+    const sent = seen[0] as ChatRequest;
+    expect(sent.responseFormat).toEqual({ jsonSchemaHint: recorded?.responseFormatHint });
+    expect(canonicalJson(sent.responseFormat)).not.toBe(canonicalJson({ jsonSchemaHint: {} }));
+  });
+
+  it('refuses a JSON recording that kept no schema, rather than send an empty one', async () => {
+    const run = await record();
+    const source: ReplaySource = {
+      records: (turnId) =>
+        run.store.records(turnId).map((record) =>
+          record.kind === 'model.request' ? { ...record, responseFormatHint: undefined } : record,
+        ),
+      message: (id) => run.store.message(id),
+    };
+    const base = await mockGateway([mockRespond('A cheaper plan.')]);
+
+    await expect(
+      replay({ mode: 'call', source, turnId: run.turnId, callIndex: 1, target: { profileId: await profileOf(base) }, gateway: base }),
+    ).rejects.toThrow(/asked for JSON without keeping the schema/);
+  });
+
+  it('refuses when the project withholds text, because a recorded prompt cannot be filtered', async () => {
+    const run = await record();
+    const base = await mockGateway([mockRespond('A cheaper plan.')]);
+    const rules = { rules: [{ id: 'r1', effect: 'deny' as const, tool: '*', scope: { subtree: 'n_TEMPEST001' }, access: 'read' as const, source: 'app' as const }] };
+
+    await expect(
+      replay({
+        mode: 'call',
+        source: run.store,
+        turnId: run.turnId,
+        callIndex: 1,
+        target: { profileId: await profileOf(base) },
+        gateway: base,
+        rules: () => rules,
+        snapshot: run.before,
+      }),
+    ).rejects.toThrow(/withholds some of its text/);
+  });
+
   it('sends exactly one request to the target profile and model, declares no tools, and runs nothing', async () => {
     const run = await record();
     const base = await mockGateway([mockRespond('A cheaper opening.')]);
@@ -246,6 +338,28 @@ describe('replay: one recorded call', () => {
     await expect(
       replay({ mode: 'call', source: omitted, turnId: run.turnId, callIndex: 1, target: { profileId: await profileOf(base) }, gateway: base }),
     ).rejects.toBeInstanceOf(ReplayRefusal);
+  });
+});
+
+describe('replay: the turn’s own bound', () => {
+  it('runs no more model calls than the caller’s bound, which is the bound the estimate printed', async () => {
+    const run = await record();
+    const replayGateway = await mockGateway([transcript(INTENT, [SYNOPSIS]), prose('Document "The Storm":', SYNOPSIS_PROSE)]);
+    const result = await replay({
+      mode: 'turn',
+      source: run.store,
+      turnId: run.turnId,
+      snapshot: run.before,
+      target: { profileId: await profileOf(replayGateway) },
+      gateway: replayGateway,
+      sessionId: 'replay-bound',
+      maxModelCalls: 1,
+      clock: clock.now,
+    });
+
+    // The recording made two calls (a plan and its synopsis); one call cannot finish it, and the report says so.
+    expect(result.usage.replay.modelCalls).toBeLessThanOrEqual(1);
+    expect(result.report?.status).toBe('failed');
   });
 });
 

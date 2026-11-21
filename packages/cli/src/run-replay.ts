@@ -29,6 +29,31 @@ export interface ReplayIo extends AgentIo {
 }
 
 const note = (text: string): string => `caotang replay: ${text}\n`;
+
+/** The reader a confirmation needs: one line, and the two ways a person cancels it. */
+export interface AnswerSource {
+  once(event: 'line' | 'close' | 'SIGINT', handler: (text?: string) => void): unknown;
+  close(): void;
+}
+
+/**
+ * One answer from a line reader. Enter gives a line; Ctrl-D closes the reader and Ctrl-C raises SIGINT, and both are the writer
+ * saying no, so both answer with nothing rather than leaving the command waiting for a key that will never come.
+ */
+export function answerFrom(source: AnswerSource): Promise<string> {
+  return new Promise<string>((resolve) => {
+    let settled = false;
+    const settle = (text?: string): void => {
+      if (settled) return;
+      settled = true;
+      source.close();
+      resolve(text ?? '');
+    };
+    source.once('line', settle);
+    source.once('close', () => settle(''));
+    source.once('SIGINT', () => settle(''));
+  });
+}
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
 /** Thousands-separated, so a token count reads at a glance. */
@@ -117,7 +142,13 @@ export async function runReplayCommand(argv: readonly string[], io: ReplayIo): P
       write: false,
       ...(io.fetch === undefined ? {} : { fetch: io.fetch }),
     });
-    const input = { trace, mode: parsed.mode, ...(parsed.turnId === undefined ? {} : { turnId: parsed.turnId }), ...(parsed.callIndex === undefined ? {} : { callIndex: parsed.callIndex }) };
+    const input = {
+      trace,
+      mode: parsed.mode,
+      ...(parsed.turnId === undefined ? {} : { turnId: parsed.turnId }),
+      ...(parsed.callIndex === undefined ? {} : { callIndex: parsed.callIndex }),
+      ...(parsed.agent.maxModelCalls === undefined ? {} : { maxModelCalls: parsed.agent.maxModelCalls }),
+    };
     const estimate = project.replayEstimate(input);
     io.stderr(estimateLine(estimate));
 

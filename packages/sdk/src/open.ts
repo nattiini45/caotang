@@ -77,6 +77,8 @@ export interface ReplayInput {
   readonly turnId?: string;
   /** Which request of the turn, for mode `call`. Default: the turn's first. */
   readonly callIndex?: number;
+  /** The most model calls the replayed turn may make. Default: the session's own bound (8). */
+  readonly maxModelCalls?: number;
 }
 
 export interface RunOptions {
@@ -160,6 +162,7 @@ function replayInputOf(input: ReplayInput): {
     source: indexTrace(records),
     turnId,
     ...(input.callIndex === undefined ? {} : { callIndex: input.callIndex }),
+    ...(input.maxModelCalls === undefined ? {} : { maxModelCalls: input.maxModelCalls }),
   };
 }
 

@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { endpoint } from '../../sdk/test/endpoint.js';
-import { runReplayCommand } from '../src/run-replay.js';
+import { answerFrom, runReplayCommand } from '../src/run-replay.js';
 import { capture, folderBytes, removeDir, seedProject, tempDir } from './support.js';
 
 const KEY = 'sk-replay-test-0123456789';
@@ -53,6 +53,7 @@ function traceFile(turnId = 'record.turn-1'): string {
       'gen_ai.request.model': 'recorded-model',
       messages: ['m0', 'm1'],
       responseFormat: 'json',
+      responseFormatHint: { type: 'object', properties: { steps: { type: 'array' } }, required: ['steps'] },
     },
     {
       v: 1,
@@ -86,7 +87,57 @@ function denyStorm(): void {
   writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
+describe('the confirmation’s reader', () => {
+  /** A line reader a person drives: the handler the command attached, and whether it was closed. */
+  function reader(): { handlers: Map<string, (text?: string) => void>; closed: number; source: Parameters<typeof answerFrom>[0] } {
+    const handlers = new Map<string, (text?: string) => void>();
+    const state = { closed: 0 };
+    return {
+      handlers,
+      get closed() {
+        return state.closed;
+      },
+      source: {
+        once: (event, handler) => {
+          handlers.set(event, handler);
+        },
+        close: () => {
+          state.closed += 1;
+        },
+      },
+    };
+  }
+
+  it('answers with the line Enter sent, and closes the reader once', async () => {
+    const r = reader();
+    const answer = answerFrom(r.source);
+    r.handlers.get('line')?.('y');
+    expect(await answer).toBe('y');
+    expect(r.closed).toBe(1);
+  });
+
+  it('answers nothing when the reader closes (Ctrl-D) or the writer interrupts (Ctrl-C)', async () => {
+    for (const event of ['close', 'SIGINT'] as const) {
+      const r = reader();
+      const answer = answerFrom(r.source);
+      r.handlers.get(event)?.();
+      expect(await answer).toBe('');
+      expect(r.closed).toBe(1);
+    }
+  });
+});
+
 describe('caotang replay', () => {
+  it('takes its answer from the line reader when it has one, so Enter ends the question', async () => {
+    const file = traceFile();
+    const io = { ...capture({ cwd: root }), readLine: () => Promise.resolve('') };
+
+    expect(await runReplayCommand([file, '--mock'], io)).toBe(0);
+    expect(io.err.join('')).toContain('run it?');
+    expect(io.err.join('')).toContain('nothing was sent');
+    expect(io.out.join('')).toBe('');
+  });
+
   it('prints the estimate first, and sends nothing when the answer is not y', async () => {
     const file = traceFile();
     const before = folderBytes(root);
