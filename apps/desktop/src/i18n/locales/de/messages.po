@@ -1,11 +1,11 @@
 msgid ""
 msgstr ""
-"POT-Creation-Date: 2026-10-31 12:42+0100\n"
-"Language: de\n"
+"POT-Creation-Date: 2026-11-20 20:42+0000\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: @lingui/cli\n"
+"Language: de\n"
 
 #: apps/desktop/src/components/FdxImportDialog.tsx
 msgid " — already in the codex, left as it is"
@@ -1207,7 +1207,7 @@ msgstr "{count} Dokumente konnten nicht erstellt werden und sind in der Prüfung
 #. count is a number of codex entries that have no link in either direction.
 #: apps/desktop/src/components/CodexGraph.tsx
 msgid "{count} entries link to nothing."
-msgstr "{count} Einträge verweisen auf nichts."
+msgstr "{count} Einträge verweisen ins Leere."
 
 #. The import preview's notices and sentences. Interpolated values: words, partCount, chapters, scenes, images, comments, footnotes and codexRows are counts; megabytes and kilobytes are sizes; label and host name a download option; title, rowName and name are node or row names; documents and folders are the import's own counts; fileName is the file's name.
 #: apps/desktop/src/import-preview/model.ts
@@ -2297,7 +2297,7 @@ msgstr "{reused, plural, one {# Bild war bereits im Projekt.} other {# Bilder wa
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "{role} fallback {slot}"
-msgstr "{role}-Ausweichprofil {slot}"
+msgstr "Fallback {slot} für „{role}“"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -3282,11 +3282,11 @@ msgstr "ein Fakt, der nicht mehr da ist"
 #. Interpolated values: title is the writer's reference title.
 #: apps/desktop/src/components/CodexReferences.tsx
 msgid "A field in this reference could not be read. Remove it and add it again."
-msgstr "Ein Feld dieser Quelle konnte nicht gelesen werden. Entfernen Sie sie und fügen Sie sie erneut hinzu."
+msgstr "Ein Feld in dieser Referenz konnte nicht gelesen werden. Entfernen Sie es und fügen Sie es erneut hinzu."
 
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "A field in this relation could not be read. Remove it and add it again."
-msgstr "Ein Feld dieser Beziehung konnte nicht gelesen werden. Entfernen Sie sie und fügen Sie sie erneut hinzu."
+msgstr "Ein Feld in dieser Verknüpfung konnte nicht gelesen werden. Entfernen Sie es und fügen Sie es erneut hinzu."
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
@@ -3429,12 +3429,12 @@ msgstr "Eine Erwähnung innerhalb einer dieser Phrasen wird nicht gezählt."
 
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "a missing entry"
-msgstr "einen fehlenden Eintrag"
+msgstr "ein fehlender Eintrag"
 
 #: apps/desktop/src/components/CodexGraph.tsx
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "A missing entry"
-msgstr "Fehlender Eintrag"
+msgstr "Ein fehlender Eintrag"
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -3569,7 +3569,7 @@ msgstr "Ein Buch für Lesesysteme, eine Datei pro Kapitel."
 
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "A relation that cannot be shown"
-msgstr "Eine Beziehung, die nicht angezeigt werden kann"
+msgstr "Eine Verknüpfung, die nicht angezeigt werden kann"
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -3591,7 +3591,7 @@ msgstr "Eine Prüfung läuft. Warte, bis sie fertig ist, bevor du scannst."
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "A role can name up to two fallbacks. One answers only when the role’s own profile is rate-limited, overloaded or unreachable, and only before any of the reply has arrived; the request, context included, then goes to that profile."
-msgstr "Eine Rolle kann bis zu zwei Ausweichprofile nennen. Eines antwortet nur, wenn das eigene Profil der Rolle ratenbegrenzt, überlastet oder nicht erreichbar ist, und nur bevor ein Teil der Antwort angekommen ist; die Anfrage geht dann samt Kontext an dieses Profil."
+msgstr "Eine Rolle kann bis zu zwei Fallbacks benennen. Ein Fallback antwortet nur, wenn das eigene Profil der Rolle ratenbegrenzt, überlastet oder nicht erreichbar ist, und nur bevor ein Teil der Antwort eingetroffen ist; die Anfrage samt Kontext geht dann an dieses Profil."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -4197,7 +4197,7 @@ msgstr "Quelle hinzufügen"
 
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Add relation"
-msgstr "Beziehung hinzufügen"
+msgstr "Verknüpfung hinzufügen"
 
 #. Agent rules settings. Interpolated values: text is the rule's own words.
 #: apps/desktop/src/components/AgentRulesSettings.tsx
@@ -6063,7 +6063,7 @@ msgstr "Caotang hat {saved, plural, one {# ungespeicherte Änderung} other {# un
 #. Interpolated values: error
 #: apps/desktop/src/App.tsx
 msgid "Caotang needs an answer to open this folder, so it is not reopened here. Open it from the projects list."
-msgstr "Caotang braucht eine Antwort, um diesen Ordner zu öffnen, deshalb wird er hier nicht erneut geöffnet. Öffne ihn in der Projektliste."
+msgstr "Caotang braucht eine Antwort, um diesen Ordner zu öffnen, daher wird er hier nicht erneut geöffnet. Öffnen Sie ihn über die Projektliste."
 
 #. Interpolated values: model, name, provider, total
 #: apps/desktop/src/components/ProviderSetup.tsx
@@ -6768,11 +6768,11 @@ msgstr "Wähle einen leeren Ordner für das neue Projekt. Es wurde nichts kopier
 
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Choose an entry"
-msgstr "Eintrag wählen"
+msgstr "Einen Eintrag wählen"
 
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Choose an entry to link to."
-msgstr "Wählen Sie einen Eintrag zum Verknüpfen."
+msgstr "Wählen Sie den Eintrag, der verknüpft werden soll."
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -7079,7 +7079,7 @@ msgstr "Kodex-Einträge"
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "Codex view"
-msgstr "Kodex-Ansicht"
+msgstr "Kodexansicht"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: MAX_FINDINGS_CAP, max
@@ -9084,7 +9084,7 @@ msgstr "Quelle {title} bearbeiten"
 #. title is the linked entry name.
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Edit relation to {title}"
-msgstr "Beziehung zu {title} bearbeiten"
+msgstr "Verknüpfung zu „{title}“ bearbeiten"
 
 #. Interpolated values: tokens, coveredTurns
 #: apps/desktop/src/components/AgentMemory.tsx
@@ -9783,7 +9783,7 @@ msgstr "Fehlgeschlagen: Die Prüfung konnte nicht ausgeführt werden."
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Fallbacks, in order"
-msgstr "Ausweichprofile, in der Reihenfolge"
+msgstr "Fallbacks, in Reihenfolge"
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
@@ -12055,7 +12055,7 @@ msgstr "Objektiv"
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "Let the agent draft entries from your manuscript"
-msgstr "Lassen Sie den Agenten Einträge aus Ihrem Manuskript entwerfen."
+msgstr "Lassen Sie den Agenten Einträge aus Ihrem Manuskript entwerfen"
 
 #. Binder row labels. Interpolated values: access is an access level's name, from is the node the rule was set on, title is a row's title.
 #: apps/desktop/src/components/Binder.tsx
@@ -12197,19 +12197,19 @@ msgstr "Verknüpfter Eintrag"
 
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Linked from"
-msgstr "Verweise von"
+msgstr "Verknüpft von"
 
 #. names is the list of codex entry names that link to this entry.
 #: apps/desktop/src/components/CodexGraph.tsx
 msgid "Linked from {names}."
-msgstr "Verweise von {names}."
+msgstr "Verknüpft von {names}."
 
 #. name is the linked entry name, or a missing entry.
 #. name is the name of the codex entry the link points at.
 #: apps/desktop/src/components/CodexGraph.tsx
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Links to {name}."
-msgstr "Verweist auf {name}."
+msgstr "Verweist auf „{name}“."
 
 #: apps/desktop/src/components/CodexGraph.tsx
 msgid "Links to a missing entry."
@@ -12217,7 +12217,7 @@ msgstr "Verweist auf einen fehlenden Eintrag."
 
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Links to other codex entries. They stay out of automatic model requests."
-msgstr "Verknüpfungen mit anderen Kodex-Einträgen. Sie bleiben aus automatischen Modellanfragen heraus."
+msgstr "Verknüpfungen zu anderen Kodex-Einträgen. Sie bleiben aus automatischen Modellanfragen heraus."
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -13623,7 +13623,7 @@ msgstr "Keine Einträge passen"
 
 #: apps/desktop/src/components/CodexGraph.tsx
 msgid "No entry links yet."
-msgstr "Noch keine Verknüpfungen zwischen Einträgen."
+msgstr "Noch keine Verknüpfungen."
 
 #. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
 #: apps/desktop/src/app/run-log-export.ts
@@ -13638,7 +13638,7 @@ msgstr "Noch keine Fakten."
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "No fallback"
-msgstr "Kein Ausweichprofil"
+msgstr "Kein Fallback"
 
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #: apps/desktop/src/components/KnowledgeList.tsx
@@ -15044,7 +15044,7 @@ msgstr "Nur optionale Felder: Was eine Anfrage braucht, wird immer gesendet, und
 
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Optional, such as ally or rival."
-msgstr "Optional, etwa Verbündete oder Rivalin."
+msgstr "Optional, zum Beispiel Verbündeter oder Rivale."
 
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
@@ -16992,13 +16992,13 @@ msgstr "Alle ablehnen"
 
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Relation"
-msgstr "Beziehung"
+msgstr "Verknüpfung"
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Relations"
-msgstr "Beziehungen"
+msgstr "Verknüpfungen"
 
 #. Interpolated values: subject
 #: apps/desktop/src/components/InkGate.tsx
@@ -17170,7 +17170,7 @@ msgstr "Quelle {title} entfernen"
 #. title is the linked entry name.
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Remove relation to {title}"
-msgstr "Beziehung zu {title} entfernen"
+msgstr "Verknüpfung zu „{title}“ entfernen"
 
 #. Agent rules settings. Interpolated values: text is the rule's own words.
 #: apps/desktop/src/components/AgentRulesSettings.tsx
@@ -17379,7 +17379,7 @@ msgstr "Ordner von {name} erneut öffnen"
 #. Interpolated values: count, files
 #: apps/desktop/src/components/FolderChangeStatus.tsx
 msgid "Reopen the folder’s version"
-msgstr "Die Fassung aus dem Ordner öffnen"
+msgstr "Version des Ordners erneut öffnen"
 
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
@@ -18357,7 +18357,7 @@ msgstr "Quelle speichern"
 
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Save relation"
-msgstr "Beziehung speichern"
+msgstr "Verknüpfung speichern"
 
 #. Interpolated values: reason is a local storage error; count and days are configured upper bounds; size is a formatted byte estimate.
 #: apps/desktop/src/components/AgentSessionData.tsx
@@ -20997,7 +20997,7 @@ msgstr "Dieses Projekt ist bereits in diesem Browser, daher wurde der Ordner als
 
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "That relation could not be saved."
-msgstr "Diese Beziehung konnte nicht gespeichert werden."
+msgstr "Diese Verknüpfung konnte nicht gespeichert werden."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -21189,7 +21189,7 @@ msgstr "Der Agent wurde noch nicht ausgeführt"
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the agent instructions"
-msgstr "Die Anleitung"
+msgstr "die Anweisungen an den Agenten"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -21546,7 +21546,7 @@ msgstr "Der gewählte Ordner ist nicht mehr leer. Wähle einen anderen Ordner."
 #: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "the codex"
-msgstr "Der Kodex"
+msgstr "der Kodex"
 
 #. Interpolated values: name
 #. js-lingui-explicit-id
@@ -21635,7 +21635,7 @@ msgstr "Das Gespräch konnte nicht gespeichert werden: {reason}. Das Laufprotoko
 #: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "the corkboard"
-msgstr "Die Pinnwand"
+msgstr "die Pinnwand"
 
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
@@ -22067,7 +22067,7 @@ msgstr "Die Unterbrechung dieses Ziels konnte nicht gespeichert werden. Öffnen 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "the graph"
-msgstr "das Netz"
+msgstr "der Graph"
 
 #. Interpolated values: count, number, total
 #: apps/desktop/src/components/ProviderFormParts.tsx
@@ -22519,7 +22519,7 @@ msgstr "Das Bild der Einstellung „{title}“"
 #. Interpolated values: scope, title
 #: apps/desktop/src/components/Corkboard.tsx
 msgid "the picture picker"
-msgstr "Die Bildauswahl"
+msgstr "die Bildauswahl"
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
@@ -22622,12 +22622,12 @@ msgstr "Der Projektordner wurde außerhalb von Caotang geändert oder wird gerad
 #. Interpolated values: count, files
 #: apps/desktop/src/components/FolderChangeStatus.tsx
 msgid "The project folder changed outside Caotang: {files} and {count} more. Caotang has not reloaded the folder’s version."
-msgstr "Der Projektordner wurde außerhalb von Caotang geändert: {files} und {count} weitere. Caotang hat die Fassung aus dem Ordner nicht neu geladen."
+msgstr "Der Projektordner wurde außerhalb von Caotang geändert: {files} und {count} weitere. Caotang hat die Ordnerversion nicht neu geladen."
 
 #. Interpolated values: count, files
 #: apps/desktop/src/components/FolderChangeStatus.tsx
 msgid "The project folder changed outside Caotang: {files}. Caotang has not reloaded the folder’s version."
-msgstr "Der Projektordner wurde außerhalb von Caotang geändert: {files}. Caotang hat die Fassung aus dem Ordner nicht neu geladen."
+msgstr "Der Projektordner wurde außerhalb von Caotang geändert: {files}. Caotang hat die Ordnerversion nicht neu geladen."
 
 #. Interpolated values: error
 #: apps/desktop/src/App.tsx
@@ -22660,7 +22660,7 @@ msgstr "Das Projekt hat diesen Begriff nicht mehr, daher liefert dieser Filter k
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the project panel"
-msgstr "Der Projektbereich"
+msgstr "das Projekt-Panel"
 
 #: apps/desktop/src/app/run-recovery.ts
 msgid "The project was restored in this tab, but it could not be saved. Keep this tab open and retry the failed save."
@@ -23352,7 +23352,7 @@ msgstr "Der Skill konnte nicht gelesen werden: {reason}"
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the Skills panel"
-msgstr "Der Skills-Bereich"
+msgstr "das Skills-Panel"
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -23603,7 +23603,7 @@ msgstr "Der sichtbare Text ist gleich; nur die Dateibytes oder Zeilenenden unter
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the vocabulary editor"
-msgstr "Der Vokabular-Editor"
+msgstr "der Vokabular-Editor"
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
@@ -25352,7 +25352,7 @@ msgstr "Projekt ohne Titel"
 #. Interpolated values: title is the writer's reference title.
 #: apps/desktop/src/components/CodexReferences.tsx
 msgid "Untitled reference"
-msgstr "Unbenannte Quelle"
+msgstr "Referenz ohne Titel"
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
