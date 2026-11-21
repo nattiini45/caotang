@@ -6,11 +6,21 @@
   "license": "MIT",
   "type": "module",
   "main": "dist/main.mjs",
+  "description": "Caotang for desktop: the writing studio in its own window.",
+  "author": "PawCommit Studio",
+  "desktopName": "caotang.desktop",
   "scripts": {
     "build": "tsc -p tsconfig.json && vite build",
     "start": "pnpm build && install-electron && electron .",
     "test:smoke": "pnpm build && install-electron && playwright test",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+    "package:prepare": "node scripts/icon.mjs && pnpm --filter @caotang/desktop run build && pnpm run build",
+    "package:win:dir": "pnpm run package:prepare && electron-builder --config electron-builder.yml --win --x64 --dir --publish never",
+    "package:win:installer": "electron-builder --config electron-builder.yml --win nsis --x64 --prepackaged release/win-unpacked --publish never",
+    "package:mac-arm64": "pnpm run package:prepare && electron-builder --config electron-builder.yml --mac --arm64 --publish never",
+    "package:mac-x64": "pnpm run package:prepare && electron-builder --config electron-builder.yml --mac --x64 --publish never",
+    "package:linux": "pnpm run package:prepare && electron-builder --config electron-builder.yml --linux --x64 --publish never",
+    "package:linux:dir": "pnpm run package:prepare && electron-builder --config electron-builder.yml --linux --x64 --dir --publish never"
   },
   "dependencies": {
     "@caotang/artifact-fs-node": "workspace:*",
@@ -18,6 +28,7 @@
     "@parcel/watcher": "2.6.0"
   },
   "devDependencies": {
-    "electron": "45.4.1"
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0"
   }
 }

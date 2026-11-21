@@ -1,4 +1,4 @@
-﻿packages:
+packages:
   - 'apps/*'
   - 'packages/*'
   - 'vendor/*'
@@ -17,4 +17,7 @@ patchedDependencies:
   pseudolocale@3.1.0: patches/pseudolocale@3.1.0.patch
 allowBuilds:
   '@parcel/watcher': false
+  # electron-builder's Squirrel.Windows helper is a dependency we never use (the
+  # installer is NSIS); its install script stays unrun.
+  electron-winstaller: false
   workerd: true

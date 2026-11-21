@@ -90,6 +90,33 @@ export const BUNDLED_ASSETS = Object.freeze([
 ]);
 
 /**
+ * The runtime every package of Caotang for desktop carries (#401): Electron and the Chromium inside it. Neither is a dependency
+ * of the studio's own code — Electron is a development dependency that ships as the application binary — so the lockfile never
+ * lists them, and the package root carries their own licence files exactly as Electron publishes them. Chromium's text is the
+ * aggregated `LICENSES.chromium.html` (thousands of files' worth); reproducing it here would be a second copy of a file that
+ * travels with the binary, so the entry names where it ships instead.
+ */
+export const RUNTIME_NOTICES = Object.freeze([
+  Object.freeze({
+    name: 'Electron',
+    version: '45.4.1',
+    license: 'MIT',
+    repository: 'https://github.com/electron/electron',
+    shipsAs: 'the application binary; LICENSE.electron.txt and LICENSES.chromium.html sit at the root of every Caotang for desktop package (Resources on macOS)',
+    licenseFile: 'apps/desktop-shell/LICENSE-ELECTRON',
+  }),
+  Object.freeze({
+    name: 'Chromium',
+    version: '156.0.8078.100',
+    license: 'BSD-3-Clause and others',
+    repository: 'https://chromium.googlesource.com/chromium/src/+/main/LICENSE',
+    shipsAs: 'inside Electron, as the application binary; its aggregated licence ships beside it as LICENSES.chromium.html',
+    licenseNote:
+      'Chromium\'s aggregated licence text ships inside every Caotang for desktop package as LICENSES.chromium.html, exactly as Electron publishes it, so it travels with the binary rather than being reproduced here.',
+  }),
+]);
+
+/**
  * Dual-licensed packages Caotang uses under the permissive side. The notice names the license it is used under, so a
  * reader does not take the GPL side of the declared expression to be an obligation. Each entry is a decision, and it is
  * reviewed when the package changes. `jszip` (MIT OR GPL-3.0-or-later) is used under MIT, through `docx`.
@@ -272,7 +299,7 @@ function repositoryOf(manifest) {
  * The notices document for the given packages. It is deterministic: the same packages and the same license files give the
  * same bytes, on any machine, so a committed copy can be compared with a fresh one.
  */
-export function renderNotices(packages, { filters = SHIPPED_FILTERS, assets = [] } = {}) {
+export function renderNotices(packages, { filters = SHIPPED_FILTERS, assets = [], runtime = [] } = {}) {
   const lines = [];
   lines.push('# Third-party notices');
   lines.push('');
@@ -327,6 +354,28 @@ export function renderNotices(packages, { filters = SHIPPED_FILTERS, assets = []
       lines.push(fence);
     }
   }
+  if (runtime.length > 0) {
+    lines.push('');
+    lines.push('## The runtime');
+    lines.push('');
+    lines.push('Caotang for desktop runs on Electron, which carries Chromium. Each package holds their own licence files.');
+    for (const entry of runtime) {
+      lines.push('');
+      lines.push(`### ${entry.name} ${entry.version}`);
+      lines.push('');
+      lines.push(`License: ${entry.license}. Source: ${entry.repository}. Ships as ${entry.shipsAs}.`);
+      if (entry.text === undefined) {
+        lines.push('');
+        lines.push(entry.licenseNote);
+        continue;
+      }
+      lines.push('');
+      const fence = fenceFor(entry.text);
+      lines.push(`${fence}text`);
+      lines.push(entry.text.replace(/\n+$/, ''));
+      lines.push(fence);
+    }
+  }
   lines.push('');
   return lines.join('\n');
 }
@@ -347,7 +396,12 @@ export function bundledAssetNotices(root = REPO_ROOT, assets = BUNDLED_ASSETS) {
 /** Generates the document for the shipped packages in `root`. */
 export function generateNotices({ root = REPO_ROOT, filters = SHIPPED_FILTERS } = {}) {
   const packages = externalPackages(listProductionTree(root, filters)).map(describePackage);
-  return renderNotices(packages, { filters, assets: bundledAssetNotices(root) });
+  return renderNotices(packages, { filters, assets: bundledAssetNotices(root), runtime: runtimeNotices(root) });
+}
+
+/** The runtime entries whose licence text is kept in `root`; an entry without one carries the note instead. */
+export function runtimeNotices(root = REPO_ROOT, entries = RUNTIME_NOTICES) {
+  return entries.map((entry) => (entry.licenseFile === undefined ? entry : { ...entry, text: normalizeText(readFileSync(join(root, entry.licenseFile), 'utf8')) }));
 }
 
 function fenceFor(text) {

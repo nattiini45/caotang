@@ -11811,3 +11811,41 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## The runtime
+
+Caotang for desktop runs on Electron, which carries Chromium. Each package holds their own licence files.
+
+### Electron 45.4.1
+
+License: MIT. Source: https://github.com/electron/electron. Ships as the application binary; LICENSE.electron.txt and LICENSES.chromium.html sit at the root of every Caotang for desktop package (Resources on macOS).
+
+```text
+Copyright (c) Electron contributors
+Copyright (c) 2013-2020 GitHub Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+### Chromium 156.0.8078.100
+
+License: BSD-3-Clause and others. Source: https://chromium.googlesource.com/chromium/src/+/main/LICENSE. Ships as inside Electron, as the application binary; its aggregated licence ships beside it as LICENSES.chromium.html.
+
+Chromium's aggregated licence text ships inside every Caotang for desktop package as LICENSES.chromium.html, exactly as Electron publishes it, so it travels with the binary rather than being reproduced here.
