@@ -13,6 +13,7 @@
  */
 
 import type { TaskRunRecord } from '@caotang/tasks';
+import { scopedStoreName } from './storage-scope.js';
 
 /** The database name. No project uses it, and the project store has its own. */
 export const APP_DB_NAME = 'caotang-app';
@@ -182,9 +183,10 @@ function committed(tx: IDBTransaction): Promise<void> {
 
 /**
  * Opens the app database. `factory` is the browser's `indexedDB`, or a stand-in in a test. Rejects when the open fails,
- * which the caller turns into a notice and an app that runs on defaults.
+ * which the caller turns into a notice and an app that runs on defaults. The name carries the studio's storage scope, so a
+ * hosted shell's accounts open separate databases (storage-scope.ts).
  */
-export function openAppDb(factory: IDBFactory, name: string = APP_DB_NAME): Promise<AppDb> {
+export function openAppDb(factory: IDBFactory, name: string = scopedStoreName(APP_DB_NAME)): Promise<AppDb> {
   return new Promise<AppDb>((resolve, reject) => {
     const request = factory.open(name, APP_DB_VERSION);
     request.onupgradeneeded = () => {
