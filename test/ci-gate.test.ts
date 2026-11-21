@@ -298,6 +298,33 @@ describe('the Node floor and the whole gate', () => {
     expect(step('Scan the fixture project with the built command (exit 7, one error annotation, nothing written)')).not.toContain('if:');
   });
 
+/**
+ * The packaging workflow gates a released commit as strictly as a merged one.
+ *
+ * Its Windows leg once ran `pnpm run typecheck` alone, because the suite was not ported to that runner. That is the one place
+ * the gate could narrow without anyone noticing: a tag would ship from a commit whose unit suites never ran. The guard keeps
+ * every leg on `pnpm verify`, and keeps the single documented exclusion — #815's two sync-server Worker suites — from spreading
+ * by copy.
+ */
+describe('the packaging legs run the gate', () => {
+  const release = read('.github/workflows/desktop-release.yml');
+  const windows = jobBlock(release, 'build-windows');
+  const macAndLinux = jobBlock(release, 'build-mac-linux');
+
+  it('runs the whole gate on every leg, never a typecheck alone', () => {
+    for (const [id, leg] of [['build-windows', windows], ['build-mac-linux', macAndLinux]] as const) {
+      expect(leg, id).toContain('run: pnpm verify');
+      expect(leg, id).not.toContain('run: pnpm run typecheck');
+    }
+  });
+
+  it("leaves out only #815's two Worker suites, on Windows, and says so in the step's name", () => {
+    expect(windows).toContain("CAOTANG_SKIP_WORKER_SUITES: '1'");
+    expect(windows).toMatch(/name: .*two Worker suites \(#815\)/);
+    expect(macAndLinux).not.toContain('CAOTANG_SKIP_WORKER_SUITES');
+  });
+});
+
   it('names a floor-test set that exists on disk and keeps every Node host in it', () => {
     const scripts = (JSON.parse(read('package.json')) as { scripts: Record<string, string> }).scripts;
     const script = scripts['test:node-floor'];
