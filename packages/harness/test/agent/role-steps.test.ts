@@ -19,8 +19,9 @@ import {
   type RoleTarget,
 } from '@caotang/gateway';
 
-import {
-  createAgentPorts,
+import { createMockProvider } from '@caotang/gateway/mock';
+
+import { createAgentPorts,
   createAgentSession,
   createBudgetMeter,
   createContextPort,
@@ -32,9 +33,11 @@ import {
   type ModelHook,
 } from '../../src/index.js';
 import { clock, makeState } from '../fixtures.js';
+import { prose, steps, transcript } from './scripts.js';
 
 const KEY = 'test-key';
 const DRAFT_TEXT = 'Rain came sideways off the sea.';
+const INTENT = 'Open The Friend.';
 
 const chunk = (delta: object, finish: string | null, usage?: object): string =>
   `data: ${JSON.stringify({ id: 'x', object: 'chat.completion.chunk', choices: [{ index: 0, delta, finish_reason: finish }], ...(usage === undefined ? {} : { usage }) })}\n\n`;
@@ -222,6 +225,58 @@ describe('a step routes on its own (provider-gateway §2)', () => {
     expect(report.status).toBe('applied');
     expect(hostsOf(route)).toEqual(['a.example', 'b.example', 'c.example', 'c.example']);
     expect(MODELS(route)).toEqual(['chat-model', 'drafts-model', 'spare-model', 'spare-model']);
+  });
+
+  it('keeps a demo turn on its own provider, whatever the writer routed', async () => {
+    // The demo runs on the built-in mock and promises nothing leaves the browser. A session pinned there is not a role derivation, so
+    // a step route must not move it: with planning and drafts both routed to real endpoints, the demo's turn still sends nothing out.
+    const keys = createKeyStore(createMemoryVaultPort());
+    const profiles = createProfileStore({ keys });
+    const chatView = await profiles.create(endpoint('Chat', 'a.example', 4_096));
+    const draftsView = await profiles.create(endpoint('Drafts', 'b.example', 2_048));
+    const demoView = await profiles.create({ name: 'Demo', kind: 'mock' });
+    const fetch = vi.fn<FetchLike>(async () => {
+      throw new Error('the demo turn must not reach the network');
+    });
+    const mock = createMockProvider({
+      scripts: [
+        transcript(INTENT, [steps({ tool: 'scene.draft', params: { doc: 'The Friend', instruction: 'Open it.', mode: 'draft' }, expect: 'drafted' })]),
+        prose('Brief: Open it.', DRAFT_TEXT),
+      ],
+    });
+    const base = createGateway({
+      profiles,
+      keys,
+      clock: createManualClock(0),
+      fetch,
+      mock,
+      retry: { maxRetries: 0, delaysMs: [0], jitter: 0 },
+      roles: {
+        resolve: (role, step) => {
+          if (role !== 'chat') return undefined;
+          return step === 'plan' ? { profileId: chatView.id, model: chatView.defaultModel } : { profileId: draftsView.id, model: draftsView.defaultModel };
+        },
+        allowed: () => [chatView.id, draftsView.id],
+      },
+    });
+    const gateway: Gateway = { ...base, resolveRoleRoute: (role, step) => (role === 'chat' ? (step === 'plan' ? { profileId: chatView.id, model: chatView.defaultModel } : { profileId: draftsView.id, model: draftsView.defaultModel }) : undefined), modelCaps: (...args: Parameters<typeof base.modelCaps>) => ({ ...base.modelCaps(...args), tools: false }) };
+    const state = makeState();
+    const session = createAgentSession({
+      harness: createHarness({ state, ports: createAgentPorts(), clock: clock.now }),
+      gateway,
+      context: createContextPort({ state }),
+      decide: async () => ({ action: 'approve' }),
+      emit: () => {},
+      role: 'chat',
+      profileId: demoView.id,
+      model: 'mock/echo-1',
+      sessionId: 'role-steps-demo',
+    });
+
+    const report = await session.submit(INTENT);
+    expect(report.status).toBe('applied');
+    expect(fetch).not.toHaveBeenCalled();
+    expect(report.steps[0]?.status).toBe('done');
   });
 
   it('leaves a model hook on the destination its consent named, even when encoding work is routed elsewhere', async () => {

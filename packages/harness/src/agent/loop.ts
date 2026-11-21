@@ -1588,7 +1588,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * this, so the consent and the request can never name different destinations.
    */
   const destinationFor = (turn: Turn, role: TaskRole | undefined, step: StepClass): RoleTarget => {
-    const pins = role === options.role && !(pinIsRolePrimary(turn, role) || stepRouted(role, step)) ? turn.pins : undefined;
+    const pins = role === options.role && !(pinIsRolePrimary(turn, role) || stepRouted(turn, role, step)) ? turn.pins : undefined;
     // A pin may name only a model or a level, with the profile left to the active one: it still stands for the call.
     if (pins !== undefined && (pins.profileId !== undefined || pins.model !== undefined || pins.thinking !== undefined)) {
       return { profileId: pins.profileId ?? '', ...(pins.model === undefined ? {} : { model: pins.model }), ...(pins.thinking === undefined ? {} : { thinking: pins.thinking }) };
@@ -1714,8 +1714,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * the plan even when the writer set a row for it, and the pin is what the app resolved for that row anyway. A step the role names
    * no target for is not one either, so a pinned session keeps sending its calls where it did before per-step routing existed.
    */
-  const stepRouted = (role: TaskRole | undefined, step: StepClass | undefined): boolean => {
+  const stepRouted = (turn: Turn, role: TaskRole | undefined, step: StepClass | undefined): boolean => {
     if (role === undefined || step === undefined || step === 'plan') return false;
+    // A pin that is not the role's own planning destination is a destination of its own — a demo turn's mock profile, a host's pinned
+    // provider — and stands for every step: a step route may never move such a call, least of all off the demo to a paid provider.
+    if (turn.pins.profileId !== undefined && !pinIsRolePrimary(turn, role)) return false;
     const at = gateway.resolveRoleRoute?.(role, step);
     const own = gateway.resolveRoleRoute?.(role);
     return at !== undefined && own !== undefined
@@ -1798,7 +1801,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // authorised fallbacks may answer; anything else is sent to the pinned destination alone.
     // A step the writer routed on its own is not the session's destination: the pins name where the panel's planning goes, so they
     // stand everywhere the step names no destination of its own (§6).
-    ...(pinIsRolePrimary(turn, role) || stepRouted(role, step) ? {} : {
+    ...(pinIsRolePrimary(turn, role) || stepRouted(turn, role, step) ? {} : {
       ...(turn.pins.profileId === undefined || role !== options.role ? {} : { profileId: turn.pins.profileId }),
       ...(turn.pins.model === undefined || role !== options.role ? {} : { model: turn.pins.model }),
       ...(turn.pins.thinking === undefined || role !== options.role ? {} : { thinking: turn.pins.thinking }),
