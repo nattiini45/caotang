@@ -286,10 +286,11 @@ test('de: a bad base URL and a rejected key answer with German recovery wording'
   const endpoint = custom.getByLabel('Endpunkt (die Basis-URL, endend auf /v1)');
   const connect = custom.getByRole('button', { name: 'Verbinden und Modelle auflisten' });
 
-  // A base URL the package validator refuses renders the fixed message in the interface language.
-  await endpoint.fill('not-a-url');
+  // A base URL the package validator refuses renders the fixed message in the interface language. The url-type
+  // field's own constraint means the refusal the app can show is a scheme one: http:// passes the browser's check.
+  await endpoint.fill('http://rejected.example.test/v1');
   await connect.click();
-  await expect(settings.getByRole('alert')).toContainText('Die Basis-URL ist keine URL.');
+  await expect(settings.getByRole('alert')).toContainText('Die Basis-URL muss mit https:// beginnen');
 
   // A host that rejects the key: the fixed wording lands in German on the key field, where the person fixes it.
   await endpoint.fill('https://rejected.example.test/v1');
