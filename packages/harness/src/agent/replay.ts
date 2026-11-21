@@ -36,12 +36,11 @@ import {
 } from '@caotang/gateway';
 import { LAYER_NAMES } from '@caotang/context';
 import { createMockProvider, type MockResponse, type MockScript } from '@caotang/gateway/mock';
-import { cloneProjectState, nodeById, type ProjectState } from '@caotang/store';
+import { cloneProjectState, countBody, nodeById, type ProjectState } from '@caotang/store';
 
 import { createHarness, type HarnessOptions } from '../runtime.js';
 import { canonicalJson } from '../util.js';
 import { createContextPort } from './context.js';
-import { wordsOf } from './drafting.js';
 import { DEFAULT_MAX_MODEL_CALLS, type CardRecord, type Decision, type PendingCard, type TurnReport } from './events.js';
 import { projectBytes } from './bytes.js';
 import { createAgentSession } from './loop.js';
@@ -419,13 +418,13 @@ export function draftDiffs(before: ProjectState, after: ProjectState): DraftDiff
     const replay = after.documents.get(id)?.body ?? '';
     if (original === replay) continue;
     const title = nodeById(after, id)?.title ?? nodeById(before, id)?.title ?? id;
-    diffs.push({ docId: id, title, field: 'body', original, replay, words: { original: wordsOf(original), replay: wordsOf(replay) } });
+    diffs.push({ docId: id, title, field: 'body', original, replay, words: { original: countBody(original).words, replay: countBody(replay).words } });
   }
   for (const node of after.manifest.tree) {
     if (!('synopsis' in node)) continue;
     const original = synopsisOf(before, node.id);
     if (original === node.synopsis) continue;
-    diffs.push({ docId: node.id, title: node.title, field: 'synopsis', original, replay: node.synopsis, words: { original: wordsOf(original), replay: wordsOf(node.synopsis) } });
+    diffs.push({ docId: node.id, title: node.title, field: 'synopsis', original, replay: node.synopsis, words: { original: countBody(original).words, replay: countBody(node.synopsis).words } });
   }
   return diffs;
 }

@@ -594,6 +594,13 @@ export class AgentController {
     }
   }
 
+  /** Keeps the project as the turn that just started found it, for a replay of it (§8.1). Off, nothing is kept. */
+  private keepSnapshot(turnId: string): void {
+    const trace = (this.providers as Partial<ProviderService>).trace;
+    if (trace === undefined || !trace.enabled) return;
+    trace.snapshots.keep(turnId, this.session.state);
+  }
+
   traceMachine(record: Pick<Extract<TraceInput, { kind: 'machine' }>, 'machine' | 'subjectId' | 'from' | 'event' | 'to'>): void {
     this.writeTrace({ kind: 'machine', at: this.clock(), turnId: TRACE_REVIEWS, ...record });
   }
@@ -3435,6 +3442,8 @@ export class AgentController {
             this.writeTrace({ ...record, at: this.startupTrace[0]?.at ?? record.at });
             for (const pending of this.startupTrace) this.writeTrace({ kind: 'machine', turnId: record.turnId, machine: agentControllerTable.id, ...pending });
             this.startupTrace = [];
+            // A replay runs on the project as the turn found it, which nothing else keeps (agent-harness §8.1).
+            this.keepSnapshot(record.turnId);
           }
           else this.writeTrace(record);
         } };
