@@ -162,12 +162,16 @@ export const BUDGET = {
   // over that. What grew on the first load is the gateway's step resolution and the loader that reads a role's steps, plus the step rows'
   // labels; the step rows themselves, their model list and their level select sit in the on-use Settings chunk. The ceiling is the
   // measurement plus 1 kB, #777's smallest step. [bundle-raise rule 2026-11-20]
+  // Re-measured on this branch over main at 7ed8a64b (#596's gateway error texts): 1,112,622 bytes gzip — the
+  // catalogued fixed wording grew the compiled catalogues on the first load. Rounded up to the thousand. [bundle-raise rule 2026-11-21]
   // Replay's dialog measured 1,111,000 gzip on the merge with main at 7ed8a64b. What grew is the English catalogue's new messages for the
   // dialog, which i18n.md §3.3 keeps in the entry because every message must be there before first paint; the dialog itself, its model and
   // the engine's wrapper load with the Trace tab, on use. Optimisations tried first and kept: no lazy chunk was available to move (the Trace
   // tab is already one), the engine's draft comparison calls the store's `countBody` instead of pulling the drafting module in for one word
-  // count, and the dead exports written before measuring were deleted. The ceiling is the measurement plus 500 bytes. [delegated 2026-11-21]
-  initialGzip: 1_112_200,
+  // count, and the dead exports written before measuring were deleted. [delegated 2026-11-21]
+  // Measured again on the merge of main 04f250ae, which carries both of the above: 1,114,869 bytes, and 1,114,863 on a clean rebuild, whose
+  // chunk hashes differ by a few bytes. The ceiling is that plus at most 137 bytes, so later work inherits no free room. [delegated 2026-11-21]
+  initialGzip: 1_115_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -267,14 +271,19 @@ export const BUDGET = {
   // is +136 bytes, and 72 bytes were left under the old ceiling. Checked first and kept: the check is one predicate beside the existing one,
   // it reads the parent's document once and adds no dependency, it lands in a chunk that is already on the first load, and the picker's own
   // path is unchanged. The ceiling is the measurement rounded up to the thousand. [bundle-raise rule 2026-11-21]
+  // Re-measured on #579's merge over main at 7ed8a64b: 8,896,131 bytes — the catalogued
+  // recurring-tasks words cost 131 bytes over the shared ceiling. Rounded up to the thousand. [bundle-raise rule 2026-11-21]
+  // #596's gateway error texts measured 8,916,618 bytes all-JS over 7ed8a64b, 8,917,832 on the merge that
+  // adds #579's catalogue words — the entries spread across chunks. Rounded up. [bundle-raise rule 2026-11-21]
   // Replay's dialog measured 8,922,600 raw on the merge with main at 7ed8a64b, against that tree's own 8,896,000 ceiling. A chunk-by-chunk
   // comparison against the same tree without the change shows the growth is the feature and nothing else: the dialog and its stylesheet,
   // the app model that words the refusals and the comparison, the runner that hands the engine the app's gateway and rules, the engine's
   // `draftDiffs`, and the English catalogue text for all of it. No lazy chunk could take it (the Trace tab, where the dialog lives, is
   // already on use), `countBody` replaced the drafting module the comparison would otherwise have pulled in, and the dead exports written
-  // before measuring were removed. Staged, rolled back and rebuilt twice: all JS is the same 8,922,600 on a clean rebuild. The ceiling is
-  // the measurement plus 400 bytes, so later work inherits no free room. [delegated 2026-11-21]
-  totalJs: 8_927_000,
+  // before measuring were removed. Staged, rolled back and rebuilt twice: all JS is the same 8,922,600 on a clean rebuild. [delegated 2026-11-21]
+  // Measured again on the merge of main 04f250ae, which carries both of the above: 8,948,607 bytes, and 8,948,610 on a clean rebuild. The
+  // ceiling is that plus at most 393 bytes, so later work inherits no free room. [delegated 2026-11-21]
+  totalJs: 8_949_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

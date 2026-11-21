@@ -18,7 +18,7 @@
 import { systemClock, type Clock } from './clock.js';
 import { hostOf, originOf } from './base-url.js';
 import { type ProfileStore } from './profiles.js';
-import { EgressDeniedError, ProfileError, ProviderError, providerMessages } from './errors.js';
+import { EgressDeniedError, ProfileError, ProviderError, providerMessages, providerRefs } from './errors.js';
 import type { KeyStore } from './keys/key-store.js';
 import { UsageLedger } from './ledger.js';
 import { createMockProvider, type MockProvider } from './mock/mock-provider.js';
@@ -283,11 +283,11 @@ export function createGateway(options: GatewayOptions): Gateway {
   const targetOf = (profileId: string | undefined): ProfileView => {
     if (profileId !== undefined) {
       const found = profiles.get(profileId);
-      if (found === undefined) throw new ProfileError('not-found', `No provider profile has the id ${profileId}.`);
+      if (found === undefined) throw new ProfileError('not-found', `No provider profile has the id ${profileId}.`, { messageRef: providerRefs.notFound(profileId) });
       return found;
     }
     const active = profiles.active();
-    if (active === undefined) throw new ProfileError('no-active', 'No provider profile is active. Add one in Settings.');
+    if (active === undefined) throw new ProfileError('no-active', 'No provider profile is active. Add one in Settings.', { messageRef: providerRefs.noActive() });
     return active;
   };
 
@@ -302,12 +302,12 @@ export function createGateway(options: GatewayOptions): Gateway {
       ? await keys.revealPayload(profile.id)
       : await keys.revealPayload(profile.id, expectedRevision);
     if (payload === undefined) {
-      if (profile.hasKey) throw new ProfileError('key-unreadable', providerMessages.missingKey(profile.name));
+      if (profile.hasKey) throw new ProfileError('key-unreadable', providerMessages.missingKey(profile.name), { messageRef: providerRefs.missingKey(profile.name) });
       return { secrets: {}, redact: [] };
     }
     const apiKey = payload.apiKey === '' ? undefined : payload.apiKey;
     if (apiKey === undefined && profile.hasKey) {
-      throw new ProfileError('key-unreadable', providerMessages.missingKey(profile.name));
+      throw new ProfileError('key-unreadable', providerMessages.missingKey(profile.name), { messageRef: providerRefs.missingKey(profile.name) });
     }
     const headers = Object.entries(payload.customHeaders ?? {}).map(([name, value]) => ({ name, value }));
     const redact = [apiKey, ...headers.map((h) => h.value)].filter((v): v is string => v !== undefined && v !== '');
@@ -770,6 +770,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       if (error instanceof ProviderError && error.rejected && preset?.cors === 'ok') {
         throw new ProviderError('network', providerMessages.modelListUnreadable(hostOf(profile.baseUrl)), {
           reason: 'model-list-unreadable',
+          messageRef: providerRefs.modelListUnreadable(hostOf(profile.baseUrl)),
           ...(error.detail === undefined ? {} : { detail: error.detail }),
           rejected: true,
         });
@@ -778,7 +779,9 @@ export function createGateway(options: GatewayOptions): Gateway {
     });
     const models = adapter.parseModels(json);
     if (models === undefined) {
-      throw new ProviderError('protocol', providerMessages.protocol(hostOf(profile.baseUrl), 'the model list had no data array'));
+      throw new ProviderError('protocol', providerMessages.protocol(hostOf(profile.baseUrl), 'the model list had no data array'), {
+        messageRef: providerRefs.protocol(hostOf(profile.baseUrl), 'the model list had no data array'),
+      });
     }
     reported.set(profile.id, models);
     return models;

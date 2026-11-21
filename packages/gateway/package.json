@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "description": "Provider gateway — BYOK OpenAI-compatible access, key vault, usage ledger, deterministic mock provider (ARCHITECTURE §2.7)",
+  "description": "Provider gateway \u2014 BYOK OpenAI-compatible access, key vault, usage ledger, deterministic mock provider (ARCHITECTURE \u00a72.7)",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "@caotang/machine": "workspace:*",
-    "@caotang/codex": "workspace:*"
+    "@caotang/codex": "workspace:*",
+    "@caotang/i18n": "workspace:*"
   },
   "devDependencies": {
     "@caotang/store": "workspace:*"

@@ -1,10 +1,17 @@
 import { ProviderError } from '@caotang/gateway';
+
+import { renderRef, titleValues } from '../i18n/render-ref.js';
 import { assertNever } from '@caotang/machine';
 
 export interface ProbeFailure {
   readonly cause: 'auth' | 'models' | 'network' | 'timeout' | 'unreadable' | 'rate-limit' | 'provider' | 'unknown';
   readonly providerReply?: string;
   readonly guidance?: string;
+}
+
+/** The gateway's own fixed text in the interface language: the ref the throw site carried, else its English message. */
+export function gatewayText(error: { readonly message: string; readonly messageRef?: Parameters<typeof renderRef>[0] }): string {
+  return error.messageRef === undefined ? error.message : renderRef(error.messageRef, { userValues: titleValues(error.messageRef) });
 }
 
 export function probeFailureOf(error: unknown): ProbeFailure {
@@ -25,6 +32,6 @@ export function probeFailureOf(error: unknown): ProbeFailure {
   return {
     cause,
     ...(error.providerReply === undefined ? {} : { providerReply: error.providerReply }),
-    ...(error.kind === 'network' && error.permanent ? { guidance: error.message } : {}),
+    ...(error.kind === 'network' && error.permanent ? { guidance: gatewayText(error) } : {}),
   };
 }
