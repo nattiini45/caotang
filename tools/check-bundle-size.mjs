@@ -162,7 +162,9 @@ export const BUDGET = {
   // over that. What grew on the first load is the gateway's step resolution and the loader that reads a role's steps, plus the step rows'
   // labels; the step rows themselves, their model list and their level select sit in the on-use Settings chunk. The ceiling is the
   // measurement plus 1 kB, #777's smallest step. [bundle-raise rule 2026-11-20]
-  initialGzip: 1_110_200,
+    // Re-measured on this branch's merge over main at 7ed8a64b (#738's codex buttons): 1,112,622 bytes — the
+  // catalogued gateway error texts grew the compiled catalogues. Rounded up to the thousand. [bundle-raise rule 2026-11-21]
+initialGzip: 1_113_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -262,7 +264,8 @@ export const BUDGET = {
   // is +136 bytes, and 72 bytes were left under the old ceiling. Checked first and kept: the check is one predicate beside the existing one,
   // it reads the parent's document once and adds no dependency, it lands in a chunk that is already on the first load, and the picker's own
   // path is unchanged. The ceiling is the measurement rounded up to the thousand. [bundle-raise rule 2026-11-21]
-  totalJs: 8_896_000,
+    // Same measurement: 8,916,618 bytes all-JS, the catalogue entries spread across chunks. Rounded up. [bundle-raise rule 2026-11-21]
+totalJs: 8_917_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
