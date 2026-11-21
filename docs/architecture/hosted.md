@@ -81,6 +81,12 @@ The studio app reaches that vault through its host seam (`studio-host.ts`): a ho
 
 A write that loses the race re-reads, re-seals the profiles it changed onto the version it found, and retries once; a second loss surfaces as a conflict the writer is told about, with the profiles that changed named. Re-sealing never rewrites a profile the device did not change.
 
+### 2.6 Account-scoped studio storage
+
+The frame is one origin serving several accounts, so everything the studio opens for itself is named per account. The shell names the account before the frame boots (`setStorageScope`, `apps/desktop/src/app/storage-scope.ts`), and each name carries it: the app database (`caotang-app--<account>`), the provider key vault (`caotang-provider-keys--<account>`), the runtime store (`caotang--<account>`), each folder's native store (`caotang-native-<folder>--<account>`), the image database (`caotang-assets--<account>`), and the two journal namespaces that hold words a page has not saved yet (`caotang.pending.<project>--<account>`, `caotang.unsent.<project>--<account>`). With no scope — the folder app, which has one writer at its origin — the names are exactly the fixed ones the specs give, so a writer's existing data keeps opening; nothing is renamed for the folder app.
+
+A second account on one browser therefore opens empty stores rather than the first account's projects, settings, images and provider keys, and the first account's local work is left where it is rather than cleared. The journals are named too because two accounts can hold the *same* project id — the same bundle imported into both — and a journal keyed only by project id would hand one account's unsaved words to the other. Storage written before this rule existed is not adopted by any account: the hosted instance had not shipped when the rule was introduced, so nothing was left behind in the unscoped names. Preferences the shell keeps for itself (interface language, the shell's own appearance) stay per browser, as the sign-in page's, and hold no project content.
+
 ## 3. Sealed files and hashed paths
 
 A sealed value is `0x01 ‖ nonce(12) ‖ ciphertext ‖ tag(16)`. The first byte is the format; an unknown one is refused.
