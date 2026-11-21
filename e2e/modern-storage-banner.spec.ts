@@ -39,8 +39,8 @@ async function openCodex(page: Page, width: number): Promise<void> {
     await ornament.getByRole('button', { name: 'Ansichten' }).click();
     await page.getByTestId('modern-views-codex').click();
   }
-  // The empty state's own button is bare text, not a catalogue message, so its words are English in a German interface.
-  await page.getByRole('main').getByRole('button', { name: 'New entry' }).click();
+  // The empty state's own button comes from the catalogue, so in this German interface its words are German.
+  await page.getByRole('main').getByRole('button', { name: 'Neuer Eintrag' }).click();
   const name = page.getByRole('textbox', { name: 'Name', exact: true });
   await name.fill('Elena');
   await name.press('Enter');
