@@ -84,13 +84,16 @@ export function resolveInterface(facts: InterfaceFacts): Interface | null {
 /** The part of `Storage` the rule reads. */
 export type KeyList = Pick<Storage, 'length' | 'key'>;
 
+/** The prefix every Caotang storage key shares, derived from the interface's own key. */
+const CAOTANG_KEY_PREFIX = INTERFACE_KEY.slice(0, INTERFACE_KEY.indexOf('.') + 1);
+
 /** Whether local storage holds a Caotang key (every one starts `caotang.`) other than the interface's own. */
 export function otherCaotangKeys(storage: KeyList | null): boolean {
   if (storage === null) return false;
   try {
     for (let i = 0; i < storage.length; i += 1) {
       const key = storage.key(i);
-      if (key !== null && key !== INTERFACE_KEY && key.startsWith('caotang.')) return true;
+      if (key !== null && key !== INTERFACE_KEY && key.startsWith(CAOTANG_KEY_PREFIX)) return true;
     }
   } catch {
     // An unreadable store says nothing; the stores the app opens next decide.

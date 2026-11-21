@@ -277,9 +277,15 @@ const SCENE_NUMBER_LABELS: Readonly<Record<SceneNumbersOption, string>> = {
 
 /** The Latin faces, in the words the dialog shows. */
 const SCRIPT_FONT_LABELS: Readonly<Record<RecipeScriptFont, string>> = {
-  'courier-prime': 'Courier Prime',
-  courier: 'Courier (the reader’s own)',
-  cousine: 'Cousine (like Courier New)',
+  get 'courier-prime'() {
+    return t`Courier Prime`;
+  },
+  get courier() {
+    return t`Courier (the reader’s own)`;
+  },
+  get cousine() {
+    return t`Cousine (like Courier New)`;
+  },
 };
 
 /** The notes placements, in the words the dialog shows (exporter.md §3). */
@@ -883,18 +889,18 @@ export function ExportDialog({
                   </select>
                 </label>
                 <label className="export-field">
-                  <span className="export-option-label">Paper size</span>
+                  <span className="export-option-label"><Trans>Paper size</Trans></span>
                   {/* Letter is the screenplay PDF's own paper, so choosing it leaves the option out of the recipe. */}
                   <select
                     value={shown.pageSize ?? 'Letter'}
                     onChange={(event) => saveOptions({ ...shown, pageSize: event.target.value === 'A4' ? 'A4' : undefined })}
                   >
-                    <option value="Letter">US Letter</option>
-                    <option value="A4">A4</option>
+                    <option value="Letter"><Trans>US Letter</Trans></option>
+                    <option value="A4"><Trans>A4</Trans></option>
                   </select>
                 </label>
                 <label className="export-field">
-                  <span className="export-option-label">Font</span>
+                  <span className="export-option-label"><Trans>Font</Trans></span>
                   <select
                     value={shown.scriptFont ?? 'courier-prime'}
                     onChange={(event) => saveOptions({ ...shown, scriptFont: event.target.value as RecipeScriptFont })}

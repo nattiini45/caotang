@@ -8,6 +8,8 @@
  * U+FFFD in their place.
  */
 
+import { t } from '@lingui/core/macro';
+
 import type { decodeXmlBytes as DecodeXmlBytes } from '@caotang/import-read/xml';
 
 /** The text, or the reason in words the file could not be read. */
@@ -31,7 +33,7 @@ export async function readXmlFileText(bytes: Uint8Array, load: XmlReaderLoader =
   try {
     ({ decodeXmlBytes } = await load());
   } catch {
-    return { problem: 'the file reader could not be loaded; reload Caotang and try again' };
+    return { problem: t`the file reader could not be loaded; reload Caotang and try again` };
   }
   const decoded = decodeXmlBytes(bytes);
   return decoded.ok ? { text: decoded.text } : { problem: decoded.error.message };

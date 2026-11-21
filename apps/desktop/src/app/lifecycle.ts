@@ -1681,7 +1681,7 @@ function folderFilePreviewTargets(
   const currentTitles = projectFileTitles(state);
   const target = (path: string, change: ProjectFileChange['change']): FolderFilePreviewTarget => ({
     path,
-    label: projectFileLabel(path, currentTitles, heldTitles, 'this copy'),
+    label: projectFileLabel(path, currentTitles, heldTitles, t`this copy`),
     change,
   });
   const previewable = (path: string): boolean => path.startsWith(`${DOCS_DIR}/`) || path.startsWith('codex/');
@@ -1718,7 +1718,7 @@ export async function previewFolderChanges(
   try {
     await writeProject(proposedFs, copyState(session.state), { copyFor: 'internal' });
   } catch {
-    const previews = targets.map((file) => ({ ...file, lines: [{ kind: 'note' as const, text: 'Caotang could not prepare this comparison.' }] }));
+    const previews = targets.map((file) => ({ ...file, lines: [{ kind: 'note' as const, text: t`Caotang could not prepare this comparison.` }] }));
     return { previews, omitted: previouslyOmitted + files.length - previews.length };
   }
   const previews: FolderFilePreview[] = [];

@@ -249,8 +249,8 @@ test('a save in flight holds the form and the rows inert until the write settles
 
 for (const language of ['en', 'de'] as const) {
   const words = language === 'en'
-    ? { newTask: 'New task', plan: 'Run a plan', steps: 'Plan steps', save: 'Save task', open: 'Open' }
-    : { newTask: 'Neue Aufgabe', plan: 'Einen Plan ausführen', steps: 'Schritte des Plans', save: 'Aufgabe speichern', open: 'Öffnen' };
+    ? { newTask: 'New task', taskName: 'Task name', does: 'What it does', when: 'When', onlyMine: 'Only when I run it', may: 'What it may do', nothing: 'Change nothing', plan: 'Run a plan', steps: 'Plan steps', save: 'Save task', open: 'Open', mayNot: 'May not change anything', edit: 'Edit', cancel: 'Cancel', runs: 'Runs on this machine (1)', runNow: 'Run now' }
+    : { newTask: 'Neue Aufgabe', taskName: 'Aufgabenname', does: 'Was es tut', when: 'Wann', onlyMine: 'Nur wenn ich es ausführe', may: 'Was es darf', nothing: 'Nichts ändern', plan: 'Einen Plan ausführen', steps: 'Schritte des Plans', save: 'Aufgabe speichern', open: 'Öffnen', mayNot: 'Darf nichts ändern', edit: 'Bearbeiten', cancel: 'Abbrechen', runs: 'Durchläufe auf diesem Rechner (1)', runNow: 'Jetzt ausführen' };
   test(`a plan is written, refused when it does not parse, edited and run from the keyboard (${language})`, async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     const counter = { calls: 0 };
@@ -276,10 +276,10 @@ for (const language of ['en', 'de'] as const) {
     const tasks = page.getByTestId('recurring-tasks');
     await tasks.getByRole('button', { name: words.newTask, exact: true }).click();
     const form = tasks.getByRole('form');
-    await form.getByLabel('Task name').fill('Weekly plan scan');
-    await form.getByLabel('What it does').selectOption({ label: words.plan });
-    await form.getByLabel('When', { exact: true }).selectOption({ label: 'Only when I run it' });
-    await form.getByLabel('What it may do').selectOption({ label: 'Change nothing' });
+    await form.getByLabel(words.taskName).fill('Weekly plan scan');
+    await form.getByLabel(words.does).selectOption({ label: words.plan });
+    await form.getByLabel(words.when, { exact: true }).selectOption({ label: words.onlyMine });
+    await form.getByLabel(words.may).selectOption({ label: words.nothing });
     const steps = form.getByLabel(words.steps);
     await expect(steps).toBeVisible();
     // Choosing Run a plan starts from steps that parse, so the writer edits a plan rather than inventing one.
@@ -313,10 +313,10 @@ for (const language of ['en', 'de'] as const) {
     await page.keyboard.press('Enter');
     const row = tasks.locator('[data-task]', { hasText: 'Weekly plan scan' });
     await expect(row).toContainText('Run a plan of 1 step');
-    await expect(row).toContainText('May not change anything');
-    await expect(row.getByRole('button', { name: /^Edit/ })).toBeFocused();
+    await expect(row).toContainText(words.mayNot);
+    await expect(row.getByRole('button', { name: new RegExp(`^${words.edit}`) })).toBeFocused();
 
-    await row.getByRole('button', { name: /^Edit/ }).click();
+    await row.getByRole('button', { name: new RegExp(`^${words.edit}`) }).click();
     await expect(steps).toHaveValue(JSON.stringify(written, null, 2));
     const changed = [{ ...written[0], expect: 'A scan is recorded and its findings are listed' }];
     await steps.focus();
@@ -331,13 +331,13 @@ for (const language of ['en', 'de'] as const) {
     await openDrawer();
     const kept = tasks.locator('[data-task]', { hasText: 'Weekly plan scan' });
     await expect(kept).toContainText('Run a plan of 1 step');
-    await kept.getByRole('button', { name: /^Edit/ }).click();
+    await kept.getByRole('button', { name: new RegExp(`^${words.edit}`) }).click();
     await expect(form.getByLabel(words.steps)).toHaveValue(JSON.stringify(changed, null, 2));
-    await form.getByRole('button', { name: 'Cancel' }).click();
-    await expect(kept.getByRole('button', { name: /^Edit/ })).toBeFocused();
+    await form.getByRole('button', { name: words.cancel }).click();
+    await expect(kept.getByRole('button', { name: new RegExp(`^${words.edit}`) })).toBeFocused();
 
-    await kept.getByRole('button', { name: /^Run now/ }).click();
-    await expect(kept.getByText('Runs on this machine (1)')).toBeVisible({ timeout: LOADED });
+    await kept.getByRole('button', { name: new RegExp(`^${words.runNow}`) }).click();
+    await expect(kept.getByText(words.runs)).toBeVisible({ timeout: LOADED });
     expect(counter.calls).toBe(0);
   });
 }
