@@ -301,7 +301,8 @@ test('de: a bad base URL and a rejected key answer with German recovery wording'
   await endpoint.fill('https://flaky.example.test/v1');
   await connect.click();
   const alert = settings.getByRole('alert');
-  await expect(alert).toContainText('konnte die Schlüsselprüfung nicht beantworten');
+  // The gateway retries the failed check twice before it gives up, so the alert lands past the default deadline.
+  await expect(alert).toContainText('konnte die Schlüsselprüfung nicht beantworten', { timeout: 15_000 });
   await expect(alert).toContainText('Antwort des Anbieters:');
   await expect(alert.locator('bdi')).toContainText('Upstream is overloaded.');
 });
