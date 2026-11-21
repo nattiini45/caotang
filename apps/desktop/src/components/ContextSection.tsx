@@ -128,8 +128,8 @@ function ContextPromptPreview({ view }: { view: ContextPreviewView }): ReactNode
  */
 function ReplyReserve({ services }: { services: AppServices }): ReactNode {
   useLingui();
-  const resolved = services.providers.resolveForRole('chat');
-  const limits = services.providers.limitsForRole('chat');
+  const resolved = services.providers.resolveForRole('chat', 'plan');
+  const limits = services.providers.limitsForRole('chat', 'plan');
   if (resolved === undefined || limits === undefined) return null;
   const name = resolved.profile.name;
   const cap = limits.maxOutputTokens;
@@ -246,7 +246,7 @@ export function ContextSection({ services, session = null }: { services: AppServ
             <button type="button" className="button is-quiet" aria-expanded={showPrompt} onClick={() => setShowPrompt((open) => !open)}>
               {showPrompt ? t`Hide the prompt for a scene` : t`See the prompt for a scene`}
             </button>
-            {showPrompt ? <ContextPromptPreview view={contextPreviewOf(session.state, session.view.activeDocId, draftOf(total, layers), services.providers.limitsForRole('chat'))} /> : null}
+            {showPrompt ? <ContextPromptPreview view={contextPreviewOf(session.state, session.view.activeDocId, draftOf(total, layers), services.providers.limitsForRole('chat', 'plan'))} /> : null}
           </div>
         )}
         <div className="profile-form-actions">

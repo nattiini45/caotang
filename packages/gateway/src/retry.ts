@@ -90,6 +90,9 @@ export function fallbackReasonOf(error: unknown): FallbackReason | undefined {
   if (error.kind === 'rate_limit') return 'rate_limit';
   if (error.kind === 'provider') return error.status === undefined || error.status >= 500 ? 'overloaded' : undefined;
   if (error.kind === 'endpoint') return error.status === 404 ? 'model_gone' : undefined;
+  // A prompt the model's window cannot hold may reach a bigger one on the same route; whether it does is the route's decision,
+  // which holds this reason to destinations whose known window can take the request (§6).
+  if (error.kind === 'context_length') return 'context_length';
   return undefined;
 }
 

@@ -7,7 +7,7 @@ import { _electron, expect, test } from '@playwright/test';
 import type {} from '../src/folder-contract.cjs';
 
 import { dismissDialogs } from './dialogs.js';
-import { closeShell } from './teardown.js';
+import { applicationAnswers, closeShell } from './teardown.js';
 
 const executablePath = createRequire(import.meta.url)('electron') as string;
 const shell = fileURLToPath(new URL('..', import.meta.url));
@@ -66,6 +66,33 @@ test('the sandboxed desktop window opens the built studio and its lazy Settings'
     expect(blockedScript).toBe('script-src-elem');
     expect(await page.evaluate(() => window.open('https://example.invalid/') === null)).toBe(true);
     expect(electron.windows()).toHaveLength(1);
+  } finally {
+    await closeShell(electron);
+  }
+});
+
+test('a teardown of an app that has already gone is not reported as a failure', async () => {
+  const profile = test.info().outputPath('profile');
+  await mkdir(profile, { recursive: true });
+  const electron = await _electron.launch({
+    executablePath,
+    args: [shell, `--user-data-dir=${profile}`],
+    chromiumSandbox: true,
+  });
+  dismissDialogs(electron);
+  try {
+    await electron.firstWindow();
+    // An app that ended on its own — the shell's own `fail()` exits this way — has already emitted its close, so the teardown must
+    // resolve instead of waiting for an event it can no longer hear (#792). The exit is asked for and its reply is not awaited: the
+    // app goes before it can answer, so the process's own exit is what says it has gone.
+    const child = electron.process();
+    void electron.evaluate(({ app }) => { app.exit(0); }).catch(() => undefined);
+    // Both waits are conditions rather than sleeps: the process has exited, and the app no longer answers anything Playwright asks,
+    // which is the state a spec's `finally` finds and the one that used to be reported as a teardown failure.
+    await expect.poll(() => child.exitCode !== null, { timeout: 8_000 }).toBe(true);
+    await expect.poll(() => applicationAnswers(electron), { timeout: 8_000 }).toBe(false);
+
+    await expect(closeShell(electron)).resolves.toBeUndefined();
   } finally {
     await closeShell(electron);
   }

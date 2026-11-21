@@ -158,7 +158,11 @@ export const BUDGET = {
   // folder watch): 1,106,979 bytes. Re-measured on the merge of main at 3b1c6cdc (#782's endpoint origins and #777's
   // role fallbacks, which raised its own pin to 1,099,972 on a tree without the sweep): 1,108,155 bytes. The ceiling is
   // the new measurement plus under 1 kB. [delegated 2026-11-20]
-  initialGzip: 1_109_100,
+  // #85's per-step routing measured 1,109,200 gzip on the merge of main 6e271846's successors once the catalogue sweep landed, 100 bytes
+  // over that. What grew on the first load is the gateway's step resolution and the loader that reads a role's steps, plus the step rows'
+  // labels; the step rows themselves, their model list and their level select sit in the on-use Settings chunk. The ceiling is the
+  // measurement plus 1 kB, #777's smallest step. [bundle-raise rule 2026-11-20]
+  initialGzip: 1_110_200,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -241,10 +245,14 @@ export const BUDGET = {
   // Re-measured on the merge of main at 3b1c6cdc (#782 and #777): 8,885,946 bytes — the +6.3 kB over the earlier
   // measurement is again main's own landed work. Re-measured on the merge of main at 458d4418 (#784's burst judging and
   // #787's per-device key return): 8,886,687 bytes — main's own landed work again. Re-measured on the merge of main at
-  // 558631d6 (#790's shell teardown and #791's turn-sticky fallback): 8,887,734 bytes. Re-measured on the
-  // merge of main at e259d89e (#770's catalogue sweep): 8,888,038 bytes. The ceiling is the new measurement
-  // rounded up to the thousand. [delegated 2026-11-21]
-  totalJs: 8_889_000,
+  // 558631d6 (#790's shell teardown and #791's turn-sticky fallback): 8,887,734 bytes. The ceiling is the new
+  // measurement rounded up to the thousand. [delegated 2026-11-21]
+  // #85's per-step routing measured 8,894,086 bytes on that same merge once this branch's routing, its step rows and their labels were in:
+  // 6,086 over the ceiling above. Checked first and kept: the role row and each step row share one `TargetFields` component instead of two
+  // copies of the model field, the model list and the level select; a step's route rides the gateway's existing single-target send and its
+  // window check reuses `modelLimits`; no dependency was added and no module moved to the first load. The ceiling is the measurement rounded
+  // up to the thousand, as above. [bundle-raise rule 2026-11-20]
+  totalJs: 8_895_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
