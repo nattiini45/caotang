@@ -51,6 +51,19 @@ export const BUNDLE_SERVER = 'server';
  */
 const MCPB_TIMEOUT_MS = 120_000;
 
+/**
+ * The V8 switches every MCPB CLI child runs under.
+ *
+ * `pack` ends with `process.exit(0)` the instant its synchronous deflate of the bundle returns, and V8 compiles in the
+ * background by default: when a compile job is still allocating at that instant it parks in V8's collection barrier, which
+ * only the main thread can serve, while the main thread is inside `process.exit` joining the platform's worker threads. The
+ * two wait on each other, so the child never exits — after writing and printing the whole archive. It was one `pack` in six
+ * and only ever `pack`, because it is the one command that follows seconds of deflate with an immediate exit; `validate` and
+ * `info` do no such work. Compiling on the main thread leaves no job for the exit to wait on, so the child stops when it says
+ * it has.
+ */
+export const MCPB_NODE_FLAGS = Object.freeze(['--single-threaded']);
+
 /** The one switch a manifest must carry for writes: the setting it reads, and the variable it sets from it. */
 export const WRITE_SETTING = 'allow_writes';
 export const WRITE_VARIABLE = 'CAOTANG_MCP_ALLOW_WRITES';
@@ -172,9 +185,10 @@ export function runMcpb(args, options = {}) {
   const cli = options.cli ?? mcpbCliPath();
   const started = Date.now();
   // The CLI's own stdin is closed, never inherited: a child that reads it would otherwise wait for a terminal that a factory
-  // step does not have. The ceiling turns a stall into a line that names the command and what it printed.
+  // step does not have. The ceiling turns a stall into a line that names the command and what it printed. The switches keep
+  // the child's own exit from waiting on a compile job it started in the background (MCPB_NODE_FLAGS).
   const timeout = options.timeoutMs ?? MCPB_TIMEOUT_MS;
-  const result = spawnSync(process.execPath, [cli, ...args], {
+  const result = spawnSync(process.execPath, [...MCPB_NODE_FLAGS, cli, ...args], {
     encoding: 'utf8',
     cwd: options.cwd ?? PACKAGE_DIR,
     stdio: ['ignore', 'pipe', 'pipe'],

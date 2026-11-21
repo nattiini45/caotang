@@ -61,6 +61,47 @@ export async function externalChanges(
   return changed;
 }
 
+/** How many paths one pass reads, so a burst larger than one pass yields to the event loop between passes rather than blocking it. */
+export const READ_PASS = 40;
+
+/**
+ * The known paths whose bytes no longer match the copy, however many were reported: a burst of two hundred files is read in passes
+ * rather than cut off at the first one, so every reported path is judged and the offer counts what actually changed (#775).
+ */
+export async function allExternalChanges(
+  baseline: FolderBaseline,
+  paths: readonly string[],
+  read: ChangedReader,
+): Promise<readonly string[]> {
+  const known = knownChanges(baseline, paths);
+  const changed: string[] = [];
+  for (let index = 0; index < known.length; index += READ_PASS) {
+    changed.push(...await externalChanges(baseline, known.slice(index, index + READ_PASS), read));
+  }
+  return changed;
+}
+
+/**
+ * The changes to offer: the folder's bytes differ from the copy this session holds, and still differ once this session has no write of
+ * its own into the folder outstanding, judged against the copy that write left behind. A save of this tab's own can outlast any fixed
+ * delay on a project of a few hundred documents, so the second read waits on the save itself rather than on a timer (#778).
+ */
+export async function confirmedChanges(
+  paths: readonly string[],
+  copy: () => FolderBaseline | null,
+  read: (target: FolderBaseline) => ChangedReader,
+  writesSettled: () => Promise<void>,
+): Promise<readonly string[]> {
+  const before = copy();
+  if (before === null) return [];
+  const first = await allExternalChanges(before, paths, read(before));
+  if (first.length === 0) return [];
+  await writesSettled();
+  const after = copy();
+  if (after === null) return [];
+  return allExternalChanges(after, first, read(after));
+}
+
 /** How many changed files an offer names before it counts the rest, so a bulk edit does not fill the line. */
 export const NAMED_CHANGES = 3;
 
