@@ -156,6 +156,17 @@ export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 /** The task roles requests are attributed to — provider-gateway §6 records usage per role. */
 export type TaskRole = 'chat' | 'drafting' | 'background';
 
+/**
+ * The kind of step a request is (§6): what the call is for, inside its role. A role may name its own target per step, so a
+ * writer can plan on one model and draft on another without leaving the three roles. `plan` is the agent panel's own planning,
+ * `draft` is prose the agent writes, `summarize` is synopses and other distilling work, `review` is a check or a continuity
+ * review, `utility` is mechanical work such as the encoding review, and `read` is reserved for read-only turns.
+ */
+export type StepClass = 'plan' | 'draft' | 'summarize' | 'review' | 'utility' | 'read';
+
+/** Every step class, in the order the settings screen offers them. */
+export const STEP_CLASSES: readonly StepClass[] = ['plan', 'draft', 'summarize', 'review', 'utility', 'read'];
+
 /** A tool the model may call, declared in each route's own wire shape by the adapter. */
 export interface ToolDef {
   /** The name the model calls it by: the harness name for natives, the qualified name for external tools. */
@@ -362,7 +373,7 @@ export interface ModelLimits {
  * reserving a real request passes the same fields the request will send, so `thinkingTokens` is the excess that
  * request's transmitted cap carries on the route it is sent through.
  */
-export type ModelLimitsRequest = Pick<ChatRequest, 'maxOutputTokens' | 'reasoningBudget' | 'role' | 'cache'>;
+export type ModelLimitsRequest = Pick<ChatRequest, 'maxOutputTokens' | 'reasoningBudget' | 'role' | 'step' | 'cache'>;
 
 export interface ChatRequest {
   messages: ChatMessage[];
@@ -397,6 +408,11 @@ export interface ChatRequest {
   sessionId?: string;
   /** the task role this request runs under; recorded on the ledger row (§6) */
   role?: TaskRole;
+  /**
+   * The kind of step this request is, inside its role (§6). A role may resolve a different target for a step than for the role
+   * itself; a request that names no step resolves the role's own target, exactly as before step routing existed.
+   */
+  step?: StepClass;
   /**
    * Finer attribution inside a turn: which delegated agent made the call (`turn-3/reader#1`). Display and ledger only, it
    * carries no semantics, and `turnId` stays the parent turn's, so the turn's totals sum its children.
@@ -477,6 +493,8 @@ export interface UsageAttribution {
   agentPath?: string;
   /** the task role the usage ran under, for per-role accounting (§6) */
   role?: TaskRole;
+  /** the kind of step the call was, when the caller classified it (§6): the turn rows split by step, day rows stay by role */
+  step?: StepClass;
   at?: number;
 }
 
@@ -488,8 +506,17 @@ export interface UsageAttribution {
  * rule unchanged.
  */
 export interface RoleResolver {
-  resolve(role: TaskRole): RoleResolution | undefined;
-  allowed(role: TaskRole): readonly string[];
+  /**
+   * What a request under `role` resolves to now, for one step: a step the role names its own target for resolves that target as
+   * its primary, with the role's own fallbacks behind it; any other step resolves the role's primary. A resolver that ignores
+   * `step` keeps the role's single destination, so a caller with no per-step choices changes nothing.
+   */
+  resolve(role: TaskRole, step?: StepClass): RoleResolution | undefined;
+  /**
+   * The egress allow-set for a routed request: every profile the role names for that step — its own target, the profiles its
+   * steps name, and its fallbacks — and nothing else.
+   */
+  allowed(role: TaskRole, step?: StepClass): readonly string[];
 }
 
 /** One ordered place a role's calls can go (provider-gateway §6): a profile, and the model and level it defaults to. */
@@ -509,7 +536,11 @@ export interface RoleResolution extends RoleTarget {
 }
 
 /** Why a request moved to its next target. Only these faults are worth another provider (§4, §6). */
-export type FallbackReason = 'rate_limit' | 'overloaded' | 'network' | 'model_gone';
+/**
+ * Why a route moved on from a destination (§6). `context_length` is the one reason that needs a destination which can hold the
+ * request: the route only moves to a later target whose known window is larger than the request needs.
+ */
+export type FallbackReason = 'rate_limit' | 'overloaded' | 'network' | 'model_gone' | 'context_length';
 
 /** A route's destination, as it will be sent (§6): what a caller sizes its admission of the attempt to, and what it remembers. */
 export interface AttemptTarget {

@@ -1084,6 +1084,16 @@ msgstr "{degree, select, least {at least} most {at most} other {about}} {count} 
 msgid "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {word} other {words}} this week"
 msgstr "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {word} other {words}} this week"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "{destination} model"
+msgstr "{destination} model"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "{destination} thinking level"
+msgstr "{destination} thinking level"
+
 #. Modern interface, the + New menu in the top ornament.
 #: apps/desktop/src/components/shell/modern/new-menu.tsx
 msgid "{detail} · opens on desktop"
@@ -1847,18 +1857,8 @@ msgstr "{role} fallback {slot}"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
-msgid "{role} model"
-msgstr "{role} model"
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
 msgid "{role} profile"
 msgstr "{role} profile"
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "{role} thinking level"
-msgstr "{role} thinking level"
 
 #. A root of the picture sweep's inventory, named in the sentence that says why a sweep was refused. key is a document's journal key; root is the name of another root; reason is a sentence.
 #: apps/desktop/src/app/picture-retention-host.ts
@@ -2069,6 +2069,11 @@ msgstr "{span} later"
 #: packages/coherence/src/checks/script.ts
 msgid "coherence.script.cueSpelling"
 msgstr "{spellings} are cued as one character; \"{sceneTitle}\" cues {ownSpellings}"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "{step} profile"
+msgstr "{step} profile"
 
 #. Completed agent steps against the allowed total; values are formatted counts.
 #: apps/desktop/src/app/agent-model.ts
@@ -7883,6 +7888,11 @@ msgstr "Drafting video prompts"
 msgid "Drafting: {done} of {total} done"
 msgstr "Drafting: {done} of {total} done"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Drafts"
+msgstr "Drafts"
+
 #. Background task and Inbox status. Counts describe drafts, calls, tokens or findings; titles and model labels are supplied text.
 #: apps/desktop/src/components/BackgroundTasks.tsx
 msgid "Drafts ready for approval ({count})"
@@ -8001,6 +8011,11 @@ msgstr "Each is shown below as its code in brackets, like ⟦U+200B⟧."
 #: apps/desktop/src/components/Settings.tsx
 msgid "Each kind of call can run on its own profile, model and thinking level. Drafting and background follow the chat choice unless they are pinned; chat with no pin is the active profile."
 msgstr "Each kind of call can run on its own profile, model and thinking level. Drafting and background follow the chat choice unless they are pinned; chat with no pin is the active profile."
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Each kind of step can run on a profile of its own; one left on follow runs wherever the role runs. A step’s request, context included, goes to the profile you pick here."
+msgstr "Each kind of step can run on a profile of its own; one left on follow runs wherever the role runs. A step’s request, context included, goes to the profile you pick here."
 
 #. The transcription review dialog. Interpolated values: file is a stored file name; current and total are the page position; second is the second read's word.
 #: apps/desktop/src/media/TranscriptionReviewDialog.tsx
@@ -8317,6 +8332,11 @@ msgstr "Enables a hook that sends limited task text to the Background provider"
 #: apps/desktop/src/import-preview/text-source.ts
 msgid "Encoding"
 msgstr "Encoding"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Encoding work"
+msgstr "Encoding work"
 
 #. Interpolated values: model, name, provider, total
 #. Interpolated values: model, profile
@@ -9165,6 +9185,11 @@ msgstr "Fold: {lower}, {rest}"
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
 msgid "Folder"
 msgstr "Folder"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Follow {role}"
+msgstr "Follow {role}"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -14010,6 +14035,11 @@ msgstr "Pause"
 msgid "PDF/A-2u, for filing and archives"
 msgstr "PDF/A-2u, for filing and archives"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Per step"
+msgstr "Per step"
+
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Permission mode"
@@ -14362,7 +14392,9 @@ msgstr "Planning"
 msgid "harness.progress.plan.active"
 msgstr "Planning"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/app/agent-model.ts
+#: apps/desktop/src/components/Settings.tsx
 msgid "Planning"
 msgstr "Planning"
 
@@ -15138,6 +15170,11 @@ msgstr "Read-only MCP hooks"
 #: apps/desktop/src/app/agent-model.ts
 msgid "Reader agent"
 msgstr "Reader agent"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Reading"
+msgstr "Reading"
 
 #. Interpolated values: doc
 #. js-lingui-explicit-id
@@ -16288,6 +16325,11 @@ msgstr "Reviewing: extracting {doneCalls} of {totalCalls}"
 #: apps/desktop/src/app/task-model.ts
 msgid "Reviewing: verifying {doneCalls} of {totalCalls}"
 msgstr "Reviewing: verifying {doneCalls} of {totalCalls}"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Reviews"
+msgstr "Reviews"
 
 #: apps/desktop/src/components/GoalRecovery.tsx
 msgid "Reviews cover changed, readable passages, not the full manuscript."
@@ -18681,6 +18723,11 @@ msgstr "Switch to Ask and run this plan"
 #: apps/desktop/src/app/palette-model.ts
 msgid "Switch to the Classic interface"
 msgstr "Switch to the Classic interface"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Synopses"
+msgstr "Synopses"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx

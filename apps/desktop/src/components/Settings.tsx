@@ -16,7 +16,10 @@ import { isolate } from '@caotang/i18n';
 import {
   isLocalBase,
   presetFor,
+  STEP_CLASSES,
+  type ProfileView,
   type RequestLogEntry,
+  type StepClass,
   type TaskRole,
   type ThinkingLevel,
 } from '@caotang/gateway';
@@ -36,6 +39,7 @@ import {
   type RoleRef,
   type RoleSettings,
   type RoleTargetRef,
+  ROLE_STEP_ROWS,
 } from '../app/settings.js';
 import { applyInterface, interfaceStatus, rememberInterface, subscribeInterface, type Interface } from '../app/interface.js';
 import { readModernPreferences, setModernPreference, type ModernPreferences } from '../app/modern-preferences.js';
@@ -200,6 +204,15 @@ const ROLE_NAMES: readonly { readonly id: TaskRole; readonly label: MessageDescr
   { id: 'background', label: msg`Background`, hint: msg`checks, encoding work and plans sent to the background` },
 ];
 
+/** One step's destination as the form holds it: '' fields mean that step follows the role's own choice. */
+interface StepDraft {
+  readonly profileId: string;
+  readonly model: string;
+  readonly thinking: string;
+}
+
+const EMPTY_STEP: StepDraft = { profileId: '', model: '', thinking: '' };
+
 /** A role row as the form holds it: '' fields mean the role's defaults (follow chat; the profile's own model). */
 interface RoleDraft {
   readonly profileId: string;
@@ -207,7 +220,19 @@ interface RoleDraft {
   readonly thinking: string;
   /** The role's fallbacks, in order: at most two, and none until the writer picks one. */
   readonly fallbacks: readonly { readonly profileId: string }[];
+  /** The steps this role routes on its own (provider-gateway §6): a step absent here follows the role's choice. */
+  readonly steps: Readonly<Partial<Record<StepClass, StepDraft>>>;
 }
+
+/** What each step class is for, in the words the row uses (provider-gateway §6). */
+const STEP_NAMES: Readonly<Record<StepClass, MessageDescriptor>> = {
+  plan: msg`Planning`,
+  draft: msg`Drafts`,
+  summarize: msg`Synopses`,
+  review: msg`Reviews`,
+  utility: msg`Encoding work`,
+  read: msg`Reading`,
+};
 
 const EMPTY_FALLBACK = { profileId: '' };
 
@@ -220,18 +245,92 @@ const ROLE_LEVEL_NAMES: Readonly<Record<ThinkingLevel, MessageDescriptor>> = {
   max: msg`Max`,
 };
 
+/**
+ * A destination's model and thinking-level controls, for a role's own choice and for a step's (provider-gateway §6): the model list,
+ * a field with the destination's default as its placeholder, and the level control the model's capability row allows, which the caller
+ * reads for the profile and model it resolved. One component, so a step offers exactly what its role does.
+ */
+function TargetFields({ label, profile, model, thinking, levels, listId, onChange }: {
+  readonly label: string;
+  readonly profile: ProfileView;
+  readonly model: string;
+  readonly thinking: string;
+  readonly levels: readonly ThinkingLevel[];
+  readonly listId: string;
+  readonly onChange: (next: { readonly model: string; readonly thinking: string }) => void;
+}): ReactNode {
+  const preset = presetFor(profile.kind === 'mock' ? 'mock' : profile.preset);
+  return (
+    <>
+      <input
+        aria-label={t`${{ destination: label }} model`}
+        list={listId}
+        placeholder={profile.defaultModel}
+        value={model}
+        onChange={(event) => onChange({ model: event.target.value, thinking })}
+      />
+      <datalist id={listId}>
+        {[...new Set((preset?.models ?? []).filter((row) => !row.pattern.includes('*')).map((row) => row.pattern))].map((modelOption) => (
+          <option key={modelOption} value={modelOption} />
+        ))}
+      </datalist>
+      {/* The model's capability row decides whether a thinking control exists at all: no documented levels,
+          no control (provider-gateway §3 — a level the row does not list is never sent). */}
+      {levels.length > 0 ? (
+        <select
+          aria-label={t`${{ destination: label }} thinking level`}
+          value={levels.includes(thinking as ThinkingLevel) ? thinking : ''}
+          onChange={(event) => onChange({ model, thinking: event.target.value })}
+        >
+          <option value="">{t`Provider default`}</option>
+          {levels.map((level) => (
+            <option key={level} value={level}>
+              {i18n._(ROLE_LEVEL_NAMES[level])}
+            </option>
+          ))}
+        </select>
+      ) : null}
+    </>
+  );
+}
+
 /** The stored routing as the three editable rows carry it: unpinned roles hold an empty draft. */
 function roleDraftsFor(roles: RoleSettings | undefined): Record<TaskRole, RoleDraft> {
+  const stepsOf = (ref: RoleRef): Partial<Record<StepClass, StepDraft>> => {
+    const steps: Partial<Record<StepClass, StepDraft>> = {};
+    for (const step of STEP_CLASSES) {
+      const entry = ref.steps?.[step];
+      if (entry === undefined) continue;
+      steps[step] = { profileId: entry.profileId, model: entry.model ?? '', thinking: entry.thinking ?? '' };
+    }
+    return steps;
+  };
   const draft = (ref: RoleRef | 'follow' | undefined): RoleDraft =>
     ref === undefined || ref === 'follow'
-      ? { profileId: '', model: '', thinking: '', fallbacks: [] }
+      ? { profileId: '', model: '', thinking: '', fallbacks: [], steps: {} }
       : {
           profileId: ref.profileId,
           model: ref.model ?? '',
           thinking: ref.thinking ?? '',
           fallbacks: (ref.fallbacks ?? []).map((target) => ({ profileId: target.profileId })),
+          steps: stepsOf(ref),
         };
   return { chat: draft(roles?.chat), drafting: draft(roles?.drafting), background: draft(roles?.background) };
+}
+
+/** The steps a role routes on its own, as the form writes them: a step left on "follow" is not stored at all. */
+function stepsWritten(draft: RoleDraft): Readonly<Partial<Record<StepClass, RoleTargetRef>>> | undefined {
+  const written: Partial<Record<StepClass, RoleTargetRef>> = {};
+  for (const step of STEP_CLASSES) {
+    const entry = draft.steps[step];
+    if (entry === undefined || entry.profileId === '') continue;
+    written[step] = {
+      profileId: entry.profileId,
+      ...(entry.model.trim() === '' ? {} : { model: entry.model.trim() }),
+      ...(entry.thinking === '' ? {} : { thinking: entry.thinking as ThinkingLevel }),
+    };
+  }
+  return Object.keys(written).length === 0 ? undefined : written;
 }
 
 /** One role's fallbacks as the form writes them: the picked profiles in order, unsaved slots left out. */
@@ -456,11 +555,13 @@ function RolesPanel({ services, onSaved }: { services: AppServices; onSaved: (te
       const profile = profiles.find((entry) => entry.id === draft.profileId);
       if (profile === undefined) return undefined;
       const fallbacks = fallbacksOf(draft);
+      const steps = stepsWritten(draft);
       return {
         profileId: profile.id,
         ...(draft.model.trim() === '' ? {} : { model: draft.model.trim() }),
         ...(draft.thinking === '' ? {} : { thinking: draft.thinking as ThinkingLevel }),
         ...(fallbacks.length === 0 ? {} : { fallbacks }),
+        ...(steps === undefined ? {} : { steps }),
       };
     };
     const chat = ref(drafts.chat);
@@ -501,7 +602,6 @@ function RolesPanel({ services, onSaved }: { services: AppServices; onSaved: (te
           const labelText = i18n._(label);
           const draft = drafts[id];
           const pinned = profiles.find((entry) => entry.id === draft.profileId);
-          const preset = presetFor(pinned?.kind === 'mock' ? 'mock' : pinned?.preset);
           const modelId = draft.model.trim() !== '' ? draft.model.trim() : (pinned?.defaultModel ?? '');
           // The levels the profile resolves to: the row's, with the profile's own request parameters over them.
           const levels = pinned !== undefined && modelId !== '' ? (providers.gateway.modelCaps(pinned.id, modelId).effortLevels ?? []) : [];
@@ -524,37 +624,69 @@ function RolesPanel({ services, onSaved }: { services: AppServices; onSaved: (te
                 ))}
               </select>
               {pinned !== undefined ? (
-                <>
-                  <input
-                    aria-label={t`${{ role: labelText }} model`}
-                    list={`role-models-${id}`}
-                    placeholder={pinned.defaultModel}
-                    value={draft.model}
-                    onChange={(event) => setDrafts({ ...drafts, [id]: { ...draft, model: event.target.value } })}
-                  />
-                  <datalist id={`role-models-${id}`}>
-                    {[...new Set((preset?.models ?? []).filter((row) => !row.pattern.includes('*')).map((row) => row.pattern))].map((modelOption) => (
-                      <option key={modelOption} value={modelOption} />
-                    ))}
-                  </datalist>
-                  {/* The model's capability row decides whether a thinking control exists at all: no documented levels,
-                      no control (provider-gateway §3 — a level the row does not list is never sent). */}
-                  {levels.length > 0 ? (
-                    <select
-                      aria-label={t`${{ role: labelText }} thinking level`}
-                      value={levels.includes(draft.thinking as ThinkingLevel) ? draft.thinking : ''}
-                      onChange={(event) => setDrafts({ ...drafts, [id]: { ...draft, thinking: event.target.value } })}
-                    >
-                      <option value="">{t`Provider default`}</option>
-                      {levels.map((level) => (
-                        <option key={level} value={level}>
-                          {i18n._(ROLE_LEVEL_NAMES[level])}
-                        </option>
-                      ))}
-                    </select>
-                  ) : null}
-                </>
+                <TargetFields
+                  label={labelText}
+                  profile={pinned}
+                  model={draft.model}
+                  thinking={draft.thinking}
+                  levels={levels}
+                  listId={`role-models-${id}`}
+                  onChange={(next) => setDrafts({ ...drafts, [id]: { ...draft, ...next } })}
+                />
               ) : null}
+              {/* Only a pinned role has a destination a step can differ from: an unpinned row's steps would be dropped on save. */}
+              {pinned === undefined || ROLE_STEP_ROWS[id] === undefined ? null : (
+                <details className="role-steps">
+                  <summary>{t`Per step`}</summary>
+                  <p className="muted">
+                    <Trans>
+                      Each kind of step can run on a profile of its own; one left on follow runs wherever the role runs. A step’s request,
+                      context included, goes to the profile you pick here.
+                    </Trans>
+                  </p>
+                  {ROLE_STEP_ROWS[id]?.map((step) => {
+                    const entry = draft.steps[step] ?? EMPTY_STEP;
+                    const stepProfile = profiles.find((profile) => profile.id === entry.profileId);
+                    const stepModel = entry.model.trim() !== '' ? entry.model.trim() : (stepProfile?.defaultModel ?? '');
+                    const stepLevels = stepProfile !== undefined && stepModel !== ''
+                      ? (providers.gateway.modelCaps(stepProfile.id, stepModel).effortLevels ?? [])
+                      : [];
+                    const stepLabel = i18n._(STEP_NAMES[step]);
+                    const update = (next: StepDraft): void => {
+                      setDrafts({ ...drafts, [id]: { ...draft, steps: { ...draft.steps, [step]: next } } });
+                    };
+                    return (
+                      <div className="role-step-row" key={step}>
+                        <span>{stepLabel}</span>
+                        <select
+                          aria-label={t`${{ step: stepLabel }} profile`}
+                          value={entry.profileId}
+                          // Picking a profile resets that step's model and level; leaving follow drops the step's own choice.
+                          onChange={(event) => update(event.target.value === '' ? EMPTY_STEP : { profileId: event.target.value, model: '', thinking: '' })}
+                        >
+                          <option value="">{t`Follow ${{ role: labelText }}`}</option>
+                          {profiles.map((profile) => (
+                            <option key={profile.id} value={profile.id}>
+                              {profile.name}
+                            </option>
+                          ))}
+                        </select>
+                        {stepProfile !== undefined ? (
+                          <TargetFields
+                            label={stepLabel}
+                            profile={stepProfile}
+                            model={entry.model}
+                            thinking={entry.thinking}
+                            levels={stepLevels}
+                            listId={`step-models-${id}-${step}`}
+                            onChange={(next) => update({ ...entry, ...next })}
+                          />
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </details>
+              )}
               <div className="role-fallbacks">
                 <span className="muted">{t`Fallbacks, in order`}</span>
                 {[0, 1].map((slot) => {

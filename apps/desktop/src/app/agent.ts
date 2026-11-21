@@ -959,7 +959,7 @@ export class AgentController {
   async previewRequest(intent: string, options: SubmitOptions = {}): Promise<RequestContextPreview | null> {
     const contextOverrides = copyContext(options.contextOverrides);
     const loop = await this.harnessLoop();
-    const pinned = this.providers.resolveForRole?.('chat');
+    const pinned = this.providers.resolveForRole?.('chat', 'plan');
     const profile = pinned?.profile ?? this.providers.active();
     if (profile === undefined) return null;
     return this.sessionFor('chat', loop).previewRequest(intent, {
@@ -1223,7 +1223,9 @@ export class AgentController {
       // thinking resolve once here and pin the session: a turn cannot change provider mid-flight, and the pinned id is what
       // the loop's capability reads (modelCaps/modelLimits) must see.
       const role = options.role ?? 'chat';
-      const resolved = options.demo === true ? undefined : this.providers.resolveForRole?.(role);
+      // The session pins the destination its *planning* runs on (provider-gateway §6): a writer who routed the planning step
+      // separately gets that destination here, and the turn's other steps resolve through the role's route without it.
+      const resolved = options.demo === true ? undefined : this.providers.resolveForRole?.(role, 'plan');
       const profile: ProfileView | undefined =
         options.demo === true ? await this.providers.demoProfile() : (resolved?.profile ?? this.providers.active());
       if (profile === undefined) {

@@ -72,7 +72,7 @@
 import { preloadAnchorLibraries } from '@caotang/editor';
 import { entryOfCall, err, ok, type CommandError, type Result, type UndoOutcome } from '@caotang/bus';
 import { buildPreview, ContextError, memoryReadable, meterOf, RESERVED_TOKENS, summaryPrefix, type AgentTask, type AssembledPrompt, type ContextMeter, type ContextOverrides, type PromptPreview, type RecentTurn, type SessionSummary } from '@caotang/context';
-import { costOf, estimateTokens, promptTokensOf, ProviderError, redact, textOf, usageFor, type AttemptTarget, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type ModelLimits, type RoleTarget, type RouteHooks, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
+import { costOf, estimateTokens, promptTokensOf, ProviderError, redact, textOf, usageFor, type AttemptTarget, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type ModelLimits, type RoleTarget, type RouteHooks, type StepClass, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
 import { newId } from '@caotang/ids';
 import { SKILL_CATALOG_TOKENS } from '@caotang/skills';
 import { getBody, getRevision, type ProjectState, type RunStatus, type TreeNode } from '@caotang/store';
@@ -178,6 +178,7 @@ import {
   type Completion,
   type FindingsProposal,
   type ModelCall,
+  type ModelCallOptions,
   type SceneProposal,
   type SynopsisDoc,
   type SynopsisProposal,
@@ -694,11 +695,11 @@ interface Turn {
   /** The profile, model and thinking level this turn's calls run on: its own pins over the session's. */
   readonly pins: Pins;
   /**
-   * The destination that answered each role's last request in this turn (provider-gateway §6). A role's next request starts there, so a
-   * fallback that answered is not abandoned one call later; the turn's own area, dropped with it. A pin naming another destination
-   * sends the request to that destination alone and leaves this untouched.
+   * The destination that answered each step's last request in this turn (provider-gateway §6), keyed by its role and step. That step's
+   * next request starts there, so a fallback that answered is not abandoned one call later; the turn's own area, dropped with it. A
+   * pin naming another destination sends the request to that destination alone and leaves this untouched.
    */
-  readonly answeredAt: Map<TaskRole, AttemptTarget>;
+  readonly answeredAt: Map<string, AttemptTarget>;
   /** The interface and project languages as they stood when the turn started: a switch during the turn applies to the next one. */
   readonly languages: LanguagePolicy | undefined;
   /** The phase the turn last reported: what a stop says it happened during. */
@@ -1564,16 +1565,28 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   };
 
   /**
-   * Where a request starts when this turn already saw that role's route move (provider-gateway §6): the destination that answered the
-   * role's last request, as the role's route names it now. A route the writer changed mid-turn, or a profile that is gone, is no
-   * destination, so the request starts at the role's primary again. A request naming a destination of its own carries its pin's
-   * destination untouched, and a stamped request is pinned too.
+   * The limits of the model one call under this role and step is sent to (§6), for assembling its prompt: the step's own
+   * destination when it names one, else the pins' where they still apply, else the role's route.
    */
+  const limitsFor = (turn: Turn, role: TaskRole | undefined, step: StepClass): ModelLimits => {
+    const pins = role === options.role && !stepRouted(role, step) ? turn.pins : undefined;
+    return gateway.modelLimits(pins?.profileId, pins?.model, pins?.thinking, { role, step });
+  };
+
+  /**
+   * Where a request starts when this turn already saw that step's route move (provider-gateway §6): the destination that answered the
+   * step's last request, as the step's route names it now. A route the writer changed mid-turn, or a profile that is gone, is no
+   * destination, so the request starts at the role's primary again. A request naming a destination of its own carries its pin's
+   * destination untouched, and a stamped request is pinned too. The memory is per step, so a draft that moved never takes over the
+   * plan, and a step that was never sent still starts where the writer routed it.
+   */
+  const answeredKey = (role: TaskRole, step: StepClass | undefined): string => (step === undefined ? role : `${role}:${step}`);
+
   const startAtOf = (turn: Turn, request: ChatRequest): RoleTarget | undefined => {
     if (request.role === undefined || request.profileId !== undefined || request.expectedRoute !== undefined) return undefined;
-    const answered = turn.answeredAt.get(request.role);
+    const answered = turn.answeredAt.get(answeredKey(request.role, request.step));
     if (answered === undefined) return undefined;
-    const route = gateway.resolveRoleRoute?.(request.role);
+    const route = gateway.resolveRoleRoute?.(request.role, request.step) ?? gateway.resolveRoleRoute?.(request.role);
     if (route === undefined) return undefined;
     return [route, ...(route.fallbacks ?? [])].find((target) => target.profileId === answered.profileId);
   };
@@ -1619,7 +1632,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const route: RouteHooks = {
       ...(start === undefined ? {} : { startAt: start.profileId }),
       admitAttempt,
-      ...(remembers && routeRole !== undefined ? { answered: (target: AttemptTarget): void => { turn.answeredAt.set(routeRole, target); } } : {}),
+      ...(remembers && routeRole !== undefined ? { answered: (target: AttemptTarget): void => { turn.answeredAt.set(answeredKey(routeRole, request.step), target); } } : {}),
     };
     try {
       for await (const chunk of gateway.complete(request, signal, beforeSend, route)) {
@@ -1666,24 +1679,40 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   };
 
   /**
-   * The one budgeted call site. Every model request a turn makes passes through here, drafts and retries
-   * included, and is counted against the turn's bound before it is sent. The session's role is stamped on the
-   * request here too (provider-gateway §6); the prompt-pack's calls pass 'drafting' for it instead.
+   * Whether a step names a destination of its own (provider-gateway §6): then the session's pins do not apply to that call, because
+   * the writer routed that step deliberately. The plan step is not one: a session's pins are where its planning goes, so a pin keeps
+   * the plan even when the writer set a row for it, and the pin is what the app resolved for that row anyway. A step the role names
+   * no target for is not one either, so a pinned session keeps sending its calls where it did before per-step routing existed.
    */
+  const stepRouted = (role: TaskRole | undefined, step: StepClass | undefined): boolean => {
+    if (role === undefined || step === undefined || step === 'plan') return false;
+    const at = gateway.resolveRoleRoute?.(role, step);
+    const own = gateway.resolveRoleRoute?.(role);
+    return at !== undefined && own !== undefined
+      && (at.profileId !== own.profileId || at.model !== own.model || at.thinking !== own.thinking);
+  };
+
   /**
-   * Whether a turn's own pin names exactly the role's current primary (provider-gateway §6): then the pin is redundant, the
-   * request is routed by its role, and the role's authorised fallbacks may answer. A pin naming anything else is a destination of
-   * its own, and the request is sent there alone.
+   * Whether a turn's own pin names exactly the destination the role's planning runs on (provider-gateway §6): then the pin is
+   * redundant, the request is routed by its role and step, and the role's authorised fallbacks may answer. A pin naming anything
+   * else is a destination of its own, and the request is sent there alone. A session the app pins names the plan step's destination,
+   * so a writer who routed planning to a profile of its own still gets that profile's route, fallbacks included.
    */
   const pinIsRolePrimary = (turn: Turn, role: TaskRole | undefined): boolean => {
     if (role === undefined || role !== options.role || turn.pins.profileId === undefined) return false;
-    const route = gateway.resolveRoleRoute?.(role);
+    const route = gateway.resolveRoleRoute?.(role, 'plan') ?? gateway.resolveRoleRoute?.(role);
     return route !== undefined && route.profileId === turn.pins.profileId
       && (turn.pins.model ?? route.model) === route.model
       && (turn.pins.thinking ?? route.thinking) === route.thinking;
   };
 
-  const modelCall = (turn: Turn, onDelta?: (delta: string) => void, role: TaskRole | undefined = options.role, planner: boolean | 'compaction' = false, hookGuard?: () => void): ModelCall => ({
+  const modelCall = (turn: Turn, choices: ModelCallOptions = {}): ModelCall => {
+    const role = choices.role ?? options.role;
+    const planner = choices.plan ?? false;
+    const onDelta = choices.delta;
+    const hookGuard = choices.hookGuard;
+    const step = choices.step;
+    return {
     gateway: {
       complete: (request, signal) => {
         guardRunLog(turn);
@@ -1693,7 +1722,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           const hit = hitOf(turn, usageOf(turn), true);
           if (hit !== undefined) throw new BudgetExceeded(budgetStop(hit));
         }
-        let asked = { ...request, sessionId: usageSessionId, ...(role === undefined ? {} : { role }) };
+        let asked = { ...request, sessionId: usageSessionId, ...(role === undefined ? {} : { role }), ...(step === undefined ? {} : { step }) };
         // A turn's earlier request under this role may have moved the route (provider-gateway §6): the destination that answered is
         // where this one starts, so its window, cap and price are what the fit, the meter and the reservation are read against.
         const start = startAtOf(turn, asked);
@@ -1748,7 +1777,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // The turn's pins apply to the session's own role only: a call under another role resolves that role's profile, model and
     // thinking at the gateway instead of borrowing the session's. A pin that is the role's own primary is left off, so its
     // authorised fallbacks may answer; anything else is sent to the pinned destination alone.
-    ...(pinIsRolePrimary(turn, role) ? {} : {
+    // A step the writer routed on its own is not the session's destination: the pins name where the panel's planning goes, so they
+    // stand everywhere the step names no destination of its own (§6).
+    ...(pinIsRolePrimary(turn, role) || stepRouted(role, step) ? {} : {
       ...(turn.pins.profileId === undefined || role !== options.role ? {} : { profileId: turn.pins.profileId }),
       ...(turn.pins.model === undefined || role !== options.role ? {} : { model: turn.pins.model }),
       ...(turn.pins.thinking === undefined || role !== options.role ? {} : { thinking: turn.pins.thinking }),
@@ -1758,7 +1789,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // Reasoning has one sink on every call — the panel's collapsed "Thinking" block. A draft's reasoning is the
     // turn's reasoning too: the ghost region gets `draft.delta` prose only, so nothing here lands in the editor.
     onReasoning: (delta) => emit({ type: 'model.reasoning', turnId: turn.id, delta }),
-  });
+  };
+  };
 
   const hookRoute = (profileId?: string): BoundModelHookRoute | undefined => {
     const route = options.modelHookRoute?.();
@@ -1795,7 +1827,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         guard();
         await syncRun(turn, 1, 'running');
         try {
-          const call = modelCall(turn, undefined, 'background', false, guard);
+          const call = modelCall(turn, { role: 'background', hookGuard: guard, step: 'utility' });
           const request: ChatRequest = {
             messages: [...messages],
             turnId: turn.id,
@@ -1914,7 +1946,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * loaded is declared on the very next request.
    */
   const plannerCall = (turn: Turn, maxOutputTokens?: number): ModelCall => {
-    const base = modelCall(turn, undefined, options.role, true);
+    const base = modelCall(turn, { role: options.role, plan: true, step: 'plan' });
     const call = maxOutputTokens === undefined ? base : { ...base, maxOutputTokens };
     if (!turn.native) return call;
     // The declarations keep the turn's first order, and a tool loaded mid-turn joins at the end: the prompt cache keys on the
@@ -2291,7 +2323,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    */
   const promptModel = (turn: Turn) =>
     promptModelOf(
-      async (messages, jsonSchemaHint) => (await complete(modelCall(turn, undefined, 'drafting'), messages, { jsonSchemaHint })).text,
+      async (messages, jsonSchemaHint) => (await complete(modelCall(turn, { role: 'drafting', step: 'draft' }), messages, { jsonSchemaHint })).text,
       turn.pins.model ?? '',
     );
 
@@ -2534,12 +2566,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         ...history,
         task: withSkills(turn, sceneTask(node.value.title, node.value.id, mode, instruction, selection, targetWords, step.params['include_forward_outline'] === true), step.contextOverrides),
         role: sceneRole(targetWords, node.value.kind, mode),
+        limits: limitsFor(turn, options.role, 'draft'),
       });
       turn.dropped.push(...dropLinesOf(call.prompt));
       // The draft streams into its scene's ghost region as the model writes it, and the first delta empties the region (§8).
       const docTitle = String(step.params['doc'] ?? '');
       emit({ type: 'draft.delta', turnId: turn.id, docTitle, delta: '', start: true });
-      const draft = await draftScene(modelCall(turn, (delta) => emit({ type: 'draft.delta', turnId: turn.id, docTitle, delta })), call.messages);
+      const draft = await draftScene(modelCall(turn, { step: 'draft', delta: (delta) => emit({ type: 'draft.delta', turnId: turn.id, docTitle, delta }) }), call.messages);
       if (draft.text.trim() === '') return refusedDraft('the model returned an empty draft for this scene');
       const proposal: SceneProposal = { text: draft.text, words: draft.words, revision, cut: draft.cut, context: call.preview };
       return { ok: true, proposal };
@@ -2557,7 +2590,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const granularity = step.params['granularity'] === 'full-coverage' ? 'full-coverage' : 'key-shots';
       const styleNote = typeof step.params['styleNote'] === 'string' ? step.params['styleNote'] : undefined;
       const reply = await complete(
-        modelCall(turn),
+        modelCall(turn, { step: 'draft' }),
         [
           { role: 'system', content: appendLanguageLine(deriveRole(granularity), turn.languages) },
           { role: 'user', content: deriveUserText(node.value.title, getBody(state, node.value.id), styleNote) },
@@ -2611,12 +2644,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           state: sourceView(state, node.id, source),
           task: withSkills(turn, { tool: 'synopsis.fill', instruction: synopsisInstruction(node, source), focus: node.id }, step.contextOverrides),
           role: synopsisRole(maxWords),
+          limits: limitsFor(turn, options.role, 'summarize'),
         });
         turn.dropped.push(...dropLinesOf(call.prompt));
         docs.push({ id: node.id, messages: call.messages });
         previews.push(call.preview);
       }
-      const batch = await fillSynopses(modelCall(turn), { docs, maxWords });
+      const batch = await fillSynopses(modelCall(turn, { step: 'summarize' }), { docs, maxWords });
       const merged = mergePreviews(previews);
       const proposal: SynopsisProposal = { items: batch.items, cut: batch.cut, ...(merged === undefined ? {} : { context: merged }) };
       return { ok: true, proposal };
@@ -2671,9 +2705,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         ...history,
         task: withSkills(turn, { tool: 'dialogue.draft', instruction: `Brief: ${instruction}`, focus: container.node.id }, step.contextOverrides),
         role: dialogueRole(targetLines),
+        limits: limitsFor(turn, options.role, 'draft'),
       });
       turn.dropped.push(...dropLinesOf(call.prompt));
-      const draft = await draftDialogue(modelCall(turn), call.messages);
+      const draft = await draftDialogue(modelCall(turn, { step: 'draft' }), call.messages);
       if (draft.text === '') return refusedDraft('the model returned an empty draft for this container');
       const checked = dialogueDraftTool(step.params, { state, proposal: { ink: draft.text } });
       if (!checked.ok) return refusedDraft(checked.error.message);
@@ -2710,9 +2745,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       ...history,
       task: { ...continuityTask(scope.map((node) => node.id), aspects), ...((step.contextOverrides ?? turn.contextOverrides) === undefined ? {} : { overrides: step.contextOverrides ?? turn.contextOverrides }) },
       role: continuityRole(aspects),
+      limits: limitsFor(turn, options.role, 'review'),
     });
     turn.dropped.push(...dropLinesOf(call.prompt));
-    const found = await scanContinuity(modelCall(turn), call.messages);
+    const found = await scanContinuity(modelCall(turn, { step: 'review' }), call.messages);
     if (!found.ok) return refusedDraft(found.error);
     const proposal: FindingsProposal = { ...found.value, context: call.preview };
     return { ok: true, proposal };
@@ -3555,7 +3591,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           generationFailure = err(refusal('invalid-params', routeProblem, { target: 'secondRead', correctiveHint: 'choose another vision route, or remove secondRead' }));
         } else {
           try {
-            const primaryCall = modelCall(turn);
+            const primaryCall = modelCall(turn, { step: 'read' });
             let secondModel: ModelCall | undefined;
             if (plan.secondRead !== undefined) {
               const second = plan.secondRead;
@@ -5242,7 +5278,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       await syncRun(turn, 1);
       let reply: Completion;
       try {
-        reply = await complete({ ...modelCall(turn, () => undefined, 'background', 'compaction'), maxOutputTokens: compaction.summaryTokens }, messages, {
+        reply = await complete({ ...modelCall(turn, { role: 'background', plan: 'compaction', delta: () => undefined, step: 'summarize' }), maxOutputTokens: compaction.summaryTokens }, messages, {
           jsonSchemaHint: { type: 'object', properties: Object.fromEntries(fields.map(([key]) => [key, { type: 'string' }])), required: fields.map(([key]) => key), additionalProperties: false },
         });
       } finally { await syncRun(turn, 0); }

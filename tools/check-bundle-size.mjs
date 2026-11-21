@@ -152,7 +152,11 @@ export const BUDGET = {
   // in the on-use trace chunk main had already split out, the removed public `modelFor` gave back its bytes, and no dependency or
   // first-load module was added. The 361 bytes are spread across three chunks, none of them a split or a duplicate: what remains would
   // be the consent sentence the screen must state, or lazy-loading a route the first model call awaits. [bundle-raise rule 2026-11-20]
-  initialGzip: 1_099_972,
+  // #85's per-step routing measured 1,100,100 gzip on this branch's tree once main 3abfb01f was merged, 128 bytes over the 1,099,972 above,
+  // so this follows #777's smallest step: that measurement plus 1 kB. What grew on the first load is the gateway's step resolution and the
+  // stored-route loader that reads a role's steps, plus four catalogue messages; the step rows themselves sit in the on-use Settings chunk.
+  // [bundle-raise rule 2026-11-20]
+  initialGzip: 1_101_100,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -227,7 +231,13 @@ export const BUDGET = {
   // and the Worker load on use. The ceiling is the measurement plus about 1%, rounded up to the thousand. [delegated 2026-11-18]
   // Typed codex details add an atomic, lazy browser-storage upgrade. The shared format predicate and existing open/transaction
   // handlers avoid a second storage implementation; the details editor stays lazy. Measured 8,745,967 bytes with no new dependency.
-  totalJs: 8_834_000,
+  // #85's per-step routing measured 8,837,814 bytes on the tree that merges main 3abfb01f, 3,814 over the 8,834,000 above. Checked first and
+  // kept: the role row and each step row now share one `TargetFields` component instead of two copies of the model field, the model list and
+  // the level select (-400 bytes, and the two can no longer drift apart); a step's route rides the gateway's existing single-target send,
+  // its `context_length` check reuses `modelLimits`, and the step rows, the disclosure and the label table stay in the on-use Settings chunk;
+  // no dependency was added and no module moved to the first load. The ceiling is the measurement plus about 1%, rounded up to the thousand,
+  // which also leaves room for the merges main takes before this branch's sync. [bundle-raise rule 2026-11-20]
+  totalJs: 8_926_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
