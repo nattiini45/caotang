@@ -7,11 +7,12 @@
  * Every sentence is a catalogue message (i18n.md §4.2, I5); the fixed layer names travel inside the sentence's own `select`, so no
  * sentence is assembled from translated fragments.
  */
-/* lingui-set comment="Interpolated values: count, layerId, max, min" */
+/* lingui-set comment="Context budget copy. Interpolated values: answer, thinking, kept, window, sent, allowed, whole, l2, l4, l5, min, max and count are token counts; parts, capWords, windowNote and name complete the sentence; layerId is a layer key." */
 
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { select, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 
 import { DEFAULT_INSTRUCTIONS_BUDGET } from '@caotang/harness';
 
@@ -78,6 +79,7 @@ function draftOf(total: string, layers: Readonly<Record<ContextLayerId, string>>
  * is the budget the writer typed, or the largest the layers add up to.
  */
 function BudgetPreview({ draft }: { draft: ContextSettings }): ReactNode {
+  useLingui();
   const tokens = (id: ContextLayerId, fallback: number): number => draft.layerBudgets[id] ?? fallback;
   const layerTotal = LAYERS.reduce((sum, layer) => sum + tokens(layer.id, layer.fallback), 0);
   const whole = Math.max(draft.totalBudgetTokens ?? 0, layerTotal);
@@ -94,11 +96,12 @@ function BudgetPreview({ draft }: { draft: ContextSettings }): ReactNode {
  * project with neither.
  */
 function InstructionsCap({ view }: { view: AgentInstructionsView }): ReactNode {
+  useLingui();
   if (view.file === null && view.indexTokens === 0) return null;
   return (
     <div data-testid="instructions-cap">
       <p className="muted">
-        This project’s instructions and memory index send {tokensLabel(view.sentTokens)} of the {tokensLabel(view.budget)} the layer allows.
+        <Trans>This project’s instructions and memory index send {{ sent: tokensLabel(view.sentTokens) }} of the {{ allowed: tokensLabel(view.budget) }} the layer allows.</Trans>
       </p>
       {view.capLines.map((line) => (
         <p key={line} className="status-line is-error" role="status">
@@ -124,19 +127,19 @@ function ContextPromptPreview({ view }: { view: ContextPreviewView }): ReactNode
  * provider's default thinking otherwise. It is not part of the prompt's budget.
  */
 function ReplyReserve({ services }: { services: AppServices }): ReactNode {
+  useLingui();
   const resolved = services.providers.resolveForRole('chat', 'plan');
   const limits = services.providers.limitsForRole('chat', 'plan');
   if (resolved === undefined || limits === undefined) return null;
   const name = resolved.profile.name;
   const cap = limits.maxOutputTokens;
   const thinking = limits.thinkingTokens ?? 0;
-  const capWords = resolved.profile.maxOutputTokens === undefined ? `Caotang’s default reply cap, since “${name}” sets none` : `the reply cap of “${name}”`;
-  const parts = thinking > 0 ? `: ${WORDS_OF(cap)} for the answer (${capWords}) and ${WORDS_OF(thinking)} for the thinking the request is sent with` : `, ${capWords}`;
-  const windowNote = limits.contextWindow === undefined ? '' : ` The model’s window is ${WORDS_OF(limits.contextWindow)} tokens.`;
+  const capWords = resolved.profile.maxOutputTokens === undefined ? t`Caotang’s default reply cap, since “${name}” sets none` : t`the reply cap of “${name}”`;
+  const parts = thinking > 0 ? t`: ${{ answer: WORDS_OF(cap) }} for the answer (${capWords}) and ${{ thinking: WORDS_OF(thinking) }} for the thinking the request is sent with` : t`, ${capWords}`;
+  const windowNote = limits.contextWindow === undefined ? '' : t` The model’s window is ${{ window: WORDS_OF(limits.contextWindow) }} tokens.`;
   return (
     <p className="muted" data-testid="context-reserve">
-      Kept for the reply: {WORDS_OF(cap + thinking)} tokens{parts}. The Chat role runs on “{name}”, and the reply is not part of these
-      budgets.{windowNote}
+      {t`Kept for the reply: ${{ kept: WORDS_OF(cap + thinking) }} tokens${parts}. The Chat role runs on “${name}”, and the reply is not part of these budgets.${windowNote}`}
     </p>
   );
 }
@@ -146,6 +149,7 @@ function ReplyReserve({ services }: { services: AppServices }): ReactNode {
  * project's own text and codex. Absent or null, the section shows the budgets without the link.
  */
 export function ContextSection({ services, session = null }: { services: AppServices; session?: ProjectSession | null }): ReactNode {
+  useLingui();
   const current = services.settings.current().context;
   const [total, setTotal] = useState(current.totalBudgetTokens === undefined ? '' : String(current.totalBudgetTokens));
   const [layers, setLayers] = useState<Record<ContextLayerId, string>>(() => {

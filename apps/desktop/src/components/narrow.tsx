@@ -2,10 +2,13 @@
  * The narrow layout's two shared pieces: the hook that says whether the window is narrow, and the notice a desktop-only view shows in
  * its place (ui-modules §0.6). The query is the one styles.css repeats, so the rules and the markup change at the same width.
  */
+/* lingui-set comment="Narrow-window notice. Interpolated values: name is the feature's name, width is the pixel width." */
 
 import { useSyncExternalStore, type ReactNode } from 'react';
+import { t } from '@lingui/core/macro';
+import { useLingui } from '@lingui/react';
 
-import { DESKTOP_FEATURES, NARROW_MAX_WIDTH, NARROW_QUERY, type DesktopFeature } from '../app/narrow-model.js';
+import { NARROW_MAX_WIDTH, NARROW_QUERY, desktopFeature, type DesktopFeature } from '../app/narrow-model.js';
 
 function list(): MediaQueryList | null {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(NARROW_QUERY) : null;
@@ -34,14 +37,15 @@ export function OpenOnDesktop({
   /** A way back to something that works here (the editor), when the view has one. */
   actions?: ReactNode;
 }): ReactNode {
-  const note = DESKTOP_FEATURES[feature];
+  useLingui();
+  const note = desktopFeature(feature);
   return (
-    <section className="empty-state open-on-desktop" aria-label={`Open on desktop: ${note.name}`} data-testid="open-on-desktop" data-feature={feature}>
-      <h2>Open on desktop: {note.name}</h2>
+    <section className="empty-state open-on-desktop" aria-label={t`Open on desktop: ${{ name: note.name }}`} data-testid="open-on-desktop" data-feature={feature}>
+      <h2>{t`Open on desktop: ${{ name: note.name }}`}</h2>
       <div className="empty-text">
         <p>{note.detail}</p>
         <p className="muted">
-          This window is narrower than {NARROW_MAX_WIDTH + 1} px. Open Caotang on a desktop, or in a wider window, to use it.
+          {t`This window is narrower than ${{ width: NARROW_MAX_WIDTH + 1 }} px. Open Caotang on a desktop, or in a wider window, to use it.`}
         </p>
       </div>
       {actions ? <div className="empty-actions">{actions}</div> : null}

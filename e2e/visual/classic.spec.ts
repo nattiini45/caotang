@@ -82,6 +82,8 @@ for (const scheme of ['light', 'dark'] as const) {
       if (tab === 'Findings') await expect(page.getByRole('heading', { name: 'No findings yet', exact: true })).toBeVisible();
       // The Activity panel is a lazy chunk: the shot waits for its list, not its "Loading Activity…" line (#313).
       if (tab === 'Activity') await expect(page.getByRole('list', { name: 'Activity' })).toBeVisible();
+      // The codex's views are lazy chunks too: the shot waits for its search box, not its "Loading the codex…" line.
+      if (tab === 'Codex') await expect(page.getByRole('searchbox', { name: 'Search the codex' })).toBeVisible();
       await shot(page, `classic-${scheme}-${tab.toLowerCase()}`);
     }
     await page.getByRole('tab', { name: 'Binder' }).click();

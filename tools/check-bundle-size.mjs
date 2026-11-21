@@ -129,6 +129,12 @@ export const BUDGET = {
   // messages (+1,254 raw), which must precede first paint (i18n.md §3.3), and the entry's lazy loader for the command (+892 raw). The
   // reader, its preview source and the Worker stay on use. The ceiling is the measurement plus about 1%, rounded up to the thousand.
   // [delegated 2026-11-18]
+  // Codex relations and the project-wide graph (#223) on main at c62c25e1: 1,108,807 bytes gzip measured against main's own 1,107,212,
+  // so +1,595 on a ceiling with 788 bytes of room. Measured by removing each part in turn: the relationEdits validation in the codex
+  // descriptor is 535 bytes (1,108,272 without it) and the panel's List/Graph switch 55 (1,108,699); what is left is the store's read and
+  // write path for the field and the English catalogue, both of which must precede first paint. The entry's Relations section, its editor
+  // dialog, the unreadable-record row, the graph and both stylesheets already load on use. The ceiling is the measurement plus under 1 kB,
+  // not the old one plus 12, so later work gets no free room. [owner 2026-11-19]
   // The first-load diet, measured on main at 77a1e605 which had taken codex relations (#746) and the export settings fix (#760):
   // 1,096,587 bytes gzip against that main's own 1,108,807, so −12,220. On its own base at 9e33899b it measured 1,095,339 against main's
   // own 1,107,274 (−11,935); #746's relations added 1,243 and #760 added 5. Named, per change, as each landed: the toolbar's four panels (project, Skills, agent
@@ -144,19 +150,15 @@ export const BUDGET = {
   // by optimising rather than by taking the space back. All JS is 8,804,463 on the merged tree: 8,786,664 of it this branch's own, the
   // chunk-boundary scaffolding for the new on-use chunks with no module in two of them, against main's 8,769,385 at 9e33899b, and 17,393
   // more from #746's relations field, the list beside its graph and their catalogue. [delegated 2026-11-19]
-  // #777's role fallbacks measured 1,098,948 gzip on the tree that merges main 6e271846, 361 bytes over the 1,098,587 above, so this is
-  // the bundle-raise rule's smallest step: that measurement plus 1 kB. What grew, by where it ships: the ordered route and its
-  // per-destination admission in the entry's gateway code (the harness half rides the on-use harness chunk), the Settings role rows
-  // (their own on-use chunk) and four catalogue messages in the entry's English catalogue. What was checked first and kept: the route
-  // reuses the single-target send rather than a second code path, `BudgetMeter.renew` replaced a second reservation, the trace half is
-  // in the on-use trace chunk main had already split out, the removed public `modelFor` gave back its bytes, and no dependency or
-  // first-load module was added. The 361 bytes are spread across three chunks, none of them a split or a duplicate: what remains would
-  // be the consent sentence the screen must state, or lazy-loading a route the first model call awaits. [bundle-raise rule 2026-11-20]
-  // #85's per-step routing measured 1,100,100 gzip on this branch's tree once main 3abfb01f was merged, 128 bytes over the 1,099,972 above,
-  // so this follows #777's smallest step: that measurement plus 1 kB. What grew on the first load is the gateway's step resolution and the
-  // stored-route loader that reads a role's steps, plus four catalogue messages; the step rows themselves sit in the on-use Settings chunk.
-  // [bundle-raise rule 2026-11-20]
-  initialGzip: 1_101_100,
+  // The i18n catalogue sweep (#328): about 400 hardcoded interface strings moved into the catalogue. The compiled English
+  // catalogue (locale-en, which must precede first paint, i18n.md §3.3) grew 104.8 to 115.1 kB gzip (+10.3 kB) — more than the
+  // sweep's whole first-load delta against the pre-diet main, so the about 590 t/Trans call sites in first-load modules net
+  // slightly negative against the literals they replaced. Re-measured on the merge of main at 6e271846 (which carries the
+  // first-load diet, #746's relations, #740's delegation, #769's codex.read ids, #773's provider key events and #752's
+  // folder watch): 1,106,979 bytes. Re-measured on the merge of main at 3b1c6cdc (#782's endpoint origins and #777's
+  // role fallbacks, which raised its own pin to 1,099,972 on a tree without the sweep): 1,108,155 bytes. The ceiling is
+  // the new measurement plus under 1 kB. [delegated 2026-11-20]
+  initialGzip: 1_109_100,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -231,13 +233,17 @@ export const BUDGET = {
   // and the Worker load on use. The ceiling is the measurement plus about 1%, rounded up to the thousand. [delegated 2026-11-18]
   // Typed codex details add an atomic, lazy browser-storage upgrade. The shared format predicate and existing open/transaction
   // handlers avoid a second storage implementation; the details editor stays lazy. Measured 8,745,967 bytes with no new dependency.
-  // #85's per-step routing measured 8,837,814 bytes on the tree that merges main 3abfb01f, 3,814 over the 8,834,000 above. Checked first and
-  // kept: the role row and each step row now share one `TargetFields` component instead of two copies of the model field, the model list and
-  // the level select (-400 bytes, and the two can no longer drift apart); a step's route rides the gateway's existing single-target send,
-  // its `context_length` check reuses `modelLimits`, and the step rows, the disclosure and the label table stay in the on-use Settings chunk;
-  // no dependency was added and no module moved to the first load. The ceiling is the measurement plus about 1%, rounded up to the thousand,
-  // which also leaves room for the merges main takes before this branch's sync. [bundle-raise rule 2026-11-20]
-  totalJs: 8_926_000,
+  // The i18n catalogue sweep (#328): 8,842,182 bytes measured against 8,786,688 on main (+55,494) — the compiled English catalogue
+  // +27.6 kB raw (first load, required before first paint) and the German catalogue +31.8 kB raw (on use), the fixed cost of
+  // cataloguing the about 400 remaining literals; the call sites net negative. Re-measured on the merge of main at 6e271846
+  // (which carries #746's relations, #740's agent delegation, #769's codex.read ids, #773's provider key events and #752's
+  // folder watch): 8,879,683 bytes — the +5.3 kB over the earlier measurement is main's own landed work, not the sweep's.
+  // Re-measured on the merge of main at 3b1c6cdc (#782 and #777): 8,885,946 bytes — the +6.3 kB over the earlier
+  // measurement is again main's own landed work. Re-measured on the merge of main at 458d4418 (#784's burst judging and
+  // #787's per-device key return): 8,886,687 bytes — main's own landed work again. Re-measured on the merge of main at
+  // 558631d6 (#790's shell teardown and #791's turn-sticky fallback): 8,887,734 bytes. The ceiling is the new
+  // measurement rounded up to the thousand. [delegated 2026-11-21]
+  totalJs: 8_888_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
