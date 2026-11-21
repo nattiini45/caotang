@@ -5,27 +5,53 @@
  * races Playwright's own teardown of the page, and a warning answered with "stay" cancels the unload: the window stays up, the
  * application never quits, and the test spends its whole budget waiting for a close that cannot finish.
  *
- * Asking the main process to exit ends the app without an unload at all. The wait for the process keeps a bound of its own so that an
- * app which will not go reports why in seconds, with the exit request's own answer, rather than as a test timeout.
+ * Asking the main process to exit ends the app without an unload at all. An app that is already gone is nothing to end, and one that
+ * will not go reports why within a bound of its own rather than as a test timeout.
  */
 
 import type { ElectronApplication } from '@playwright/test';
 
-/** How long the application is given to go once the exit is asked for: an exit is immediate, so this is only ever a failure path. */
-const EXIT_MS = 10_000;
+/** How long the app is given to say whether it is still there. An answer is immediate, so this is only ever a stalled app. */
+const PROBE_MS = 2_000;
+/** How long it is given to go once the exit is asked for. An exit is immediate too, so this is only ever an app that will not go. */
+const EXIT_MS = 8_000;
+
+/**
+ * Whether the app still answers. A closed one refuses everything Playwright asks of it — including anything that would tell us it is
+ * closed — so the answer is found by asking it something harmless; an app that does not answer at all is left to the exit below, which
+ * reports it.
+ */
+export async function applicationAnswers(electron: ElectronApplication): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stalled = new Promise<boolean>((resolve) => { timer = setTimeout(() => resolve(true), PROBE_MS); });
+  const probe = Promise.resolve().then(() => electron.evaluate(() => true)).then(() => true, () => false);
+  try {
+    return await Promise.race([probe, stalled]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
 
 /** Ends the application now, and resolves once it has gone. */
 export async function closeShell(electron: ElectronApplication): Promise<void> {
-  const closed = electron.waitForEvent('close', { timeout: EXIT_MS });
-  /** What the exit request came to, or `null` while it has not answered: an app that exits usually answers by closing the connection. */
+  // Heard from before the probe, so an app that goes while it is being asked about is still seen going.
+  const closed = electron.waitForEvent('close').then(() => true, () => true);
+  // A spec reaches its `finally` after whatever it was doing, and an app that ended on its own — the shell's own `fail()` exits that
+  // way — has been gone for a while by then. There is nothing to end, and the failure that ended it is the one worth reporting.
+  if (!await applicationAnswers(electron)) return;
+  /** What the exit request came to, or `null` while it has not answered: an app that exits answers by closing the connection. */
   let request: string | null = null;
-  void electron.evaluate(({ app }) => app.exit(0)).then(
-    () => { request = 'the exit request was answered, but the application did not close'; },
-    (reason: unknown) => { request = `the exit request failed: ${reason instanceof Error ? reason.message : String(reason)}`; },
-  );
+  // Asked for and not awaited: the app goes before the reply can come back, so a reply is not something to wait for.
+  void electron.evaluate(({ app }) => { app.exit(0); }).catch((reason: unknown) => {
+    request = `the exit request failed: ${reason instanceof Error ? reason.message : String(reason)}`;
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<boolean>((resolve) => { timer = setTimeout(() => resolve(false), EXIT_MS); });
   try {
-    await closed;
-  } catch {
-    throw new Error(`The application did not exit within ${EXIT_MS} ms: ${request ?? 'the exit request never answered'}.`);
+    if (!await Promise.race([closed, deadline])) {
+      throw new Error(`The application did not exit within ${EXIT_MS} ms: ${request ?? 'the exit request never answered'}.`);
+    }
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
