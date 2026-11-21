@@ -249,8 +249,8 @@ test('a save in flight holds the form and the rows inert until the write settles
 
 for (const language of ['en', 'de'] as const) {
   const words = language === 'en'
-    ? { newTask: 'New task', taskName: 'Task name', does: 'What it does', when: 'When', onlyMine: 'Only when I run it', may: 'What it may do', nothing: 'Change nothing', plan: 'Run a plan', steps: 'Plan steps', save: 'Save task', open: 'Open', mayNot: 'May not change anything', edit: 'Edit', cancel: 'Cancel', runs: 'Runs on this machine (1)', runNow: 'Run now' }
-    : { newTask: 'Neue Aufgabe', taskName: 'Aufgabenname', does: 'Was es tut', when: 'Wann', onlyMine: 'Nur wenn ich es ausführe', may: 'Was es darf', nothing: 'Nichts ändern', plan: 'Einen Plan ausführen', steps: 'Schritte des Plans', save: 'Aufgabe speichern', open: 'Öffnen', mayNot: 'Darf nichts ändern', edit: 'Bearbeiten', cancel: 'Abbrechen', runs: 'Durchläufe auf diesem Rechner (1)', runNow: 'Jetzt ausführen' };
+    ? { newTask: 'New task', taskName: 'Task name', does: 'What it does', when: 'When', onlyMine: 'Only when I run it', may: 'What it may do', nothing: 'Change nothing', plan: 'Run a plan', steps: 'Plan steps', save: 'Save task', open: 'Open', mayNot: 'May not change anything', edit: 'Edit', cancel: 'Cancel', runs: 'Runs on this machine (1)', runNow: 'Run now', planOf1: 'Run a plan of 1 step' }
+    : { newTask: 'Neue Aufgabe', taskName: 'Aufgabenname', does: 'Was es tut', when: 'Wann', onlyMine: 'Nur wenn ich es ausführe', may: 'Was es darf', nothing: 'Nichts ändern', plan: 'Einen Plan ausführen', steps: 'Schritte des Plans', save: 'Aufgabe speichern', open: 'Öffnen', mayNot: 'Darf nichts ändern', edit: 'Bearbeiten', cancel: 'Abbrechen', runs: 'Durchläufe auf diesem Rechner (1)', runNow: 'Jetzt ausführen', planOf1: 'Einen Plan mit 1 Schritt ausführen' };
   test(`a plan is written, refused when it does not parse, edited and run from the keyboard (${language})`, async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     const counter = { calls: 0 };
@@ -312,7 +312,7 @@ for (const language of ['en', 'de'] as const) {
     await save.focus();
     await page.keyboard.press('Enter');
     const row = tasks.locator('[data-task]', { hasText: 'Weekly plan scan' });
-    await expect(row).toContainText('Run a plan of 1 step');
+    await expect(row).toContainText(words.planOf1);
     await expect(row).toContainText(words.mayNot);
     await expect(row.getByRole('button', { name: new RegExp(`^${words.edit}`) })).toBeFocused();
 
@@ -330,7 +330,7 @@ for (const language of ['en', 'de'] as const) {
     await binderTitle(page, 'Opening').click();
     await openDrawer();
     const kept = tasks.locator('[data-task]', { hasText: 'Weekly plan scan' });
-    await expect(kept).toContainText('Run a plan of 1 step');
+    await expect(kept).toContainText(words.planOf1);
     await kept.getByRole('button', { name: new RegExp(`^${words.edit}`) }).click();
     await expect(form.getByLabel(words.steps)).toHaveValue(JSON.stringify(changed, null, 2));
     await form.getByRole('button', { name: words.cancel }).click();
