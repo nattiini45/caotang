@@ -9,15 +9,12 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { folderArtifactFs } from './fs-access.js';
 import { holdNativeFolderWatch, nativeFolderId, onNativeFolderChange } from './native-folders.js';
+import type { DirectoryHandleLike } from './fs-access.js';
 import type { ProjectSession } from './session.js';
 import type { NativeFolderChange } from '../../../desktop-shell/src/folder-contract.cjs';
 
 /** How long a burst of watcher events settles before the folder is read: one save writes several files, one rename reports two events. */
 const SETTLE_MS = 150;
-/** How long the confirming read waits, so a save of this tab's own that lands mid-read is not mistaken for someone else's edit. */
-const CONFIRM_MS = 200;
-/** How many paths one burst reads: a bulk edit names files faster than they are worth reading one by one. */
-const MAX_READS = 40;
 
 export interface FolderWatch {
   /** The folder files that changed outside Caotang, or `null` when there is nothing to offer. */
@@ -38,22 +35,24 @@ export function useFolderWatch(session: ProjectSession): FolderWatch {
     let pending: string[] = [];
 
     /**
-     * Reads the reported paths twice: the second read decides, once any write of this tab's own has reached the folder. The
-     * comparison loads on the first change, so the website — which has no native folder and no watcher — never fetches it.
+     * Judges every reported path in passes and confirms the differences once this session has no write of its own into the folder
+     * outstanding: a save of this tab advances the copy only as it ends, however long it takes, so its own files are never offered
+     * as another program's edit. The comparison loads on the first change, so the website — which has no native folder and no
+     * watcher — never fetches it.
      */
     const ask = async (paths: readonly string[]): Promise<void> => {
-      const baseline = session.folderBaseline();
-      if (baseline === null) return;
-      const { externalChanges, folderReader } = await import('./folder-watch.js');
+      if (session.folderBaseline() === null) return;
+      const { confirmedChanges, folderReader } = await import('./folder-watch.js');
       // A file the folder no longer holds is an answer; a read that fails for any other reason is a question, and the offer
       // does not answer questions by guessing that the file is gone.
-      const read = (target: typeof baseline) => folderReader((path: string) => folderArtifactFs(target.folder).readBytes(path));
-      const first = await externalChanges(baseline, paths.slice(0, MAX_READS), read(baseline));
-      if (disposed || first.length === 0) return;
-      await new Promise((done) => setTimeout(done, CONFIRM_MS));
-      const now = session.folderBaseline();
-      if (disposed || now === null) return;
-      const settled = await externalChanges(now, first, read(now));
+      const read = (target: { folder: DirectoryHandleLike }) =>
+        folderReader((path: string) => folderArtifactFs(target.folder).readBytes(path));
+      const settled = await confirmedChanges(
+        paths,
+        () => session.folderBaseline(),
+        read,
+        () => session.folderWritesSettled(),
+      );
       if (disposed || settled.length === 0) return;
       setChanged((prior) => [...new Set([...(prior ?? []), ...settled])]);
     };
