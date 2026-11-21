@@ -24,7 +24,7 @@ export { FolderChangedError, NoProjectError } from './folder.js';
 // The types a caller meets on the events, the cards and the reports, so it need not depend on the internal packages to name them.
 export type { AgentEvent, Decision, PendingCard, StepDiff, ToolOutcome, TurnReport } from '@caotang/harness';
 // Replay's own answers, so a caller can read a comparison without depending on the internal packages (§8.1).
-export type { ReplayEstimate, ReplayMode, ReplayResult, ReplayStop, UsageSummary } from '@caotang/harness';
+export type { DraftDiff, ReplayEstimate, ReplayMode, ReplayResult, ReplayStop, UsageSummary } from '@caotang/harness';
 export type { NewProfile, TaskRole, ThinkingLevel } from '@caotang/gateway';
 export type { LoadNotice, ProjectState } from '@caotang/store';
 export type { CommandError, Result, UndoOutcome } from '@caotang/bus';

@@ -225,6 +225,14 @@ describe('replay: a turn against another destination', () => {
 
     expect(projectBytes(run.state)).toBe(run.body);
     expect(result.projectBytes).not.toBe(run.body);
+    // The comparison names the text each side left, which is what the writer reads side by side (§8.1): the project held no synopsis
+    // for this document before the turn, and the replay wrote one.
+    expect(result.drafts.map((diff) => [diff.title, diff.field])).toEqual([['The Storm', 'synopsis']]);
+    expect(result.drafts[0]?.original).toBe('');
+    expect(result.drafts[0]?.replay).toBe('Something else.');
+    expect(result.drafts[0]?.words).toEqual({ original: 0, replay: 2 });
+    // A document neither side changed is not a diff.
+    expect(result.drafts.some((diff) => diff.title === 'The Landing')).toBe(false);
     // The pin reached the request: the replay's own ledger rows name the target profile, never the recording's.
     expect(result.usage.replay.modelCalls).toBeGreaterThan(0);
     expect(target).toBeTruthy();

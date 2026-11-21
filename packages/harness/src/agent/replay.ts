@@ -36,11 +36,12 @@ import {
 } from '@caotang/gateway';
 import { LAYER_NAMES } from '@caotang/context';
 import { createMockProvider, type MockResponse, type MockScript } from '@caotang/gateway/mock';
-import { cloneProjectState, type ProjectState } from '@caotang/store';
+import { cloneProjectState, nodeById, type ProjectState } from '@caotang/store';
 
 import { createHarness, type HarnessOptions } from '../runtime.js';
 import { canonicalJson } from '../util.js';
 import { createContextPort } from './context.js';
+import { wordsOf } from './drafting.js';
 import { DEFAULT_MAX_MODEL_CALLS, type CardRecord, type Decision, type PendingCard, type TurnReport } from './events.js';
 import { projectBytes } from './bytes.js';
 import { createAgentSession } from './loop.js';
@@ -230,6 +231,17 @@ function callAt(calls: readonly RecordedCall[], callIndex: number | undefined): 
   return found;
 }
 
+/** One document's text as each side left it, for the side-by-side the dialog draws (§8.1). */
+export interface DraftDiff {
+  readonly docId: string;
+  readonly title: string;
+  /** `body` is the document's prose; `synopsis` is the binder's synopsis line. */
+  readonly field: 'body' | 'synopsis';
+  readonly original: string;
+  readonly replay: string;
+  readonly words: { readonly original: number; readonly replay: number };
+}
+
 /** A step as either side ran it. */
 export interface StepDiff {
   readonly index: number;
@@ -291,6 +303,8 @@ export interface ReplayResult {
   readonly reply?: { readonly content: string; readonly toolCalls?: readonly unknown[] };
   readonly steps: readonly StepDiff[];
   readonly usage: { readonly original: UsageSummary; readonly replay: UsageSummary };
+  /** The texts that differ between the project the turn started on and the one the replay left, for `turn` and `cassette`. */
+  readonly drafts: readonly DraftDiff[];
   /** The scratch project's bytes after the replay, for `turn` and `cassette`: what "Use this version" would stage. */
   readonly projectBytes?: string;
   readonly stoppedAt?: ReplayStop;
@@ -389,6 +403,37 @@ export function stepDiffs(
     });
   }
   return diffs.filter((diff) => diff.original !== undefined || diff.replay !== undefined);
+}
+
+/**
+ * The texts the two projects disagree about, so a writer can read what the other model would have written (§8.1). A turn's drafts are
+ * its writes, and a write is only visible as the text it left: a document's body, or the synopsis the binder now holds. The comparison
+ * is between the snapshot the turn started on and the scratch copy the replay changed, and a node either side has and the other does
+ * not is reported too, with an empty text on the side that lacks it.
+ */
+export function draftDiffs(before: ProjectState, after: ProjectState): DraftDiff[] {
+  const diffs: DraftDiff[] = [];
+  const ids = new Set([...before.documents.keys(), ...after.documents.keys()]);
+  for (const id of [...ids].sort()) {
+    const original = before.documents.get(id)?.body ?? '';
+    const replay = after.documents.get(id)?.body ?? '';
+    if (original === replay) continue;
+    const title = nodeById(after, id)?.title ?? nodeById(before, id)?.title ?? id;
+    diffs.push({ docId: id, title, field: 'body', original, replay, words: { original: wordsOf(original), replay: wordsOf(replay) } });
+  }
+  for (const node of after.manifest.tree) {
+    if (!('synopsis' in node)) continue;
+    const original = synopsisOf(before, node.id);
+    if (original === node.synopsis) continue;
+    diffs.push({ docId: node.id, title: node.title, field: 'synopsis', original, replay: node.synopsis, words: { original: wordsOf(original), replay: wordsOf(node.synopsis) } });
+  }
+  return diffs;
+}
+
+/** A node's synopsis in a state, or `''` when the node or its synopsis is not there. */
+function synopsisOf(state: ProjectState, id: string): string {
+  const node = state.manifest.tree.find((candidate) => candidate.id === id);
+  return node !== undefined && 'synopsis' in node ? node.synopsis : '';
 }
 
 function sameTools(recorded: readonly string[], card: PendingCard): boolean {
@@ -546,6 +591,8 @@ async function callReplay(request: ReplayRequest, calls: readonly RecordedCall[]
       ...(message.toolCalls === undefined ? {} : { toolCalls: message.toolCalls }),
     },
     steps: [],
+    // A call replay runs no tool, so no document can differ.
+    drafts: [],
     usage: {
       original: recordedUsage([call]),
       replay: usageSummary({ promptTokens: totals.promptTokens, completionTokens: totals.completionTokens }, 1, totals.costUsd),
@@ -651,6 +698,7 @@ async function turnReplay(request: ReplayRequest, calls: readonly RecordedCall[]
         report.costUsd,
       ),
     },
+    drafts: draftDiffs(snapshot, scratch),
     projectBytes: projectBytes(scratch),
     ...(stop === undefined ? {} : { stoppedAt: stop }),
   };
