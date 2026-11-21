@@ -1582,11 +1582,22 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       && (turn.pins.thinking ?? route.thinking) === route.thinking;
   };
 
-  const limitsFor = (turn: Turn, role: TaskRole | undefined, step: StepClass): ModelLimits => {
-    // The same predicate `modelCall` sends with: a step assembled on a destination it will not be sent to would be fitted to the
-    // wrong window, so a pin the send drops is not read here either.
+  /**
+   * The destination a call under `role` and `step` is sent to (provider-gateway §6), read the way `modelCall` reads it: the session's
+   * pins when they apply, else the step's route, else the role's. A card that shows the writer which profile a paid call will use reads
+   * this, so the consent and the request can never name different destinations.
+   */
+  const destinationFor = (turn: Turn, role: TaskRole | undefined, step: StepClass): RoleTarget | undefined => {
     const pins = role === options.role && !(pinIsRolePrimary(turn, role) || stepRouted(role, step)) ? turn.pins : undefined;
-    return gateway.modelLimits(pins?.profileId, pins?.model, pins?.thinking, { role, step });
+    if (pins?.profileId !== undefined) return { profileId: pins.profileId, ...(pins.model === undefined ? {} : { model: pins.model }), ...(pins.thinking === undefined ? {} : { thinking: pins.thinking }) };
+    return gateway.resolveRoleRoute?.(role ?? 'chat', step) ?? gateway.resolveRoleRoute?.(role ?? 'chat');
+  };
+
+  const limitsFor = (turn: Turn, role: TaskRole | undefined, step: StepClass): ModelLimits => {
+    // The destination the call is sent to — never another one: a prompt assembled on a profile it will not reach would be fitted to
+    // the wrong window, so the assembly reads the send's own answer.
+    const at = destinationFor(turn, role, step);
+    return gateway.modelLimits(at?.profileId, at?.model, at?.thinking, { role, step });
   };
 
   /**
@@ -1920,8 +1931,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   }
 
   function transcriptionRoute(turn: Turn, route?: TranscriptionSecondRead): TranscriptionRouteInfo {
-    const profileId = route?.profileId ?? turn.pins.profileId;
-    const model = route?.model ?? turn.pins.model;
+    // The read is the `read` step's call (the card shows that destination, and `runAwaited` sends there), so the card names it.
+    const sent = route === undefined ? destinationFor(turn, options.role, 'read') : undefined;
+    const profileId = route?.profileId ?? sent?.profileId ?? turn.pins.profileId;
+    const model = route?.model ?? sent?.model ?? turn.pins.model;
     const resolved = options.transcriptionRoute?.(profileId, model);
     if (resolved !== undefined) return resolved;
     return {
@@ -2667,7 +2680,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (!planned.ok) return refusedDraft(planned.error.message);
       const routeProblem = secondRouteProblem(turn, planned.value);
       if (routeProblem !== undefined) return refusedDraft(routeProblem);
-      const costs = transcriptionCostAt(planned.value, gateway, turn.pins.profileId, turn.pins.model, turn.pins.thinking);
+      const readAt = destinationFor(turn, options.role, 'read');
+      const costs = transcriptionCostAt(planned.value, gateway, readAt?.profileId ?? turn.pins.profileId, readAt?.model ?? turn.pins.model, readAt?.thinking ?? turn.pins.thinking);
       const primary = transcriptionRoute(turn);
       const second = planned.value.secondRead === undefined ? undefined : transcriptionRoute(turn, planned.value.secondRead);
       return {
