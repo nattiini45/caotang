@@ -170,7 +170,7 @@ describe('property loops (seeded)', () => {
       const master = new SecretKey('master', seededBytes(next, 32));
       expect((await decodeRecoveryKey(await encodeRecoveryKey(master))).export()).toEqual(master.export());
       const kek = await deriveKek(fastKdf, `passphrase ${i}`, generateSalt());
-      expect((await unwrapMasterKey(kek, await wrapMasterKey(kek, master))).export()).toEqual(master.export());
+      expect((await unwrapMasterKey(kek, await wrapMasterKey(kek, master, 'acct_test_one'), 'acct_test_one')).export()).toEqual(master.export());
     }
     expect(generateMasterKey().export()).not.toEqual(generateMasterKey().export());
   });
