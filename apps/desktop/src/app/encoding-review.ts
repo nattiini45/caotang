@@ -28,7 +28,7 @@ import {
   type ProjectState,
 } from '@caotang/store';
 import { bodyStemOf, CODEX_DIR, DOCS_DIR } from '@caotang/store';
-import { textOf, type ProviderGateway, type TaskRole } from '@caotang/gateway';
+import { textOf, type ProviderGateway, type StepClass, type TaskRole } from '@caotang/gateway';
 
 import { encodingFromReply, encodingSystemPrompt, encodingUserPrompt } from './model-prompts.js';
 
@@ -192,7 +192,7 @@ export const ASK_EXCERPT_CHARS = 2000;
 
 /** The narrow piece of the provider service the ask needs: the role's resolution and the gateway it sends through. */
 export interface EncodingAskerSource {
-  resolveForRole(role: TaskRole): { readonly profile: { readonly id: string; readonly kind: string; readonly name: string }; readonly model: string } | undefined;
+  resolveForRole(role: TaskRole, step?: StepClass): { readonly profile: { readonly id: string; readonly kind: string; readonly name: string }; readonly model: string } | undefined;
   readonly gateway: ProviderGateway;
 }
 
@@ -217,20 +217,18 @@ export interface EncodingAsker {
  * the encoding the reply names; nothing it answers is ever written.
  */
 export function encodingAskerFor(providers: EncodingAskerSource): EncodingAsker | null {
-  const resolved = providers.resolveForRole('background');
-  if (resolved === undefined || resolved.profile.kind === 'mock') return null;
-  const profileName = resolved.profile.name;
+  // The ask is one kind of encoding work, so it follows the Background role's utility step (provider-gateway §6): the profile the
+  // consent line names is the one that step resolves to, and the request is routed to it, fallbacks and all, rather than pinned.
   const { gateway } = providers;
-  const model = resolved.model;
-  const profileId = resolved.profile.id;
+  const resolved = providers.resolveForRole('background', 'utility');
+  if (resolved === undefined || resolved.profile.kind === 'mock') return null;
   return {
-    profileName,
+    profileName: resolved.profile.name,
     async ask({ excerpt, candidates }) {
       const reply = await gateway.completeOnce({
         usageTurnId: `encoding-review-${newId('cmd')}`,
         role: 'background',
-        profileId,
-        model,
+        step: 'utility',
         temperature: 0,
         messages: [
           { role: 'system', content: encodingSystemPrompt() },
