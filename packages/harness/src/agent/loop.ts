@@ -1587,10 +1587,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * pins when they apply, else the step's route, else the role's. A card that shows the writer which profile a paid call will use reads
    * this, so the consent and the request can never name different destinations.
    */
-  const destinationFor = (turn: Turn, role: TaskRole | undefined, step: StepClass): RoleTarget | undefined => {
+  const destinationFor = (turn: Turn, role: TaskRole | undefined, step: StepClass): RoleTarget => {
     const pins = role === options.role && !(pinIsRolePrimary(turn, role) || stepRouted(role, step)) ? turn.pins : undefined;
-    if (pins?.profileId !== undefined) return { profileId: pins.profileId, ...(pins.model === undefined ? {} : { model: pins.model }), ...(pins.thinking === undefined ? {} : { thinking: pins.thinking }) };
-    return gateway.resolveRoleRoute?.(role ?? 'chat', step) ?? gateway.resolveRoleRoute?.(role ?? 'chat');
+    // A pin may name only a model or a level, with the profile left to the active one: it still stands for the call.
+    if (pins !== undefined && (pins.profileId !== undefined || pins.model !== undefined || pins.thinking !== undefined)) {
+      return { profileId: pins.profileId ?? '', ...(pins.model === undefined ? {} : { model: pins.model }), ...(pins.thinking === undefined ? {} : { thinking: pins.thinking }) };
+    }
+    return gateway.resolveRoleRoute?.(role ?? 'chat', step) ?? gateway.resolveRoleRoute?.(role ?? 'chat') ?? { profileId: '' };
   };
 
   const limitsFor = (turn: Turn, role: TaskRole | undefined, step: StepClass): ModelLimits => {
