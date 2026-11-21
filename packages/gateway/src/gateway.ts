@@ -779,7 +779,9 @@ export function createGateway(options: GatewayOptions): Gateway {
     });
     const models = adapter.parseModels(json);
     if (models === undefined) {
-      throw new ProviderError('protocol', providerMessages.protocol(hostOf(profile.baseUrl), 'the model list had no data array'));
+      throw new ProviderError('protocol', providerMessages.protocol(hostOf(profile.baseUrl), 'the model list had no data array'), {
+        messageRef: providerRefs.protocol(hostOf(profile.baseUrl), 'the model list had no data array'),
+      });
     }
     reported.set(profile.id, models);
     return models;

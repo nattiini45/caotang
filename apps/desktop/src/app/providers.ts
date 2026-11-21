@@ -738,7 +738,7 @@ function messageOf(error: unknown): string {
 }
 
 /** The display text of a thrown failure: the gateway's fixed text through the catalogue, everything else as thrown. */
-function displayText(error: unknown): string {
+export function displayText(error: unknown): string {
   return error instanceof ProviderError || error instanceof ProfileError ? gatewayText(error) : messageOf(error);
 }
 

@@ -31,7 +31,7 @@ function stringValue(node: ts.Node | undefined): string | undefined {
 }
 
 function propertyName(node: ts.ObjectLiteralElementLike): string | undefined {
-  if (!ts.isPropertyAssignment(node)) return undefined;
+  if (!ts.isPropertyAssignment(node) && !ts.isShorthandPropertyAssignment(node)) return undefined;
   if (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name)) return node.name.text;
   return undefined;
 }

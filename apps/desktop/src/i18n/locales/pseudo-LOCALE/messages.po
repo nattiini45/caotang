@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"POT-Creation-Date: 2026-11-21 20:07+0000\n"
+"POT-Creation-Date: 2026-11-21 20:48+0000\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -50,7 +50,7 @@ msgstr ""
 msgid " (started by you)"
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid " A rule in this project may be keeping the manuscript from the agent."
 msgstr ""
@@ -60,7 +60,7 @@ msgstr ""
 msgid " already in the codex"
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid " Not run, because they are turned off in Settings › Coherence: {skipped}."
 msgstr ""
@@ -165,7 +165,7 @@ msgstr ""
 msgid "coherence.timeline.overlapDay"
 msgstr ""
 
-#. Interpolated values: aTitle, bTitle
+#. Interpolated values: aTitle, bTitle, first, last
 #. js-lingui-explicit-id
 #: packages/coherence/src/checks/timeline.ts
 msgid "coherence.timeline.overlapDays"
@@ -262,13 +262,13 @@ msgstr ""
 msgid "coherence.timeline.orderDriftStrand"
 msgstr ""
 
-#. Interpolated values: lateTitle, earlyTitle
+#. Interpolated values: lateTitle, earlyTitle, days
 #. js-lingui-explicit-id
 #: packages/coherence/src/checks/timeline.ts
 msgid "coherence.timeline.gap"
 msgstr ""
 
-#. Interpolated values: lateTitle, earlyTitle, strand
+#. Interpolated values: lateTitle, earlyTitle, days, strand
 #. js-lingui-explicit-id
 #: packages/coherence/src/checks/timeline.ts
 msgid "coherence.timeline.gapStrand"
@@ -434,13 +434,13 @@ msgstr ""
 msgid "coherence.plot.payoffUnresolved"
 msgstr ""
 
-#. Interpolated values: sceneTitle, folderTitle
+#. Interpolated values: sceneTitle, folderTitle, start, end
 #. js-lingui-explicit-id
 #: packages/coherence/src/checks/timeline.ts
 msgid "coherence.timeline.window"
 msgstr ""
 
-#. Interpolated values: sceneTitle, dependencyTitle
+#. Interpolated values: sceneTitle, dependencyTitle, day, required
 #. js-lingui-explicit-id
 #: packages/coherence/src/checks/timeline.ts
 msgid "coherence.timeline.relation"
@@ -519,13 +519,13 @@ msgstr ""
 msgid "“{title}” reads as the book’s title, so it starts no chapter."
 msgstr ""
 
-#. Interpolated values: folder
+#. Interpolated values: title, folder
 #. js-lingui-explicit-id
 #: packages/store/src/read.ts
 msgid "store.load.recovered"
 msgstr ""
 
-#. Interpolated values: folder
+#. Interpolated values: title, folder
 #. js-lingui-explicit-id
 #: packages/store/src/read.ts
 msgid "store.load.recoveredUnreadable"
@@ -546,6 +546,7 @@ msgstr ""
 msgid "“{value}” is not a {kindWord} of this project:"
 msgstr ""
 
+#. Interpolated values: value
 #. js-lingui-explicit-id
 #: packages/gateway/src/profiles.ts
 msgid "gateway.invalid.thinkingValue"
@@ -1267,7 +1268,7 @@ msgstr ""
 msgid "{count} shots lost their pictures because the files are not in the project. The storyboard names them."
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "{count} tasks are due: {names}."
 msgstr ""
@@ -1667,22 +1668,25 @@ msgstr ""
 msgid "{hiddenLabels, plural, one {# more changed file label is not shown.} other {# more changed file labels are not shown.}}"
 msgstr ""
 
+#. Interpolated values: host
 #. js-lingui-explicit-id
 #: packages/gateway/src/errors.ts
 msgid "gateway.rateLimit"
 msgstr ""
 
+#. Interpolated values: host, excerpt
 #. js-lingui-explicit-id
 #: packages/gateway/src/errors.ts
 msgid "gateway.providerStream"
 msgstr ""
 
-#. Interpolated values: excerpt
+#. Interpolated values: host, status, excerpt
 #. js-lingui-explicit-id
 #: packages/gateway/src/errors.ts
 msgid "gateway.provider"
 msgstr ""
 
+#. Interpolated values: host, excerpt
 #. js-lingui-explicit-id
 #: packages/gateway/src/errors.ts
 msgid "gateway.protocol"
@@ -1879,7 +1883,7 @@ msgstr ""
 msgid "{name} (demo)"
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "{name} cannot run: {problem}"
 msgstr ""
@@ -1915,17 +1919,17 @@ msgstr ""
 msgid "{name} is now placed on the whole item. Undo puts it back under its paragraph."
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "{name} is offered when it is due again."
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "{name} is staging its drafts in the background. They will wait in the Inbox for your review."
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "{name} may start by itself. Its drafts will wait in the Inbox for your review."
 msgstr ""
@@ -2166,6 +2170,7 @@ msgstr ""
 msgid "{plainCount, plural, one {# resource listed by this server.} other {# resources listed by this server.}}"
 msgstr ""
 
+#. Interpolated values: product, fix
 #. js-lingui-explicit-id
 #: packages/gateway/src/errors.ts
 msgid "gateway.localCors"
@@ -2586,6 +2591,11 @@ msgstr ""
 #. Macro panel copy. Interpolated values: name is a macro's name, problem is why it cannot run, step and steps are step numbers and counts.
 #: apps/desktop/src/components/MacrosPanel.tsx
 msgid "{steps, plural, one {# step} other {# steps}}"
+msgstr ""
+
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "{steps, plural, one {Run a plan of # step} other {Run a plan of # steps}}"
 msgstr ""
 
 #. Completed agent steps against the allowed total; values are formatted counts.
@@ -3588,7 +3598,7 @@ msgstr ""
 msgid "A price needs both the prompt price and the reply price, per 1,000 tokens. Fill both, or leave both empty."
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "A project keeps at most {TASKS_LIMIT} tasks."
 msgstr ""
@@ -3636,7 +3646,7 @@ msgstr ""
 msgid "A request’s temperature goes out, even on a model that takes none."
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #. Session restore messages. Interpolated values: reason is why a restore stopped.
 #: apps/desktop/src/app/recurring-tasks.ts
 #: apps/desktop/src/app/session.ts
@@ -3658,7 +3668,7 @@ msgstr ""
 msgid "A rule refuses this review: {reason}"
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #. Session restore messages. Interpolated values: reason is why a restore stopped.
 #: apps/desktop/src/app/recurring-tasks.ts
 #: apps/desktop/src/app/session.ts
@@ -3940,11 +3950,13 @@ msgstr ""
 msgid "About {tokens} of 600 summary tokens. Saving an edit makes no provider call."
 msgstr ""
 
+#. Interpolated values: total, prompt, reply
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/cards.ts
 msgid "harness.plan.costThinking"
 msgstr ""
 
+#. Interpolated values: total, prompt, reply
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/cards.ts
 msgid "harness.plan.cost"
@@ -4229,7 +4241,7 @@ msgstr ""
 msgid "Add model hook"
 msgstr ""
 
-#. Interpolated values: name
+#. Interpolated values: kind, name
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.vocabularyUpsert.content"
@@ -4359,7 +4371,7 @@ msgstr ""
 msgid "Added to the proposed changes. Nothing is written until you apply."
 msgstr ""
 
-#. Interpolated values: name
+#. Interpolated values: kind, name
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.vocabularyUpsert.active"
@@ -4837,7 +4849,7 @@ msgstr ""
 msgid "Another tab has stored newer text for this project, so this tab cannot save. The words here are still on screen."
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "Another task is running. Run this one when it has finished."
 msgstr ""
@@ -6319,6 +6331,7 @@ msgstr ""
 msgid "Change nothing"
 msgstr ""
 
+#. Interpolated values: kind
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.vocabularyUpsert.kind"
@@ -6429,6 +6442,7 @@ msgstr ""
 msgid "harness.progress.instructionsPropose.active"
 msgstr ""
 
+#. Interpolated values: kind
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.vocabularyUpsert.kind.active"
@@ -7394,6 +7408,7 @@ msgstr ""
 msgid "Compile"
 msgstr ""
 
+#. Interpolated values: format
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.exportCompile.content"
@@ -7424,6 +7439,7 @@ msgstr ""
 msgid "Compile…"
 msgstr ""
 
+#. Interpolated values: format
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.exportCompile.active"
@@ -7720,7 +7736,7 @@ msgstr ""
 msgid "Could not be read"
 msgstr ""
 
-#. Interpolated values: reason
+#. Interpolated values: host, reason
 #. js-lingui-explicit-id
 #: packages/gateway/src/errors.ts
 msgid "gateway.network"
@@ -8538,7 +8554,7 @@ msgstr ""
 msgid "store.coherence.discardRun"
 msgstr ""
 
-#. Interpolated values: run
+#. Interpolated values: run, count
 #. js-lingui-explicit-id
 #: packages/store/src/commands-coherence.ts
 msgid "store.coherence.discardRunWithFindings"
@@ -9027,6 +9043,8 @@ msgid "Each spoken line with its id, speaker, text and locale, for translation o
 msgstr ""
 
 #. Interpolated values: calls
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
+#: apps/desktop/src/app/recurring-tasks.ts
 #: apps/desktop/src/components/RecurringTasks.tsx
 msgid "Each time the project opens"
 msgstr ""
@@ -9524,6 +9542,11 @@ msgstr ""
 msgid "Events"
 msgstr ""
 
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "Every {day} from {at}"
+msgstr ""
+
 #. Agent status sentences. Interpolated values: progress, total and cached are counts, call is a call number, cause is a reason.
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/app/agent-model.ts
@@ -9531,7 +9554,7 @@ msgstr ""
 msgid "Every card of the agent’s own tools is approved as shown, inside the turn’s budgets."
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "Every check this scan would run is turned off in Settings › Coherence, so nothing ran."
 msgstr ""
@@ -9539,6 +9562,11 @@ msgstr ""
 #. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx
 msgid "Every day"
+msgstr ""
+
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "Every day from {at}"
 msgstr ""
 
 #: apps/desktop/src/components/GoalComposer.tsx
@@ -10465,7 +10493,9 @@ msgid "Frame"
 msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/footer-model.ts
+#: apps/desktop/src/app/recurring-tasks.ts
 msgid "Friday"
 msgstr ""
 
@@ -10707,6 +10737,7 @@ msgstr ""
 msgid "harness.progress.agentDelegate.bare.content"
 msgstr ""
 
+#. Interpolated values: agent
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.agentDelegate.content"
@@ -10717,6 +10748,7 @@ msgstr ""
 msgid "harness.progress.agentDelegate.bare.active"
 msgstr ""
 
+#. Interpolated values: agent
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.agentDelegate.active"
@@ -11166,12 +11198,13 @@ msgstr ""
 msgid "Imported {scenes, plural, one {# scene} other {# scenes}} and {sections, plural, one {# section} other {# sections}}, with {entries, plural, one {# codex entry} other {# codex entries}}, from {file}."
 msgstr ""
 
+#. Interpolated values: format, scenes, folders
 #. js-lingui-explicit-id
 #: packages/store/src/commands-script.ts
 msgid "store.script.importSummary"
 msgstr ""
 
-#. Interpolated values: entries
+#. Interpolated values: format, scenes, folders, entries
 #. js-lingui-explicit-id
 #: packages/store/src/commands-script.ts
 msgid "store.script.importSummaryCodex"
@@ -11857,6 +11890,7 @@ msgstr ""
 msgid "Kept in this tab only"
 msgstr ""
 
+#. Interpolated values: host
 #. js-lingui-explicit-id
 #: packages/gateway/src/errors.ts
 msgid "gateway.auth"
@@ -12239,7 +12273,7 @@ msgstr ""
 msgid "Limit"
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "Limit model calls to a whole number from 1 to 100."
 msgstr ""
@@ -13095,7 +13129,9 @@ msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/footer-model.ts
+#: apps/desktop/src/app/recurring-tasks.ts
 msgid "Monday"
 msgstr ""
 
@@ -13649,6 +13685,7 @@ msgstr ""
 msgid "No"
 msgstr ""
 
+#. Interpolated values: path, baseUrl
 #. js-lingui-explicit-id
 #: packages/gateway/src/errors.ts
 msgid "gateway.endpoint"
@@ -14037,6 +14074,7 @@ msgstr ""
 msgid "No provider is active. Add one in Settings > Providers to use the agent."
 msgstr ""
 
+#. Interpolated values: profileId
 #. js-lingui-explicit-id
 #: packages/gateway/src/errors.ts
 msgid "gateway.profileNotFound"
@@ -14657,6 +14695,7 @@ msgstr ""
 msgid "Nothing is attached here."
 msgstr ""
 
+#. Interpolated values: product, address
 #. js-lingui-explicit-id
 #: packages/gateway/src/errors.ts
 msgid "gateway.localRefused"
@@ -14715,7 +14754,7 @@ msgstr ""
 msgid "Nothing was opened or changed."
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "Nothing was scanned: no document was open to this scan.{why}"
 msgstr ""
@@ -14880,7 +14919,7 @@ msgstr ""
 msgid "Only a saved, settled turn can be forked."
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "Only an eligible plan set to start by itself can be allowed. Model plans also need a call limit."
 msgstr ""
@@ -14921,6 +14960,11 @@ msgstr ""
 #. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx
 msgid "Only when I run it"
+msgstr ""
+
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "Only when you run it"
 msgstr ""
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
@@ -15988,6 +16032,7 @@ msgstr ""
 msgid "coherence.pov.notNamed"
 msgstr ""
 
+#. Interpolated values: pov
 #. js-lingui-explicit-id
 #: packages/coherence/src/checks/presence.ts
 msgid "coherence.pov.unresolved"
@@ -16254,6 +16299,7 @@ msgstr ""
 msgid "Prompt <0><1/></0>"
 msgstr ""
 
+#. Interpolated values: promptTokens, window
 #. js-lingui-explicit-id
 #: packages/gateway/src/errors.ts
 msgid "gateway.contextLength"
@@ -17435,7 +17481,7 @@ msgstr ""
 msgid "store.coherence.removeKnowledgeFact"
 msgstr ""
 
-#. Interpolated values: fact
+#. Interpolated values: fact, count
 #. js-lingui-explicit-id
 #: packages/store/src/commands-coherence.ts
 msgid "store.coherence.removeKnowledgeFactWithDeclarations"
@@ -18345,7 +18391,9 @@ msgid "Runs on this machine ({runs})"
 msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/footer-model.ts
+#: apps/desktop/src/app/recurring-tasks.ts
 msgid "Saturday"
 msgstr ""
 
@@ -18919,6 +18967,16 @@ msgstr ""
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Scan the manuscript"
+msgstr ""
+
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "Scan the whole manuscript for continuity problems"
+msgstr ""
+
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
+#: apps/desktop/src/app/recurring-tasks.ts
+msgid "Scan what changed since the last scan for continuity problems"
 msgstr ""
 
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
@@ -19978,7 +20036,7 @@ msgstr ""
 msgid "Skipped"
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "Skipped {name}."
 msgstr ""
@@ -19988,7 +20046,7 @@ msgstr ""
 msgid "Skipped {skippedText} empty {skippedCount, plural, one {document} other {documents}}."
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "Skipped by you."
 msgstr ""
@@ -20702,7 +20760,9 @@ msgid "Summary request failed"
 msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/footer-model.ts
+#: apps/desktop/src/app/recurring-tasks.ts
 msgid "Sunday"
 msgstr ""
 
@@ -20869,7 +20929,7 @@ msgstr ""
 msgid "Task due: {name}"
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "Task due: {name}. Run now or Skip."
 msgstr ""
@@ -21205,10 +21265,10 @@ msgstr ""
 msgid "that step"
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "That task is gone."
 msgstr ""
@@ -21218,7 +21278,7 @@ msgstr ""
 msgid "That task is no longer ready to review."
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "That task is running. Delete it when it has finished."
 msgstr ""
@@ -21270,7 +21330,7 @@ msgstr ""
 msgid "The {format} file was not found after it was made."
 msgstr ""
 
-#. Interpolated values: sceneTitle
+#. Interpolated values: kind, sceneTitle
 #. js-lingui-explicit-id
 #: packages/coherence/src/checks/script.ts
 msgid "coherence.script.uncovered"
@@ -21291,11 +21351,13 @@ msgstr ""
 msgid "The {layer} budget of {budget} tokens is full (rank {rank})."
 msgstr ""
 
+#. Interpolated values: name
 #. js-lingui-explicit-id
 #: packages/gateway/src/profiles.ts
 msgid "gateway.invalid.headerChars"
 msgstr ""
 
+#. Interpolated values: name
 #. js-lingui-explicit-id
 #: packages/gateway/src/profiles.ts
 msgid "gateway.invalid.headerEmpty"
@@ -21431,7 +21493,7 @@ msgstr ""
 msgid "The agent is working on another turn. Resume the run when it has finished."
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "The agent is working on another turn. Run the task when it has finished."
 msgstr ""
@@ -21569,46 +21631,56 @@ msgstr ""
 msgid "the backup keeps the full file."
 msgstr ""
 
+#. Interpolated values: example
 #. js-lingui-explicit-id
 #: packages/gateway/src/base-url.ts
 msgid "gateway.invalid.baseUrlFullPath"
 msgstr ""
 
+#. Interpolated values: example
 #. js-lingui-explicit-id
 #: packages/gateway/src/base-url.ts
 msgid "gateway.invalid.baseUrlEmpty"
 msgstr ""
 
+#. Interpolated values: example
 #. js-lingui-explicit-id
 #: packages/gateway/src/base-url.ts
 msgid "gateway.invalid.baseUrlNotUrl"
 msgstr ""
 
+#. Interpolated values: example
 #. js-lingui-explicit-id
 #: packages/gateway/src/base-url.ts
 msgid "gateway.invalid.baseUrlPathless"
 msgstr ""
 
+#. Interpolated values: example
 #. js-lingui-explicit-id
 #: packages/gateway/src/base-url.ts
 msgid "gateway.invalid.baseUrlQuery"
 msgstr ""
 
+#. Interpolated values: example
+#. Interpolated values: example
 #. js-lingui-explicit-id
 #: packages/gateway/src/base-url.ts
 msgid "gateway.invalid.baseUrlCredentials"
 msgstr ""
 
+#. Interpolated values: example
 #. js-lingui-explicit-id
 #: packages/gateway/src/base-url.ts
 msgid "gateway.invalid.baseUrlLocal"
 msgstr ""
 
+#. Interpolated values: example
 #. js-lingui-explicit-id
 #: packages/gateway/src/base-url.ts
 msgid "gateway.invalid.baseUrlHttp"
 msgstr ""
 
+#. Interpolated values: example
 #. js-lingui-explicit-id
 #: packages/gateway/src/base-url.ts
 msgid "gateway.invalid.baseUrlHttps"
@@ -21674,6 +21746,7 @@ msgstr ""
 msgid "The browser decoded this picture to nothing."
 msgstr ""
 
+#. Interpolated values: host
 #. js-lingui-explicit-id
 #: packages/gateway/src/errors.ts
 msgid "gateway.modelListUnreadable"
@@ -22441,6 +22514,7 @@ msgstr ""
 msgid "The key for “{name}” is no longer in this browser, so the profile was not restored. Add it again in Settings."
 msgstr ""
 
+#. Interpolated values: name
 #. js-lingui-explicit-id
 #: packages/gateway/src/errors.ts
 msgid "gateway.missingKey"
@@ -23259,7 +23333,7 @@ msgstr ""
 msgid "The run reached a limit"
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "The run stopped unexpectedly: {error}"
 msgstr ""
@@ -23803,7 +23877,7 @@ msgstr ""
 msgid "The trim did not finish: {error}"
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "The turn did not run."
 msgstr ""
@@ -24525,7 +24599,7 @@ msgstr ""
 msgid "This project has no skills yet."
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "This project has no tasks file to save to."
 msgstr ""
@@ -24821,8 +24895,8 @@ msgstr ""
 msgid "This task changed since you allowed it to start by itself, so it is offered until you allow it again."
 msgstr ""
 
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
-#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "This task changed while its allowance was open. Review it again before allowing it."
 msgstr ""
@@ -24924,7 +24998,9 @@ msgid "Thumbnail size"
 msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/footer-model.ts
+#: apps/desktop/src/app/recurring-tasks.ts
 msgid "Thursday"
 msgstr ""
 
@@ -25314,7 +25390,9 @@ msgid "Trying again"
 msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/footer-model.ts
+#: apps/desktop/src/app/recurring-tasks.ts
 msgid "Tuesday"
 msgstr ""
 
@@ -26087,7 +26165,9 @@ msgid "WebVTT captions — one cue per spoken line, each speaker in a voice span
 msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
+#. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/footer-model.ts
+#: apps/desktop/src/app/recurring-tasks.ts
 msgid "Wednesday"
 msgstr ""
 
@@ -26732,6 +26812,7 @@ msgstr ""
 msgid "Your approval is being processed."
 msgstr ""
 
+#. Interpolated values: product
 #. js-lingui-explicit-id
 #: packages/gateway/src/errors.ts
 msgid "gateway.localDenied"

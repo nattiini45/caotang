@@ -259,8 +259,15 @@ test('correcting the key while the check runs lists the new key\'s models, not t
  * interface catalogue, and a provider's own words stay isolated in the bdi, never translated in place.
  */
 test('de: a bad base URL and a rejected key answer with German recovery wording', { tag: '@i18n' }, async ({ page }) => {
-  await page.route('https://rejected.example.test/v1/**', (route) =>
-    route.fulfill({ status: 401, json: { error: { message: 'The API key was rejected.' } } }));
+  const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, POST, OPTIONS' };
+  await page.route('https://rejected.example.test/v1/**', (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    return route.fulfill({ status: 401, headers: cors, json: { error: { message: 'The API key was rejected.' } } });
+  });
+  await page.route('https://flaky.example.test/v1/**', (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    return route.fulfill({ status: 500, headers: cors, json: { error: { message: 'Upstream is overloaded.' } } });
+  });
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   const settings = page.getByTestId('settings');
@@ -284,12 +291,17 @@ test('de: a bad base URL and a rejected key answer with German recovery wording'
   await connect.click();
   await expect(settings.getByRole('alert')).toContainText('Die Basis-URL ist keine URL.');
 
-  // A host that rejects the key: the cause is translated, the provider's own words stay untouched in the bdi.
+  // A host that rejects the key: the fixed wording lands in German on the key field, where the person fixes it.
   await endpoint.fill('https://rejected.example.test/v1');
   await custom.getByLabel('API-Schlüssel (optional – nur wenn der Endpunkt einen braucht)').fill('test-key');
   await connect.click();
+  await expect(custom).toContainText('hat diesen Schlüssel nicht akzeptiert');
+
+  // A host that fails the key check: the cause is translated, the provider's own words stay untouched in the bdi.
+  await endpoint.fill('https://flaky.example.test/v1');
+  await connect.click();
   const alert = settings.getByRole('alert');
-  await expect(alert).toContainText('hat diesen Schlüssel nicht akzeptiert');
+  await expect(alert).toContainText('konnte die Schlüsselprüfung nicht beantworten');
   await expect(alert).toContainText('Antwort des Anbieters:');
-  await expect(alert.locator('bdi')).toContainText('rejected');
+  await expect(alert.locator('bdi')).toContainText('Upstream is overloaded.');
 });

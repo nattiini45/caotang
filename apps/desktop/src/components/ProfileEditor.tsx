@@ -13,7 +13,7 @@ import { Input } from '@ui-sdk/react/input';
 import { PasswordInput, PasswordInputControl, PasswordInputToggle } from '@ui-sdk/react/password-input';
 import { chooseModels, presetFor, presetForProfile, type ModelChoice, type ProfileView } from '@caotang/gateway';
 
-import { priceClearedBy, priceFromInputs, type ProviderService, type SaveOutcome } from '../app/providers.js';
+import { displayText, priceClearedBy, priceFromInputs, type ProviderService, type SaveOutcome } from '../app/providers.js';
 import { paramsDraftOf, paramsFromDraft } from '../app/request-params-form.js';
 import { AdvancedOverrides, ModelList, type AdvancedDraft } from './ProviderFormParts.js';
 import { useComposingEnter } from './shared.js';
@@ -92,7 +92,7 @@ export function ProfileEditor({
         ...(apiKey === '' ? {} : { apiKey }),
         ...(showAdvanced ? { ...(priceChange === undefined ? {} : { pricePer1k: priceChange }), params: request.params ?? null, temperature: request.temperature ?? null } : {}),
       })
-      .then(onSaved, (failure: unknown) => setError(failure instanceof Error ? failure.message : String(failure)))
+      .then(onSaved, (failure: unknown) => setError(displayText(failure)))
       .finally(() => setBusy(false));
   };
 
