@@ -477,6 +477,16 @@ function textDiff(recorded: string, sent: string): string {
   return `at character ${at}: recorded ${around(recorded)}, sent now ${around(sent)}`;
 }
 
+/**
+ * The text with every untrusted envelope's id masked. The id is a digest of the turn id (context `nonceFor`), and a replay is a turn
+ * of its own, so two ids always differ without any prompt having changed: the comparison reads every other word, and the mask keeps
+ * each side's length so a reported offset still lands where it did.
+ */
+const ENVELOPE_ID = /(<<\\?\/?untrusted\b[^\n]*?)\sid="([A-Za-z0-9]*)"/g;
+function withoutEnvelopeIds(text: string): string {
+  return text.replace(ENVELOPE_ID, (_marker, lead: string, id: string) => `${lead} id="${'*'.repeat(id.length)}"`);
+}
+
 /** Where two requests' messages first differ, as a sentence naming the message and what changed. */
 function firstDifference(recorded: readonly ChatMessage[], sent: readonly ChatMessage[]): string | undefined {
   const count = Math.max(recorded.length, sent.length);
@@ -486,8 +496,8 @@ function firstDifference(recorded: readonly ChatMessage[], sent: readonly ChatMe
     if (was === undefined) return `message ${index + 1} (${now?.role}) is new`;
     if (now === undefined) return `message ${index + 1} (${was.role}) is gone`;
     if (was.role !== now.role) return `message ${index + 1} was a ${was.role} message and is now a ${now.role} message`;
-    const before = textOf(was.content);
-    const after = textOf(now.content);
+    const before = withoutEnvelopeIds(textOf(was.content));
+    const after = withoutEnvelopeIds(textOf(now.content));
     if (before !== after) return `message ${index + 1} (${now.role}) changed ${textDiff(before, after)}`;
     if (canonicalJson(was.toolCalls ?? []) !== canonicalJson(now.toolCalls ?? [])) return `the tool calls of message ${index + 1} changed`;
   }

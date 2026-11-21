@@ -48,8 +48,10 @@ interface Recording {
 }
 
 /** One recorded turn: the mock plans a draft, the prose answers, and the trace is kept as the app keeps it. */
-async function record(options: { readonly reply?: string; readonly native?: boolean } = {}): Promise<Recording> {
+async function record(options: { readonly reply?: string; readonly native?: boolean; readonly instructions?: string } = {}): Promise<Recording> {
   const state = makeState();
+  // A project with an instructions file puts its text inside an untrusted envelope, whose id is a digest of the turn id.
+  if (options.instructions !== undefined) state.agentFiles = { ...state.agentFiles, instructions: { path: 'CAOTANG.md', text: options.instructions } };
   const before = cloneProjectState(state);
   const store = createTraceStore({ sessionId: 'record', project: () => 'The Lighthouse Keeper' });
   // `native` records on the wire a real provider uses, which is the one that declares tools on every request.
@@ -135,6 +137,17 @@ describe('replay: the cassette answers a recorded turn', () => {
     expect(result.stoppedAt?.detail).toContain('Request 1 differs from the recorded one');
     expect(result.stoppedAt?.detail).toContain('message 1');
     expect(result.steps.every((step) => step.replay === undefined)).toBe(true);
+  });
+
+  it('replays a turn whose prompt carries an untrusted envelope, whose id is a digest of the turn being replayed', async () => {
+    const run = await record({ instructions: 'British spelling.' });
+
+    const result = await replay({ mode: 'cassette', source: run.store, turnId: run.turnId, snapshot: run.before, clock: clock.now });
+
+    // The envelope id is the turn's own, and a replay is a new turn: the id is the engine's, never a prompt change to report.
+    expect(result.stoppedAt).toBeUndefined();
+    expect(result.report?.status).toBe('applied');
+    expect(result.projectBytes).toBe(run.body);
   });
 
   it('replays a recording made on the native-tools wire, which is the wire every real provider records on', async () => {
