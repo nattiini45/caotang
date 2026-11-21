@@ -21,6 +21,11 @@
  */
 
 import {
+  createGateway,
+  createKeyStore,
+  createManualClock,
+  createMemoryVaultPort,
+  createProfileStore,
   textOf,
   type ChatMessage,
   type ChatRequest,
@@ -29,13 +34,12 @@ import {
   type ThinkingLevel,
   type Usage,
 } from '@caotang/gateway';
-import type { MockResponse, MockScript } from '@caotang/gateway/mock';
+import { createMockProvider, type MockResponse, type MockScript } from '@caotang/gateway/mock';
 import { cloneProjectState, type ProjectState } from '@caotang/store';
 
 import { createHarness, type HarnessOptions } from '../runtime.js';
 import { canonicalJson } from '../util.js';
 import { createContextPort } from './context.js';
-import { scriptedGateway } from './cassette.js';
 import { DEFAULT_MAX_MODEL_CALLS, type CardRecord, type Decision, type PendingCard, type TurnReport } from './events.js';
 import { projectBytes } from './bytes.js';
 import { createAgentSession } from './loop.js';
@@ -443,6 +447,20 @@ export function cassetteScripts(source: ReplaySource, turnId: string): MockScrip
   return [script];
 }
 
+/**
+ * The mock gateway a cassette answers through: one in-memory profile and the recording's scripts. Built here rather than borrowed from
+ * `cassette.ts`, whose request key hashes with `node:crypto`: the app loads this module through the harness's index, and a Node-only
+ * import anywhere on that path stops the browser build (the replay engine itself is tree-shaken out, but only a module the bundler can
+ * read is).
+ */
+async function cassetteGateway(scripts: readonly MockScript[]): Promise<Gateway> {
+  const clock = createManualClock(0);
+  const keys = createKeyStore(createMemoryVaultPort());
+  const profiles = createProfileStore({ keys });
+  await profiles.create({ name: 'Cassette', kind: 'mock', isActive: true });
+  return createGateway({ profiles, keys, clock, mock: createMockProvider({ scripts: [...scripts] }) });
+}
+
 /** Where two texts first differ, as a sentence that quotes both sides, so a prompt change reads as the words that moved. */
 function textDiff(recorded: string, sent: string): string {
   let at = 0;
@@ -537,7 +555,7 @@ async function turnReplay(request: ReplayRequest, calls: readonly RecordedCall[]
     );
   }
   const gateway =
-    request.mode === 'cassette' ? await scriptedGateway(cassetteScripts(request.source, request.turnId)) : request.gateway;
+    request.mode === 'cassette' ? await cassetteGateway(cassetteScripts(request.source, request.turnId)) : request.gateway;
   if (gateway === undefined) throw new ReplayRefusal('no-target', 'A turn replay needs the gateway to send through.');
   // A cassette answers from the mock's own profile store, so pinning the caller's target there would name a profile it does not hold:
   // the mode's destination is the recording itself, and the target is not used (§8.1).

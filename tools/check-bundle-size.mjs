@@ -252,10 +252,12 @@ export const BUDGET = {
   // copies of the model field, the model list and the level select; a step's route rides the gateway's existing single-target send and its
   // window check reuses `modelLimits`; no dependency was added and no module moved to the first load. The ceiling is the measurement rounded
   // up to the thousand, as above. [bundle-raise rule 2026-11-20]
-  // Replay (#82) measured 8,895.1 kB in CI on the tree that carries it. What grew is the trace's new response-format hint and the
-  // rules check a call replay makes; the replay engine itself is not in the app's bundle at all (tree-shaken out, checked in dist), and
-  // `projectBytes` moved out of the eval runner into its own module so the engine never pulls the runner in. The ceiling is the
-  // measurement rounded up to the next thousand, leaving a kilobyte for the build's own run-to-run noise. [bundle-raise rule 2026-11-20]
+  // Replay (#82) measured 8,895,250 bytes on the merge with main at f96d5fe7, against that tree's own 8,895,064: +186 bytes, and 750
+  // under the ceiling this leaves in place. What grew is the trace's new `responseFormatHint`, which is what lets a call replay send the
+  // schema the recording asked for instead of a made-up one. Checked first and kept: the replay engine itself is not in the app's bundle
+  // (tree-shaken out; none of its names are in `dist`), `projectBytes` moved out of the eval runner into `agent/bytes.ts` so the engine
+  // cannot pull the runner in, and the cassette's scripted gateway was rebuilt inside the engine instead of imported from `cassette.ts`,
+  // whose `node:crypto` key was the one Node-only import the browser build saw. [bundle-raise rule 2026-11-20]
   // The frame's folder-access answer measured 8,895,064 bytes on main at 38d83bce, which measured 8,894,928 on the same build: the change
   // is +136 bytes, and 72 bytes were left under the old ceiling. Checked first and kept: the check is one predicate beside the existing one,
   // it reads the parent's document once and adds no dependency, it lands in a chunk that is already on the first load, and the picker's own
