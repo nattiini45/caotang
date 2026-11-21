@@ -22,6 +22,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import { lstat, mkdir, open, readFile, readdir, realpath, rename, stat, unlink } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
@@ -141,9 +142,14 @@ export class NodeArtifactFs implements ArtifactFs {
    */
   private realRoot: Promise<string> | undefined;
 
-  /** `root` must already exist: the real path of the folder is what containment is checked against. */
+  /**
+   * `root` must already exist: a missing folder is refused here, as `ENOENT`, because callers report that as "the folder could not
+   * be opened" before they read anything. The canonical form is resolved on first use instead of being taken here, so it comes from
+   * the same call the containment check makes (#812).
+   */
   constructor(root: string) {
     this.root = resolve(root);
+    realpathSync(this.root);
   }
 
   private realRootOf(): Promise<string> {

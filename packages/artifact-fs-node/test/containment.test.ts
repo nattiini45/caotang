@@ -57,6 +57,13 @@ describe('NodeArtifactFs containment', () => {
     expect(await fs.read('docs/n_1.md')).toBe('# A scene\n');
   });
 
+  it('refuses a folder that is not there, and says so as ENOENT', () => {
+    // The callers report this as "the folder could not be opened", so it has to happen when the writer is made.
+    expect(() => new NodeArtifactFs(join(tempDir('missing-parent'), 'missing'))).toThrow(
+      expect.objectContaining({ code: 'ENOENT' }) as Error,
+    );
+  });
+
   it('accepts a folder reached through a link, because the link leads to the folder', async () => {
     const real = tempDir('real-root');
     mkdirSync(join(real, 'docs'));
