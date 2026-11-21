@@ -13,6 +13,12 @@ export const BUNDLE_EMOJI_FONT: string;
 export const WRITE_SETTING: string;
 export const WRITE_VARIABLE: string;
 
+/**
+ * The V8 switches every MCPB CLI child runs under: no background compilation, so the child's own `process.exit` after its
+ * synchronous deflate cannot wait on a compile job that is parked until the exit's own thread join finishes.
+ */
+export const MCPB_NODE_FLAGS: readonly string[];
+
 /** Every problem with a manifest for the bundle; an empty list means it is valid. */
 export function manifestProblems(
   manifest: unknown,
