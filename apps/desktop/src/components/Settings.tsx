@@ -44,7 +44,7 @@ import { developerLanguageExposure, languageRevision, subscribeLanguage, switchI
 import { sameLanguageSetting } from '../i18n/catalogues.js';
 import { useFormat } from '../i18n/use-format.js';
 import { readListedLanguages, recordListedLanguages } from '../i18n/listed-languages.js';
-import { activeTag } from '../i18n/runtime.js';
+import { activeTag, preloadCatalogues } from '../i18n/runtime.js';
 import { guideHref } from '../i18n/guide-links.js';
 import { languageChoices, type InterfaceLanguageStats } from '../i18n/picker.js';
 import languageStats from '../i18n/locales/stats.json';
@@ -127,6 +127,11 @@ export function Settings({
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const narrow = useNarrow();
   useModalDialog(ref);
+  // The language picker lives here; warm the lazy catalogues while the writer reads the sections, so a
+  // choice resolves from the module cache instead of waiting on a cold download (i18n.md §3.3).
+  useEffect(() => {
+    void preloadCatalogues();
+  }, []);
 
   return (
     <Modal
