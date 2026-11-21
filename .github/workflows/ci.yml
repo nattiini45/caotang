@@ -13,7 +13,8 @@
 #     sharded reports and also runs nightly/on demand.
 #   - `verify (Windows)` runs the same `pnpm verify` gate on windows-latest (#812). It is its own job rather than a leg of
 #     `verify`, so it reports instead of blocking until the suite is green on that runner; the desktop release job runs the same
-#     gate on Windows, so a red suite there stops a release.
+#     gate on Windows, so a red suite there stops a release. It leaves out the two sync-server suites that boot a Miniflare Worker
+#     runtime per case, which is too slow for that runner until they share one (#815); the job's own name says so.
 #   - `office-interop` and `pdf-validate` remain separate Node 24 jobs and run alongside the PR gate.
 #   - `pnpm verify` runs lint, typecheck and the vitest suites (packages/ and test/), once and on Node 24. The desktop's pure model
 #     specs live in e2e/unit as Playwright specs, so they run under `pnpm test:e2e`, not under `pnpm verify`.
@@ -201,7 +202,9 @@ jobs:
       - name: Install (frozen lockfile, strict engines)
         run: pnpm install --frozen-lockfile --engine-strict
 
-      - name: Lint, typecheck and every unit suite
+      - name: Lint, typecheck and every unit suite, less the two Worker suites (#815)
+        env:
+          CAOTANG_SKIP_WORKER_SUITES: '1'
         run: pnpm verify
 
   e2e:
