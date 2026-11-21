@@ -24764,6 +24764,11 @@ msgstr "Dieser Zug"
 msgid "This turn belongs to a goal. Resume the goal instead."
 msgstr "Dieser Durchlauf gehört zu einem Ziel. Setzen Sie stattdessen das Ziel fort."
 
+#. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
+#: apps/desktop/src/components/ReplayDialog.tsx
+msgid "This turn cannot be replayed yet. Its recorded start is kept only while traces are on, and the turn and recorded-answer modes also need one. Turn traces on, run a turn, then open it here."
+msgstr ""
+
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 #: apps/desktop/src/app/replay-run.ts

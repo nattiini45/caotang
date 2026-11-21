@@ -35,15 +35,10 @@ describe('the modes a turn is offered in', () => {
     expect(defaultMode(offers)).toBe('call');
   });
 
-  it('says why a turn with no starting state cannot be re-run, and does not offer it', () => {
+  it('says why a turn with no starting state cannot be re-run, and offers no mode at all', () => {
     const offers = modeOffers({ hasCall: true, hasSnapshot: false, hasDestination: true });
     expect(offers.map((offer) => offer.mode)).toEqual(['call', 'turn', 'cassette']);
-    expect(offers[0]?.refused).toBeUndefined();
-    // A call replay needs no project state: it re-sends a recorded request.
-    expect(offers[1]?.refused).toContain('Turn traces on');
-    expect(offers[2]?.refused).toContain('Turn traces on');
-    // The cassette still needs one, so the dialog opens on the only offer that stands.
-    expect(defaultMode(offers)).toBe('call');
+    for (const offer of offers) expect(offer.refused).toContain('Turn traces on');
   });
 
   it('offers a cassette with no provider saved, because it answers from the recording and costs nothing', () => {
@@ -60,6 +55,14 @@ describe('the modes a turn is offered in', () => {
     expect(offers[0]?.refused).toContain('No provider is saved');
     // A call replay needs no starting state, so its own reason is the only one it gives.
     expect(offers[0]?.refused).not.toContain('Turn traces on');
+  });
+
+  it('refuses every mode without the starting state, the call mode included, because the engine checks the rules on it', () => {
+    // The app always supplies the project's rules, and the engine refuses a call replay without a state to check a recorded prompt
+    // against them (#819): offering one would guarantee a refusal at the end of a run the writer already paid for.
+    const offers = modeOffers({ hasCall: true, hasSnapshot: false, hasDestination: true });
+    expect(offers.map((offer) => [offer.mode, offer.refused === undefined])).toEqual([['call', false], ['turn', false], ['cassette', false]]);
+    expect(offers[0]?.refused).toContain('Turn traces on');
   });
 
   it('gives a call replay its own reason when the recording kept no whole request, even with a provider saved', () => {

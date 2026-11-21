@@ -123,15 +123,22 @@ export interface ReplayDialogProps {
   /** Runs the replay. */
   readonly onRun: (mode: ReplayMode, destination: ReplayDestination | undefined) => Promise<ReplayOutcome>;
   readonly onClose: () => void;
+  /** Where focus goes when the dialog closes: the Replay… button that opened it, as every dialog in the app returns it. */
+  readonly finalFocus?: () => HTMLElement | null;
 }
 
-export function ReplayDialog({ turn, profiles, hasSnapshot, hasCall, onEstimate, onRun, onClose }: ReplayDialogProps): ReactNode {
+export function ReplayDialog({ turn, profiles, hasSnapshot, hasCall, onEstimate, onRun, onClose, finalFocus }: ReplayDialogProps): ReactNode {
   useLingui();
   const cancel = useRef<HTMLButtonElement>(null);
   const destinations = useMemo(() => destinationsOf(profiles), [profiles]);
   const offers = useMemo(() => modeOffers({ hasCall, hasSnapshot, hasDestination: destinations.length > 0 }), [hasCall, hasSnapshot, destinations.length]);
-  const [mode, setMode] = useState<ReplayMode>(() => defaultMode(offers));
-  const [profileId, setProfileId] = useState<string | null>(() => destinations[0]?.profileId ?? null);
+  // What the writer picked, remembered with the turn it was picked for: a mode chosen on one turn is not this turn's, and the dialog
+  // opens on the first mode this recording can actually run (#819).
+  const [picked, setPicked] = useState<{ readonly turnId: string | null; readonly mode?: ReplayMode; readonly profileId?: string | null }>({ turnId: null });
+  const mode = picked.turnId === (turn?.turnId ?? null) && picked.mode !== undefined ? picked.mode : defaultMode(offers);
+  const profileId = picked.turnId === (turn?.turnId ?? null) && picked.profileId !== undefined ? picked.profileId : destinations[0]?.profileId ?? null;
+  const setMode = (next: ReplayMode): void => setPicked({ turnId: turn?.turnId ?? null, mode: next, ...(profileId === null ? {} : { profileId }) });
+  const setProfileId = (next: string | null): void => setPicked({ turnId: turn?.turnId ?? null, mode, profileId: next });
   const [estimate, setEstimate] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -139,6 +146,8 @@ export function ReplayDialog({ turn, profiles, hasSnapshot, hasCall, onEstimate,
 
   const destination = destinations.find((entry) => entry.profileId === profileId) ?? destinations[0];
   const offered = offers.find((offer) => offer.mode === mode);
+  // Nothing this turn can be replayed in: say so once, plainly, instead of opening on a mode that is checked and disabled.
+  const runnable = offers.filter((offer) => offer.refused === undefined);
 
   const reset = (): void => {
     setEstimate(null);
@@ -175,7 +184,12 @@ export function ReplayDialog({ turn, profiles, hasSnapshot, hasCall, onEstimate,
 
   return (
     <Dialog open={turn !== null} onOpenChange={(open) => { if (!open && !running) close(); }}>
-      <DialogContent container={typeof document === 'undefined' ? undefined : document.body} className="confirm replay-dialog" initialFocus={() => cancel.current}>
+      <DialogContent
+        container={typeof document === 'undefined' ? undefined : document.body}
+        className="confirm replay-dialog"
+        initialFocus={() => cancel.current}
+        {...(finalFocus === undefined ? {} : { finalFocus })}
+      >
         <div className="confirm-body" aria-busy={running}>
           <DialogTitle>
             <Trans>Replay this turn</Trans>
@@ -189,6 +203,11 @@ export function ReplayDialog({ turn, profiles, hasSnapshot, hasCall, onEstimate,
             </Trans>
           </p>
 
+          {runnable.length === 0 ? (
+            <p className="form-message" role="status" data-testid="replay-unavailable">
+              <Trans>This turn cannot be replayed yet. Its recorded start is kept only while traces are on, and the turn and recorded-answer modes also need one. Turn traces on, run a turn, then open it here.</Trans>
+            </p>
+          ) : null}
           <fieldset className="replay-modes">
             <legend>
               <Trans>What to replay</Trans>
@@ -248,7 +267,7 @@ export function ReplayDialog({ turn, profiles, hasSnapshot, hasCall, onEstimate,
             <button
               type="button"
               className="button is-quiet"
-              disabled={running || offered?.refused !== undefined}
+              disabled={running || runnable.length === 0 || offered?.refused !== undefined}
               onClick={() => estimator(mode, mode === 'cassette' ? undefined : destination)}
             >
               <Trans>What it would cost</Trans>
@@ -256,7 +275,7 @@ export function ReplayDialog({ turn, profiles, hasSnapshot, hasCall, onEstimate,
             <button
               type="button"
               className="button is-primary"
-              disabled={running || estimate === null || problem !== null || (mode !== 'cassette' && destination === undefined)}
+              disabled={running || estimate === null || problem !== null || runnable.length === 0 || (mode !== 'cassette' && destination === undefined)}
               onClick={() => void run()}
             >
               {running ? t`Replaying…` : t`Replay`}

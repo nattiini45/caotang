@@ -11,7 +11,7 @@
 import { plural, t } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
 
 import { TRACE_REVIEWS, type SourcedRule, type TraceTurn } from '@caotang/harness';
 
@@ -214,7 +214,7 @@ function Rows({ rows, spanMs }: { rows: readonly TraceRow[]; spanMs: number }): 
 const turnName = (turn: TraceTurn): string => (turn.turnId === TRACE_REVIEWS ? t`Reviews` : turn.intent === '' ? turn.turnId : turn.intent);
 
 /** A turn of the trace: its head always, and its timeline while it is open (only one turn is built at a time). */
-function TurnBlock({ turn, timeline, onToggle, onReplay }: { turn: TraceTurn; timeline: TraceTimeline | null; onToggle: () => void; onReplay?: () => void }): ReactNode {
+function TurnBlock({ turn, timeline, onToggle, onReplay, replayButton }: { turn: TraceTurn; timeline: TraceTimeline | null; onToggle: () => void; onReplay?: () => void; replayButton?: RefObject<HTMLButtonElement | null> }): ReactNode {
   useLingui();
   const bodyId = useId();
   const open = timeline !== null;
@@ -237,7 +237,7 @@ function TurnBlock({ turn, timeline, onToggle, onReplay }: { turn: TraceTurn; ti
         {timeline === null ? null : <Rows rows={timeline.rows} spanMs={timeline.spanMs} />}
         {onReplay === undefined ? null : (
           <div className="trace-turn-actions">
-            <button type="button" className="button is-quiet" onClick={onReplay} data-testid="trace-replay">
+            <button ref={replayButton} type="button" className="button is-quiet" onClick={onReplay} data-testid="trace-replay">
               <Trans>Replay…</Trans>
             </button>
           </div>
@@ -332,6 +332,8 @@ export function TracePanel({ services, session, projectName }: { services: AppSe
   const [exporting, setExporting] = useState(false);
   // The turn the Replay… dialog is open on (null when it is closed), and what the app's services hold for it.
   const [replaying, setReplaying] = useState<TraceTurn | null>(null);
+  /** The Replay… button of the turn the dialog is open on, so focus returns there when it closes. */
+  const replayButton = useRef<HTMLButtonElement | null>(null);
 
   const turns = trace.store.turns();
   // Newest first, with the reviews group (always last in the store) at the bottom.
@@ -411,7 +413,7 @@ export function TracePanel({ services, session, projectName }: { services: AppSe
               timeline={turn.turnId === current ? timeline : null}
               onToggle={() => setOpened(turn.turnId === current ? null : turn.turnId)}
               // The reviews group holds the calls made outside a turn, which is not a turn to replay (§8.1).
-              {...(turn.turnId === TRACE_REVIEWS ? {} : { onReplay: () => setReplaying(turn) })}
+              {...(turn.turnId === TRACE_REVIEWS ? {} : { onReplay: () => setReplaying(turn), replayButton })}
             />
           ))}
         </ol>
@@ -458,6 +460,7 @@ export function TracePanel({ services, session, projectName }: { services: AppSe
           };
         }}
         onClose={() => setReplaying(null)}
+        finalFocus={() => replayButton.current}
       />
     </div>
   );

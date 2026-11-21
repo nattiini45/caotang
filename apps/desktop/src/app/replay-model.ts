@@ -69,9 +69,9 @@ export interface ReplayDraftRow {
 const MODE_ORDER: readonly ReplayMode[] = ['call', 'turn', 'cassette'];
 
 /**
- * The modes this turn can be replayed in. A call replay re-sends one recorded request, so it needs a request the recording kept whole;
- * a turn replay needs the project as the turn found it, which the app keeps only while traces are on, and a destination to run on;
- * a cassette needs that same starting state and nothing else.
+ * The modes this turn can be replayed in. A call replay re-sends one recorded request, so it needs a request the recording kept whole; a
+ * turn replay needs a destination to run on; and every mode needs the project as the turn found it, which the app keeps only while
+ * traces are on — the call mode too, because the engine checks the recorded prompt against the project's rules on that state.
  */
 export function modeOffers(options: {
   readonly hasCall: boolean;
@@ -81,7 +81,9 @@ export function modeOffers(options: {
   return MODE_ORDER.map((mode): ModeOffer => {
     if (mode === 'call' && !options.hasCall) return { mode, refused: t`This recording holds no model call kept whole, so there is no single request to re-send.` };
     if (mode !== 'cassette' && !options.hasDestination) return { mode, refused: t`No provider is saved, so there is nowhere to send this. Add one in Settings, then replay.` };
-    if (mode !== 'call' && !options.hasSnapshot) {
+    // Every mode needs the starting state, the call mode included: the engine checks a recorded prompt against the project's rules on
+    // that state, and refuses a call replay without it (#819). The app always passes the rules, so it is never merely advisory.
+    if (!options.hasSnapshot) {
       return { mode, refused: t`This turn was not recorded with the project it started on, so it cannot be re-run. Turn traces on before the turn you want to compare.` };
     }
     return { mode };

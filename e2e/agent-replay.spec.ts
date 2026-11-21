@@ -71,6 +71,24 @@ test('a cassette replay of the recorded turn runs with no key, makes no model ca
   await expect(dialog.getByTestId('replay-result')).toContainText(/applied|replied/);
 });
 
+test('the dialog opens on a mode this turn can actually run, not on one chosen while it was closed', async ({ page }) => {
+  await openSample(page);
+  await openReplay(page);
+
+  // The demo turn has a kept starting state and a recorded request, but the demo profile answers from a script and is never a
+  // destination, so the recorded-answer mode is the only one that stands. The dialog must open on it rather than keep whatever it
+  // chose on the render it did while closed, which a single mount would have done.
+  const dialog = page.getByRole('dialog', { name: 'Replay this turn' });
+  await expect(dialog.getByRole('radio', { name: /^From the recording, free/ })).toBeChecked();
+  await expect(dialog.getByTestId('replay-unavailable')).toHaveCount(0);
+
+  // Closing and opening it again keeps that, rather than drifting to a refused mode.
+  await page.keyboard.press('Escape');
+  await page.getByTestId('trace-replay').first().click();
+  await expect(dialog.getByRole('radio', { name: /^From the recording, free/ })).toBeChecked();
+  await expect(dialog.getByRole('button', { name: 'What it would cost' })).toBeEnabled();
+});
+
 test('Escape closes the dialog and puts the writer back on the turn they came from', async ({ page }) => {
   await openSample(page);
   await openReplay(page);
