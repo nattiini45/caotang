@@ -1,6 +1,6 @@
 msgid ""
 msgstr ""
-"POT-Creation-Date: 2026-11-20 22:54+0000\n"
+"POT-Creation-Date: 2026-11-21 07:04+0000\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -12052,6 +12052,11 @@ msgstr "length {from, plural, one {# day} other {# days}} → {to, plural, one {
 msgid "Lens"
 msgstr "Lens"
 
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
+#: apps/desktop/src/components/CodexPanel.tsx
+msgid "Let the agent draft entries from your manuscript"
+msgstr "Let the agent draft entries from your manuscript"
+
 #. Binder row labels. Interpolated values: access is an access level's name, from is the node the rule was set on, title is a row's title.
 #: apps/desktop/src/components/Binder.tsx
 msgid "Let the agent structure it"
@@ -13337,6 +13342,7 @@ msgstr "New document"
 msgid "New document here"
 msgstr "New document here"
 
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "New entry"
