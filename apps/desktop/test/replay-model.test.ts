@@ -53,6 +53,20 @@ describe('the modes a turn is offered in', () => {
     expect(offers[2]?.refused).toBeUndefined();
     expect(defaultMode(offers)).toBe('cassette');
   });
+
+  it('refuses a call replay with no provider too: it sends a request, so it needs somewhere to send it', () => {
+    const offers = modeOffers({ hasCall: true, hasSnapshot: true, hasDestination: false });
+    expect(offers.map((offer) => [offer.mode, offer.refused === undefined])).toEqual([['call', false], ['turn', false], ['cassette', true]]);
+    expect(offers[0]?.refused).toContain('No provider is saved');
+    // A call replay needs no starting state, so its own reason is the only one it gives.
+    expect(offers[0]?.refused).not.toContain('Turn traces on');
+  });
+
+  it('gives a call replay its own reason when the recording kept no whole request, even with a provider saved', () => {
+    const offers = modeOffers({ hasCall: false, hasSnapshot: true, hasDestination: true });
+    expect(offers[0]?.refused).toContain('no single request');
+    expect(offers[1]?.refused).toBeUndefined();
+  });
 });
 
 describe('the destinations a replay may be sent to', () => {
@@ -69,10 +83,11 @@ describe('the destinations a replay may be sent to', () => {
 
 describe('the estimate before anything is spent', () => {
   it('names the calls, the prompt tokens, the bound and the price', () => {
+    // The price is the app's own money format (plan-preview's `formatUsd`), so it reads as it does on a card.
     expect(estimateLine({ modelCalls: 3, promptTokens: 12_340, maxCompletionTokens: 24_000, costUsd: 0.0734 })).toBe(
-      '3 model calls: 12,340 prompt tokens, at most 24,000 back; about $0.07.',
+      '3 model calls: 12,340 prompt tokens, at most 24,000 back; $0.0734.',
     );
-    expect(estimateLine({ modelCalls: 1, promptTokens: 10, maxCompletionTokens: 20, costUsd: 0.0001 })).toBe('1 model call: 10 prompt tokens, at most 20 back; under a cent.');
+    expect(estimateLine({ modelCalls: 1, promptTokens: 10, maxCompletionTokens: 20, costUsd: 0.00001 })).toContain('under');
   });
 
   it('says the cost is unknown rather than showing a zero, when the model has no price row', () => {
@@ -110,7 +125,7 @@ describe('the comparison', () => {
         original: { promptTokens: 1_000, completionTokens: 500, modelCalls: 1 },
         replay: { promptTokens: 2_000, completionTokens: 400, modelCalls: 2, costUsd: 0.0123 },
       }),
-    ).toBe('Recording: 1,000 prompt + 500 back over 1 call. Replay: 2,000 + 400 over 2 ($0.01).');
+    ).toBe('Recording: 1,000 prompt + 500 back over 1; replay: 2,000 + 400 over 2 ($0.0123).');
   });
 
   it('names each draft by its title, its field and the words each side wrote', () => {

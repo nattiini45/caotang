@@ -34,17 +34,16 @@ import './replay-dialog.css';
 
 /* lingui-set comment="The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description." */
 
-const MODE_LABEL: Readonly<Record<ReplayMode, string>> = {
-  call: 'One model call',
-  turn: 'The whole turn',
-  cassette: 'From the recording, free',
-};
+/** The label and the one line under it, per mode. `t` at the definition, so the catalogue has both before a paint. */
+const modeLabel = (mode: ReplayMode): string =>
+  mode === 'call' ? t`One model call` : mode === 'turn' ? t`The whole turn` : t`From the recording, free`;
 
-const MODE_HINT: Readonly<Record<ReplayMode, string>> = {
-  call: 'Sends the one recorded request again, word for word. No tool runs, so nothing can change.',
-  turn: 'Runs the turn again from its instruction on a copy of the project, with the same approvals.',
-  cassette: 'Answers from the recording itself, with no key and no cost, so a bug report reproduces here.',
-};
+const modeHint = (mode: ReplayMode): string =>
+  mode === 'call'
+    ? t`Sends the one recorded request again, word for word. No tool runs, so nothing can change.`
+    : mode === 'turn'
+      ? t`Runs the turn again from its instruction on a copy of the project, with the same approvals.`
+      : t`Answers from the recording itself, with no key and no cost, so a bug report reproduces here.`;
 
 function StepRow({ text }: { text: string }): ReactNode {
   return <li className="replay-step">{text}</li>;
@@ -207,8 +206,8 @@ export function ReplayDialog({ turn, profiles, hasSnapshot, hasCall, onEstimate,
                   }}
                 />
                 <span>
-                  {MODE_LABEL[offer.mode]}
-                  <span className="replay-faint"> — {MODE_HINT[offer.mode]}</span>
+                  {modeLabel(offer.mode)}
+                  <span className="replay-faint"> — {modeHint(offer.mode)}</span>
                 </span>
                 {offer.refused === undefined ? null : <span className="replay-refused">{offer.refused}</span>}
               </label>

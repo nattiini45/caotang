@@ -7,7 +7,13 @@
  * comparison is said in words. Everything here is pure or takes its effects as arguments, so the panel stays a view.
  */
 
+import { t } from '@lingui/core/macro';
+
+/* lingui-set comment="The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved." */
+
 import { ReplayRefusal, type ReplayMode, type ReplayTarget } from '@caotang/harness';
+
+import { formatUsd } from './plan-preview.js';
 import type { ProfileView, ThinkingLevel } from '@caotang/gateway';
 
 /**
@@ -73,11 +79,11 @@ export function modeOffers(options: {
   readonly hasDestination: boolean;
 }): readonly ModeOffer[] {
   return MODE_ORDER.map((mode): ModeOffer => {
-    if (mode === 'call') return options.hasCall ? { mode } : { mode, refused: 'This recording holds no model call kept whole, so there is no single request to re-send.' };
-    if (!options.hasSnapshot) {
-      return { mode, refused: 'This turn was not recorded with the project it started on, so it cannot be re-run. Turn traces on before the turn you want to compare.' };
+    if (mode === 'call' && !options.hasCall) return { mode, refused: t`This recording holds no model call kept whole, so there is no single request to re-send.` };
+    if (mode !== 'cassette' && !options.hasDestination) return { mode, refused: t`No provider is saved, so there is nowhere to send this. Add one in Settings, then replay.` };
+    if (mode !== 'call' && !options.hasSnapshot) {
+      return { mode, refused: t`This turn was not recorded with the project it started on, so it cannot be re-run. Turn traces on before the turn you want to compare.` };
     }
-    if (mode === 'turn' && !options.hasDestination) return { mode, refused: 'No provider is saved, so there is nowhere to send this turn. Add one in Settings, then replay.' };
     return { mode };
   });
 }
@@ -112,9 +118,10 @@ export function targetOf(destination: ReplayDestination): ReplayTarget {
 
 /** The estimate, in the words the dialog shows before it spends anything. */
 export function estimateLine(estimate: { readonly modelCalls: number; readonly promptTokens: number; readonly maxCompletionTokens: number; readonly costUsd?: number }): string {
-  const calls = estimate.modelCalls === 1 ? '1 model call' : `${count(estimate.modelCalls)} model calls`;
-  const cost = estimate.costUsd === undefined ? 'this model has no price row, so the cost is not known here' : estimate.costUsd < 0.01 ? 'under a cent' : `about $${estimate.costUsd.toFixed(2)}`;
-  return `${calls}: ${count(estimate.promptTokens)} prompt tokens, at most ${count(estimate.maxCompletionTokens)} back; ${cost}.`;
+  const calls = estimate.modelCalls === 1 ? t`1 model call` : t`${{ calls: count(estimate.modelCalls) }} model calls`;
+  // The one money formatter the app has (plan-preview's), so a price reads the same here as on a card.
+  const cost = estimate.costUsd === undefined ? t`this model has no price row, so the cost is not known here` : formatUsd(estimate.costUsd);
+  return t`${calls}: ${{ prompt: count(estimate.promptTokens) }} prompt tokens, at most ${{ bound: count(estimate.maxCompletionTokens) }} back; ${cost}.`;
 }
 
 function count(value: number): string {
@@ -132,9 +139,9 @@ export function refusalText(error: unknown): string | undefined {
 
 /** Where a replay stopped, said in the writer's words. */
 export function stopText(stop: { readonly reason: string; readonly detail: string }): string {
-  if (stop.reason === 'decision-mismatch') return `This model proposed different steps, and nobody approved the like of them, so the replay stopped before it changed anything. ${stop.detail}`;
-  if (stop.reason === 'external-tool') return `A step calls an outside tool, and a replay never re-runs one, so the replay stopped there. ${stop.detail}`;
-  if (stop.reason === 'cassette-miss') return `The replay's prompt did not match the recording, so there is no recorded answer to compare. ${stop.detail}`;
+  if (stop.reason === 'decision-mismatch') return t`This model proposed different steps, and nobody approved the like of them, so the replay stopped before it changed anything. ${{ detail: stop.detail }}`;
+  if (stop.reason === 'external-tool') return t`A step calls an outside tool, and a replay never re-runs one, so the replay stopped there. ${{ detail: stop.detail }}`;
+  if (stop.reason === 'cassette-miss') return t`The replay’s prompt did not match the recording, so there is no recorded answer to compare. ${{ detail: stop.detail }}`;
   return stop.detail;
 }
 
@@ -147,31 +154,31 @@ export function stepLine(step: {
 }): string {
   const was = step.original === undefined ? 'nothing' : step.original.tool;
   const now = step.replay === undefined ? 'nothing' : step.replay.tool;
-  const which = step.changedParams.length === 0 ? '' : ` (${step.changedParams.join(', ')} changed)`;
-  return `Step ${step.index + 1}: ${was} → ${now}${which}`;
+  const which = step.changedParams.length === 0 ? '' : t` (${{ params: step.changedParams.join(', ') }} changed)`;
+  return t`Step ${{ index: step.index + 1 }}: ${{ was }} → ${{ now }}${which}`;
 }
 
 /** What the mode's result reads as, at the top of the comparison. */
 export function headlineOf(result: { readonly mode: ReplayMode; readonly report?: { readonly status: string; readonly summary: string }; readonly reply?: { readonly content: string } }): string {
-  if (result.mode !== 'call') return result.report === undefined ? 'The replay did not finish a turn.' : `${result.report.status}: ${result.report.summary}`;
+  if (result.mode !== 'call') return result.report === undefined ? t`The replay did not finish a turn.` : `${result.report.status}: ${result.report.summary}`;
   const content = result.reply?.content.trim() ?? '';
-  return content === '' ? 'The model answered with no text.' : content;
+  return content === '' ? t`The model answered with no text.` : content;
 }
 
 /** Both sides' tokens and what the replay cost, in one line. */
 export function tokensLine(usage: { readonly original: { readonly promptTokens: number; readonly completionTokens: number; readonly modelCalls: number }; readonly replay: { readonly promptTokens: number; readonly completionTokens: number; readonly modelCalls: number; readonly costUsd?: number } }): string {
-  const cost = usage.replay.costUsd === undefined ? 'cost not known' : usage.replay.costUsd < 0.01 ? 'under a cent' : `$${usage.replay.costUsd.toFixed(2)}`;
-  return `Recording: ${count(usage.original.promptTokens)} prompt + ${count(usage.original.completionTokens)} back over ${usage.original.modelCalls} ${usage.original.modelCalls === 1 ? 'call' : 'calls'}. Replay: ${count(usage.replay.promptTokens)} + ${count(usage.replay.completionTokens)} over ${usage.replay.modelCalls} (${cost}).`;
+  const cost = usage.replay.costUsd === undefined ? t`cost not known` : formatUsd(usage.replay.costUsd);
+  return t`Recording: ${{ recordedPrompt: count(usage.original.promptTokens) }} prompt + ${{ recordedBack: count(usage.original.completionTokens) }} back over ${{ recordedCalls: count(usage.original.modelCalls) }}; replay: ${{ replayPrompt: count(usage.replay.promptTokens) }} + ${{ replayBack: count(usage.replay.completionTokens) }} over ${{ replayCalls: count(usage.replay.modelCalls) }} (${cost}).`;
 }
 
 /** The drafts the two sides wrote, as rows the panel draws side by side. */
 export function draftRows(drafts: readonly { readonly title: string; readonly field: 'body' | 'synopsis'; readonly original: string; readonly replay: string; readonly words: { readonly original: number; readonly replay: number } }[]): readonly ReplayDraftRow[] {
   return drafts.map((diff) => ({
     title: diff.title,
-    field: diff.field === 'body' ? 'text' : 'synopsis',
+    field: diff.field === 'body' ? t`text` : t`synopsis`,
     original: diff.original,
     replay: diff.replay,
-    words: `${count(diff.words.original)} → ${count(diff.words.replay)} words`,
+    words: t`${{ before: count(diff.words.original) }} → ${{ after: count(diff.words.replay) }} words`,
   }));
 }
 

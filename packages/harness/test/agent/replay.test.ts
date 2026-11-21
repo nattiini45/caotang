@@ -205,6 +205,15 @@ describe('replay: the cassette answers a recorded turn', () => {
     await expect(replay({ mode: 'cassette', source, turnId: run.turnId, snapshot: run.before })).rejects.toThrow(/not the first of its session/);
   });
 
+  it('reads the turn from the store itself, because its records alone carry no messages', async () => {
+    const run = await record();
+    // `records()` is the turn's rows; a request's messages live beside them, interned by id, so a copy of the rows alone has no prompt.
+    const rowsOnly = indexTrace(run.store.records(run.turnId));
+    expect(recordedCalls(rowsOnly, run.turnId)).toEqual([]);
+    // The store answers both halves, and that is what the app hands the engine.
+    expect(recordedCalls(run.store, run.turnId).length).toBeGreaterThan(0);
+  });
+
   it('serves the recorded replies in order, so two calls in one turn are not swapped', async () => {
     const run = await record();
     const scripts = cassetteScripts(run.store, run.turnId);

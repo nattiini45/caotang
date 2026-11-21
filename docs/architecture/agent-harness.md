@@ -497,8 +497,9 @@ says. Only the session's own records seed a replay; nothing is reconstructed.
 
 **The estimate comes first.** `estimateReplay` reads the recording's own provider-reported input tokens for the calls that would run
 and the target's output cap per call, `maxOutputTokens` plus `thinkingTokens`, and prices them from the target's `pricePer1k` when it
-has one. A caller shows that before it spends anything: `caotang replay` prints it and waits for `y`, and the app's dialog will show
-it the same way (§8's cost rule for a review).
+has one. A caller shows that before it spends anything: `caotang replay` prints it and waits for `y`, and the app's **Replay…**
+dialog on a traced turn shows it the same way (§8's cost rule for a review), because **What it would cost** must be pressed before
+**Replay** is offered.
 
 **A bound is a bound.** `maxModelCalls` is the replayed session's bound, and the estimate multiplies the target's cap by no more calls
 than that, so the number a writer confirms is the number the run may spend. `caotang replay` passes the `agent` command's flag through;
@@ -510,9 +511,17 @@ it cannot check) rather than send text the writer currently withholds, and says 
 under the rules. A JSON request's schema travels in the recording (`responseFormatHint`); a recording that asks for JSON and kept no
 schema refuses with `no-schema` instead of sending an empty one.
 
-**What is compared** is what a writer can act on: the steps, their params (`stepDiffs`), the reply of a call replay, both sides' usage
-and the replay's own report. Two drafts' words are the dialog's to diff, because the original text lives in the panel and not in the
-engine's hands.
+**What is compared** is what a writer can act on: the steps, their params (`stepDiffs`), the text each side left (`draftDiffs`), the
+reply of a call replay, both sides' usage and the replay's own report. `draftDiffs` reads the documents and synopses of the two states
+the replay already holds — the snapshot it started on and the scratch copy it changed — because a trace records what a turn ran, never
+the words a draft held; the dialog draws each row word by word, and it is the only place a draft's text is shown. The replay's starting
+state is kept by the tab, beside the trace and for as long as it: five turns, never the project, never the app database.
+
+**The dialog offers only what the recording supports.** **Replay…** sits on a traced turn, and a mode is offered only when its needs
+are met: a call replay needs a request the recording kept whole, and a turn and a cassette both need the starting state, which exists
+only while traces were on when the turn ran. A mode that cannot run says why in its own row rather than disappearing, a destination is
+one of the writer's saved real profiles (never the demo provider, which answers from a script), and a new card that names tools the
+recording did not run cancels the replay and says so: the dialog has no Approve, because nobody approved the like of that card.
 
 **A cassette is a function of its recording.** `cassetteScripts` answers the turn's requests in the order they were made and compares
 each against the recorded messages; a request whose messages differ ends the turn as a protocol error naming the first differing

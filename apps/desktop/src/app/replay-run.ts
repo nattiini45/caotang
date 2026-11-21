@@ -7,7 +7,9 @@
  * withheld), the starting state kept for the turn, and the dialog's answer when a new card names tools the recording did not run.
  */
 
-import { estimateReplay, indexTrace, replay, ReplayRefusal, type Decision, type PendingCard, type ReplayEstimate, type ReplayMode, type ReplayResult, type ReplaySource, type ReplayTarget, type TraceStore } from '@caotang/harness';
+import { t } from '@lingui/core/macro';
+
+import { estimateReplay, replay, ReplayRefusal, type Decision, type PendingCard, type ReplayEstimate, type ReplayMode, type ReplayResult, type ReplayTarget, type TraceStore } from '@caotang/harness';
 import type { Gateway } from '@caotang/gateway';
 import type { ProjectState } from '@caotang/store';
 
@@ -46,7 +48,9 @@ export function estimate(options: {
   return estimateReplay(
     {
       mode: options.mode,
-      source: indexTrace(options.store.records()),
+      // The store is the source, not a copy of its records: a request's messages live beside the turns, interned by id, and
+      // `records()` alone hands back the requests with nothing to send (the same reason an export is read with `parseTrace`).
+      source: options.store,
       turnId: options.turnId,
       ...(options.callIndex === undefined ? {} : { callIndex: options.callIndex }),
       ...(options.target === undefined ? {} : { target: options.target }),
@@ -58,13 +62,13 @@ export function estimate(options: {
 
 /** Runs one replay and hands back the comparison. A refusal is the engine's answer, and the caller says it in the writer's words. */
 export async function runReplay(options: RunReplayOptions): Promise<ReplayResult> {
-  const source: ReplaySource = indexTrace(options.store.records());
   if (options.mode === 'cassette' && options.snapshot === undefined) {
-    throw new ReplayRefusal('no-snapshot', 'This turn was not recorded with the project it started on, so it cannot be re-run. Turn traces on before the turn you want to compare.');
+    throw new ReplayRefusal('no-snapshot', t`This turn was not recorded with the project it started on, so it cannot be re-run. Turn traces on before the turn you want to compare.`);
   }
   return replay({
     mode: options.mode,
-    source,
+    // A store answers `records` and `message` itself, which is all a replay reads: copying its records would drop the messages.
+    source: options.store,
     turnId: options.turnId,
     ...(options.target === undefined ? {} : { target: options.target }),
     ...(options.snapshot === undefined ? {} : { snapshot: options.snapshot }),
