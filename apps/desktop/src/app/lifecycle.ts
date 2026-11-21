@@ -1185,12 +1185,7 @@ async function finishFolderOpen(
     const cache = await nativeRuntimeStore(nativeId);
     const opened = await openStored(cache, projectId, root, { notices, droppedFields, folderLog }, pictures, loaded.state);
     try {
-      holdFolderCopy(opened.session, root, baselineText, digests);
-      opened.session.persistence.setArtifactSaver(async () => {
-        const outcome = await withFolderWrite(opened.session, () => writeFolder(opened.session, root, {}, true));
-        if (outcome.kind === 'refused') throw new Error(t`The project folder changed outside Caotang or is in use. Reopen it before saving.`);
-      });
-      await rememberNativeFolder(nativeId);
+      await liveInItsFolder(opened, root, baselineText, digests);
       return { kind: 'opened', opened };
     } catch (error) {
       await opened.session.closeSafely().catch(() => undefined);
@@ -1521,13 +1516,58 @@ export async function completeRecovery(
       },
     };
   }
+  const root = recovery.folder;
+  const nativeRoot = root === null ? undefined : nativeFolderId(root);
   // The recovery's own notes say which copy was used, and the dialog has already said it, so they are not repeated as field notices.
-  const opened = await adopt(store, offer.state, recovery.sessions, [], [], recovery.folder);
-  if (recovery.folder !== null) {
-    // The recovery wrote the folder, so the digests are taken as the folder now stands: the next save is checked against what it holds.
-    holdFolderCopy(opened.session, recovery.folder, (await readManifestText(recovery.fs)) ?? '', await projectFileDigests(recovery.fs));
+  if (root !== null && nativeRoot !== undefined) {
+    // The folder is the project's home: the recovered project replaces what that folder's cache held and opens the way a native open
+    // opens, with the folder's own pictures and a save that writes the folder. Adopting it as a new project would make it a copy of
+    // the project the folder already holds — which cannot be saved back into the folder (#744).
+    const cache = await nativeRuntimeStore(nativeRoot);
+    const opened = await openStored(
+      cache,
+      offer.state.manifest.project.id,
+      root,
+      { notices: [], droppedFields: [], folderLog: recovery.sessions },
+      await folderPictures(root),
+      offer.state,
+    );
+    try {
+      // The recovery wrote the folder, so the digests are taken as the folder now stands: the next save is checked against what it holds.
+      await liveInItsFolder(opened, root, (await readManifestText(recovery.fs)) ?? '', await projectFileDigests(recovery.fs));
+      return { kind: 'opened', opened };
+    } catch (error) {
+      await opened.session.closeSafely().catch(() => undefined);
+      throw error;
+    }
+  }
+  const opened = await adopt(store, offer.state, recovery.sessions, [], [], root);
+  if (root !== null) {
+    // A folder the writer picked in the browser is not the project's home: the recovery opens in the browser's store, and "Save to
+    // folder" stays the writer's action.
+    holdFolderCopy(opened.session, root, (await readManifestText(recovery.fs)) ?? '', await projectFileDigests(recovery.fs));
   }
   return { kind: 'opened', opened };
+}
+
+/**
+ * Makes a session opened from a native folder live in that folder: the copy it holds is the folder's as it stands, every later save
+ * writes the folder through the one writer (`writeFolder`), and the folder is in the recent list. Both the open path and an accepted
+ * recovery route here, so a project cannot open looking like a folder's while saving somewhere else (#744).
+ */
+async function liveInItsFolder(
+  opened: Opened,
+  root: DirectoryHandleLike,
+  baselineText: string,
+  digests: ReadonlyMap<string, string>,
+): Promise<void> {
+  holdFolderCopy(opened.session, root, baselineText, digests);
+  opened.session.persistence.setArtifactSaver(async () => {
+    const outcome = await withFolderWrite(opened.session, () => writeFolder(opened.session, root, {}, true));
+    if (outcome.kind === 'refused') throw new Error(t`The project folder changed outside Caotang or is in use. Reopen it before saving.`);
+  });
+  const nativeId = nativeFolderId(root);
+  if (nativeId !== undefined) await rememberNativeFolder(nativeId);
 }
 
 /**
