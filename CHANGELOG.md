@@ -126,6 +126,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- A project folder named the short way Windows also knows it (`C:\PROGRA~1\…`), with different capitalisation, or through a link that stays inside it, opens and saves as before instead of being refused as a folder outside itself. The studio compares the folder and the file it is asked for the same way, so only a real link out of the folder is refused (#812).
+
 - Prose PDFs print all ten supported Indic scripts in embedded fonts, including in PDF/A-2u. Paragraphs and notes move words that fit on the next line instead of cutting them mid-word (#755, #757).
 - HTML articles and Atom entries include footnotes cited from other notes (#756).
 - Compiling several episodes gives their files safe, distinct names, and the teleprompter width survives saving to a project folder or restoring a bundle (#758, #759).

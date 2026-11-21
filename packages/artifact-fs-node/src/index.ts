@@ -11,7 +11,13 @@
  *     never leaves the project folder. The check is textual first (no absolute
  *     paths, no `..`, no backslashes), then it is repeated on the real path: a
  *     symlink inside the folder that points out of it is refused, because a
- *     project folder synced or unzipped by someone else can contain one.
+ *     project folder synced or unzipped by someone else can contain one. Both
+ *     sides of that second check are resolved by the same call
+ *     (`fs.promises.realpath`), because the canonical forms Windows offers do not
+ *     always agree — a short name (`C:\PROGRA~1\…`) may survive one and be
+ *     expanded by another — and a mismatch made a folder read as if it were
+ *     outside itself (#812). Only the spelling is canonicalised: a link out of the
+ *     folder is still refused.
  *   - **Readers ignore what they do not own.** A missing directory lists as empty,
  *     and a listing carries names only, never directories or links (§1).
  *
