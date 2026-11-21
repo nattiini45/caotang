@@ -37,6 +37,12 @@ export {
 export {
   ACCOUNT_RECORD_FORMAT,
   ACCOUNT_RECORD_FORMAT_LEGACY,
+  ACCOUNT_RECORD_FORMAT_ROTATING,
+  beginAccountRotation,
+  finishAccountRotation,
+  retiredMaster,
+  rewrapProjectKeys,
+  rotationPending,
   setupAccountKeys,
   unlockAccountKeys,
   unlockWithRecoveryKey,
@@ -48,6 +54,9 @@ export {
   type SetupAccountOptions,
   type SetupAccountResult,
   type ChangePassphraseOptions,
+  type RotateAccountOptions,
+  type RotationStarted,
+  type WrappedProjectKey,
 } from './account.js';
 export {
   rememberDevice,
