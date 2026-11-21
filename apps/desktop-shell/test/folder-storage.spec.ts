@@ -10,6 +10,7 @@ import { createEmptyManifest, createProjectState, exportProjectZip } from '@caot
 import type {} from '../src/folder-contract.cjs';
 
 import { dismissDialogs } from './dialogs.js';
+import { closeShell } from './teardown.js';
 
 const executablePath = createRequire(import.meta.url)('electron') as string;
 const shell = fileURLToPath(new URL('..', import.meta.url));
@@ -55,7 +56,7 @@ test('folder saves land on disk, and a recent folder never opens a stale mirror'
     });
     expect(boundary).toEqual([['id', 'name'], { ok: false, error: 'invalid' }, { ok: false, error: 'invalid' }]);
   } finally {
-    await electron.close();
+    await closeShell(electron);
   }
 
   const onDisk = await readFile(manifest, 'utf8');
@@ -84,7 +85,7 @@ test('folder saves land on disk, and a recent folder never opens a stale mirror'
     await expect(page.getByText('Folder Version', { exact: true })).toBeVisible();
   } finally {
     await chmod(dir, 0o755).catch(() => undefined);
-    await reopened.close();
+    await closeShell(reopened);
   }
 });
 
@@ -104,7 +105,7 @@ test('a recent-folder list that cannot be read costs the list, not the window', 
     await expect(page.getByText('Ash Notebook', { exact: true })).toBeVisible();
     await expect.poll(() => readFile(join(dir, 'caotang.json'), 'utf8')).toContain('"name": "Ash Notebook"');
   } finally {
-    await electron.close();
+    await closeShell(electron);
   }
 });
 
@@ -136,7 +137,7 @@ test('forgetting a recent folder leaves its folder writable for a closing sessio
     expect(outcome.listed).toEqual([]);
     expect(await readFile(join(dir, 'docs', 'note.md'), 'utf8')).toBe('The closing save.');
   } finally {
-    await electron.close();
+    await closeShell(electron);
   }
 });
 
@@ -163,6 +164,6 @@ test('explicit copy leaves an IndexedDB-only project available', async () => {
     await expect(page.getByRole('button', { name: 'Copy to a folder…', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Reopen folder', exact: true })).toBeVisible();
   } finally {
-    await electron.close();
+    await closeShell(electron);
   }
 });
