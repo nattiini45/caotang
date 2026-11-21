@@ -42,7 +42,7 @@ import { sumUsage } from '@caotang/gateway';
 import { groupUsage } from '../app/usage-model.js';
 import { isImeEnter, keyFacts, keyboardLayoutStore, MODAL_DIALOG_SELECTOR, resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
-import { UNRESOLVED_NOTICE } from '../app/review-text.js';
+import { unresolvedNotice } from '../app/review-text.js';
 import type { AgentController, AgentSnapshot, GoalRecoveryView } from '../app/agent.js';
 import type { CommandNote } from '../app/slash-model.js';
 import type { RecurringTasks } from '../app/recurring-tasks.js';
@@ -82,7 +82,7 @@ import { RequestContext } from './RequestContext.js';
 const TurnReview = lazy(() => import('./TurnReview.js').then((module) => ({ default: module.TurnReview })));
 const GoalComposer = lazy(() => import('./GoalComposer.js'));
 
-/* lingui-set comment="Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content." */
+/* lingui-set comment="Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id." */
 
 const MODE_LABELS: Readonly<Record<PermissionMode, string>> = {
   get 'plan-only'() { return t`Plan only`; },
@@ -368,12 +368,12 @@ export function AgentPanel({
     if (result === null) {
       // The menu is enabled from the last render; a turn may have started, or the turn may already be rewound, since.
       report({
-        text: agent.snapshot().busy ? 'The conversation could not be rewound: a turn is running.' : 'The conversation could not be rewound: that turn is no longer available to rewind.',
+        text: agent.snapshot().busy ? t`The conversation could not be rewound: a turn is running.` : t`The conversation could not be rewound: that turn is no longer available to rewind.`,
         tone: 'error',
       });
       return;
     }
-    report({ text: 'Rewound the conversation to before that turn. The project was not changed.', tone: 'info' });
+    report({ text: t`Rewound the conversation to before that turn. The project was not changed.`, tone: 'info' });
     refill(result.intent);
   };
 
@@ -421,9 +421,9 @@ export function AgentPanel({
       return;
     }
     void agent.restoreBoth(turnId).then((outcome) => {
-      if (!outcome.ok) report({ text: outcome.projectRestored ? outcome.message : `${outcome.message} The conversation was not rewound.`, tone: 'error' });
+      if (!outcome.ok) report({ text: outcome.projectRestored ? outcome.message : t`${{ message: outcome.message }} The conversation was not rewound.`, tone: 'error' });
       else {
-        report({ text: `${restoredLine(outcome.later)} The conversation was rewound too.`, tone: 'info' });
+        report({ text: t`${{ restored: restoredLine(outcome.later) }} The conversation was rewound too.`, tone: 'info' });
         refill(outcome.intent);
       }
     });
@@ -625,7 +625,7 @@ export function AgentPanel({
 
           {oldInstruction !== null ? (
             <p className="agent-old-instruction" data-testid="agent-old-instruction">
-              <span className="muted">The Intent box holds your draft. The rewound instruction was:</span> <q>{oldInstruction}</q>{' '}
+              <span className="muted"><Trans>The Intent box holds your draft. The rewound instruction was:</Trans></span> <q>{oldInstruction}</q>{' '}
               <button
                 type="button"
                 className="button is-quiet"
@@ -635,10 +635,10 @@ export function AgentPanel({
                   intentRef.current?.focus();
                 }}
               >
-                Use the old instruction
+                <Trans>Use the old instruction</Trans>
               </button>
               <button type="button" className="button is-quiet" onClick={() => setOldInstruction(null)}>
-                Dismiss
+                <Trans>Dismiss</Trans>
               </button>
             </p>
           ) : null}
@@ -718,7 +718,7 @@ export function AgentPanel({
                     windowRecovery={windowRecovery}
                     onResolveReview={(turnId, mode) => {
                       // The card offers this only while it shows a pending count, so nothing settled means the marks are still there.
-                      if (agent.resolveReview(turnId, mode) === 0) report({ text: UNRESOLVED_NOTICE, tone: 'info' });
+                      if (agent.resolveReview(turnId, mode) === 0) report({ text: unresolvedNotice(), tone: 'info' });
                     }}
                   />
                 ));
@@ -814,7 +814,7 @@ function CommandNoteView({ note, onDismiss, onRun, contextOverrides, onContextCh
   onContextChoice: (ref: ContextRef, choice: 'remove' | 'exclude') => void;
 }): ReactNode {
   return (
-    <section className={`agent-command-note is-${note.kind}`} role="status" aria-label="Command result" data-testid="agent-command-note">
+    <section className={`agent-command-note is-${note.kind}`} role="status" aria-label={t`Command result`} data-testid="agent-command-note">
       <p className="agent-command-title">{note.title}</p>
       {note.requestContext === undefined ? null : <RequestContext request={note.requestContext} running={note.contextRunning === true} pinned={note.contextRunning ? undefined : contextOverrides.include}
         onExclude={note.contextRunning ? undefined : (ref) => onContextChoice(ref, 'exclude')} onRestore={note.contextRunning ? undefined : (ref) => onContextChoice(ref, 'remove')} />}
@@ -827,7 +827,7 @@ function CommandNoteView({ note, onDismiss, onRun, contextOverrides, onContextCh
         </ul>
       )}
       <button type="button" className="button is-quiet" onClick={onDismiss}>
-        Dismiss
+        <Trans>Dismiss</Trans>
       </button>
     </section>
   );
@@ -871,14 +871,14 @@ function runsOf(turns: readonly TurnView[]): readonly { readonly rewound: boolea
 
 /** What a restore that kept the later edits says. */
 function onlyLine(step: boolean, kept: number): string {
-  const what = step ? 'that step' : 'that turn';
-  return `Restored to before ${what}. Your ${kept} later ${kept === 1 ? 'change was' : 'changes were'} kept.`;
+  const what = step ? t`that step` : t`that turn`;
+  return t`Restored to before ${what}. Your ${plural(kept, { one: '# later change was', other: '# later changes were' })} kept.`;
 }
 
 /** What a finished step restore says: how many later changes went back with it, if any. */
 function restoredStepLine(later: number): string {
-  if (later === 0) return 'Restored to before that step.';
-  return `Restored to before that step. ${later} later ${later === 1 ? 'change was' : 'changes were'} taken back with it.`;
+  if (later === 0) return t`Restored to before that step.`;
+  return t`Restored to before that step. ${plural(later, { one: '# later change was', other: '# later changes were' })} taken back with it.`;
 }
 
 /** What a finished restore says: how many later changes went back with the turn, if any. */
@@ -1096,7 +1096,7 @@ function TurnBlock({
 
       {turn.restoredFromStep !== null && stands ? (
         <p className="muted agent-partial-restore" data-testid="partial-restore">
-          Restored from step {turn.restoredFromStep}: the steps before it are still in the project.
+          <Trans>Restored from step {{ step: turn.restoredFromStep }}: the steps before it are still in the project.</Trans>
         </p>
       ) : null}
 
@@ -1166,13 +1166,13 @@ function StatusCardRow({ card, steps }: { card: StatusCard; steps?: StepRestore 
         <ElapsedTime card={card} />
         {steps !== undefined && menu.show ? (
           <TurnMenu
-            label={`Rewind options for step ${card.tool}`}
+            label={t`Rewind options for step ${{ step: card.tool }}`}
             testId="step-menu"
             note={menu.note}
             items={[
               {
-                label: 'Restore project to before this step',
-                hint: 'Takes back this step and the ones after it. The steps before it stay.',
+                label: t`Restore project to before this step`,
+                hint: t`Takes back this step and the ones after it. The steps before it stay.`,
                 disabled: steps.disabled || !restorable,
                 onSelect: () => steps.onRestore(card.id),
               },
@@ -1184,11 +1184,11 @@ function StatusCardRow({ card, steps }: { card: StatusCard; steps?: StepRestore 
       {progress === undefined ? null : (
         // The server's report on a call that is still running. The message is its own text, shown as text and labelled as the server's.
         <div className="status-card-progress" data-testid="call-progress">
-          {progress.fraction === undefined ? null : <progress max={1} value={progress.fraction} aria-label={`Progress of ${card.tool}`} />}
+          {progress.fraction === undefined ? null : <progress max={1} value={progress.fraction} aria-label={t`Progress of ${{ name: card.tool }}`} />}
           <span className="status-card-progress-count">{progress.label}</span>
           {progress.message === undefined ? null : (
             <p className="status-card-text status-card-progress-message">
-              <span className="muted">The server says: </span>
+              <span className="muted"><Trans>The server says: </Trans></span>
               {progress.message}
             </p>
           )}
