@@ -2,9 +2,13 @@
 # submits the Windows files to SignPath for signing once signing is switched on. docs/CODE-SIGNING.md is the policy it serves.
 #
 # Details that are load-bearing rather than tidy:
-#   - The desktop shell (apps/desktop-shell, #399/#400) does not exist yet. Until it does, the build job stops at its first check with
-#     a plain error, so a stray tag publishes nothing. #401 fills in the packaging commands (electron-builder: NSIS, DMG, AppImage)
-#     where this file says so, and adds the draft GitHub release; this file only fixes the shape signing needs.
+#   - The packaging is electron-builder (#401), configured by apps/desktop-shell/electron-builder.yml: Windows x64 NSIS, macOS
+#     arm64 and x64 DMG, and Linux x64 AppImage, each unsigned with a SHA256SUMS file beside it (docs/INSTALL.md is the install
+#     guide). Each build job still stops with a plain error when apps/desktop-shell is missing, so a stray tag publishes nothing.
+#   - Each macOS architecture is built on a runner of that architecture (macos-15 is arm64, macos-15-intel is x64), because the
+#     folder watcher ships a prebuilt binary per platform and architecture and nothing is compiled here.
+#   - The same jobs run on workflow_dispatch, which publishes nothing: it leaves the packages and their checksums as workflow
+#     artifacts, so packaging can be proved without releasing anything.
 #   - Tags are desktop-v<version>, never v<version>: release.yml owns v* tags for the MCP and command-line bundles, and the two
 #     releases must not start each other. The version must equal apps/desktop-shell/package.json's, because SignPath enforces it as
 #     every signed file's product version (.signpath/artifact-configuration.xml).
@@ -31,6 +35,7 @@ name: desktop-release
 on:
   push:
     tags: ['desktop-v*']
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -61,16 +66,16 @@ jobs:
             exit 1
           fi
 
-      - name: Check that the tag names the desktop shell's version
+      - name: Read the version, which a tag must name
         id: version
         shell: bash
         env:
+          EVENT: ${{ github.event_name }}
           TAG: ${{ github.ref_name }}
         run: |
-          version="${TAG#desktop-v}"
-          shell_version="$(node -p "require('./apps/desktop-shell/package.json').version")"
-          if [ "$version" != "$shell_version" ]; then
-            echo "::error::The tag $TAG names $version, but apps/desktop-shell/package.json is $shell_version."
+          version="$(node -p "require('./apps/desktop-shell/package.json').version")"
+          if [ "$EVENT" = "push" ] && [ "$TAG" != "desktop-v$version" ]; then
+            echo "::error::The tag $TAG names ${TAG#desktop-v}, but apps/desktop-shell/package.json is $version."
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -88,9 +93,9 @@ jobs:
       - name: Lint, typecheck, unit tests
         run: pnpm verify
 
-      # #401 replaces this step with the electron-builder call that packages the app without an installer (--dir). It must leave
-      # apps/desktop-shell/release/win-unpacked/ with Caotang.exe in it.
-      - name: Package the unpacked app (filled in by #401)
+      # Packages the app without an installer (--dir), and applies the electron fuses and the ASAR integrity data to the binary,
+      # which is why this pass comes before signing. It leaves apps/desktop-shell/release/win-unpacked/ with Caotang.exe in it.
+      - name: Package the unpacked app
         shell: bash
         run: pnpm --filter @caotang/desktop-shell run "package:win:dir"
 
@@ -180,9 +185,9 @@ jobs:
           name: caotang-windows-exe-signed
           path: apps/desktop-shell/release/win-unpacked
 
-      # #401 replaces this step with the electron-builder call that builds the NSIS installer from the unpacked app
-      # (--prepackaged apps/desktop-shell/release/win-unpacked). It must leave apps/desktop-shell/release/Caotang-Setup-<version>.exe.
-      - name: Build the installer from the unpacked app (filled in by #401)
+      # Builds the NSIS installer from the unpacked app (--prepackaged), so the Caotang.exe inside it is the one the first signing
+      # pass returned. It leaves apps/desktop-shell/release/Caotang-Setup-<version>.exe.
+      - name: Build the installer from the unpacked app
         shell: bash
         run: pnpm --filter @caotang/desktop-shell run "package:win:installer"
 
@@ -267,8 +272,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
-            target: mac
+          # One leg per architecture: the pinned Electron and the prebuilt folder watcher both arrive per architecture, so an
+          # arm64 runner cannot package a working x64 app.
+          - os: macos-15
+            target: mac-arm64
+          - os: macos-15-intel
+            target: mac-x64
           - os: ubuntu-latest
             target: linux
     steps:
@@ -284,16 +293,16 @@ jobs:
             exit 1
           fi
 
-      - name: Check that the tag names the desktop shell's version
+      - name: Read the version, which a tag must name
         id: version
         shell: bash
         env:
+          EVENT: ${{ github.event_name }}
           TAG: ${{ github.ref_name }}
         run: |
-          version="${TAG#desktop-v}"
-          shell_version="$(node -p "require('./apps/desktop-shell/package.json').version")"
-          if [ "$version" != "$shell_version" ]; then
-            echo "::error::The tag $TAG names $version, but apps/desktop-shell/package.json is $shell_version."
+          version="$(node -p "require('./apps/desktop-shell/package.json').version")"
+          if [ "$EVENT" = "push" ] && [ "$TAG" != "desktop-v$version" ]; then
+            echo "::error::The tag $TAG names ${TAG#desktop-v}, but apps/desktop-shell/package.json is $version."
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -311,8 +320,8 @@ jobs:
       - name: Lint, typecheck, unit tests
         run: pnpm verify
 
-      # #401 replaces this step with the electron-builder call for each target.
-      - name: Package (filled in by #401)
+      # electron-builder for this leg's own architecture (package:mac-arm64, package:mac-x64 or package:linux).
+      - name: Package
         shell: bash
         run: pnpm --filter @caotang/desktop-shell run "package:${{ matrix.target }}"
 
