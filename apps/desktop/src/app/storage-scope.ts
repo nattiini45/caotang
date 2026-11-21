@@ -21,7 +21,10 @@ export function storageScope(): string | null {
   return scope;
 }
 
-/** `name` for this scope: the fixed name when there is none, else the fixed name and the scope beside it. */
+/**
+ * `name` for this scope, for a store or a storage key: the fixed name when there is none, else the fixed name and the scope
+ * beside it.
+ */
 export function scopedStoreName(name: string): string {
   return scope === null ? name : `${name}--${scope}`;
 }

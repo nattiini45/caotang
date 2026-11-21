@@ -5,8 +5,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createEmptyManifest, createProjectState, listProjectIds, MemoryIndexedDb, openRuntimeStore, RUNTIME_DB_NAME, writeProjectState } from '@caotang/store';
 import { openAppDb } from '../src/app/app-db.js';
+import { pendingKey } from '../src/app/pending-journal.js';
+import { browserDurableAssets, forgetBrowserAssets } from '../src/app/project-assets.js';
 import { ProviderService } from '../src/app/providers.js';
 import { scopedStoreName, setStorageScope, storageScope } from '../src/app/storage-scope.js';
+import { unsentKey } from '../src/app/unsent-copy.js';
 
 afterEach(() => setStorageScope(null));
 
@@ -71,6 +74,43 @@ describe('the studio storage scope', () => {
     setStorageScope('github:201');
     const back = await ProviderService.open({ db: null, vault: factory });
     expect(await back.service.keys.reveal('prv_0000000001')).toBe('sk-mine');
+  });
+
+  it('names the journal keys after the account, so two accounts holding one project id never read each other', () => {
+    const project = 'p_ONE';
+    expect(pendingKey(project)).toBe('caotang.pending.p_ONE');
+    expect(unsentKey(project)).toBe('caotang.unsent.p_ONE');
+
+    setStorageScope('github:201');
+    expect(pendingKey(project)).toBe('caotang.pending.p_ONE--github:201');
+    expect(unsentKey(project)).toBe('caotang.unsent.p_ONE--github:201');
+
+    // The same project id in another account is another key, which is the whole point of the shared-bundle case.
+    setStorageScope('github:202');
+    expect(pendingKey(project)).not.toBe('caotang.pending.p_ONE--github:201');
+    expect(unsentKey(project)).not.toBe('caotang.unsent.p_ONE--github:201');
+  });
+
+  it("gives each account its own images, and removing one account's project leaves the other's pictures alone", async () => {
+    const factory = new MemoryIndexedDb();
+    const project = 'p_SHARED';
+    const bytes = new Uint8Array([1, 2, 3, 4]);
+
+    setStorageScope('github:201');
+    const mine = await browserDurableAssets(project, factory);
+    expect(mine).toBeDefined();
+    await mine!.put('assets/one.png', bytes);
+
+    setStorageScope('github:202');
+    const other = await browserDurableAssets(project, factory);
+    expect(await other!.get('assets/one.png')).toBeUndefined();
+    await other!.put('assets/one.png', new Uint8Array([9, 9]));
+    // Removing the second account's project must not reach the first account's images.
+    await forgetBrowserAssets(project, factory);
+
+    setStorageScope('github:201');
+    const back = await browserDurableAssets(project, factory);
+    expect(await back!.get('assets/one.png')).toEqual(bytes);
   });
 
   it("gives each account its own runtime store, so one account cannot list the other's projects", async () => {
