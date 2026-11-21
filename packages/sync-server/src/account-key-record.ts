@@ -24,7 +24,7 @@ function base64(value: unknown, min: number, max: number): string | null {
   return bytes.length >= min && bytes.length <= max && btoa(bytes) === value ? bytes : null;
 }
 
-async function readRecord(request: Request): Promise<string | null> {
+async function readRecord(request: Request, accountId: string): Promise<string | null> {
   if (request.headers.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json' || !request.body) return null;
   const reader = request.body.getReader();
   const bytes = new Uint8Array(MAX_RECORD_BYTES);
@@ -38,14 +38,25 @@ async function readRecord(request: Request): Promise<string | null> {
       length += value.length;
     }
     const record: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(bytes.subarray(0, length)));
-    if (!exactObject(record, ['format', 'kdf', 'salt', 'wrappedMaster']) || record.format !== 1) return null;
-    const { kdf, salt, wrappedMaster } = record;
+    const legacy = exactObject(record, ['format', 'kdf', 'salt', 'wrappedMaster']) && record.format === 1;
+    // Format 2 binds the record to the account that stored it; a record naming another account is refused rather than stored.
+    const bound = exactObject(record, ['format', 'accountId', 'kdf', 'salt', 'wrappedMaster', 'verifier']) && record.format === 2;
+    if (!legacy && !bound) return null;
+    const body = record as { accountId?: unknown; kdf: unknown; salt: unknown; wrappedMaster: unknown; verifier?: unknown };
+    const { accountId: named, kdf, salt, wrappedMaster, verifier } = body;
+    if (bound) {
+      if (named !== accountId) return null;
+      if (base64(verifier, 32, 32) === null) return null;
+    }
     if (!exactObject(kdf, ['id', 'params']) || kdf.id !== 'argon2id') return null;
     if (!exactObject(kdf.params, ['memoryKiB', 'iterations', 'parallelism'])) return null;
     const { memoryKiB, iterations, parallelism } = kdf.params;
     if (!integer(parallelism, 1, 4) || !integer(iterations, 1, 10) || !integer(memoryKiB, 8 * parallelism, 262_144)) return null;
     if (base64(salt, 16, 64) === null || base64(wrappedMaster, 61, 61)?.charCodeAt(0) !== 1) return null;
-    return JSON.stringify({ format: 1, kdf: { id: 'argon2id', params: { memoryKiB, iterations, parallelism } }, salt, wrappedMaster });
+    const canonical = { kdf: { id: 'argon2id', params: { memoryKiB, iterations, parallelism } }, salt, wrappedMaster };
+    return bound
+      ? JSON.stringify({ format: 2, accountId, ...canonical, verifier })
+      : JSON.stringify({ format: 1, ...canonical });
   } catch {
     return null;
   } finally {
@@ -67,7 +78,7 @@ export async function accountKeyRecordRoute(request: Request, account: DurableAc
         headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
       });
     }
-    const record = await readRecord(request);
+    const record = await readRecord(request, id);
     if (record === null) return reply(400, 'Send a valid wrapped account key record.');
     const inserted = await db.prepare(`INSERT INTO account_key_records (account_id, record_json)
       SELECT a.account_id, ? ${ACTIVE_SESSION}
