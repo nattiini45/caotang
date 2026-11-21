@@ -197,14 +197,15 @@ jobs:
         shell: bash
         run: pnpm --filter @caotang/desktop-shell run "package:win:installer"
 
+      # Node rather than `shasum`, which the Windows runner's bash does not carry; the hash is the same one macOS and Linux
+      # write with `shasum`, in the format `shasum -c` and `sha256sum -c` both read.
       - name: Write the SHA-256 of the installer
         shell: bash
         working-directory: apps/desktop-shell/release
         env:
           VERSION: ${{ needs.build-windows.outputs.version }}
         run: |
-          shasum -a 256 "Caotang-Setup-$VERSION.exe" > SHA256SUMS
-          cat SHA256SUMS
+          node -e "const {createHash}=require('node:crypto');const fs=require('node:fs');const name='Caotang-Setup-'+process.env.VERSION+'.exe';const hash=createHash('sha256').update(fs.readFileSync(name)).digest('hex');fs.writeFileSync('SHA256SUMS',hash+'  '+name+'\n');process.stdout.write(fs.readFileSync('SHA256SUMS','utf8'));"
 
       # The installer alone, at the root of its artifact, is what the second signing pass is given; with signing off, this artifact
       # and its SHA256SUMS are the release.
