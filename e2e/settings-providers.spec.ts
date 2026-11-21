@@ -271,6 +271,49 @@ test('a role’s fallbacks are picked in order, saved, and never name the role�
   await expect(again.getByLabel('Chat profile')).not.toHaveValue('');
 });
 
+test('a role’s steps are routed one at a time, and the route survives a reload', async ({ page }) => {
+  await endpointRoute(page, 'https://api.anthropic.com', planThenAnswer({ reply: 'unused' }), CLAUDE_MODELS);
+  await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
+  const settings = await openSettings(page);
+  await addCustomEndpoint(settings, { name: 'Local' });
+  await expect(settings.getByText(savedMessage('Local'))).toBeVisible();
+  await addHostedProvider(settings, { key: ANTHROPIC_KEY, model: 'claude-sonnet-5-5', name: 'Claude' });
+  await expect(settings.getByText(savedMessage('Claude'))).toBeVisible();
+
+  // Nothing to route until a role is pinned, and then only the kinds of step that role runs.
+  await expect(settings.getByText('Per step', { exact: true })).toHaveCount(0);
+  await settings.getByLabel('Chat profile').selectOption({ label: 'Claude' });
+  const steps = settings.locator('.role-steps').first();
+  await expect(steps.locator('summary')).toHaveText('Per step');
+  await expect(steps).not.toHaveAttribute('open', '');
+
+  // The section is closed until asked, and says in words where a routed step's request goes.
+  await expect(settings.getByLabel('Drafts profile')).toBeHidden();
+  await steps.locator('summary').click();
+  await expect(settings.getByText(/Each kind of step can run on a profile of its own/)).toBeVisible();
+  await expect(settings.getByLabel('Planning profile')).toHaveValue('');
+  await settings.getByLabel('Drafts profile').selectOption({ label: 'Local' });
+  const localId = await settings.getByLabel('Drafts profile').locator('option', { hasText: 'Local' }).getAttribute('value');
+  // A step that follows keeps the role's own model and level controls, and offers no second set of them.
+  await expect(settings.getByLabel('Drafts model')).toHaveValue('');
+
+  await settings.getByRole('button', { name: 'Save task roles' }).click();
+  await expect(settings.getByText('Saved the task roles.')).toBeVisible();
+
+  // One step's route is a settings record: it survives a reload, and the steps left alone still follow.
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const again = page.getByTestId('settings');
+  const againSteps = again.locator('.role-steps').first();
+  await expect(againSteps).not.toHaveAttribute('open', '');
+  await againSteps.locator('summary').click();
+  await expect(again.getByLabel('Drafts profile')).toHaveValue(localId ?? '');
+  await expect(again.getByLabel('Planning profile')).toHaveValue('');
+  await expect(again.getByLabel('Synopses profile')).toHaveValue('');
+  await again.getByLabel('Drafts profile').selectOption({ label: 'Follow Chat' });
+  await expect(again.getByLabel('Drafts profile')).toHaveValue('');
+});
+
 test('advanced request parameters save and reload, and a denied thinking field removes the level control', async ({ page }) => {
   await endpointRoute(page, 'https://api.anthropic.com', planThenAnswer({ reply: 'unused' }), CLAUDE_MODELS);
   const settings = await openSettings(page);

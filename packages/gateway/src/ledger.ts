@@ -1,5 +1,5 @@
 import { type Clock, systemClock } from './clock.js';
-import type { TaskRole, TokenPrice, Usage, UsageAttribution } from './types.js';
+import type { StepClass, TaskRole, TokenPrice, Usage, UsageAttribution } from './types.js';
 
 export const USAGE_LEDGER_VERSION = 1;
 
@@ -32,6 +32,8 @@ export interface TurnUsageRow extends UsageTotals {
   profileId: string;
   model: string;
   role: TaskRole;
+  /** The kind of step the call was (§6), when the caller classified it: drafts and planning on the same profile are its own rows. */
+  step?: StepClass;
 }
 
 export interface UsageSnapshot {
@@ -108,11 +110,12 @@ export class UsageLedger {
     this.days.set(dayKey, day);
 
     if (by.turnId !== undefined) {
-      const turnKey = JSON.stringify([by.turnId, by.sessionId, by.agentPath, by.profileId, by.model, role]);
+      const turnKey = JSON.stringify([by.turnId, by.sessionId, by.agentPath, by.profileId, by.model, role, by.step]);
       const turn: TurnUsageRow = this.turns.get(turnKey) ?? {
         version: USAGE_LEDGER_VERSION, turnId: by.turnId,
         ...(by.sessionId === undefined ? {} : { sessionId: by.sessionId }),
         ...(by.agentPath === undefined ? {} : { agentPath: by.agentPath }),
+        ...(by.step === undefined ? {} : { step: by.step }),
         profileId: by.profileId, model: by.model, role, ...ZERO,
       };
       add(turn, totals);
