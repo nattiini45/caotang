@@ -65,6 +65,7 @@ import type {
   ProviderGateway,
   RoleResolver,
   TaskRole,
+  StepClass,
   ThinkingLevel,
   TokenPrice,
   Usage,
@@ -124,7 +125,7 @@ export interface Gateway extends ProviderGateway {
    * pins a profile itself reads this to tell a pin that is the role's own primary, which may use the fallbacks, from one that is
    * not, which sends to that profile alone.
    */
-  resolveRoleRoute?(role: TaskRole): RoleResolution | undefined;
+  resolveRoleRoute?(role: TaskRole, step?: StepClass): RoleResolution | undefined;
 }
 
 /**
@@ -264,14 +265,17 @@ export function createGateway(options: GatewayOptions): Gateway {
    * answer's profile, model and thinking level stand in for the ones the request leaves unset. `complete` sends through it and
    * `modelLimits` settles against it, so a role-routed call is reserved and priced on the route it is sent through.
    */
-  const roleRoute = (role: TaskRole | undefined, profileId: string | undefined): ReturnType<RoleResolver['resolve']> =>
-    role === undefined || profileId !== undefined ? undefined : options.roles?.resolve(role);
+  const roleRoute = (role: TaskRole | undefined, profileId: string | undefined, step?: StepClass): ReturnType<RoleResolver['resolve']> =>
+    role === undefined || profileId !== undefined ? undefined : options.roles?.resolve(role, step);
 
-  const roleAllows = (role: TaskRole | undefined, routed: ReturnType<RoleResolver['resolve']>): boolean =>
-    routed === undefined || (role !== undefined && options.roles?.allowed(role).includes(routed.profileId) === true);
+  const roleAllows = (role: TaskRole | undefined, routed: ReturnType<RoleResolver['resolve']>, step?: StepClass): boolean =>
+    routed === undefined || (role !== undefined && options.roles?.allowed(role, step).includes(routed.profileId) === true);
 
-  function assertRoleAllows(role: TaskRole | undefined, routed: ReturnType<RoleResolver['resolve']>): void {
-    if (!roleAllows(role, routed)) {
+  const egressRefusal = (role: TaskRole | undefined): EgressDeniedError =>
+    new EgressDeniedError(`Refused a request under the "${role}" role: its fallback names a profile that role may not use.`);
+
+  function assertRoleAllows(role: TaskRole | undefined, routed: ReturnType<RoleResolver['resolve']>, step?: StepClass): void {
+    if (!roleAllows(role, routed, step)) {
       throw new EgressDeniedError(`Refused a request under the "${role}" role: it resolved to a profile that role may not use.`);
     }
   }
@@ -430,10 +434,10 @@ export function createGateway(options: GatewayOptions): Gateway {
     // still beat. A resolver with no answer leaves the named-or-active rule in place, as a roleless request.
     // `target` is the destination the route chose for this attempt (§6): it stands in for the role's own resolution, so the
     // allow-list below still decides whether this request may be sent at all.
-    const routed = target ?? roleRoute(req.role, req.profileId);
+    const routed = target ?? roleRoute(req.role, req.profileId, req.step);
     // The role-referenced set is the egress allow-list for a routed request: a role may only ever send
     // through a profile the resolver names for it. This refusal lands before any profile lookup or key reveal.
-    assertRoleAllows(req.role, routed);
+    assertRoleAllows(req.role, routed, req.step);
     const queuedProfile = targetOf(routed?.profileId ?? req.profileId);
     let release: () => void;
     try {
@@ -448,7 +452,7 @@ export function createGateway(options: GatewayOptions): Gateway {
         yield { finishReason: 'error', usage: ZERO };
         return;
       }
-      assertRoleAllows(req.role, routed);
+      assertRoleAllows(req.role, routed, req.step);
       const profile = targetOf(queuedProfile.id);
       const model = req.model ?? routed?.model ?? profile.defaultModel;
       const sent: ChatRequest =
@@ -459,7 +463,7 @@ export function createGateway(options: GatewayOptions): Gateway {
         throw new EgressDeniedError('The approved route changed. No request was sent.');
       }
       const sendGuard = expected?.stamp === undefined && routed === undefined ? beforeSend : () => {
-        if (expected?.stamp === undefined) assertRoleAllows(req.role, routed);
+        if (expected?.stamp === undefined) assertRoleAllows(req.role, routed, req.step);
         else if (resolveRequestRoute(req)?.expected.stamp !== expected.stamp) {
           throw new EgressDeniedError('The approved route changed. This attempt was not sent.');
         }
@@ -553,7 +557,7 @@ export function createGateway(options: GatewayOptions): Gateway {
         trace?.end(stats, signal);
         if (stats.attempts > 0) {
           ledger.record(
-            { profileId: profile.id, model, turnId: req.turnId ?? req.usageTurnId, sessionId: req.sessionId, agentPath: req.agentPath, role: req.role, at: startedAt, pricePer1k: price },
+            { profileId: profile.id, model, turnId: req.turnId ?? req.usageTurnId, sessionId: req.sessionId, agentPath: req.agentPath, role: req.role, ...(req.step === undefined ? {} : { step: req.step }), at: startedAt, pricePer1k: price },
             { ...(stats.usage ?? ZERO), source: profile.kind === 'mock' ? 'provider' : stats.usageSource ?? 'estimate' },
             stats.attempts,
           );
@@ -571,11 +575,11 @@ export function createGateway(options: GatewayOptions): Gateway {
    * target's own refusal or error reaches the caller unchanged.
    */
   async function* runRouted(req: ChatRequest, signal: AbortSignal, beforeSend?: () => void, route?: RouteHooks): AsyncGenerator<ChatChunk, void, undefined> {
-    const routed = roleRoute(req.role, req.profileId);
+    const routed = roleRoute(req.role, req.profileId, req.step);
     // A request that carries an approval stamp names its own destination (`expectedRoute`), so it is pinned like one that names a
     // profile: one target, and its own refusal or fault reaches the caller instead of the route moving on.
     const written: readonly RoleTarget[] = routed === undefined || req.expectedRoute !== undefined ? [] : [routed, ...(routed.fallbacks ?? [])];
-    const allowed = req.role === undefined ? [] : options.roles?.allowed(req.role) ?? [];
+    const allowed = req.role === undefined ? [] : options.roles?.allowed(req.role, req.step) ?? [];
     // §6's stickiness: a caller that owns a turn names the destination that answered its last request, and that destination starts
     // the route, with the rest of the route behind it. It is only ever a target the role names now and may still use, so a profile the
     // writer removed mid-turn leaves the route as written and the request starts at the role's primary again.
@@ -603,13 +607,43 @@ export function createGateway(options: GatewayOptions): Gateway {
       return;
     }
     let pending: unknown;
+    // A window refusal is the one move that needs a destination that can hold the request: its prompt estimate plus the output cap
+    // the attempt will actually be sent with. That cap is the target's own settlement — the request's cap or the profile's, plus the
+    // thinking its level adds — and the level is the target's, exactly as the attempt above applies it. A target whose known window is
+    // smaller is skipped, and one whose window nobody knows is not tried on a guess.
+    const promptTokens = usageFor(req.messages, '').promptTokens;
+    const holdsRequest = (target: RoleTarget): boolean => {
+      const limits = modelLimits(target.profileId, target.model ?? req.model, target.thinking ?? req.thinking, req);
+      if (limits.contextWindow === undefined) return false;
+      const cap = (req.maxOutputTokens ?? limits.maxOutputTokens) + (limits.thinkingTokens ?? 0);
+      return limits.contextWindow >= promptTokens + cap;
+    };
+    // The first target after `index` this route may still move to, for the fault that ended the attempt: a destination the role
+    // still names and allows, and — for a window refusal — one whose window can take the request.
+    const usableAfter = (index: number, reason: FallbackReason): number => {
+      for (let at = index + 1; at < targets.length; at += 1) {
+        const candidate = targets[at] as RoleTarget;
+        const candidateProfile = profiles.get(candidate.profileId);
+        if (candidateProfile === undefined || !allowed.includes(candidateProfile.id)) continue;
+        if (reason === 'context_length' && !holdsRequest(candidate)) continue;
+        return at;
+      }
+      return -1;
+    };
+    // A target the role's route names but its allow-set does not: no destination, and the only thing that makes the route's
+    // misconfiguration worth a refusal rather than the primary's own fault.
+    const refusesAfter = (index: number): boolean => targets.slice(index + 1).some((candidate) => {
+      const found = profiles.get(candidate.profileId);
+      return found !== undefined && !allowed.includes(found.id);
+    });
     // What the next call's trace reports it took over from: the target most recently sent to, named as it was sent, and the fault
     // that ended it. A move with nothing after it never starts a call, so nothing is written to a trace.
     let moved: MovedFrom | undefined;
     // Whether any output reached the caller, over every target: once the writer has seen part of an answer, another provider may
     // not silently begin it again (the transport's own rule, kept for the route).
     let deliveredToCaller = false;
-    for (const [index, target] of targets.entries()) {
+    for (let index = 0; index < targets.length; index += 1) {
+      const target = targets[index] as RoleTarget;
       const profile = profiles.get(target.profileId);
       if (index === 0) {
         // The first target's own failures, and a first target whose profile is gone, reach the caller as they always have.
@@ -627,16 +661,19 @@ export function createGateway(options: GatewayOptions): Gateway {
           fault = error;
         }
         const reason = fallbackReasonOf(fault);
-        if (reason === undefined || deliveredToCaller || signal.aborted) throw fault;
+        const next = reason === undefined || deliveredToCaller || signal.aborted ? -1 : usableAfter(index, reason);
+        if (reason === undefined) throw fault;
+        if (next === -1) throw refusesAfter(index) ? egressRefusal(req.role) : fault;
         pending = fault;
         moved = { from: { profileId: target.profileId, model: req.model ?? target.model ?? targetOf(target.profileId).defaultModel }, reason };
+        index = next - 1;
         continue;
       }
       if (profile === undefined || !allowed.includes(profile.id)) {
         // A fallback the writer removed, deleted or never authorised is not a destination: skip it, or refuse when nothing else
         // is left, so a misconfigured route can never send to a profile the role does not allow.
         if (index === targets.length - 1) {
-          if (profile !== undefined) throw new EgressDeniedError(`Refused a request under the “${req.role}” role: its fallback names a profile that role may not use.`);
+          if (profile !== undefined) throw egressRefusal(req.role);
           throw pending;
         }
         const later = targets.slice(index + 1).find((candidate) => profiles.get(candidate.profileId) !== undefined);
@@ -670,10 +707,12 @@ export function createGateway(options: GatewayOptions): Gateway {
         fault = error;
       }
       const reason = fallbackReasonOf(fault);
-      const nextIndex = targets.findIndex((candidate, at) => at > index && profiles.get(candidate.profileId) !== undefined && allowed.includes(candidate.profileId));
-      if (reason === undefined || delivered || ended || signal.aborted || nextIndex === -1) throw fault;
+      const next = reason === undefined || delivered || ended || signal.aborted ? -1 : usableAfter(index, reason);
+      if (reason === undefined) throw fault;
+      if (next === -1) throw refusesAfter(index) ? egressRefusal(req.role) : fault;
       pending = fault;
       moved = { from: { profileId: profile.id, model: attempt.model ?? profile.defaultModel }, reason };
+      index = next - 1;
     }
     if (pending !== undefined) throw pending;
   }
@@ -747,7 +786,7 @@ export function createGateway(options: GatewayOptions): Gateway {
 
   function modelLimits(profileId?: string, model?: string, askedThinking?: ThinkingLevel, request?: ModelLimitsRequest): ModelLimits {
     // The route `complete` would send the same request through: a role with no named profile resolves as it does there.
-    const routed = roleRoute(request?.role, profileId);
+    const routed = roleRoute(request?.role, profileId, request?.step);
     const target = routed?.profileId ?? profileId;
     const profile = target === undefined ? profiles.active() : profiles.get(target);
     if (profile === undefined) return { maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS };
@@ -802,9 +841,9 @@ export function createGateway(options: GatewayOptions): Gateway {
     return { expected: { profileId: profile.id, model, stamp }, limits };
   }
 
-  function resolveRequestRoute(request: Pick<ChatRequest, 'role' | 'profileId' | 'model' | 'thinking'> & ModelLimitsRequest) {
-    const routed = roleRoute(request.role, request.profileId);
-    if (!roleAllows(request.role, routed)) return undefined;
+  function resolveRequestRoute(request: Pick<ChatRequest, 'role' | 'profileId' | 'model' | 'thinking' | 'step'> & ModelLimitsRequest) {
+    const routed = roleRoute(request.role, request.profileId, request.step);
+    if (!roleAllows(request.role, routed, request.step)) return undefined;
     const target = routed?.profileId ?? request.profileId;
     const profile = target === undefined ? profiles.active() : profiles.get(target);
     if (profile === undefined) return undefined;
@@ -905,7 +944,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     modelCaps,
     accountTokens,
     probeResponseFormat,
-    resolveRoleRoute: (role) => roleRoute(role, undefined),
+    resolveRoleRoute: (role, step) => roleRoute(role, undefined, step),
     setObserver: (observe) => {
       observer = observe;
     },
