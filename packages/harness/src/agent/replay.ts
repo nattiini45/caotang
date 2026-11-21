@@ -54,6 +54,9 @@ import type {
 
 export type ReplayMode = 'call' | 'turn' | 'cassette';
 
+/** How many replays this process has started: a call replay's ledger id carries it, so two never share one. */
+let replays = 0;
+
 /** Where a replay is sent: a saved profile, with the model and level the writer picked on it. */
 export interface ReplayTarget {
   readonly profileId: string;
@@ -491,7 +494,10 @@ async function callReplay(request: ReplayRequest, calls: readonly RecordedCall[]
     }
   }
   const call = callAt(calls, request.callIndex);
-  const turnId = `${request.sessionId ?? `replay-${request.turnId}`}.turn-1`;
+  // Its own ledger id for every call: the gateway's ledger accumulates rows per turn id, so two replays of one recording on one
+  // gateway would otherwise report each other's tokens.
+  replays += 1;
+  const turnId = `${request.sessionId ?? `replay-${request.turnId}`}.call-${call.request.callIndex ?? 1}-${replays}`;
   const message = await gateway.completeOnce(recordedRequest(call, target, turnId), request.signal);
   const totals = gateway.ledger.turnTotals(turnId);
   return {

@@ -324,6 +324,18 @@ describe('replay: one recorded call', () => {
     expect(projectBytes(run.state)).toBe(run.body);
   });
 
+  it('reports each call replay’s own usage, never the sum with the one before it', async () => {
+    const run = await record();
+    const base = await mockGateway([mockRespond('A cheaper plan.')]);
+    const target = { profileId: await profileOf(base) };
+
+    const first = await replay({ mode: 'call', source: run.store, turnId: run.turnId, callIndex: 1, target, gateway: base });
+    const second = await replay({ mode: 'call', source: run.store, turnId: run.turnId, callIndex: 1, target, gateway: base });
+
+    expect(second.usage.replay.modelCalls).toBe(1);
+    expect(second.usage.replay.promptTokens).toBe(first.usage.replay.promptTokens);
+  });
+
   it('refuses a recording whose text was left out, rather than send a shorter prompt', async () => {
     const run = await record();
     const omitted: ReplaySource = {
