@@ -54,7 +54,7 @@ import { keyFacts, resolveKey } from '../app/keymap.js';
 import { isImeEnter } from '../app/ime.js';
 import type { ProjectSession } from '../app/session.js';
 import { BinderFilterBar } from './BinderFilters.js';
-import { ACCESS_LABELS, ACCESS_MARKERS, accessOf, effectiveAccess } from '../app/agent-rules-model.js';
+import { accessLabel, accessMarker, accessOf, effectiveAccess } from '../app/agent-rules-model.js';
 import { mediaCreateItems, type MediaCreateSpec } from '../media/create-menu.js';
 import { newGroups, type NewKind } from '../app/new-menu.js';
 import { openDialog } from './dialog-requests.js';
@@ -77,7 +77,7 @@ import {
 } from './actions.js';
 
 
-/* lingui-set comment="The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number." */
+/* lingui-set comment="Binder row labels. Interpolated values: access is an access level's name, from is the node the rule was set on, title is a row's title." */
 export type CenterMode = 'editor' | 'corkboard' | 'timeline' | 'pictures';
 
 export interface BinderProps {
@@ -492,7 +492,7 @@ export function Binder(props: BinderProps): ReactNode {
     if (held.inheritedFrom !== undefined) {
       items.push({
         key: 'agent-inherited',
-        label: `${ACCESS_LABELS[held.access]} (set on ${held.inheritedFrom.title})`,
+        label: t`${{ access: accessLabel(held.access) }} (set on ${{ from: held.inheritedFrom.title }})`,
         onSelect: () => undefined,
         disabled: true,
         separatorBefore: true,
@@ -501,7 +501,7 @@ export function Binder(props: BinderProps): ReactNode {
       for (const [index, access] of (['full', 'read-only', 'none'] as const).entries()) {
         items.push({
           key: `agent-${access}`,
-          label: ACCESS_LABELS[access],
+          label: accessLabel(access),
           checked: held.access === access,
           ...(index === 0 ? { separatorBefore: true } : {}),
           onSelect: () => session.setAgentAccess(node.id, access),
@@ -811,7 +811,7 @@ function BinderRowView(props: RowViewProps): ReactNode {
         <span className="row-meta">
           {props.agentAccess === null ? null : (
             <span className="row-agent" data-agent-access={props.agentAccess}>
-              <span aria-hidden="true">{props.agentAccess === 'none' ? '◌' : '▭'}</span> {ACCESS_MARKERS[props.agentAccess]}
+              <span aria-hidden="true">{props.agentAccess === 'none' ? '◌' : '▭'}</span> {accessMarker(props.agentAccess)}
             </span>
           )}
           {itemsLabel(childrenOf(state, node.id).length)}
@@ -912,11 +912,11 @@ function BinderRowView(props: RowViewProps): ReactNode {
         ) : null}
         {props.agentAccess === null ? null : (
           <span className="row-agent" data-agent-access={props.agentAccess}>
-            <span aria-hidden="true">{props.agentAccess === 'none' ? '◌' : '▭'}</span> {ACCESS_MARKERS[props.agentAccess]}
+            <span aria-hidden="true">{props.agentAccess === 'none' ? '◌' : '▭'}</span> {accessMarker(props.agentAccess)}
           </span>
         )}
         {/* A part's role is in words, inside the row's name, so a screen reader hears "Part One, Part" and not only its level. */}
-        {row.role === 'part' ? <span className="row-role">Part</span> : null}
+        {row.role === 'part' ? <span className="row-role"><Trans>Part</Trans></span> : null}
         {node.type === 'document' ? <span className="row-count">{wordsLabel(wordCountOf(state, node.id))}</span> : null}
         {container ? <span className="row-count">{itemsLabel(count)}</span> : null}
       </span>
@@ -927,9 +927,10 @@ function BinderRowView(props: RowViewProps): ReactNode {
 
 /** The Actions button of a row in the narrow layout. It is not a tab stop: the row's own menu key opens the same menu. */
 function RowActions({ title, onActions }: { title: string; onActions: ((event: ReactMouseEvent<HTMLElement>) => void) | undefined }): ReactNode {
+  useLingui();
   if (onActions === undefined) return null;
   return (
-    <button type="button" tabIndex={-1} className="row-actions" aria-haspopup="menu" aria-label={`Actions for ${title}`} onClick={onActions}>
+    <button type="button" tabIndex={-1} className="row-actions" aria-haspopup="menu" aria-label={t`Actions for ${title}`} onClick={onActions}>
       <span aria-hidden="true">⋯</span>
     </button>
   );

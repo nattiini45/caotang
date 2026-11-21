@@ -238,7 +238,7 @@ function defaultEvery(tick: () => void, ms: number): () => void {
 
 const cut = (text: string, limit = 280): string => (text.length <= limit ? text : `${text.slice(0, limit - 1).trimEnd()}…`);
 
-/* lingui-set comment="Interpolated values: name" */
+/* lingui-set comment="Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names." */
 
 export class RecurringTasks {
   private runs: TaskRuns | null;
@@ -389,7 +389,7 @@ export class RecurringTasks {
       for (const id of news) this.announced.add(id);
       if (news.length > 0) {
         const names = news.map((id) => this.taskById(id)?.name ?? '').filter((name) => name !== '');
-        this.announcement = names.length === 1 ? `Task due: ${names[0]}. Run now or Skip.` : `${names.length} tasks are due: ${names.join(', ')}.`;
+        this.announcement = names.length === 1 ? t`Task due: ${{ name: names[0] ?? '' }}. Run now or Skip.` : t`${{ count: names.length }} tasks are due: ${{ names: names.join(', ') }}.`;
       }
       this.bump();
     } finally {
@@ -484,12 +484,12 @@ export class RecurringTasks {
       at: (this.options.now ?? (() => new Date()))().toISOString(),
       status: 'skipped',
       trigger: 'due',
-      summary: 'Skipped by you.',
+      summary: t`Skipped by you.`,
       requests: 0,
       promptTokens: 0,
       completionTokens: 0,
     });
-    this.announcement = `Skipped ${task.name}.`;
+    this.announcement = t`Skipped ${{ name: task.name }}.`;
     this.bump();
   }
 
@@ -498,13 +498,13 @@ export class RecurringTasks {
     if (task === undefined || this.runs === null) return;
     this.message = null;
     if (this.running !== null || this.isStaging(id)) {
-      this.message = 'Another task is running. Run this one when it has finished.';
+      this.message = t`Another task is running. Run this one when it has finished.`;
       this.bump();
       return;
     }
     const problem = task.problem ?? checkTask(task);
     if (problem !== undefined) {
-      this.message = `${task.name} cannot run: ${problem}`;
+      this.message = t`${{ name: task.name }} cannot run: ${problem}`;
       this.bump();
       return;
     }
@@ -520,7 +520,7 @@ export class RecurringTasks {
       const execution = this.execute(task, trigger);
       if (execution === null) {
         this.moveRun({ type: 'finish', taskId: id });
-        this.message = 'The agent is working on another turn. Run the task when it has finished.';
+        this.message = t`The agent is working on another turn. Run the task when it has finished.`;
         this.bump();
         return;
       }
@@ -536,7 +536,7 @@ export class RecurringTasks {
       }
       record = completed;
     } catch (error) {
-      record = this.recordOf(task, trigger, 'failed', `The run stopped unexpectedly: ${error instanceof Error ? error.message : String(error)}`);
+      record = this.recordOf(task, trigger, 'failed', t`The run stopped unexpectedly: ${{ error: error instanceof Error ? error.message : String(error) }}`);
     }
     this.moveRun({ type: 'record', taskId: id });
     try {
@@ -572,7 +572,7 @@ export class RecurringTasks {
       task.body.kind === 'plan' ? { steps: task.body.steps } : undefined);
     if (!admitted.started) return null;
     return admitted.report.then((report) => {
-      if (report === null) return this.recordOf(task, trigger, 'failed', agent.snapshot().message ?? 'The turn did not run.');
+      if (report === null) return this.recordOf(task, trigger, 'failed', agent.snapshot().message ?? t`The turn did not run.`);
       const status = report.status === 'failed' ? 'failed' : report.status === 'cancelled' ? 'stopped' : 'done';
       return this.recordOf(task, trigger, status, report.summary, {
         requests: report.tokens.requests,
@@ -595,7 +595,7 @@ export class RecurringTasks {
     const on = (this.options.enabledChecks ?? (() => DETERMINISTIC_CHECK_IDS))();
     const asked = body.checks ?? DETERMINISTIC_CHECK_IDS;
     const checks = asked.filter((id) => on.includes(id));
-    if (checks.length === 0) return this.recordOf(task, trigger, 'failed', 'Every check this scan would run is turned off in Settings › Coherence, so nothing ran.');
+    if (checks.length === 0) return this.recordOf(task, trigger, 'failed', t`Every check this scan would run is turned off in Settings › Coherence, so nothing ran.`);
     // A document a read rule keeps from the agent is left out of this scan, as it is of the agent's own.
     // The harness is loaded on first use (lazy-harness.ts); a scan that starts as the project opens may come before any turn.
     const withheld = (await session.harnessReady()).withheld('coherence.scan');
@@ -613,12 +613,12 @@ export class RecurringTasks {
     if (!result.ok) return this.recordOf(task, trigger, result.code === 'cancelled' || result.code === 'closed' ? 'stopped' : 'failed', result.message);
     // A whole-project scan that had no document to read found nothing because it looked at nothing, which is not a clean result.
     if (body.scope === 'full' && result.data.documents === 0) {
-      const why = withheld.size > 0 ? ' A rule in this project may be keeping the manuscript from the agent.' : '';
-      return this.recordOf(task, trigger, 'failed', `Nothing was scanned: no document was open to this scan.${why}`);
+      const why = withheld.size > 0 ? t` A rule in this project may be keeping the manuscript from the agent.` : '';
+      return this.recordOf(task, trigger, 'failed', t`Nothing was scanned: no document was open to this scan.${why}`);
     }
     // The checks Settings › Coherence has off are left out, and the record says so, as the agent's own scan does.
     const skipped = asked.filter((id) => !on.includes(id));
-    const left = skipped.length === 0 ? '' : ` Not run, because they are turned off in Settings › Coherence: ${skipped.join(', ')}.`;
+    const left = skipped.length === 0 ? '' : t` Not run, because they are turned off in Settings › Coherence: ${{ skipped: skipped.join(', ') }}.`;
     return this.recordOf(task, trigger, 'done', `${result.summary}${left}`);
   }
 
@@ -629,15 +629,15 @@ export class RecurringTasks {
   /** Makes a task, or changes `id`. Resolves with why it was not saved, or `null`. */
   async save(draft: TaskDraft, id?: string): Promise<string | null> {
     const home = this.options.session.tasksHome();
-    if (home === null) return 'This project has no tasks file to save to.';
+    if (home === null) return t`This project has no tasks file to save to.`;
     const file = this.file();
     const existing = id === undefined ? undefined : file.tasks.find((task) => task.id === id);
-    if (id !== undefined && existing === undefined) return 'That task is gone.';
-    if (existing === undefined && file.tasks.length >= TASKS_LIMIT) return `A project keeps at most ${TASKS_LIMIT} tasks.`;
+    if (id !== undefined && existing === undefined) return t`That task is gone.`;
+    if (existing === undefined && file.tasks.length >= TASKS_LIMIT) return t`A project keeps at most ${TASKS_LIMIT} tasks.`;
     const plan = draft.body === 'plan' ? readPlanText(draft.steps) : undefined;
     if (plan?.ok === false) return plan.message;
     const task = taskOf(draft, existing?.id ?? newTaskId(new Set(file.tasks.map((entry) => entry.id))), existing, plan?.steps);
-    if (draft.maxModelCalls.trim() !== '' && !/^\d+$/.test(draft.maxModelCalls.trim())) return 'Limit model calls to a whole number from 1 to 100.';
+    if (draft.maxModelCalls.trim() !== '' && !/^\d+$/.test(draft.maxModelCalls.trim())) return t`Limit model calls to a whole number from 1 to 100.`;
     const refusal = checkTask(task);
     if (refusal !== undefined) return refusal;
     if (existing !== undefined && bodyHash(existing) !== bodyHash(task)) {
@@ -653,7 +653,7 @@ export class RecurringTasks {
   async setEnabled(id: string, enabled: boolean): Promise<string | null> {
     const home = this.options.session.tasksHome();
     const file = this.file();
-    if (home === null || !file.tasks.some((task) => task.id === id)) return 'That task is gone.';
+    if (home === null || !file.tasks.some((task) => task.id === id)) return t`That task is gone.`;
     if (!enabled) this.disabling.add(id);
     try {
       if (!enabled) await this.cancelStaging(id);
@@ -667,9 +667,9 @@ export class RecurringTasks {
   async remove(id: string): Promise<string | null> {
     const home = this.options.session.tasksHome();
     const file = this.file();
-    if (home === null || !file.tasks.some((task) => task.id === id)) return 'That task is gone.';
+    if (home === null || !file.tasks.some((task) => task.id === id)) return t`That task is gone.`;
     if (this.running === id) {
-      this.message = 'That task is running. Delete it when it has finished.';
+      this.message = t`That task is running. Delete it when it has finished.`;
       this.bump();
       return this.message;
     }
@@ -692,7 +692,7 @@ export class RecurringTasks {
    */
   async allowSelfStart(id: string, expectedHash: string): Promise<string | null> {
     const task = this.taskById(id);
-    if (task === undefined || this.consents === null) return 'That task is gone.';
+    if (task === undefined || this.consents === null) return t`That task is gone.`;
     if (bodyHash(task) !== expectedHash) return t`This task changed while its allowance was open. Review it again before allowing it.`;
     if (task.body.kind !== 'plan' || selfStartProblem(task) !== undefined || task.whenDue !== 'run') {
       return t`Only an eligible plan set to start by itself can be allowed. Model plans also need a call limit.`;

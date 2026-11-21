@@ -6,8 +6,10 @@
  * Every text on this panel is rendered as text, never as markup: a prompt, a reply or a tool result is whatever the model or the
  * manuscript said. The trace is kept in memory only, so the panel says so, and the only way out is Export trace.
  */
+/* lingui-set comment="The trace panel's rows. Interpolated values: millis, startMs and durationMs are times; chars, cutChars, replyCut, paramsCut and resultCut are character counts; inTokens, outTokens, estimated, calls and tokenCount are token and call counts; messagesSent, toolsDeclared, tools, sent and attempts describe what was sent; records is a record count; statusNote is a run's status; callId is a tool call id." */
 
-import { t } from '@lingui/core/macro';
+import { plural, t } from '@lingui/core/macro';
+import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
@@ -21,8 +23,9 @@ import { EmptyState, More, formatCount, useReport } from './shared.js';
 import { PanelGlyph as Icon } from './panel-glyph.js';
 
 /** The sentence the export dialog carries: what the file holds, and how far its scrubbing goes. */
-export const EXPORT_WARNING =
-  'The file contains the prompts and the manuscript text that were sent to the model, and keys are scrubbed on a best-effort basis, so read it before you share it.';
+export function exportWarning(): string {
+  return t`The file contains the prompts and the manuscript text that were sent to the model, and keys are scrubbed on a best-effort basis, so read it before you share it.`;
+}
 
 /** A native disclosure whose body is built only while it is open, so a closed prompt of 60 KB costs nothing. */
 function Disclosure({ summary, children, open = false, className }: { summary: ReactNode; children: ReactNode; open?: boolean; className?: string }): ReactNode {
@@ -50,10 +53,15 @@ function Bar({ startMs, durationMs, spanMs }: { startMs: number; durationMs: num
 }
 
 function ms(value: number | undefined): string {
-  return value === undefined ? '…' : `${formatCount(value)} ms`;
+  if (value === undefined) return '…';
+  const millis = formatCount(value);
+  return t`${millis} ms`;
 }
 
 function MessageView({ message }: { message: TraceMessageView }): ReactNode {
+  useLingui();
+  const chars = message.chars;
+  const cutChars = message.cut === undefined ? '' : formatCount(message.cut);
   return (
     <Disclosure
       className="trace-message"
@@ -61,7 +69,7 @@ function MessageView({ message }: { message: TraceMessageView }): ReactNode {
       open={message.role !== 'system'}
       summary={
         <>
-          <span className="trace-role">{message.role}</span> <span className="trace-faint">{formatCount(message.chars)} characters</span>
+          <span className="trace-role">{message.role}</span> <span className="trace-faint">{plural(chars, { one: '# character', other: '# characters' })}</span>
         </>
       }
     >
@@ -71,14 +79,23 @@ function MessageView({ message }: { message: TraceMessageView }): ReactNode {
           {call}
         </pre>
       ))}
-      {message.cut === undefined ? null : <p className="trace-faint">{formatCount(message.cut)} characters of this message were cut to keep the record small.</p>}
+      {message.cut === undefined ? null : <p className="trace-faint">{t`${cutChars} characters of this message were cut to keep the record small.`}</p>}
     </Disclosure>
   );
 }
 
 function CallRow({ row, spanMs }: { row: TraceCallRow; spanMs: number }): ReactNode {
-  const tokens =
-    row.promptTokens === undefined ? null : `${formatCount(row.promptTokens)} in, ${formatCount(row.completionTokens ?? 0)} out${row.usageSource === 'estimate' ? ' (estimated)' : ''}`;
+  useLingui();
+  const inTokens = formatCount(row.promptTokens ?? 0);
+  const outTokens = formatCount(row.completionTokens ?? 0);
+  const estimated = row.usageSource === 'estimate' ? t` (estimated)` : '';
+  const tokens = row.promptTokens === undefined ? null : t`${inTokens} in, ${outTokens} out${estimated}`;
+  const messagesSent = plural({ count: row.messages.length }, { one: '# message', other: '# messages' });
+  const toolsDeclared = plural({ count: row.tools.length }, { one: '# tool declared', other: '# tools declared' });
+  const tools = row.tools.length === 0 ? '' : t`, ${toolsDeclared}`;
+  const sent = t`Sent: ${messagesSent}${tools}`;
+  const attempts = row.tries.map((entry) => `${entry.attempt + 1} ${entry.outcome}${entry.status === undefined ? '' : ` (${entry.status})`}`).join(', ');
+  const replyCut = formatCount(row.cut ?? 0);
   return (
     <li className="trace-row is-call" data-testid="trace-call">
       <Disclosure
@@ -102,29 +119,29 @@ function CallRow({ row, spanMs }: { row: TraceCallRow; spanMs: number }): ReactN
       >
         <div className="trace-detail">
           {row.note === undefined ? null : <p className="trace-faint">{row.note}</p>}
-          <h4>Sent: {row.messages.length} messages{row.tools.length === 0 ? '' : `, ${row.tools.length} tools declared`}</h4>
+          <h4>{sent}</h4>
           {row.messages.map((message) => (
             <MessageView key={message.id} message={message} />
           ))}
           {row.tries.length > 1 ? (
             <p className="trace-faint">
-              Attempts: {row.tries.map((entry) => `${entry.attempt + 1} ${entry.outcome}${entry.status === undefined ? '' : ` (${entry.status})`}`).join(', ')}
+              <Trans>Attempts: {attempts}</Trans>
             </p>
           ) : null}
-          <h4>Reply</h4>
+          <h4><Trans>Reply</Trans></h4>
           {row.error === undefined ? null : <div className="trace-error" data-panel-state="error"><Icon name="error" label={t`Model call failed`} /><p>{row.error}</p><p><Trans>Open the agent to check the request before trying again.</Trans></p></div>}
-          {row.reply === undefined ? <p className="trace-faint"><Trans>No reply recorded yet.</Trans></p> : <pre className="trace-text">{row.reply === '' ? '(no text)' : row.reply}</pre>}
+          {row.reply === undefined ? <p className="trace-faint"><Trans>No reply recorded yet.</Trans></p> : <pre className="trace-text">{row.reply === '' ? t`(no text)` : row.reply}</pre>}
           {row.replyCalls.map((call, index) => (
             <pre key={index} className="trace-text">
-              asked for {call}
+              {t`asked for ${call}`}
             </pre>
           ))}
           {row.reasoning === undefined ? null : (
-            <Disclosure className="trace-message" summary="Reasoning">
+            <Disclosure className="trace-message" summary={t`Reasoning`}>
               <pre className="trace-text">{row.reasoning}</pre>
             </Disclosure>
           )}
-          {row.cut === undefined ? null : <p className="trace-faint">{formatCount(row.cut)} characters of this reply were cut to keep the record small.</p>}
+          {row.cut === undefined ? null : <p className="trace-faint">{t`${replyCut} characters of this reply were cut to keep the record small.`}</p>}
         </div>
       </Disclosure>
     </li>
@@ -132,6 +149,9 @@ function CallRow({ row, spanMs }: { row: TraceCallRow; spanMs: number }): ReactN
 }
 
 function ToolRowView({ row, spanMs }: { row: TraceToolRow; spanMs: number }): ReactNode {
+  useLingui();
+  const paramsCut = formatCount(row.paramsCut ?? 0);
+  const resultCut = formatCount(row.cut ?? 0);
   return (
     <li className="trace-row is-tool" data-testid="trace-tool">
       <Disclosure
@@ -139,7 +159,7 @@ function ToolRowView({ row, spanMs }: { row: TraceToolRow; spanMs: number }): Re
           <>
             <span className="trace-title">{row.tool}</span>
             <span className="trace-facts">
-              <span className={`badge is-risk-${row.risk}`}>{row.risk}</span> {row.outcome ?? 'running'}
+              <span className={`badge is-risk-${row.risk}`}>{row.risk}</span> {row.outcome ?? t`running`}
               {row.code === undefined ? '' : ` (${row.code})`} · {ms(row.durationMs)}
               {row.agentPath === undefined ? '' : ` · ${row.agentPath}`}
             </span>
@@ -148,12 +168,12 @@ function ToolRowView({ row, spanMs }: { row: TraceToolRow; spanMs: number }): Re
         }
       >
         <div className="trace-detail">
-          <h4>Parameters</h4>
+          <h4><Trans>Parameters</Trans></h4>
           <pre className="trace-text">{row.params}</pre>
-          {row.paramsCut === undefined ? null : <p className="trace-faint">{formatCount(row.paramsCut)} characters of these parameters were cut to keep the record small.</p>}
-          <h4>Result handed back to the model</h4>
-          {row.result === undefined ? <p className="trace-faint">None recorded.</p> : <pre className="trace-text">{row.result}</pre>}
-          {row.cut === undefined ? null : <p className="trace-faint">{formatCount(row.cut)} characters of this result were cut to keep the record small.</p>}
+          {row.paramsCut === undefined ? null : <p className="trace-faint">{t`${paramsCut} characters of these parameters were cut to keep the record small.`}</p>}
+          <h4><Trans>Result handed back to the model</Trans></h4>
+          {row.result === undefined ? <p className="trace-faint"><Trans>None recorded.</Trans></p> : <pre className="trace-text">{row.result}</pre>}
+          {row.cut === undefined ? null : <p className="trace-faint">{t`${resultCut} characters of this result were cut to keep the record small.`}</p>}
         </div>
       </Disclosure>
     </li>
@@ -187,21 +207,26 @@ function Rows({ rows, spanMs }: { rows: readonly TraceRow[]; spanMs: number }): 
   );
 }
 
-const turnName = (turn: TraceTurn): string => (turn.turnId === TRACE_REVIEWS ? 'Reviews' : turn.intent === '' ? turn.turnId : turn.intent);
+const turnName = (turn: TraceTurn): string => (turn.turnId === TRACE_REVIEWS ? t`Reviews` : turn.intent === '' ? turn.turnId : turn.intent);
 
 /** A turn of the trace: its head always, and its timeline while it is open (only one turn is built at a time). */
 function TurnBlock({ turn, timeline, onToggle }: { turn: TraceTurn; timeline: TraceTimeline | null; onToggle: () => void }): ReactNode {
+  useLingui();
   const bodyId = useId();
   const open = timeline !== null;
+  const records = turn.records;
+  const calls = timeline === null ? 0 : plural({ calls: timeline.calls }, { one: '# model call', other: '# model calls' });
+  const tokenCount = timeline === null ? 0 : plural({ tokens: timeline.promptTokens + timeline.completionTokens }, { one: '# token', other: '# tokens' });
+  const statusNote = timeline?.status === undefined ? '' : ` · ${timeline.status}`;
   return (
     <li className="trace-turn" data-testid="trace-turn">
       <button type="button" className="trace-turn-head" aria-expanded={open} aria-controls={bodyId} onClick={onToggle}>
         <span className="trace-title">{turnName(turn)}</span>
         <span className="trace-facts">
-          {turn.turnId === TRACE_REVIEWS ? 'calls made outside a turn · ' : ''}
+          {turn.turnId === TRACE_REVIEWS ? t`calls made outside a turn · ` : ''}
           {timeline === null
-            ? `${turn.records} records`
-            : `${timeline.calls} model ${timeline.calls === 1 ? 'call' : 'calls'} · ${formatCount(timeline.promptTokens + timeline.completionTokens)} tokens${timeline.status === undefined ? '' : ` · ${timeline.status}`}`}
+            ? plural(records, { one: '# record', other: '# records' })
+            : t`${calls} · ${tokenCount}${statusNote}`}
         </span>
       </button>
       <div id={bodyId} hidden={!open}>
@@ -226,6 +251,7 @@ function ExportDialog({
   onCancel: () => void;
   onExport: (scope: Scope, omitText: boolean) => void;
 }): ReactNode {
+  useLingui();
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const [scope, setScope] = useState<Scope>('turn');
@@ -248,34 +274,34 @@ function ExportDialog({
       }}
     >
       <form method="dialog" className="confirm-body" onSubmit={(event) => event.preventDefault()}>
-        <h2 id={titleId}>Export trace</h2>
+        <h2 id={titleId}><Trans>Export trace</Trans></h2>
         <div className="confirm-text">
-          <p>{EXPORT_WARNING}</p>
+          <p>{exportWarning()}</p>
         </div>
         <fieldset className="trace-scope">
-          <legend>What to export</legend>
+          <legend><Trans>What to export</Trans></legend>
           <label className="check">
             <input type="radio" name="trace-scope" checked={chosen === 'turn'} disabled={turnLabel === null} onChange={() => setScope('turn')} />
-            {turnLabel === null ? 'This turn' : `This turn: ${turnLabel}`}
+            {turnLabel === null ? t`This turn` : t`This turn: ${turnLabel}`}
           </label>
           <label className="check">
             <input type="radio" name="trace-scope" checked={chosen === 'all'} onChange={() => setScope('all')} />
-            All turns in this tab
+            <Trans>All turns in this tab</Trans>
           </label>
         </fieldset>
         <label className="check">
           <input type="checkbox" checked={omit} onChange={(event) => setOmit(event.target.checked)} />
-          Leave out manuscript text
+          <Trans>Leave out manuscript text</Trans>
         </label>
         <p className="trace-faint">
-          With this on, every prompt, reply, parameter and result is replaced by its length. Timing, tool names, outcomes and token counts stay.
+          <Trans>With this on, every prompt, reply, parameter and result is replaced by its length. Timing, tool names, outcomes and token counts stay.</Trans>
         </p>
         <div className="confirm-actions">
           <button type="button" className="button" autoFocus onClick={onCancel}>
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
           <button type="button" className="button is-primary" onClick={() => onExport(chosen, omit)}>
-            Export
+            <Trans>Export</Trans>
           </button>
         </div>
       </form>
@@ -284,6 +310,7 @@ function ExportDialog({
 }
 
 export function TracePanel({ services, projectName }: { services: AppServices; projectName: string }): ReactNode {
+  useLingui();
   const { trace } = services.providers;
   const version = useSyncExternalStore(trace.subscribe, trace.snapshot);
   const settings = useSyncExternalStore(services.settings.subscribe, services.settings.current);
@@ -316,7 +343,7 @@ export function TracePanel({ services, projectName }: { services: AppServices; p
     const name = traceFileName(projectName, turnId);
     downloadBytes(new TextEncoder().encode(text), name, 'application/x-ndjson');
     setExporting(false);
-    report({ text: `Exported the trace as ${name}.`, tone: 'info' });
+    report({ text: t`Exported the trace as ${name}.`, tone: 'info' });
   };
 
   const currentTurn = ordered.find((turn) => turn.turnId === current);

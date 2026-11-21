@@ -1,9 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { i18n } from '@lingui/core';
 import { seededId } from '@caotang/ids';
 import { bodyHash, type AgentTask } from '@caotang/tasks';
 import type { TaskConsentDb, TaskConsentRow } from '../src/app/app-db.js';
 import { dropTaskConsentsOf, TaskConsents } from '../src/app/task-consents.js';
 import { asTaskRecord, type TaskRecord } from '../src/app/task-store.js';
+import { messages } from '../src/i18n/locales/en/messages.po';
+
+beforeEach(() => {
+  i18n.load('en', messages);
+  i18n.activate('en');
+});
 
 const projectId = seededId('p', 1);
 const taskId = seededId('t', 1);

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import type { AppDb } from '../../apps/desktop/src/app/app-db.js';
 import { recordPending, reviewKey, takePending } from '../../apps/desktop/src/app/review-notice.js';
-import { UNRESOLVED_NOTICE, landingNotice, pendingLabel, pendingNotice } from '../../apps/desktop/src/app/review-text.js';
+import { landingNotice, pendingLabel, pendingNotice, unresolvedNotice } from '../../apps/desktop/src/app/review-text.js';
 
 /** An in-memory app database: the calls the notice makes, over a map. */
 function memoryDb(): AppDb & { rows: Map<string, unknown> } {
@@ -100,9 +100,9 @@ test.describe('the notice a reload owes for suggestions still marked (editor-eng
   });
 
   test('a change that could not be resolved names the ways back', () => {
-    expect(UNRESOLVED_NOTICE).toContain('could not be resolved');
-    expect(UNRESOLVED_NOTICE).toContain('Ctrl+Z');
-    expect(UNRESOLVED_NOTICE).toContain('‘Restore to before this turn’ is on that turn’s card in the agent panel');
+    expect(unresolvedNotice()).toContain('could not be resolved');
+    expect(unresolvedNotice()).toContain('Ctrl+Z');
+    expect(unresolvedNotice()).toContain('‘Restore to before this turn’ is on that turn’s card in the agent panel');
   });
 
   test('every restore label the notices name is the button the agent panel shows', async () => {

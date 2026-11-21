@@ -167,7 +167,7 @@ export type { SaveState } from './save-channel.js';
 
 export type SessionUndoOutcome = { readonly kind: 'done' } | { readonly kind: 'empty' } | { readonly kind: 'failed'; readonly message: string };
 
-/* lingui-set comment="Interpolated values: error, reason, title" */
+/* lingui-set comment="Session restore messages. Interpolated values: reason is why a restore stopped." */
 
 /** A dispatch that returned an error: the command, who issued it, and the error's code. */
 export interface RejectedDispatch {
@@ -1644,7 +1644,7 @@ export class ProjectSession {
       return {
         ok: false,
         message: unsaved
-          ? 'Some of your typing could not be saved yet, so nothing was restored and your edits are as they were. Try again once it is saved.'
+          ? t`Some of your typing could not be saved yet, so nothing was restored and your edits are as they were. Try again once it is saved.`
           : refusalOf(plan, id),
         undone: [],
         kept: 0,
@@ -1654,8 +1654,8 @@ export class ProjectSession {
     const kept = this.laterChangesAfter(id).length;
     const taken = fromCallId === undefined ? this.undoNow(id) : this.settleUndo(this.undo.undoFrom(id, fromCallId));
     if (taken.kind !== 'done') {
-      const reason = taken.kind === 'failed' ? taken.message : 'a change could not be taken back';
-      return { ok: false, message: `The restore stopped part way, because the change could not be taken back: ${reason}. Your later edits were not touched.`, undone: [], kept: 0 };
+      const reason = taken.kind === 'failed' ? taken.message : t`a change could not be taken back`;
+      return { ok: false, message: t`The restore stopped part way, because the change could not be taken back: ${reason}. Your later edits were not touched.`, undone: [], kept: 0 };
     }
     return { ok: true, later: 0, undone: fromCallId === undefined ? [id] : [], kept };
   }
