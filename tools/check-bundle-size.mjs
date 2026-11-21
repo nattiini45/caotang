@@ -239,9 +239,10 @@ export const BUDGET = {
   // (which carries #746's relations, #740's agent delegation, #769's codex.read ids, #773's provider key events and #752's
   // folder watch): 8,879,683 bytes — the +5.3 kB over the earlier measurement is main's own landed work, not the sweep's.
   // Re-measured on the merge of main at 3b1c6cdc (#782 and #777): 8,885,946 bytes — the +6.3 kB over the earlier
-  // measurement is again main's own landed work. The ceiling is the new measurement rounded up to the thousand.
-  // [delegated 2026-11-20]
-  totalJs: 8_886_000,
+  // measurement is again main's own landed work. Re-measured on the merge of main at 458d4418 (#784's burst judging and
+  // #787's per-device key return): 8,886,687 bytes — main's own landed work again. The ceiling is the new measurement
+  // rounded up to the thousand. [delegated 2026-11-21]
+  totalJs: 8_887_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
