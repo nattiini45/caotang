@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 
 import { cloneProjectState, type ProjectState } from '@caotang/store';
 import type { ChatRequest, Gateway } from '@caotang/gateway';
+import { DEFAULT_MAX_MODEL_CALLS } from '../../src/index.js';
 
 import { canonicalJson } from '../../src/util.js';
 
@@ -354,6 +355,19 @@ describe('replay: one recorded call', () => {
 });
 
 describe('replay: the turn’s own bound', () => {
+  it('reports each turn replay’s own usage, never the sum with the one before it', async () => {
+    const run = await record();
+    const replayGateway = await mockGateway([transcript(INTENT, [SYNOPSIS]), prose('Document "The Storm":', SYNOPSIS_PROSE)]);
+    const target = { profileId: await profileOf(replayGateway) };
+    const once = { mode: 'turn' as const, source: run.store, turnId: run.turnId, snapshot: run.before, target, gateway: replayGateway, clock: clock.now };
+
+    const first = await replay(once);
+    const second = await replay(once);
+
+    expect(second.usage.replay).toEqual(first.usage.replay);
+    expect(second.report?.tokens).toEqual(first.report?.tokens);
+  });
+
   it('runs no more model calls than the caller’s bound, which is the bound the estimate printed', async () => {
     const run = await record();
     const replayGateway = await mockGateway([transcript(INTENT, [SYNOPSIS]), prose('Document "The Storm":', SYNOPSIS_PROSE)]);
@@ -386,9 +400,29 @@ describe('replay: the estimate a writer confirms first', () => {
     );
 
     expect(estimate.promptTokens).toBe(calls.reduce((sum, call) => sum + (call.response?.['gen_ai.usage.input_tokens'] ?? 0), 0));
-    expect(estimate.modelCalls).toBe(calls.length);
+    // A turn's bound is the session's allowance, not the recording's count: a model that plans more steps may spend more.
+    expect(estimate.modelCalls).toBe(DEFAULT_MAX_MODEL_CALLS);
     const limits = gateway.modelLimits(limit);
-    expect(estimate.maxCompletionTokens).toBe((limits.maxOutputTokens + (limits.thinkingTokens ?? 0)) * calls.length);
+    expect(estimate.maxCompletionTokens).toBe((limits.maxOutputTokens + (limits.thinkingTokens ?? 0)) * DEFAULT_MAX_MODEL_CALLS);
+  });
+
+  it('bounds a turn by the session’s allowance, not by the recording’s call count', async () => {
+    const run = await record();
+    const gateway = await mockGateway([]);
+    const limit = await profileOf(gateway);
+    const limits = gateway.modelLimits(limit);
+    const cap = limits.maxOutputTokens + (limits.thinkingTokens ?? 0);
+
+    const bounded = estimateReplay({ mode: 'turn', source: run.store, turnId: run.turnId, target: { profileId: limit }, maxModelCalls: 3 }, (profileId, model, thinking) =>
+      gateway.modelLimits(profileId, model, thinking),
+    );
+    expect(bounded.modelCalls).toBe(3);
+    expect(bounded.maxCompletionTokens).toBe(cap * 3);
+
+    const unbounded = estimateReplay({ mode: 'turn', source: run.store, turnId: run.turnId, target: { profileId: limit } }, (profileId, model, thinking) =>
+      gateway.modelLimits(profileId, model, thinking),
+    );
+    expect(unbounded.modelCalls).toBe(DEFAULT_MAX_MODEL_CALLS);
   });
 
   it('refuses without a target: a replay is only ever sent to a profile the writer saved', async () => {

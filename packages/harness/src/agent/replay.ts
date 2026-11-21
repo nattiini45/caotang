@@ -36,7 +36,7 @@ import { createHarness, type HarnessOptions } from '../runtime.js';
 import { canonicalJson } from '../util.js';
 import { createContextPort } from './context.js';
 import { scriptedGateway } from './cassette.js';
-import type { CardRecord, Decision, PendingCard, TurnReport } from './events.js';
+import { DEFAULT_MAX_MODEL_CALLS, type CardRecord, type Decision, type PendingCard, type TurnReport } from './events.js';
 import { projectBytes } from './bytes.js';
 import { createAgentSession } from './loop.js';
 import { createAgentPorts } from './ports.js';
@@ -195,8 +195,10 @@ export function estimateReplay(
   }
   const promptTokens = calls.reduce((sum, call) => sum + (call.response?.['gen_ai.usage.input_tokens'] ?? 0), 0);
   const cap = model.maxOutputTokens + (model.thinkingTokens ?? 0);
-  // The bound is what the session may spend: a turn can make more calls than the recording did, up to its own bound, and never more.
-  const calls2 = input.mode === 'call' ? calls.length : Math.min(calls.length, input.maxModelCalls ?? calls.length);
+  // A turn's worst case is its own allowance, not the recording's call count: a model that plans more steps spends more, and the
+  // number a writer confirms is a maximum, so it is the session's bound.
+  const allowance = input.maxModelCalls ?? DEFAULT_MAX_MODEL_CALLS;
+  const calls2 = input.mode === 'call' ? calls.length : allowance;
   const maxCompletionTokens = cap * calls2;
   const price = model.pricePer1k;
   return {
@@ -573,6 +575,7 @@ async function turnReplay(request: ReplayRequest, calls: readonly RecordedCall[]
     return { action: 'cancel' };
   };
 
+  replays += 1;
   const session = createAgentSession({
     harness,
     gateway,
@@ -580,8 +583,8 @@ async function turnReplay(request: ReplayRequest, calls: readonly RecordedCall[]
     context: createContextPort({ state: scratch, config: {}, withheld: (tool) => harness.withheld(tool) }),
     decide,
     ...(pinned === undefined ? {} : { profileId: pinned.profileId, ...(pinned.model === undefined ? {} : { model: pinned.model }), ...(pinned.thinking === undefined ? {} : { thinking: pinned.thinking }) }),
-    // Its own name, so a replay's ledger rows never fold into the original turn's (§8.1).
-    sessionId: request.sessionId ?? `replay-${request.turnId}`,
+    // Its own name, so a replay's ledger rows never fold into the original turn's, nor into an earlier replay's (§8.1).
+    sessionId: `${request.sessionId ?? `replay-${request.turnId}`}-${replays}`,
     ...(request.maxModelCalls === undefined ? {} : { maxModelCalls: request.maxModelCalls }),
     ...(request.clock === undefined ? {} : { clock: request.clock }),
     trace: sink,
