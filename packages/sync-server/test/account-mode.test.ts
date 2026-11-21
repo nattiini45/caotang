@@ -120,7 +120,7 @@ describe('wrapped account key records', () => {
       headers: session ? { Cookie: session, 'X-Caotang-Account': id } : {},
     });
     expect((await read(first)).status).toBe(503);
-    await applyMigrations(h.db!, ['0004_account_key_records.sql']);
+    await applyMigrations(h.db!, ['0004_account_key_records.sql', '0007_account_key_record_versions.sql']);
     expect((await read()).status).toBe(401);
     expect((await read(first)).status).toBe(404);
     const create = (record: object, origin = ORIGIN, method = 'POST', session = first!) => h.dispatch(KEY_RECORD_PATH, {
@@ -131,7 +131,8 @@ describe('wrapped account key records', () => {
     expect((await create(records[0]!, ORIGIN, 'POST', second!)).status).toBe(412);
     const attempts = await Promise.all(records.map((record) => create(record)));
     expect(attempts.map((response) => response.status).sort((a, b) => a - b)).toEqual([201, 409]);
-    expect((await create(wrappedRecord(3), ORIGIN, 'PUT')).status).toBe(405);
+    // A replacement needs a record and a precondition, and this account has only just created one.
+    expect((await create(wrappedRecord(3), ORIGIN, 'DELETE')).status).toBe(405);
     expect((await create(wrappedRecord(3))).status).toBe(409);
     const winner = records[attempts.findIndex((response) => response.status === 201)]!;
     const { session: anotherDevice } = await h.signIn('reader-one');
@@ -154,7 +155,7 @@ describe('wrapped account key records', () => {
     const h = await runtime({}, { log: new class extends Log {
       protected override log(message: string): void { messages.push(message); }
     }(LogLevel.VERBOSE) });
-    await applyMigrations(h.db!, ['0004_account_key_records.sql']);
+    await applyMigrations(h.db!, ['0004_account_key_records.sql', '0007_account_key_record_versions.sql']);
     await h.invite('reader-one');
     const { session } = await h.signIn('reader-one');
     const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session! } })).json() as { id: string };
@@ -184,7 +185,7 @@ describe('wrapped account key records', () => {
 
   it('stores a record bound to the account that wrote it, and refuses one naming another account', async () => {
     const h = await runtime();
-    await applyMigrations(h.db!, ['0004_account_key_records.sql']);
+    await applyMigrations(h.db!, ['0004_account_key_records.sql', '0007_account_key_record_versions.sql']);
     await h.invite('reader-one');
     const { session } = await h.signIn('reader-one');
     const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session! } })).json() as { id: string };
@@ -208,9 +209,56 @@ describe('wrapped account key records', () => {
     expect(await read.json()).toEqual(record);
   });
 
+  it('replaces the record only at the version it was read at, so two browsers changing a passphrase cannot overwrite each other', async () => {
+    const h = await runtime();
+    await applyMigrations(h.db!, ['0004_account_key_records.sql', '0007_account_key_record_versions.sql']);
+    await h.invite('reader-one');
+    const { session } = await h.signIn('reader-one');
+    const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session! } })).json() as { id: string };
+    const headers = { Cookie: session!, 'X-Caotang-Account': account.id };
+    const create = (body: string) => h.dispatch(KEY_RECORD_PATH, {
+      method: 'POST', headers: { ...headers, Origin: ORIGIN, 'Content-Type': 'application/json' }, body,
+    });
+    const replace = (body: string, precondition?: string) => h.dispatch(KEY_RECORD_PATH, {
+      method: 'PUT',
+      headers: { ...headers, Origin: ORIGIN, 'Content-Type': 'application/json', ...(precondition === undefined ? {} : { 'If-Match': precondition }) },
+      body,
+    });
+
+    // Nothing to replace yet, and a record that is not bound to this account is never a replacement.
+    const first = boundRecord(account.id, 11);
+    expect((await replace(JSON.stringify(first), '"1"')).status).toBe(404);
+    expect((await create(JSON.stringify(first))).status).toBe(201);
+    expect((await replace(JSON.stringify(wrappedRecord(12)), '"1"')).status).toBe(400);
+    expect((await replace(JSON.stringify(boundRecord(TWO, 12)), '"1"')).status).toBe(400);
+    expect((await replace(JSON.stringify(first))).status).toBe(400);
+
+    const read = await h.dispatch(KEY_RECORD_PATH, { headers });
+    expect(read.headers.get('ETag')).toBe('"1"');
+    const second = boundRecord(account.id, 21);
+    // A precondition this account has moved past is refused and writes nothing.
+    expect((await replace(JSON.stringify(second), '"9"')).status).toBe(412);
+    expect(await h.db!.prepare('SELECT record_json FROM account_key_records').first('record_json')).toBe(JSON.stringify(first));
+
+    const replaced = await replace(JSON.stringify(second), '"1"');
+    expect(replaced.status).toBe(200);
+    expect(replaced.headers.get('ETag')).toBe('"2"');
+    expect(await replaced.json()).toEqual({ version: 2 });
+    expect(await h.db!.prepare('SELECT record_json FROM account_key_records').first('record_json')).toBe(JSON.stringify(second));
+    expect((await h.dispatch(KEY_RECORD_PATH, { headers })).headers.get('ETag')).toBe('"2"');
+    // The version the record just left is spent: replaying it cannot overwrite what replaced it.
+    expect((await replace(JSON.stringify(boundRecord(account.id, 31)), '"1"')).status).toBe(412);
+    expect(await h.db!.prepare('SELECT record_json FROM account_key_records').first('record_json')).toBe(JSON.stringify(second));
+    expect((await replace(JSON.stringify(boundRecord(account.id, 41)), '"2"')).status).toBe(200);
+
+    // A revoked session cannot replace anything.
+    await h.revoke('reader-one');
+    expect((await replace(JSON.stringify(boundRecord(account.id, 51)), '"3"')).status).toBe(401);
+  });
+
   it('refuses a wrapped record no browser could unlock, leaving the account’s single slot free', async () => {
     const h = await runtime();
-    await applyMigrations(h.db!, ['0004_account_key_records.sql']);
+    await applyMigrations(h.db!, ['0004_account_key_records.sql', '0007_account_key_record_versions.sql']);
     await h.invite('reader-one');
     const { session } = await h.signIn('reader-one');
     const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session! } })).json() as { id: string };
