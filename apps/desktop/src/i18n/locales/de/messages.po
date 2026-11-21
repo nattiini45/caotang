@@ -8071,7 +8071,7 @@ msgstr "Standardsprecher"
 #: apps/desktop/src/components/SkillsPanel.tsx
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Delete"
-msgstr "Entf"
+msgstr "Löschen"
 
 #: apps/desktop/src/app/keymap.ts
 msgctxt "keyboard key"
@@ -8727,7 +8727,7 @@ msgstr "Vom Agent entworfen"
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Drafting"
-msgstr "Entwürfe"
+msgstr "Wird entworfen"
 
 #. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
 #: apps/desktop/src/components/UsageBreakdown.tsx
@@ -12055,7 +12055,7 @@ msgstr "Objektiv"
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "Let the agent draft entries from your manuscript"
-msgstr "Lassen Sie den Agenten Einträge aus Ihrem Manuskript entwerfen"
+msgstr "Lassen Sie den Agenten Einträge aus Ihrem Manuskript entwerfen."
 
 #. Binder row labels. Interpolated values: access is an access level's name, from is the node the rule was set on, title is a row's title.
 #: apps/desktop/src/components/Binder.tsx
@@ -14779,7 +14779,7 @@ msgstr "Nur Sie nutzen es"
 #: apps/desktop/src/app/coherence-report-words.ts
 #: apps/desktop/src/app/findings-model.ts
 msgid "Open"
-msgstr "Öffnen"
+msgstr "Offen"
 
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
 #: apps/desktop/src/components/AgentSessions.tsx
