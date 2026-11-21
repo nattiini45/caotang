@@ -252,7 +252,11 @@ export const BUDGET = {
   // copies of the model field, the model list and the level select; a step's route rides the gateway's existing single-target send and its
   // window check reuses `modelLimits`; no dependency was added and no module moved to the first load. The ceiling is the measurement rounded
   // up to the thousand, as above. [bundle-raise rule 2026-11-20]
-  totalJs: 8_895_000,
+  // Replay (#82) measured 8,895.1 kB in CI on the tree that carries it. What grew is the trace's new response-format hint and the
+  // rules check a call replay makes; the replay engine itself is not in the app's bundle at all (tree-shaken out, checked in dist), and
+  // `projectBytes` moved out of the eval runner into its own module so the engine never pulls the runner in. The ceiling is the
+  // measurement rounded up to the next thousand, leaving a kilobyte for the build's own run-to-run noise. [bundle-raise rule 2026-11-20]
+  totalJs: 8_896_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

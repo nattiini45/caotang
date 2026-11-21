@@ -37,7 +37,7 @@ import { canonicalJson } from '../util.js';
 import { createContextPort } from './context.js';
 import { scriptedGateway } from './cassette.js';
 import type { CardRecord, Decision, PendingCard, TurnReport } from './events.js';
-import { projectBytes } from './eval.js';
+import { projectBytes } from './bytes.js';
 import { createAgentSession } from './loop.js';
 import { createAgentPorts } from './ports.js';
 import { traceGateway } from './trace.js';
