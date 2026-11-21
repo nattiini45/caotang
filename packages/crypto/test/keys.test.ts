@@ -25,21 +25,21 @@ describe('the key hierarchy', () => {
     const master = generateMasterKey();
     const project = generateProjectKey();
 
-    const wrappedMaster = await wrapMasterKey(kek, master);
+    const wrappedMaster = await wrapMasterKey(kek, master, 'acct_test_one');
     const wrappedProject = await wrapProjectKey(master, project, 'p_ONE');
 
     const kek2 = await deriveKek(fastKdf, 'correct horse battery staple', salt);
-    const master2 = await unwrapMasterKey(kek2, wrappedMaster);
+    const master2 = await unwrapMasterKey(kek2, wrappedMaster, 'acct_test_one');
     expect(master2.export()).toEqual(master.export());
     expect((await unwrapProjectKey(master2, wrappedProject, 'p_ONE')).export()).toEqual(project.export());
   });
 
   it('refuses a wrong passphrase and a wrong salt', async () => {
     const salt = generateSalt();
-    const wrapped = await wrapMasterKey(await deriveKek(fastKdf, 'one passphrase', salt), generateMasterKey());
+    const wrapped = await wrapMasterKey(await deriveKek(fastKdf, 'one passphrase', salt), generateMasterKey(), 'acct_test_one');
 
-    await refused(unwrapMasterKey(await deriveKek(fastKdf, 'another passphrase', salt), wrapped), 'unauthentic');
-    await refused(unwrapMasterKey(await deriveKek(fastKdf, 'one passphrase', generateSalt()), wrapped), 'unauthentic');
+    await refused(unwrapMasterKey(await deriveKek(fastKdf, 'another passphrase', salt), wrapped, 'acct_test_one'), 'unauthentic');
+    await refused(unwrapMasterKey(await deriveKek(fastKdf, 'one passphrase', generateSalt()), wrapped, 'acct_test_one'), 'unauthentic');
   });
 
   it('normalises the passphrase, so the same word typed two ways is one key', async () => {
@@ -63,7 +63,7 @@ describe('the key hierarchy', () => {
 
   it('refuses a key in the wrong role', async () => {
     const kek = await deriveKek(fastKdf, 'a passphrase', generateSalt());
-    await expect(Promise.resolve().then(() => wrapMasterKey(kek, generateProjectKey()))).rejects.toThrow(CryptoError);
+    await expect(Promise.resolve().then(() => wrapMasterKey(kek, generateProjectKey(), 'acct_test_one'))).rejects.toThrow(CryptoError);
     await expect(Promise.resolve().then(() => wrapProjectKey(kek, generateProjectKey(), 'p_ONE'))).rejects.toThrow(CryptoError);
     expect(() => new SecretKey('master', new Uint8Array(31))).toThrow(CryptoError);
   });
