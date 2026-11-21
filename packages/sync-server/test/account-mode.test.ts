@@ -35,6 +35,16 @@ const wrappedRecord = (fill: number) => ({
   wrappedMaster: Buffer.concat([Buffer.of(1), Buffer.alloc(60, fill)]).toString('base64'),
 });
 
+/** A format-2 record: bound to the account that writes it, with a 32-byte verifier for its master key. */
+const boundRecord = (accountId: string, fill: number) => ({
+  format: 2,
+  accountId,
+  kdf: { id: 'argon2id', params: { memoryKiB: 65_536, iterations: 3, parallelism: 1 } },
+  salt: Buffer.alloc(16, fill).toString('base64'),
+  wrappedMaster: Buffer.concat([Buffer.of(1), Buffer.alloc(60, fill)]).toString('base64'),
+  verifier: Buffer.alloc(32, fill).toString('base64'),
+});
+
 async function runtime(bindings: Record<string, string> = {}, options: { migrate?: boolean; database?: boolean; log?: Log } = {}) {
   const instance = new Miniflare({
     log: options.log,
@@ -170,6 +180,32 @@ describe('wrapped account key records', () => {
     expect(await h.db!.prepare('SELECT count(*) AS count FROM account_key_records').first('count')).toBe(0);
     expect(messages.join('\n')).not.toContain(passphrase);
     expect(messages.join('\n')).not.toContain(recoveryKey);
+  });
+
+  it('stores a record bound to the account that wrote it, and refuses one naming another account', async () => {
+    const h = await runtime();
+    await applyMigrations(h.db!, ['0004_account_key_records.sql']);
+    await h.invite('reader-one');
+    const { session } = await h.signIn('reader-one');
+    const account = await (await h.dispatch('/v1/account', { headers: { Cookie: session! } })).json() as { id: string };
+    const create = (body: string) => h.dispatch(KEY_RECORD_PATH, {
+      method: 'POST', headers: { Cookie: session!, Origin: ORIGIN, 'Content-Type': 'application/json', 'X-Caotang-Account': account.id }, body,
+    });
+
+    // A record naming another account is refused: the wrap is bound to an account, so storing it here would be a record this
+    // account could never open.
+    expect((await create(JSON.stringify(boundRecord(TWO, 5)))).status).toBe(400);
+    // So is one whose verifier is missing or the wrong length.
+    const { verifier: _omitted, ...withoutVerifier } = boundRecord(account.id, 6);
+    expect((await create(JSON.stringify(withoutVerifier))).status).toBe(400);
+    expect((await create(JSON.stringify({ ...boundRecord(account.id, 6), verifier: Buffer.alloc(16, 1).toString('base64') }))).status).toBe(400);
+    expect(await h.db!.prepare('SELECT count(*) AS count FROM account_key_records').first('count')).toBe(0);
+
+    const record = boundRecord(account.id, 7);
+    expect((await create(JSON.stringify(record))).status).toBe(201);
+    // It reads back exactly as it was written, bound record and all.
+    const read = await h.dispatch(KEY_RECORD_PATH, { headers: { Cookie: session!, 'X-Caotang-Account': account.id } });
+    expect(await read.json()).toEqual(record);
   });
 
   it('refuses a wrapped record no browser could unlock, leaving the account’s single slot free', async () => {
