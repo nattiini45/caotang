@@ -251,10 +251,11 @@ export const BUDGET = {
   // 6,086 over the ceiling above. Checked first and kept: the role row and each step row share one `TargetFields` component instead of two
   // copies of the model field, the model list and the level select; a step's route rides the gateway's existing single-target send and its
   // window check reuses `modelLimits`; no dependency was added and no module moved to the first load. The ceiling is the measurement rounded
-  // up to the thousand, as above. [bundle-raise rule 2026-11-20] Re-measured on this branch's merge over main at
-  // f862c76b (#793's per-step routing and #792's teardown wait): 8,895,150 bytes — the catalogued recurring-tasks
-  // words cost 150 bytes over #793's ceiling. The ceiling is the new measurement rounded up to the thousand.
-  // [delegated 2026-11-21]
+  // up to the thousand, as above. [bundle-raise rule 2026-11-20]
+  // The frame's folder-access answer measured 8,895,064 bytes on main at 38d83bce, which measured 8,894,928 on the same build: the change
+  // is +136 bytes, and 72 bytes were left under the old ceiling. Checked first and kept: the check is one predicate beside the existing one,
+  // it reads the parent's document once and adds no dependency, it lands in a chunk that is already on the first load, and the picker's own
+  // path is unchanged. The ceiling is the measurement rounded up to the thousand. [bundle-raise rule 2026-11-21]
   totalJs: 8_896_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
