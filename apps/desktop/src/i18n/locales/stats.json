@@ -3,12 +3,12 @@
   "locales": {
     "de": {
       "total": 5172,
-      "translated": 5134,
-      "untranslated": 38,
-      "missing": 38,
+      "translated": 5172,
+      "untranslated": 0,
+      "missing": 0,
       "fuzzy": 0,
       "sameAsEnglish": 112,
-      "completion": 99.3
+      "completion": 100
     }
   }
 }

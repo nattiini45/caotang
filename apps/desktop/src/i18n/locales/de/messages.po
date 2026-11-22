@@ -28,7 +28,7 @@ msgstr " · höchstens {calls} Modellaufrufe"
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid " ({params} changed)"
-msgstr ""
+msgstr " ({params} geändert)"
 
 #. The trace panel's rows. Interpolated values: millis, startMs and durationMs are times; chars, cutChars, replyCut, paramsCut and resultCut are character counts; inTokens, outTokens, estimated, calls and tokenCount are token and call counts; messagesSent, toolsDeclared, tools, sent and attempts describe what was sent; records is a record count; statusNote is a run's status; callId is a tool call id.
 #: apps/desktop/src/components/TracePanel.tsx
@@ -722,7 +722,7 @@ msgstr "{badge, plural, one {# offen} other {# offen}}"
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "{before} → {after} words"
-msgstr ""
+msgstr "{before} → {after} Wörter"
 
 #. Interpolated values: size and budget are formatted sizes; count is a number.
 #: apps/desktop/src/components/PictureStorageMeter.tsx
@@ -757,7 +757,7 @@ msgstr "{calls} · {tokenCount}{statusNote}"
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "{calls} model calls"
-msgstr ""
+msgstr "{calls} Modellaufrufe"
 
 #. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx
@@ -767,7 +767,7 @@ msgstr "{calls}, {tokens} Token"
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "{calls}: {prompt} prompt tokens, at most {bound} back; {cost}."
-msgstr ""
+msgstr "{calls}: {prompt} Prompt-Token, höchstens {bound} zurück; {cost}."
 
 #. A restructure row after the item title. change is a translated word such as Moved; from and to are places that already name their isolated titles.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -3090,7 +3090,7 @@ msgstr "1 Element"
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "1 model call"
-msgstr ""
+msgstr "1 Modellaufruf"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -3669,7 +3669,7 @@ msgstr "Ein entfernter Eintrag"
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "A replay answers “would another model have done this as well?”. It runs on a copy of the project, so nothing here changes your manuscript, and it reaches only a provider you have already set up."
-msgstr ""
+msgstr "Eine Wiederholung beantwortet die Frage „Hätte ein anderes Modell das auch so gemacht?“. Sie läuft auf einer Kopie des Projekts, hier ändert sich also nichts an Ihrem Manuskript, und sie erreicht nur einen Anbieter, den Sie bereits eingerichtet haben."
 
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
@@ -3804,7 +3804,7 @@ msgstr "Ein ß in einem Buch in Großbuchstaben wird als SS gesetzt"
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "A step calls an outside tool, and a replay never re-runs one, so the replay stopped there. {detail}"
-msgstr ""
+msgstr "Ein Schritt ruft ein externes Tool auf, und eine Wiederholung führt kein Tool erneut aus, deshalb endete sie dort. {detail}"
 
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -4907,7 +4907,7 @@ msgstr "Beantwortet"
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "Answers from the recording itself, with no key and no cost, so a bug report reproduces here."
-msgstr ""
+msgstr "Antwortet aus der Aufzeichnung selbst, ohne Schlüssel und ohne Kosten, damit sich eine Fehlermeldung hier nachvollziehen lässt."
 
 #: apps/desktop/src/components/InspectorDialogue.tsx
 msgid "Any engine: a CSV table"
@@ -7754,7 +7754,7 @@ msgstr "Kostenlimit (USD)"
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "cost not known"
-msgstr ""
+msgstr "Kosten nicht bekannt"
 
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
@@ -10569,7 +10569,7 @@ msgstr "Vom Agenten"
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "From the recording, free"
-msgstr ""
+msgstr "Aus der Aufzeichnung, kostenlos"
 
 #. Interpolated values: file is the imported file name; reason is the import failure message
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
@@ -14129,12 +14129,12 @@ msgstr "Es ist kein Provider aktiv. Fügen Sie unter Einstellungen > Provider ei
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "No provider is saved yet, so there is nowhere to send a replay. Add one in Settings, then open this dialog again."
-msgstr ""
+msgstr "Es ist noch kein Anbieter gespeichert, es gibt also kein Ziel für eine Wiederholung. Fügen Sie einen in den Einstellungen hinzu und öffnen Sie diesen Dialog dann erneut."
 
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "No provider is saved, so there is nowhere to send this. Add one in Settings, then replay."
-msgstr ""
+msgstr "Es ist kein Anbieter gespeichert, es gibt also kein Ziel dafür. Fügen Sie einen in den Einstellungen hinzu und wiederholen Sie dann."
 
 #. Interpolated values: profileId
 #. js-lingui-explicit-id
@@ -14925,7 +14925,7 @@ msgstr "Je eine Zeile"
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "One model call"
-msgstr ""
+msgstr "Ein Modellaufruf"
 
 #: apps/desktop/src/app/timeline-proposals.ts
 msgid "one of its scenes has no day now"
@@ -17175,7 +17175,7 @@ msgstr "Aufzeichnung ausgeschaltet"
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "Recording: {recordedPrompt} prompt + {recordedBack} back over {recordedCalls}; replay: {replayPrompt} + {replayBack} over {replayCalls} ({cost})."
-msgstr ""
+msgstr "Aufzeichnung: {recordedPrompt} ein + {recordedBack} zurück über {recordedCalls}; Wiederholung: {replayPrompt} + {replayBack} über {replayCalls} ({cost})."
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
@@ -17691,22 +17691,22 @@ msgstr "Ersetzt „{removed}“ durch „{added}“"
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "Replay"
-msgstr ""
+msgstr "Wiederholen"
 
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "Replay this turn"
-msgstr ""
+msgstr "Diesen Zug wiederholen"
 
 #. The trace panel's rows. Interpolated values: millis, startMs and durationMs are times; chars, cutChars, replyCut, paramsCut and resultCut are character counts; inTokens, outTokens, estimated, calls and tokenCount are token and call counts; messagesSent, toolsDeclared, tools, sent and attempts describe what was sent; records is a record count; statusNote is a run's status; callId is a tool call id.
 #: apps/desktop/src/components/TracePanel.tsx
 msgid "Replay…"
-msgstr ""
+msgstr "Wiederholen…"
 
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "Replaying…"
-msgstr ""
+msgstr "Wird wiederholt…"
 
 #. Interpolated values: count, number, total
 #. The trace panel's rows. Interpolated values: millis, startMs and durationMs are times; chars, cutChars, replyCut, paramsCut and resultCut are character counts; inTokens, outTokens, estimated, calls and tokenCount are token and call counts; messagesSent, toolsDeclared, tools, sent and attempts describe what was sent; records is a record count; statusNote is a run's status; callId is a tool call id.
@@ -18485,7 +18485,7 @@ msgstr "Durchläufe auf diesem Rechner ({runs})"
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "Runs the turn again from its instruction on a copy of the project, with the same approvals."
-msgstr ""
+msgstr "Führt den Zug erneut aus, von seiner Anweisung aus, auf einer Kopie des Projekts und mit denselben Freigaben."
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
@@ -19477,7 +19477,7 @@ msgstr "Einen Wert senden"
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "Send it to"
-msgstr ""
+msgstr "Senden an"
 
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
@@ -19502,7 +19502,7 @@ msgstr "sendet"
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "Sends the one recorded request again, word for word. No tool runs, so nothing can change."
-msgstr ""
+msgstr "Sendet die eine aufgezeichnete Anfrage erneut, Wort für Wort. Kein Tool läuft, es kann sich also nichts ändern."
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -20503,7 +20503,7 @@ msgstr "Jetzt mit wartender Nachricht {number} steuern"
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "Step {index}: {was} → {now}{which}"
-msgstr ""
+msgstr "Schritt {index}: {was} → {now}{which}"
 
 #. Approval barrier; number is the one-based plan step.
 #: apps/desktop/src/app/agent-model.ts
@@ -20571,7 +20571,7 @@ msgstr "Schritte pro Durchlauf"
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "Steps that differ"
-msgstr ""
+msgstr "Schritte, die abweichen"
 
 #. Macro panel copy. Interpolated values: name is a macro's name, problem is why it cannot run, step and steps are step numbers and counts.
 #: apps/desktop/src/components/MacrosPanel.tsx
@@ -20912,7 +20912,7 @@ msgstr "Synopsen, die dieser Schritt schreibt"
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "synopsis"
-msgstr ""
+msgstr "Zusammenfassung"
 
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
@@ -22744,7 +22744,7 @@ msgstr "der Modus ist t2v oder i2v"
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "The model answered with no text."
-msgstr ""
+msgstr "Das Modell hat ohne Text geantwortet."
 
 #. Interpolated values: calls, cap, error
 #: apps/desktop/src/app/task-queue.ts
@@ -23127,7 +23127,7 @@ msgstr "das Projekt-Panel"
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "The project was not changed. Nothing is applied from a replay."
-msgstr ""
+msgstr "Das Projekt wurde nicht geändert. Aus einer Wiederholung wird nichts übernommen."
 
 #: apps/desktop/src/app/run-recovery.ts
 msgid "The project was restored in this tab, but it could not be saved. Keep this tab open and retry the failed save."
@@ -23268,17 +23268,17 @@ msgstr "Die Wiederherstellung wurde geschrieben, und die Dateien des Projekts si
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "The replay changed no text, so there is nothing to read side by side."
-msgstr ""
+msgstr "Die Wiederholung hat keinen Text geändert, es gibt also nichts zum Gegenüberstellen."
 
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "The replay did not finish a turn."
-msgstr ""
+msgstr "Die Wiederholung hat keinen Zug zu Ende geführt."
 
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "The replay’s prompt did not match the recording, so there is no recorded answer to compare. {detail}"
-msgstr ""
+msgstr "Der Prompt der Wiederholung passte nicht zur Aufzeichnung, es gibt also keine aufgezeichnete Antwort zum Vergleichen. {detail}"
 
 #. Context budget copy. Interpolated values: answer, thinking, kept, window, sent, allowed, whole, l2, l4, l5, min, max and count are token counts; parts, capWords, windowNote and name complete the sentence; layerId is a layer key.
 #: apps/desktop/src/components/ContextSection.tsx
@@ -24112,7 +24112,7 @@ msgstr "Der ganze Prompt umfasst eine ganze Zahl von Tokens von {min} bis {max} 
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "The whole turn"
-msgstr ""
+msgstr "Der ganze Zug"
 
 #. Interpolated values: count, stamp, titles
 #: apps/desktop/src/components/UnsentWords.tsx
@@ -24637,7 +24637,7 @@ msgstr "Dieses Makro kann jetzt nicht laufen: {problem} Sie können es weiterhin
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "this model has no price row, so the cost is not known here"
-msgstr ""
+msgstr "für dieses Modell gibt es keine Preisspalte, die Kosten sind hier also nicht bekannt"
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
@@ -24648,7 +24648,7 @@ msgstr "Für dieses Modell gibt es keinen Preis, daher ist die Schätzung unbeka
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "This model proposed different steps, and nobody approved the like of them, so the replay stopped before it changed anything. {detail}"
-msgstr ""
+msgstr "Dieses Modell hat andere Schritte vorgeschlagen, und niemand hat solche Freigaben erteilt, deshalb endete die Wiederholung, bevor sie etwas ändern konnte. {detail}"
 
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #: apps/desktop/src/media/ShotPromptEditor.tsx
@@ -24814,7 +24814,7 @@ msgstr "Dieser Anbieter dokumentiert keine Modellliste, daher sind das die Model
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "This recording holds no model call kept whole, so there is no single request to re-send."
-msgstr ""
+msgstr "Diese Aufzeichnung enthält keinen vollständig aufbewahrten Modellaufruf, es gibt also keine einzelne Anfrage zum erneuten Senden."
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
@@ -25105,13 +25105,13 @@ msgstr "Dieser Durchlauf gehört zu einem Ziel. Setzen Sie stattdessen das Ziel 
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "This turn cannot be replayed yet. Its recorded start is kept only while traces are on, and the turn and recorded-answer modes also need one. Turn traces on, run a turn, then open it here."
-msgstr ""
+msgstr "Dieser Zug lässt sich noch nicht wiederholen. Sein aufgezeichneter Anfang wird nur aufbewahrt, solange die Aufzeichnung an ist, und die Modi für den ganzen Zug und für die aufgezeichnete Antwort brauchen ihn ebenfalls. Schalten Sie die Aufzeichnung an, führen Sie einen Zug aus und öffnen Sie ihn dann hier."
 
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 #: apps/desktop/src/app/replay-run.ts
 msgid "This turn was not recorded with the project it started on, so it cannot be re-run. Turn traces on before the turn you want to compare."
-msgstr ""
+msgstr "Dieser Zug wurde nicht mit dem Projekt aufgezeichnet, auf dem er begonnen hat, deshalb lässt er sich nicht erneut ausführen. Schalten Sie die Aufzeichnung vor dem Zug an, den Sie vergleichen möchten."
 
 #. The trace panel's rows. Interpolated values: millis, startMs and durationMs are times; chars, cutChars, replyCut, paramsCut and resultCut are character counts; inTokens, outTokens, estimated, calls and tokenCount are token and call counts; messagesSent, toolsDeclared, tools, sent and attempts describe what was sent; records is a record count; statusNote is a run's status; callId is a tool call id.
 #: apps/desktop/src/components/TracePanel.tsx
@@ -26379,7 +26379,7 @@ msgstr "Was sich seit dem letzten Scan geändert hat"
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "What each model wrote"
-msgstr ""
+msgstr "Was jedes Modell geschrieben hat"
 
 #. A root of the picture sweep's inventory, named in the sentence that says why a sweep was refused. key is a document's journal key; root is the name of another root; reason is a sentence.
 #: apps/desktop/src/app/picture-retention-host.ts
@@ -26406,7 +26406,7 @@ msgstr "Was es darf"
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "What it would cost"
-msgstr ""
+msgstr "Was es kosten würde"
 
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
@@ -26513,7 +26513,7 @@ msgstr "Was exportiert werden soll"
 #. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
 #: apps/desktop/src/components/ReplayDialog.tsx
 msgid "What to replay"
-msgstr ""
+msgstr "Was wiederholt wird"
 
 #. Interpolated values: calls
 #. Interpolated values: calls
