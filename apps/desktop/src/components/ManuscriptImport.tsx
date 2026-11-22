@@ -23,6 +23,7 @@ export function ManuscriptImportActions(): ReactNode {
   const rtfFile = useRef<HTMLInputElement>(null);
   const rtfdFolder = useRef<HTMLInputElement>(null);
   const captionsFile = useRef<HTMLInputElement>(null);
+  const htmlFile = useRef<HTMLInputElement>(null);
 
   const failed = (file: File, failure: unknown): void => {
     const problem = failure instanceof Error ? failure.message : String(failure);
@@ -112,6 +113,27 @@ export function ManuscriptImportActions(): ReactNode {
     }
   };
 
+  const openHtml = async (file: File): Promise<void> => {
+    try {
+      const { htmlPreviewSource, htmlZipPreviewSource, htmlSizeRefusal } = await import('../import-preview/html-source.js');
+      const zip = /\.zip$/i.test(file.name);
+      // The size is checked before the file is loaded into memory, as the plain-text and RTF actions do: a 4 GB pick must be
+      // refused with a sentence, not crash the tab on its way to the reader's own cap.
+      const { MAX_TEXT_BYTES } = await import('@caotang/import-read/text');
+      const { ARCHIVE_LIMITS } = await import('@caotang/import-read/zip');
+      const refusal = htmlSizeRefusal(file.name, file.size, zip ? ARCHIVE_LIMITS.maxArchiveBytes : MAX_TEXT_BYTES);
+      if (refusal !== undefined) {
+        report({ text: refusal, tone: 'error' });
+        return;
+      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const source = zip ? htmlZipPreviewSource(file.name, bytes) : htmlPreviewSource(file.name, bytes);
+      openImportPreview({ source });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
   return (
     <div className="script-import" role="group" aria-label={t`Import a manuscript`}>
       <button type="button" className="button is-quiet" onClick={() => textFile.current?.click()}>
@@ -125,6 +147,9 @@ export function ManuscriptImportActions(): ReactNode {
       </button>
       <button type="button" className="button is-quiet" onClick={() => captionsFile.current?.click()}>
         <Trans>Import captions…</Trans>
+      </button>
+      <button type="button" className="button is-quiet" onClick={() => htmlFile.current?.click()}>
+        <Trans>Import HTML…</Trans>
       </button>
       <input
         ref={textFile}
@@ -176,6 +201,18 @@ export function ManuscriptImportActions(): ReactNode {
           const list = files === null ? [] : [...files];
           event.currentTarget.value = '';
           if (list.length > 0) void openRtfd(list);
+        }}
+      />
+      <input
+        ref={htmlFile}
+        type="file"
+        hidden
+        accept=".html,.htm,.xhtml,.zip"
+        aria-label={t`HTML file`}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file !== undefined) void openHtml(file);
         }}
       />
     </div>

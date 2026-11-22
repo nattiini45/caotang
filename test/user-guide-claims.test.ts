@@ -730,7 +730,7 @@ describe('the import preview (#267)', () => {
     expect(read('apps/desktop/src/components/TweeImportDialog.tsx')).toContain('tweePreviewSource(');
     expect(guide).toContain('- **The import preview.** An import that brings in a whole book shows it first as a proposed binder beside its text');
     expect(guide).toContain('one **Undo** takes all of it back, pictures and codex entries included');
-    expect(guide).toContain('**Import Twee**, **Import Inklewriter**, **Import Highland**, **Import plain text…**, **Import RTF…**, **Import RTFD…** and **Import captions…** open it.');
+    expect(guide).toContain('**Import Twee**, **Import Inklewriter**, **Import Highland**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import captions…** and **Import HTML…** open it.');
     expect(guide).toContain('**Import Inklewriter** reads an Inklewriter story export');
     expect(read('apps/desktop/src/components/ScriptImport.tsx')).toContain('inklewriterPreviewSource');
     expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
@@ -745,14 +745,28 @@ describe('the import preview (#267)', () => {
     expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('und dann verschwinden auch ihre Verweise aus dem Text');
     expect(read('docs/architecture/screenplay.md')).toContain('never its archive path');
     expect(read('apps/desktop/src/components/ScriptImport.tsx')).toContain("await import('../import-preview/highland-source.js')");
+    expect(guide).toContain('**Import HTML…** reads a saved HTML page');
+    // One bullet per import, in both guides and the changelog: a merge that keeps both sides leaves three of them behind.
+    const bullets = (text: string, prefix: string): number => text.split('\n').filter((line) => line.startsWith(prefix)).length;
+    expect(bullets(guide, '- **Import HTML')).toBe(1);
+    expect(bullets(read('docs/i18n/de/USER-GUIDE.md'), '- **HTML importieren')).toBe(1);
+    expect(bullets(read('CHANGELOG.md'), '- **Import HTML.**')).toBe(1);
+    expect(guide).toContain('No import fetches anything from the internet today.');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('Kein Import holt heute etwas aus dem Internet.');
+    expect(guide).toContain('this import has no download switch and makes no request at all');
+    expect(guide).toContain('a picture the file names but does not carry keeps the words beside it and is listed');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('dieser Import hat keinen Download-Schalter');
+    expect(read('docs/architecture/import-html.md')).toContain('A ref with no bytes behind it is never written into');
     expect(guide).toContain('in the background, so a long file does not hold the page while it is read');
     const manuscript = read('apps/desktop/src/components/ManuscriptImport.tsx');
     expect(manuscript).toContain("await import('../import-preview/text-source.js')");
     expect(manuscript).toContain("await import('../import-preview/rtf-source.js')");
     expect(manuscript).toContain('rtfdPreviewSource');
+    expect(manuscript).toContain("await import('../import-preview/html-source.js')");
+    expect(manuscript).toContain('htmlZipPreviewSource');
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<ManuscriptImportActions />');
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD and captions imports open the preview');
+    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, captions and HTML imports open the preview');
     expect(notYet).not.toContain('There is no **Import RTF** command yet');
     expect(changelog).toContain('**One import preview for every structured import.**');
     expect(read('docs/architecture/import-preview.md')).toContain('## 5. The commit: `binder.importTree`');

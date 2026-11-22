@@ -237,7 +237,7 @@ export function ProviderSetup({
     const doneModelList = doneModels.join(', ');
     const doneCount = doneModels.length;
     return (
-      <section className="provider-setup profile-form" aria-labelledby="provider-setup-title">
+      <section className="provider-setup profile-form is-wide" aria-labelledby="provider-setup-title">
         <h4 id="provider-setup-title" ref={heading} tabIndex={-1}>
           <Trans>{doneName} is ready</Trans>
         </h4>
@@ -260,7 +260,7 @@ export function ProviderSetup({
   if ((step === 'models' || step === 'saving') && discovery !== null) {
     const acceptedBy = isolate(discovery.preset.name);
     return (
-      <section className="provider-setup profile-form" aria-labelledby="provider-setup-title">
+      <section className="provider-setup profile-form is-wide" aria-labelledby="provider-setup-title">
         <h4 id="provider-setup-title" ref={heading} tabIndex={-1}>
           <Trans>Choose the models</Trans>
         </h4>

@@ -115,8 +115,10 @@ its own lazy chunk (#268).
 
 The plain-text and RTF readers run in a `'self'` module Worker (`reader-host.ts` owns it, `reader.worker.ts` is its entry,
 `reader-session.ts` is the DOM-free dispatch), so a large file never blocks typing or scrolling while it parses (#390). The Worker is
-made from a same-origin URL (`new URL('./reader.worker.ts', import.meta.url)`, `type: 'module'`), never a `blob:` URL: the CSP is
-`worker-src 'self'`. The input bytes are sent once on `open` and cached in the Worker; a reader chip or option change re-reads that
+made from a same-origin URL (`reader-worker-url.ts`, `type: 'module'`), never a `blob:` URL: the CSP is
+`worker-src 'self'`. Production emits its URL from the app's build graph so shared modules are shipped once. The host still starts
+the Worker only on demand, and the Worker imports readers without the DOM-based module preloader. The input bytes are sent once
+on `open` and cached in the Worker; a reader chip or option change re-reads that
 copy through `prepare`, and a read's picture bytes are transferred back so an image-heavy RTF costs the main thread no copy. A buffer
 shared by several attachments (the same picture placed twice in an `.rtfd` package) is transferred once, so the reply never lists a
 duplicate transferable and the cloned views keep sharing it. Every
@@ -124,5 +126,8 @@ request has a hard timeout (a hung reader is terminated) and the dialog's Cancel
 thread, where it re-runs on every rule chip. **A terminated Worker holds no input**, so the host keeps the last `open` and sends it
 again before the next read: after a timeout, a cancel, a Worker failure or a disposal, the writer's next option change reads the file
 again instead of failing with "the import reader was not opened" (#597 F4). Reads that arrive together share one re-open, so the bytes
-are not sent twice, and a re-open that fails leaves the next read free to try again. The `.rtfd` package picker (`ManuscriptImport.tsx`) reads the picked folder's bytes on the
+are not sent twice, and a re-open that fails leaves the next read free to try again. A `prepare` call that rejects or times out —
+a Worker failure on a reader-chip or option re-read — does not strand the dialog on Reading…: the dialog names the failure in an
+alert with a **Try again** that runs the read once more, and until it succeeds the preview keeps the last prepared settings' plan
+rather than an empty document (#600). The `.rtfd` package picker (`ManuscriptImport.tsx`) reads the picked folder's bytes on the
 main thread (I/O) and unpacks and parses the package in the same Worker through the archive reader (import-rtf.md §4).

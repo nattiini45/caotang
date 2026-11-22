@@ -3128,9 +3128,10 @@ label.settings-check {
   stroke-linejoin: round;
 }
 
-.agent-model-level {
-  max-inline-size: 9rem;
-  font-size: var(--text-md);
+/* Both controls are one pair: the same trigger, the same height and surface, so the header reads as one choice of model and one of
+   how hard it thinks. Only the width differs — a level name is short. */
+.agent-model [data-slot='select-trigger'].agent-model-level {
+  max-inline-size: 11rem;
 }
 
 /* The menu itself is a portal at the page's edge, so it carries its own surface rather than inheriting the panel's. */

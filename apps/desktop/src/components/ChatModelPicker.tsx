@@ -21,6 +21,9 @@ export function readModelValue(value: string): { readonly profileId: string; rea
   return profileId === undefined || model === undefined || model === '' ? null : { profileId, model };
 }
 
+/** The value of the level menu's "follow the provider" row: not a level, so the model's own mapping applies. */
+const DEFAULT_LEVEL = '';
+
 function SelectCaret(): ReactNode {
   return <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>;
 }
@@ -88,12 +91,25 @@ export function ChatModelPicker({
       </Select>
       <span id={modelId} className="visually-hidden"><Trans>Chat model</Trans></span>
       {levels.length === 0 ? null : (
-        <select className="agent-model-level" aria-labelledby={levelId} value={levels.some((level) => level.id === thinking) ? thinking : ''} disabled={disabled} onChange={(event) => onPickThinking(event.target.value)}>
-          <option value="">{t`Provider default`}</option>
-          {levels.map((level) => (
-            <option key={level.id} value={level.id}>{level.label}</option>
-          ))}
-        </select>
+        <Select
+          required
+          value={levels.some((level) => level.id === thinking) ? thinking : DEFAULT_LEVEL}
+          items={[{ value: DEFAULT_LEVEL, label: t`Provider default` }, ...levels.map((level) => ({ value: level.id, label: level.label }))]}
+          onValueChange={(next) => {
+            if (typeof next === 'string') onPickThinking(next);
+          }}
+        >
+          <SelectTrigger className="button agent-model-trigger agent-model-level" aria-labelledby={levelId} disabled={disabled}>
+            <SelectValue />
+            <SelectCaret />
+          </SelectTrigger>
+          <SelectContent className="agent-model-options">
+            <SelectItem value={DEFAULT_LEVEL}>{t`Provider default`}</SelectItem>
+            {levels.map((level) => (
+              <SelectItem key={level.id} value={level.id}>{level.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )}
       <span id={levelId} className="visually-hidden"><Trans>Chat thinking level</Trans></span>
     </div>

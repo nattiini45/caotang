@@ -145,3 +145,27 @@ test('UI-12 a replaced binder import still reports the tree it committed', async
   await newer.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'from The Lighthouse Keeper.docx.' })).toBeVisible();
 });
+
+test('UI-12 a failed settings re-read shows the failure and retries (#600)', async ({ page }) => {
+  await createProject(page, 'UI12 re-read');
+  await page.evaluate(async ({ fixtureUrl }) => {
+    const { flakyRereadSource } = await import(/* @vite-ignore */ fixtureUrl);
+    const store = '/src/import-preview/requests.ts';
+    const { openImportPreview } = await import(/* @vite-ignore */ store);
+    openImportPreview({ source: flakyRereadSource(), onClose: () => {} });
+  }, { fixtureUrl });
+  const dialog = page.getByRole('dialog', { name: 'Import “Flaky.docx”' });
+  const tree = dialog.getByRole('tree', { name: 'Binder (proposed)' });
+  await expect(tree.getByRole('treeitem', { name: /Chapter 1: The Landing/ }).first()).toBeVisible();
+
+  // The first re-read for the new chip fails: the dialog reports it and keeps the last prepared plan.
+  await dialog.getByRole('combobox', { name: 'Chapters at' }).selectOption('none');
+  await expect(dialog.getByRole('alert')).toContainText('the reader worker stopped replying');
+  await expect(dialog.getByRole('alert')).toContainText('The settings could not be re-read');
+  await expect(tree.getByRole('treeitem', { name: /Chapter 1: The Landing/ }).first()).toBeVisible();
+
+  // The retry reads the new settings for real: no chapter splits, so the first chapter holds all three scenes.
+  await dialog.getByRole('button', { name: 'Try again' }).click();
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+  await expect(tree.getByRole('treeitem', { name: /Chapter 1: The Landing · 3/ })).toBeVisible();
+});
