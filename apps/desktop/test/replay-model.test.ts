@@ -96,6 +96,11 @@ describe('the estimate before anything is spent', () => {
   it('says the cost is unknown rather than showing a zero, when the model has no price row', () => {
     expect(estimateLine({ modelCalls: 2, promptTokens: 1, maxCompletionTokens: 2 })).toContain('no price row');
   });
+
+  it('prices a cassette at nothing, because it makes no call', () => {
+    // The engine's own estimate for a cassette is zero on every count; the line says so instead of a bound and a price.
+    expect(estimateLine({ modelCalls: 0, promptTokens: 0, maxCompletionTokens: 0 })).toBe('From the recording, so no model call and no cost.');
+  });
 });
 
 describe('where a replay stopped', () => {

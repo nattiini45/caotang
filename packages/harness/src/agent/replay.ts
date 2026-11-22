@@ -194,8 +194,13 @@ export function estimateReplay(
 ): ReplayEstimate {
   const calls = callsToRun(input);
   const target = input.target;
+  // A cassette answers from the recording and sends nothing, so it is priced at nothing rather than against whichever profile
+  // happens to be active: the dialog's own promise is that this mode costs no key and no money.
+  if (input.mode === 'cassette') {
+    return { promptTokens: 0, maxCompletionTokens: 0, modelCalls: 0 };
+  }
   const model = limits(target?.profileId, target?.model, target?.thinking);
-  if (target === undefined && input.mode !== 'cassette') {
+  if (target === undefined) {
     throw new ReplayRefusal('no-target', 'Choose the profile to replay on first: a replay is sent to a saved profile of the writer’s.');
   }
   const promptTokens = calls.reduce((sum, call) => sum + (call.response?.['gen_ai.usage.input_tokens'] ?? 0), 0);

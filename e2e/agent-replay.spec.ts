@@ -45,7 +45,9 @@ test('a traced turn offers Replay…, and the dialog says what it would cost bef
 
   await dialog.getByRole('button', { name: 'What it would cost' }).click();
   await expect(dialog.getByTestId('replay-cost')).toBeVisible();
-  await expect(dialog.getByTestId('replay-cost')).toContainText('prompt tokens');
+  // The only mode this demo turn can run is the cassette, which sends nothing: the dialog says so instead of printing a price
+  // against whichever profile happens to be active.
+  await expect(dialog.getByTestId('replay-cost')).toContainText('no model call and no cost');
   await expect(replay).toBeEnabled();
 });
 
@@ -96,4 +98,28 @@ test('Escape closes the dialog and puts the writer back on the turn they came fr
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Replay this turn' })).toHaveCount(0);
   await expect(page.getByTestId('trace-replay').first()).toBeFocused();
+});
+
+test('with two traced turns, the dialog returns focus to the Replay… button of the turn it was opened from', async ({ page }) => {
+  await openSample(page);
+  // A second turn, so the tab holds two Replay… buttons: a single shared ref would point at the wrong one (or at a hidden node).
+  await page.getByRole('combobox', { name: 'Intent' }).fill(DEMO_INTENTS.continuity);
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.locator('.agent-report-text').nth(1)).toBeVisible();
+
+  await page.getByRole('tab', { name: 'Trace' }).click();
+  await expect(page.getByTestId('trace-panel')).toBeVisible();
+  await expect(page.getByTestId('trace-turn')).toHaveCount(2);
+  // Open the dialog from the newest turn, the first row. A single ref on the button is re-pointed by every turn's render, so it
+  // ends up on the last one drawn rather than on the one that was clicked — and that button sits in a closed turn's hidden body.
+  const newest = page.getByTestId('trace-turn').first();
+  const head = newest.getByRole('button').first();
+  if ((await head.getAttribute('aria-expanded')) !== 'true') await head.click();
+  const own = newest.getByTestId('trace-replay');
+  await own.click();
+  await expect(page.getByRole('dialog', { name: 'Replay this turn' })).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Replay this turn' })).toHaveCount(0);
+  await expect(own).toBeFocused();
 });

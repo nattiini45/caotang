@@ -89,7 +89,7 @@ function Comparison({ outcome }: { outcome: ReplayOutcome }): ReactNode {
       ) : (
         <>
           <h4>
-            <Trans>What each model wrote</Trans>
+            <Trans>What the replay would change</Trans>
           </h4>
           {outcome.drafts.map((row) => (
             <DraftRow key={`${row.title}-${row.field}`} row={row} />

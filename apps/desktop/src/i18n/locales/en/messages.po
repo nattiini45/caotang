@@ -10571,6 +10571,11 @@ msgstr "From the agent"
 msgid "From the recording, free"
 msgstr "From the recording, free"
 
+#. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
+#: apps/desktop/src/app/replay-model.ts
+msgid "From the recording, so no model call and no cost."
+msgstr "From the recording, so no model call and no cost."
+
 #. Interpolated values: file is the imported file name; reason is the import failure message
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 msgid "front matter"
@@ -14716,6 +14721,12 @@ msgstr "Notes this step writes"
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Notes you sent during this turn"
 msgstr "Notes you sent during this turn"
+
+#. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
+#. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
+#: apps/desktop/src/app/replay-model.ts
+msgid "nothing"
+msgstr "nothing"
 
 #. Modern interface: the search and commands palette (Ctrl+K).
 #: apps/desktop/src/components/shell/modern/palette.tsx
@@ -26376,11 +26387,6 @@ msgstr "Weekly"
 msgid "What changed since the last scan"
 msgstr "What changed since the last scan"
 
-#. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
-#: apps/desktop/src/components/ReplayDialog.tsx
-msgid "What each model wrote"
-msgstr "What each model wrote"
-
 #. A root of the picture sweep's inventory, named in the sentence that says why a sweep was refused. key is a document's journal key; root is the name of another root; reason is a sentence.
 #: apps/desktop/src/app/picture-retention-host.ts
 msgid "what else the session holds"
@@ -26461,6 +26467,11 @@ msgstr "What the prompt left out"
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "What the quick scan checks"
 msgstr "What the quick scan checks"
+
+#. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
+#: apps/desktop/src/components/ReplayDialog.tsx
+msgid "What the replay would change"
+msgstr "What the replay would change"
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts

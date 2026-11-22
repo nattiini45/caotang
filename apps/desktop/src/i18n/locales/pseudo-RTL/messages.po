@@ -10571,6 +10571,11 @@ msgstr ""
 msgid "From the recording, free"
 msgstr ""
 
+#. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
+#: apps/desktop/src/app/replay-model.ts
+msgid "From the recording, so no model call and no cost."
+msgstr ""
+
 #. Interpolated values: file is the imported file name; reason is the import failure message
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 msgid "front matter"
@@ -14715,6 +14720,12 @@ msgstr ""
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Notes you sent during this turn"
+msgstr ""
+
+#. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
+#. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
+#: apps/desktop/src/app/replay-model.ts
+msgid "nothing"
 msgstr ""
 
 #. Modern interface: the search and commands palette (Ctrl+K).
@@ -26376,11 +26387,6 @@ msgstr ""
 msgid "What changed since the last scan"
 msgstr ""
 
-#. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
-#: apps/desktop/src/components/ReplayDialog.tsx
-msgid "What each model wrote"
-msgstr ""
-
 #. A root of the picture sweep's inventory, named in the sentence that says why a sweep was refused. key is a document's journal key; root is the name of another root; reason is a sentence.
 #: apps/desktop/src/app/picture-retention-host.ts
 msgid "what else the session holds"
@@ -26460,6 +26466,11 @@ msgstr ""
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "What the quick scan checks"
+msgstr ""
+
+#. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
+#: apps/desktop/src/components/ReplayDialog.tsx
+msgid "What the replay would change"
 msgstr ""
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number

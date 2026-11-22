@@ -13,6 +13,7 @@ import { t } from '@lingui/core/macro';
 
 import { ReplayRefusal, type ReplayMode, type ReplayTarget } from '@caotang/harness';
 
+import { formatCount } from './counts.js';
 import { formatUsd } from './plan-preview.js';
 import type { ProfileView, ThinkingLevel } from '@caotang/gateway';
 
@@ -118,16 +119,16 @@ export function targetOf(destination: ReplayDestination): ReplayTarget {
   };
 }
 
-/** The estimate, in the words the dialog shows before it spends anything. */
+/**
+ * The estimate, in the words the dialog shows before it spends anything. A cassette makes no call, so it says so rather than
+ * printing a bound and a price it would never spend (§8.1).
+ */
 export function estimateLine(estimate: { readonly modelCalls: number; readonly promptTokens: number; readonly maxCompletionTokens: number; readonly costUsd?: number }): string {
-  const calls = estimate.modelCalls === 1 ? t`1 model call` : t`${{ calls: count(estimate.modelCalls) }} model calls`;
+  if (estimate.modelCalls === 0) return t`From the recording, so no model call and no cost.`;
+  const calls = estimate.modelCalls === 1 ? t`1 model call` : t`${{ calls: formatCount(estimate.modelCalls) }} model calls`;
   // The one money formatter the app has (plan-preview's), so a price reads the same here as on a card.
   const cost = estimate.costUsd === undefined ? t`this model has no price row, so the cost is not known here` : formatUsd(estimate.costUsd);
-  return t`${calls}: ${{ prompt: count(estimate.promptTokens) }} prompt tokens, at most ${{ bound: count(estimate.maxCompletionTokens) }} back; ${cost}.`;
-}
-
-function count(value: number): string {
-  return value.toLocaleString('en-US');
+  return t`${calls}: ${{ prompt: formatCount(estimate.promptTokens) }} prompt tokens, at most ${{ bound: formatCount(estimate.maxCompletionTokens) }} back; ${cost}.`;
 }
 
 /**
@@ -154,8 +155,8 @@ export function stepLine(step: {
   readonly replay?: { readonly tool: string };
   readonly changedParams: readonly string[];
 }): string {
-  const was = step.original === undefined ? 'nothing' : step.original.tool;
-  const now = step.replay === undefined ? 'nothing' : step.replay.tool;
+  const was = step.original === undefined ? t`nothing` : step.original.tool;
+  const now = step.replay === undefined ? t`nothing` : step.replay.tool;
   const which = step.changedParams.length === 0 ? '' : t` (${{ params: step.changedParams.join(', ') }} changed)`;
   return t`Step ${{ index: step.index + 1 }}: ${{ was }} → ${{ now }}${which}`;
 }
@@ -170,7 +171,7 @@ export function headlineOf(result: { readonly mode: ReplayMode; readonly report?
 /** Both sides' tokens and what the replay cost, in one line. */
 export function tokensLine(usage: { readonly original: { readonly promptTokens: number; readonly completionTokens: number; readonly modelCalls: number }; readonly replay: { readonly promptTokens: number; readonly completionTokens: number; readonly modelCalls: number; readonly costUsd?: number } }): string {
   const cost = usage.replay.costUsd === undefined ? t`cost not known` : formatUsd(usage.replay.costUsd);
-  return t`Recording: ${{ recordedPrompt: count(usage.original.promptTokens) }} prompt + ${{ recordedBack: count(usage.original.completionTokens) }} back over ${{ recordedCalls: count(usage.original.modelCalls) }}; replay: ${{ replayPrompt: count(usage.replay.promptTokens) }} + ${{ replayBack: count(usage.replay.completionTokens) }} over ${{ replayCalls: count(usage.replay.modelCalls) }} (${cost}).`;
+  return t`Recording: ${{ recordedPrompt: formatCount(usage.original.promptTokens) }} prompt + ${{ recordedBack: formatCount(usage.original.completionTokens) }} back over ${{ recordedCalls: formatCount(usage.original.modelCalls) }}; replay: ${{ replayPrompt: formatCount(usage.replay.promptTokens) }} + ${{ replayBack: formatCount(usage.replay.completionTokens) }} over ${{ replayCalls: formatCount(usage.replay.modelCalls) }} (${cost}).`;
 }
 
 /** The drafts the two sides wrote, as rows the panel draws side by side. */
@@ -180,7 +181,7 @@ export function draftRows(drafts: readonly { readonly title: string; readonly fi
     field: diff.field === 'body' ? t`text` : t`synopsis`,
     original: diff.original,
     replay: diff.replay,
-    words: t`${{ before: count(diff.words.original) }} → ${{ after: count(diff.words.replay) }} words`,
+    words: t`${{ before: formatCount(diff.words.original) }} → ${{ after: formatCount(diff.words.replay) }} words`,
   }));
 }
 

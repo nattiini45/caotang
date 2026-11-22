@@ -767,7 +767,7 @@ msgstr "{calls}, {tokens} Token"
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "{calls}: {prompt} prompt tokens, at most {bound} back; {cost}."
-msgstr "{calls}: {prompt} Prompt-Token, höchstens {bound} zurück; {cost}."
+msgstr "{calls}: {prompt} Token ein, höchstens {bound} Token aus; {cost}."
 
 #. A restructure row after the item title. change is a translated word such as Moved; from and to are places that already name their isolated titles.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -10571,6 +10571,11 @@ msgstr "Vom Agenten"
 msgid "From the recording, free"
 msgstr "Aus der Aufzeichnung, kostenlos"
 
+#. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
+#: apps/desktop/src/app/replay-model.ts
+msgid "From the recording, so no model call and no cost."
+msgstr "Aus der Aufzeichnung, also kein Modellaufruf und keine Kosten."
+
 #. Interpolated values: file is the imported file name; reason is the import failure message
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 msgid "front matter"
@@ -14717,6 +14722,12 @@ msgstr "Notizen, die dieser Schritt schreibt"
 msgid "Notes you sent during this turn"
 msgstr "Notizen, die Sie während dieses Zugs gesendet haben"
 
+#. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
+#. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
+#: apps/desktop/src/app/replay-model.ts
+msgid "nothing"
+msgstr "nichts"
+
 #. Modern interface: the search and commands palette (Ctrl+K).
 #: apps/desktop/src/components/shell/modern/palette.tsx
 msgid "Nothing found. Enter opens the agent with your words, unsent."
@@ -17175,7 +17186,7 @@ msgstr "Aufzeichnung ausgeschaltet"
 #. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
 #: apps/desktop/src/app/replay-model.ts
 msgid "Recording: {recordedPrompt} prompt + {recordedBack} back over {recordedCalls}; replay: {replayPrompt} + {replayBack} over {replayCalls} ({cost})."
-msgstr "Aufzeichnung: {recordedPrompt} ein + {recordedBack} zurück über {recordedCalls}; Wiederholung: {replayPrompt} + {replayBack} über {replayCalls} ({cost})."
+msgstr "Aufzeichnung: {recordedPrompt} Token ein, {recordedBack} aus über {recordedCalls}; Wiederholung: {replayPrompt} Token ein, {replayBack} aus über {replayCalls} ({cost})."
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
@@ -26376,11 +26387,6 @@ msgstr "Wöchentlich"
 msgid "What changed since the last scan"
 msgstr "Was sich seit dem letzten Scan geändert hat"
 
-#. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
-#: apps/desktop/src/components/ReplayDialog.tsx
-msgid "What each model wrote"
-msgstr "Was jedes Modell geschrieben hat"
-
 #. A root of the picture sweep's inventory, named in the sentence that says why a sweep was refused. key is a document's journal key; root is the name of another root; reason is a sentence.
 #: apps/desktop/src/app/picture-retention-host.ts
 msgid "what else the session holds"
@@ -26461,6 +26467,11 @@ msgstr "Was der Prompt ausgelassen hat"
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "What the quick scan checks"
 msgstr "Was der Schnellscan prüft"
+
+#. The Replay dialog. Interpolated values: count, tokens and words are numbers; model and name are the writer's own provider names; text is a refusal or a step description.
+#: apps/desktop/src/components/ReplayDialog.tsx
+msgid "What the replay would change"
+msgstr "Was die Wiederholung ändern würde"
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts

@@ -3,7 +3,8 @@
  *
  * A turn replay runs on the project as it was when the turn started, and the store has no such state: restoring goes through undo
  * groups, which take every later change with them and change the real project on the way. So the app keeps a copy itself, taken when
- * the trace records `turn.start`, for the same few turns the trace keeps and no longer than the tab lives. Nothing here is written to
+ * the trace records `turn.start`, for the tab's last few turns — fewer than the twenty-five the trace keeps, because a copy of the whole
+ * project is much larger than a record of calls — and no longer than the tab lives. Nothing here is written to
  * the project, the app database or anywhere else: a snapshot is a copy of strings the store already holds, held in this page's memory.
  *
  * Off with the trace: with traces off nothing is recorded, so there is no recording to replay and no snapshot is taken either.
@@ -11,7 +12,8 @@
 
 import { cloneProjectState, type ProjectState } from '@caotang/store';
 
-/** How many turns' starting states are kept: the same window the trace store keeps for a tab (`TraceStoreOptions.maxTurns` default). */
+/** How many turns' starting states are kept. The trace keeps twenty-five turns (`TRACE_MAX_TURNS`), so an older turn has records but
+ * no starting state and only a call replay could run on it; five covers the turns a writer compares without holding five projects. */
 export const SNAPSHOTS_MAX = 5;
 
 export class ReplaySnapshots {

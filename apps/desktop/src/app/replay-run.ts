@@ -78,6 +78,8 @@ export async function runReplay(options: RunReplayOptions): Promise<ReplayResult
     ...(options.clock === undefined ? {} : { clock: options.clock }),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     // A cassette answers from the mock's own store, so the caller's gateway is not what sends; the engine ignores the target there.
-    decide: options.decide ?? (async () => ({ action: 'cancel' })),
+    // With no `decide`, a card the recording does not cover is the engine's own `decision-mismatch` stop: the dialog has no Approve,
+    // and a silent cancel would leave the writer with a stopped turn and no reason for it.
+    ...(options.decide === undefined ? {} : { decide: options.decide }),
   });
 }

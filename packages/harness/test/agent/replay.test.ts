@@ -490,6 +490,17 @@ describe('replay: the estimate a writer confirms first', () => {
     expect(unbounded.modelCalls).toBe(DEFAULT_MAX_MODEL_CALLS);
   });
 
+  it('prices a cassette at nothing: it answers from the recording and sends nothing', async () => {
+    const run = await record();
+    const gateway = await mockGateway([]);
+    // No target: a cassette's destination is the recording itself, and pricing it against whichever profile is active would print a
+    // figure the writer never spends.
+    const estimate = estimateReplay({ mode: 'cassette', source: run.store, turnId: run.turnId }, (profileId, model, thinking) =>
+      gateway.modelLimits(profileId, model, thinking),
+    );
+    expect(estimate).toEqual({ promptTokens: 0, maxCompletionTokens: 0, modelCalls: 0 });
+  });
+
   it('refuses without a target: a replay is only ever sent to a profile the writer saved', async () => {
     const run = await record();
     const gateway = await mockGateway([]);
