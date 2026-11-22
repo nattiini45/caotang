@@ -35,10 +35,9 @@ export function orderedSpans(spans: readonly ExtractedSpan[]): ExtractedSpan[] {
   return unique.sort((a, b) => (a.docId < b.docId ? -1 : a.docId > b.docId ? 1 : a.from - b.from || a.to - b.to));
 }
 
-/** Every unordered pair of same-category spans, in category order, with sequential ids `p1`, `p2`, … */
-export function candidatePairs(spans: readonly ExtractedSpan[], categories: readonly LlmCategory[] = LLM_CATEGORIES): PairRef[] {
-  const pairs: PairRef[] = [];
+export function* pairSequence(spans: readonly ExtractedSpan[], categories: readonly LlmCategory[] = LLM_CATEGORIES): Generator<PairRef> {
   const ordered = orderedSpans(spans);
+  let count = 0;
   for (const category of LLM_CATEGORIES) {
     if (!categories.includes(category)) continue;
     const group = ordered.filter((span) => span.category === category);
@@ -47,11 +46,22 @@ export function candidatePairs(spans: readonly ExtractedSpan[], categories: read
         const a = group[i];
         const b = group[j];
         if (a === undefined || b === undefined) continue;
-        pairs.push({ pairId: `p${pairs.length + 1}`, ordinal: pairs.length + 1, category, a, b });
+        count += 1;
+        yield { pairId: `p${count}`, ordinal: count, category, a, b };
       }
     }
   }
-  return pairs;
+}
+
+/** Every unordered pair of same-category spans, in category order, with sequential ids `p1`, `p2`, … */
+export function candidatePairs(spans: readonly ExtractedSpan[], categories: readonly LlmCategory[] = LLM_CATEGORIES): PairRef[] {
+  return [...pairSequence(spans, categories)];
+}
+
+/** A pair's identity across compositions: its category and both spans' document and offsets, in the order `orderedSpans` puts them. Pair ids are sequential over one composition, so a resume that extracts further spans renumbers them; this key does not change. */
+export function pairKey(pair: PairRef): string {
+  const span = (s: ExtractedSpan): string => `${s.docId}\u0000${s.from}\u0000${s.to}`;
+  return `${pair.category}\u0000${span(pair.a)}\u0000${span(pair.b)}`;
 }
 
 /** Splits pairs into calls of at most {@link PAIRS_PER_CALL}. */

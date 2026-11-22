@@ -13,15 +13,17 @@
  */
 
 import type { TaskRunRecord } from '@caotang/tasks';
+import { scopedStoreName } from './storage-scope.js';
 
 /** The database name. No project uses it, and the project store has its own. */
 export const APP_DB_NAME = 'caotang-app';
 /**
  * Version 2 adds the editor's history journals (`STORE_HISTORY`); version 3 adds the writer's reviews of a project's skills
- * (`STORE_SKILL_REVIEWS`); version 4 adds the run history of a project's recurring tasks (`STORE_TASK_RUNS`). Each upgrade only adds
- * a store, so the `kv` records, the journals and the reviews are untouched by it.
+ * (`STORE_SKILL_REVIEWS`); version 4 adds the run history of a project's recurring tasks (`STORE_TASK_RUNS`); version 5 adds the
+ * writer's consents for tasks that start by themselves (`STORE_TASK_CONSENTS`). Each upgrade only adds a store, so the `kv` records,
+ * the journals, the reviews and the histories are untouched by it.
  */
-const APP_DB_VERSION = 4;
+const APP_DB_VERSION = 5;
 const STORE_KV = 'kv';
 /** Per-document undo journals (history-store.ts), keyed `<projectId>:<docId>`. Per-viewer state: no export, bundle or agent reads it. */
 const STORE_HISTORY = 'editor-history';
@@ -39,6 +41,12 @@ const STORE_SKILL_REVIEWS = 'skill-reviews';
  * here and never in a project, a bundle or an export: what a writer has already seen is the writer's, not the folder's.
  */
 const STORE_TASK_RUNS = 'task-runs';
+
+/**
+ * The writer's consent for each recurring task that starts by itself, keyed `<projectId>:<taskId>` (task-consents.ts). Kept here and
+ * never in a project, a bundle or an export: a shared project cannot ship permission to spend a writer's key.
+ */
+const STORE_TASK_CONSENTS = 'task-consents';
 
 /** The record keys. One value per key, so a save replaces a whole record at once. */
 export const APP_KEYS = {
@@ -107,6 +115,24 @@ export interface TaskRunDb {
   delete(keys: readonly string[]): Promise<void>;
 }
 
+/** One consent: the writer allowed task `taskId` of project `projectId` to start by itself as its body hash was `hash`, at `grantedAt` (ISO-8601). */
+export interface TaskConsentRow {
+  readonly key: string;
+  readonly projectId: string;
+  readonly taskId: string;
+  readonly hash: string;
+  readonly grantedAt: string;
+}
+
+/** The recurring tasks' self-start consents, in the database's `task-consents` store. */
+export interface TaskConsentDb {
+  /** Every consent kept for a project. */
+  list(projectId: string): Promise<readonly TaskConsentRow[]>;
+  put(row: TaskConsentRow): Promise<void>;
+  /** Removes the consents kept under these keys. */
+  delete(keys: readonly string[]): Promise<void>;
+}
+
 /** One record of the `kv` store, as `AppDb.list` returns it. */
 export interface KvRow<T = unknown> {
   readonly key: string;
@@ -128,6 +154,8 @@ export interface AppDb {
   readonly reviews?: SkillReviewDb;
   /** The recurring tasks' run history. Absent on a stand-in that keeps only settings; a task is then offered again after a reload. */
   readonly taskRuns?: TaskRunDb;
+  /** The recurring tasks' self-start consents. Absent on a stand-in that keeps only settings; no model task then starts by itself. */
+  readonly taskConsents?: TaskConsentDb;
   close(): void;
 }
 
@@ -155,9 +183,10 @@ function committed(tx: IDBTransaction): Promise<void> {
 
 /**
  * Opens the app database. `factory` is the browser's `indexedDB`, or a stand-in in a test. Rejects when the open fails,
- * which the caller turns into a notice and an app that runs on defaults.
+ * which the caller turns into a notice and an app that runs on defaults. The name carries the studio's storage scope, so a
+ * hosted shell's accounts open separate databases (storage-scope.ts).
  */
-export function openAppDb(factory: IDBFactory, name: string = APP_DB_NAME): Promise<AppDb> {
+export function openAppDb(factory: IDBFactory, name: string = scopedStoreName(APP_DB_NAME)): Promise<AppDb> {
   return new Promise<AppDb>((resolve, reject) => {
     const request = factory.open(name, APP_DB_VERSION);
     request.onupgradeneeded = () => {
@@ -171,6 +200,9 @@ export function openAppDb(factory: IDBFactory, name: string = APP_DB_NAME): Prom
       }
       if (!db.objectStoreNames.contains(STORE_TASK_RUNS)) {
         db.createObjectStore(STORE_TASK_RUNS, { keyPath: 'key' }).createIndex('byProject', 'projectId');
+      }
+      if (!db.objectStoreNames.contains(STORE_TASK_CONSENTS)) {
+        db.createObjectStore(STORE_TASK_CONSENTS, { keyPath: 'key' }).createIndex('byProject', 'projectId');
       }
     };
     request.onsuccess = () => {
@@ -257,6 +289,23 @@ export function openAppDb(factory: IDBFactory, name: string = APP_DB_NAME): Prom
             if (keys.length === 0) return;
             const tx = db.transaction(STORE_TASK_RUNS, 'readwrite');
             for (const key of keys) tx.objectStore(STORE_TASK_RUNS).delete(key);
+            await committed(tx);
+          },
+        },
+        taskConsents: {
+          async list(projectId: string): Promise<readonly TaskConsentRow[]> {
+            const tx = db.transaction(STORE_TASK_CONSENTS, 'readonly');
+            return requestOf(tx.objectStore(STORE_TASK_CONSENTS).index('byProject').getAll(projectId) as IDBRequest<TaskConsentRow[]>, tx);
+          },
+          async put(row: TaskConsentRow): Promise<void> {
+            const tx = db.transaction(STORE_TASK_CONSENTS, 'readwrite');
+            tx.objectStore(STORE_TASK_CONSENTS).put(row);
+            await committed(tx);
+          },
+          async delete(keys: readonly string[]): Promise<void> {
+            if (keys.length === 0) return;
+            const tx = db.transaction(STORE_TASK_CONSENTS, 'readwrite');
+            for (const key of keys) tx.objectStore(STORE_TASK_CONSENTS).delete(key);
             await committed(tx);
           },
         },

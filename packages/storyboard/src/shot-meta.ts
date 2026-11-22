@@ -110,7 +110,7 @@ export function readShotMeta(raw: unknown): ShotMetaRead {
 
   const meta: Record<string, unknown> = {};
   const unknownValues: Record<string, unknown> = {};
-  const unknownFields: Record<string, unknown> = {};
+  const unknownFields = Object.create(null) as Record<string, unknown>;
   const notices: string[] = [];
   const enumFields = new Set<string>(SHOT_ENUM_FIELDS);
 

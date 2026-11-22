@@ -105,20 +105,23 @@ describe('renderPdf — the embedded font program', () => {
     expect(back).toEqual(font.bytes);
   });
 
-  it('keeps every byte ASCII and every xref offset exact with the font in the file', async () => {
+  it('keeps every body byte ASCII and every xref offset exact with the font in the file', async () => {
     const { bytes, pageCount } = renderPdf(blocksOf(SCRIPT_ONE_ACT), { title: 'T', author: 'A. Writer' }, await loadCourierPrime());
-    expect(bytes.every((byte) => byte < 0x80)).toBe(true);
+    // After the version line and its binary comment (the only non-ASCII text in the file), every byte is ASCII.
+    expect(bytes.slice(19).every((byte) => byte < 0x80)).toBe(true);
     const pdf = decode(bytes);
+    expect(pdf.startsWith('%PDF-1.4\n%âãÏÓ\n')).toBe(true);
     expect(pdf).toContain('/Author (A. Writer)');
+    // The table's offsets count bytes, not decoded characters — slice the bytes, then decode.
     const xref = Number(/startxref\n(\d+)\n/.exec(pdf)?.[1]);
-    const lines = pdf.slice(xref).split('\n');
-    const objects = Number(/^0 (\d+)$/m.exec(pdf.slice(xref, xref + 40))?.[1]) - 1;
+    const lines = decode(bytes.slice(xref)).split('\n');
+    const objects = Number(/^0 (\d+)$/m.exec(decode(bytes.slice(xref, xref + 40)))?.[1]) - 1;
     // Control: the catalogue, the page tree, the font and the info, two objects a page, the descriptor and the program.
     // A header the regexes miss gives NaN here, and the loop below would check nothing.
     expect(objects).toBe(4 + 2 * pageCount + 2);
     for (let object = 1; object <= objects; object++) {
       const offset = Number(lines[2 + object]?.slice(0, 10));
-      expect(pdf.slice(offset).startsWith(`${object} 0 obj\n`), `object ${object}`).toBe(true);
+      expect(decode(bytes.slice(offset)).startsWith(`${object} 0 obj\n`), `object ${object}`).toBe(true);
     }
   });
 });

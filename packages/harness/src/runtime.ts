@@ -56,6 +56,7 @@ import {
   createIdempotencyCache,
   createUndoStore,
   createViewState,
+  err,
   execute,
   executeAsync,
   ok,
@@ -79,6 +80,7 @@ import {
 } from '@caotang/bus';
 import type { ReviewPlan } from '@caotang/coherence';
 import { dialogueTableTool } from '@caotang/dialogue';
+import { redact, type ChatMessage } from '@caotang/gateway';
 import {
   createLoadedTools,
   createMcpTransport,
@@ -95,6 +97,7 @@ import {
   type UntrustedCallResult,
 } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
+import type { ContextOverrides } from '@caotang/context';
 import { createProjectCommandRegistry, type McpInvokeCommandPort, type McpReadResourceCommandPort, type ProjectState } from '@caotang/store';
 import { isOffered, skillCatalog as skillCatalogOf, type SkillCatalog, type SkillState } from '@caotang/skills';
 import { shotCommandPort } from '@caotang/storyboard';
@@ -116,7 +119,9 @@ import {
   type SourcedRule,
 } from './rules.js';
 import { portPreflights } from './agent/ports.js';
-import { blockOf, blockWords, createHookRunner, exportHookNodes, hookLabel, type HookInput, type HookRun, type HookSource } from './hooks.js';
+import { STAGED_PROSE, blockOf, blockWords, createHookRunner, exportHookNodes, hookLabel, proseOf, type HookInput, type HookRun, type HookSource } from './hooks.js';
+import { invokeMcpReadHook, type McpReadHook } from './mcp-hooks.js';
+import { MODEL_HOOK_LIMIT, MODEL_HOOK_REWRITE_PENDING, MODEL_HOOK_TOOLS, invokeModelHook, modelHookMessages, modelHookTransformField, sameModelHook, type ModelHook, type ModelHookActor, type ModelHookRewrite } from './model-hooks.js';
 import { TOOL_METADATA, capOf, metadataFor, type ToolMetadata, type ToolName, type ToolRisk } from './metadata.js';
 import type { ResultData } from './results.js';
 import { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
@@ -161,7 +166,7 @@ import type {
   ToolPort,
   TurnContext,
 } from './types.js';
-import { canonicalJson } from './util.js';
+import { canonicalJson, isRecord } from './util.js';
 
 export interface HarnessOptions {
   /** The project. Reads and validates against it; the bus applies commands to it. */
@@ -237,6 +242,8 @@ export interface HarnessOptions {
    * never approves a call. Absent, there are none.
    */
   readonly hooks?: HookSource;
+  readonly mcpHooks?: () => readonly McpReadHook[];
+  readonly modelHooks?: () => readonly ModelHook[];
 }
 
 /** What the rules say about one step, before it is drafted or carded. */
@@ -275,8 +282,16 @@ export interface ExternalHarness {
   endTurn(turnId: string): void;
 }
 
+interface ActorCallBoundary {
+  readonly check: () => CommandError | undefined;
+  readonly rewrite?: (replacement: ModelHookRewrite) => void;
+  readonly beforeApply?: () => void;
+  readonly afterApply: (outcome: ToolOutcome) => void | Promise<boolean>;
+}
+
 export interface Harness {
   readonly state: ProjectState;
+  withRules(additional: RulesProvider): Harness;
   readonly registry: CommandRegistry;
   /** The undo store every call's effects are registered in. Undo replays through the bus. */
   readonly undo: UndoStore;
@@ -287,6 +302,11 @@ export interface Harness {
   tools(): readonly ToolListing[];
   /** Runs one tool call under a turn. A call that names a tool by a literal gets that row's result type (results.ts). */
   call<N extends string>(call: ToolCall & { readonly name: N }, turn: TurnContext): Result<ToolValue<ResultData<N>>, CommandError>;
+  hasMcpHook(tool: string): boolean;
+  callWithMcpHooks(call: ToolCall, turn: TurnContext, boundary?: ActorCallBoundary): ToolOutcome | Promise<ToolOutcome>;
+  modelHooks(): readonly ModelHook[];
+  modelHookInput(hook: ModelHook, params: CallParams, proposal?: unknown): readonly ChatMessage[] | undefined;
+  callWithHooks(call: ToolCall, turn: TurnContext, boundary?: ActorCallBoundary, actor?: ModelHookActor): ToolOutcome | Promise<ToolOutcome>;
   /** Checks a plan with no effect. Malformed plans come back as a refusal. */
   previewPlan(plan: unknown, options?: PlanOptions): Result<PlanPreflight, CommandError>;
   /**
@@ -307,12 +327,12 @@ export interface Harness {
    * Runs one call to an async port (`asyncPorts`), such as `coherence.review` or `pictures.view`. A read needs no approval;
    * a write needs the plan's approval or a one-step confirmation. An external caller may run a read but never an async write.
    */
-  callAsync(call: ToolCall, turn: TurnContext): Promise<ToolOutcome>;
+  callAsync(call: ToolCall, turn: TurnContext, boundary?: ActorCallBoundary, actor?: ModelHookActor): Promise<ToolOutcome>;
   /**
    * The plan of a `coherence.review` step, staged before its card is shown (coherence.md §7 tool 16). Pure: no model is called,
    * so the card shows the documents, the cost estimate and the first prompt before the writer approves.
    */
-  reviewPlan(params: CallParams): Result<ReviewPlan, CommandError>;
+  reviewPlan(params: CallParams, contextOverrides?: ContextOverrides): Result<ReviewPlan, CommandError>;
   /** The no-model plan of a `pictures.transcribe` step, staged before its card (pictures.md §8.4). */
   transcriptionPlan(params: CallParams): Result<PictureTranscriptionPlan, CommandError>;
   /**
@@ -614,6 +634,15 @@ function externalTurnId(turnId: string): string {
 /** The most hook notes one result carries, and the longest one. */
 const HOOK_NOTES_MAX = 5;
 const HOOK_NOTE_MAX = 1500;
+const MCP_HOOK_LIMIT = 20;
+
+function hookBlocked(run: NonNullable<ReturnType<typeof blockOf>>, tool: string, afterHook = false): CommandError {
+  return refusal('permission-denied', `${blockWords(run, tool)} ${afterHook ? 'The original tool did not run.' : 'Nothing was run.'}`, {
+    target: tool,
+    correctiveHint: 'change the step so the hook passes, or tell the writer which hook is in the way; only the writer can change a hook',
+    details: { askBackCode: 'hook_blocked', hook: { id: run.hookId, name: hookLabel(run.name) } },
+  });
+}
 
 /** The turn a call runs under: an external caller's turn is its own, and a native turn is used as given. */
 function scopeTurn(turn: TurnContext): TurnContext {
@@ -807,12 +836,14 @@ export function createHarness(options: HarnessOptions): Harness {
   const view: ViewState = createViewState();
   const log = options.history?.log ?? createActivityLog();
   const idempotency = createIdempotencyCache();
+  const mcpHookIdempotency = createIdempotencyCache();
   const entries = buildEntries();
 
   // The writer's hooks (hooks.md). Read at each call, like the rules; a hook only ever refuses, warns or notes, and it runs after the gate.
   const hooks = options.hooks === undefined ? undefined : createHookRunner(options.hooks, { state, withheld: (tool) => tool === '' ? withheldAnywhere(currentRules(), state) : withheldFor(tool) });
   const hookRuns = new Map<string, HookRun[]>();
   const hookSeen = new Map<string, Set<string>>();
+  const mcpHookCalls = new Map<string, Map<string, { fingerprint: string; result: Promise<ToolOutcome> }>>();
   /** Keeps what the hooks said on a turn for the loop to read. The same hook saying the same thing about the same call is kept once. */
   const recordHooks = (turnId: string | undefined, runs: readonly HookRun[], params: CallParams): void => {
     if (turnId === undefined) return;
@@ -836,6 +867,7 @@ export function createHarness(options: HarnessOptions): Harness {
     meta: ToolMetadata | undefined,
     turnId: string | undefined,
     phase: 'preflight' | 'run',
+    record = true,
   ): { readonly runs: readonly HookRun[]; readonly error?: CommandError } => {
     if (hooks === undefined) return { runs: [] };
     const targets = meta === undefined ? undefined : targetsOf(meta, call.params);
@@ -854,17 +886,10 @@ export function createHarness(options: HarnessOptions): Harness {
       const exported = { ...input, event: 'export.before' as const, affected: exportHookNodes(state, call.params) };
       runs.push(...(phase === 'preflight' ? hooks.preflight(exported) : hooks.run(exported)));
     }
-    recordHooks(turnId, runs, call.params);
     const blocked = blockOf(runs);
+    if (record || blocked !== undefined) recordHooks(turnId, runs, call.params);
     if (blocked === undefined) return { runs };
-    return {
-      runs,
-      error: refusal('permission-denied', `${blockWords(blocked, call.name)} Nothing was run.`, {
-        target: call.name,
-        correctiveHint: 'change the step so the hook passes, or tell the writer which hook is in the way; only the writer can change a hook',
-        details: { askBackCode: 'hook_blocked', hook: { id: blocked.hookId, name: hookLabel(blocked.name) } },
-      }),
-    };
+    return { runs, error: hookBlocked(blocked, call.name) };
   };
   /** The note a hook's run adds for the model: what a `tool.before` hook warned about, and what a `tool.after` hook reported. */
   const noteOf = (run: HookRun): HookNote[] => {
@@ -1102,6 +1127,7 @@ export function createHarness(options: HarnessOptions): Harness {
       ...(permission === undefined ? {} : { permission }),
       ...(turn.signal === undefined ? {} : { signal: turn.signal }),
       withheld: withheldFor(call.name),
+      ...(turn.contextOverrides === undefined ? {} : { contextOverrides: turn.contextOverrides }),
       // A change to held state outside the bus counts as an effect, so the answer is cached by callId and a
       // replay is not run again (command-bus §6). The port says so; the runtime cannot see the change.
       recordEffect: () => {
@@ -1154,50 +1180,38 @@ export function createHarness(options: HarnessOptions): Harness {
     return { outcome: measured, applied: tally.effect };
   }
 
-  /**
-   * Runs one prepared call, with the notes a `tool.before` hook left on it. Returns whether any command reached an effect, which decides
-   * the replay cache.
-   */
-  function invoke(call: ToolCall, turn: TurnContext): { readonly outcome: ToolOutcome; readonly applied: boolean } {
-    const warned: HookNote[] = [];
-    const ran = invokeCall(call, turn, warned);
-    return warned.length === 0 ? ran : { ...ran, outcome: withNotes(ran.outcome, warned) };
-  }
-
-  function invokeCall(call: ToolCall, turn: TurnContext, warned: HookNote[]): { readonly outcome: ToolOutcome; readonly applied: boolean } {
+  function admitSyncCall(call: ToolCall, turn: TurnContext): Result<Prepared, CommandError> {
     const restricted = skillToolRefusal(skillLoads, turn.turnId, call.name);
-    if (restricted !== undefined) return { outcome: failure(restricted) as ToolOutcome, applied: false };
+    if (restricted !== undefined) return err(restricted);
     // An external caller may write only where the project has opened external writes, and its tools are described to it so (extensibility §9).
     const prep = prepareCall(call.name, call.params, turn.source === 'mcp' ? externalWrites : true, call.proposal);
-    if (!prep.ok) return { outcome: failure(prep.error) as ToolOutcome, applied: false };
+    if (!prep.ok) return prep;
     const ruled = ruleRefusalFor(prep.value.entry.meta, prep.value.params, turn);
-    if (ruled !== undefined) return { outcome: failure(ruled) as ToolOutcome, applied: false };
+    if (ruled !== undefined) return err(ruled);
     const grant = toolGrant(prep.value.entry.meta, turn, externalWrites);
-    if (!grant.ok) return { outcome: failure(grant.error) as ToolOutcome, applied: false };
+    if (!grant.ok) return grant;
 
     if (prep.value.entry.kind === 'port') {
-      const port = ports[prep.value.entry.port];
-      if (port === undefined) {
-        // An async port awaits a model, so it runs only through `callAsync`, after its plan's approval (see that function).
-        if (asyncPorts[prep.value.entry.port] !== undefined) return { outcome: failure(asyncOnly(call.name)) as ToolOutcome, applied: false };
-        return { outcome: failure(notWired(call.name)) as ToolOutcome, applied: false };
+      if (ports[prep.value.entry.port] === undefined) {
+        return err(asyncPorts[prep.value.entry.port] === undefined ? notWired(call.name) : asyncOnly(call.name));
       }
       // The gate has answered (above), so a state refusal is named only to a caller that may run the tool.
       const held = portStateRefusal(prep.value, call.proposal);
-      if (held !== undefined) return { outcome: failure(held) as ToolOutcome, applied: false };
-      const hooked = hooksBefore({ ...call, params: prep.value.params }, prep.value.entry.meta, turn.turnId, 'run');
-      if (hooked.error !== undefined) return { outcome: failure(hooked.error) as ToolOutcome, applied: false };
-      warned.push(...hooked.runs.flatMap(noteOf));
-      return runPort(call, turn, prep.value.entry, prep.value.params, port);
+      return held === undefined ? prep : err(held);
     }
+    return prep.value.prepared === undefined ? err(notWired(call.name)) : prep;
+  }
 
-    const prepared = prep.value.prepared;
+  function runPreparedSync(call: ToolCall, turn: TurnContext, { entry, params, prepared }: Prepared): { outcome: ToolOutcome; applied: boolean } {
+    if (entry.kind === 'port') {
+      const port = ports[entry.port];
+      return port === undefined
+        ? { outcome: failure(notWired(call.name)) as ToolOutcome, applied: false }
+        : runPort(call, turn, entry, params, port);
+    }
     if (prepared === undefined) return { outcome: failure(notWired(call.name)) as ToolOutcome, applied: false };
-    const hooked = hooksBefore({ ...call, params: prep.value.params }, prep.value.entry.meta, turn.turnId, 'run');
-    if (hooked.error !== undefined) return { outcome: failure(hooked.error) as ToolOutcome, applied: false };
-    warned.push(...hooked.runs.flatMap(noteOf));
     if (prepared.commands.length === 0) {
-      return { outcome: withinCap(prep.value.entry.meta, prepared.finish([])), applied: false };
+      return { outcome: withinCap(entry.meta, prepared.finish([])), applied: false };
     }
 
     const done: CommandDone[] = [];
@@ -1259,8 +1273,13 @@ export function createHarness(options: HarnessOptions): Harness {
       return replay.fingerprint === fingerprint ? replay.outcome : (failure(replayMismatch(call, turn)) as ToolOutcome);
     }
 
-    const ran = invoke(call, turn);
-    const outcome = hooksAfter({ ...call, params: call.params as CallParams }, turn.turnId, ran.outcome);
+    if (mcpHookCalls.get(turn.turnId)?.has(call.callId) === true) return failure(replayMismatch(call, turn)) as ToolOutcome;
+    const prep = admitSyncCall(call, turn);
+    if (!prep.ok) return failure(prep.error) as ToolOutcome;
+    const hooked = hooksBefore({ ...call, params: prep.value.params }, prep.value.entry.meta, turn.turnId, 'run');
+    if (hooked.error !== undefined) return failure(hooked.error) as ToolOutcome;
+    const ran = runPreparedSync(call, turn, prep.value);
+    const outcome = hooksAfter({ ...call, params: call.params as CallParams }, turn.turnId, withNotes(ran.outcome, hooked.runs.flatMap(noteOf)));
     if (ran.applied) callCache.record(turn.turnId, call.callId, fingerprint, outcome);
     return outcome;
   }
@@ -1372,10 +1391,12 @@ export function createHarness(options: HarnessOptions): Harness {
     callCache.endTurn(turnId);
     planCache.endTurn(turnId);
     idempotency.endTurn(turnId);
+    mcpHookIdempotency.endTurn(turnId);
     undo.endTurn(turnId);
     skillLoads.forget(turnId);
     hookRuns.delete(turnId);
     hookSeen.delete(turnId);
+    mcpHookCalls.delete(turnId);
     if (loaded.turnId === turnId) loaded.endTurn();
   }
 
@@ -1501,47 +1522,270 @@ export function createHarness(options: HarnessOptions): Harness {
    * needs: none for a read, a plan's approval or one-step confirmation for a write. An external caller may run a read;
    * an async write is refused before its port runs. A tool with no async port is not called this way.
    */
-  async function callAsync(call: ToolCall, given: TurnContext): Promise<ToolOutcome> {
+  function mcpHooksFor(tool: string): readonly McpReadHook[] {
+    return (options.mcpHooks?.() ?? []).slice(0, MCP_HOOK_LIMIT).filter((hook) => hook.enabled && hook.tool === tool);
+  }
+
+  function modelHooks(): readonly ModelHook[] {
+    return (options.modelHooks?.() ?? []).slice(0, MODEL_HOOK_LIMIT).filter((hook) => hook.enabled
+      && (hook.event === 'turn.end' ? hook.tool === '' : MODEL_HOOK_TOOLS.some((tool) => tool === hook.tool)));
+  }
+
+  function modelHookInput(hook: ModelHook, params: CallParams, proposal?: unknown, affected: readonly string[] = []): readonly ChatMessage[] | undefined {
+    const entry = entries.get(hook.tool as ToolName);
+    if (entry === undefined || entry.kind === 'protocol' || !MODEL_HOOK_TOOLS.some((tool) => tool === hook.tool)) return undefined;
+    const parsed = checkParams(hook.tool, entry.params, params);
+    if (!parsed.ok) return undefined;
+    const set = currentRules();
+    if (set.unreadable === true) return undefined;
+    const hidden = withheldAnywhere(set, state);
+    if (hidden.size > 0) {
+      const targets = targetsOf(entry.meta, parsed.value);
+      if (targets === undefined || [...targets.reads, ...targets.writes, ...affected].some((id) => hidden.has(id))) return undefined;
+    }
+    try {
+      const staged = Object.hasOwn(STAGED_PROSE, hook.tool) ? STAGED_PROSE[hook.tool] : undefined;
+      if (staged !== undefined && (!isRecord(proposal) || !Object.hasOwn(proposal, staged.key))) return undefined;
+      const prose = proseOf(hook.tool, parsed.value, staged === undefined || !isRecord(proposal) ? undefined : { [staged.key]: proposal[staged.key] });
+      return modelHookMessages(hook.prompt, hook.tool, prose, hook.event === 'tool.before' && hook.canTransform === true && modelHookTransformField(hook.tool) !== undefined ? 'transform' : undefined);
+    } catch {
+      return undefined;
+    }
+  }
+
+  const actorTurn = (turn: TurnContext): boolean => turn.source !== 'mcp' && turn.agentPath === undefined;
+
+  function callWithHooks(call: ToolCall, turn: TurnContext, boundary?: ActorCallBoundary, actor?: ModelHookActor): ToolOutcome | Promise<ToolOutcome> {
+    const selected = actorTurn(turn) ? mcpHooksFor(call.name) : [];
+    return selected.length === 0 && !(actorTurn(turn) && actor?.hooks.some((hook) => hook.tool === call.name))
+      && mcpHookCalls.get(turn.turnId)?.has(call.callId) !== true
+      ? callTool(call, turn)
+      : callAwaited(call, turn, false, selected, boundary, actor);
+  }
+
+  function callAsync(call: ToolCall, turn: TurnContext, boundary?: ActorCallBoundary, actor?: ModelHookActor): Promise<ToolOutcome> {
+    const selected = actorTurn(turn) ? mcpHooksFor(call.name) : [];
+    return callAwaited(call, turn, true, selected, boundary, actor);
+  }
+
+  async function callAwaited(call: ToolCall, given: TurnContext, asyncPort: boolean, selectedHooks: readonly McpReadHook[], boundary?: ActorCallBoundary, actor?: ModelHookActor): Promise<ToolOutcome> {
     const identity = identityRefusal(call, given);
     if (identity !== undefined) return failure(identity) as ToolOutcome;
     const restricted = skillToolRefusal(skillLoads, given.turnId, call.name);
     if (restricted !== undefined) return failure(restricted) as ToolOutcome;
-    const turn = given;
-    syncLoadedTurn(turn.turnId);
-    const fingerprint = canonicalJson({ name: call.name, params: call.params, proposal: call.proposal ?? null });
+    const turn = scopeTurn(given);
+    if (turn.source !== 'mcp') syncLoadedTurn(turn.turnId);
+    const fingerprintOf = () => canonicalJson({ name: call.name, params: call.params, proposal: call.proposal ?? null });
+    const fingerprint = fingerprintOf();
     const replay = callCache.lookup(turn.turnId, call.callId);
     if (replay !== undefined) {
       return replay.fingerprint === fingerprint ? replay.outcome : (failure(replayMismatch(call, turn)) as ToolOutcome);
     }
-    const prep = prepareCall(call.name, call.params);
-    if (!prep.ok) return failure(prep.error) as ToolOutcome;
-    if (prep.value.entry.kind !== 'port') {
-      return failure(invalidParams(`"${call.name}" is not an async tool, so it is called with call, not callAsync`, 'call it through call()', 'name')) as ToolOutcome;
+    const pending = mcpHookCalls.get(turn.turnId)?.get(call.callId);
+    if (pending !== undefined) {
+      return pending.fingerprint === fingerprint && turn.agentPath === undefined
+        ? pending.result
+        : failure(replayMismatch(call, turn)) as ToolOutcome;
     }
-    // The source is not an approval. An external caller may read through an async port, but no external
-    // approval reaches an async write, so the port is never invoked for one.
-    if (turn.source === 'mcp' && prep.value.entry.meta.risk !== 'read') {
-      return failure(refusal('permission-denied', `"${call.name}" is an async write tool, and an external caller may not run it. Nothing was run.`, { target: call.name })) as ToolOutcome;
+    const admit = (): Result<Prepared, CommandError> => {
+      const refused = boundary?.check();
+      if (refused !== undefined) return err(refused);
+      if (!asyncPort) return admitSyncCall(call, turn);
+      const skill = skillToolRefusal(skillLoads, turn.turnId, call.name);
+      if (skill !== undefined) return err(skill);
+      const prep = prepareCall(call.name, call.params);
+      if (!prep.ok) return prep;
+      const { entry, params } = prep.value;
+      if (entry.kind !== 'port') {
+        return err(invalidParams(`"${call.name}" is not an async tool, so it is called with call, not callAsync`, 'call it through call()', 'name'));
+      }
+      if (turn.source === 'mcp' && entry.meta.risk !== 'read') {
+        return err(refusal('permission-denied', `"${call.name}" is an async write tool, and an external caller may not run it. Nothing was run.`, { target: call.name }));
+      }
+      const ruled = ruleRefusalFor(entry.meta, params, turn);
+      if (ruled !== undefined) return err(ruled);
+      const grant = toolGrant(entry.meta, turn, externalWrites);
+      if (!grant.ok) return grant;
+      const port = asyncPorts[entry.port];
+      if (port === undefined) return err(notWired(call.name));
+      const held = portStateRefusal(prep.value, call.proposal);
+      return held === undefined ? prep : err(held);
+    };
+    const admitted = admit();
+    if (!admitted.ok) return failure(admitted.error) as ToolOutcome;
+    const selected = selectedHooks.map((hook) => ({ ...hook }));
+    const model = actorTurn(turn) ? (actor?.hooks ?? []).slice(0, MODEL_HOOK_LIMIT).filter((hook) => hook.enabled && hook.tool === call.name) : [];
+    const check = (prep: Prepared, record = true) => hooksBefore({ ...call, params: prep.params }, prep.entry.meta, turn.turnId, 'run', record);
+    const runOriginal = async (prep: Prepared, notes: readonly HookNote[]) => {
+      const { entry, params } = prep;
+      const port = asyncPort && entry.kind === 'port' ? asyncPorts[entry.port] : undefined;
+      boundary?.beforeApply?.();
+      const ran = port !== undefined && entry.kind === 'port'
+        ? await runAsyncPort(call, given, entry, params, port)
+        : runPreparedSync(call, turn, prep);
+      const outcome = hooksAfter({ ...call, params: asyncPort ? params : call.params as CallParams }, turn.turnId, withNotes(ran.outcome, notes));
+      const saved = boundary?.afterApply(outcome);
+      const afterAllowed = saved === undefined || await saved;
+      return { ...ran, outcome, afterAllowed };
+    };
+    if (selected.length === 0 && model.length === 0) {
+      const hooked = check(admitted.value);
+      if (hooked.error !== undefined) return failure(hooked.error) as ToolOutcome;
+      const { outcome, applied } = await runOriginal(admitted.value, hooked.runs.flatMap(noteOf));
+      if (applied) callCache.record(turn.turnId, call.callId, fingerprint, outcome);
+      return outcome;
     }
-    const ruled = ruleRefusalFor(prep.value.entry.meta, prep.value.params, turn);
-    if (ruled !== undefined) return failure(ruled) as ToolOutcome;
-    const grant = toolGrant(prep.value.entry.meta, turn, externalWrites);
-    if (!grant.ok) return failure(grant.error) as ToolOutcome;
-    const port = asyncPorts[prep.value.entry.port];
-    if (port === undefined) return failure(notWired(call.name)) as ToolOutcome;
-    // The gate has answered (above), so a state refusal is named only to a caller that may run the tool (callAsync's plan approval).
-    const held = portStateRefusal(prep.value, call.proposal);
-    if (held !== undefined) return failure(held) as ToolOutcome;
-    const hooked = hooksBefore({ ...call, params: prep.value.params }, prep.value.entry.meta, turn.turnId, 'run');
-    if (hooked.error !== undefined) return failure(hooked.error) as ToolOutcome;
-    const ran = await runAsyncPort(call, turn, prep.value.entry, prep.value.params, port);
-    const outcome = hooksAfter(
-      { ...call, params: prep.value.params },
-      turn.turnId,
-      withNotes(ran.outcome, hooked.runs.flatMap(noteOf)),
-    );
-    if (ran.applied) callCache.record(turn.turnId, call.callId, fingerprint, outcome);
-    return outcome;
+    if ([...selected, ...model].some((hook) => hook.event === 'tool.before')) {
+      const hooked = check(admitted.value, false);
+      if (hooked.error !== undefined) return failure(hooked.error) as ToolOutcome;
+    }
+
+    const calls = mcpHookCalls.get(turn.turnId) ?? new Map();
+    mcpHookCalls.set(turn.turnId, calls);
+    const active = () => mcpHookCalls.get(turn.turnId) === calls && turn.signal?.aborted !== true;
+    const beforeNotes: HookNote[] = [];
+    let attempted = false;
+    let applied = false;
+    const runMcpHooks = async (event: McpReadHook['event'], params: CallParams): Promise<CommandError | undefined> => {
+      const seen = new Set<string>();
+      for (const hook of selected) {
+        if (!active()) break;
+        if (hook.event !== event || seen.has(hook.id)) continue;
+        seen.add(hook.id);
+        if (event === 'tool.before') {
+          if (fingerprint !== fingerprintOf()) return replayMismatch(call, turn);
+          const fresh = admit();
+          if (!fresh.ok) return fresh.error;
+        } else if (ruleRefusalFor(admitted.value.entry.meta, params, turn) !== undefined) break;
+        const current = () => (options.mcpHooks?.() ?? []).slice(0, MCP_HOOK_LIMIT).some((candidate) =>
+          candidate.enabled && candidate.id === hook.id && candidate.event === event && candidate.tool === call.name
+          && candidate.serverKey === hook.serverKey && candidate.toolName === hook.toolName && candidate.pin === hook.pin
+          && candidate.failClosed === hook.failClosed);
+        if (!current()) continue;
+        const allowed = () => {
+          if (!active() || !current() || (event === 'tool.before' && (fingerprint !== fingerprintOf() || !admit().ok))) return false;
+          if (ruleRefusalFor(admitted.value.entry.meta, params, turn) !== undefined) return false;
+          const destination = mcpClient?.describe(hook.serverKey, hook.toolName)?.qualifiedName;
+          if (destination === undefined || skillToolRefusal(skillLoads, turn.turnId, destination) !== undefined) return false;
+          const verdict = evaluateRules(currentRules(), { tool: destination, external: true, writes: false }, undefined, state);
+          return verdict.effect !== 'deny' && verdict.effect !== 'ask';
+        };
+        const start = clock();
+        const report = await invokeMcpReadHook(mcpClient, hook, { ...busFor(), idempotency: mcpHookIdempotency }, registry, turn.turnId, call.callId, start, allowed, turn.signal);
+        attempted ||= report.attempted;
+        if (!active() || report.reason === undefined || !current()) continue;
+        const run: HookRun = {
+          hookId: hook.id,
+          name: hookLabel(hook.name),
+          event,
+          tool: call.name,
+          callId: call.callId,
+          ms: Math.max(0, clock() - start),
+          decision: { action: event === 'tool.before' && hook.failClosed ? 'block' : 'warn', reason: report.reason },
+          failed: report.reason,
+        };
+        recordHooks(turn.turnId, [run], params);
+        const blocked = blockOf([run]);
+        if (blocked !== undefined) return hookBlocked(blocked, call.name, attempted);
+        beforeNotes.push(...noteOf(run));
+      }
+      return undefined;
+    };
+    const runModelHooks = async (event: ModelHook['event'], params: CallParams, affected?: readonly string[]): Promise<CommandError | undefined> => {
+      const seen = new Set<string>();
+      for (const hook of model) {
+        if (!active()) break;
+        if (hook.event !== event || seen.has(hook.id)) continue;
+        seen.add(hook.id);
+        const current = () => modelHooks().some((candidate) => sameModelHook(candidate, hook));
+        if (!current()) continue;
+        if (event === 'tool.before') {
+          if (fingerprint !== fingerprintOf()) return replayMismatch(call, turn);
+          const fresh = admit();
+          if (!fresh.ok) return fresh.error;
+          params = fresh.value.params;
+          const checked = check(fresh.value, false);
+          if (checked.error !== undefined) return checked.error;
+        } else if (ruleRefusalFor(admitted.value.entry.meta, params, turn) !== undefined) break;
+        const messages = modelHookInput(hook, params, call.proposal, affected);
+        const allowed = () => active() && current() && fingerprint === fingerprintOf()
+          && (event !== 'tool.before' || admit().ok)
+          && ruleRefusalFor(admitted.value.entry.meta, params, turn) === undefined
+          && canonicalJson(messages ?? null) === canonicalJson(modelHookInput(hook, params, call.proposal, affected) ?? null);
+        const start = clock();
+        const field = event === 'tool.before' && hook.canTransform === true ? modelHookTransformField(call.name) : undefined;
+        const report = await invokeModelHook(actor, messages, allowed, turn.signal, field === undefined ? undefined : 'transform');
+        attempted ||= report.attempted;
+        if (!active() || !current() || report.decision === 'allow') continue;
+        if (report.decision === 'transform' && field !== undefined) {
+          if (!allowed()) return refusal('permission-denied', 'The call changed while the hook was checking it. Nothing was written.', { target: call.name });
+          const before = params[field];
+          if (before === report.replacement) continue;
+          const name = hookLabel(redact(hook.name));
+          const replacement = prepareCall(call.name, { ...params, [field]: report.replacement });
+          const problem = replacement.ok ? ruleRefusalFor(replacement.value.entry.meta, replacement.value.params, turn) : replacement.error;
+          if (!replacement.ok || problem !== undefined || typeof before !== 'string' || redact(before) !== before || boundary?.rewrite === undefined) {
+            return refusal(problem?.code ?? 'permission-denied', `Hook “${name}” could not rewrite ${call.name}: ${problem?.message ?? 'the original text cannot be shown safely on a fresh approval card.'}`, {
+              target: call.name,
+              correctiveHint: problem?.correctiveHint ?? 'review the hook and send the request again',
+              details: { askBackCode: 'hook_blocked', hookId: hook.id, hookName: name },
+            });
+          }
+          boundary.rewrite({ hookId: hook.id, name, field, before, params: replacement.value.params });
+          recordHooks(turn.turnId, [{
+            hookId: hook.id, name, event, tool: call.name, callId: call.callId, ms: Math.max(0, clock() - start),
+            decision: { action: 'warn', reason: 'The model hook proposed replacement text. A fresh approval is required.' },
+          }], params);
+          return refusal('permission-denied', MODEL_HOOK_REWRITE_PENDING, { target: call.name });
+        }
+        const block = event === 'tool.before' && (report.decision === 'block' || (report.reason !== undefined && hook.failClosed));
+        const reason = report.reason ?? (report.decision === 'block' ? 'The model hook did not pass this check.' : 'The model hook flagged this check for review.');
+        const run: HookRun = {
+          hookId: hook.id,
+          name: hookLabel(redact(hook.name)),
+          event,
+          tool: call.name,
+          callId: call.callId,
+          ms: Math.max(0, clock() - start),
+          decision: { action: block ? 'block' : 'warn', reason },
+          ...(report.reason === undefined ? {} : { failed: report.reason }),
+        };
+        recordHooks(turn.turnId, [run], params);
+        const blocked = blockOf([run]);
+        if (blocked !== undefined) return hookBlocked(blocked, call.name, attempted);
+        beforeNotes.push(...noteOf(run));
+      }
+      return undefined;
+    };
+    const result = Promise.resolve().then(async () => {
+      const blocked = await runMcpHooks('tool.before', admitted.value.params) ?? await runModelHooks('tool.before', admitted.value.params);
+      if (!active()) {
+        return failure(refusal('permission-denied', `The tool call stopped while waiting for its ${model.length === 0 ? 'MCP' : 'execution'} hooks. The original tool did not run.`, { target: call.name })) as ToolOutcome;
+      }
+      if (fingerprint !== fingerprintOf()) return failure(replayMismatch(call, turn)) as ToolOutcome;
+      const fresh = admit();
+      if (!fresh.ok) return failure(fresh.error) as ToolOutcome;
+      if (blocked !== undefined) return failure(blocked) as ToolOutcome;
+      const checked = check(fresh.value);
+      if (checked.error !== undefined) return failure(checked.error) as ToolOutcome;
+      const ran = await runOriginal(fresh.value, [...checked.runs.flatMap(noteOf), ...beforeNotes]);
+      applied = ran.applied;
+      if (ran.outcome.ok && ran.afterAllowed) {
+        await runMcpHooks('tool.after', fresh.value.params);
+        await runModelHooks('tool.after', fresh.value.params, ran.outcome.value.affected.map((node) => node.nodeId));
+      }
+      return ran.outcome;
+    }).then((outcome) => {
+      if (mcpHookCalls.get(turn.turnId) === calls && (attempted || applied)) {
+        callCache.record(turn.turnId, call.callId, fingerprint, outcome);
+      }
+      return outcome;
+    }).finally(() => {
+      calls.delete(call.callId);
+      if (calls.size === 0 && mcpHookCalls.get(turn.turnId) === calls) mcpHookCalls.delete(turn.turnId);
+    });
+    calls.set(call.callId, { fingerprint, result });
+    return result;
   }
 
   /** An external caller may call a read, and a write-auto tool once the project has opted in. */
@@ -1562,6 +1806,11 @@ export function createHarness(options: HarnessOptions): Harness {
     external,
     tools: listTools,
     call: ((call, turn) => callTool(call, turn)) as Harness['call'],
+    hasMcpHook: (tool) => mcpHooksFor(tool).length > 0,
+    callWithMcpHooks: callWithHooks,
+    modelHooks,
+    modelHookInput,
+    callWithHooks,
     previewPlan: (input, options = {}) => {
       const parsed = parsePlan(input);
       if (!parsed.ok) return failure(parsed.error) as Result<PlanPreflight, CommandError>;
@@ -1571,7 +1820,7 @@ export function createHarness(options: HarnessOptions): Harness {
     endTurn: clearTurn,
     callExternal,
     callAsync,
-    reviewPlan: (params) => stageReviewPlan(params, state, clock, options.coherence ?? {}, withheldFor('coherence.review')),
+    reviewPlan: (params, contextOverrides) => stageReviewPlan(params, state, clock, options.coherence ?? {}, withheldFor('coherence.review'), contextOverrides),
     transcriptionPlan: (params) =>
       options.transcription === undefined
         ? failure(notWired('pictures.transcribe'))
@@ -1625,6 +1874,15 @@ export function createHarness(options: HarnessOptions): Harness {
     loadedExternalTools: () => index().tools.filter((tool) => loaded.isLoaded(tool.qualifiedName)),
     withheld: withheldFor,
     readPolicy: () => memoryReadPolicy(currentRules(), state),
+    withRules: (additional) => createHarness({
+      ...options,
+      history: { undo, log },
+      rules: () => {
+        const base = currentRules();
+        const extra = additional();
+        return { rules: [...base.rules, ...extra.rules], ...((base.unreadable === true || extra.unreadable === true) ? { unreadable: true } : {}) };
+      },
+    }),
     lifecycleHooks: (input) => {
       const runs = hooks?.run(input) ?? [];
       recordHooks(input.turnId, runs, input.params);

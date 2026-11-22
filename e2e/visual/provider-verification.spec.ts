@@ -6,12 +6,13 @@ for (const shell of ['classic', 'modern'] as const) {
     test(`${shell}: provider verification in German at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
-      const { panel, row, release } = await openVerification(page, 'de', shell);
+      const { panel, row, release, retry } = await openVerification(page, 'de', shell);
       await expect(row).toHaveScreenshot(`${shell}-provider-checking-de-${width}.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
       release();
       await expect(row).toHaveAttribute('data-state', 'failed');
       await expect(panel).toHaveAttribute('data-panel-state', 'idle');
       await expect(row).toHaveScreenshot(`${shell}-provider-failed-de-${width}.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
+      await retry();
       await expect(panel.locator('.form-message')).toHaveScreenshot(`${shell}-provider-failure-message-de-${width}.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
     });
   }

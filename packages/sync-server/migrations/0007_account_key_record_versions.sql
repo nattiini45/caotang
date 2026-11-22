@@ -1,0 +1,6 @@
+ALTER TABLE account_key_records ADD COLUMN version INTEGER NOT NULL DEFAULT 1 CHECK (version BETWEEN 1 AND 2147483647);
+
+CREATE TABLE account_key_record_versions (
+  account_id TEXT PRIMARY KEY NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
+  version INTEGER NOT NULL CHECK (version BETWEEN 1 AND 2147483647)
+);

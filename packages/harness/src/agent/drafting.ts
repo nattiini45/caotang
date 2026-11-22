@@ -24,7 +24,7 @@
  */
 
 import { contentTokens } from '@caotang/gateway';
-import type { ChatChunk, ChatMessage, ChatRequest, ProviderGateway, ReasoningBlock, ThinkingLevel, ToolCall, ToolDef } from '@caotang/gateway';
+import type { ChatChunk, ChatMessage, ChatRequest, ProviderGateway, ReasoningBlock, StepClass, TaskRole, ThinkingLevel, ToolCall, ToolDef } from '@caotang/gateway';
 import { countBody } from '@caotang/store';
 
 import { err, ok, type Result } from '@caotang/bus';
@@ -35,6 +35,23 @@ import { checkParams } from '../validate.js';
 import { DRAFT_SYSTEM_PREFIX } from './protocol.js';
 import { estimateTokens } from '../tokens.js';
 import { isRecord } from '../util.js';
+
+/**
+ * What one caller asks `modelCall` for: where its deltas go, the role and step the request runs as (provider-gateway §6), and
+ * whether it is a planner call (whose reply is a plan, and whose window the turn fits to) or the compaction summariser.
+ */
+export interface ModelCallOptions {
+  /** Where streamed deltas go; every call's default is the panel's stream tail. */
+  readonly delta?: (delta: string) => void;
+  /** The task role the request runs under. Default: the session's own role. */
+  readonly role?: TaskRole;
+  /** The kind of step inside that role, for per-step routing. An unset step resolves the role's own target. */
+  readonly step?: StepClass;
+  /** A planner call, which is fitted to its model's window and gets the plan's own retry cap; `compaction` for the summariser. */
+  readonly plan?: boolean | 'compaction';
+  /** A guard that may refuse the call before it is sent (a model hook's own boundary). */
+  readonly hookGuard?: () => void;
+}
 
 /** What one generation call needs from the session: the gateway, the turn it belongs to, and where deltas go. */
 export interface ModelCall {

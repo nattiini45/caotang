@@ -21,6 +21,38 @@ function read(path: string): string {
 const guide = read('docs/USER-GUIDE.md');
 const changelog = read('CHANGELOG.md');
 
+describe('provider request-limit guidance', () => {
+  it('says the limit is settled automatically, covers only calls that generate a response, and is not a setting', () => {
+    const guidance = guide.split('\n').find((line) => line.startsWith('In **Providers**, Caotang settles how many calls'));
+    expect(guidance).toContain('calls that generate a response');
+    expect(guidance).toContain('Model lists and the checks run when saving a profile are outside this limit');
+    expect(guidance).toContain('This is not a setting');
+    const overview = read('README.md').split('\n').find((line) => line.startsWith('Adding a provider is a key and one press'));
+    expect(overview).toContain('settled automatically');
+    expect(overview).toContain('Model lists and save-time provider checks are not part of the request limit');
+    const translated = read('docs/i18n/de/USER-GUIDE.md').split('\n').find((line) => line.startsWith('Unter **Anbieter** legt Caotang selbst fest'));
+    expect(translated).toContain('Aufrufe, die eine Modellantwort erzeugen');
+    expect(translated).toContain('Modelllisten und die Prüfungen beim Speichern eines Profils liegen außerhalb dieser Grenze');
+    expect(translated).toContain('Das ist keine Einstellung');
+    const gateway = read('packages/gateway/src/gateway.ts');
+    const listing = gateway.slice(gateway.indexOf('async function listModels('), gateway.indexOf('function modelLimits('));
+    const probe = gateway.slice(gateway.indexOf('async function probeResponseFormat('), gateway.indexOf('function modelCaps('));
+    expect(listing).toContain('await requestJson(');
+    expect(probe).toContain('await probeJsonObject(');
+    expect(listing).not.toContain('limiter.acquire(');
+    expect(probe).not.toContain('limiter.acquire(');
+  });
+
+  it('names no Requests at once or Prompt caching setting any more', () => {
+    for (const path of ['docs/USER-GUIDE.md', 'README.md', 'docs/i18n/de/USER-GUIDE.md']) {
+      const text = read(path);
+      expect(text, path).not.toContain('**Requests at once**');
+      expect(text, path).not.toContain('**Gleichzeitige Anfragen**');
+      expect(text, path).not.toContain('**Prompt caching**, on by default');
+    }
+  });
+});
+
 describe('the user guide matches what the app does', () => {
   it('says a folder this browser does not keep saves back to the folder, and only a different version is an unsaveable copy', () => {
     // lifecycle.ts: adopt() keeps the folder's id unless this browser already holds it, and saveFolder refuses only a copy in the folder of
@@ -60,11 +92,12 @@ describe('the user guide matches what the app does', () => {
     for (const label of ['Background tasks', 'Review', 'Resume', 'Cancel', 'Dismiss']) expect(tasks).toContain(label);
     const agent = guide.slice(guide.indexOf('## The agent'), guide.indexOf('## Skills'));
     expect(agent).toContain('**Run now**, **Run in background** or **Cancel**');
-    expect(agent).toContain('A task is drafted only while the project is open in this tab.');
-    expect(agent).toContain('Nothing is written until you choose **Review**');
+    expect(agent).toContain('A task runs only while the project is open in this tab.');
+    expect(agent).toContain('**Review Inbox** holds ready drafts and published review reports');
+    expect(agent).toContain('**Approve** applies them as one change that the checkpoint can restore');
     const missing = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(missing).toContain('**Background tasks.** A task is drafted only while the project is open in this tab');
-    expect(missing).toContain('A coherence review cannot be queued yet');
+    expect(missing).toContain('**Background tasks.** Work runs only while the project is open in this tab');
+    expect(missing).toContain('A changed review needs a new costed preview, not an automatic reroute or extra calls');
     expect(changelog).toContain('there is no Web Worker (no typing jank has been measured)');
   });
 
@@ -96,7 +129,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     // The binder no longer refuses a folder inside a folder, and New folder goes inside a selected part.
     expect(model).not.toContain("'folder-in-folder'");
     expect(model).toContain('if (isPart(state, cursor.id)) return cursor.id;');
-    expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<span className="row-role">Part</span>');
+    expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<span className="row-role"><Trans>Part</Trans></span>');
     // The compile counts parts apart from chapters, and the default part label is the part's title.
     expect(read('packages/exporter/src/flatten.ts')).toContain('partCount += 1;');
     expect(read('packages/exporter/src/template.ts')).toContain("partLabel: '{partTitle}',");
@@ -137,13 +170,13 @@ describe('the user guide’s reviewed claims match the code', () => {
       // Each label is a catalogue message (t`…`) in the shell actions, or a plain string literal.
       expect(actions.includes(`t\`${label}\``) || actions.includes(`'${label}'`)).toBe(true);
     }
-    expect(read('apps/desktop/src/components/Binder.tsx')).toContain('aria-label={`Actions for ${title}`}');
+    expect(read('apps/desktop/src/components/Binder.tsx')).toContain('aria-label={t`Actions for ${title}`}');
     expect(section).toContain('**Actions for …**');
     // The views left to a desktop say "Open on desktop" and name themselves; the guide lists the same six.
     const model = read('apps/desktop/src/app/narrow-model.ts');
-    expect(read('apps/desktop/src/components/narrow.tsx')).toContain('Open on desktop: {note.name}');
+    expect(read('apps/desktop/src/components/narrow.tsx')).toContain('Open on desktop: ${{ name: note.name }}');
     for (const name of ['the corkboard', 'the storyboard', 'the dialogue branch graph', 'the screenplay Pages view', 'MCP & tools', 'the other export formats']) {
-      expect(model).toContain(`name: '${name}'`);
+      expect(model.includes(`name: t\`${name}\``) || model.includes(`name: '${name}'`)).toBe(true);
     }
     expect(section).toContain('**Open on desktop**');
     for (const view of ['the corkboard', 'a storyboard', 'a dialogue container', '**Pages** view', '**Settings › MCP & tools**', '**Compile…** as anything but Markdown or plain text']) {
@@ -213,7 +246,16 @@ describe('the user guide’s reviewed claims match the code', () => {
 
   it('says the model review sends each scene only the codex entries its include policies select', () => {
     expect(guide).toContain('The review sends each scene only the codex entries its include policies select for that scene');
-    expect(read('packages/harness/src/coherence-review-context.ts')).toContain('selectCandidates({ entries, tree: state.manifest.tree, focusDocId: docId, detected })');
+    const context = read('packages/harness/src/coherence-review-context.ts');
+    expect(context).toContain('const { candidates } = selectCandidates({');
+    expect(context).toContain('tree: state.manifest.tree,');
+    expect(context).toContain('focusDocId: docId,');
+  });
+
+  it('says a queued review is approved with its scope, route and bounds before it runs', () => {
+    expect(guide).toContain('Before **Queue this review**, read the documents and exclusions');
+    expect(read('apps/desktop/src/components/FindingsPanel.tsx')).toContain('Queue a review');
+    expect(read('apps/desktop/src/app/task-store.ts')).toContain("'completed'");
   });
 
   it('says a large scope asks on the status line at more than 20 documents, and Scan it anyway runs the scope that asked', () => {
@@ -265,18 +307,20 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(changelog).toContain('machine-verified, not reader-verified');
   });
 
-  it('says the screenplay PDF prints Hindi, Marathi, Nepali and Sanskrit in Noto Sans Devanagari, shaped, broken between syllables, split after the danda, with a @ for a cue', () => {
+  it('says the screenplay PDF prints the Indic scripts in their Noto Sans fonts, shaped, broken between syllables, split after the danda, with a @ for a cue', () => {
     const pdfSection = guide.slice(guide.indexOf('### The screenplay PDF'), guide.indexOf('## Writing dialogue'));
-    expect(pdfSection).toContain('Hindi, Marathi, Nepali and Sanskrit print in Noto Sans Devanagari, which is loaded only for a file that has Devanagari');
+    expect(pdfSection).toContain('Hindi, Marathi, Nepali and Sanskrit print in Noto Sans Devanagari');
+    expect(pdfSection).toContain('Bengali and Assamese in Noto Sans Bengali');
+    expect(pdfSection).toContain('Sinhala in Noto Sans Sinhala');
+    expect(pdfSection).toContain('Each font is loaded only for a file that has its script');
     expect(pdfSection).toContain('a word wider than the column breaks only between syllables, never inside a conjunct');
     expect(pdfSection).toContain('needs a `@` in front, as in `@राम`');
-    expect(pdfSection).toContain('only Devanagari has a font so far');
     const render = read('packages/screenplay/src/render-pdf.ts');
-    expect(render).toContain("devanagariFontPrints(base) ? 'devanagari' : undefined");
+    expect(render).toContain('rtlFontPrints(base) ?? indicFontPrints(base)');
     expect(read('packages/screenplay/src/paginate.ts')).toContain('\\u0964\\u0965');
     expect(read('packages/pdf-fonts/package.json')).toContain('"fontkit": "2.0.4"');
     expect(read('packages/pdf-fonts/package.json')).toContain('"harfbuzzjs": "1.6.3"');
-    expect(guide).toContain('Characters that none of its fonts has, such as Tamil, print as `?`');
+    expect(guide).toContain('Characters that none of its fonts has, such as Glagolitic, print as `?`');
   });
 
   it('says the screenplay PDF prints CJK in its fallback font, two columns a character, loaded only when needed', () => {
@@ -328,13 +372,13 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(pdfSection).toContain('A4 is taller, and the extra height is white space at the foot of the page.');
     expect(pdfSection).toContain('**Font** is Courier Prime at 12 point unless you choose another in the recipe: **Cousine (like Courier New)**, or **Courier (the reader\u2019s own)**.');
     const dialogSource = read('apps/desktop/src/components/ExportDialog.tsx');
-    expect(dialogSource).toContain('<span className="export-option-label">Paper size</span>');
-    expect(dialogSource).toContain('<span className="export-option-label">Font</span>');
+    expect(dialogSource).toContain('<span className="export-option-label"><Trans>Paper size</Trans></span>');
+    expect(dialogSource).toContain('<span className="export-option-label"><Trans>Font</Trans></span>');
     expect(dialogSource).toContain("value={shown.pageSize ?? 'Letter'}");
     expect(dialogSource).toContain("value={shown.scriptFont ?? 'courier-prime'}");
-    expect(dialogSource).toContain("'courier-prime': 'Courier Prime',");
-    expect(dialogSource).toContain("courier: 'Courier (the reader\u2019s own)',");
-    expect(dialogSource).toContain("cousine: 'Cousine (like Courier New)',");
+    expect(dialogSource).toContain("get 'courier-prime'() {");
+    expect(dialogSource).toContain('get courier() {');
+    expect(dialogSource).toContain('get cousine() {');
     expect(read('packages/exporter/src/media.ts')).toContain('...(request.scriptFont === undefined ? {} : { scriptFont: request.scriptFont }),');
     expect(pdfSection).toContain('Script pages count from 1. The number is printed at the top right from page 2.');
     expect(paginate).toContain('const all = number >= 2 ? [...lines, pageNumberLine(number)] : [...lines];');
@@ -679,16 +723,40 @@ describe('the user guide’s reviewed claims match the code', () => {
 });
 
 describe('the import preview (#267)', () => {
-  it('says one Undo takes the whole import back, that the Twee, plain-text and RTF imports open it, and that its commit is the writer’s alone', () => {
-    // The commit is one writer-only, compensable command (import-preview.md §5); the Twee import and the two manuscript imports open the shared dialog.
+  it('says one Undo takes the whole import back, that the Twee, plain-text, RTF, RTFD and captions imports open it, and that its commit is the writer’s alone', () => {
+    // The commit is one writer-only, compensable command (import-preview.md §5); the Twee import and the manuscript imports open the shared dialog.
     expect(COMMAND_REGISTRY['binder.importTree'].descriptor.agentRisk).toBe('never');
     expect(COMMAND_REGISTRY['binder.importTree'].descriptor.undo).toBe('compensable');
     expect(read('apps/desktop/src/components/TweeImportDialog.tsx')).toContain('tweePreviewSource(');
     expect(guide).toContain('- **The import preview.** An import that brings in a whole book shows it first as a proposed binder beside its text');
     expect(guide).toContain('one **Undo** takes all of it back, pictures and codex entries included');
-    expect(guide).toContain('**Import Twee**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import HTML…**, **Import EPUB…**, **Import AO3…** and **Import Kanka…** open it.');
+    expect(guide).toContain('**Import Twee**, **Import Inklewriter**, **Import Highland**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import captions…**, **Import HTML…**, **Import EPUB…**, **Import AO3…** and **Import Kanka…** open it.');
+    expect(guide).toContain('**Import Inklewriter** reads an Inklewriter story export');
+    expect(read('apps/desktop/src/components/ScriptImport.tsx')).toContain('inklewriterPreviewSource');
     expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
+    expect(guide).toContain('- **Import Highland** reads a Highland 2 / Pro script (`.highland`)');
+    expect(guide).toContain('any other file the package carries (your own notes, a style sheet, a second script file), and an empty file in its assets folder');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('jede weitere Datei im Paket (Ihre eigenen Notizen, ein Stylesheet, eine zweite Skriptdatei) und eine leere Datei im Asset-Ordner');
+    expect(read('docs/architecture/screenplay.md')).toContain('named by path, twenty at a time with a count of the rest');
+    expect(guide).toContain('a picture the script names but the file does not carry keeps the words beside it and is listed');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('behält die Wörter daneben und wird aufgelistet');
+    expect(read('docs/architecture/screenplay.md')).toContain('an `import:` ref that resolves to nothing is never written into a screenplay');
+    expect(guide).toContain('an option leaves them out, and then their references leave the text too, keeping the words beside them');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('und dann verschwinden auch ihre Verweise aus dem Text');
+    expect(read('docs/architecture/screenplay.md')).toContain('never its archive path');
+    expect(read('apps/desktop/src/components/ScriptImport.tsx')).toContain("await import('../import-preview/highland-source.js')");
     expect(guide).toContain('**Import HTML…** reads a saved HTML page');
+    // One bullet per import, in both guides and the changelog: a merge that keeps both sides leaves three of them behind.
+    const bullets = (text: string, prefix: string): number => text.split('\n').filter((line) => line.startsWith(prefix)).length;
+    expect(bullets(guide, '- **Import HTML')).toBe(1);
+    expect(bullets(read('docs/i18n/de/USER-GUIDE.md'), '- **HTML importieren')).toBe(1);
+    expect(bullets(read('CHANGELOG.md'), '- **Import HTML.**')).toBe(1);
+    expect(guide).toContain('No import fetches anything from the internet today.');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('Kein Import holt heute etwas aus dem Internet.');
+    expect(guide).toContain('this import has no download switch and makes no request at all');
+    expect(guide).toContain('a picture the file names but does not carry keeps the words beside it and is listed');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('dieser Import hat keinen Download-Schalter');
+    expect(read('docs/architecture/import-html.md')).toContain('A ref with no bytes behind it is never written into');
     expect(guide).toContain('in the background, so a long file does not hold the page while it is read');
     const manuscript = read('apps/desktop/src/components/ManuscriptImport.tsx');
     expect(manuscript).toContain("await import('../import-preview/text-source.js')");
@@ -698,7 +766,7 @@ describe('the import preview (#267)', () => {
     expect(manuscript).toContain('htmlZipPreviewSource');
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<ManuscriptImportActions />');
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, HTML, EPUB, AO3 and Kanka imports open the preview');
+    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, captions, HTML, EPUB, AO3 and Kanka imports open the preview');
     expect(notYet).not.toContain('There is no **Import RTF** command yet');
     expect(changelog).toContain('**One import preview for every structured import.**');
     expect(read('docs/architecture/import-preview.md')).toContain('## 5. The commit: `binder.importTree`');
@@ -719,12 +787,54 @@ describe('the import preview (#267)', () => {
     expect(reader).toContain('matter.push(');
     const source = read('apps/desktop/src/import-preview/epub-source.ts');
     expect(source).toContain("place: 'research' as const");
-    expect(source).toContain('scanExtra:');
-    expect(read('docs/architecture/import-epub.md')).toContain('## 6. DRM');
-    expect(changelog).toContain('**Import EPUB.**');
-    const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(notYet).not.toContain('an EPUB or a folder of Markdown files is not in this build');
-    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **EPUB importieren…** liest ein EPUB-Buch');
+    expect(read('docs/architecture/import-epub.md')).toContain('## ');
+  });
+});
+
+describe('the captions import (#287)', () => {
+  it('says what a captions file becomes, that the durations are the file’s own, and what each choice costs', () => {
+    expect(guide).toContain('- **Import captions…** reads an SRT (`.srt`) or WebVTT (`.vtt`) file');
+    expect(guide).toContain('**one AV script episode in a show folder**');
+    expect(guide).toContain("duration comes from the file's own timings, so nothing is estimated");
+    expect(guide).toContain('a gap of at least three seconds starts a new segment');
+    expect(guide).toContain('**Leave it out**');
+    expect(guide).toContain('A WebVTT `NOTE` becomes a quoted text line, never a speaker, and stays where the file put it');
+    expect(guide).toContain('one that is also a cue word (music, sfx, ambience, ad, pause, sting) or the word Narration gets an underscore so it stays speech with its own name');
+    expect(guide).toContain('A cue whose start and end are the same gets no duration');
+    expect(guide).toContain('a choice it cannot read says why, and you can pick a different one');
+    expect(guide).toContain('a script line holds a duration and not a start time');
+    expect(guide).toContain('Untick **Put the episode in a show folder**');
+  });
+
+  it('says the same in German, in the app’s own words for a cue, a speech line and a show', () => {
+    const german = read('docs/i18n/de/USER-GUIDE.md');
+    expect(german).toContain('- **Untertitel importieren…** liest eine SRT- (`.srt`) oder WebVTT-Datei (`.vtt`)');
+    expect(german).toContain('**eine Episode als AV-Skript in einem Sendungsordner**');
+    expect(german).toContain('Jeder Cue mit Wörtern wird eine Sprechzeile');
+    expect(german).toContain('ein Cue ohne Wörter wird ausgelassen und gezählt');
+    expect(german).toContain('sie landet also in einem Kapitel mit ihrem eigenen Namen');
+    expect(german).toContain('eine Pause von mindestens drei Sekunden beginnt ein neues Segment');
+    expect(german).toContain('**Außen vor lassen**');
+    expect(german).toContain('**Die Episode in einen Sendungsordner legen**');
+    expect(german).toContain('bleibt dort, wo die Datei es gesetzt hat');
+    expect(german).toContain('oder das Wort Narration, bekommt einen Unterstrich');
+    expect(german).toContain('eine Auswahl, die sie nicht lesen kann, sagt warum');
+  });
+
+  it('is one writer-only undo step whose nodes carry binder.create’s own kinds, and the reader declares every duration', () => {
+    const source = read('apps/desktop/src/import-preview/captions-source.ts');
+    expect(source).toContain("kind: 'av-script'");
+    expect(source).toContain("kind: 'show'");
+    expect(source).toContain('importLabel');
+    expect(read('apps/desktop/src/components/ManuscriptImport.tsx')).toContain("await import('../import-preview/captions-source.js')");
+    const descriptor = read('packages/bus/src/descriptors-import.ts');
+    expect(descriptor).toContain("const IMPORT_TREE_FOLDER_KINDS = ['show', 'storyboard'] as const;");
+    expect(read('packages/store/src/commands-import.ts')).toContain("type: 'folder', now: at, ...(node.kind === undefined ? {} : { kind: node.kind })");
+    // Declared, never estimated: the builder writes a duration bracket from the cue's own span.
+    expect(read('packages/import-captions/src/episode.ts')).toContain('durationBracket(declared)');
+    expect(read('docs/architecture/import-captions.md')).toContain('## 5. The import command');
+    expect(read('docs/architecture/command-bus.md')).toContain('a folder `show` or `storyboard` (#287)');
+    expect(changelog).toContain('**Captions import (#287).**');
   });
 
   it('the AO3 import: the guide’s claims match the adapter, the button and the spec', () => {
@@ -744,6 +854,27 @@ describe('the import preview (#267)', () => {
     expect(read('docs/architecture/import-ao3.md')).toContain('## 2. The preface');
     expect(changelog).toContain('**Import AO3.**');
     expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **AO3 importieren…** liest ein von Archive of Our Own heruntergeladenes Werk');
+  });
+
+  it('the Kanka import: the guide’s claims match the reader, the button and the spec', () => {
+    expect(guide).toContain('- **Import Kanka…** reads a **JSON** campaign export from Kanka');
+    expect(guide).toContain('A private entity is kept **manual**');
+    expect(guide).toContain('An export from Kanka older than 2.1 is refused');
+    expect(guide).toContain("Caotang never calls Kanka's API");
+    const manuscript = read('apps/desktop/src/components/ManuscriptImport.tsx');
+    expect(manuscript).toContain("await import('../import-preview/kanka-source.js')");
+    expect(manuscript).toContain('kankaPreviewSource(file.name, bytes)');
+    const source = read('apps/desktop/src/import-preview/kanka-source.ts');
+    expect(source).toContain("includePolicy: 'manual'");
+    expect(source).toContain('preferPage: true');
+    expect(source).toContain('scanExtra:');
+    const reader = read('packages/import-kanka/src/reader.ts');
+    expect(reader).toContain("versionAtLeast(info.kankaVersion, 2, 1)");
+    expect(reader).toContain("kind: 'not-kanka'");
+    expect(read('packages/import-kanka/src/entity.ts')).toContain("quests: 'subplot'");
+    expect(read('docs/architecture/import-kanka.md')).toContain('## 2. Entities to codex entries');
+    expect(changelog).toContain('**Import Kanka.**');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **Kanka importieren…** liest einen **JSON**-Kampagnen-Export');
   });
 
   it('the Kanka import: the guide’s claims match the reader, the button and the spec', () => {

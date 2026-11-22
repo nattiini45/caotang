@@ -24,11 +24,18 @@ import { t } from '@lingui/core/macro';
 import { isolate } from '@caotang/i18n';
 import {
   PROFILE_ID_PATTERN,
+  originOf,
   createGateway,
   createIndexedDbVaultPort,
+  PROVIDER_KEY_DB_NAME,
   createKeyStore,
   createMemoryVaultPort,
+  chooseModels,
   createProfileStore,
+  presetFor,
+  presetForProfile,
+  ProfileError,
+  ProviderError,
   type Clock,
   type FetchLike,
   type Gateway,
@@ -48,14 +55,18 @@ import {
   type ThinkingLevel,
   UsageLedger,
   systemClock,
+  type StepClass,
 } from '@caotang/gateway';
 import { DEMO_FALLBACK_REPLY, appMockProvider, type MockProvider } from '@caotang/gateway/mock';
 
 import { APP_KEYS, type AppDb } from './app-db.js';
-import { normalizeSettings, type RoleSettings } from './settings.js';
+import { scopedStoreName } from './storage-scope.js';
+import { normalizeSettings, type RoleRef, type RoleSettings } from './settings.js';
 import { TabTrace } from './trace-store.js';
 import { SaveChannel } from './save-channel.js';
-import { probeFailureOf, type ProbeFailure } from './provider-probe.js';
+import type { StudioHost } from './studio-host.js';
+import { gatewayText, probeFailureOf, type ProbeFailure } from './provider-probe.js';
+import { SetupError, type SetupDiscovery, type SetupInput } from './provider-setup.js';
 
 /* lingui-set comment="Interpolated values: error, name" */
 
@@ -68,6 +79,9 @@ export const DEMO_PROFILE_NAME = 'Demo (no key)';
 // The demo provider's mock lives in the gateway, shared with the SDK. These keep the names the app and its specs import.
 export { DEMO_FALLBACK_REPLY, appMockProvider };
 
+/** A custom endpoint names no default model, and a profile needs one to exist; the listing never reads it, and finishing replaces it. */
+const SETUP_PLACEHOLDER_MODEL = 'model';
+
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 /** The request-log entries kept across reloads: the log's own cap (provider-gateway §4). */
 const REQUEST_LOG_KEEP = 50;
@@ -77,7 +91,9 @@ const REQUEST_LOG_KEEP = 50;
  * before presets, whose kind is `openai-compatible` and whose `preset` is absent.
  * The key is never on it — the vault holds the sealed payload.
  */
-type PersistedProfile = Omit<ProfileView, 'kind'> & { kind: ProfileView['kind'] | 'openai-compatible' };
+type PersistedProfile = Omit<ProfileView, 'kind'> & {
+  kind: ProfileView['kind'] | 'openai-compatible';
+};
 
 /** A profile's id as the ten random bytes that generate it. The generator maps a byte with `% 32`, so an index is its own byte. */
 function bytesForId(id: string): Uint8Array<ArrayBuffer> | null {
@@ -102,6 +118,8 @@ export interface RoleResolution {
   readonly profile: ProfileView;
   readonly model: string;
   readonly thinking?: ThinkingLevel;
+  /** The writer's ordered fallbacks for this role, each a profile that still exists (provider-gateway §6). */
+  readonly fallbacks?: readonly { readonly profile: ProfileView; readonly model: string; readonly thinking?: ThinkingLevel }[];
 }
 
 /**
@@ -109,25 +127,65 @@ export interface RoleResolution {
  * resolves to the active profile. A role pinned to a profile that is gone falls back to following rather than
  * failing — the settings tolerate the stale id. Undefined only when no profile exists at all.
  */
-function resolveRole(profiles: ProfileStore, roles: RoleSettings | undefined, role: TaskRole): RoleResolution | undefined {
+function resolveRole(profiles: ProfileStore, roles: RoleSettings | undefined, role: TaskRole, step?: StepClass): RoleResolution | undefined {
   const ref = roles?.[role] === 'follow' ? undefined : roles?.[role];
   if (ref !== undefined) {
     const profile = profiles.get(ref.profileId);
     if (profile !== undefined) {
+      // A step the writer routed on its own is this role's primary for that step: its target stands where the role's own choice
+      // would, with the role's fallbacks behind it. A step that follows, or names a profile that is gone, keeps the role's choice.
+      const own = step === undefined ? undefined : ref.steps?.[step];
+      const stepTarget = own === undefined ? undefined : profiles.get(own.profileId);
+      if (own !== undefined && stepTarget !== undefined) {
+        return {
+          profile: stepTarget,
+          model: own.model ?? stepTarget.defaultModel,
+          ...(own.thinking === undefined ? {} : { thinking: own.thinking }),
+          ...(roleFallbacks(profiles, ref, stepTarget).length === 0 ? {} : { fallbacks: roleFallbacks(profiles, ref, stepTarget) }),
+        };
+      }
+      const fallbacks = roleFallbacks(profiles, ref, profile);
       return {
         profile,
         model: ref.model ?? profile.defaultModel,
         ...(ref.thinking === undefined ? {} : { thinking: ref.thinking }),
+        ...(fallbacks.length === 0 ? {} : { fallbacks }),
       };
     }
   }
-  if (role !== 'chat') return resolveRole(profiles, roles, 'chat');
+  if (role !== 'chat') {
+    // A role that follows chat takes chat's profile, model and level — never its fallbacks, and not its step choices either:
+    // consent is per role, so another role's request must not reach a provider the writer authorised only for chat.
+    const inherited = resolveRole(profiles, roles, 'chat');
+    return inherited === undefined
+      ? undefined
+      : { profile: inherited.profile, model: inherited.model, ...(inherited.thinking === undefined ? {} : { thinking: inherited.thinking }) };
+  }
   const active = profiles.active();
   return active === undefined ? undefined : { profile: active, model: active.defaultModel };
 }
 
+/**
+ * The writer's ordered fallbacks for one role, as targets a route can name: a destination whose profile is gone, or that is the
+ * profile the role (or the step) already sends to, is dropped. A fallback is a destination the writer named for this role itself
+ * (provider-gateway §6), so it is read from the role's own list whatever step resolved the primary.
+ */
+function roleFallbacks(profiles: ProfileStore, ref: RoleRef, primary: ProfileView): NonNullable<RoleResolution['fallbacks']> {
+  return (ref.fallbacks ?? []).flatMap((target) => {
+    const fallback = profiles.get(target.profileId);
+    if (fallback === undefined || fallback.id === primary.id) return [];
+    return [{
+      profile: fallback,
+      model: target.model ?? fallback.defaultModel,
+      ...(target.thinking === undefined ? {} : { thinking: target.thinking }),
+    }];
+  });
+}
+
 export interface ProviderOpenOptions {
   readonly db: AppDb | null;
+  /** The host of this app, when something other than the folder app is running it ({@link StudioHost}). */
+  readonly host?: StudioHost;
   /** The browser's `indexedDB` for the vault, or `null` for an in-memory vault (no keys survive a reload then). */
   readonly vault: IDBFactory | null;
   readonly fetch?: FetchLike;
@@ -154,6 +212,7 @@ export class ProviderService {
   readonly saves = new SaveChannel('settings');
   private usageReadFailure: string | null = null;
   private verificationAttempt = 0;
+  private readonly drafts = new Set<string>();
   private readonly verificationListeners = new Set<() => void>();
 
   private constructor(parts: {
@@ -216,8 +275,8 @@ export class ProviderService {
    * names one that still exists, else whatever 'chat' resolves to — and 'chat' resolves to the active profile.
    * Undefined only when no profile exists at all.
    */
-  resolveForRole(role: TaskRole): RoleResolution | undefined {
-    return resolveRole(this.profiles, this.roleState.current, role);
+  resolveForRole(role: TaskRole, step?: StepClass): RoleResolution | undefined {
+    return resolveRole(this.profiles, this.roleState.current, role, step);
   }
 
   /**
@@ -225,17 +284,22 @@ export class ProviderService {
    * gateway knows them. Read at each call, so a preview before any turn shows the window and the cost of the active Chat role.
    * Undefined only when no profile exists at all.
    */
-  limitsForRole(role: TaskRole): ModelLimits | undefined {
-    const resolved = this.resolveForRole(role);
+  limitsForRole(role: TaskRole, step?: StepClass): ModelLimits | undefined {
+    const resolved = this.resolveForRole(role, step);
     return resolved === undefined ? undefined : this.gateway.modelLimits(resolved.profile.id, resolved.model, resolved.thinking);
   }
 
   /**
-   * Whether `profileId` is one a request under `role` may send through: the profile the role resolves to, so a
-   * following role allows what 'chat' — and under 'chat', the active profile — resolves to (provider-gateway §6, P9).
+   * Whether `profileId` is one a request under `role` may send through: the profile the role resolves to, plus the fallbacks that
+   * role itself names. A following role resolves to what 'chat' — and under 'chat', the active profile — resolves to, but not to
+   * the list chat names: consent for a fallback is per role (provider-gateway §6, P9).
    */
   roleAllows(role: TaskRole, profileId: string): boolean {
-    return resolveRole(this.profiles, this.roleState.current, role)?.profile.id === profileId;
+    const resolved = resolveRole(this.profiles, this.roleState.current, role);
+    if (resolved?.profile.id === profileId || resolved?.fallbacks?.some((entry) => entry.profile.id === profileId) === true) return true;
+    // A step's own destination is one the writer named for this role too (provider-gateway §6).
+    const ref = this.roleState.current?.[role] === 'follow' ? undefined : this.roleState.current?.[role];
+    return ref === undefined ? false : Object.values(ref.steps ?? {}).some((entry) => entry?.profileId === profileId);
   }
 
   /**
@@ -245,8 +309,33 @@ export class ProviderService {
    */
   static async open(options: ProviderOpenOptions): Promise<{ service: ProviderService; notices: string[] }> {
     const notices: string[] = [];
-    const vault = options.vault === null ? createMemoryVaultPort() : createIndexedDbVaultPort({ factory: options.vault });
+    const vault = options.vault === null
+      ? createMemoryVaultPort()
+      : createIndexedDbVaultPort({ factory: options.vault, name: scopedStoreName(PROVIDER_KEY_DB_NAME) });
+    // Opening a stored studio seals each restored profile's key again, which is not a change the host needs to hear about
+    // a second time — it is what the host itself supplied or what this device already had — so the mirror stays quiet
+    // until the studio is open.
+    let installing = true;
+    const host = options.host;
     const keys = createKeyStore(vault);
+    if (host?.restore !== undefined) {
+      try {
+        // Read here, not later: a key for a profile whose endpoint has moved since another device saved it must not come
+        // back, and only these records say where each profile points now.
+        // Only an endpoint profile has a key, and only its base URL names an origin: a mock profile has neither.
+        const stored = ((await options.db?.get<PersistedProfile[]>(APP_KEYS.profiles)) ?? []).filter((record) => (record.kind as string) === 'endpoint' || (record.kind as string) === 'openai-compatible');
+        const origins = new Map(stored.map((record) => [record.id, originOf(record.baseUrl)]));
+        // Only for a profile this device has no usable key for. One it holds and can open is newer than the account's copy —
+        // a save that has not reached the account yet — and installing over it would undo what the writer just did. An entry
+        // it cannot open is not a key at all, so the account's copy repairs it, which is what this seam exists for.
+        for (const restored of await host.restore(origins)) {
+          const local = await keys.revealPayload(restored.profileId);
+          if (local === undefined) await keys.putPayload(restored.profileId, restored.payload);
+        }
+      } catch {
+        // A host that cannot supply its keys leaves those profiles without one, and the restore below names each of them.
+      }
+    }
 
     // The ids of new profiles are random. A restored profile's id is handed back through this one slot.
     let pinned: Uint8Array<ArrayBuffer> | null = null;
@@ -260,7 +349,14 @@ export class ProviderService {
       globalThis.crypto.getRandomValues(out);
       return out;
     };
-    const profiles = createProfileStore({ keys, randomBytes });
+    // The mirror hangs off the profile store, not the key store: only a profile knows the endpoint origin its key may be
+    // sent to, and only an endpoint profile has a key at all — an MCP bearer token is sealed in the same key store under an
+    // `mcp:` reference and never becomes a profile, so it cannot be reported to a host.
+    const profiles = createProfileStore({
+      keys,
+      randomBytes,
+      ...(host?.keyChanged === undefined ? {} : { mirror: { changed: (profileId, change) => { if (!installing) host.keyChanged?.(profileId, change); } } }),
+    });
     const ledger = new UsageLedger(options.clock);
     const requests = new RequestLog();
     // The role routing lives in this one cell: the service owns it, and the gateway's resolver reads it at request
@@ -277,19 +373,34 @@ export class ProviderService {
       // §6's resolver seam, over the shared cell: `resolve` is `resolveForRole` in the gateway's shape, and
       // `allowed` is the role-referenced set — the one profile the role resolves to.
       roles: {
-        resolve: (role) => {
-          const resolved = resolveRole(profiles, roleState.current, role);
+        resolve: (role, step) => {
+          const resolved = resolveRole(profiles, roleState.current, role, step);
           return resolved === undefined
             ? undefined
             : {
                 profileId: resolved.profile.id,
                 model: resolved.model,
                 ...(resolved.thinking === undefined ? {} : { thinking: resolved.thinking }),
+                ...(resolved.fallbacks === undefined
+                  ? {}
+                  : {
+                      fallbacks: resolved.fallbacks.map((entry) => ({
+                        profileId: entry.profile.id,
+                        model: entry.model,
+                        ...(entry.thinking === undefined ? {} : { thinking: entry.thinking }),
+                      })),
+                    }),
               };
         },
-        allowed: (role) => {
-          const resolved = resolveRole(profiles, roleState.current, role);
-          return resolved === undefined ? [] : [resolved.profile.id];
+        allowed: (role, step) => {
+          // The egress set a routed request is checked against: the destination this role and step resolve to, and every profile
+          // the role names for itself — its own target, its own fallbacks and its steps' targets — never another role's.
+          const ref = roleState.current?.[role] === 'follow' ? undefined : roleState.current?.[role];
+          const named = ref === undefined ? [] : [ref.profileId, ...(ref.fallbacks ?? []).map((entry) => entry.profileId),
+            ...Object.values(ref.steps ?? {}).flatMap((entry) => (entry === undefined ? [] : [entry.profileId]))];
+          const resolved = resolveRole(profiles, roleState.current, role, step);
+          if (resolved === undefined) return [];
+          return [...new Set([resolved.profile.id, ...(resolved.fallbacks ?? []).map((entry) => entry.profile.id), ...named])];
         },
       },
     });
@@ -307,6 +418,7 @@ export class ProviderService {
         roleState.current = undefined;
       }
     }
+    installing = false;
     if (profiles.list().length === 0) {
       await profiles.create({ name: DEMO_PROFILE_NAME, kind: 'mock', isActive: true });
       await service.persist();
@@ -345,7 +457,6 @@ export class ProviderService {
             ...(record.maxOutputTokens === undefined ? {} : { maxOutputTokens: record.maxOutputTokens }),
             ...(record.params === undefined ? {} : { params: record.params }),
             ...(record.pricePer1k === undefined ? {} : { pricePer1k: record.pricePer1k }),
-            ...(record.promptCache === undefined ? {} : { promptCache: record.promptCache }),
           });
           if (view.id !== record.id) {
             notices.push(t`“${{ name: isolate(record.name) }}” came back under a new id, so its saved usage is not attached to it.`);
@@ -354,7 +465,7 @@ export class ProviderService {
           this.profiles.recordVerification(view.id, readVerification(record.verification));
           if (record.isActive) activeId = view.id;
         } catch (error) {
-          const reason = messageOf(error);
+          const reason = displayText(error);
             notices.push(t`“${{ name: isolate(record.name) }}” could not be restored: ${{ error: reason }}`);
         } finally {
           pin(null);
@@ -362,14 +473,14 @@ export class ProviderService {
       }
       if (activeId !== null) this.profiles.activate(activeId);
     } catch (error) {
-      const reason = messageOf(error);
+      const reason = displayText(error);
       notices.push(t`Your provider profiles could not be read: ${{ error: reason }}`);
     }
 
     try {
       this.ledger.restore((await db.get<unknown>(APP_KEYS.usage)) ?? []);
     } catch (error) {
-      const reason = messageOf(error);
+      const reason = displayText(error);
       this.usageReadFailure = t`The usage totals could not be read: ${{ error: reason }}`;
       notices.push(this.usageReadFailure);
     }
@@ -378,14 +489,14 @@ export class ProviderService {
       const entries = (await db.get<RequestLogEntry[]>(APP_KEYS.requests)) ?? [];
       for (const entry of entries.slice(-REQUEST_LOG_KEEP)) this.requests.append(entry);
     } catch (error) {
-      const reason = messageOf(error);
+      const reason = displayText(error);
       notices.push(t`The request log could not be read: ${{ error: reason }}`);
     }
   }
 
-  /** Every profile, oldest first, without keys. */
+  /** Every profile, oldest first, without keys. A provider still being set up is not one yet. */
   list(): ProfileView[] {
-    return this.profiles.list();
+    return this.profiles.list().filter((profile) => !this.drafts.has(profile.id));
   }
 
   active(): ProfileView | undefined {
@@ -417,14 +528,14 @@ export class ProviderService {
   private async write(): Promise<string | null> {
     if (this.db === null) return null;
     try {
-      await this.db.put(APP_KEYS.profiles, this.profiles.list().map((profile) => profile.verification?.kind === 'checking'
+      await this.db.put(APP_KEYS.profiles, this.list().map((profile) => profile.verification?.kind === 'checking'
         ? { ...profile, verification: readVerification(profile.verification) }
         : profile));
       if (this.usageReadFailure === null) await this.db.put(APP_KEYS.usage, this.ledger.snapshot());
       await this.db.put(APP_KEYS.requests, this.requests.entries().slice(-REQUEST_LOG_KEEP));
       return this.usageReadFailure;
     } catch (error) {
-      const reason = messageOf(error);
+      const reason = displayText(error);
       return t`Your provider settings could not be saved in this browser: ${{ error: reason }}`;
     }
   }
@@ -479,7 +590,7 @@ export class ProviderService {
         try {
           note = formatNote(await this.gateway.probeResponseFormat(id));
         } catch (error) {
-          const reason = messageOf(error);
+          const reason = displayText(error);
           note = t`The endpoint did not answer the format check, so the agent asks for JSON in the prompt: ${{ error: reason }}`;
         }
       }
@@ -488,10 +599,93 @@ export class ProviderService {
     return note === undefined ? {} : { note };
   }
 
+  /**
+   * Adding a provider, step one (provider-gateway §2, "Adding a provider"): checks the key against the provider and lists the models
+   * it can write with. The check is the provider's own model list, or, where it documents none or answers it without a key, a
+   * one-token request, so a wrong key is found here and not in the first agent turn. The profile this makes stays hidden from
+   * `list()` and from storage until {@link finishSetup}; a failure removes it again, so a bad key leaves nothing behind.
+   */
+  async beginSetup(input: SetupInput): Promise<SetupDiscovery> {
+    const preset = presetFor(input.preset);
+    if (preset === undefined || preset.id === 'mock') throw new SetupError({ kind: 'invalid', message: t`Choose one of the providers.` });
+    const name = this.freeName(preset.name);
+    let id: string;
+    try {
+      const view = await this.profiles.create({
+        name,
+        kind: 'endpoint',
+        preset: preset.id,
+        apiKey: input.apiKey,
+        defaultModel: preset.defaultModel === '' ? SETUP_PLACEHOLDER_MODEL : preset.defaultModel,
+        ...(input.baseUrl === undefined ? {} : { baseUrl: input.baseUrl }),
+        ...(input.fields === undefined ? {} : { fields: input.fields }),
+        ...(input.customHeaders === undefined ? {} : { customHeaders: input.customHeaders }),
+        isActive: false,
+      });
+      id = view.id;
+    } catch (error) {
+      throw new SetupError({ kind: 'invalid', message: displayText(error), ...(error instanceof ProfileError && error.field !== undefined ? { field: error.field } : {}) });
+    }
+    this.drafts.add(id);
+    const abandon = async (failure: SetupError['failure']): Promise<never> => {
+      await this.profiles.remove(id).catch(() => undefined);
+      this.drafts.delete(id);
+      throw new SetupError(failure);
+    };
+
+    const probe = await this.probeModels(id);
+    if (probe.error !== undefined) return abandon({ kind: 'probe', failure: probe.failure ?? { cause: 'unknown' } });
+    const view = this.profiles.get(id);
+    const effective = view === undefined ? preset : (presetForProfile(view) ?? preset);
+    if (effective.noModelsRoute === true || (effective.keylessModels === true && input.apiKey !== '')) {
+      // A listing that needs no key proves nothing about the key, so one real request does. With no key given there is nothing to prove.
+      try {
+        await this.gateway.probeResponseFormat(id);
+      } catch (error) {
+        if (error instanceof ProviderError && (error.kind === 'auth' || effective.noModelsRoute === true)) {
+          return abandon({ kind: 'probe', failure: probeFailureOf(error) });
+        }
+      }
+    }
+    const models = chooseModels(effective, probe.models ?? []);
+    if (models.length === 0) return abandon({ kind: 'empty' });
+    return { draftId: id, name, preset: effective, models, source: effective.noModelsRoute === true ? 'table' : 'live' };
+  }
+
+  /** Adding a provider, step two: the chosen model becomes the profile's, the profile appears in the list and becomes the active one. */
+  async finishSetup(draftId: string, model: string, overrides: Pick<ProfilePatch, 'params' | 'temperature' | 'pricePer1k'> = {}): Promise<{ view: ProfileView; note?: string }> {
+    if (!this.drafts.has(draftId)) throw new Error(t`This setup is no longer open.`);
+    await this.profiles.update(draftId, { ...overrides, defaultModel: model });
+    this.drafts.delete(draftId);
+    const attempt = ++this.verificationAttempt;
+    this.verification(draftId, { type: 'check', attempt });
+    this.verification(draftId, { type: 'passed', attempt, checkedAt: this.clock.now() });
+    const { note } = await this.activate(draftId);
+    const view = this.profiles.get(draftId);
+    if (view === undefined) throw new Error(t`This setup is no longer open.`);
+    return { view, ...(note === undefined ? {} : { note }) };
+  }
+
+  /** Abandons a setup that was not finished: the hidden profile and its key go. */
+  async cancelSetup(draftId: string): Promise<void> {
+    if (!this.drafts.has(draftId)) return;
+    await this.profiles.remove(draftId).catch(() => undefined);
+    this.drafts.delete(draftId);
+  }
+
+  /** The provider's own name, or that name with a number when a profile already has it. */
+  freeName(base: string): string {
+    const taken = new Set(this.profiles.list().map((profile) => profile.name));
+    if (!taken.has(base)) return base;
+    let n = 2;
+    while (taken.has(`${base} ${n}`)) n += 1;
+    return `${base} ${n}`;
+  }
+
   /** Removes a profile and its key. The active profile moves to another one, or the demo profile is made again. */
   async remove(id: string): Promise<void> {
     await this.profiles.remove(id);
-    if (this.profiles.list().length === 0) {
+    if (this.list().length === 0) {
       await this.profiles.create({ name: DEMO_PROFILE_NAME, kind: 'mock', isActive: true });
     }
     await this.persist();
@@ -533,7 +727,7 @@ export class ProviderService {
       return { models };
     } catch (error) {
       this.verification(id, { type: 'failed', attempt, checkedAt: this.clock.now() });
-      const reason = messageOf(error);
+      const reason = displayText(error);
       return { error: t`The endpoint did not list its models, so the profile was saved but is not verified: ${{ error: reason }}`, failure: probeFailureOf(error) };
     }
   }
@@ -541,6 +735,11 @@ export class ProviderService {
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** The display text of a thrown failure: the gateway's fixed text through the catalogue, everything else as thrown. */
+export function displayText(error: unknown): string {
+  return error instanceof ProviderError || error instanceof ProfileError ? gatewayText(error) : messageOf(error);
 }
 
 /** The activation note for a profile's response-format answer, in the words the Settings section shows. */

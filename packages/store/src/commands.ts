@@ -110,6 +110,7 @@ import { declarationChangeWords, dismissalWordsOf } from './coherence-words.js';
 import {
   applySceneMetaPatch,
   buildRegistry,
+  PUBLISH_FIELD_NAMES,
   coherenceAddKnowledgeFact as coherenceAddKnowledgeFactDescriptor,
   coherenceDiscardRun as coherenceDiscardRunDescriptor,
   coherenceEditKnowledgeFact as coherenceEditKnowledgeFactDescriptor,
@@ -132,6 +133,7 @@ import {
   type BinderMoveParams,
   type BinderRenameParams,
   type BinderSetMetaParams,
+  type BinderSetPublishParams,
   type BinderSetSynopsisParams,
   type CodexAttachParams,
   type CodexUpsertParams,
@@ -149,6 +151,12 @@ import {
   type NotesAppendParams,
   type NotesSetParams,
   type ProjectDeleteNodeParams,
+  CODEX_REFERENCE_FIELDS,
+  codexReferenceId,
+  codexRelationId,
+  isCodexDetailObject,
+  type CodexReferenceEdit,
+  type CodexRelationEdit,
 } from '@caotang/bus';
 import { createBinderNode } from './commands-media.js';
 import {
@@ -888,6 +896,67 @@ export function createProjectCommandRegistry(
     return { nodeId: params.nodeId, patch, inversePatch: inverse };
   };
 
+  /**
+   * `binder.setPublish` — a document's publish metadata (web-publishing.md §2). The node field is an unknown-tolerant
+   * record, so the apply is a merge: a named key is set, `null` deletes it and an untouched key stays — including a key
+   * the patch type does not know, which a hand-edit may have written and a command must not drop. The inverse is one
+   * patch carrying every key this dispatch wrote, with the value it held before (`null` where it held none), which the
+   * replay reads as "put it back" or "remove what I added".
+   */
+  const binderSetPublish: ProjectApply<BinderSetPublishParams> = (state, params, context: ApplyContext) => {
+    const node = requireNode(state, params.nodeId);
+    const previousStamp = node.updatedAt;
+    const previous = node.publish ?? {};
+    const patch = params.patch;
+    const inverse: Record<string, unknown> = {};
+    const written: string[] = [];
+    const next: Record<string, unknown> = { ...previous };
+    for (const key of PUBLISH_FIELD_NAMES) {
+      const value = patch[key];
+      if (value === undefined) continue;
+      const before = previous[key];
+      if (value === null) {
+        if (key in previous) {
+          inverse[key] = before;
+          delete next[key];
+          written.push(key);
+        }
+      } else if (JSON.stringify(value) !== JSON.stringify(before)) {
+        // A named key whose value the node already holds writes nothing — same no-write rule as `binder.setMeta`'s,
+        // so an idempotent re-dispatch neither stamps nor reports a change that did not happen.
+        inverse[key] = before === undefined ? null : before;
+        next[key] = value;
+        written.push(key);
+      }
+    }
+    const wroteSomething = written.length > 0;
+    if (wroteSomething) {
+      if (Object.keys(next).length === 0) delete node.publish;
+      else node.publish = next;
+    }
+    stampFor(node, context.commandId, clock, restore, wroteSomething);
+    if (wroteSomething) {
+      context.undo.inverse(
+        inverseWith('binder.setPublish', { nodeId: params.nodeId, patch: inverse }, clock, restore, {
+          updatedAt: previousStamp,
+        }),
+      );
+    } else {
+      context.undo.inverse(inverseCommand('binder.setPublish', { nodeId: params.nodeId, patch: inverse }, clock));
+    }
+
+    context.report({
+      affected: [{ nodeId: params.nodeId, title: node.title }],
+      summary: agentWriteSummary(
+        context,
+        `the agent’s publish metadata for “${node.title}”`,
+        written.length > 0 ? `set ${written.join(', ')} on "${node.title}"` : `left "${node.title}" unchanged`,
+      ),
+    });
+
+    return { nodeId: params.nodeId, patch, inversePatch: inverse };
+  };
+
   const codexAttach: ProjectApply<CodexAttachParams> = (state, params, context: ApplyContext) => {
     const entry = requireCodexEntry(state, params.entryId);
     // `applyAttachmentDelta` (below) is the shared implementation, and it returns
@@ -1109,6 +1178,74 @@ export function createProjectCommandRegistry(
    */
   const CODEX_DEFAULT_TYPE = 'other';
 
+  function applyCodexDetails(entry: CodexEntry, changes: NonNullable<CodexUpsertParams['entries'][number]['details']>): void {
+    const details = new Map(Object.entries(entry.details ?? {}));
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === null) details.delete(key);
+      else details.set(key, value);
+    }
+    if (details.size === 0) delete entry.details;
+    else entry.details = Object.fromEntries(details);
+  }
+
+  function applyCodexRelations(entry: CodexEntry, edits: readonly CodexRelationEdit[]): void {
+    const relations = [...(entry.relations ?? [])];
+    const taken = new Set(relations.flatMap((value) => codexRelationId(value) ?? []));
+    for (const edit of edits) {
+      if (edit.action === 'create') {
+        const id = newId('rel', { taken });
+        taken.add(id);
+        relations.push({ id, targetId: edit.targetId, ...(edit.label === undefined ? {} : { label: edit.label }) });
+        continue;
+      }
+      const at = relations.findIndex((value) => codexRelationId(value) === edit.id);
+      if (at === -1) throw new Error('relation edit reached apply without a matching relation');
+      if (edit.action === 'remove') {
+        relations.splice(at, 1);
+        continue;
+      }
+      const previous = relations[at];
+      if (!isCodexDetailObject(previous)) throw new Error('relation update reached apply without a matching relation');
+      const updated = { ...previous };
+      if (edit.label === null) delete updated['label'];
+      else if (edit.label !== undefined) updated['label'] = edit.label;
+      relations[at] = updated;
+    }
+    if (relations.length === 0) delete entry.relations;
+    else entry.relations = relations;
+  }
+
+  function applyCodexReferences(entry: CodexEntry, edits: readonly CodexReferenceEdit[]): void {
+    const references = [...(entry.references ?? [])];
+    const taken = new Set(references.flatMap((value) => codexReferenceId(value) ?? []));
+    for (const edit of edits) {
+      if (edit.action === 'create') {
+        const id = newId('ref', { taken });
+        taken.add(id);
+        references.push({ id, ...Object.fromEntries(CODEX_REFERENCE_FIELDS.flatMap((field) =>
+          typeof edit[field] === 'string' ? [[field, edit[field]]] : [])) });
+        continue;
+      }
+      const at = references.findIndex((value) => codexReferenceId(value) === edit.id);
+      if (at === -1) throw new Error('reference edit reached apply without a matching reference');
+      if (edit.action === 'remove') {
+        references.splice(at, 1);
+        continue;
+      }
+      const previous = references[at];
+      if (!isCodexDetailObject(previous)) throw new Error('reference update reached apply without a matching reference');
+      const updated = { ...previous };
+      for (const field of CODEX_REFERENCE_FIELDS) {
+        const value = edit[field];
+        if (value === null) delete updated[field];
+        else if (typeof value === 'string') updated[field] = value;
+      }
+      references[at] = updated;
+    }
+    if (references.length === 0) delete entry.references;
+    else entry.references = references;
+  }
+
   /** A codex entry copied whole, arrays included — §5's "prior-state copy". */
   function copyCodexEntry(entry: CodexEntry): CodexEntry {
     return {
@@ -1119,6 +1256,7 @@ export function createProjectCommandRegistry(
       keywords: [...entry.keywords],
       sources: entry.sources.map((source) => ({ ...source })),
       ...(entry.visualRefs === undefined ? {} : { visualRefs: [...entry.visualRefs] }),
+      ...(entry.relations === undefined ? {} : { relations: entry.relations.map((relation) => ({ ...(relation as Record<string, unknown>) })) }),
     };
   }
 
@@ -1184,7 +1322,12 @@ export function createProjectCommandRegistry(
    * docIds and quoted spans are the harness's data, not a mutation command's.
    */
   const codexUpsert: ProjectApply<CodexUpsertParams> = (state, params, context) => {
-    const codex = state.manifest.codex ?? (state.manifest.codex = []);
+    const beforeFields = state.manifest.codexDetailFields;
+    if (params.detailField !== undefined) {
+      state.manifest.codexDetailFields = [...(beforeFields ?? []), { ...params.detailField }];
+    }
+    const codex = state.manifest.codex ?? [];
+    if (params.entries.length > 0) state.manifest.codex = codex;
     const taken = new Set(codex.map((entry) => entry.id));
     const stamp = new Date(clock.now()).toISOString();
     const created: CodexEntry[] = [];
@@ -1215,6 +1358,9 @@ export function createProjectCommandRegistry(
           createdAt: stamp,
           updatedAt: stamp,
         };
+        if (op.details !== undefined) applyCodexDetails(entry, op.details);
+        if (op.referenceEdits !== undefined) applyCodexReferences(entry, op.referenceEdits);
+        if (op.relationEdits !== undefined) applyCodexRelations(entry, op.relationEdits);
         taken.add(entry.id);
         // `detachFrom` on a create is inert rather than an error: a list of ids
         // nothing is attached to, on an entry that was not attached to anything.
@@ -1242,6 +1388,9 @@ export function createProjectCommandRegistry(
       if (op.exclude !== undefined) entry.exclude = [...op.exclude];
       if (op.keywords !== undefined) entry.keywords = [...op.keywords];
       if (op.visualRefs !== undefined) entry.visualRefs = [...new Set(op.visualRefs)];
+      if (op.details !== undefined) applyCodexDetails(entry, op.details);
+      if (op.referenceEdits !== undefined) applyCodexReferences(entry, op.referenceEdits);
+      if (op.relationEdits !== undefined) applyCodexRelations(entry, op.relationEdits);
       if (op.attachTo !== undefined || op.detachFrom !== undefined) {
         applyAttachmentDelta(entry, op.attachTo ?? [], op.detachFrom ?? []);
       }
@@ -1256,8 +1405,14 @@ export function createProjectCommandRegistry(
     }
 
     context.undo.compensate(
-      `undo the ${created.length} created and ${updated.length} updated codex entries`,
+      params.detailField === undefined
+        ? `undo the ${created.length} created and ${updated.length} updated codex entries`
+        : `undo adding the codex detail field "${params.detailField.label}"`,
       () => {
+        if (params.detailField !== undefined) {
+          if (beforeFields === undefined) delete state.manifest.codexDetailFields;
+          else state.manifest.codexDetailFields = beforeFields;
+        }
         // Reverse order, so two updates to one entry unwind the way they were made.
         for (const { entry, before } of [...updated].reverse()) {
           Object.assign(entry, copyCodexEntry(before));
@@ -1274,6 +1429,9 @@ export function createProjectCommandRegistry(
           if (!('updatedAt' in before)) delete entry.updatedAt;
           // The same rule for `visualRefs`: an update that adds the list leaves a key a copy that never had one cannot remove.
           if (!('visualRefs' in before)) delete entry.visualRefs;
+          if (!('details' in before)) delete entry.details;
+          if (!('references' in before)) delete entry.references;
+          if (!('relations' in before)) delete entry.relations;
         }
         for (const entry of [...created].reverse()) {
           const at = codex.findIndex((candidate) => candidate.id === entry.id);
@@ -1298,11 +1456,11 @@ export function createProjectCommandRegistry(
 
     context.report({
       affected: affectedOf(state, attachedNodes),
-      summary: agentWriteSummary(
+      summary: params.detailField === undefined ? agentWriteSummary(
         context,
         `the agent’s codex change: ${created.length} created, ${updated.length} updated${attachedNodes.length > 0 ? `, ${countOf(attachedNodes.length, 'node')} attached` : ''}`,
         `created ${created.length} and updated ${updated.length} codex ${created.length + updated.length === 1 ? 'entry' : 'entries'}${attachedNodes.length > 0 ? `, attached to ${countOf(attachedNodes.length, 'node')}` : ''}`,
-      ),
+      ) : `added the codex detail field "${params.detailField.label}" for "${params.detailField.type}"`,
     });
 
     return {
@@ -1775,6 +1933,7 @@ export function createProjectCommandRegistry(
       descriptor: commands.binderSetSynopsis,
       apply: narrow(binderSetSynopsis),
     },
+    'binder.setPublish': { descriptor: commands.binderSetPublish, apply: narrow(binderSetPublish) },
     'codex.attach': { descriptor: commands.codexAttach, apply: narrow(codexAttach) },
     'binder.create': { descriptor: commands.binderCreate, apply: narrow(binderCreate) },
     'codex.upsert': { descriptor: commands.codexUpsert, apply: narrow(codexUpsert) },

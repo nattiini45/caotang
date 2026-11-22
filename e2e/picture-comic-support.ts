@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 
-import { binderTitle, createProject, firstChapter, waitForSaved } from './support.js';
+import { binderTitle, createProject, firstChapter, waitForSaved, chooseInterfaceLanguage} from './support.js';
 
 export async function pictureComicProject(page: Page, shell: 'classic' | 'modern'): Promise<void> {
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
@@ -55,7 +55,7 @@ export async function germanComic(page: Page): Promise<void> {
   await page.getByRole('menuitem', { name: 'Settings', exact: true }).click();
   const settings = page.getByTestId('settings');
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
   await page.keyboard.press('Escape');
   await expect(settings).toBeHidden();

@@ -30,7 +30,7 @@ export interface TurnsPlan {
   readonly notes: readonly string[];
 }
 
-function utcClock(epochMs: number): string {
+export function utcClock(epochMs: number): string {
   return new Date(epochMs).toISOString().slice(11, 16);
 }
 

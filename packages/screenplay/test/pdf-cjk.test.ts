@@ -297,30 +297,36 @@ describe('the PDF with CJK text', () => {
     expect(await cjkPdf(CHINESE, '草堂')).toContain('/Title <FEFF83495802>');
   });
 
-  it('keeps every byte ASCII and every xref offset exact with both fonts in the file', async () => {
-    const pdf = await cjkPdf(CHINESE + JAPANESE + KOREAN);
-    expect([...pdf].every((ch) => ch.charCodeAt(0) < 0x80)).toBe(true);
+  it('keeps every body byte ASCII and every xref offset exact with both fonts in the file', async () => {
+    const blob = await createPdfRenderer(LOADERS).emit(blocksOf(CHINESE + JAPANESE + KOREAN), { title: 'T' });
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const pdf = decode(bytes);
+    // The binary comment line after the version line is the only non-ASCII text in the file.
+    expect(pdf.startsWith('%PDF-1.4\n%âãÏÓ\n')).toBe(true);
+    expect(bytes.slice(19).every((byte) => byte < 0x80)).toBe(true);
+    // The table's offsets count bytes, not decoded characters — slice the bytes, then decode.
     const xref = Number(/startxref\n(\d+)\n/.exec(pdf)?.[1]);
-    const count = Number(/^0 (\d+)$/m.exec(pdf.slice(xref, xref + 40))?.[1]);
-    const rows = pdf.slice(xref).split('\n');
+    const count = Number(/^0 (\d+)$/m.exec(decode(bytes.slice(xref, xref + 40)))?.[1]);
+    const rows = decode(bytes.slice(xref)).split('\n');
     for (let object = 1; object < count; object++) {
       const offset = Number(rows[2 + object]?.slice(0, 10));
-      expect(pdf.slice(offset).startsWith(`${object} 0 obj\n`), `object ${object}`).toBe(true);
+      expect(decode(bytes.slice(offset)).startsWith(`${object} 0 obj\n`), `object ${object}`).toBe(true);
     }
   });
 });
 
 describe('a Latin-only script', () => {
-  // The SHA-256 of each file as the writer made it before the CJK fallback existed (commit 32e3ed0).
+  // The SHA-256 of each file as the writer made it before the CJK fallback existed (commit 32e3ed0),
+  // re-based once for the binary comment line the header gained for PDF/A.
   const BEFORE: readonly [string, string, boolean, Record<string, unknown>][] = [
     ['one act, Courier Prime', SCRIPT_ONE_ACT, true, {}],
     ['one act, base-14 Courier', SCRIPT_ONE_ACT, false, {}],
     ['title page and scene numbers', SCRIPT_WITH_TITLE_PAGE, true, { sceneNumbers: 'both', titlePage: true }],
   ];
   const HASHES = [
-    '993f7c9ad93c53ad71daf2dc120a199b1150e481eff41e057870efd966c9b46e',
-    '7d412410e99b12128d61b1eb5c6305e00f449dfc4be0da3a459be05bc52a48d0',
-    '21f4fe6591176c4e933a473d0efb7d2dff1d2f1f099c6b2343269d77ddc03748',
+    '474cd4902601416c510cbb88fdb69d0d78a9913d2ec41bdac9dc489d9847b57c',
+    '4dc43bab24953068b7b98b6cd1c1fda1130e8f0cbd00953ae59b071f990fab3a',
+    'ef9ed2b874d1ca216027f95faca3b9fb69946f64ceab840700da7cd3ba36583d',
   ];
 
   it.each(BEFORE.map((row, i) => [...row, HASHES[i]] as const))('is byte for byte the file it was: %s', async (_name, source, embed, opts, hash) => {

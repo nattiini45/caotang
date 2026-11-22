@@ -10,21 +10,25 @@
 import type { PermissionRule, ProjectState, TreeNode } from '@caotang/store';
 import { t } from '@lingui/core/macro';
 
-/* lingui-set comment="Interpolated values: tool" */
+/* lingui-set comment="Agent rules in the writer's words. Interpolated values: action, effect, doing and tools complete the rule sentence; path, tool and title name what the rule covers." */
 
 export type AgentAccess = 'full' | 'read-only' | 'none';
 
-export const ACCESS_LABELS: Readonly<Record<AgentAccess, string>> = Object.freeze({
-  full: 'Agent: may read and change',
-  'read-only': 'Agent: may read only',
-  none: 'Agent: may not read',
-});
+export function accessLabel(access: AgentAccess): string {
+  switch (access) {
+    case 'full':
+      return t`Agent: may read and change`;
+    case 'read-only':
+      return t`Agent: may read only`;
+    case 'none':
+      return t`Agent: may not read`;
+  }
+}
 
 /** The short words a binder row carries beside its lock icon. */
-export const ACCESS_MARKERS: Readonly<Record<Exclude<AgentAccess, 'full'>, string>> = Object.freeze({
-  'read-only': 'Agent: read only',
-  none: 'Agent: hidden',
-});
+export function accessMarker(access: Exclude<AgentAccess, 'full'>): string {
+  return access === 'read-only' ? t`Agent: read only` : t`Agent: hidden`;
+}
 
 /** Whether a rule is the one the menu writes for `nodeId`: every tool, this subtree, a deny. */
 function isMenuRule(rule: PermissionRule, nodeId: string): boolean {
@@ -69,7 +73,7 @@ export function effectiveAccess(rules: readonly PermissionRule[], state: Pick<Pr
   return result;
 }
 
-const EFFECT_WORDS: Readonly<Record<Exclude<PermissionRule['effect'], 'allow'>, string>> = { deny: 'Never', ask: 'Always asks' };
+const effectWord = (effect: Exclude<PermissionRule['effect'], 'allow'>): string => (effect === 'deny' ? t`Never` : t`Always asks`);
 
 /** One rule in the writer’s words, for the Settings list. `inert` means the rule cannot take effect. */
 export function describeRule(rule: PermissionRule, state: Pick<ProjectState, 'manifest'> | null): { readonly text: string; readonly inert: boolean } {
@@ -81,16 +85,19 @@ export function describeRule(rule: PermissionRule, state: Pick<ProjectState, 'ma
     return { text: rule.tool === '*' ? t`May skip approval in Ask mode for any native tool` : t`May skip approval in Ask mode for ${{ tool: rule.tool }}`, inert: false };
   }
   if (rule.scope === undefined) {
-    const tool = rule.tool === '*' ? 'any tool' : rule.tool;
-    return { text: rule.effect === 'deny' ? `Never lets the agent use ${tool}` : `Asks you before the agent uses ${tool}`, inert: false };
+    const tool = rule.tool === '*' ? t`any tool` : rule.tool;
+    return { text: rule.effect === 'deny' ? t`Never lets the agent use ${tool}` : t`Asks you before the agent uses ${tool}`, inert: false };
   }
   if ('path' in rule.scope) {
-    return { text: `${rule.effect === 'deny' ? 'Keeps the agent out of' : 'Asks before the agent touches'} the path ${rule.scope.path} (${rule.tool})`, inert: false };
+    return { text: t`${{ action: rule.effect === 'deny' ? t`Keeps the agent out of` : t`Asks before the agent touches` }} the path ${{ path: rule.scope.path }} (${{ tool: rule.tool }})`, inert: false };
   }
   const node = state?.manifest.tree.find((candidate) => candidate.id === (rule.scope as { subtree: string }).subtree);
-  if (node === undefined) return { text: `${EFFECT_WORDS[rule.effect]} a folder or document this project no longer has (${rule.tool})`, inert: true };
-  const tools = rule.tool === '*' ? '' : ` with ${rule.tool}`;
-  if (rule.effect === 'ask') return { text: `Asks you before the agent ${access === 'read' ? 'reads' : access === 'write' ? 'changes' : 'reads or changes'} “${node.title}”${tools}`, inert: false };
-  if (access === 'write') return { text: `“${node.title}” is read only for the agent${tools}`, inert: false };
-  return { text: `“${node.title}” is hidden from the agent${tools}`, inert: false };
+  if (node === undefined) return { text: t`${{ effect: effectWord(rule.effect) }} a folder or document this project no longer has (${{ tool: rule.tool }})`, inert: true };
+  const tools = rule.tool === '*' ? '' : t` with ${{ tool: rule.tool }}`;
+  if (rule.effect === 'ask') {
+    const doing = access === 'read' ? t`reads` : access === 'write' ? t`changes` : t`reads or changes`;
+    return { text: t`Asks you before the agent ${doing} “${{ title: node.title }}”${tools}`, inert: false };
+  }
+  if (access === 'write') return { text: t`“${{ title: node.title }}” is read only for the agent${tools}`, inert: false };
+  return { text: t`“${{ title: node.title }}” is hidden from the agent${tools}`, inert: false };
 }

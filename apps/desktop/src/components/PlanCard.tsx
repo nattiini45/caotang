@@ -47,6 +47,7 @@ import {
   planCostOf,
   refusalReasonOf,
   stepPreviewOf,
+  wordDiff,
   type ReviewPreviewView,
   type StepPreviewView,
   type TranscriptionPreviewView,
@@ -56,8 +57,9 @@ import { accessibleText } from '../i18n/accessible-text.js';
 import { UserText } from '../i18n/UserText.js';
 import { chooseContext, contextKey, droppedContextPins } from '../app/context-choices.js';
 import { contextDropText, contextLayerLabel } from './context-labels.js';
+import './plan-card.css';
 
-/* lingui-set comment="Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated." */
+/* lingui-set comment="Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name." */
 
 /** A step's estimated cost, as the card's step view carries it: the prompt's, or a staged review's (coherence.md §5.3). */
 type PlanStepCost = NonNullable<PlanStepView['cost']>;
@@ -152,7 +154,7 @@ export function PlanCard({ card, live, drafts, project, session, transcriptionRo
 
       {caution === undefined ? null : <CautionNotes caution={caution} />}
       {card.steps.some((step) => (step.contextOverrides?.include?.length ?? 0) + (step.contextOverrides?.exclude?.length ?? 0) > 0)
-        ? <p className="plan-notice"><Trans>Requests with pins or leave-outs run here, not as background tasks. Remove these choices before requesting a background task.</Trans></p>
+        ? <p className="plan-notice"><Trans>Pins and leave-outs stay with this request when it runs in the background.</Trans></p>
         : null}
       {card.notice !== undefined ? (
         <p className="plan-notice" role="status">
@@ -211,6 +213,7 @@ export function PlanCard({ card, live, drafts, project, session, transcriptionRo
 
 /** The card's words about the turn and its external steps (issue #54). Information only: nothing here stops a step. */
 function CautionNotes({ caution }: { caution: NonNullable<PlanCardView['caution']> }): ReactNode {
+  useLingui();
   return (
     <div className="plan-caution" data-testid="plan-caution">
       {caution.lead === undefined ? null : (
@@ -220,17 +223,17 @@ function CautionNotes({ caution }: { caution: NonNullable<PlanCardView['caution'
       )}
       {caution.followsUntrusted.length === 0 ? null : (
         <p className="plan-notice is-warn" role="status" data-testid="plan-caution-taint">
-          This comes after the agent read text from {caution.followsUntrusted.join(', ')}. Check that it is what you asked for.
+          <Trans>This comes after the agent read text from {{ sources: caution.followsUntrusted.join(', ') }}. Check that it is what you asked for.</Trans>
         </p>
       )}
       {caution.quotes.map((quote) => (
         <p key={`${quote.nodeId}:${quote.argPath}:${quote.step ?? 0}`} className="plan-notice is-warn" role="status" data-testid="plan-caution-quote">
-          {quote.step === undefined ? 'The call' : `Step ${quote.step}`} sends {quote.words} words in a row from “{quote.title}” ({quote.argPath}). Approve asks twice.
+          {quote.step === undefined ? t`The call` : t`Step ${{ step: quote.step }}`} <Trans>sends</Trans> {quote.words} <Trans>words in a row from</Trans> “{quote.title}” ({quote.argPath}). <Trans>Approve asks twice.</Trans>
         </p>
       ))}
       {caution.hits.length === 0 ? null : (
         <p className="plan-notice is-warn" role="status" data-testid="plan-caution-hits">
-          Text in a step reads like instructions to an AI: {caution.hits.map((hit) => `“${hit.excerpt}”`).join(', ')}
+          <Trans>Text in a step reads like instructions to an AI: {{ hits: caution.hits.map((hit) => `“${hit.excerpt}”`).join(', ') }}</Trans>
         </p>
       )}
     </div>
@@ -329,10 +332,12 @@ function StepRow({
       {(step.hooks ?? []).map((run) =>
         run.decision.action === 'warn' ? (
           <p key={`${run.hookId}:${run.event}`} className="plan-step-hook">
-            Hook “{run.name}”: {run.decision.reason}
+            <Trans>Hook “{{ name: run.name }}”:</Trans> {run.decision.reason}
           </p>
         ) : null,
       )}
+
+      {step.hookRewrite === undefined ? null : <HookRewriteBlock rewrite={step.hookRewrite} awaitingApproval={live && !done} />}
 
       {/* Modern folds a step's raw parameters under "Arguments" (#363), as a tool call's are. */}
       {done ? null : (
@@ -364,10 +369,44 @@ function StepRow({
         </figure>
       ) : null}
 
+      {step.modelHooks === undefined ? null : (
+        <div className="context-preview">
+          <p><Trans>These checks use your Background provider. They can send text from this step.</Trans></p>
+          <ul className="context-reasons" aria-label={t`Model hook prompt estimates`}>
+            {step.modelHooks.map((hook) => {
+              const promptTokens = formatCount(hook.promptTokens);
+              const outputTokens = formatCount(hook.outputTokens);
+              return <li key={hook.id}>{hook.event === 'tool.before'
+                ? <Trans><UserText value={hook.name} /> before this step: about {promptTokens} tokens in, up to {outputTokens} out.</Trans>
+                : <Trans><UserText value={hook.name} /> after this step: about {promptTokens} tokens in, up to {outputTokens} out.</Trans>}</li>;
+            })}
+          </ul>
+        </div>
+      )}
       {step.context !== undefined ? <PromptPreview context={step.context} pinned={step.contextOverrides?.include}
         onExclude={!live ? undefined : (ref) => onEdit([{ op: 'context', index: step.index, overrides: chooseContext(step.contextOverrides ?? {}, ref, 'exclude') }])}
         onRestore={!live ? undefined : (ref) => onEdit([{ op: 'context', index: step.index, overrides: chooseContext(step.contextOverrides ?? {}, ref, 'remove') }])} /> : null}
     </li>
+  );
+}
+
+function HookRewriteBlock({ rewrite, awaitingApproval }: { rewrite: NonNullable<PlanStepView['hookRewrite']>; awaitingApproval: boolean }): ReactNode {
+  const { after } = rewrite;
+  const segments = wordDiff(rewrite.before, after);
+  return (
+    <figure className="plan-draft plan-hook-rewrite" aria-label={t`Model hook rewrite`} data-field={rewrite.field}>
+      <figcaption>{rewrite.edited === true
+        ? <Trans>You edited the text after the model hook “<UserText value={rewrite.name} />” proposed a rewrite.</Trans>
+        : <Trans>The model hook “<UserText value={rewrite.name} />” proposed a rewrite.</Trans>}
+        {awaitingApproval ? <> <Trans>You need to approve the rewrite yourself, even in Auto mode.</Trans></> : null}
+      </figcaption>
+      <dl className="notes-diff">
+        <dt><Trans>Original text</Trans></dt>
+        <dd dir="auto">{segments.map((segment, index) => segment.kind === 'removed' ? <del key={index}>{segment.text}</del> : segment.kind === 'same' ? segment.text : null)}</dd>
+        <dt><Trans>Text to apply</Trans></dt>
+        <dd dir="auto">{after === '' ? <Trans>No text. This clears the field.</Trans> : segments.map((segment, index) => segment.kind === 'added' ? <ins key={index}>{segment.text}</ins> : segment.kind === 'same' ? segment.text : null)}</dd>
+      </dl>
+    </figure>
   );
 }
 

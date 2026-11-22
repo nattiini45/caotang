@@ -1,7 +1,22 @@
 /** The fallback fonts the PDF tests load: the host's Node loaders, and the parsed source fonts to compare a subset with. */
 
 import { loadFont } from '@caotang/pdf-fonts';
-import { loadArabicFontInNode, loadCjkFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
+import {
+  loadArabicFontInNode,
+  loadBengaliFontInNode,
+  loadCjkFontInNode,
+  loadDevanagariFontInNode,
+  loadEmojiFontInNode,
+  loadGujaratiFontInNode,
+  loadGurmukhiFontInNode,
+  loadHebrewFontInNode,
+  loadKannadaFontInNode,
+  loadMalayalamFontInNode,
+  loadOriyaFontInNode,
+  loadSinhalaFontInNode,
+  loadTamilFontInNode,
+  loadTeluguFontInNode,
+} from '@caotang/pdf-fonts/node-loader';
 import type { Font } from '@pdf-lib/fontkit';
 
 export const LOADERS = {
@@ -9,7 +24,18 @@ export const LOADERS = {
   emoji: loadEmojiFontInNode,
   arabic: loadArabicFontInNode,
   hebrew: loadHebrewFontInNode,
-  devanagari: loadDevanagariFontInNode,
+  indic: {
+    devanagari: loadDevanagariFontInNode,
+    bengali: loadBengaliFontInNode,
+    gurmukhi: loadGurmukhiFontInNode,
+    gujarati: loadGujaratiFontInNode,
+    oriya: loadOriyaFontInNode,
+    tamil: loadTamilFontInNode,
+    telugu: loadTeluguFontInNode,
+    kannada: loadKannadaFontInNode,
+    malayalam: loadMalayalamFontInNode,
+    sinhala: loadSinhalaFontInNode,
+  },
 } as const;
 
 let cjk: Promise<Font> | undefined;

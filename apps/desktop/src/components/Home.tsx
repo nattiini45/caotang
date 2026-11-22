@@ -7,7 +7,7 @@
 
 import { select, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { Fragment, useCallback, useEffect, useReducer, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
+import { Fragment, lazy, Suspense, useCallback, useEffect, useReducer, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
 import { isolate } from '@caotang/i18n';
 import type { RuntimeStore } from '@caotang/store';
 
@@ -22,11 +22,13 @@ import { clearPending } from '../app/pending-journal.js';
 import { browserStorage, clearUnsentCopy } from '../app/unsent-copy.js';
 import { encodingAskerFor, type EncodingDecision } from '../app/encoding-review.js';
 import { homeOpenMachine } from '../app/home-open-flow.js';
+import { forgetNativeFolder, listNativeFolders, nativeFolderId, nativeFoldersAvailable, pickNativeFolder } from '../app/native-folders.js';
 import {
   answerFolderDiffers,
   completeEncodingReview,
   completeRecovery,
   createProject,
+  createNativeProject,
   exportStoredBundle,
   imageDropNotice,
   hookNotice,
@@ -44,6 +46,7 @@ import {
   type RecoveryAnswers,
   type RecoveryOutcome,
 } from '../app/lifecycle.js';
+import { openInTurn } from '../app/open-queue.js';
 import type { AppServices } from '../app/services.js';
 import { ChoiceDialog, ConfirmDialog, EmptyState, documentsLabel, useComposingEnter, wordsLabel } from './shared.js';
 import { EncodingDialog } from './EncodingDialog.js';
@@ -52,6 +55,8 @@ import { RecoveryDialog } from './RecoveryDialog.js';
 import { Settings, type SettingsSection } from './LazySettings.js';
 import './project-rename.css';
 import './home-opening.css';
+
+const NativeFolderControls = lazy(() => import('./NativeFolderControls.js'));
 
 /** One lifecycle action, as a token: its busy line and its failure sentence are each one catalogue message. */
 type HomeAction =
@@ -151,10 +156,20 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
   }, []);
   const importInput = useRef<HTMLInputElement>(null);
   const folderSupported = folderAccessSupported();
+  const native = nativeFoldersAvailable();
+  const [nativeFolders, setNativeFolders] = useState<readonly DirectoryHandleLike[]>([]);
+  useEffect(() => {
+    if (!native) return;
+    let stale = false;
+    void listNativeFolders().then((items) => { if (!stale) setNativeFolders(items); }).catch((failure: unknown) => {
+      if (!stale) setError(failedText('openingFolder', errorText(failure)));
+    });
+    return () => { stale = true; };
+  }, [native]);
   // The folder each project remembers (folder-memory.ts), read with the list, so a reopen asks for permission straight from its click.
   const [folders, setFolders] = useState<ReadonlyMap<string, DirectoryHandleLike>>(new Map());
   useEffect(() => {
-    if (!folderSupported || projects === null) return;
+    if (native || !folderSupported || projects === null) return;
     let alive = true;
     void Promise.all(projects.map(async (project) => [project.id, await rememberedFolder(project.id)] as const)).then((pairs) => {
       if (!alive) return;
@@ -165,7 +180,7 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
     return () => {
       alive = false;
     };
-  }, [folderSupported, projects]);
+  }, [folderSupported, native, projects]);
   const current = useSyncExternalStore(services.settings.subscribe, services.settings.current);
   const showFirstRun = !current.firstRun.dismissed;
 
@@ -206,7 +221,9 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
     setError(null);
     setNotice(null);
     try {
-      await work();
+      // An opening asked for here takes its turn from the same queue the change offer's reopen uses (open-queue.ts), so the two never
+      // clear or replace each other's session in flight (#774).
+      await openInTurn(work);
     } catch (failure) {
       setError(failedText(action === 'openingDemo' ? 'openingProject' : action, errorText(failure)));
     } finally {
@@ -219,6 +236,13 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
     event.preventDefault();
     if (newProjectIme.takesSubmit()) return;
     void run('creating', async () => {
+      if (native) {
+        const folder = await pickNativeFolder('empty');
+        if (folder === null) return;
+        settleOpen(await createNativeProject(store, folder, name));
+        setName('');
+        return;
+      }
       const session = await createProject(store, name);
       setName('');
       onOpened({ session, notices: [], droppedFields: [], copiedFrom: null });
@@ -328,10 +352,28 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
 
   const openFolderAction = (): void => {
     void run('openingFolder', async () => {
-      const folder = await pickDirectory('readwrite');
+      const folder = await (native ? pickNativeFolder('open') : pickDirectory('readwrite'));
       if (folder === null) return;
       settleOpen(await openFolder(store, folder));
     }, 'folder-picker');
+  };
+
+  const copyToFolder = (projectId: string): void => {
+    void run('openingFolder', async () => {
+      const folder = await pickNativeFolder('empty');
+      if (folder !== null) settleOpen(await createNativeProject(store, folder, '', projectId));
+    }, projectId);
+  };
+
+  const openRecent = (folder: DirectoryHandleLike): void => {
+    void run('openingFolder', async () => settleOpen(await openFolder(store, folder)), nativeFolderId(folder) ?? null);
+  };
+
+  const forgetRecent = (id: string): void => {
+    void run('removing', async () => {
+      await forgetNativeFolder(id);
+      setNativeFolders(await listNativeFolders());
+    });
   };
 
   /**
@@ -506,7 +548,7 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
             ) : (
               <li key={project.id} className="project-row">
                 <div className="project-meta">
-                  <span className="project-name">{project.name}</span>
+                  <span className="project-name" id={native ? `native-copy-${project.id}` : undefined}>{project.name}</span>
                   <span className="muted">
                     {t`${{ documents: documentsLabel(project.documents) }} · ${{ words: wordsLabel(project.words) }}`}
                   </span>
@@ -529,6 +571,11 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
                     >
                       <Trans>Reopen folder</Trans>
                     </button>
+                  ) : null}
+                  {native ? (
+                    <Suspense fallback={null}>
+                      <NativeFolderControls kind="copy" disabled={blocked} nameId={`native-copy-${project.id}`} copy={() => copyToFolder(project.id)} />
+                    </Suspense>
                   ) : null}
                   <button
                     type="button"
@@ -580,6 +627,11 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
 
       {phone && projects !== null && projects.length > 0 ? [projectSection, introduction] : [introduction, projectSection]}
 
+      {native && nativeFolders.length > 0 ? (
+        <Suspense fallback={null}>
+          <NativeFolderControls kind="recent" disabled={blocked} folders={nativeFolders} open={openRecent} forget={forgetRecent} />
+        </Suspense>
+      ) : null}
       <section className="home-section" aria-labelledby="home-bring">
         <h2 id="home-bring"><Trans>Bring a project in</Trans></h2>
         <div className="bring-row">
@@ -609,7 +661,7 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
               if (file) importFile(file);
             }}
           />
-          {folderSupported ? (
+          {native || folderSupported ? (
             <button type="button" className={`button${opening('openingFolder', 'folder-picker') ? ' is-opening' : ''}`} disabled={blocked} aria-busy={opening('openingFolder', 'folder-picker') || undefined} onClick={openFolderAction}>
               <Trans>Open a folder…</Trans>
             </button>

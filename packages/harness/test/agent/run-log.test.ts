@@ -396,6 +396,12 @@ describe('structureDigest', () => {
 });
 
 describe('summarizeRun', () => {
+  it('exposes only the latest unresolved reservation count for conservative goal recovery', () => {
+    const spend = { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 };
+    const pending: RunEventDraft = { t: 'spend', turnId: 't1', spend, reservedCalls: 1 };
+    expect(summarizeRun(log(start, user, pending), project({}))).toMatchObject({ reservedCalls: 1 });
+    expect(summarizeRun(log(start, user, pending, { ...pending, reservedCalls: 0 }), project({}))).toMatchObject({ reservedCalls: 0 });
+  });
   it('counts the steps applied of the card’s, and says when a draft is out of date', () => {
     const drafted: RunEventDraft = { ...card, revisions: [{ [A]: 1 }, null, null] } as RunEventDraft;
     const events = log(start, user, drafted, approved, intent(1, { [A]: 1, [B]: 1 }), applied(1, { [B]: 2 }));

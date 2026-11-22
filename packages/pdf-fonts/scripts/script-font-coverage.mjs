@@ -17,6 +17,15 @@ const FONTS = [
   { vendor: 'noto-sans-arabic', file: 'NotoSansArabic-Regular.ttf', name: 'Noto Sans Arabic', constant: 'NOTO_ARABIC', output: 'noto-arabic-coverage.ts' },
   { vendor: 'noto-sans-hebrew', file: 'NotoSansHebrew-Regular.ttf', name: 'Noto Sans Hebrew', constant: 'NOTO_HEBREW', output: 'noto-hebrew-coverage.ts' },
   { vendor: 'noto-sans-devanagari', file: 'NotoSansDevanagari-Regular.ttf', name: 'Noto Sans Devanagari', constant: 'NOTO_DEVANAGARI', output: 'noto-devanagari-coverage.ts' },
+  { vendor: 'noto-sans-bengali', file: 'NotoSansBengali-Regular.ttf', name: 'Noto Sans Bengali', constant: 'NOTO_BENGALI', output: 'noto-bengali-coverage.ts' },
+  { vendor: 'noto-sans-gurmukhi', file: 'NotoSansGurmukhi-Regular.ttf', name: 'Noto Sans Gurmukhi', constant: 'NOTO_GURMUKHI', output: 'noto-gurmukhi-coverage.ts' },
+  { vendor: 'noto-sans-gujarati', file: 'NotoSansGujarati-Regular.ttf', name: 'Noto Sans Gujarati', constant: 'NOTO_GUJARATI', output: 'noto-gujarati-coverage.ts' },
+  { vendor: 'noto-sans-oriya', file: 'NotoSansOriya-Regular.ttf', name: 'Noto Sans Oriya', constant: 'NOTO_ORIYA', output: 'noto-oriya-coverage.ts' },
+  { vendor: 'noto-sans-tamil', file: 'NotoSansTamil-Regular.ttf', name: 'Noto Sans Tamil', constant: 'NOTO_TAMIL', output: 'noto-tamil-coverage.ts' },
+  { vendor: 'noto-sans-telugu', file: 'NotoSansTelugu-Regular.ttf', name: 'Noto Sans Telugu', constant: 'NOTO_TELUGU', output: 'noto-telugu-coverage.ts' },
+  { vendor: 'noto-sans-kannada', file: 'NotoSansKannada-Regular.ttf', name: 'Noto Sans Kannada', constant: 'NOTO_KANNADA', output: 'noto-kannada-coverage.ts' },
+  { vendor: 'noto-sans-malayalam', file: 'NotoSansMalayalam-Regular.ttf', name: 'Noto Sans Malayalam', constant: 'NOTO_MALAYALAM', output: 'noto-malayalam-coverage.ts' },
+  { vendor: 'noto-sans-sinhala', file: 'NotoSansSinhala-Regular.ttf', name: 'Noto Sans Sinhala', constant: 'NOTO_SINHALA', output: 'noto-sinhala-coverage.ts' },
 ];
 
 for (const { vendor, file, name, constant, output } of FONTS) {

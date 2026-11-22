@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './test.js';
 
 import { createProject } from './support.js';
 import { installSaveRefusals, makeFailingDocument, makeFailingSettings, makeFailingTask } from './save-channel-fixture.js';
@@ -44,7 +45,7 @@ async function fits(page: Page, width: number): Promise<void> {
 
 for (const locale of ['en', 'de', 'en-XA'] as const) {
   for (const scheme of ['light', 'dark'] as const) {
-    test(`${locale}, ${scheme}: compact failure preserves navigation and full recovery at desktop and touch widths`, async ({ page }) => {
+    test(`${locale}, ${scheme}: compact failure preserves navigation and full recovery at desktop and touch widths`, { tag: '@modern' }, async ({ page }) => {
       await page.addInitScript((value) => localStorage.setItem('caotang.theme', value), scheme);
       await createProject(page, 'The Lighthouse Keeper and the Long Journey Home');
       await expect(page.getByTestId('modern-stage')).toBeVisible();
@@ -87,7 +88,7 @@ for (const locale of ['en', 'de', 'en-XA'] as const) {
 }
 
 for (const channel of ['documents', 'tasks'] as const) {
-  test(`${channel}: disclosure preserves the appropriate recovery and backup action`, async ({ page }) => {
+  test(`${channel}: disclosure preserves the appropriate recovery and backup action`, { tag: '@modern' }, async ({ page }) => {
     await createProject(page, 'A recognizable project title');
     await expect(page.getByTestId('modern-stage')).toBeVisible();
     if (channel === 'documents') await makeFailingDocument(page);
@@ -111,7 +112,7 @@ for (const channel of ['documents', 'tasks'] as const) {
   });
 }
 
-test('multiple failed channels leave the Board zoom and navigation usable', async ({ page }) => {
+test('multiple failed channels leave the Board zoom and navigation usable', { tag: '@modern' }, async ({ page }) => {
   await createProject(page, 'A recognizable project title');
   await expect(page.getByTestId('modern-stage')).toBeVisible();
   await makeFailingTask(page);
@@ -123,7 +124,7 @@ test('multiple failed channels leave the Board zoom and navigation usable', asyn
   await expect(page.getByTestId('modern-top-ornament').getByRole('radio', { name: 'M: Medium cards, title and synopsis', exact: true })).toBeVisible();
 });
 
-test('the narrow failure row clears document-mode controls and the page', async ({ page }) => {
+test('the narrow failure row clears document-mode controls and the page', { tag: '@modern' }, async ({ page }) => {
   await createProject(page, 'A recognizable project title');
   await expect(page.getByTestId('modern-stage')).toBeVisible();
   await page.locator('.modern-new').click();
@@ -136,7 +137,7 @@ test('the narrow failure row clears document-mode controls and the page', async 
   await expect(page.getByTestId('scene-info-save-state')).toBeInViewport({ ratio: 1 });
 });
 
-test('document modes fit while the narrow chunk is still loading', async ({ page }) => {
+test('document modes fit while the narrow chunk is still loading', { tag: '@modern' }, async ({ page }) => {
   await createProject(page, 'A recognizable project title');
   await page.locator('.modern-new').click();
   await page.getByTestId('new-screenplay').click();

@@ -112,6 +112,9 @@ export function holdsOf(counts: CompileCounts, comicPanels?: number): string {
     case 'dialogue-csv':
     case 'dialogue-xlsx':
       return t`${lines} ${plural(lineCount, { one: 'line', other: 'lines' })} in ${scenes} ${plural(sceneCount, { one: 'container', other: 'containers' })}, ${words} ${plural(wordCount, { one: 'word', other: 'words' })}`;
+    case 'vo-script-csv':
+    case 'vo-script-xlsx':
+      return t`${lines} ${plural(lineCount, { one: 'line', other: 'lines' })} in ${scenes} ${plural(sceneCount, { one: 'episode', other: 'episodes' })}, ${words} ${plural(wordCount, { one: 'word', other: 'words' })}`;
     case 'shot-list-csv':
     case 'shot-list-xlsx':
     case 'promptpack':
@@ -127,6 +130,16 @@ export function holdsOf(counts: CompileCounts, comicPanels?: number): string {
       const panels = formatCount(comicPanels);
       return t`${pages} ${plural(pageCount, { one: 'page', other: 'pages' })}, ${panels} ${plural(comicPanels, { one: 'panel', other: 'panels' })}`;
     }
+    case 'show-notes':
+    case 'transcript-md':
+    case 'teleprompter':
+      // The AV formats count a speakable line in `blockCount` and an episode in `sceneCount`.
+      return t`${lines} ${plural(lineCount, { one: 'line', other: 'lines' })} in ${scenes} ${plural(sceneCount, { one: 'episode', other: 'episodes' })}, ${words} ${plural(wordCount, { one: 'word', other: 'words' })}`;
+    case 'vtt':
+      // The captions count one cue in `blockCount` and an episode in `sceneCount`.
+      return t`${lines} ${plural(lineCount, { one: 'cue', other: 'cues' })} in ${scenes} ${plural(sceneCount, { one: 'episode', other: 'episodes' })}, ${words} ${plural(wordCount, { one: 'word', other: 'words' })}`;
+    case 'chapters-json':
+      return t`${lines} ${plural(lineCount, { one: 'chapter', other: 'chapters' })} in ${scenes} ${plural(sceneCount, { one: 'episode', other: 'episodes' })}`;
     case 'coherence-md':
     case 'coherence-json':
       return t`the coherence report`;

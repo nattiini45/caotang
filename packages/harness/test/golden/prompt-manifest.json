@@ -1,11 +1,11 @@
 [
   {
     "id": "planner.system.json",
-    "sha256": "d436ab7001f259f7e8eac05cc5d28b42aea152875ce247ad29a693dacf8187ef"
+    "sha256": "8831026c274fdad30def000fb85b460736089719fa118090596f4c0bf667e7dd"
   },
   {
     "id": "planner.system.native",
-    "sha256": "a77f748a59ca31186f6df144b39a991a9c214dc15bd0438c6faa53803c3aae92"
+    "sha256": "5a5df6394e79cd8f3c24ba8c0c7b836d7de945eb4a820095e37fc46783940ecf"
   },
   {
     "id": "planner.more-tools-line",
@@ -17,7 +17,7 @@
   },
   {
     "id": "planner.tools.native.all",
-    "sha256": "86f3afeef0e4bb6593a47dc791f5d0846ff2038ca0e6402f2976a81e680275b3"
+    "sha256": "c71780a211171b5dc6e12382ed5ec8a602c2e4e3ba527e21930c675e4830c213"
   },
   {
     "id": "compaction.system",
@@ -88,6 +88,14 @@
     "sha256": "84f3a6506b359d226f57b0b5c8b656784ce4b3616590cfdf33d589dd35236532"
   },
   {
+    "id": "review.goal.system",
+    "sha256": "c78962123c2fc855d94c4ce58c0b33788203ce729879a50e2b19bead27f110c0"
+  },
+  {
+    "id": "review.goal.task",
+    "sha256": "3b0a8a9099607e6493ae690f31a6b919c01cf773c7232ca34ff21bafda4fe06f"
+  },
+  {
     "id": "subagent.reader",
     "sha256": "32b747b1b506b680e774682c7b825e58fd4887e209fd8705f9f830fcc6f8e1d7",
     "descriptionVersion": 1
@@ -154,8 +162,8 @@
   },
   {
     "id": "tool.codex.read",
-    "sha256": "c966a0f51ea841989b10226bd7b9b7b4371c3ba4634eda0899632157c7dbaf9c",
-    "descriptionVersion": 2
+    "sha256": "c6d85f278cf7a1da307cc09c781833bd400d720a5be9907e02cfb84f566a8a59",
+    "descriptionVersion": 4
   },
   {
     "id": "tool.codex.write",
@@ -244,8 +252,8 @@
   },
   {
     "id": "tool.agent.delegate",
-    "sha256": "dd2da6d0ca51fded9eb0bd4a15c74c05a1deebef713b04e4eb9ad1641bf2900c",
-    "descriptionVersion": 1
+    "sha256": "3d21da62fb7cb261febfc60ebdcb2f3b3f9f30aee1653deae0a0369f1b2a82a0",
+    "descriptionVersion": 2
   },
   {
     "id": "tool.text.search",

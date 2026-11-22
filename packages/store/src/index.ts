@@ -372,13 +372,41 @@ export {
 } from './runtime/autosave.js';
 
 export {
+  DEFAULT_GOAL_RETENTION,
+  appendGoalCheckpoint,
+  checkpointReadable,
+  goalRowReadable,
+  createGoalRun,
+  deleteGoalRun,
+  deleteGoalsOf,
+  markGoalsInterrupted,
+  openGoalRecovery,
+  pruneGoalRuns,
+  readGoalRun,
+  readGoalRuns,
+  readOpenGoalRuns,
+  recordGoalIteration,
+  resumeGoalRun,
+  settleGoalRun,
+  type GoalRecovery,
+  type GoalRetention,
+  type GoalRunResult,
+  type GoalRunRow,
+  type GoalRunStatus,
+} from './runtime/goal-run-store.js';
+export { GOAL_VERIFIER_LIMITS, GOAL_VERIFIER_UNAVAILABLE_CODES, goalVerifierDefinitionProblem } from './runtime/goal-verifier-data.js';
+
+export {
   AGENT_SESSION_PROJECT_INDEX,
   AGENT_SESSION_STORE,
+  GOAL_RUN_STORE,
+  GOAL_RUN_PROJECT_INDEX,
   DOCUMENT_PROJECT_INDEX,
   DOCUMENT_STORE,
   PROJECT_STORE,
   RUNTIME_DB_NAME,
   RUNTIME_DB_VERSION,
+  MAX_RUNTIME_DB_VERSION,
   RUN_EVENT_RUN_INDEX,
   RUN_EVENT_STORE,
   RUN_PROJECT_INDEX,

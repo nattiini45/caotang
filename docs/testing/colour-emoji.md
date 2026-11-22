@@ -10,7 +10,7 @@ readers differ.
 | --- | --- | --- |
 | pdf.js | here, in Chromium | `tools/render-colour-emoji.mjs`; `tools/pdf-validate/check.mjs` also opens each corpus file in pdf.js and reads its text |
 | PDFium, MuPDF | here, when Python has `pypdfium2` and `pymupdf` (scratch tooling: `pip install pypdfium2 pymupdf`, not part of `pnpm install`) | `tools/render-colour-emoji.mjs` |
-| Poppler (`pdftocairo`, `pdftotext`, `pdffonts`), Ghostscript, MuPDF's `mutool`, qpdf | CI's `pdf-validate` job, which now holds `screenplay-colour-emoji.pdf` and `sheet-colour-emoji.pdf`; `tools/render-colour-emoji.mjs` runs `pdftocairo` and `gs` too when they are on PATH | `node tools/pdf-validate/check.mjs <dir> --external` |
+| Poppler (`pdftocairo`, `pdftotext`, `pdffonts`), Ghostscript, MuPDF's `mutool`, qpdf, veraPDF | CI's `pdf-validate` job, which now holds `screenplay-colour-emoji.pdf` and `sheet-colour-emoji.pdf`; `tools/render-colour-emoji.mjs` runs `pdftocairo` and `gs` too when they are on PATH | `node tools/pdf-validate/check.mjs <dir> --external` |
 | Acrobat, macOS Preview | not checked here | the owner |
 
 ## Running it

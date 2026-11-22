@@ -1,6 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint as addFakeProvider, type FakeRequest } from './endpoint.js';
-import { binderRow } from './support.js';
+import { binderRow, chooseInterfaceLanguage} from './support.js';
 
 async function sample(page: Page, seen: FakeRequest[]): Promise<void> {
   await fakeEndpoint(page, (request) => { seen.push(request); return request.tools === undefined ? JSON.stringify({ reply: 'Done.' }) : { text: 'Done.' }; });
@@ -79,7 +79,7 @@ test('the inline argument form and save action render in German without overflow
   await page.getByTestId('open-settings').click();
   const settings = page.getByTestId('settings');
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
   await page.keyboard.press('Escape');
   await page.getByRole('combobox', { name: 'Absicht' }).fill('/fokus');
@@ -158,7 +158,7 @@ test('a skill’s held plan explains that its restrictions require a fresh invoc
   await page.getByTestId('open-settings').click();
   const settings = page.getByTestId('settings');
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await page.keyboard.press('Escape');
   await expect(held).toContainText('Wechseln Sie zu „Fragen“');
   for (const width of [960, 1100, 1280]) {
@@ -168,16 +168,15 @@ test('a skill’s held plan explains that its restrictions require a fresh invoc
   }
 });
 
-test('MCP inline arguments keep arbitrary names and previous values, and can be dismissed', async ({ page }) => {
-  await page.addInitScript(() => {
-    (globalThis as unknown as { __caotangMcpFixture: unknown }).__caotangMcpFixture = {
-      'https://commands.example.com/mcp': { tools: [], prompts: [{ name: 'recap', arguments: [
-        { name: 'chapter title', required: true }, { name: 'audience=group', required: true }, { name: 'tone', required: true },
-      ] }] },
-    };
-  });
-  const seen: FakeRequest[] = [];
-  await sample(page, seen);
+function mcpPromptFixture(): void {
+  (globalThis as unknown as { __caotangMcpFixture: unknown }).__caotangMcpFixture = {
+    'https://commands.example.com/mcp': { tools: [], prompts: [{ name: 'recap', arguments: [
+      { name: 'chapter title', required: true }, { name: 'audience=group', required: true }, { name: 'tone', required: true },
+    ] }] },
+  };
+}
+
+async function connectPromptServer(page: Page): Promise<Locator> {
   await page.getByTestId('open-settings').click();
   const settings = page.getByTestId('settings');
   await settings.locator('[data-section="mcp"]').click();
@@ -190,19 +189,39 @@ test('MCP inline arguments keep arbitrary names and previous values, and can be 
   await server.getByRole('button', { name: 'Connect', exact: true }).click();
   await server.getByRole('button', { name: 'Approve these prompts and templates' }).click();
   await settings.getByRole('button', { name: 'Close', exact: true }).click();
-  const box = page.getByRole('combobox', { name: 'Intent' });
-  await box.fill('/mcp-recap');
-  await page.getByRole('option', { name: /\/mcp-recap-/ }).click();
-  const command = (await box.inputValue()).trim();
-  await box.press('Enter');
-  const note = page.getByTestId('agent-command-note');
-  await note.getByLabel('Argument: chapter title').fill('Discard me');
+  return server;
+}
+
+async function reconnectPromptServer(page: Page, settings: Locator, server: Locator, disconnectOnly = false): Promise<void> {
   await page.getByTestId('open-settings').click();
   await settings.locator('[data-section="mcp"]').click();
   await server.getByRole('button', { name: 'Disconnect', exact: true }).click();
-  await server.getByRole('button', { name: 'Connect', exact: true }).click();
-  await expect(server.getByRole('button', { name: 'Disconnect', exact: true })).toBeEnabled();
+  if (!disconnectOnly) {
+    await server.getByRole('button', { name: 'Connect', exact: true }).click();
+    await expect(server.getByRole('button', { name: 'Disconnect', exact: true })).toBeEnabled();
+  }
   await settings.getByRole('button', { name: 'Close', exact: true }).click();
+}
+
+async function mcpRecapCommand(page: Page): Promise<string> {
+  const box = page.getByRole('combobox', { name: 'Intent' });
+  await box.fill('/mcp-recap');
+  await page.getByRole('option', { name: /\/mcp-recap-/ }).click();
+  return (await box.inputValue()).trim();
+}
+
+test('MCP inline arguments keep arbitrary names and previous values, and can be dismissed', async ({ page }) => {
+  await page.addInitScript(mcpPromptFixture);
+  const seen: FakeRequest[] = [];
+  await sample(page, seen);
+  const settings = page.getByTestId('settings');
+  const server = await connectPromptServer(page);
+  const box = page.getByRole('combobox', { name: 'Intent' });
+  const command = await mcpRecapCommand(page);
+  await box.press('Enter');
+  const note = page.getByTestId('agent-command-note');
+  await note.getByLabel('Argument: chapter title').fill('Discard me');
+  await reconnectPromptServer(page, settings, server);
   await box.fill(command);
   await box.press('Enter');
   await expect(note.getByLabel('Argument: chapter title')).toHaveValue('');
@@ -230,33 +249,35 @@ test('MCP inline arguments keep arbitrary names and previous values, and can be 
   });
   expect(request).not.toContain('Discard me');
   await expect(page.locator('.agent-report-text')).toHaveCount(2);
-  const requestsBeforeRetry = seen.length;
+});
+
+test('MCP inline arguments pending across a reconnect are not run, nor after a disconnect', async ({ page }) => {
+  await page.addInitScript(mcpPromptFixture);
+  const seen: FakeRequest[] = [];
+  await sample(page, seen);
+  const settings = page.getByTestId('settings');
+  const server = await connectPromptServer(page);
+  const box = page.getByRole('combobox', { name: 'Intent' });
+  const command = await mcpRecapCommand(page);
+  const note = page.getByTestId('agent-command-note');
   await box.fill(command);
   await box.press('Enter');
   await note.getByLabel('Argument: chapter title').fill('Private pending chapter');
   await note.getByLabel('Argument: chapter title').press('Enter');
   await expect(note.getByLabel('Argument: audience=group')).toBeVisible();
-  await page.getByTestId('open-settings').click();
-  await settings.locator('[data-section="mcp"]').click();
-  await server.getByRole('button', { name: 'Disconnect', exact: true }).click();
-  await server.getByRole('button', { name: 'Connect', exact: true }).click();
-  await expect(server.getByRole('button', { name: 'Disconnect', exact: true })).toBeEnabled();
-  await settings.getByRole('button', { name: 'Close', exact: true }).click();
+  await reconnectPromptServer(page, settings, server);
   await note.getByLabel('Argument: audience=group').fill('Private pending audience');
   await note.getByLabel('Argument: audience=group').press('Enter');
   await expect(note).toContainText('The prompt was not run.');
   await expect(note.getByRole('textbox')).toHaveCount(0);
-  await expect(page.locator('.agent-report-text')).toHaveCount(2);
-  expect(seen).toHaveLength(requestsBeforeRetry);
-  await page.getByTestId('open-settings').click();
-  await settings.locator('[data-section="mcp"]').click();
-  await server.getByRole('button', { name: 'Disconnect', exact: true }).click();
-  await settings.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.locator('.agent-report-text')).toHaveCount(1);
+  expect(seen).toHaveLength(0);
+  await reconnectPromptServer(page, settings, server, true);
   const unavailable = `${command} "Private server-only chapter"`;
   await box.fill(unavailable);
   await box.press('Enter');
   await expect(note).toContainText('The prompt was not run.');
   await expect(box).toHaveValue(unavailable);
-  await expect(page.locator('.agent-report-text')).toHaveCount(2);
-  expect(seen).toHaveLength(requestsBeforeRetry);
+  await expect(page.locator('.agent-report-text')).toHaveCount(1);
+  expect(seen).toHaveLength(0);
 });

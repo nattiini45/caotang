@@ -29,9 +29,10 @@ export const delegateParams: ObjectSpec = param.object(
   {
     agent: param.choice('Which built-in agent: reader (read-only research) or general (reads, and may propose steps).', SUBAGENT_NAMES),
     brief: param.string('Everything the agent needs, in plain words: it sees nothing of this conversation but the brief and the scope.', { nonBlank: true, maxLength: 4000 }),
+    fanOut: param.choice('Run one helper per top-level Manuscript folder, or omit this for one helper.', ['none', 'per-chapter']),
     scope: param.list(
-      `Documents the agent starts from: titles or ids, at most ${DELEGATE_MAX_SCOPE}. Omit it and the agent finds what it needs with its read tools.`,
-      param.string('One document: a title, or an id.', { nonBlank: true }),
+      `Titles or ids, at most ${DELEGATE_MAX_SCOPE}. Name documents for one helper or top-level Manuscript folders for per-chapter. Omit to use all eligible chapters in per-chapter mode.`,
+      param.string('One document or chapter: a title, or an id.', { nonBlank: true }),
       { maxItems: DELEGATE_MAX_SCOPE },
     ),
   },
@@ -42,6 +43,7 @@ export interface DelegateParams {
   readonly agent: SubagentName;
   readonly brief: string;
   readonly scope?: readonly string[];
+  readonly fanOut?: 'none' | 'per-chapter';
 }
 
 /**

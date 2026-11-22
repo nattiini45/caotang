@@ -933,6 +933,22 @@ describe('export.compile, export.compileSelection and project.deleteNode', () =>
       // The comic's raster formats (comics.md §5), the twenty-second and twenty-third.
       'cbz',
       'comic-epub',
+      // The AV script's VO script (av-script.md §5), the twenty-fourth and twenty-fifth.
+      'vo-script-csv',
+      'vo-script-xlsx',
+      'show-notes',
+      'transcript-md',
+      'teleprompter',
+      'vtt',
+      'chapters-json',
+      // The web publish targets (web-publishing.md §3): the HTML article and the two feeds, the last three.
+      'html',
+      'rss',
+      'atom',
+      // The AV script's podcast feed (av-script.md §5), last.
+      'podcast-rss',
+      // The manuscript's prose PDF (exporter.md §3), appended after it.
+      'prose-pdf',
     ]);
   });
 

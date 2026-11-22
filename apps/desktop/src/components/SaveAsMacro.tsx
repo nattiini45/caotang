@@ -6,8 +6,12 @@
  *
  * It speaks of "macros", "steps" and "values". The agent never makes a macro: this is the writer's gesture, on a plan the writer approved.
  */
+/* lingui-set comment="Save-as-macro dialog. Interpolated values: name is the macro's name, steps is the step count, step and path name a value to mark, label is a leaf's label." */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 
 import type { PlanStepView } from '@caotang/harness';
 
@@ -28,11 +32,12 @@ const shown = (value: string | number | boolean): string => {
 
 /** The button under an approved plan, and the dialog it opens. */
 export function SaveAsMacro({ session, steps, intent }: { session: ProjectSession; steps: readonly PlanStepView[]; intent: string }): ReactNode {
+  useLingui();
   const [open, setOpen] = useState(false);
   return (
     <div className="agent-save-macro">
       <button type="button" className="button is-quiet" data-testid="save-as-macro" onClick={() => setOpen(true)}>
-        Save as macro…
+        <Trans>Save as macro…</Trans>
       </button>
       {open ? <SaveDialog session={session} steps={steps} intent={intent} onClose={() => setOpen(false)} /> : null}
     </div>
@@ -40,6 +45,7 @@ export function SaveAsMacro({ session, steps, intent }: { session: ProjectSessio
 }
 
 function SaveDialog({ session, steps, intent, onClose }: { session: ProjectSession; steps: readonly PlanStepView[]; intent: string; onClose: () => void }): ReactNode {
+  useLingui();
   const report = useReport();
   const dialog = useRef<HTMLDialogElement>(null);
   const [name, setName] = useState('');
@@ -72,7 +78,7 @@ function SaveDialog({ session, steps, intent, onClose }: { session: ProjectSessi
       setProblem(explain(result.error));
       return;
     }
-    report({ text: `Saved the macro “${made.draft.name}”. Run it from Settings › Macros.`, tone: 'info' });
+    report({ text: t`Saved the macro “${{ name: made.draft.name }}”. Run it from Settings › Macros.`, tone: 'info' });
     onClose();
   };
 
@@ -87,13 +93,13 @@ function SaveDialog({ session, steps, intent, onClose }: { session: ProjectSessi
       }}
     >
       <div className="project-dialog-body">
-        <h2 id="macro-save-title">Save as macro</h2>
+        <h2 id="macro-save-title"><Trans>Save as macro</Trans></h2>
         <p className="project-dialog-help">
-          Saves these {steps.length === 1 ? 'step' : `${steps.length} steps`} so you can run them again. Mark the values that change from one run to the
-          next; they are asked for each time and start as they are here. Everything else stays as it is in the plan.
+          <Trans>Saves these {{ steps: plural({ count: steps.length }, { one: 'step', other: '# steps' }) }} so you can run them again. Mark the values that change from one run to the
+          next; they are asked for each time and start as they are here. Everything else stays as it is in the plan.</Trans>
         </p>
         <div className="project-dialog-field">
-          <label htmlFor="macro-save-name">Name</label>
+          <label htmlFor="macro-save-name"><Trans>Name</Trans></label>
           <input
             id="macro-save-name"
             type="text"
@@ -104,24 +110,24 @@ function SaveDialog({ session, steps, intent, onClose }: { session: ProjectSessi
               setProblem(null);
             }}
           />
-          {name.trim() !== '' && slugFromName(name) === '' ? <span className="project-dialog-help">Use some letters or digits in the name.</span> : null}
+          {name.trim() !== '' && slugFromName(name) === '' ? <span className="project-dialog-help"><Trans>Use some letters or digits in the name.</Trans></span> : null}
         </div>
         <div className="project-dialog-field">
-          <label htmlFor="macro-save-description">Description (optional)</label>
+          <label htmlFor="macro-save-description"><Trans>Description (optional)</Trans></label>
           <input id="macro-save-description" type="text" value={description} onChange={(event) => setDescription(event.target.value)} />
         </div>
         {leaves.length === 0 ? null : (
           <fieldset className="macros-values">
-            <legend>Values to fill in each time</legend>
+            <legend><Trans>Values to fill in each time</Trans></legend>
             <ul className="macro-leaves">
               {leaves.map((leaf) => {
                 const key = leafKey(leaf);
-                const label = `Step ${leaf.step + 1}, ${pathLabel(leaf.path)}`;
+                const label = t`Step ${{ step: leaf.step + 1 }}, ${{ path: pathLabel(leaf.path) }}`;
                 return (
                   <li key={key} className="macro-leaf">
                     <input
                       type="checkbox"
-                      aria-label={`Ask for ${label}`}
+                      aria-label={t`Ask for ${label}`}
                       checked={marks[key] !== undefined}
                       onChange={(event) => mark(key, event.target.checked, paramNameFor(leaf.path))}
                     />
@@ -132,7 +138,7 @@ function SaveDialog({ session, steps, intent, onClose }: { session: ProjectSessi
                       <input
                         type="text"
                         className="macro-leaf-name"
-                        aria-label={`Name of the value for ${label}`}
+                        aria-label={t`Name of the value for ${label}`}
                         value={marks[key]}
                         onChange={(event) => setMarks({ ...marks, [key]: event.target.value })}
                       />
@@ -154,10 +160,10 @@ function SaveDialog({ session, steps, intent, onClose }: { session: ProjectSessi
         ) : null}
         <div className="confirm-actions">
           <button type="button" className="button is-primary" disabled={'problem' in made} onClick={save}>
-            Save macro
+            <Trans>Save macro</Trans>
           </button>
           <button type="button" className="button" onClick={onClose}>
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
         </div>
       </div>

@@ -9,7 +9,7 @@ import { TRACE_REVIEWS, type TraceMessage, type TraceRecord, type TraceStore, ty
 import { t } from '@lingui/core/macro';
 import { formatCount } from '../i18n/locale.js';
 
-/* lingui-set comment="Interpolated values: tool, ruleTool" */
+/* lingui-set comment="Trace bar sentences. Interpolated values: startMs and durationMs are milliseconds." */
 
 export interface TraceMessageView {
   readonly id: string;
@@ -304,5 +304,5 @@ export function turnTimeline(store: TraceStore, turnId: string): TraceTimeline {
 
 /** The sentence that says where a waterfall bar sits, for the reader who does not see the bar. */
 export function barSentence(startMs: number, durationMs: number | undefined): string {
-  return durationMs === undefined ? `started ${startMs} ms in, still running` : `started ${startMs} ms in and took ${durationMs} ms`;
+  return durationMs === undefined ? t`started ${startMs} ms in, still running` : t`started ${startMs} ms in and took ${durationMs} ms`;
 }

@@ -176,15 +176,15 @@ describe('request choices on cards and in local recovery', () => {
     }
   });
 
-  it.each([undefined, {}, { include: [PIN] }, { exclude: [PIN] }] as const)('does not move nonempty request choices into independent background tasks: %j', async (overrides) => {
-    let offered = 0;
+  it.each([undefined, {}, { include: [PIN] }, { exclude: [PIN] }] as const)('retains request choices in the background offer: %j', async (overrides) => {
+    const offered: Parameters<NonNullable<AgentSessionOptions['beforeStage']>>[0][] = [];
     const run = await fixture([transcript(INTENT, [steps(DRAFT, DRAFT, DRAFT, DRAFT, DRAFT)]), prose('Brief: Elena returns.', 'She returned.')], {
-      beforeStage: async () => { offered += 1; return 'background'; },
+      beforeStage: async (offer) => { offered.push(offer); return 'background'; },
     });
     const report = await run.session.submit(INTENT, overrides === undefined ? {} : { contextOverrides: overrides });
-    const controlled = overrides !== undefined && Object.keys(overrides).length > 0;
-    expect(offered).toBe(controlled ? 0 : 1);
-    expect(report.status).toBe(controlled ? 'cancelled' : 'replied');
+    expect(offered).toHaveLength(1);
+    expect(offered[0]?.contextOverrides).toEqual(overrides);
+    expect(report.status).toBe('replied');
   });
 
   it('keeps the turn exclusion in a delegated context without changing its saved policy', async () => {

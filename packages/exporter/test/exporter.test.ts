@@ -467,7 +467,7 @@ describe('refusals — nothing is written, logged or grouped', () => {
     expect(outcome.error.message).toContain('"rtf" is not an export format in this build');
     // `rtf` is the probe for a format nothing ships.
     expect(outcome.error.message).toContain(
-      'The formats are md, txt, docx, epub, fountain, fdx, ink-json, dialogue-csv, shot-list-csv, promptpack, coherence-md, coherence-json, dialogue-xlsx, shot-list-xlsx, pdf, contact-sheet-pdf, comic-pdf, timeline-csv, timeline-xlsx, timeline-svg, timeline-pdf, cbz, comic-epub.',
+      'The formats are md, txt, docx, epub, fountain, fdx, ink-json, dialogue-csv, shot-list-csv, promptpack, coherence-md, coherence-json, dialogue-xlsx, shot-list-xlsx, pdf, contact-sheet-pdf, comic-pdf, timeline-csv, timeline-xlsx, timeline-svg, timeline-pdf, cbz, comic-epub, vo-script-csv, vo-script-xlsx, show-notes, transcript-md, teleprompter, vtt, chapters-json, html, rss, atom, podcast-rss, prose-pdf.',
     );
     expect(r.bus.log.length).toBe(0);
     expect(r.undo.groups()).toHaveLength(0);
@@ -712,10 +712,11 @@ describe('the DOCX contents heading follows the project language (i18n.md §7.1)
   it('writes the German and Japanese word into word/document.xml, never the English one', async () => {
     const de = await documentOf('de');
     expect(de).toContain('Inhalt');
-    expect(de).not.toContain('Contents');
+    // The English word never appears as text a writer sees; docx's fixed docPartGallery id "Table of Contents" is not shown.
+    expect(de).not.toContain('>Contents<');
     const ja = await documentOf('ja');
     expect(ja).toContain('目次');
-    expect(ja).not.toContain('Contents');
+    expect(ja).not.toContain('>Contents<');
   });
 
   it('lets the recipe’s own contents label win over the language’s word', async () => {

@@ -3,10 +3,11 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 
 import {
-  DESKTOP_FEATURES,
+  DESKTOP_FEATURE_KEYS,
   NARROW_EXPORT_FORMATS,
   NARROW_MAX_WIDTH,
   NARROW_QUERY,
+  desktopFeature,
   narrowExportAllowed,
   narrowExportFormat,
   narrowMediaFeature,
@@ -51,9 +52,10 @@ test('the storyboard and the dialogue container are desktop views, and the prose
 });
 
 test('every desktop-only feature is named in words and says what is unchanged', () => {
-  for (const [feature, note] of Object.entries(DESKTOP_FEATURES)) {
+  for (const feature of DESKTOP_FEATURE_KEYS) {
+    const note = desktopFeature(feature);
     expect(note.name, feature).not.toBe('');
     expect(note.detail.endsWith('.'), feature).toBe(true);
   }
-  expect(Object.keys(DESKTOP_FEATURES).sort()).toEqual(['corkboard', 'dialogue', 'exports', 'mcp', 'screenplay-pages', 'storyboard']);
+  expect([...DESKTOP_FEATURE_KEYS].sort()).toEqual(['corkboard', 'dialogue', 'exports', 'mcp', 'screenplay-pages', 'storyboard']);
 });

@@ -35,7 +35,7 @@ import { transcodePictureInNode } from '@caotang/exporter/picture-transcoder-nod
 import { processPictureInNode } from '@caotang/exporter/picture-process-node';
 import { loadInkCompiler } from '@caotang/harness';
 import { isIdWithPrefix } from '@caotang/ids';
-import { loadArabicFontInNode, loadCjkBoldFontInNode, loadCjkFontInNode, loadColourEmojiInNode, loadComicLetteringFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
+import { loadArabicFontInNode, loadBengaliFontInNode, loadCjkBoldFontInNode, loadCjkFontInNode, loadColourEmojiInNode, loadComicLetteringFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadGujaratiFontInNode, loadGurmukhiFontInNode, loadHebrewFontInNode, loadKannadaFontInNode, loadMalayalamFontInNode, loadOriyaFontInNode, loadSinhalaFontInNode, loadTamilFontInNode, loadTeluguFontInNode } from '@caotang/pdf-fonts/node-loader';
 import {
   ArtifactNotFoundError,
   asManifest,
@@ -413,10 +413,21 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
       loadEmojiFont: loadEmojiFontInNode,
       // Their colour emoji (Noto Color Emoji as vector pictures): from fonts/ beside the bundle, or from @caotang/font-noto-color-emoji.
       loadColourEmoji: loadColourEmojiInNode,
-      // Their Arabic, Hebrew and Devanagari fonts: from fonts/ beside the bundle, or from @caotang/font-noto-arabic, @caotang/font-noto-hebrew and @caotang/font-noto-devanagari.
+      // Their Arabic, Hebrew and Indic fonts: from fonts/ beside the bundle, or from @caotang/font-noto-arabic, @caotang/font-noto-hebrew and the @caotang/font-noto-* script packages.
       loadArabicFont: loadArabicFontInNode,
       loadHebrewFont: loadHebrewFontInNode,
-      loadDevanagariFont: loadDevanagariFontInNode,
+      loadIndicFonts: {
+        devanagari: loadDevanagariFontInNode,
+        bengali: loadBengaliFontInNode,
+        gurmukhi: loadGurmukhiFontInNode,
+        gujarati: loadGujaratiFontInNode,
+        oriya: loadOriyaFontInNode,
+        tamil: loadTamilFontInNode,
+        telugu: loadTeluguFontInNode,
+        kannada: loadKannadaFontInNode,
+        malayalam: loadMalayalamFontInNode,
+        sinhala: loadSinhalaFontInNode,
+      },
       // The comic PDF's lettering (Comic Neue and Bangers): from fonts/ beside the bundle, or from @caotang/font-comic-lettering.
       loadComicFont: loadComicLetteringFontInNode,
       // A WebP picture on the contact sheet: decoded with @jsquash/webp, whose webp_dec.wasm is beside the bundle or in its package.

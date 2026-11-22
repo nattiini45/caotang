@@ -3,6 +3,7 @@
  * `reduceTurn` folds each event into the turn's view, so the panel renders a value and two readers of one turn cannot
  * disagree about it. Nothing here touches the DOM, the store or the gateway.
  */
+/* lingui-set comment="Agent status sentences. Interpolated values: progress, total and cached are counts, call is a call number, cause is a reason." */
 
 import {
   CHECKPOINT_LABEL,
@@ -376,10 +377,10 @@ export function progressViewOf(card: Pick<StatusCard, 'status' | 'progress'>): P
   const { progress } = card;
   if (card.status !== 'running' || progress === undefined) return undefined;
   const message = progress.message === undefined ? {} : { message: progress.message };
-  if (progress.total === undefined) return { label: `Progress: ${countOf(progress.progress)}`, ...message };
+  if (progress.total === undefined) return { label: t`Progress: ${{ progress: countOf(progress.progress) }}`, ...message };
   return {
     fraction: Math.min(1, Math.max(0, progress.progress / progress.total)),
-    label: `${countOf(progress.progress)} of ${countOf(progress.total)}`,
+    label: t`${{ progress: countOf(progress.progress) }} of ${{ total: countOf(progress.total) }}`,
     ...message,
   };
 }
@@ -574,9 +575,9 @@ export function promptCacheLines(report: Pick<TurnReport, 'cache'>): string[] {
   const count = (n: number): string => formatCount(n);
   const lines = [
     cache.cachedPromptTokens > 0
-      ? `Prompt cache: ${count(cache.cachedPromptTokens)} of ${count(cache.promptTokens)} input tokens were read from the provider's cache.`
-      : 'Prompt cache: no input was read from the provider\'s cache this turn.',
+      ? t`Prompt cache: ${{ cached: count(cache.cachedPromptTokens) }} of ${{ total: count(cache.promptTokens) }} input tokens were read from the provider's cache.`
+      : t`Prompt cache: no input was read from the provider's cache this turn.`,
   ];
-  for (const miss of cache.misses) lines.push(`Call ${miss.call} read nothing from the cache: ${miss.cause}.`);
+  for (const miss of cache.misses) lines.push(t`Call ${{ call: miss.call }} read nothing from the cache: ${{ cause: miss.cause }}.`);
   return lines;
 }

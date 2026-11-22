@@ -1,6 +1,6 @@
 # Hooks — the writer's checks on agent calls, turns, saves and exports
 
-> Status: **built for pure checks.** All seven events, Settings › Hooks (create, edit, enable, delete and test), `agent.hooks`, the user-only commands and the reports are built. Non-check handlers and a `turn.end` continuation remain specified, not built.
+> Status: **built for pure checks and private MCP and model handlers.** Checks cover all seven events. Private MCP hooks run around supported built-in agent tools; private Background model hooks also support limited rewrites and turn-end continuation. Shell handlers remain specified, not built.
 > Cross-refs: where a hook sits among the rules and the gate = [agent-harness.md](agent-harness.md) §4 · the two commands = [command-bus.md](command-bus.md) §9 · `agent.hooks` = [project-format.md](project-format.md) §2 · the note the model reads = [context-assembly.md](context-assembly.md) §2 · the extension posture = [extensibility.md](extensibility.md) §4 rule 7.
 
 ## 1. Purpose
@@ -19,7 +19,7 @@ A hook **never approves**. It runs after the gate has answered, so an `allow` is
 | `tool.after` | after an agent call returned | **yes** | a note for the model (`context`) |
 | `export.before`, `export.after` | around `export.compile` and `export.compileSelection`, the writer's gesture or the agent's | **yes** | block with "Compile anyway" for the writer, a refusal the agent cannot override |
 | `project.save` | before an open project's `saveFolder` and `exportBundle` | **yes** | `warn` only: **a save is never blocked by a hook**; an autosave flush never fires one |
-| `turn.submit`, `turn.end` | before any planner request (including structured slash plans), and after the last step | **yes** | submit can block before a provider call; end only warns, never continues or reverses a completed write |
+| `turn.submit`, `turn.end` | before any planner request (including structured slash plans), and when a turn would finish | **yes** | pure checks can block on submit and only warn at end; a private Background hook can request bounded continuation of a successful interactive turn |
 
 `HOOK_EVENTS_RUN` contains all seven names. Turn and save checks have no tool; a tools matcher therefore does not match them. Their affected documents are the current project's documents; export checks see only documents in the compile selection (including the descendants and a saved recipe's roots). Pattern checks inspect the expanded intent at submit, and document bodies at end, save and export; word bounds inspect the same text. Read-denied documents remain withheld from agent-issued checks. These reads keep the text and coherence caps of §5.
 
@@ -36,7 +36,7 @@ For a call, in order: the call's params are checked (`prepareCall`), then the ru
 - **At the plan's preflight** (`PlanHost.check`): `HookRunner.preflight` runs the `tool.before` hooks with no effect. It is synchronous and never awaits, never touches the gateway or a connected server, and never runs a port (a test holds all three). A block makes the step `refused`, so the card shows the hook's reason beside the disabled **Approve** (agent-harness §8, "Refusals on the card"), and a mode cannot approve a card with a refused step. A warning rides on the step (`PlanStepPreflight.hooks`, shown as a line on the step) and does not stop approval.
 - **As the call runs**: the hooks are asked again, against the project as it stands then. A writer who marks the scene *Final* while the card is open gets the run-time block, not a write: the plan comes back `refused` with the hook's own ask-back (`hook_blocked`), and nothing is written.
 - **After the call** (`tool.after`): the hooks run on the result. A failed check becomes a **note for the model** (below). A block cannot undo what ran, so a hook that blocks is reported as a note that says "The step has already run; the writer can undo it."
-- **A write ends the turn.** The loop does not send the result of an applied write back to the model, so a `tool.after` note on a write reaches the writer (the report, the event stream, the trace) and not the model in this build. It reaches the model for every call whose result the model reads back: each read, and each external call. A `tool.before` warning travels with the result the same way.
+- **A write normally ends the turn.** Its `tool.after` note reaches the writer in the report, event stream and trace. The model sees notes on results it reads back, including reads, external calls and native tool replies sent back when an opt-in end hook continues the turn. A `tool.before` warning travels with a result in the same way.
 
 `runtime.ts` is where the three call paths ask: `hooksBefore`, `hooksAfter`, and the plan host's `check`. `agent/loop.ts` only drains what the hooks said (`Harness.takeHookRuns(turnId)`) into the turn's report, events and trace, and puts a result's notes in the body the model is handed.
 
@@ -50,7 +50,11 @@ type HookDecision =
   | { action: 'context'; text: string };    // tool.after only
 ```
 
-The union is extensible and has no `transform`: a hook never rewrites a call's params, because the writer approved the card as shown and a rewrite after the approval is a surprise the card cannot show. `onBlock` is `warn` unless the writer set `block`: blocking is the writer's explicit choice.
+This is the decision union for project checks and the record shown in the activity log. The before and after decisions of a private model hook are separate wire verdicts. `onBlock` is `warn` unless the writer set `block`: blocking is the writer's explicit choice.
+
+A writer may opt a private model before hook into proposing replacement text for `notes.append`, `notes.replace`, or `synopsis.set`. Only that tool's prose field can change; the tool, target and other arguments stay fixed. A `transform` verdict supplies a bounded `replacement`; the verdict's reason is discarded. Invalid transformed parameters are refused by name. The replacement is prepared and checked again, then shown beside the original on a fresh card. Only a human decision on that card can approve it, including in Auto mode. The original never runs; the rewritten call has a distinct id and replay fingerprint. A restored rewrite card still shows the diff and requires approval. A previous approval, a recorded card decision or stored rewrite metadata cannot bypass the gate.
+
+A writer may also opt into a private Background model hook at `turn.end`. It receives its check instructions and a completion status, not the conversation, manuscript or result text. A `continue` verdict can resume a successful interactive planner turn with one bounded, redacted reason in an untrusted message. The same turn may continue at most twice; a third request is ignored and reported. Resuming a logged conversation counts continuations already sent; a restored card with no conversation to continue does not start a new one. The ordinary model-call, spending and time limits still apply. If the follow-up request fails before making any changes, the previous result is kept and the failure is reported. The continuation cannot approve a write, and the planner treats the outside reason as data.
 
 **A hook that throws is a warning, never a silent pass and never (by default) a block**: "The hook could not run (…), so the step was not checked." With `failClosed: true` it blocks at `tool.before`. A check that takes over two seconds (`HOOK_SLOW_MS`) is reported as a warning too; a synchronous check cannot be pre-empted, so the bound is the scope of the work (§5), the recorded `ms`, and that warning.
 
@@ -83,9 +87,17 @@ A failed check names what failed in the writer's words and counts: `“lantern�
 
 Caps, enforced by the bus on save, by the loader on load and again by the runner: 20 hooks in a project, 50 patterns in a check, 300 characters in a pattern or a message, 30 check ids or statuses, 50 tools in a matcher, 60 characters in a name. The runner reads at most 2,000,000 characters of prose; more is a failure of the hook. So is an external tool's arguments nested over 6 levels deep (a string, or a list or object with something in it) or holding over 500 strings: the walk never stops short and passes the rest, it fails, and the hook warns or blocks under `failClosed` as it does for the text cap.
 
-*Specified, not built:* the `mcp` handler (a connected server's read-only tool), the `model` handler (a short prompt on the Background role) and the `command` handler (a program on the writer's computer, with the desktop build). They stay out of a project file whatever else ships: they belong in app settings, after the untrusted-data labelling of outside text, and a project file that names one is dropped at load with a notice naming the hook.
+The read-only `mcp` and Background `model` handlers are configured in app settings below. The `command` handler (a program on the writer's computer, with the desktop build) is not built. None belongs in a project file: a project file that names one is dropped at load with a notice naming the hook.
 
 ## 6. Storage and commands
+
+**Read-only MCP handlers (#511).** Settings › Hooks can save up to 20 local MCP hooks per project. The writer names a built-in agent tool and chooses before or after it runs. Caotang sends an empty argument object, not the triggering tool's arguments, manuscript passages, or model context. Both save and live invocation require the configured tool to belong to a connected server trusted for reads, match its reviewed pin, and have effective risk `read-auto`. Execution reuses `mcp.invoke` and records activity as `source: 'mcp'`. Caotang discards the raw result and server error; only a generic status can reach the activity log, hook report, or model. The synchronous preflight, check-only test panel and command bus do not trigger MCP hooks. An unavailable hook warns by default; the writer can make a before hook block instead. An after hook runs only after the original tool succeeds and any required applied record is saved. A hook cannot approve a call or override a denial.
+
+These definitions live in the app database's settings record (`mcpHooks[projectId]`), not in `agent.hooks`. They do not travel with a folder, bundle or the shared server list. A changed or revoked tool pin is never adopted automatically; review the tool again and reselect it in the hook. Disabling or deleting the hook doesn't contact the server.
+
+**Background model handlers (#511).** A writer can save a short check for a supported built-in agent tool in Settings › Hooks. It lives in private app settings (`modelHooks[projectId]`), never in a project or bundle. Saving, editing and preflight make no provider request. The plan's prompt preview estimates each eligible hook separately from the drafting request, so the writer can see the additional Background request before deciding.
+
+An enabled tool hook runs only at the admitted tool's execution boundary, before it runs or after it succeeds. It sends the writer's check and the step's limited, readable prose through the Background role, not credentials, conversation history or the full manuscript. The demo provider cannot run it. Requests count against the same turn call and spending limits as the agent and are cancellable. The default remains bounded `allow`, `warn` or `block`; rewrite and continuation require the explicit settings in §4, and provider errors and ordinary verdict reasons are discarded. A failure warns unless the writer made a before hook fail closed. An after hook can report but cannot reverse the original call. No hook grants permission.
 
 Hooks live in the manifest under `agent.hooks`, beside `agent.rules` (project-format §2). The loader reads each hook with the bus's own `readHook` (the check `hook.save` runs), so a hook the load keeps is one the bus would accept:
 
@@ -128,4 +140,4 @@ A hook that cannot be read (a handler that is not a `check`, an unknown key, a n
 
 ## 9. Decisions
 
-The decision line is in [decisions.md](../decisions.md), "Agent and tools". Non-check handlers remain separate work: `mcp` and `model` need app-side configuration, `command` needs the desktop build, and `turn.end` continuation needs a demonstrated need and a model-call budget.
+The [decisions log](../decisions.md) records the owner-approved fresh-card exception to the former no-rewrite rule. The `command` handler still needs the desktop build.

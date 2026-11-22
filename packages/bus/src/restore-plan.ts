@@ -98,6 +98,7 @@ export const FOOTPRINT_CLASS: Readonly<Record<CommandName, 'content' | 'move' | 
   'binder.move': 'move',
   'binder.rename': 'content',
   'binder.setMeta': 'content',
+  'binder.setPublish': 'content',
   'binder.setSynopsis': 'content',
   'notes.set': 'content',
   'notes.append': 'content',

@@ -161,6 +161,14 @@ export function groupCards(cards: readonly StatusCard[]): readonly CardItem[] {
  * Plan cards — the steps a turn asks to run, and the edits that change them.
  * ------------------------------------------------------------------ */
 
+export interface ModelHookEstimate {
+  readonly id: string;
+  readonly name: string;
+  readonly event: 'tool.before' | 'tool.after';
+  readonly promptTokens: number;
+  readonly outputTokens: number;
+}
+
 export interface PlanStepView {
   readonly contextOverrides?: ContextOverrides;
   /** The step's index in the plan as it now stands. */
@@ -185,10 +193,20 @@ export interface PlanStepView {
   readonly cut: boolean;
   /** The prompt that produced this step's draft, as the card shows it (context-assembly §5). */
   readonly context?: PromptPreview;
+  readonly modelHooks?: readonly ModelHookEstimate[];
+  readonly hookRewrite?: HookRewriteView & { readonly after: string };
   /** The step's estimated cost at the profile's price, when the step carries one: a coherence review's plan (coherence.md §5.3). */
   readonly cost?: StepCost;
   /** The delegated agent that proposed this step, when the step is the one it proposed as it was proposed (agent-harness §2). An edited step has none. */
   readonly proposedBy?: string;
+}
+
+export interface HookRewriteView {
+  readonly tool: string;
+  readonly field: string;
+  readonly name: string;
+  readonly before: string;
+  readonly edited?: true;
 }
 
 export interface PlanCardView {
@@ -322,6 +340,7 @@ export interface EditableSteps {
   readonly proposals: readonly unknown[];
   readonly stale: readonly boolean[];
   readonly superseded: readonly Superseded[];
+  readonly hookRewrites?: readonly (HookRewriteView | undefined)[];
   /**
    * The origins of the steps this turn has already applied. Such a step has run: it is shown as done,
    * it is never run again, and no edit may drop, change or move it. A pending step may not be moved
@@ -410,12 +429,18 @@ export function applyEdit(state: EditableSteps, edit: PlanEdit): Result<Editable
   const toolChanged = next.tool !== current.tool;
   const stale = state.stale.map((flag, index) => (index !== edit.index ? flag : drafted ? MODEL_BACKED_TOOLS.has(next.tool) : flag));
   const proposals = toolChanged ? state.proposals.map((proposal, index) => (index === edit.index ? undefined : proposal)) : state.proposals;
+  const origin = state.origins[edit.index] ?? edit.index;
+  const rewrite = state.hookRewrites?.[origin];
+  const hookRewrites = rewrite !== undefined && rewrite.tool === next.tool && current.params[rewrite.field] !== next.params[rewrite.field]
+    ? state.hookRewrites?.map((entry, at) => at === origin ? { ...rewrite, edited: true as const } : entry)
+    : state.hookRewrites;
   return ok({
     ...state,
     steps,
     proposals,
     stale,
-    superseded: [...state.superseded, { origin: state.origins[edit.index] ?? edit.index, step: current }],
+    superseded: [...state.superseded, { origin, step: current }],
+    ...(hookRewrites === undefined ? {} : { hookRewrites }),
   });
 }
 
@@ -564,13 +589,60 @@ function costOf(value: unknown): StepCost | undefined {
 /** The card's view of one staged proposal. A step with nothing staged shows neither a cut nor a prompt. */
 export function stagedOf(proposal: unknown): StagedView {
   if (!isRecord(proposal)) return { cut: false };
-  const context = isRecord(proposal['context']) ? (proposal['context'] as unknown as PromptPreview) : undefined;
+  const context = previewOf(proposal['context']);
   const cost = costOf(proposal['cost']);
   return {
     cut: proposal['cut'] === true,
     ...(context === undefined ? {} : { context }),
     ...(cost === undefined ? {} : { cost }),
   };
+}
+
+function previewOf(value: unknown): PromptPreview | undefined {
+  if (!isRecord(value)) return undefined;
+  const count = (item: unknown): item is number => typeof item === 'number' && Number.isFinite(item) && item >= 0;
+  const optionalCounts = (item: Record<string, unknown>, keys: readonly string[]) => keys.every((key) => item[key] === undefined || count(item[key]));
+  const layerId = (id: unknown) => typeof id === 'string' && ['L0', 'LI', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7'].includes(id);
+  const reference = (item: Record<string, unknown>) => item['ref'] === undefined || contextOverridesOk({ include: [item['ref']] });
+  const reason = (item: unknown): boolean => {
+    if (!isRecord(item)) return false;
+    switch (item['kind']) {
+      case 'writer-excluded': case 'never': case 'empty-description': case 'manual-unattached': case 'withheld': case 'forward-outline': return true;
+      case 'pin-limit': case 'scope-limit': return count(item['limit']);
+      case 'budget': return layerId(item['layer']) && count(item['budget']) && count(item['rank']);
+      case 'total-budget': return layerId(item['layer']) && count(item['total']) && count(item['rank']);
+      case 'instructions-cap': return typeof item['file'] === 'string' && count(item['sentTokens']) && count(item['totalTokens']);
+      case 'reserve-overflow': return layerId(item['layer']) && count(item['need']) && count(item['budget']) && (item['pinned'] === undefined || item['pinned'] === true);
+      default: return false;
+    }
+  };
+  const named = (items: unknown) => Array.isArray(items) && items.every((item: unknown) => isRecord(item) && typeof item['name'] === 'string' && typeof item['reason'] === 'string');
+  if (!count(value['promptTokens']) || !count(value['completionTokens'])) return undefined;
+  const payload = value['payload'];
+  if (!Array.isArray(payload) || !payload.every((message: unknown) => isRecord(message) && typeof message['role'] === 'string' && ['system', 'user', 'assistant', 'tool'].includes(message['role']) &&
+    (typeof message['content'] === 'string' || (Array.isArray(message['content']) && message['content'].every((part: unknown) => isRecord(part) && part['type'] === 'text' && typeof part['text'] === 'string'))) &&
+    (message['parts'] === undefined || (Array.isArray(message['parts']) && message['parts'].every((part: unknown) => isRecord(part) && typeof part['text'] === 'string' && (part['cacheBoundary'] === undefined || typeof part['cacheBoundary'] === 'boolean')))))) return undefined;
+  const images = value['images'];
+  if (!Array.isArray(images) || !images.every((image: unknown) => isRecord(image) && typeof image['hash'] === 'string' && count(image['size']) &&
+    typeof image['mime'] === 'string' && ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(image['mime']) && (image['caption'] === undefined || typeof image['caption'] === 'string'))) return undefined;
+  const layers = value['layers'];
+  if (!Array.isArray(layers) || !layers.every((layer: unknown) => isRecord(layer) && layerId(layer['id']) && typeof layer['name'] === 'string' && typeof layer['included'] === 'boolean' && count(layer['tokens']) &&
+    optionalCounts(layer, ['budget', 'fraction']) && (layer['likelyCached'] === undefined || layer['likelyCached'] === true) &&
+    Array.isArray(layer['notes']) && layer['notes'].every((note: unknown) => typeof note === 'string') &&
+    Array.isArray(layer['drops']) && layer['drops'].every((drop: unknown) => isRecord(drop) && typeof drop['label'] === 'string' && typeof drop['text'] === 'string' && reference(drop) && reason(drop['reason'])) &&
+    (layer['kept'] === undefined || (Array.isArray(layer['kept']) && layer['kept'].every((item: unknown) => isRecord(item) && typeof item['label'] === 'string' && typeof item['reason'] === 'string' && count(item['tokens']) && reference(item)))))) return undefined;
+  const codex = value['codex'];
+  const story = value['storySoFar'];
+  if (!isRecord(codex) || !named(codex['included']) || !named(codex['dropped']) || !isRecord(story) || !count(story['omittedOlder']) || !Array.isArray(story['included']) || !story['included'].every((item: unknown) => typeof item === 'string')) return undefined;
+  const focus = value['focus'];
+  if (focus !== undefined && (!isRecord(focus) || typeof focus['head'] !== 'string' || typeof focus['summary'] !== 'string')) return undefined;
+  const window = value['window'];
+  if (window !== undefined && (!isRecord(window) || !count(window['contextWindow']) || (window['warning'] !== undefined && typeof window['warning'] !== 'string'))) return undefined;
+  const cache = value['cache'];
+  if (cache !== undefined && (!isRecord(cache) || typeof cache['key'] !== 'string' || !count(cache['prefixTokens']) || !count(cache['readMultiplier']))) return undefined;
+  const cost = value['cost'];
+  if (cost !== undefined && (!isRecord(cost) || !count(cost['promptUsd']) || !count(cost['completionUsd']) || !count(cost['totalUsd']) || !optionalCounts(cost, ['cachedTokens']) || (cost['includesThinking'] !== undefined && cost['includesThinking'] !== true))) return undefined;
+  return value as unknown as PromptPreview;
 }
 
 /** The card a state renders to, with the preflight and the previews that were run for it. */
@@ -586,6 +658,7 @@ export function planCardOf(args: {
   readonly previews: readonly (unknown | undefined)[];
   readonly risks: readonly string[];
   readonly staged?: readonly StagedView[];
+  readonly modelHooks?: readonly (readonly ModelHookEstimate[])[];
   readonly contextOverrides?: ContextOverrides;
   /** The delegated agent each step was proposed by, aligned to the steps. */
   readonly proposedBy?: readonly (string | undefined)[];
@@ -601,6 +674,8 @@ export function planCardOf(args: {
     const context = staged[index]?.context;
     const cost = staged[index]?.cost;
     const proposer = args.proposedBy?.[index];
+    const rewrite = args.state.hookRewrites?.[origin];
+    const after = rewrite?.tool === step.tool ? step.params[rewrite.field] : undefined;
     const shared = {
       index,
       origin,
@@ -615,6 +690,7 @@ export function planCardOf(args: {
       ...(context === undefined ? {} : { context }),
       ...(cost === undefined ? {} : { cost }),
       ...(proposer === undefined ? {} : { proposedBy: proposer }),
+      ...(rewrite !== undefined && typeof after === 'string' ? { hookRewrite: { ...rewrite, after } } : {}),
     };
     if (args.state.completed.includes(origin)) return { ...shared, status: 'done' };
     const checked = args.preflight.steps.find((entry) => entry.index === index);
@@ -622,9 +698,11 @@ export function planCardOf(args: {
     // The step's own preview comes from its drafted proposal when it has one (scene, synopsis and findings drafts), and
     // otherwise from its prepare, which the preflight carries (a codex diff, a restructure's tree). Both are what the card shows.
     const preview = args.previews[index] ?? checked?.preview;
+    const modelHooks = args.modelHooks?.[index];
     return {
       ...shared,
       status,
+      ...(index >= args.from && status === 'ready' && modelHooks !== undefined && modelHooks.length > 0 ? { modelHooks } : {}),
       ...(preview === undefined ? {} : { preview }),
       ...(checked?.error === undefined ? {} : { error: checked.error }),
       ...(checked?.hooks === undefined ? {} : { hooks: checked.hooks }),

@@ -1,0 +1,18 @@
+{
+  "name": "@caotang/font-noto-kannada",
+  "version": "2.006",
+  "license": "OFL-1.1",
+  "private": true,
+  "description": "NotoSansKannada Regular 2.006 as a static TrueType file: the font both PDFs embed, subset, for Kannada text",
+  "repository": "https://github.com/notofonts/kannada",
+  "exports": {
+    "./NotoSansKannada-Regular.ttf": "./NotoSansKannada-Regular.ttf",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "NotoSansKannada-Regular.ttf",
+    "LICENSE",
+    "README.md",
+    "SHA256SUMS"
+  ]
+}

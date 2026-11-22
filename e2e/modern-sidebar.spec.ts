@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
+import { test } from './test.js';
 
 import { NO_PIN } from './classic-pin.js';
 import { waitForSaved } from './support.js';
@@ -75,7 +76,7 @@ async function modernProject(page: Page, pinned = false): Promise<void> {
   }
 }
 
-test('the tab bar shows Binder, Findings, Agent and a decorative minimap; closed, the sidebar is inert and Tab never reaches it', async ({ page }) => {
+test('the tab bar shows Binder, Findings, Agent and a decorative minimap; closed, the sidebar is inert and Tab never reaches it', { tag: '@modern' }, async ({ page }) => {
   await watchCsp(page);
   await modernProject(page);
   await expect(page.getByTestId('modern-binder-bar')).toBeVisible();
@@ -100,7 +101,7 @@ test('the tab bar shows Binder, Findings, Agent and a decorative minimap; closed
   expect(await cspViolations(page)).toEqual([]);
 });
 
-test('a hover held for 140 ms opens the sidebar without moving focus, and it closes 420 ms after the pointer leaves', async ({ page }) => {
+test('a hover held for 140 ms opens the sidebar without moving focus, and it closes 420 ms after the pointer leaves', { tag: '@modern' }, async ({ page }) => {
   await modernProject(page);
   await editorText(page).focus();
   // Time the hover and the state change in the page, so a slow machine cannot make the delays look shorter than they are.
@@ -132,7 +133,7 @@ test('a hover held for 140 ms opens the sidebar without moving focus, and it clo
   expect((marks['closed'] ?? 0) - (marks['leave'] ?? 0)).toBeGreaterThanOrEqual(400);
 });
 
-test('a click, Enter or Space opens it with focus on the current row; Escape closes it and returns focus to the button', async ({ page }) => {
+test('a click, Enter or Space opens it with focus on the current row; Escape closes it and returns focus to the button', { tag: '@modern' }, async ({ page }) => {
   await modernProject(page);
   const current = sidebar(page).getByRole('treeitem', { name: 'The ticket' });
 
@@ -181,7 +182,7 @@ test('a click, Enter or Space opens it with focus on the current row; Escape clo
   await expectClosed(page);
 });
 
-test('the sidebar’s tabs are a tablist with Classic’s keys and ids, and Agent comes back to the last agent log', async ({ page }) => {
+test('the sidebar’s tabs are a tablist with Classic’s keys and ids, and Agent comes back to the last agent log', { tag: '@modern' }, async ({ page }) => {
   await modernProject(page);
   await manuscript(page).click();
   const tablist = sidebar(page).getByRole('tablist', { name: 'Panels' });
@@ -216,7 +217,7 @@ test('the sidebar’s tabs are a tablist with Classic’s keys and ids, and Agen
   await expect(tab('Activity')).toHaveAttribute('aria-selected', 'true');
 });
 
-test('the Binder tab holds the import actions, the filter bar, the tree and the footer under Goals and sprint', async ({ page }) => {
+test('the Binder tab holds the import actions, the filter bar, the tree and the footer under Goals and sprint', { tag: '@modern' }, async ({ page }) => {
   await modernProject(page);
   await manuscript(page).click();
   const side = sidebar(page);
@@ -232,7 +233,7 @@ test('the Binder tab holds the import actions, the filter bar, the tree and the 
   await expect(side.getByTestId('binder-totals')).toBeVisible();
 });
 
-test('Ctrl+Alt+F opens the sidebar on the filter, from the editor', async ({ page }) => {
+test('Ctrl+Alt+F opens the sidebar on the filter, from the editor', { tag: '@modern' }, async ({ page }) => {
   await modernProject(page);
   await editorText(page).focus();
   await page.keyboard.press('Control+Alt+KeyF');
@@ -243,7 +244,7 @@ test('Ctrl+Alt+F opens the sidebar on the filter, from the editor', async ({ pag
   await expect(manuscript(page)).toBeFocused();
 });
 
-test('choosing a scene in an unpinned sidebar closes it on the editor', async ({ page }) => {
+test('choosing a scene in an unpinned sidebar closes it on the editor', { tag: '@modern' }, async ({ page }) => {
   await modernProject(page);
   await manuscript(page).click();
   await sidebar(page).locator('.row-title', { hasText: 'The ferry' }).click();
@@ -310,7 +311,7 @@ function px(value: number | undefined): number {
   return Math.round((value ?? 0) * 100) / 100;
 }
 
-test('every control of the tab bar and the sidebar, and every tree row, is at least 44 by 44 px', async ({ page }) => {
+test('every control of the tab bar and the sidebar, and every tree row, is at least 44 by 44 px', { tag: '@modern' }, async ({ page }) => {
   await modernProject(page);
   await manuscript(page).click();
   await sidebar(page).getByRole('button', { name: 'Goals and sprint' }).click();
@@ -340,7 +341,7 @@ test('every control of the tab bar and the sidebar, and every tree row, is at le
   }
 });
 
-test('under reduced motion the sidebar does not move: it appears with the 120 ms fade only', async ({ page }) => {
+test('under reduced motion the sidebar does not move: it appears with the 120 ms fade only', { tag: '@modern' }, async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await modernProject(page);
   await manuscript(page).click();
@@ -359,7 +360,7 @@ test('under reduced motion the sidebar does not move: it appears with the 120 ms
 test.describe('touch', () => {
   test.use({ hasTouch: true });
 
-  test('a tap on Manuscript opens the sidebar, and a tap on the editor closes it', async ({ page, browserName }) => {
+  test('a tap on Manuscript opens the sidebar, and a tap on the editor closes it', { tag: '@modern' }, async ({ page, browserName }) => {
     test.skip(browserName === 'firefox', 'Firefox has no touch emulation in Playwright');
     await modernProject(page);
     await manuscript(page).tap();

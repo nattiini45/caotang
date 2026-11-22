@@ -11,7 +11,7 @@ import type { ProjectState } from '@caotang/store';
 import { createComicRasterizer } from '../media/comic-raster.js';
 import { browserRasterHost } from '../media/comic-raster-host.js';
 import { coherenceReportWords } from './coherence-report-words.js';
-import { loadArabicFontOverHttp, loadCjkBoldFontOverHttp, loadCjkFontOverHttp, loadColourEmojiOverHttp, loadComicLetteringFontOverHttp, loadDevanagariFontOverHttp, loadEmojiFontOverHttp, loadHebrewFontOverHttp } from './fallback-fonts.js';
+import { loadArabicFontOverHttp, loadCjkBoldFontOverHttp, loadCjkFontOverHttp, loadColourEmojiOverHttp, loadComicLetteringFontOverHttp, loadEmojiFontOverHttp, loadHebrewFontOverHttp, loadIndicFontsOverHttp } from './fallback-fonts.js';
 import { processPictureInBrowser, transcodePictureInBrowser } from './picture-transcoder.js';
 import type { ExportStore } from './exports.js';
 import type { ProjectAssets } from './project-assets.js';
@@ -50,10 +50,10 @@ export function exporterFor(
     loadEmojiFont: loadEmojiFontOverHttp,
     // Noto Color Emoji's vector pictures, fetched from this origin only when an export has Colour emoji on and an emoji the file has.
     loadColourEmoji: loadColourEmojiOverHttp,
-    // Noto Sans Arabic, Noto Sans Hebrew and Noto Sans Devanagari, fetched from this origin only when a file holds their script.
+    // Noto Sans Arabic, Noto Sans Hebrew and the Indic fonts, fetched from this origin only when a file holds their script.
     loadArabicFont: loadArabicFontOverHttp,
     loadHebrewFont: loadHebrewFontOverHttp,
-    loadDevanagariFont: loadDevanagariFontOverHttp,
+    loadIndicFonts: loadIndicFontsOverHttp,
     // The comic PDF's lettering faces (Comic Neue and Bangers), fetched from this origin only when a comic is compiled.
     loadComicFont: loadComicLetteringFontOverHttp,
     // The page raster of the CBZ and the fixed-layout comic EPUB: only a browser has the canvas it is drawn on (comics.md §5, D12).

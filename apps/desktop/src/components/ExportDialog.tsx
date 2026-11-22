@@ -30,7 +30,7 @@ import {
 } from '@caotang/exporter';
 import { loadComicPage } from '@caotang/comic';
 import { loadZipEngine } from '@caotang/store';
-import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type RecipeScriptFont, type SceneNumbersOption } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type HtmlModeOption, type RecipeScriptFont, type SceneNumbersOption } from '@caotang/bus';
 
 import { downloadBytes } from '../app/download.js';
 import { exportCompileMachine, exportReadinessMachine, type CompileEvent, type CompileState } from '../app/export-dialog-model.js';
@@ -79,6 +79,10 @@ function formatGroups(comicSelected: boolean): readonly { readonly name: string;
       { format: 'txt', label: t`Plain text (.txt)`, help: t`Chapter headings in capitals, scenes set apart by a line.` },
       { format: 'docx', label: t`Word (.docx)`, help: t`Styled headings, and a contents field Word can update.` },
       { format: 'epub', label: t`EPUB (.epub)`, help: t`A reading-system book, one file per chapter.` },
+      { format: 'html', label: t`Web article (.html)`, help: t`One HTML file per document: the article with its publish date, canonical link and description from the Publishing inspector section.` },
+      { format: 'rss', label: t`RSS feed (.rss.xml)`, help: t`One feed file for the selection: an item per published document. Needs the recipe's Site address (https).` },
+      { format: 'atom', label: t`Atom feed (.atom.xml)`, help: t`One feed file for the selection: an entry per published document, with the article as its content. Needs the recipe's Site address (https).` },
+      { format: 'prose-pdf', label: t`Prose PDF (.pdf)`, help: t`The manuscript paginated for print: double-spaced Courier on Letter or A4, chapter headings a third of the page down, the page number on every sheet after the first.` },
     ],
   },
   {
@@ -122,6 +126,44 @@ function formatGroups(comicSelected: boolean): readonly { readonly name: string;
             },
           ]
         : []),
+      {
+        format: 'podcast-rss',
+        label: t`Podcast feed (.rss.xml)`,
+        help: t`The show as an RSS feed Apple and the open directories read: an item per episode with its enclosure, duration and publish date. An episode with no hosted audio stays out and is named in the log.`,
+      },
+    ],
+  },
+  // The show's own exports (av-script.md §5): the reading exports, the VO script its episodes' speakable lines make for the booth, the captions and the chapters.
+  {
+    name: t`Show`,
+    formats: [
+      {
+        format: 'show-notes',
+        label: t`Show notes (.md)`,
+        help: t`The show's description and the episode's segments with their timestamps — and the chapter lines for YouTube when its gates hold — to paste into an episode page.`,
+      },
+      {
+        format: 'transcript-md',
+        label: t`Transcript (.md)`,
+        help: t`The spoken lines with each speaker's display name, segment by segment — no cues or timings — for reading or publishing.`,
+      },
+      {
+        format: 'teleprompter',
+        label: t`Teleprompter (.txt)`,
+        help: t`The spoken lines only, wrapped to a set width with no labels or cues, to read off a teleprompter or a sheet.`,
+      },
+      { format: 'vo-script-csv', label: t`VO script (.csv)`, help: t`One row per speakable line — line id, segment, speaker, text, duration and whether it was declared — for a recording booth or a translation shop.` },
+      { format: 'vo-script-xlsx', label: t`VO script (.xlsx)`, help: t`The same rows as a spreadsheet, with the durations as numbers, for Excel, Numbers or LibreOffice.` },
+      {
+        format: 'vtt',
+        label: t`Captions (.vtt)`,
+        help: t`WebVTT captions — one cue per spoken line, each speaker in a voice span — to drop on a narrated video or an audio post.`,
+      },
+      {
+        format: 'chapters-json',
+        label: t`Chapters (.json)`,
+        help: t`The Podcasting 2.0 chapters document — start, title and end per segment — the file a feed’s podcast:chapters points at.`,
+      },
     ],
   },
   // The coherence report (media-track.md, Review): the findings file and its run history, for reading outside Caotang.
@@ -180,6 +222,14 @@ interface ShownOptions {
   readonly cropMarks: boolean;
   /** The timeline PDF draws each scene's pictures as thumbnails on its bar; off unless the recipe sets it (timeline.md §9.1). */
   readonly timelinePictures: boolean;
+  /** The teleprompter's wrap width in characters; `undefined` is the compile's default (av-script.md §5). */
+  readonly teleprompterWidth: number | undefined;
+  /** The HTML article's options (web-publishing.md §3); the dialog has no controls for them, so they are preserved as the recipe holds them. */
+  readonly frontMatter: boolean | undefined;
+  readonly htmlMode: HtmlModeOption | undefined;
+  readonly css: string | undefined;
+  /** The feeds' site address (web-publishing.md §3): an rss/atom compile refuses without it. */
+  readonly siteUrl: string | undefined;
   /** How the prose formats treat the pictures in the bodies: the mode, keeping their metadata, and the EPUB's WebP (pictures.md §4). */
   readonly pictures: ShownPictureOptions;
   /**
@@ -187,6 +237,10 @@ interface ShownOptions {
    * explicit value always wins (screenplay.md §5.3, storyboard.md §6).
    */
   readonly colourEmoji: boolean | undefined;
+  /** Where the prose formats put a footnote's text; `footnote` is the default (exporter.md §3). */
+  readonly notes: 'footnote' | 'endnote';
+  /** The prose PDF's conformance profile; `undefined` is a plain PDF (exporter.md §3). */
+  readonly pdfProfile: 'pdfa-2u' | undefined;
 }
 
 /** The picture modes, in the words the dialog shows. */
@@ -223,9 +277,25 @@ const SCENE_NUMBER_LABELS: Readonly<Record<SceneNumbersOption, string>> = {
 
 /** The Latin faces, in the words the dialog shows. */
 const SCRIPT_FONT_LABELS: Readonly<Record<RecipeScriptFont, string>> = {
-  'courier-prime': 'Courier Prime',
-  courier: 'Courier (the reader’s own)',
-  cousine: 'Cousine (like Courier New)',
+  get 'courier-prime'() {
+    return t`Courier Prime`;
+  },
+  get courier() {
+    return t`Courier (the reader’s own)`;
+  },
+  get cousine() {
+    return t`Cousine (like Courier New)`;
+  },
+};
+
+/** The notes placements, in the words the dialog shows (exporter.md §3). */
+const NOTES_LABELS: Readonly<Record<'footnote' | 'endnote', string>> = {
+  get footnote() {
+    return t`Under each page or chapter`;
+  },
+  get endnote() {
+    return t`At the end of the book`;
+  },
 };
 
 /** The screenplay PDF's options as recipe options. The defaults (off, on, Courier Prime) are left out, so a recipe saved without them stays as it was. */
@@ -247,7 +317,7 @@ function ColourEmojiControl({
   shown,
   onChange,
 }: {
-  format: 'pdf' | 'contact-sheet-pdf';
+  format: 'pdf' | 'contact-sheet-pdf' | 'prose-pdf';
   shown: ShownOptions;
   onChange: (colourEmoji: boolean | undefined) => void;
 }): ReactNode {
@@ -292,10 +362,17 @@ function shownOptionsOf(recipe: ExportRecipe | undefined): ShownOptions {
     bleed: recipe?.options?.bleed ?? true,
     cropMarks: recipe?.options?.cropMarks ?? false,
     timelinePictures: recipe?.options?.timelinePictures ?? false,
+    teleprompterWidth: recipe?.options?.teleprompterWidth,
+    frontMatter: recipe?.options?.frontMatter,
+    htmlMode: recipe?.options?.htmlMode,
+    css: recipe?.options?.css,
+    siteUrl: recipe?.options?.siteUrl,
     colourEmoji: recipe?.options?.colourEmoji,
     sceneNumbers: recipe?.options?.sceneNumbers ?? 'off',
     continued: recipe?.options?.continued ?? true,
     pictures: shownPictureOptionsOf(recipe?.options),
+    notes: recipe?.options?.notes ?? 'footnote',
+    pdfProfile: recipe?.options?.pdfProfile,
   };
 }
 
@@ -428,8 +505,15 @@ export function ExportDialog({
         ...(next.bleed ? {} : { bleed: false }),
         ...(next.cropMarks ? { cropMarks: true } : {}),
         ...(next.timelinePictures ? { timelinePictures: true } : {}),
+        ...(next.teleprompterWidth === undefined ? {} : { teleprompterWidth: next.teleprompterWidth }),
+        ...(next.frontMatter === undefined ? {} : { frontMatter: next.frontMatter }),
+        ...(next.htmlMode === undefined ? {} : { htmlMode: next.htmlMode }),
+        ...(next.css === undefined ? {} : { css: next.css }),
+        ...(next.siteUrl === undefined || next.siteUrl === '' ? {} : { siteUrl: next.siteUrl }),
         ...pictureOptionsOf(next.pictures),
         ...(next.colourEmoji === undefined ? {} : { colourEmoji: next.colourEmoji }),
+        ...(next.notes === 'footnote' ? {} : { notes: next.notes }),
+        ...(next.pdfProfile === undefined ? {} : { pdfProfile: next.pdfProfile }),
       },
     });
     if (outcome.ok) setNotice(null);
@@ -466,8 +550,15 @@ export function ExportDialog({
         ...(shown.bleed ? {} : { bleed: false }),
         ...(shown.cropMarks ? { cropMarks: true } : {}),
         ...(shown.timelinePictures ? { timelinePictures: true } : {}),
+        ...(shown.teleprompterWidth === undefined ? {} : { teleprompterWidth: shown.teleprompterWidth }),
+        ...(shown.frontMatter === undefined ? {} : { frontMatter: shown.frontMatter }),
+        ...(shown.htmlMode === undefined ? {} : { htmlMode: shown.htmlMode }),
+        ...(shown.css === undefined ? {} : { css: shown.css }),
+        ...(shown.siteUrl === undefined || shown.siteUrl === '' ? {} : { siteUrl: shown.siteUrl }),
         ...pictureOptionsOf(shown.pictures),
         ...(shown.colourEmoji === undefined ? {} : { colourEmoji: shown.colourEmoji }),
+        ...(shown.notes === 'footnote' ? {} : { notes: shown.notes }),
+        ...(shown.pdfProfile === undefined ? {} : { pdfProfile: shown.pdfProfile }),
       },
     });
     if (outcome.ok) {
@@ -738,6 +829,21 @@ export function ExportDialog({
                 ) : null}
               </>
             )}
+            {format === 'docx' || format === 'epub' || format === 'txt' || format === 'prose-pdf' ? (
+              <label className="export-field">
+                <span className="export-option-label"><Trans>Footnotes</Trans></span>
+                <select
+                  value={shown.notes}
+                  onChange={(event) => saveOptions({ ...shown, notes: event.target.value === 'endnote' ? 'endnote' : 'footnote' })}
+                >
+                  {(['footnote', 'endnote'] as const).map((option) => (
+                    <option key={option} value={option}>
+                      {NOTES_LABELS[option]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             {format === 'dialogue-csv' || format === 'dialogue-xlsx' ? (
               <CharLimitField
                 key={`limit:${recipe?.name ?? ''}`}
@@ -745,6 +851,27 @@ export function ExportDialog({
                 onSave={(charLimit) => saveOptions({ ...shown, charLimit })}
                 onInvalid={(text) => setNotice({ text, tone: 'error' })}
               />
+            ) : null}
+            {format === 'teleprompter' ? (
+              <TeleprompterWidthField
+                key={`telewidth:${recipe?.name ?? ''}`}
+                value={shown.teleprompterWidth}
+                onSave={(teleprompterWidth) => saveOptions({ ...shown, teleprompterWidth })}
+                onInvalid={(text) => setNotice({ text, tone: 'error' })}
+              />
+            ) : null}
+            {format === 'rss' || format === 'atom' ? (
+              <>
+                <SiteUrlField
+                  key={`siteurl:${recipe?.name ?? ''}`}
+                  value={shown.siteUrl}
+                  onSave={(siteUrl) => saveOptions({ ...shown, siteUrl })}
+                  onInvalid={(text) => setNotice({ text, tone: 'error' })}
+                />
+                <p className="export-option-help">
+                  <Trans>The feed&apos;s address — where the site serves it. A compile refuses without it.</Trans>
+                </p>
+              </>
             ) : null}
             {format === 'pdf' ? (
               <>
@@ -762,18 +889,18 @@ export function ExportDialog({
                   </select>
                 </label>
                 <label className="export-field">
-                  <span className="export-option-label">Paper size</span>
+                  <span className="export-option-label"><Trans>Paper size</Trans></span>
                   {/* Letter is the screenplay PDF's own paper, so choosing it leaves the option out of the recipe. */}
                   <select
                     value={shown.pageSize ?? 'Letter'}
                     onChange={(event) => saveOptions({ ...shown, pageSize: event.target.value === 'A4' ? 'A4' : undefined })}
                   >
-                    <option value="Letter">US Letter</option>
-                    <option value="A4">A4</option>
+                    <option value="Letter"><Trans>US Letter</Trans></option>
+                    <option value="A4"><Trans>A4</Trans></option>
                   </select>
                 </label>
                 <label className="export-field">
-                  <span className="export-option-label">Font</span>
+                  <span className="export-option-label"><Trans>Font</Trans></span>
                   <select
                     value={shown.scriptFont ?? 'courier-prime'}
                     onChange={(event) => saveOptions({ ...shown, scriptFont: event.target.value as RecipeScriptFont })}
@@ -794,6 +921,45 @@ export function ExportDialog({
                   <span className="export-option-label"><Trans>(MORE) and (CONT’D) where a speech crosses a page</Trans></span>
                 </label>
                 <ColourEmojiControl format="pdf" shown={shown} onChange={(colourEmoji) => saveOptions({ ...shown, colourEmoji })} />
+              </>
+            ) : null}
+            {format === 'prose-pdf' ? (
+              <>
+                <label className="export-field">
+                  <span className="export-option-label"><Trans>Paper size</Trans></span>
+                  {/* Letter is the prose PDF's own paper, so choosing it leaves the option out of the recipe. */}
+                  <select
+                    value={shown.pageSize ?? 'Letter'}
+                    onChange={(event) => saveOptions({ ...shown, pageSize: event.target.value === 'A4' ? 'A4' : undefined })}
+                  >
+                    <option value="Letter"><Trans>US Letter</Trans></option>
+                    <option value="A4"><Trans>A4</Trans></option>
+                  </select>
+                </label>
+                <label className="export-field">
+                  <span className="export-option-label"><Trans>Font</Trans></span>
+                  <select
+                    value={shown.scriptFont ?? 'courier-prime'}
+                    onChange={(event) => saveOptions({ ...shown, scriptFont: event.target.value as RecipeScriptFont })}
+                  >
+                    {RECIPE_SCRIPT_FONTS.map((option) => (
+                      <option key={option} value={option}>
+                        {SCRIPT_FONT_LABELS[option]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <ColourEmojiControl format="prose-pdf" shown={shown} onChange={(colourEmoji) => saveOptions({ ...shown, colourEmoji })} />
+                <label className="export-field">
+                  <span className="export-option-label"><Trans>Profile</Trans></span>
+                  <select
+                    value={shown.pdfProfile ?? 'plain'}
+                    onChange={(event) => saveOptions({ ...shown, pdfProfile: event.target.value === 'pdfa-2u' ? 'pdfa-2u' : undefined })}
+                  >
+                    <option value="plain"><Trans>A plain PDF</Trans></option>
+                    <option value="pdfa-2u"><Trans>PDF/A-2u, for filing and archives</Trans></option>
+                  </select>
+                </label>
               </>
             ) : null}
             {format === 'comic-pdf' ? (
@@ -954,6 +1120,92 @@ function ContentsLabelField({ value, onSave }: { value: string; onSave: (label: 
  * leaves it, as the author line does. Empty is no limit; a value the bus would refuse is said in the dialog (`onInvalid`), and the field
  * goes back to the saved value.
  */
+function TeleprompterWidthField({
+  value,
+  onSave,
+  onInvalid,
+}: {
+  value: number | undefined;
+  onSave: (width: number | undefined) => void;
+  onInvalid: (text: string) => void;
+}): ReactNode {
+  useLingui();
+  const saved = value === undefined ? '' : String(value);
+  const [draft, setDraft] = useState(saved);
+  return (
+    <label className="export-field">
+      <span className="export-option-label"><Trans>Line width in characters</Trans></span>
+      <input
+        type="number"
+        min={1}
+        value={draft}
+        placeholder={t`The default`}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => {
+          const text = draft.trim();
+          if (text === '') {
+            if (value !== undefined) onSave(undefined);
+            return;
+          }
+          const width = Number(text);
+          if (!Number.isInteger(width) || width < 1) {
+            onInvalid('A line width is a whole number of characters above zero, or empty for the default.');
+            setDraft(saved);
+            return;
+          }
+          if (width !== value) onSave(width);
+        }}
+      />
+    </label>
+  );
+}
+
+/** The feed formats' `siteUrl` (web-publishing.md §3): the site's absolute https address, cleared by emptying the field. */
+function SiteUrlField({
+  value,
+  onSave,
+  onInvalid,
+}: {
+  value: string | undefined;
+  onSave: (siteUrl: string | undefined) => void;
+  onInvalid: (text: string) => void;
+}): ReactNode {
+  useLingui();
+  const saved = value ?? '';
+  const [draft, setDraft] = useState(saved);
+  return (
+    <label className="export-field">
+      <span className="export-option-label"><Trans>Site address</Trans></span>
+      <input
+        type="url"
+        value={draft}
+        placeholder="https://example.com"
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => {
+          const text = draft.trim();
+          if (text === '') {
+            if (value !== undefined) onSave(undefined);
+            return;
+          }
+          let ok = false;
+          try {
+            const url = new URL(text);
+            ok = url.protocol === 'https:' && url.hostname !== '';
+          } catch {
+            ok = false;
+          }
+          if (!ok) {
+            onInvalid('The site address is the feed’s link: an absolute https address, like https://example.com.');
+            setDraft(saved);
+            return;
+          }
+          if (text !== value) onSave(text);
+        }}
+      />
+    </label>
+  );
+}
+
 function CharLimitField({
   value,
   onSave,

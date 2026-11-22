@@ -13,6 +13,8 @@
 /* lingui-set comment="Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words" */
 
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -34,7 +36,7 @@ import { childrenOf, enclosingFolders, newDocumentRefusalText, newItemParent, no
 import { newPlan, newTarget, type NewKind } from '../app/new-menu.js';
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, type DirectoryHandleLike } from '../app/fs-access.js';
-import { isImeEnter, keyFacts, keyboardLayoutStore, resolveKey } from '../app/keymap.js';
+import { MODAL_DIALOG_SELECTOR, isImeEnter, keyFacts, keyboardLayoutStore, resolveKey } from '../app/keymap.js';
 import { shellActions } from '../app/shell-actions.js';
 import { NARROW_QUERY, narrowMediaFeature, type NarrowPanel } from '../app/narrow-model.js';
 import {
@@ -55,17 +57,18 @@ import { evictionVariantApplies, type EvictionFacts } from '../app/picture-notic
 import { ExportSweepOffer, sweepBeforeExport, sweepOfferBeforeExport } from '../media/PictureStorage.js';
 import { PictureNotices } from './PictureNotices.js';
 import { saveStateWords } from '../app/integrity-model.js';
+import { nativeFolderId, nativeFoldersAvailable } from '../app/native-folders.js';
+import { useFolderWatch } from '../app/use-folder-watch.js';
 import { requestInspector } from '../app/inspector-request.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import type { StartIntent } from '../App.js';
 import { RecurringTasks } from '../app/recurring-tasks.js';
 import { Binder, type CenterMode } from './Binder.js';
-import { CodexPanel } from './CodexPanel.js';
 import { mediaKindOf, mediaPortsFor, mediaViewFor } from '../media/index.js';
 import type { PictureFocusRequest } from '../media/picture-board-model.js';
 import type { SourceRoute } from '../media/element-menu.js';
 
-import { Corkboard } from './Corkboard.js';
+
 import { LazyBoundary, lazyView } from './lazy-view.js';
 import type { TimelineFocusRequest } from '../app/timeline-model.js';
 import { clearTray, pendingRows } from '../app/timeline-tray.js';
@@ -74,14 +77,10 @@ import { BinderFooter } from './BinderFooter.js';
 import { whenAgent } from '../app/agent-registry.js';
 import { openFindingCount, openFindingsOfScene } from '../app/findings-model.js';
 import type { ExportSelection } from './ExportDialog.js';
-import { openDialog } from './dialog-requests.js';
+import { closeDialog, openDialog, useDialogRequest } from './dialog-requests.js';
 import { ModalStackState, useModalValue } from './modal.js';
 import { modalStack } from './modal-stack.js';
 import { currentInterface } from '../app/interface.js';
-import { ProjectPanel } from './ProjectPanel.js';
-import { AgentInstructionsPanel } from './AgentInstructionsPanel.js';
-import { SkillsPanel } from './SkillsPanel.js';
-import { VocabularyEditor } from './VocabularyEditor.js';
 import { ImportPreviewHost } from '../import-preview/ImportPreviewHost.js';
 import { Inspector } from './Inspector.js';
 import { Settings, type SettingsSection } from './LazySettings.js';
@@ -103,6 +102,9 @@ import { railTabId } from './shell/ClassicShell.js';
 import { minimapDots } from './shell/minimap.js';
 import type { AgentActivity, RailTab, ShellRegions } from './shell/regions.js';
 import { Shell } from './shell/Shell.js';
+// The toolbar's project name and the dialogs other chunks draw (.export-field, .project-dialog-row, .project-dialog) are styled from
+// this sheet, so the workspace keeps it in the entry stylesheet even though the panels that used to bring it now load on use.
+import './project-dialogs.css';
 
 /** The timeline is its own chunk: the view and its package are fetched when the writer first opens it. */
 const PictureBoard = lazyView(() => import('../media/PictureBoard.js').then((module) => ({ default: module.PictureBoard })));
@@ -113,6 +115,15 @@ const ExportDialog = lazyView(() => import('./ExportDialog.js').then((module) =>
 const FindingsPanel = lazyView(() => import('./FindingsPanel.js').then((module) => ({ default: module.FindingsPanel })));
 const ActivityPanel = lazyView(() => import('./ActivityPanel.js').then((module) => ({ default: module.ActivityPanel })));
 const TracePanel = lazyView(() => import('./TracePanel.js').then((module) => ({ default: module.TracePanel })));
+// The Codex rail and the corkboard are views the writer switches to; both load with the switch, as the timeline and the pictures do.
+const CodexPanel = lazyView(() => import('./CodexPanel.js').then((module) => ({ default: module.CodexPanel })));
+const Corkboard = lazyView(() => import('./Corkboard.js').then((module) => ({ default: module.Corkboard })));
+// The panels the toolbar opens over the page: each is read when its request opens, so its code and the package behind it stay out of
+// the first load (dialog-requests.ts).
+const ProjectPanel = lazyView(() => import('./ProjectPanel.js').then((module) => ({ default: module.ProjectPanel })));
+const SkillsPanel = lazyView(() => import('./SkillsPanel.js').then((module) => ({ default: module.SkillsPanel })));
+const AgentInstructionsPanel = lazyView(() => import('./AgentInstructionsPanel.js').then((module) => ({ default: module.AgentInstructionsPanel })));
+const VocabularyEditor = lazyView(() => import('./VocabularyEditor.js').then((module) => ({ default: module.VocabularyEditor })));
 
 /**
  * The one title in rename mode, and where it is shown. The binder and the corkboard can both
@@ -123,6 +134,12 @@ export interface Renaming {
   readonly nodeId: string;
   readonly surface: 'binder' | 'card';
 }
+
+/**
+ * The folder-change offer and the watcher behind it load only while a native folder is open (desktop.md §External folder
+ * changes): the website neither watches a folder nor fetches this chunk.
+ */
+const FolderChangeStatus = lazy(() => import('./FolderChangeStatus.js').then((module) => ({ default: module.FolderChangeStatus })));
 
 export interface WorkspaceProps {
   readonly session: ProjectSession;
@@ -138,6 +155,8 @@ export interface WorkspaceProps {
    * `answerFolderDiffers`). The save is the folder save, so a document it would write over is asked about first.
    */
   readonly saveToFolder?: DirectoryHandleLike | null;
+  /** Reloads the open project folder's own version, after the folder changed outside Caotang (App `reopenFolder`). */
+  readonly onReopenFolder: (folder: DirectoryHandleLike) => void;
 }
 
 export function Workspace({
@@ -148,11 +167,14 @@ export function Workspace({
   notice = null,
   startIntent = null,
   saveToFolder: pendingFolder = null,
+  onReopenFolder,
 }: WorkspaceProps): ReactNode {
   useSession(session);
   const { state, view } = session;
   // The printed-key layout behind the shortcut labels the toolbar shows (keymap.ts; the same subscription as EditorPane).
   const keyboardLayout = useSyncExternalStore(keyboardLayoutStore.subscribe, keyboardLayoutStore.snapshot);
+  // Which dialog the toolbar opened, so only that panel's code is fetched (dialog-requests.ts).
+  const dialog = useDialogRequest();
   const [rail, setRail] = useState<RailTab>('binder');
   const [center, setCenterNow] = useState<CenterMode>('editor');
   /** Where the writer asked to go while proposed timeline changes were waiting, until they have answered the question that asks. */
@@ -168,6 +190,9 @@ export function Workspace({
   const [timelineFocus, setTimelineFocus] = useState<TimelineFocusRequest | null>(null);
   const [pictureFocus, setPictureFocus] = useState<PictureFocusRequest | null>(null);
   const [findingsFocus, setFindingsFocus] = useState<{ readonly factGroup: string; readonly serial: number } | null>(null);
+  const [findingsRunFocus, setFindingsRunFocus] = useState<{ readonly runId: string; readonly serial: number } | null>(null);
+  const [inboxReturnTask, setInboxReturnTask] = useState<string | null>(null);
+  const [inboxFocus, setInboxFocus] = useState<{ readonly taskId: string; readonly serial: number } | null>(null);
   const focusSerial = useRef(0);
   // The narrow layout (ui-modules §1): which panel is open over the centre, and the toolbar's overflow menu. View state only; a wide
   // window never reads it.
@@ -471,7 +496,13 @@ export function Workspace({
   const failedSaveChannels = session.failedSaveChannels();
   const stopped = session.tabStop().getSnapshot();
   const stopCause = stopped.kind === 'stopped' ? stopped.cause : undefined;
-  const saveWords = saveStateWords(saveState, stopCause, failedSaveChannels);
+  const folderCopy = session.folderBaseline()?.folder ?? null;
+  // The watch starts with the workspace, so a change made while the offer's own module is still loading is not missed;
+  // that module holds only the words and the buttons (FolderChangeStatus).
+  const folderWatch = useFolderWatch(session);
+  const nativeFolder = nativeFolderId(folderCopy) !== undefined;
+  const browserFolderPicker = !nativeFoldersAvailable() && folderAccessSupported();
+  const saveWords = saveStateWords(saveState, stopCause, failedSaveChannels, nativeFolder);
   // The export dialog compiles the item the binder has selected, unless that is a section (then it is the whole manuscript).
   const exportSelection: ExportSelection | null =
     selectedNode === undefined || selectedNode.id === 'manuscript' || selectedNode.id === 'research' || selectedNode.id === 'root'
@@ -538,9 +569,38 @@ export function Workspace({
   /** "Open in Findings" from the timeline: the Findings rail opens on the fact group, which the panel scrolls to and focuses. */
   const openInFindings = useCallback((factGroup: string): void => {
     setRail('findings');
+    setFindingsRunFocus(null);
+    setInboxReturnTask(null);
     focusSerial.current += 1;
     setFindingsFocus({ factGroup, serial: focusSerial.current });
   }, []);
+
+  const openTaskFindings = async (taskId: string, runId: string): Promise<void> => {
+    setAgentOpen(false);
+    setRail('findings');
+    setRailRequest((count) => count + 1);
+    if (narrow) setPanel('rail');
+    if (hideRails) setFocusMode(false);
+    setFindingsFocus(null);
+    setInboxReturnTask(taskId);
+    focusSerial.current += 1;
+    setFindingsRunFocus({ runId, serial: focusSerial.current });
+    try {
+      await agent?.acknowledgeReviewTask(taskId);
+    } catch {
+      report({ text: t`The report’s read marker could not be saved. It may appear unread after reload.`, tone: 'error' });
+    }
+  };
+
+  const returnToInbox = (): void => {
+    if (inboxReturnTask === null) return;
+    setAgentOpen(true);
+    setPanel(null);
+    focusSerial.current += 1;
+    setInboxFocus({ taskId: inboxReturnTask, serial: focusSerial.current });
+    setFindingsRunFocus(null);
+    setInboxReturnTask(null);
+  };
 
   /** "Show on timeline" from a finding: the timeline replaces the centre and moves to the scenes the finding cites. */
   const showOnTimeline = useCallback((docIds: readonly string[], findingId: string): void => {
@@ -595,6 +655,7 @@ export function Workspace({
   // and always sees the current selection, without re-subscribing on each change.
   const onKey = (event: KeyboardEvent): void => {
     const target = event.target;
+    if (event.defaultPrevented || (target instanceof Element && target.closest(MODAL_DIALOG_SELECTOR) !== null)) return;
     const inTextField =
       target instanceof HTMLTextAreaElement ||
       target instanceof HTMLInputElement ||
@@ -796,13 +857,15 @@ export function Workspace({
       }
       if (session.saveState() === 'failed') {
         report({
-          text: t`Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave.`,
+          text: nativeFolder
+            ? t`Some changes have not reached the project folder, so the project stays open. Export a bundle to keep a copy.`
+            : t`Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave.`,
           tone: 'error',
         });
         return;
       }
       // Leaving with changes the writer has no copy of is not held up: the projects screen suggests a bundle, once (project-format §8).
-      if (session.changedSinceExport()) {
+      if (!nativeFolder && session.changedSinceExport()) {
         noteLeaveSuggestion({ projectId: session.projectId, name: state.manifest.project.name });
       }
       onHome();
@@ -824,7 +887,7 @@ export function Workspace({
   const openProviders = (): void => setSettingsSection('providers');
   // The shell actions (modern-interface.md §4.2): Classic's toolbar and its narrow More menu both render from this one list.
   const actions = shellActions(
-    { undoLabel, focusMode, theme, folderPicker: folderAccessSupported(), keyboardLayout },
+    { undoLabel, focusMode, theme, folderPicker: browserFolderPicker, keyboardLayout },
     {
       projects: leave,
       details: () => openDialog({ kind: 'project' }),
@@ -926,6 +989,7 @@ export function Workspace({
         onReveal={revealPassage}
         settings={settingsNow.coherence}
         providers={services.providers}
+        controller={agent}
         onOpenAgent={() => {
           setAgentOpen(true);
           setPanel(null);
@@ -933,6 +997,8 @@ export function Workspace({
         onOpenDocument={openDocument}
         focusGroup={findingsFocus}
         onGroupFocused={() => setFindingsFocus(null)}
+        focusRun={findingsRunFocus}
+        onBackToInbox={inboxReturnTask === null ? undefined : returnToInbox}
         onShowOnTimeline={showOnTimeline}
       />
     ),
@@ -943,7 +1009,7 @@ export function Workspace({
       openInFindings(factGroup);
     },
     activity: <ActivityPanel session={session} onExport={() => void exportActivity()} onResumeRun={() => setAgentOpen(true)} />,
-    trace: <TracePanel services={services} projectName={state.manifest.project.name} />,
+    trace: <TracePanel services={services} session={session} projectName={state.manifest.project.name} />,
     inspector: (
       <Inspector session={session} nodeId={selected} onOpenCodex={openCodexEntry} onAgentIntent={runAgentIntent} onOpenPicture={openPictureBoard} />
     ),
@@ -1002,6 +1068,9 @@ export function Workspace({
           onToggle={() => setAgentOpen((on) => !on)}
           sample={sample}
           onOpenProviders={openProviders}
+          onOpenTaskFindings={openTaskFindings}
+          inboxFocus={inboxFocus}
+          onInboxFocused={() => setInboxFocus(null)}
         />
       ),
     // The same panel for a shell that hosts it in a window of its own (Modern's companion, modern-interface.md §7.4, §8.10): always open,
@@ -1019,6 +1088,9 @@ export function Workspace({
           onClose={() => setAgentOpen(false)}
           onAddProvider={openProviders}
           onOpenProviders={openProviders}
+          onOpenTaskFindings={openTaskFindings}
+          inboxFocus={inboxFocus}
+          onInboxFocused={() => setInboxFocus(null)}
           placement="window"
           sample={sample}
         />
@@ -1077,10 +1149,10 @@ export function Workspace({
         projectId={session.projectId}
         facts={pictureFacts}
         onExport={exportBundleOffering}
-        {...(folderAccessSupported() ? { onSaveToFolder: saveToFolder } : {})}
+        {...(browserFolderPicker ? { onSaveToFolder: saveToFolder } : {})}
       />
     ),
-    status: message === null && !folderSaving && review.kind !== 'running' ? null : (
+    status: message === null && !folderSaving && review.kind !== 'running' && folderWatch.changed === null ? null : (
       <>
         {review.kind === 'running' ? (
           <div className="status-line" role="status" data-testid="review-status" data-state="running">
@@ -1109,11 +1181,26 @@ export function Workspace({
               ) : null}
               {folderSaving ? <>{message === null ? null : ' '}<Trans>Saving to the folder…</Trans></> : null}
             </span>
-            {message === null ? null : <button type="button" className="button is-quiet" onClick={() => setMessage(null)}>
+            {message === null ? null : <button type="button" className="button is-quiet" onClick={() => {
+              reportChannel.dismiss();
+              setMessage(null);
+            }}>
               <Trans>Dismiss</Trans>
             </button>}
           </div>
         ) : null}
+        {folderCopy === null || folderWatch.changed === null ? null : (
+          <Suspense fallback={null}>
+            <FolderChangeStatus
+              folder={folderCopy}
+              changed={folderWatch.changed}
+              saved={saveState === 'saved'}
+              onDismiss={folderWatch.dismiss}
+              onReopen={onReopenFolder}
+              onExport={exportBundleOffering}
+            />
+          </Suspense>
+        )}
       </>
     ),
     saveState: <SaveIndicator state={saveState} words={saveWords} onExport={exportNow} />,
@@ -1182,10 +1269,26 @@ export function Workspace({
             <ExportDialog session={session} selection={exportSelection} onClose={() => setExporting(false)} />
           </LazyBoundary>
         ) : null}
-        <ProjectPanel session={session} />
-        <SkillsPanel session={session} />
-        <AgentInstructionsPanel session={session} services={services} onAgentIntent={runAgentIntent} />
-        <VocabularyEditor session={session} />
+        {dialog?.kind === 'project' ? (
+          <LazyBoundary label={t`the project panel`} variant="toast" onDismiss={closeDialog}>
+            <ProjectPanel session={session} />
+          </LazyBoundary>
+        ) : null}
+        {dialog?.kind === 'skills' ? (
+          <LazyBoundary label={t`the Skills panel`} variant="toast" onDismiss={closeDialog}>
+            <SkillsPanel session={session} />
+          </LazyBoundary>
+        ) : null}
+        {dialog?.kind === 'agent-instructions' ? (
+          <LazyBoundary label={t`the agent instructions`} variant="toast" onDismiss={closeDialog}>
+            <AgentInstructionsPanel session={session} services={services} onAgentIntent={runAgentIntent} />
+          </LazyBoundary>
+        ) : null}
+        {dialog?.kind === 'vocabulary' ? (
+          <LazyBoundary label={t`the vocabulary editor`} variant="toast" onDismiss={closeDialog}>
+            <VocabularyEditor session={session} />
+          </LazyBoundary>
+        ) : null}
         <ImportPreviewHost session={session} />
 
 
