@@ -3093,6 +3093,91 @@ label.settings-check {
   white-space: nowrap;
 }
 
+/* The chat window's model picker (provider-gateway §2, "One connection, many models"): the model a request runs on, beside the
+   provider it runs through, and the thinking level that model documents. Both keep the header's own size so a long model id
+   never squeezes the step line. */
+.agent-model {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.agent-model [data-slot='select-trigger'].agent-model-trigger {
+  min-block-size: var(--target-min);
+  max-inline-size: 18rem;
+  padding-inline: var(--space-3);
+  font-size: var(--text-md);
+}
+
+.agent-model [data-slot='select-value'] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The caret is this file's own drawing, not the component library's, so it carries its size here. */
+.agent-model [data-slot='select-trigger'] svg {
+  flex: none;
+  inline-size: 1em;
+  block-size: 1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.agent-model-level {
+  max-inline-size: 9rem;
+  font-size: var(--text-md);
+}
+
+/* The menu itself is a portal at the page's edge, so it carries its own surface rather than inheriting the panel's. */
+.agent-model-options {
+  z-index: 30;
+  min-inline-size: 14rem;
+  max-inline-size: min(24rem, 90vw);
+  max-block-size: 60vh;
+  overflow-y: auto;
+  padding: var(--space-1);
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--elev-2);
+}
+
+.agent-model-options [data-slot='select-group-label'] {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.agent-model-options [data-slot='select-item'] {
+  padding: var(--space-2) var(--space-3);
+  overflow-wrap: anywhere;
+  border-radius: var(--radius-xs);
+}
+
+.agent-model-options [data-highlighted] {
+  background: var(--accent-soft);
+}
+
+.agent-model-options [data-slot='select-item'][aria-selected='true'] {
+  font-weight: 600;
+}
+
+@media (max-width: 959px) {
+  .agent-model {
+    flex: 1 1 100%;
+  }
+
+  .agent-model [data-slot='select-trigger'].agent-model-trigger {
+    max-inline-size: none;
+  }
+}
+
 /* The run's spend under the step line while a turn works: tokens, cost and time worked against the limits the writer set. */
 .agent-spend {
   overflow: hidden;

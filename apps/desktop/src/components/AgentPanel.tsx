@@ -41,9 +41,12 @@ import { formatUsd } from '../app/plan-preview.js';
 import { sumUsage } from '@caotang/gateway';
 import { groupUsage } from '../app/usage-model.js';
 import { isImeEnter, keyFacts, keyboardLayoutStore, MODAL_DIALOG_SELECTOR, resolveKey, shortcutLabel } from '../app/keymap.js';
+import type { ChatModelView } from '../app/chat-model.js';
 import { providerLabel } from '../app/provider-label.js';
 import { unresolvedNotice } from '../app/review-text.js';
 import type { AgentController, AgentSnapshot, GoalRecoveryView } from '../app/agent.js';
+import { ChatModelPicker } from './ChatModelPicker.js';
+import { THINKING_LEVEL_NAMES } from './thinking-levels.js';
 import type { CommandNote } from '../app/slash-model.js';
 import type { RecurringTasks } from '../app/recurring-tasks.js';
 import type { StartIntent } from '../App.js';
@@ -115,6 +118,12 @@ export interface AgentPanelProps {
   readonly placement?: 'drawer' | 'window';
   /** Closes the window. Only the window placement draws **Close** and calls it. */
   readonly onClose?: () => void;
+  /**
+   * The chat window's model picker (provider-gateway §2, "One connection, many models"): every model the writer's provider
+   * connections hold, where chat runs now, and the write a pick makes. Absent in a host that draws no picker.
+   */
+  readonly model?: ChatModelView;
+  readonly onPickModel?: (profileId: string, model: string, thinking?: string) => void;
   /** Opens Settings › Providers. Only the window gets it, and offers it under the demo's refusal (#363). */
   readonly onAddProvider?: () => void;
   readonly onOpenProviders?: () => void;
@@ -167,6 +176,8 @@ export function AgentPanel({
   sample,
   placement = 'drawer',
   onClose,
+  model,
+  onPickModel,
   onAddProvider,
   onOpenProviders,
   onOpenTaskFindings,
@@ -177,7 +188,7 @@ export function AgentPanel({
   const sectionHeading = inWindow ? 3 : 4;
   // A window is always open: only the drawer folds.
   const open = inWindow || drawerOpen;
-  useLingui();
+  const { i18n } = useLingui();
   const sessionVersion = useSession(session);
   const snapshot = useSyncExternalStore(agent.subscribe, agent.snapshot);
   const goalInConversation = (goal: GoalRecoveryView): boolean => open && (goal.goalId === snapshot.activeGoalId || (goal.status === 'settled' && !goal.unreadable));
@@ -548,6 +559,19 @@ export function AgentPanel({
         <span className="agent-provider" data-testid="agent-provider">
           {provider === null ? t`No provider` : t`Provider: ${{ provider: isolate(providerLabel(provider, snapshot.providerIsDemo)) }}`}
         </span>
+        {model === undefined || onPickModel === undefined || snapshot.providerIsDemo ? null : (
+          <ChatModelPicker
+            groups={model.groups}
+            value={model.value}
+            levels={model.levels.map((level) => ({ id: level, label: i18n._(THINKING_LEVEL_NAMES[level]) }))}
+            thinking={model.thinking}
+            disabled={snapshot.busy}
+            onPick={(profileId, chosen) => onPickModel(profileId, chosen)}
+            onPickThinking={(level) => {
+              if (model.value !== null) onPickModel(model.value.profileId, model.value.model, level);
+            }}
+          />
+        )}
         {/* The permission mode (agent-harness §4): a radio group named by its visible label, in the header so it shows with the drawer closed too. */}
         <fieldset className="agent-mode" data-testid="agent-mode">
           <legend><Trans>Mode</Trans></legend>

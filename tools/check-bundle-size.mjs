@@ -171,7 +171,12 @@ export const BUDGET = {
   // count, and the dead exports written before measuring were deleted. [delegated 2026-11-21]
   // Measured again on the merge of main 04f250ae, which carries both of the above: 1,114,869 bytes, and 1,114,863 on a clean rebuild, whose
   // chunk hashes differ by a few bytes. The ceiling is that plus at most 137 bytes, so later work inherits no free room. [delegated 2026-11-21]
-  initialGzip: 1_115_000,
+  // One connection holding many models (provider-gateway §2) measured 1,116,115 bytes gzip, against 1,114,900 on main in the same
+  // checkout. What grew is the English catalogue's new messages for the models step and the chat picker, which i18n.md §3.3 keeps in the
+  // entry before first paint, plus the role write the picker makes. Optimisations tried first: the picker is a menu in the already lazy
+  // Agent panel, its model and the level names were measured out of the entry (0.3 kB of the 1.2 kB), and no dependency was added. The
+  // ceiling is the measurement plus under 1 kB. [bundle-raise rule 2026-11-22]
+  initialGzip: 1_116_900,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -285,7 +290,10 @@ export const BUDGET = {
   // measurement left the dialog's new German entries untranslated; translating them, so the Appearance screen still shows 100% complete,
   // put 736 more bytes in the on-use `locale-de` chunk and none in the first load. 8,949,346 on the rebuild with them, and the ceiling is
   // that plus 654 bytes, so later work inherits no free room. [delegated 2026-11-22]
-  totalJs: 8_950_000,
+  // One connection holding many models (provider-gateway §2) measured 8,957,317 bytes raw, against 8,949,600 on main in the same checkout:
+  // the gateway's picked-model list and its checks, the client's several-model setup, the chat picker with the level names, and both
+  // catalogues' new messages. The ceiling is the measurement plus under 1 kB. [bundle-raise rule 2026-11-22]
+  totalJs: 8_958_100,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

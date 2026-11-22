@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chooseModels, detectProvider, FEATURED_PROVIDERS, PRESETS, presetFor, type ModelInfo } from '../src/index.js';
+import { chooseModels, detectProvider, FEATURED_PROVIDERS, modelsOf, PRESETS, presetFor, type ModelInfo } from '../src/index.js';
 import { parseModels } from '../src/adapters/models.js';
 
 describe('detecting a provider from a key', () => {
@@ -36,6 +36,16 @@ describe('detecting a provider from a key', () => {
       for (const id of detectProvider(key).candidates) expect(presetFor(id)).toBeDefined();
     }
     for (const id of FEATURED_PROVIDERS) expect(PRESETS.find((preset) => preset.id === id)?.keyOptional).not.toBe(true);
+  });
+});
+
+describe('the models one connection offers', () => {
+  it('reads a connection with one model and one with several the same way, its default first', () => {
+    expect(modelsOf({ defaultModel: 'a' })).toEqual(['a']);
+    expect(modelsOf({ defaultModel: 'a', pickedModels: [] })).toEqual(['a']);
+    expect(modelsOf({ defaultModel: 'a', pickedModels: ['a', 'b'] })).toEqual(['a', 'b']);
+    // A record whose default is not first (written by an older build, or by hand) still reads default-first.
+    expect(modelsOf({ defaultModel: 'b', pickedModels: ['a', 'b'] })).toEqual(['b', 'a']);
   });
 });
 

@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { endpointRoute, FAKE_ENDPOINT, planThenAnswer } from './endpoint.js';
 import { openProviderSetup } from './provider-setup-support.js';
-import { chooseInterfaceLanguage } from './support.js';
+import { chooseInterfaceLanguage, createProject } from './support.js';
 
 /**
  * Adding a provider is a key and one press (provider-gateway §2, "Adding a provider"): paste a key, the provider is recognised,
@@ -20,7 +20,7 @@ async function openSettings(page: Page): Promise<ReturnType<Page['getByTestId']>
   return page.getByTestId('settings');
 }
 
-test('a pasted key names its provider, lists the models it can use, and one press makes the provider the active one', async ({ page }) => {
+test('a pasted key names its provider, offers every model it can use, and any number of them share the one key', async ({ page }) => {
   await endpointRoute(page, 'https://api.anthropic.com', planThenAnswer({ reply: 'unused' }), CLAUDE_MODELS);
   const settings = await openSettings(page);
 
@@ -32,32 +32,74 @@ test('a pasted key names its provider, lists the models it can use, and one pres
 
   await form.getByLabel('API key', { exact: true }).fill(ANTHROPIC_KEY);
   await expect(form.getByText('Looks like a key from Anthropic (Claude).')).toBeVisible();
-  await expect(settings.getByRole('heading', { name: 'Choose a model' })).toBeVisible();
+  await expect(settings.getByRole('heading', { name: 'Choose the models' })).toBeVisible();
   await expect(settings.getByText(/Anthropic \(Claude\).* accepted the key\./)).toBeVisible();
 
-  // The recommended model leads the list; a model that does not write text would not be there.
+  // The recommended model leads the list and starts picked; a model that does not write text would not be there.
   const models = settings.getByRole('listbox', { name: 'Models you can use with Anthropic (Claude)' });
   await expect(models.getByRole('option')).toHaveCount(3);
   await expect(models.getByRole('option').first()).toContainText('claude-sonnet-5-5');
   await expect(models.getByRole('option').first()).toContainText('Recommended');
+  await expect(models.getByRole('option').first()).toContainText('Default');
 
-  await models.getByRole('option', { name: 'claude-opus-5-5' }).click();
+  // Several models under the one key: the first pick is the default, the rest are offered beside it everywhere.
+  // An option's accessible name carries its facts, so the model id is matched as a prefix.
+  const option = (name: string) => models.getByRole('option', { name: new RegExp(`^${name}\\b`) });
+  await option('claude-opus-5-5').click();
+  await option('claude-haiku-5-5').click();
+  await expect(option('claude-opus-5-5')).toHaveAttribute('aria-selected', 'true');
+  await settings.getByRole('button', { name: 'Use these 3 models' }).click();
   await expect(settings.getByRole('heading', { name: /Anthropic \(Claude\).* is ready$/ })).toBeVisible();
-  await expect(settings.getByText('The agent now uses claude-opus-5-5.')).toBeVisible();
+  await expect(settings.getByText(/Every one of these 3 models is ready to pick from in the chat window/)).toBeVisible();
   await settings.getByRole('button', { name: 'Done', exact: true }).click();
 
   const row = settings.locator('[data-profile="Anthropic (Claude)"]');
   await expect(row).toContainText('Active');
-  await expect(row).toContainText('claude-opus-5-5');
+  await expect(row).toContainText('3 models: claude-sonnet-5-5, claude-opus-5-5, claude-haiku-5-5');
   await expect(row).not.toContainText('Not verified');
   await expect(settings.getByText(ANTHROPIC_KEY)).toHaveCount(0);
 
-  // The profile, its model and its activation survive a reload; the key is not on the page.
+  // The list, the default and the activation survive a reload; the key is not on the page.
   await page.reload();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const again = page.getByTestId('settings').locator('[data-profile="Anthropic (Claude)"]');
   await expect(again).toContainText('Active');
-  await expect(again).toContainText('claude-opus-5-5');
+  await expect(again).toContainText('3 models: claude-sonnet-5-5, claude-opus-5-5, claude-haiku-5-5');
+});
+
+test('one picked model is a provider like any other, and the chat window offers it', async ({ page }) => {
+  await endpointRoute(page, 'https://api.anthropic.com', planThenAnswer({ reply: 'unused' }), CLAUDE_MODELS);
+  // A project first: the chat picker lives in the agent panel's header, and a closed panel shows it too.
+  await createProject(page);
+  await page.getByTestId('open-settings').click();
+  const settings = page.getByTestId('settings');
+  const form = await openProviderSetup(settings);
+  await form.getByLabel('API key', { exact: true }).fill(ANTHROPIC_KEY);
+  await expect(settings.getByRole('heading', { name: 'Choose the models' })).toBeVisible();
+
+  const models = settings.getByRole('listbox', { name: 'Models you can use with Anthropic (Claude)' });
+  const option = (name: string) => models.getByRole('option', { name: new RegExp(`^${name}\\b`) });
+  // Unpicking the recommended model and picking another leaves one model under the key, and it carries the default mark.
+  await option('claude-sonnet-5-5').click();
+  await expect(option('claude-sonnet-5-5')).not.toHaveAttribute('aria-selected', 'true');
+  await expect(settings.getByRole('button', { name: 'Use this model' })).toBeDisabled();
+  await option('claude-opus-5-5').click();
+  await expect(option('claude-opus-5-5')).toHaveAttribute('aria-selected', 'true');
+  await expect(option('claude-opus-5-5')).toContainText('Default');
+  await settings.getByRole('button', { name: 'Use this model' }).click();
+  await expect(settings.getByText('The agent now uses claude-opus-5-5.')).toBeVisible();
+  await settings.getByRole('button', { name: 'Done', exact: true }).click();
+  await settings.getByRole('button', { name: 'Close' }).click();
+
+  // The chat window names the model it runs on, and offers the connection's models as a menu.
+  const picker = page.getByTestId('agent-model');
+  const trigger = picker.getByRole('combobox', { name: 'Chat model' });
+  await expect(trigger).toHaveText(/claude-opus-5-5/);
+  await trigger.click();
+  const listbox = page.getByRole('listbox');
+  await expect(listbox.getByRole('option', { name: 'claude-opus-5-5' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(trigger).toHaveText(/claude-opus-5-5/);
 });
 
 test('a key shape several providers share asks which provider, and More providers lists the rest with the desktop-only ones marked', async ({ page }) => {
@@ -73,7 +115,7 @@ test('a key shape several providers share asks which provider, and More provider
   await expect(form.getByText('Looks like a key from')).toHaveCount(0);
   await expect(form.getByRole('radio').first()).toBeVisible();
   // Nothing is checked until the writer picks: the key is never tried against more than one provider.
-  await expect(settings.getByRole('heading', { name: 'Choose a model' })).toHaveCount(0);
+  await expect(settings.getByRole('heading', { name: 'Choose the models' })).toHaveCount(0);
 
   await form.getByRole('button', { name: 'More providers' }).click();
   const more = settings.getByRole('listbox', { name: 'More providers' });
@@ -93,12 +135,13 @@ test('a provider that needs one more value asks for it beside the key, and lists
   await expect(form.getByLabel('Workspace ID')).toBeVisible();
   await expect(form.getByRole('listbox', { name: 'Region' })).toBeVisible();
   // Nothing is sent until the required value is there.
-  await expect(settings.getByRole('heading', { name: 'Choose a model' })).toHaveCount(0);
+  await expect(settings.getByRole('heading', { name: 'Choose the models' })).toHaveCount(0);
   await form.getByLabel('Workspace ID').fill('myws');
   await form.getByRole('button', { name: 'Check key' }).click();
 
   const models = settings.getByRole('listbox', { name: 'Models you can use with Alibaba Cloud Model Studio (Qwen)' });
-  await models.getByRole('option', { name: 'test-model' }).click();
+  await models.getByRole('option', { name: /^test-model/ }).click();
+  await settings.getByRole('button', { name: 'Use this model' }).click();
   await settings.getByRole('button', { name: 'Done', exact: true }).click();
   const row = settings.locator('[data-profile="Alibaba Cloud Model Studio (Qwen)"]');
   await expect(row).toContainText('maas.aliyuncs.com');
@@ -118,13 +161,13 @@ test('a refused key says it is the key, keeps what was typed and saves nothing',
   await expect(form.getByLabel('API key', { exact: true })).toHaveValue(ANTHROPIC_KEY);
   await expect(form.getByLabel('API key', { exact: true })).toHaveAttribute('aria-invalid', 'true');
   await expect(settings.locator('[data-profile]')).toHaveCount(1);
-  await expect(settings.getByRole('heading', { name: 'Choose a model' })).toHaveCount(0);
+  await expect(settings.getByRole('heading', { name: 'Choose the models' })).toHaveCount(0);
 
   // A corrected key is checked again, without a reload.
   await page.unroute('https://api.anthropic.com/**');
   await endpointRoute(page, 'https://api.anthropic.com', planThenAnswer({ reply: 'unused' }), CLAUDE_MODELS);
   await form.getByLabel('API key', { exact: true }).fill(ANTHROPIC_KEY + 'B');
-  await expect(settings.getByRole('heading', { name: 'Choose a model' })).toBeVisible();
+  await expect(settings.getByRole('heading', { name: 'Choose the models' })).toBeVisible();
 });
 
 test('a network failure is named as the network and not as the key', async ({ page }) => {
@@ -179,7 +222,7 @@ test('a custom endpoint lists its models too, and types the model name only when
   await expect(settings.locator('[data-profile="OpenAI-compatible endpoint"]')).toContainText('my-model');
 });
 
-test('the model list moves with the arrow keys without choosing, chooses on Enter, and Add another provider starts again from an empty key', async ({ page }) => {
+test('the model list moves with the arrow keys without picking, picks on Enter, and Add another provider starts again from an empty key', async ({ page }) => {
   await endpointRoute(page, 'https://api.anthropic.com', planThenAnswer({ reply: 'unused' }), CLAUDE_MODELS);
   const settings = await openSettings(page);
   const form = await openProviderSetup(settings);
@@ -187,12 +230,15 @@ test('the model list moves with the arrow keys without choosing, chooses on Ente
 
   const models = settings.getByRole('listbox', { name: 'Models you can use with Anthropic (Claude)' });
   await expect(models).toBeVisible();
-  await expect(settings.getByRole('heading', { name: 'Choose a model' })).toBeFocused();
+  await expect(settings.getByRole('heading', { name: 'Choose the models' })).toBeFocused();
   await models.getByRole('option').first().focus();
   await page.keyboard.press('ArrowDown');
-  // Moving through the list sets nothing up.
-  await expect(settings.getByRole('heading', { name: /is ready$/ })).toHaveCount(0);
+  // Moving through the list picks nothing, so the button still names the one model the list started on.
+  await expect(settings.getByRole('button', { name: 'Use this model' })).toBeVisible();
   await page.keyboard.press('Enter');
+  await expect(models.getByRole('option').nth(1)).toHaveAttribute('aria-selected', 'true');
+  await expect(settings.getByRole('button', { name: 'Use these 2 models' })).toBeVisible();
+  await settings.getByRole('button', { name: 'Use these 2 models' }).click();
   await expect(settings.getByRole('heading', { name: /Anthropic \(Claude\).* is ready$/ })).toBeVisible();
   await expect(settings.getByRole('heading', { name: /Anthropic \(Claude\).* is ready$/ })).toBeFocused();
   await settings.getByRole('button', { name: 'Add another provider' }).click();
@@ -213,7 +259,7 @@ test('on a phone the setup fits the screen with no sideways scrolling at every s
   await expect(form.getByText('Which provider is this key from?')).toBeVisible();
   await noSideScroll();
   await form.getByLabel('API key', { exact: true }).fill(ANTHROPIC_KEY);
-  await expect(settings.getByRole('heading', { name: 'Choose a model' })).toBeVisible();
+  await expect(settings.getByRole('heading', { name: 'Choose the models' })).toBeVisible();
   await noSideScroll();
 });
 
@@ -243,9 +289,10 @@ test('correcting the key while the check runs lists the new key\'s models, not t
   releaseFirst();
 
   const models = settings.getByRole('listbox', { name: 'Models you can use with Anthropic (Claude)' });
-  await expect(models.getByRole('option', { name: 'new-model' })).toBeVisible();
-  await expect(models.getByRole('option', { name: 'old-model' })).toHaveCount(0);
-  await models.getByRole('option', { name: 'new-model' }).click();
+  await expect(models.getByRole('option', { name: /^new-model/ })).toBeVisible();
+  await expect(models.getByRole('option', { name: /^old-model/ })).toHaveCount(0);
+  await models.getByRole('option', { name: /^new-model/ }).click();
+  await settings.getByRole('button', { name: 'Use this model' }).click();
   await expect(settings.getByRole('heading', { name: /is ready$/ })).toBeVisible();
   await settings.getByRole('button', { name: 'Done', exact: true }).click();
 
