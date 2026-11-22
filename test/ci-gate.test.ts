@@ -19,6 +19,13 @@ function jobBlock(workflow: string, id: string): string {
   return jobs.slice(blockStart, blockEnd);
 }
 
+/**
+ * The suites `CAOTANG_SKIP_WORKER_SUITES` leaves out, each of which boots its own Miniflare Worker runtime per case: too slow for
+ * GitHub's Windows runner to finish inside the case deadline (#815, and #820 for the third). The list lives here so the two
+ * Windows legs' step names and the exclusion itself are checked against one another rather than each being trusted alone.
+ */
+const WORKER_SUITE_FILES = ['account-mode', 'storage', 'server'];
+
 const ci = read('.github/workflows/ci.yml');
 const browsers = read('.github/workflows/e2e-browsers.yml');
 const summaryScript = jobBlock(ci, 'e2e').split('        run: |\n')[1]?.split('\n').map((line) => line.slice(10)).join('\n') ?? '';
@@ -298,13 +305,25 @@ describe('the Node floor and the whole gate', () => {
     expect(step('Scan the fixture project with the built command (exit 7, one error annotation, nothing written)')).not.toContain('if:');
   });
 
+  it('names a floor-test set that exists on disk and keeps every Node host in it', () => {
+    const scripts = (JSON.parse(read('package.json')) as { scripts: Record<string, string> }).scripts;
+    const script = scripts['test:node-floor'];
+    if (script === undefined) throw new Error('package.json has no test:node-floor script');
+    const filters = script.replace(/^vitest run /, '').split(/\s+/);
+    // Every filter is a real path: a renamed spec dir would otherwise turn this leg into a smaller one without a word.
+    for (const filter of filters) expect(existsSync(resolve(root, filter)), filter).toBe(true);
+    for (const host of ['packages/cli/test', 'packages/sdk/test', 'packages/mcp-server/test', 'packages/sync-server/test']) {
+      expect(filters, `the floor leg must keep ${host}`).toContain(host);
+    }
+  });
+});
+
 /**
  * The packaging workflow gates a released commit as strictly as a merged one.
  *
  * Its Windows leg once ran `pnpm run typecheck` alone, because the suite was not ported to that runner. That is the one place
  * the gate could narrow without anyone noticing: a tag would ship from a commit whose unit suites never ran. The guard keeps
- * every leg on `pnpm verify`, and keeps the single documented exclusion — #815's two sync-server Worker suites — from spreading
- * by copy.
+ * every leg on `pnpm verify`, names the files the one documented exclusion covers, and keeps it from spreading by copy.
  */
 describe('the packaging legs run the gate', () => {
   const release = read('.github/workflows/desktop-release.yml');
@@ -318,22 +337,18 @@ describe('the packaging legs run the gate', () => {
     }
   });
 
-  it("leaves out only #815's two Worker suites, on Windows, and says so in the step's name", () => {
+  it('leaves the Worker suites out on Windows only, and names each of them in the step', () => {
     expect(windows).toContain("CAOTANG_SKIP_WORKER_SUITES: '1'");
-    expect(windows).toMatch(/name: .*two Worker suites \(#815\)/);
     expect(macAndLinux).not.toContain('CAOTANG_SKIP_WORKER_SUITES');
+    const names = [...windows.slice(0, windows.indexOf('CAOTANG_SKIP_WORKER_SUITES')).matchAll(/^ {6}- name: (.*)$/gm)];
+    const name = names.at(-1)?.[1];
+    if (name === undefined) throw new Error('the Windows leg has no named step before the exclusion');
+    for (const file of WORKER_SUITE_FILES) expect(name, file).toContain(file);
+    expect(name).toContain('boots a Worker runtime per case');
   });
-});
 
-  it('names a floor-test set that exists on disk and keeps every Node host in it', () => {
-    const scripts = (JSON.parse(read('package.json')) as { scripts: Record<string, string> }).scripts;
-    const script = scripts['test:node-floor'];
-    if (script === undefined) throw new Error('package.json has no test:node-floor script');
-    const filters = script.replace(/^vitest run /, '').split(/\s+/);
-    // Every filter is a real path: a renamed spec dir would otherwise turn this leg into a smaller one without a word.
-    for (const filter of filters) expect(existsSync(resolve(root, filter)), filter).toBe(true);
-    for (const host of ['packages/cli/test', 'packages/sdk/test', 'packages/mcp-server/test', 'packages/sync-server/test']) {
-      expect(filters, `the floor leg must keep ${host}`).toContain(host);
-    }
+  it('excludes exactly the suites its step names, so neither can drift from the other', () => {
+    const excluded = [.../CAOTANG_SKIP_WORKER_SUITES'\] === '1'\s*\? \[([^\]]+)\]/.exec(read('vitest.config.ts'))![1]!.matchAll(/test\/([\w-]+)\.test\.ts/g)].map((match) => match[1]!);
+    expect(excluded).toEqual(WORKER_SUITE_FILES.map((file) => file));
   });
 });
