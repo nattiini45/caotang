@@ -300,7 +300,10 @@ export const BUDGET = {
   // The German catalogue's EPUB strings (#296): 8,967,257 bytes measured, +260 over the reader's own ceiling
   // measurement. The compiled de catalogue stays on use too. Same round-up-to-the-thousand ceiling. [delegated
   // 2026-11-22]
-  totalJs: 8_968_000,
+  // The AO3 import (#297) on the merge of #296's branch: 8,984,782 bytes measured, +17,525 over the merged #296
+  // tree. Named: the @caotang/import-ao3 adapter and its preview source, all on-use chunks, and the German AO3
+  // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  totalJs: 8_985_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

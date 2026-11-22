@@ -312,6 +312,9 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../../packages/ids
+      '@caotang/import-ao3':
+        specifier: workspace:*
+        version: link:../../packages/import-ao3
       '@caotang/import-captions':
         specifier: workspace:*
         version: link:../../packages/import-captions
@@ -980,6 +983,21 @@ importers:
   packages/i18n: {}
 
   packages/ids: {}
+
+  packages/import-ao3:
+    dependencies:
+      '@caotang/import-core':
+        specifier: workspace:*
+        version: link:../import-core
+      '@caotang/import-epub':
+        specifier: workspace:*
+        version: link:../import-epub
+      '@caotang/import-html':
+        specifier: workspace:*
+        version: link:../import-html
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../import-read
 
   packages/import-captions:
     dependencies:
