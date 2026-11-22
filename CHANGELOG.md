@@ -4,6 +4,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ## Unreleased
 
+### Fixed
+
+- **A failed settings re-read in the import preview no longer leaves the dialog on Reading… (#600).** When a reader chip or option change makes the reader's Worker re-read and that read times out or fails, the preview names the failure with a Try again that runs the read once more, and until it succeeds it keeps the last prepared settings' plan instead of an empty document.
+
 ### Changed
 
 - **Gateway recovery messages follow the interface language (#596).** The fixed text `ProviderError` and `ProfileError` carry — "Key rejected by {host}. Check the profile in Settings.", the profile-validation messages and the local-server guidance — renders in German through the catalogue. The provider's own reply and host-supplied values stay exactly as sent. Extraction only; call logic is unchanged.

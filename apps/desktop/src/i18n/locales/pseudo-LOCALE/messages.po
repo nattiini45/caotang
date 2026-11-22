@@ -23776,6 +23776,11 @@ msgstr ""
 msgid "The session could not be exported: {reason}. Your saved session has not changed."
 msgstr ""
 
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "The settings could not be re-read: {message}"
+msgstr ""
+
 #. Interpolated values: error
 #: apps/desktop/src/app/services.ts
 msgid "The settings could not be read, so the defaults are in use: {error}"
@@ -25542,12 +25547,14 @@ msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: file is the imported file name; reason is the import failure message
 #. Interpolated values: subject
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
 #: apps/desktop/src/components/AgentSessions.tsx
 #: apps/desktop/src/components/InkGate.tsx
 #: apps/desktop/src/components/lazy-view.tsx
 #: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 #: apps/desktop/src/media/picture-hooks.tsx
 msgid "Try again"
 msgstr ""
