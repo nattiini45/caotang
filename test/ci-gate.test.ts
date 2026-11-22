@@ -347,6 +347,18 @@ describe('the packaging legs run the gate', () => {
     expect(name).toContain('boots a Worker runtime per case');
   });
 
+  it('quotes any step name carrying what an unquoted YAML value cannot hold', () => {
+    // Both files are parsed by GitHub before any job starts, and an unquoted value has two traps: `: ` would make it a mapping and
+    // fail the run with no jobs at all, and ` #` silently ends the value there — a step would lose the issue it cites and nothing
+    // would say so. Both bit the step name this suite exists to check.
+    for (const path of ['.github/workflows/ci.yml', '.github/workflows/desktop-release.yml']) {
+      for (const [, name] of read(path).matchAll(/^\s*- name: (.*)$/gm)) {
+        if (name!.startsWith('"') || name!.startsWith("'")) continue;
+        expect(name, `${path}: ${name}`).not.toMatch(/: | #/);
+      }
+    }
+  });
+
   it('excludes exactly the suites its step names, so neither can drift from the other', () => {
     const excluded = [.../CAOTANG_SKIP_WORKER_SUITES'\] === '1'\s*\? \[([^\]]+)\]/.exec(read('vitest.config.ts'))![1]!.matchAll(/test\/([\w-]+)\.test\.ts/g)].map((match) => match[1]!);
     expect(excluded).toEqual(WORKER_SUITE_FILES.map((file) => file));

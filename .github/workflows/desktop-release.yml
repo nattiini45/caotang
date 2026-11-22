@@ -62,7 +62,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Check that the desktop shell exists (#399, #400)
+      - name: "Check that the desktop shell exists (#399, #400)"
         shell: bash
         run: |
           if [ ! -f apps/desktop-shell/package.json ]; then
@@ -96,7 +96,7 @@ jobs:
 
       # The same gate ci.yml's `verify (Windows)` job runs on every pull request, so a released commit is gated here too. Only the
       # three sync-server suites that boot a Worker runtime per case stay out (#815, #820).
-      - name: Lint, typecheck and every unit suite, less sync-server's account-mode, storage and server suites (each boots a Worker runtime per case: #815, #820)
+      - name: "Lint, typecheck and every unit suite, less sync-server account-mode, storage and server suites (each boots a Worker runtime per case: #815, #820)"
         env:
           CAOTANG_SKIP_WORKER_SUITES: '1'
         run: pnpm verify
@@ -294,7 +294,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Check that the desktop shell exists (#399, #400)
+      - name: "Check that the desktop shell exists (#399, #400)"
         shell: bash
         run: |
           if [ ! -f apps/desktop-shell/package.json ]; then
