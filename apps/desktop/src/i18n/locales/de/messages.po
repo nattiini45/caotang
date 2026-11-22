@@ -21794,7 +21794,7 @@ msgstr "Der Agent muss mich zuerst fragen"
 #. Interpolated values: model, name, provider, total
 #: apps/desktop/src/components/ProviderSetup.tsx
 msgid "The agent now uses <0>{doneModel}</0>."
-msgstr ""
+msgstr "Der Agent verwendet jetzt <0>{doneModel}</0>."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
