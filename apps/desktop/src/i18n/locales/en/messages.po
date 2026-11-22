@@ -1095,9 +1095,11 @@ msgstr "{count, plural, one {Add # line id} other {Add # line ids}}"
 msgid "{count, plural, one {An image was dropped when the project opened, because its file is not in the project.} other {# images were dropped when the project opened, because their files are not in the project.}}"
 msgstr "{count, plural, one {An image was dropped when the project opened, because its file is not in the project.} other {# images were dropped when the project opened, because their files are not in the project.}}"
 
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/highland-source.ts
+#: apps/desktop/src/import-preview/html-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "{count, plural, one {Import # picture} other {Import # pictures}}"
 msgstr "{count, plural, one {Import # picture} other {Import # pictures}}"
@@ -1521,6 +1523,11 @@ msgstr "{error} Findings are kept in this browser."
 msgid "{estimated, plural, one {# request used estimated token counts.} other {# requests used estimated token counts.}}"
 msgstr "{estimated, plural, one {# request used estimated token counts.} other {# requests used estimated token counts.}}"
 
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "{eventAttrs, plural, one {# event handler} other {# event handlers}} removed."
+msgstr "{eventAttrs, plural, one {# event handler} other {# event handlers}} removed."
+
 #. Background review approval. Counts are documents, findings, calls or estimated tokens; titles and model labels are supplied text; money uses the interface locale.
 #: apps/desktop/src/components/QueuedReviewDetails.tsx
 msgid "{extraction, plural, one {# model call} other {# model calls}} to read the documents, then up to {verification} to check their pairs. Up to {tokens} tokens (an estimate)."
@@ -1638,6 +1645,11 @@ msgstr "{file} is too large to import as captions: the import reads files up to 
 msgid "{file} is too large to import as Highland: the import reads files up to {size} MB."
 msgstr "{file} is too large to import as Highland: the import reads files up to {size} MB."
 
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "{file} is too large to import as HTML ({limit} MB max)."
+msgstr "{file} is too large to import as HTML ({limit} MB max)."
+
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/text-source.ts
 msgid "{file} is too large to import as plain text: the import reads files up to {limit} MB."
@@ -1678,6 +1690,11 @@ msgstr "{first} and {rest} more"
 msgid "{footnotes, plural, one {# footnote} other {# footnotes}}"
 msgstr "{footnotes, plural, one {# footnote} other {# footnotes}}"
 
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "{forms, plural, one {# form control} other {# form controls}} removed."
+msgstr "{forms, plural, one {# form control} other {# form controls}} removed."
+
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "{from} → {to}"
@@ -1716,6 +1733,11 @@ msgstr "{host} sent a response Caotang could not read: {excerpt}"
 #: apps/desktop/src/app/slash-model.ts
 msgid "{id} {name}: {tokens} tokens{budgetNote}"
 msgstr "{id} {name}: {tokens} tokens{budgetNote}"
+
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "{iframes, plural, one {# iframe} other {# iframes}} removed."
+msgstr "{iframes, plural, one {# iframe} other {# iframes}} removed."
 
 #. The import preview's notices and sentences. Interpolated values: words, partCount, chapters, scenes, images, comments, footnotes and codexRows are counts; megabytes and kilobytes are sizes; label and host name a download option; title, rowName and name are node or row names; documents and folders are the import's own counts; fileName is the file's name.
 #: apps/desktop/src/import-preview/model.ts
@@ -2321,6 +2343,11 @@ msgstr "{records, plural, one {# record} other {# records}}"
 msgid "{refusal} Select a chapter first, or make one with New folder."
 msgstr "{refusal} Select a chapter first, or make one with New folder."
 
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "{remote, plural, one {# picture} other {# pictures}} on the internet not downloaded."
+msgstr "{remote, plural, one {# picture} other {# pictures}} on the internet not downloaded."
+
 #. The picture board's storage actions. count, removed and remaining are numbers; name and title are a picture's caption or a file name; reason and detail are a sentence a command or a browser wrote.
 #: apps/desktop/src/media/picture-storage-model.ts
 msgid "{removed, plural, one {# unused file was removed} other {# unused files were removed}}, and {remaining, plural, one {# file could not be removed and is still there} other {# files could not be removed and are still there}}."
@@ -2422,6 +2449,11 @@ msgstr "{scenes} {sceneCount, plural, one {container} other {containers}}"
 #: apps/desktop/src/components/export-preview-model.ts
 msgid "{scenes} {sceneCount, plural, one {scene} other {scenes}} in {sections} {sectionCount, plural, one {section} other {sections}}, {words} {wordCount, plural, one {word} other {words}}"
 msgstr "{scenes} {sceneCount, plural, one {scene} other {scenes}} in {sections} {sectionCount, plural, one {section} other {sections}}, {words} {wordCount, plural, one {word} other {words}}"
+
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "{scripts, plural, one {# script} other {# scripts}} removed."
+msgstr "{scripts, plural, one {# script} other {# scripts}} removed."
 
 #. Elapsed seconds, with one decimal place; s is the unit abbreviation.
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
@@ -2633,6 +2665,11 @@ msgstr "{steps}, {spend}."
 msgid "{style} (unknown, exported as Normal)"
 msgstr "{style} (unknown, exported as Normal)"
 
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "{styles, plural, one {# stylesheet} other {# stylesheets}} dropped; only alignment, bold and page breaks are kept."
+msgstr "{styles, plural, one {# stylesheet} other {# stylesheets}} dropped; only alignment, bold and page breaks are kept."
+
 #. Interpolated values: subject
 #: apps/desktop/src/components/lazy-view.tsx
 msgid "{subject} could not be loaded"
@@ -2829,6 +2866,11 @@ msgstr "{unpriced, plural, one {Partial cost total: # request has no recorded co
 #: apps/desktop/src/media/PromptPackPanel.tsx
 msgid "{unread, plural, one {One stored record could not be read, so it is not in the file.} other {# stored records could not be read, so they are not in the file.}}"
 msgstr "{unread, plural, one {One stored record could not be read, so it is not in the file.} other {# stored records could not be read, so they are not in the file.}}"
+
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "{unsafeLinks, plural, one {# unsafe link} other {# unsafe links}} kept text only."
+msgstr "{unsafeLinks, plural, one {# unsafe link} other {# unsafe links}} kept text only."
 
 #. The animatic line. Interpolated values: seconds is the total length in seconds; untimed counts shots left out.
 #: apps/desktop/src/media/board-model.ts
@@ -3968,9 +4010,11 @@ msgstr "About {extractCalls, plural, one {# model call} other {# model calls}} t
 msgid "about {size}"
 msgstr "about {size}"
 
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/highland-source.ts
+#: apps/desktop/src/import-preview/html-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "About {size} MB."
 msgstr "About {size} MB."
@@ -10944,6 +10988,16 @@ msgstr "Hooks"
 msgid "Hooks check this project at selected events. They can warn or stop an action, but never approve it or change your text."
 msgstr "Hooks check this project at selected events. They can warn or stop an action, but never approve it or change your text."
 
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "HTML file"
+msgstr "HTML file"
+
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "HTML safety"
+msgstr "HTML safety"
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "https://example.com/post"
@@ -11147,6 +11201,11 @@ msgstr "Import codex entries"
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Import Highland"
 msgstr "Import Highland"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import HTML…"
+msgstr "Import HTML…"
 
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
@@ -11646,6 +11705,16 @@ msgstr "It calls no model."
 msgid "It has finished."
 msgstr "It has finished."
 
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "It has more lines than an HTML import reads."
+msgstr "It has more lines than an HTML import reads."
+
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "It holds no HTML page."
+msgstr "It holds no HTML page."
+
 #. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportProofView.tsx
 msgid "It is a binary file that Caotang cannot draw here, and a look-alike drawn in its place could differ from the real file. The Draft shows what goes in; compile and open the file to see its pages. Markdown, plain text and the other text formats (Fountain, Final Draft, the Ink story, the CSV tables, the prompt pack and the coherence report) have a Proof."
@@ -11656,6 +11725,11 @@ msgstr "It is a binary file that Caotang cannot draw here, and a look-alike draw
 msgid "It is also in the project folder."
 msgstr "It is also in the project folder."
 
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "It is larger than an HTML import reads."
+msgstr "It is larger than an HTML import reads."
+
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "It is larger than an RTF import reads."
@@ -11665,6 +11739,11 @@ msgstr "It is larger than an RTF import reads."
 #: apps/desktop/src/media/shot-image-model.ts
 msgid "it is not a PNG, JPEG or WebP picture"
 msgstr "it is not a PNG, JPEG or WebP picture"
+
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "It is not an HTML import."
+msgstr "It is not an HTML import."
 
 #. Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number.
 #: apps/desktop/src/media/prompt-pack-model.ts
@@ -11761,6 +11840,11 @@ msgstr "its folder is gone"
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "Its groups are nested deeper than an RTF import reads."
 msgstr "Its groups are nested deeper than an RTF import reads."
+
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "Its markup is not well-formed XML; it cannot be read."
+msgstr "Its markup is not well-formed XML; it cannot be read."
 
 #. Picture drops on a storyboard. Interpolated values: name and title are a file name and a shot title; number is a shot number; reason is a sentence ending or a failure message; where is a shot position; shotId is an id; counts are numbers.
 #: apps/desktop/src/media/shot-image-model.ts
@@ -16901,6 +16985,7 @@ msgid "harness.progress.docRead.active"
 msgstr "Reading “{doc}”"
 
 #. Interpolated values: file is the imported file name; reason is the import failure message
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
@@ -16908,6 +16993,7 @@ msgstr "Reading “{doc}”"
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/captions-source.ts
 #: apps/desktop/src/import-preview/highland-source.ts
+#: apps/desktop/src/import-preview/html-source.ts
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
@@ -17331,6 +17417,11 @@ msgstr "Reloading this tab loses the latest words in it. They are on screen only
 #: apps/desktop/src/components/PictureNotices.tsx
 msgid "Remind me next month"
 msgstr "Remind me next month"
+
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "Remote pictures"
+msgstr "Remote pictures"
 
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #. Agent rules settings. Interpolated values: text is the rule's own words.
@@ -25782,6 +25873,11 @@ msgstr "Undoing the change. Wait before undoing another."
 msgid "unknown"
 msgstr "unknown"
 
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "Unknown encoding. Save it as UTF-8 and import again."
+msgstr "Unknown encoding. Save it as UTF-8 and import again."
+
 #. Binder row labels. Interpolated values: access is an access level's name, from is the node the rule was set on, title is a row's title.
 #. Interpolated values: error, name, reason, refused
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
@@ -26454,6 +26550,11 @@ msgstr "What the import cannot keep"
 msgid "What the import does"
 msgstr "What the import does"
 
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "What the import removed"
+msgstr "What the import removed"
+
 #. Macro panel copy. Interpolated values: name is a macro's name, problem is why it cannot run, step and steps are step numbers and counts.
 #: apps/desktop/src/components/MacrosPanel.tsx
 msgid "What the macro asks for"
@@ -26538,6 +26639,11 @@ msgstr "What to replay"
 #: apps/desktop/src/components/RecurringTasks.tsx
 msgid "What to scan"
 msgstr "What to scan"
+
+#. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/html-source.ts
+msgid "What was not downloaded"
+msgstr "What was not downloaded"
 
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportPreviewPanel.tsx

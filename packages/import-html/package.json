@@ -1,0 +1,20 @@
+{
+  "name": "@caotang/import-html",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "The HTML reader for the HTML import (#299): an own XHTML-to-blocks walker (no DOM, no dependency) shared by the EPUB, AO3, Kanka and Notion imports, reading a saved page or a Google Docs web-page zip into the import block list with its losses. Scripts, styles and event handlers are dropped and never run; remote images are listed, not fetched. Runs on the main thread, in a 'self' Worker and in Node.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@caotang/import-core": "workspace:*",
+    "@caotang/import-read": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}
