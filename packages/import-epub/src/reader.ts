@@ -7,7 +7,7 @@
  */
 
 import type { ImportAsset, ImportBlock, ImportDocument, ImportFootnote } from '@caotang/import-core';
-import { htmlToBlocks, type HtmlDropped } from '@caotang/import-html';
+import { dropUnresolvedPictures, htmlToBlocks, pictureRefusal, type HtmlDropped, type PictureRefusal } from '@caotang/import-html';
 import { decodePlainText } from '@caotang/import-read/text';
 import { openZip, type ImportArchive } from '@caotang/import-read/zip';
 
@@ -150,9 +150,11 @@ export async function readEpubArchive(archive: ImportArchive): Promise<EpubResul
   const remoteImages: string[] = [];
   const chapters: EpubChapter[] = [];
   const matter: EpubMatter[] = [];
-  const dropped: HtmlDropped = { scripts: 0, styles: 0, iframes: 0, eventAttrs: 0, unsafeLinks: 0, media: 0 };
+  const dropped: HtmlDropped = { scripts: 0, styles: 0, iframes: 0, forms: 0, eventAttrs: 0, unsafeLinks: 0, media: 0 };
   const notesByFragment = new Map<string, { md: string; blockIndex: number }>();
   const noterefs: { fragment: string; label: string; blockIndex: number }[] = [];
+  const targets = new Map<string, string>();
+  const refused = new Map<string, PictureRefusal>();
   let spineItems = 0;
   let seenLinear = false;
 
@@ -188,6 +190,7 @@ export async function readEpubArchive(archive: ImportArchive): Promise<EpubResul
     dropped.scripts += walked.value.dropped.scripts;
     dropped.styles += walked.value.dropped.styles;
     dropped.iframes += walked.value.dropped.iframes;
+    dropped.forms += walked.value.dropped.forms;
     dropped.eventAttrs += walked.value.dropped.eventAttrs;
     dropped.unsafeLinks += walked.value.dropped.unsafeLinks;
     dropped.media += walked.value.dropped.media;
@@ -199,8 +202,15 @@ export async function readEpubArchive(archive: ImportArchive): Promise<EpubResul
     }
 
     for (const [ref, target] of walked.value.images) {
+      targets.set(ref, target);
       const resolved = await resolvePicture(archive, entry.href, target);
       if (resolved === null) continue;
+      // The commit's picture pipeline is strict over the whole batch, so bytes it would refuse never become an offer.
+      const why = pictureRefusal(resolved.bytes);
+      if (why !== undefined) {
+        refused.set(ref, why);
+        continue;
+      }
       assetData.set(ref, resolved.bytes);
       assets.set(ref, { ref, name: resolved.name, bytes: resolved.bytes.length });
     }
@@ -218,7 +228,7 @@ export async function readEpubArchive(archive: ImportArchive): Promise<EpubResul
   let cover: EpubImport['cover'] = null;
   if (opf.coverHref !== null) {
     const read = await archive.read(opf.coverHref);
-    if (read.ok) {
+    if (read.ok && pictureRefusal(read.value) === undefined) {
       assetData.set(COVER_REF, read.value);
       const name = opf.coverHref.split('/').pop() ?? COVER_REF;
       assets.set(COVER_REF, { ref: COVER_REF, name, bytes: read.value.length });
@@ -226,11 +236,16 @@ export async function readEpubArchive(archive: ImportArchive): Promise<EpubResul
     }
   }
 
-  if (blocks.length === 0) return { ok: false, error: { kind: 'empty' } };
+  // A picture with no usable bytes keeps its alt text and is named, rather than leaving a ref that resolves to nothing.
+  const kept = dropUnresolvedPictures(blocks, new Set(assetData.keys()), targets, refused);
+  const keptBlocks = kept.blocks;
+  losses.push(...kept.losses);
+
+  if (keptBlocks.length === 0) return { ok: false, error: { kind: 'empty' } };
   if (opf.fixedLayout) losses.push({ code: 'unsupported', message: 'The book’s fixed layout was not kept: its text is reflowed.' });
 
   const document: ImportDocument = {
-    blocks,
+    blocks: keptBlocks,
     footnotes,
     losses,
     assets: [...assets.values()],
