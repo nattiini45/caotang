@@ -129,7 +129,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     // The binder no longer refuses a folder inside a folder, and New folder goes inside a selected part.
     expect(model).not.toContain("'folder-in-folder'");
     expect(model).toContain('if (isPart(state, cursor.id)) return cursor.id;');
-    expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<span className="row-role">Part</span>');
+    expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<span className="row-role"><Trans>Part</Trans></span>');
     // The compile counts parts apart from chapters, and the default part label is the part's title.
     expect(read('packages/exporter/src/flatten.ts')).toContain('partCount += 1;');
     expect(read('packages/exporter/src/template.ts')).toContain("partLabel: '{partTitle}',");
@@ -170,13 +170,13 @@ describe('the user guide’s reviewed claims match the code', () => {
       // Each label is a catalogue message (t`…`) in the shell actions, or a plain string literal.
       expect(actions.includes(`t\`${label}\``) || actions.includes(`'${label}'`)).toBe(true);
     }
-    expect(read('apps/desktop/src/components/Binder.tsx')).toContain('aria-label={`Actions for ${title}`}');
+    expect(read('apps/desktop/src/components/Binder.tsx')).toContain('aria-label={t`Actions for ${title}`}');
     expect(section).toContain('**Actions for …**');
     // The views left to a desktop say "Open on desktop" and name themselves; the guide lists the same six.
     const model = read('apps/desktop/src/app/narrow-model.ts');
-    expect(read('apps/desktop/src/components/narrow.tsx')).toContain('Open on desktop: {note.name}');
+    expect(read('apps/desktop/src/components/narrow.tsx')).toContain('Open on desktop: ${{ name: note.name }}');
     for (const name of ['the corkboard', 'the storyboard', 'the dialogue branch graph', 'the screenplay Pages view', 'MCP & tools', 'the other export formats']) {
-      expect(model).toContain(`name: '${name}'`);
+      expect(model.includes(`name: t\`${name}\``) || model.includes(`name: '${name}'`)).toBe(true);
     }
     expect(section).toContain('**Open on desktop**');
     for (const view of ['the corkboard', 'a storyboard', 'a dialogue container', '**Pages** view', '**Settings › MCP & tools**', '**Compile…** as anything but Markdown or plain text']) {
@@ -372,13 +372,13 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(pdfSection).toContain('A4 is taller, and the extra height is white space at the foot of the page.');
     expect(pdfSection).toContain('**Font** is Courier Prime at 12 point unless you choose another in the recipe: **Cousine (like Courier New)**, or **Courier (the reader\u2019s own)**.');
     const dialogSource = read('apps/desktop/src/components/ExportDialog.tsx');
-    expect(dialogSource).toContain('<span className="export-option-label">Paper size</span>');
-    expect(dialogSource).toContain('<span className="export-option-label">Font</span>');
+    expect(dialogSource).toContain('<span className="export-option-label"><Trans>Paper size</Trans></span>');
+    expect(dialogSource).toContain('<span className="export-option-label"><Trans>Font</Trans></span>');
     expect(dialogSource).toContain("value={shown.pageSize ?? 'Letter'}");
     expect(dialogSource).toContain("value={shown.scriptFont ?? 'courier-prime'}");
-    expect(dialogSource).toContain("'courier-prime': 'Courier Prime',");
-    expect(dialogSource).toContain("courier: 'Courier (the reader\u2019s own)',");
-    expect(dialogSource).toContain("cousine: 'Cousine (like Courier New)',");
+    expect(dialogSource).toContain("get 'courier-prime'() {");
+    expect(dialogSource).toContain('get courier() {');
+    expect(dialogSource).toContain('get cousine() {');
     expect(read('packages/exporter/src/media.ts')).toContain('...(request.scriptFont === undefined ? {} : { scriptFont: request.scriptFont }),');
     expect(pdfSection).toContain('Script pages count from 1. The number is printed at the top right from page 2.');
     expect(paginate).toContain('const all = number >= 2 ? [...lines, pageNumberLine(number)] : [...lines];');

@@ -1,6 +1,6 @@
 # Caotang for desktop
 
-The [development shell](../../apps/desktop-shell/README.md) in [epic #16](https://github.com/nattiini45/caotang/issues/16) hosts the existing root-base Vite build from `apps/desktop/dist/`. The browser site, project format, storage schema and Vite output stay unchanged. This spec records the feasibility spike (#398) and the first shell (#400); it does not describe an installable product.
+The [development shell](../../apps/desktop-shell/README.md) in [epic #16](https://github.com/nattiini45/caotang/issues/16) hosts the existing root-base Vite build from `apps/desktop/dist/`. The browser site, project format, storage schema and Vite output stay unchanged. This spec records the feasibility spike (#398), the shell (#400) and the unsigned packages (#401).
 
 ## Runtime and trust boundary
 
@@ -40,6 +40,43 @@ An IndexedDB-only project stays available. **Copy to a folder** copies its porta
 
 The main process watches the open native project folder and no other: one watcher per folder and window, with a separate subscription handed to each watch call on it so that a holder releasing late cannot stop the watch a later holder relies on; the watcher stops when the window goes or when the last of those subscriptions is released. It uses the prebuilt Parcel watcher (`@parcel/watcher`, external to the shell bundle, with its install script blocked so nothing is compiled); no Rust binding is introduced. Git metadata, `node_modules`, `exports/`, `.caotang-backup/`, the MCP lock and the `.<name>.<hex>.tmp` names an artifact write uses on its way to a rename are not watched. A Linux Electron 45.4.1 spike with 300 scene files measured a median 50.8 ms and a maximum of 51.7 ms across 20 atomic replacements, from write start to watcher delivery; the user-facing target is 500 ms under that load, which the shell suite asserts end to end from an external write to the renderer.
 
-The preload delivers the folder id and project-relative paths, never bytes or absolute paths. The renderer waits 150 ms for a burst to settle, then compares the reported paths the open copy can judge — the manifest, whose text it keeps, and the project files whose digests it holds — against that copy. A first read that finds a difference waits another 200 ms and reads again against the copy as it stands then, so a save of this tab's own that landed mid-read (the copy advances as it writes) is not mistaken for another program's edit. A file the folder no longer holds counts as changed. Files the copy does not hold — `coherence.json`, `tasks.json` and the pictures — are not judged here, so a change to one raises no offer.
+The preload delivers the folder id and project-relative paths, never bytes or absolute paths. The renderer waits 150 ms for a burst to settle, then compares the reported paths the open copy can judge — the manifest, whose text it keeps, and the project files whose digests it holds — against that copy. Every reported path is judged: the known ones are read in passes of forty, so a bulk edit of hundreds of files is read rather than cut off at the first pass, and the offer counts what changed. A first read that finds a difference waits for this session's own write into the folder to end and reads again against the copy that write left behind, so a save of this tab's own is never mistaken for another program's edit however long the project takes to write and re-digest. A file the folder no longer holds counts as changed. Files the copy does not hold — `coherence.json`, `tasks.json` and the pictures — are not judged here, so a change to one raises no offer.
 
-A confirmed change raises an offer in the status line that names the changed files, and nothing is reloaded or merged by itself. **Reopen the folder's version** settles and closes the session, then opens the folder as it now stands; it is offered only when this tab has nothing unsaved, and otherwise the offer asks for **Export a backup** first, so a reload cannot drop the writer's words. An opening that needs an answer (a manifest that will not load, a copy that differs) is not decided here: the offer sends the writer to the projects list, where that question lives. The existing save guard stays in force — a save into a folder that changed is still refused and questioned. The browser build has neither a watcher nor native folders.
+A confirmed change raises an offer in the status line that names the changed files, and nothing is reloaded or merged by itself. **Reopen the folder's version** settles and closes the session, then opens the folder as it now stands; it is offered only when this tab has nothing unsaved, and otherwise the offer asks for **Export a backup** first, so a reload cannot drop the writer's words. An opening that needs an answer (a manifest that will not load, a copy that differs) is not decided here: the offer sends the writer to the projects list, where that question lives. This reopen and an opening asked for from the projects list take their turn from one queue, so an open already in flight finishes first and neither replaces the session the other put in front of the writer. The existing save guard stays in force — a save into a folder that changed is still refused and questioned. The browser build has neither a watcher nor native folders.
+
+## Packaging (#401)
+
+A release is a `desktop-v<version>` tag whose version equals `apps/desktop-shell/package.json`'s, built by
+[`.github/workflows/desktop-release.yml`](../../.github/workflows/desktop-release.yml) on GitHub-hosted runners from that
+commit. Electron-builder's configuration is [`apps/desktop-shell/electron-builder.yml`](../../apps/desktop-shell/electron-builder.yml)
+and every package is **unsigned** for now: Windows x64 NSIS (`Caotang-Setup-<version>.exe`), macOS arm64 and x64 DMG
+(`Caotang-<version>-<arch>.dmg`), and Linux x64 AppImage (`Caotang-<version>.AppImage`). Linux is best-effort and
+non-blocking, as `docs/decisions.md` records. Each platform's job writes a `SHA256SUMS` file beside the packages it built, and
+[`docs/INSTALL.md`](../INSTALL.md) gives plain install steps that name the SmartScreen and Gatekeeper warnings, because an
+unsigned download shows one.
+
+The Windows executable is `Caotang.exe` and not the product name, because `.signpath/artifact-configuration.xml` signs that
+name and the packaged build keeps it; the installer embeds it and is packaged from the already-unpacked app
+(`--prepackaged`), so the signing pass that returns a signed `Caotang.exe` is the one the release ships.
+
+The packaged app is the same build the shell already hosts: `apps/desktop/dist` travels as `resources/desktop/dist`, which is
+the directory `src/main.mts` resolves two levels above its own `dist/` (`app.asar/dist` once packaged), so the fixed origin,
+the CSP header and the path checks are unchanged. Production dependencies are packed from `node_modules` and nothing is
+rebuilt (`npmRebuild: false`): the folder watcher's prebuilt binary for the build's own platform is unpacked beside the
+archive, because a native module cannot be loaded from inside an ASAR. Each macOS architecture is built on a runner of that
+architecture, so the watcher's prebuilt binary matches the package.
+
+Electron fuses are applied to the packaged binary: no `runAsNode`, no `NODE_OPTIONS`, no `--inspect`, no extra file-protocol
+privileges, cookie encryption on, the app is loaded only from `app.asar`, and that archive is validated against integrity data
+written into the executable, so a modified archive refuses to start. Electron's own `LICENSES.chromium.html` and
+`LICENSE.electron.txt` ship in the package root, and the studio's `THIRD-PARTY-NOTICES.md` ships in
+`resources/desktop/dist`, which the app serves at `app://caotang/THIRD-PARTY-NOTICES.md`.
+
+Each build leg runs the repository's gate (`pnpm verify`) for the commit it packages, the same gate
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on every pull request, so a released commit is never gated by
+less than a merged one. The Windows leg leaves out the three `packages/sync-server/test` suites that boot a Worker runtime per
+case — `account-mode`, `storage` and `server` — with `CAOTANG_SKIP_WORKER_SUITES=1`, exactly as ci.yml's `verify (Windows)` job
+does while #815 moves those files onto one shared runtime and #820 tracks the third.
+
+The job that builds packages also runs on `workflow_dispatch`, so the packaging can be proved without releasing anything: a
+dispatch publishes nothing and only leaves the packages and their checksums as workflow artifacts.

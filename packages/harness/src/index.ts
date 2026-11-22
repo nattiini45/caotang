@@ -263,6 +263,7 @@ export {
   evaluate,
   matchCards,
   matchTrace,
+  projectBytes,
   runScenario,
   taskListFailures,
   type CallExpect,
@@ -528,6 +529,32 @@ export {
   type TurnEndRecord,
   type TurnStartRecord,
 } from './agent/trace.js';
+
+// Replay (agent-harness §8.1): a recorded call, a recorded turn, or a recorded turn answered by its cassette, on a scratch copy.
+export {
+  ReplayRefusal,
+  cassetteScripts,
+  estimateReplay,
+  indexTrace,
+  recordedCalls,
+  recordedDecisions,
+  replay,
+  draftDiffs,
+  stepDiffs,
+  type DraftDiff,
+  type RecordedCall,
+  type ReplayEstimate,
+  type ReplayEstimateRequest,
+  type ReplayMode,
+  type ReplayRefusalCode,
+  type ReplayRequest,
+  type ReplayResult,
+  type ReplaySource,
+  type ReplayStop,
+  type ReplayTarget,
+  type StepDiff,
+  type UsageSummary,
+} from './agent/replay.js';
 export {
   DRAFT_SYSTEM_PREFIX,
   COMPACTION_SYSTEM_PREFIX,

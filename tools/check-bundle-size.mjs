@@ -129,6 +129,12 @@ export const BUDGET = {
   // messages (+1,254 raw), which must precede first paint (i18n.md §3.3), and the entry's lazy loader for the command (+892 raw). The
   // reader, its preview source and the Worker stay on use. The ceiling is the measurement plus about 1%, rounded up to the thousand.
   // [delegated 2026-11-18]
+  // Codex relations and the project-wide graph (#223) on main at c62c25e1: 1,108,807 bytes gzip measured against main's own 1,107,212,
+  // so +1,595 on a ceiling with 788 bytes of room. Measured by removing each part in turn: the relationEdits validation in the codex
+  // descriptor is 535 bytes (1,108,272 without it) and the panel's List/Graph switch 55 (1,108,699); what is left is the store's read and
+  // write path for the field and the English catalogue, both of which must precede first paint. The entry's Relations section, its editor
+  // dialog, the unreadable-record row, the graph and both stylesheets already load on use. The ceiling is the measurement plus under 1 kB,
+  // not the old one plus 12, so later work gets no free room. [owner 2026-11-19]
   // The first-load diet, measured on main at 77a1e605 which had taken codex relations (#746) and the export settings fix (#760):
   // 1,096,587 bytes gzip against that main's own 1,108,807, so −12,220. On its own base at 9e33899b it measured 1,095,339 against main's
   // own 1,107,274 (−11,935); #746's relations added 1,243 and #760 added 5. Named, per change, as each landed: the toolbar's four panels (project, Skills, agent
@@ -144,7 +150,28 @@ export const BUDGET = {
   // by optimising rather than by taking the space back. All JS is 8,804,463 on the merged tree: 8,786,664 of it this branch's own, the
   // chunk-boundary scaffolding for the new on-use chunks with no module in two of them, against main's 8,769,385 at 9e33899b, and 17,393
   // more from #746's relations field, the list beside its graph and their catalogue. [delegated 2026-11-19]
-  initialGzip: 1_098_587,
+  // The i18n catalogue sweep (#328): about 400 hardcoded interface strings moved into the catalogue. The compiled English
+  // catalogue (locale-en, which must precede first paint, i18n.md §3.3) grew 104.8 to 115.1 kB gzip (+10.3 kB) — more than the
+  // sweep's whole first-load delta against the pre-diet main, so the about 590 t/Trans call sites in first-load modules net
+  // slightly negative against the literals they replaced. Re-measured on the merge of main at 6e271846 (which carries the
+  // first-load diet, #746's relations, #740's delegation, #769's codex.read ids, #773's provider key events and #752's
+  // folder watch): 1,106,979 bytes. Re-measured on the merge of main at 3b1c6cdc (#782's endpoint origins and #777's
+  // role fallbacks, which raised its own pin to 1,099,972 on a tree without the sweep): 1,108,155 bytes. The ceiling is
+  // the new measurement plus under 1 kB. [delegated 2026-11-20]
+  // #85's per-step routing measured 1,109,200 gzip on the merge of main 6e271846's successors once the catalogue sweep landed, 100 bytes
+  // over that. What grew on the first load is the gateway's step resolution and the loader that reads a role's steps, plus the step rows'
+  // labels; the step rows themselves, their model list and their level select sit in the on-use Settings chunk. The ceiling is the
+  // measurement plus 1 kB, #777's smallest step. [bundle-raise rule 2026-11-20]
+  // Re-measured on this branch over main at 7ed8a64b (#596's gateway error texts): 1,112,622 bytes gzip — the
+  // catalogued fixed wording grew the compiled catalogues on the first load. Rounded up to the thousand. [bundle-raise rule 2026-11-21]
+  // Replay's dialog measured 1,111,000 gzip on the merge with main at 7ed8a64b. What grew is the English catalogue's new messages for the
+  // dialog, which i18n.md §3.3 keeps in the entry because every message must be there before first paint; the dialog itself, its model and
+  // the engine's wrapper load with the Trace tab, on use. Optimisations tried first and kept: no lazy chunk was available to move (the Trace
+  // tab is already one), the engine's draft comparison calls the store's `countBody` instead of pulling the drafting module in for one word
+  // count, and the dead exports written before measuring were deleted. [delegated 2026-11-21]
+  // Measured again on the merge of main 04f250ae, which carries both of the above: 1,114,869 bytes, and 1,114,863 on a clean rebuild, whose
+  // chunk hashes differ by a few bytes. The ceiling is that plus at most 137 bytes, so later work inherits no free room. [delegated 2026-11-21]
+  initialGzip: 1_115_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -219,7 +246,46 @@ export const BUDGET = {
   // and the Worker load on use. The ceiling is the measurement plus about 1%, rounded up to the thousand. [delegated 2026-11-18]
   // Typed codex details add an atomic, lazy browser-storage upgrade. The shared format predicate and existing open/transaction
   // handlers avoid a second storage implementation; the details editor stays lazy. Measured 8,745,967 bytes with no new dependency.
-  totalJs: 8_834_000,
+  // The i18n catalogue sweep (#328): 8,842,182 bytes measured against 8,786,688 on main (+55,494) — the compiled English catalogue
+  // +27.6 kB raw (first load, required before first paint) and the German catalogue +31.8 kB raw (on use), the fixed cost of
+  // cataloguing the about 400 remaining literals; the call sites net negative. Re-measured on the merge of main at 6e271846
+  // (which carries #746's relations, #740's agent delegation, #769's codex.read ids, #773's provider key events and #752's
+  // folder watch): 8,879,683 bytes — the +5.3 kB over the earlier measurement is main's own landed work, not the sweep's.
+  // Re-measured on the merge of main at 3b1c6cdc (#782 and #777): 8,885,946 bytes — the +6.3 kB over the earlier
+  // measurement is again main's own landed work. Re-measured on the merge of main at 458d4418 (#784's burst judging and
+  // #787's per-device key return): 8,886,687 bytes — main's own landed work again. Re-measured on the merge of main at
+  // 558631d6 (#790's shell teardown and #791's turn-sticky fallback): 8,887,734 bytes. The ceiling is the new
+  // measurement rounded up to the thousand. [delegated 2026-11-21]
+  // #85's per-step routing measured 8,894,086 bytes on that same merge once this branch's routing, its step rows and their labels were in:
+  // 6,086 over the ceiling above. Checked first and kept: the role row and each step row share one `TargetFields` component instead of two
+  // copies of the model field, the model list and the level select; a step's route rides the gateway's existing single-target send and its
+  // window check reuses `modelLimits`; no dependency was added and no module moved to the first load. The ceiling is the measurement rounded
+  // up to the thousand, as above. [bundle-raise rule 2026-11-20]
+  // Replay (#82) measured 8,895,250 bytes on the merge with main at f96d5fe7, against that tree's own 8,895,064: +186 bytes, and 750
+  // under the ceiling this leaves in place. What grew is the trace's new `responseFormatHint`, which is what lets a call replay send the
+  // schema the recording asked for instead of a made-up one. Checked first and kept: the replay engine itself is not in the app's bundle
+  // (tree-shaken out; none of its names are in `dist`), `projectBytes` moved out of the eval runner into `agent/bytes.ts` so the engine
+  // cannot pull the runner in, and the cassette's scripted gateway was rebuilt inside the engine instead of imported from `cassette.ts`,
+  // whose `node:crypto` key was the one Node-only import the browser build saw. [bundle-raise rule 2026-11-20]
+  // The frame's folder-access answer measured 8,895,064 bytes on main at 38d83bce, which measured 8,894,928 on the same build: the change
+  // is +136 bytes, and 72 bytes were left under the old ceiling. Checked first and kept: the check is one predicate beside the existing one,
+  // it reads the parent's document once and adds no dependency, it lands in a chunk that is already on the first load, and the picker's own
+  // path is unchanged. The ceiling is the measurement rounded up to the thousand. [bundle-raise rule 2026-11-21]
+  // Re-measured on #579's merge over main at 7ed8a64b: 8,896,131 bytes — the catalogued
+  // recurring-tasks words cost 131 bytes over the shared ceiling. Rounded up to the thousand. [bundle-raise rule 2026-11-21]
+  // #596's gateway error texts measured 8,916,618 bytes all-JS over 7ed8a64b, 8,917,832 on the merge that
+  // adds #579's catalogue words — the entries spread across chunks. Rounded up. [bundle-raise rule 2026-11-21]
+  // Replay's dialog measured 8,922,600 raw on the merge with main at 7ed8a64b, against that tree's own 8,896,000 ceiling. A chunk-by-chunk
+  // comparison against the same tree without the change shows the growth is the feature and nothing else: the dialog and its stylesheet,
+  // the app model that words the refusals and the comparison, the runner that hands the engine the app's gateway and rules, the engine's
+  // `draftDiffs`, and the English catalogue text for all of it. No lazy chunk could take it (the Trace tab, where the dialog lives, is
+  // already on use), `countBody` replaced the drafting module the comparison would otherwise have pulled in, and the dead exports written
+  // before measuring were removed. Staged, rolled back and rebuilt twice: all JS is the same 8,922,600 on a clean rebuild. [delegated 2026-11-21]
+  // Measured again on the merge of main 04f250ae, which carries both of the above: 8,948,607 bytes, and 8,948,610 on a clean rebuild. That
+  // measurement left the dialog's new German entries untranslated; translating them, so the Appearance screen still shows 100% complete,
+  // put 736 more bytes in the on-use `locale-de` chunk and none in the first load. 8,949,346 on the rebuild with them, and the ceiling is
+  // that plus 654 bytes, so later work inherits no free room. [delegated 2026-11-22]
+  totalJs: 8_950_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +10,7 @@ import { createEmptyManifest, createProjectState, exportProjectZip } from '@caot
 import type {} from '../src/folder-contract.cjs';
 
 import { dismissDialogs } from './dialogs.js';
+import { closeShell } from './teardown.js';
 
 const executablePath = createRequire(import.meta.url)('electron') as string;
 const shell = fileURLToPath(new URL('..', import.meta.url));
@@ -55,7 +56,7 @@ test('folder saves land on disk, and a recent folder never opens a stale mirror'
     });
     expect(boundary).toEqual([['id', 'name'], { ok: false, error: 'invalid' }, { ok: false, error: 'invalid' }]);
   } finally {
-    await electron.close();
+    await closeShell(electron);
   }
 
   const onDisk = await readFile(manifest, 'utf8');
@@ -84,7 +85,7 @@ test('folder saves land on disk, and a recent folder never opens a stale mirror'
     await expect(page.getByText('Folder Version', { exact: true })).toBeVisible();
   } finally {
     await chmod(dir, 0o755).catch(() => undefined);
-    await reopened.close();
+    await closeShell(reopened);
   }
 });
 
@@ -104,7 +105,7 @@ test('a recent-folder list that cannot be read costs the list, not the window', 
     await expect(page.getByText('Ash Notebook', { exact: true })).toBeVisible();
     await expect.poll(() => readFile(join(dir, 'caotang.json'), 'utf8')).toContain('"name": "Ash Notebook"');
   } finally {
-    await electron.close();
+    await closeShell(electron);
   }
 });
 
@@ -136,7 +137,7 @@ test('forgetting a recent folder leaves its folder writable for a closing sessio
     expect(outcome.listed).toEqual([]);
     expect(await readFile(join(dir, 'docs', 'note.md'), 'utf8')).toBe('The closing save.');
   } finally {
-    await electron.close();
+    await closeShell(electron);
   }
 });
 
@@ -163,6 +164,98 @@ test('explicit copy leaves an IndexedDB-only project available', async () => {
     await expect(page.getByRole('button', { name: 'Copy to a folder…', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Reopen folder', exact: true })).toBeVisible();
   } finally {
-    await electron.close();
+    await closeShell(electron);
+  }
+});
+
+test('a recovery accepted in a native folder saves to that folder, not to a copy in the browser', async () => {
+  const dir = test.info().outputPath('Recovered folder');
+  const profile = test.info().outputPath('profile');
+  const manifest = join(dir, 'caotang.json');
+  await mkdir(dir, { recursive: true });
+  const electron = await launch(profile);
+  try {
+    await choose(electron, dir);
+    const page = await electron.firstWindow();
+    await page.getByRole('textbox', { name: 'Project name' }).fill('Kelp Notebook');
+    await page.getByRole('button', { name: 'Create project', exact: true }).click();
+    await expect(page.getByText('Kelp Notebook', { exact: true })).toBeVisible();
+    // A chapter, so the folder holds a document the ladder can rebuild the project from.
+    await page.getByRole('button', { name: 'New chapter', exact: true }).first().click();
+    await expect.poll(() => readFile(manifest, 'utf8')).toContain('"title": "Untitled"');
+  } finally {
+    await closeShell(electron);
+  }
+
+  // The manifest another program broke: the folder's open offers the recovery ladder instead of refusing.
+  await writeFile(manifest, '{"project": "not a manifest"');
+
+  const reopened = await launch(profile);
+  try {
+    const page = await reopened.firstWindow();
+    await page.getByRole('button', { name: 'Reopen folder', exact: true }).click();
+    const dialog = page.getByTestId('recovery-dialog');
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: /Rebuild the project|Open this copy/ }).click();
+    // The recovered project is open, and the folder is its home: a save after the recovery reaches the folder (#744). A copy in the
+    // browser would leave the manifest on disk as the recovery wrote it.
+    const newChapter = page.getByRole('button', { name: 'New chapter', exact: true }).first();
+    await expect(newChapter).toBeVisible();
+    const recovered = await readFile(manifest, 'utf8');
+    await newChapter.click();
+    await expect.poll(async () => (await readFile(manifest, 'utf8')) !== recovered, { timeout: 10_000 }).toBe(true);
+    await expect.poll(() => readFile(manifest, 'utf8')).toContain('"title": "Untitled"');
+  } finally {
+    await closeShell(reopened);
+  }
+});
+
+test('a recovery that pauses on a file that is not UTF-8 text still opens and saves in its folder', async () => {
+  const dir = test.info().outputPath('Paused recovery folder');
+  const profile = test.info().outputPath('profile');
+  const manifest = join(dir, 'caotang.json');
+  await mkdir(dir, { recursive: true });
+  const electron = await launch(profile);
+  try {
+    await choose(electron, dir);
+    const page = await electron.firstWindow();
+    await page.getByRole('textbox', { name: 'Project name' }).fill('Driftwood Notebook');
+    await page.getByRole('button', { name: 'Create project', exact: true }).click();
+    await expect(page.getByText('Driftwood Notebook', { exact: true })).toBeVisible();
+    // A scene with text, so the folder holds a document the recovered project names and has to read.
+    await page.getByRole('button', { name: 'New', exact: true }).click();
+    await page.getByRole('menuitem', { name: /^Scene/ }).click();
+    await page.getByRole('textbox', { name: 'Document text' }).fill('The ferry leaves at dusk.');
+    await expect.poll(async () => (await readdir(join(dir, 'docs'))).filter((name) => name.endsWith('.md')).length).toBe(1);
+  } finally {
+    await closeShell(electron);
+  }
+
+  // The scene's document replaced by bytes that are not UTF-8 text, so the recovery pauses for the writer's answer before the
+  // project opens, and a manifest another program broke, so the folder offers the ladder instead of refusing.
+  const documents = (await readdir(join(dir, 'docs'))).filter((name) => name.endsWith('.md'));
+  expect(documents).toHaveLength(1);
+  await writeFile(join(dir, 'docs', documents[0] as string), Buffer.from([0x54, 0x68, 0x65, 0x20, 0xe9, 0x74, 0xe9, 0x0a]));
+  await writeFile(manifest, '{"project": "not a manifest"');
+
+  const reopened = await launch(profile);
+  try {
+    const page = await reopened.firstWindow();
+    await page.getByRole('button', { name: 'Reopen folder', exact: true }).click();
+    const recovery = page.getByTestId('recovery-dialog');
+    await expect(recovery).toBeVisible();
+    await recovery.getByRole('button', { name: /Rebuild the project|Open this copy/ }).click();
+    // The answer about the unreadable file is what completes the recovery, and it must not leave the project in the browser.
+    const encoding = page.getByTestId('encoding-dialog');
+    await expect(encoding).toBeVisible();
+    await encoding.getByRole('radio', { name: /^Leave it/ }).check();
+    await encoding.getByRole('button', { name: 'Open the project', exact: true }).click();
+    const newChapter = page.getByRole('button', { name: 'New chapter', exact: true }).first();
+    await expect(newChapter).toBeVisible();
+    const recovered = await readFile(manifest, 'utf8');
+    await newChapter.click();
+    await expect.poll(async () => (await readFile(manifest, 'utf8')) !== recovered, { timeout: 10_000 }).toBe(true);
+  } finally {
+    await closeShell(reopened);
   }
 });

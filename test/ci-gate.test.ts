@@ -19,6 +19,13 @@ function jobBlock(workflow: string, id: string): string {
   return jobs.slice(blockStart, blockEnd);
 }
 
+/**
+ * The suites `CAOTANG_SKIP_WORKER_SUITES` leaves out, each of which boots its own Miniflare Worker runtime per case: too slow for
+ * GitHub's Windows runner to finish inside the case deadline (#815, and #820 for the third). The list lives here so the two
+ * Windows legs' step names and the exclusion itself are checked against one another rather than each being trusted alone.
+ */
+const WORKER_SUITE_FILES = ['account-mode', 'storage', 'server'];
+
 const ci = read('.github/workflows/ci.yml');
 const browsers = read('.github/workflows/e2e-browsers.yml');
 const summaryScript = jobBlock(ci, 'e2e').split('        run: |\n')[1]?.split('\n').map((line) => line.slice(10)).join('\n') ?? '';
@@ -308,5 +315,52 @@ describe('the Node floor and the whole gate', () => {
     for (const host of ['packages/cli/test', 'packages/sdk/test', 'packages/mcp-server/test', 'packages/sync-server/test']) {
       expect(filters, `the floor leg must keep ${host}`).toContain(host);
     }
+  });
+});
+
+/**
+ * The packaging workflow gates a released commit as strictly as a merged one.
+ *
+ * Its Windows leg once ran `pnpm run typecheck` alone, because the suite was not ported to that runner. That is the one place
+ * the gate could narrow without anyone noticing: a tag would ship from a commit whose unit suites never ran. The guard keeps
+ * every leg on `pnpm verify`, names the files the one documented exclusion covers, and keeps it from spreading by copy.
+ */
+describe('the packaging legs run the gate', () => {
+  const release = read('.github/workflows/desktop-release.yml');
+  const windows = jobBlock(release, 'build-windows');
+  const macAndLinux = jobBlock(release, 'build-mac-linux');
+
+  it('runs the whole gate on every leg, never a typecheck alone', () => {
+    for (const [id, leg] of [['build-windows', windows], ['build-mac-linux', macAndLinux]] as const) {
+      expect(leg, id).toContain('run: pnpm verify');
+      expect(leg, id).not.toContain('run: pnpm run typecheck');
+    }
+  });
+
+  it('leaves the Worker suites out on Windows only, and names each of them in the step', () => {
+    expect(windows).toContain("CAOTANG_SKIP_WORKER_SUITES: '1'");
+    expect(macAndLinux).not.toContain('CAOTANG_SKIP_WORKER_SUITES');
+    const names = [...windows.slice(0, windows.indexOf('CAOTANG_SKIP_WORKER_SUITES')).matchAll(/^ {6}- name: (.*)$/gm)];
+    const name = names.at(-1)?.[1];
+    if (name === undefined) throw new Error('the Windows leg has no named step before the exclusion');
+    for (const file of WORKER_SUITE_FILES) expect(name, file).toContain(file);
+    expect(name).toContain('boots a Worker runtime per case');
+  });
+
+  it('quotes any step name carrying what an unquoted YAML value cannot hold', () => {
+    // Both files are parsed by GitHub before any job starts, and an unquoted value has two traps: `: ` would make it a mapping and
+    // fail the run with no jobs at all, and ` #` silently ends the value there — a step would lose the issue it cites and nothing
+    // would say so. Both bit the step name this suite exists to check.
+    for (const path of ['.github/workflows/ci.yml', '.github/workflows/desktop-release.yml']) {
+      for (const [, name] of read(path).matchAll(/^\s*- name: (.*)$/gm)) {
+        if (name!.startsWith('"') || name!.startsWith("'")) continue;
+        expect(name, `${path}: ${name}`).not.toMatch(/: | #/);
+      }
+    }
+  });
+
+  it('excludes exactly the suites its step names, so neither can drift from the other', () => {
+    const excluded = [.../CAOTANG_SKIP_WORKER_SUITES'\] === '1'\s*\? \[([^\]]+)\]/.exec(read('vitest.config.ts'))![1]!.matchAll(/test\/([\w-]+)\.test\.ts/g)].map((match) => match[1]!);
+    expect(excluded).toEqual(WORKER_SUITE_FILES.map((file) => file));
   });
 });

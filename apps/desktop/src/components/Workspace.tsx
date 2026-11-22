@@ -1009,7 +1009,7 @@ export function Workspace({
       openInFindings(factGroup);
     },
     activity: <ActivityPanel session={session} onExport={() => void exportActivity()} onResumeRun={() => setAgentOpen(true)} />,
-    trace: <TracePanel services={services} projectName={state.manifest.project.name} />,
+    trace: <TracePanel services={services} session={session} projectName={state.manifest.project.name} />,
     inspector: (
       <Inspector session={session} nodeId={selected} onOpenCodex={openCodexEntry} onAgentIntent={runAgentIntent} onOpenPicture={openPictureBoard} />
     ),

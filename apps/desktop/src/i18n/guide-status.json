@@ -72,7 +72,7 @@
           "anchor": "caotang-auf-einem-telefon-oder-tablet-verwenden"
         },
         "settings": {
-          "hash": "3fc082fe",
+          "hash": "0cee1304",
           "anchor": "einstellungen"
         },
         "keyboard": {
@@ -90,6 +90,10 @@
         "installing-the-mcp-bundle": {
           "hash": "4651f5c6",
           "anchor": "das-mcp-bundle-installieren"
+        },
+        "scripting-caotang": {
+          "hash": "170443fb",
+          "anchor": "caotang-per-skript-steuern"
         }
       }
     }

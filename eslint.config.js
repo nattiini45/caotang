@@ -32,12 +32,12 @@ export default tseslint.config(
     },
   },
   {
-    // `tools/` is Node CLI code. The block above scopes `globals.node` to
+    // `tools/` and the desktop shell's `scripts/` are Node CLI code. The block above scopes `globals.node` to
     // `**/*.{ts,tsx}`, so a plain `.mjs` file there would be linted with no Node
     // globals at all and `Buffer`/`process`/`console` would be `no-undef`. This block gives the root the globals and nothing else: the
     // TypeScript-only rules and the `no-console` budget above stay scoped to the
     // app and packages, where they were written.
-    files: ['tools/**/*.mjs'],
+    files: ['tools/**/*.mjs', 'apps/desktop-shell/scripts/**/*.mjs'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',

@@ -728,3 +728,33 @@ describe('local model presets (Ollama, LM Studio, llama.cpp)', () => {
     await expect(profiles.create(local('ollama', { customHeaders: { 'x-a': 'b' } }))).rejects.toMatchObject({ field: 'customHeaders' });
   });
 });
+
+describe('the key mirror', () => {
+  it('reports what a profile key now is, and the endpoint origin it may be sent to', async () => {
+    const seen: { profileId: string; change: unknown }[] = [];
+    const keys = createKeyStore(createMemoryVaultPort());
+    const profiles = createProfileStore({ keys, mirror: { changed: (profileId, change) => seen.push({ profileId, change }) } });
+
+    const created = await profiles.create(endpoint('Mirrored'));
+    expect(seen).toEqual([{ profileId: created.id, change: { origin: 'https://a.example', payload: { apiKey: KEY } } }]);
+
+    // A profile with no key has nothing for a host to keep, and the demo profile is one of those.
+    await profiles.create({ name: 'Demo', kind: 'mock', isActive: false });
+    expect(seen).toHaveLength(1);
+
+    // A save that re-enters the key for another address reports the address that save chose.
+    await profiles.update(created.id, { baseUrl: 'https://c.example/v1', apiKey: 'sk-second' });
+    expect(seen.at(-1)).toEqual({ profileId: created.id, change: { origin: 'https://c.example', payload: { apiKey: 'sk-second' } } });
+
+    // A removal says so, so a host can drop its copy.
+    await profiles.remove(created.id);
+    expect(seen.at(-1)).toEqual({ profileId: created.id, change: null });
+    expect(seen).toHaveLength(3);
+  });
+
+  it('opens without a mirror exactly as before', async () => {
+    const { profiles } = store();
+    const created = await profiles.create(endpoint('Plain'));
+    expect((await profiles.get(created.id))?.hasKey).toBe(true);
+  });
+});

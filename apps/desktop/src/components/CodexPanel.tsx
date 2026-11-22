@@ -242,10 +242,10 @@ function CodexList({
           actions={
             <>
               <button type="button" className="button is-primary" onClick={create}>
-                New entry
+                <Trans>New entry</Trans>
               </button>
               <button type="button" className="button" onClick={() => onAgentIntent(EMPTY_STATE_INTENTS.codexSeed)}>
-                Let the agent draft entries from your manuscript
+                <Trans>Let the agent draft entries from your manuscript</Trans>
               </button>
             </>
           }

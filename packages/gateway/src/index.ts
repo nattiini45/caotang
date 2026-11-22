@@ -16,6 +16,9 @@ export type {
   ResponseFormatProbe,
   ProfileVerification,
   ProviderGateway,
+  AttemptTarget,
+  RouteHooks,
+  RoleTarget,
   ChatRequest,
   ChatMessage,
   MessageContent,
@@ -30,6 +33,7 @@ export type {
   FinishReason,
   ThinkingLevel,
   TaskRole,
+  StepClass,
   ToolDef,
   ToolCall,
   ReasoningBlock,
@@ -71,6 +75,7 @@ export {
 export {
   ProviderError,
   providerMessages,
+  providerRefs,
   EgressDeniedError,
   ProfileError,
   type ProviderErrorKind,
@@ -90,7 +95,10 @@ export {
 export { detectProvider, FEATURED_PROVIDERS, type KeyDetection } from './detect.js';
 export { chooseModels, type ModelChoice } from './model-catalog.js';
 export { defaultConcurrency, type ConcurrencyPolicy } from './limiter.js';
-export { normalizeBaseUrl, normalizeLocalBaseUrl, MOCK_BASE_URL, isLoopbackBase, isLocalBase } from './base-url.js';
+
+/** Every step class, in the order Settings offers them (§6): a value, so the rows and the normaliser agree. */
+export { STEP_CLASSES } from './types.js';
+export { normalizeBaseUrl, normalizeLocalBaseUrl, originOf, MOCK_BASE_URL, isLoopbackBase, isLocalBase } from './base-url.js';
 export { isLoopbackHost, isLoopbackLiteral } from './loopback.js';
 
 export {
@@ -114,8 +122,8 @@ export {
   type KeyStoreOptions,
 } from './keys/key-store.js';
 export { createMemoryVaultPort, type KeyVaultPort, type SealedEntry } from './keys/vault.js';
-export type { KeyMirror } from './keys/key-store.js';
-export { createIndexedDbVaultPort, type IndexedDbVaultOptions } from './keys/indexeddb-vault.js';
+export type { KeyChange, KeyMirror } from './profiles.js';
+export { createIndexedDbVaultPort, PROVIDER_KEY_DB_NAME, type IndexedDbVaultOptions } from './keys/indexeddb-vault.js';
 
 export { createGateway, type Gateway, type GatewayOptions, type GatewayTraceEvent } from './gateway.js';
 export type { FetchLike } from './transport.js';

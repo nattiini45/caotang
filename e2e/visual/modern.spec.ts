@@ -104,7 +104,11 @@ for (const scheme of ['light', 'dark'] as const) {
       await start(page, scheme, false);
       const views = page.getByRole('navigation', { name: 'Views and tools' });
       if (surface === 'board') await views.getByRole('radio', { name: 'Board' }).click();
-      if (surface === 'codex') await views.getByRole('radio', { name: 'Codex' }).click();
+      if (surface === 'codex') {
+        await views.getByRole('radio', { name: 'Codex' }).click();
+        // Its views are lazy chunks: the shot waits for the search box, not the "Loading the codex…" line.
+        await expect(page.getByRole('searchbox', { name: 'Search the codex' })).toBeVisible();
+      }
       if (surface === 'more') {
         await page.getByRole('toolbar', { name: 'Scene' }).getByRole('button', { name: 'More', exact: true }).click();
         await expect(page.getByRole('menu', { name: 'More' })).toBeVisible();

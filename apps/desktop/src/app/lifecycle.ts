@@ -1185,12 +1185,7 @@ async function finishFolderOpen(
     const cache = await nativeRuntimeStore(nativeId);
     const opened = await openStored(cache, projectId, root, { notices, droppedFields, folderLog }, pictures, loaded.state);
     try {
-      holdFolderCopy(opened.session, root, baselineText, digests);
-      opened.session.persistence.setArtifactSaver(async () => {
-        const outcome = await writeFolder(opened.session, root, {}, true);
-        if (outcome.kind === 'refused') throw new Error(t`The project folder changed outside Caotang or is in use. Reopen it before saving.`);
-      });
-      await rememberNativeFolder(nativeId);
+      await liveInItsFolder(opened, root, baselineText, digests);
       return { kind: 'opened', opened };
     } catch (error) {
       await opened.session.closeSafely().catch(() => undefined);
@@ -1521,13 +1516,75 @@ export async function completeRecovery(
       },
     };
   }
+  const root = recovery.folder;
   // The recovery's own notes say which copy was used, and the dialog has already said it, so they are not repeated as field notices.
-  const opened = await adopt(store, offer.state, recovery.sessions, [], [], recovery.folder);
-  if (recovery.folder !== null) {
-    // The recovery wrote the folder, so the digests are taken as the folder now stands: the next save is checked against what it holds.
-    holdFolderCopy(opened.session, recovery.folder, (await readManifestText(recovery.fs)) ?? '', await projectFileDigests(recovery.fs));
+  if (root !== null) {
+    const opened = await openRecoveredInItsFolder(recovery.fs, root, offer.state, recovery.sessions, []);
+    if (opened !== null) return { kind: 'opened', opened };
+  }
+  const opened = await adopt(store, offer.state, recovery.sessions, [], [], root);
+  if (root !== null) {
+    // A folder the writer picked in the browser is not the project's home: the recovery opens in the browser's store, and "Save to
+    // folder" stays the writer's action.
+    holdFolderCopy(opened.session, root, (await readManifestText(recovery.fs)) ?? '', await projectFileDigests(recovery.fs));
   }
   return { kind: 'opened', opened };
+}
+
+/**
+ * Opens a recovered project in the folder it came from, when that folder is a native one: the recovered state is stored in the
+ * folder's own cache under the project id the recovered manifest names — a snapshot rung keeps that id, while a rebuild mints a new
+ * one, so the row the cache held before stays beside it and is simply not named by the folder — and the session lives in the folder,
+ * so it opens the way a native open opens and every later save writes the folder. Returns `null` for a folder picked in the browser,
+ * which is not a project's home; the caller adopts it instead. A pause for non-UTF-8 files goes through here too, so the answers
+ * cannot land the project in the browser store (#744).
+ */
+async function openRecoveredInItsFolder(
+  fs: ArtifactFs,
+  root: DirectoryHandleLike,
+  state: ProjectState,
+  sessions: readonly SessionRecord[],
+  notices: readonly string[],
+): Promise<Opened | null> {
+  const nativeRoot = nativeFolderId(root);
+  if (nativeRoot === undefined) return null;
+  const cache = await nativeRuntimeStore(nativeRoot);
+  const opened = await openStored(
+    cache,
+    state.manifest.project.id,
+    root,
+    { notices, droppedFields: [], folderLog: sessions },
+    await folderPictures(root),
+    state,
+  );
+  try {
+    // The recovery wrote the folder, so the digests are taken as the folder now stands: the next save is checked against what it holds.
+    await liveInItsFolder(opened, root, (await readManifestText(fs)) ?? '', await projectFileDigests(fs));
+    return opened;
+  } catch (error) {
+    await opened.session.closeSafely().catch(() => undefined);
+    throw error;
+  }
+}
+
+/**
+ * Makes a session opened from a native folder live in that folder: the copy it holds is the folder's as it stands, every later save
+ * writes the folder through the one writer (`writeFolder`), and the folder is in the recent list. Both the open path and an accepted
+ * recovery route here, so a project cannot open looking like a folder's while saving somewhere else (#744).
+ */
+async function liveInItsFolder(
+  opened: Opened,
+  root: DirectoryHandleLike,
+  baselineText: string,
+  digests: ReadonlyMap<string, string>,
+): Promise<void> {
+  holdFolderCopy(opened.session, root, baselineText, digests);
+  opened.session.persistence.setArtifactSaver(async () => {
+    const outcome = await withFolderWrite(opened.session, () => writeFolder(opened.session, root, {}, true));
+    if (outcome.kind === 'refused') throw new Error(t`The project folder changed outside Caotang or is in use. Reopen it before saving.`);
+  });
+  const nativeId = nativeFolderId(root);
+  if (nativeId !== undefined) await rememberNativeFolder(nativeId);
 }
 
 /**
@@ -1590,7 +1647,12 @@ export async function completeEncodingReview(
       };
     case 'recovery': {
       // As the accepted recovery itself would open it: the conversion lines are the whole report, since the recovery
-      // dialog already said which copy was used.
+      // dialog already said which copy was used. The answers are what completes the recovery, so a paused one takes the
+      // folder path too instead of opening a copy in the browser (#744).
+      if (resume.folder !== null) {
+        const opened = await openRecoveredInItsFolder(pending.fs, resume.folder, loaded.state, resume.sessions, lines);
+        if (opened !== null) return { kind: 'opened', opened };
+      }
       const opened = await adopt(store, loaded.state, resume.sessions, lines, [], resume.folder);
       if (resume.folder !== null) {
         holdFolderCopy(opened.session, resume.folder, (await readManifestText(pending.fs)) ?? '', await projectFileDigests(pending.fs));
@@ -1681,7 +1743,7 @@ function folderFilePreviewTargets(
   const currentTitles = projectFileTitles(state);
   const target = (path: string, change: ProjectFileChange['change']): FolderFilePreviewTarget => ({
     path,
-    label: projectFileLabel(path, currentTitles, heldTitles, 'this copy'),
+    label: projectFileLabel(path, currentTitles, heldTitles, t`this copy`),
     change,
   });
   const previewable = (path: string): boolean => path.startsWith(`${DOCS_DIR}/`) || path.startsWith('codex/');
@@ -1718,7 +1780,7 @@ export async function previewFolderChanges(
   try {
     await writeProject(proposedFs, copyState(session.state), { copyFor: 'internal' });
   } catch {
-    const previews = targets.map((file) => ({ ...file, lines: [{ kind: 'note' as const, text: 'Caotang could not prepare this comparison.' }] }));
+    const previews = targets.map((file) => ({ ...file, lines: [{ kind: 'note' as const, text: t`Caotang could not prepare this comparison.` }] }));
     return { previews, omitted: previouslyOmitted + files.length - previews.length };
   }
   const previews: FolderFilePreview[] = [];
@@ -1810,7 +1872,21 @@ export async function saveFolder(
     throw new Error('This tab cannot save: another tab has newer text for this project. Export a backup to keep the words in this tab.');
   }
   await session.settle();
-  return writeFolder(session, root, answers, false);
+  return withFolderWrite(session, () => writeFolder(session, root, answers, false));
+}
+
+/**
+ * Runs a write into the open folder with the copy the session holds marked out of date until the write ends: the copy advances only
+ * as the save finishes, however many files it re-digests, and a reader of the folder waits for that instead of judging a save in
+ * progress as another program's edit (#778).
+ */
+async function withFolderWrite<T>(session: ProjectSession, work: () => Promise<T>): Promise<T> {
+  session.beginFolderWrite();
+  try {
+    return await work();
+  } finally {
+    session.endFolderWrite();
+  }
 }
 
 async function writeFolder(

@@ -354,6 +354,8 @@ The activity log says what changed; the trace says what the model saw and did, s
 
 **Spec in [context-assembly.md](context-assembly.md)** — fixed 8-layer stack (system / project summary / codex / structural synopses / prior-scene synopses / focus-doc tail / conversation memory / task), budgets (12k default; tail 3k chars; story-so-far 2k tokens; codex 1k), bottom-up deterministic drop, forward-outline suppressed by default, prompt preview on every confirm-class plan card. Strategy: synopsis tree + mention-keyed codex, zero embeddings.
 
+**Every call names its step.** Each model call the loop makes is stamped with the step it belongs to (`StepClass`, provider-gateway §6): the planner's call is `plan`, a scene or dialogue draft and its shots are `draft`, a synopsis is `summarize`, the coherence review is `review`, encoding work (the encoding review a writer can ask for on a file that is not UTF-8) is `utility`, and a call that only reads is `read`. A model hook takes no step: its consent named one destination, and the call carries that as its approved route. The step travels on the request, so the gateway routes it to the destination the writer named for that step, and the assembly asks `gateway.modelLimits` for that destination rather than the role's own: a draft routed to a small local model is assembled for that model's window and priced at its rates (`ContextRequest.limits`, which the port takes over its config's model). A step whose destination is the role's own changes nothing — the call is stamped all the same, so the ledger splits a turn's planning from its drafting, and a later change of route needs no new call site.
+
 ## 7. Verification & self-correction ladder
 
 Post-conditions are per-tool assertions (e.g. `scene.draft`: doc body non-empty, word delta matches mode; `binder.restructure`: tree validates against project-format schema). Ladder: adjust params → retry (≤2) → structured failure report with 2–3 options. Trace assertions in evals mirror this (§9).
@@ -364,7 +366,7 @@ The read-boundary snapshot is rechecked through the gateway's per-attempt admiss
 
 A writer can set limits on their own key: model calls, tokens, cost, applied steps, minutes of work per turn, and (for an unattended caller) an absolute deadline. They are the writer's: Caotang charges nothing and imposes no quota (decisions.md; provider-gateway §9 D4). `budget.ts` holds them in a `BudgetMeter`, pure apart from its clock, which a session takes as `AgentSessionOptions.meter` (a meter, or a function that reads the meter of the turn about to start). A session with no meter enforces nothing beyond the model-call bound, as before. `TurnBudget` (§4) keeps its words-changed and documents-touched dimensions, which are measured from the activity log after a card applies; the meter owns the dimensions that can be held before a call.
 
-- **Never crossed.** The one budgeted call site (`modelCall`, and the call a delegated agent makes) reserves the call's worst case before the request is sent: the prompt's estimate (`usageFor`) plus the output cap the request goes with — the transmitted cap `gateway.modelLimits` settles for the request's own cap, budget and level (`transmittedOutputCap`), thinking lift included. The limits are read for the request as it is sent, its own profile, model, level and task role, never the session's pins in their place: a call under a role the session's pins do not apply to (the prompt pack's `drafting` calls), or one whose session pins no profile, is settled on the profile, model and level the gateway's role routing sends it through (provider-gateway §6). The reservation is refused when tokens spent, plus every reservation in flight, plus this one, would pass `maxTokens`; the same sum in dollars at the profile's `pricePer1k` for `maxCostUsd`; or when `maxModelCalls` calls have been made. A refused call is never sent. The turn ends `failed` on an ask-back with code `budget_exhausted`, whose reason names what the call would have needed, and `TurnReport.budgetStop` carries `{ dimension, limit, spent, needed }`. After the call the reservation is settled with the usage of the stream's final chunk; a stream that ends with none settles at the estimate (the prompt and the text that arrived) and the tokens count as `estimatedTokens`. Gateway retries happen inside one `complete`, so one reservation covers all attempts. A `maxCostUsd` on a profile with no prices is refused before any request, with “This run has a cost limit, and the profile “X” has no prices, so its cost cannot be counted. Add its prices in Settings › Providers, or use a token limit.”
+- **Never crossed.** The one budgeted call site (`modelCall`, and the call a delegated agent makes) reserves the call's worst case before the request is sent: the prompt's estimate (`usageFor`) plus the output cap the request goes with — the transmitted cap `gateway.modelLimits` settles for the request's own cap, budget and level (`transmittedOutputCap`), thinking lift included. The limits are read for the request as it is sent, its own profile, model, level, task role and step, never the session's pins in their place — a step that names its own destination is reserved on that destination, a step that follows the role keeps them, and a call under a role the session's pins do not apply to (the prompt pack's `drafting` calls), or one whose session pins no profile, is settled on the profile, model and level the gateway's role routing sends it through (provider-gateway §6). The reservation is refused when tokens spent, plus every reservation in flight, plus this one, would pass `maxTokens`; the same sum in dollars at the profile's `pricePer1k` for `maxCostUsd`; or when `maxModelCalls` calls have been made. A refused call is never sent. The turn ends `failed` on an ask-back with code `budget_exhausted`, whose reason names what the call would have needed, and `TurnReport.budgetStop` carries `{ dimension, limit, spent, needed }`. After the call the reservation is settled with the usage of the stream's final chunk; a stream that ends with none settles at the estimate (the prompt and the text that arrived) and the tokens count as `estimatedTokens`. Gateway retries happen inside one `complete`, so one reservation covers all attempts. A role's fallbacks are admitted one destination at a time (provider-gateway §6): before a fallback's request opens, the attempt that ended is settled as spend with what it used, and the next destination's own worst case — its transmitted cap at its own `pricePer1k`, read from `modelLimits` for that target — takes the call's place through `BudgetMeter.renew`, which counts no second model call. A destination whose worst case would pass a limit ends the turn at the switch, `failed` on `budget_exhausted`, with nothing sent to that profile and the primary's fault never rethrown. The destination that answered a role's request is remembered for that role **for the rest of the turn** (provider-gateway §6, `startAt`): the role's later requests in the same turn start there, with the rest of the route behind it, and each of those requests is reserved on that destination's own worst case before it opens, so a turn that moved cannot spend a fallback's call against the primary's reservation. The memory is the turn's and dies with it — the next turn starts at the role's primary again — a remembered destination the writer removed from the role mid-turn stops matching the route and the request starts at the primary, and a request pinned to a destination of its own (a turn's pins naming another profile, a model hook's approval stamp) neither reads nor writes it. A `maxCostUsd` on a profile with no prices is refused before any request, with “This run has a cost limit, and the profile “X” has no prices, so its cost cannot be counted. Add its prices in Settings › Providers, or use a token limit.”
 - **Time.** `maxActiveMs` is time spent working: the meter's clock is paused while a card or a background offer waits for the writer. `deadline` is the wall clock and is never paused. Either aborts `meter.signal`; the turn's signal is the writer's Stop and that signal combined (`anySignal`), so a limit ends a model call in flight, a coherence review and an external call by the path Stop uses, and never inside a bus command that has started. A turn a time limit ended is `failed` with `budgetStop` (`active-time` or `deadline`), not `cancelled` with `stop.by === 'user'`; the writer's own Stop wins when both fired. What the turn applied before stays in its undo group and its checkpoint restores it. A call a limit cut short that its tool absorbs (a review reports what it had, with a note) leaves the status as the tool reported it, and the report still carries `budgetStop`.
 - **Steps.** Applied write steps are counted into the meter at each turn's end and before each `stage()`, and so is an external call that was sent and then timed out or was cancelled (`StepRecord.mayHaveActed`): it may have acted, and a run that keeps calling a hung server meets its step limit. A write past `maxSteps` is refused before it is drafted, as a failed status card and the same words to the planner (“the run’s limit is N applied steps and U are used, so a plan may have L more write steps…”), so no model call is spent on it.
 - **A run, not a turn.** A meter outlives a turn: a goal run or a background task shares one across its turns, and `toJSON()` with `createBudgetMeter(limits, { restored })` carries its spend across a reload. The app makes one per turn from Settings › Agent (`agent.budget`): the limits the writer set, and ten minutes of work unless they chose another; it disposes the meter when the turn settles. A turn's model-call bound is read at the start of each turn from the same settings, default 8.
@@ -467,6 +469,80 @@ Streaming responses render progressively in the agent panel; tool-call cards col
 **Usage accounting.** The finished turn displays its recorded `TurnReport.costUsd`, with a disclosure grouped by profile, model and role, including cache/reasoning subsets and estimated/unpriced coverage. It never multiplies a whole turn by the Chat profile's price. The panel's session disclosure totals calls made under the durable conversation's accounting identity across visits, foreground roles, delegated calls, tasks and agent reviews, including failed or stopped calls. The loop carries its accounting session through `ChatRequest` and optional `TurnContext`/`PortContext.sessionId` into nested coherence calls; unique role/task turn names stay unchanged. Reopening retains the session's reports and total; New session starts an empty total without deleting device history. A fork's inherited turns keep their original accounting and are not charged again under the fork. Restore and rewind do not alter usage. The Activity Markdown export includes known cost and coverage notes; reports written before these optional fields remain readable without inventing a price. Provider-gateway §6 governs retention, captured prices and the provider-bill caveat.
 
 The legacy `AgentSessionOptions.price` override remains a budget-check price and is reflected in `budgetUse`, using the gateway's shared cost formula. It never changes recorded `usage` or `costUsd`. Without that override, budget use reads the recorded cost too; the app supplies no whole-turn price override.
+
+### 8.1 Replay
+
+**A recording is re-run against another model, on a copy.** `packages/harness/src/agent/replay.ts` owns three modes over one
+`ReplaySource` (a `TraceStore`, or `indexTrace(parseTrace(file))` for an exported file): **call** sends one recorded request's messages
+to the target profile and model in a single `completeOnce` and runs no tool; **turn** re-runs the recording's intent through a fresh
+session pinned to the target, over `cloneProjectState` of the pre-turn snapshot; **cassette** runs that same turn with its replies
+answered by `cassetteScripts`, so a bug report reproduces with no key and no cost. A replay never writes to the writer's project: the
+copy is a state nobody else holds, so the project's bytes, undo store and activity log gain nothing, and adopting a result is later,
+an ordinary turn through `submitPlan` and never the engine's doing.
+
+**Decisions come from the recording only where they still fit.** The recorded cards are `CardRecord`s: kind, the tools the card ran,
+and the decision. A new card whose tool multiset equals the recorded one's gets the recorded decision (`cancelled` cancels, anything
+else approves); a card that differs stops the replay with `decision-mismatch` and the caller's `decide` answers, which is where the
+dialog asks the writer. Nothing is auto-approved that the writer has not seen the like of.
+
+**External tools are never re-run.** The replay harness is built with the product's ports and no MCP client, so a step that names an
+external tool is refused by the runtime: a server's side effects are not Caotang's to repeat or undo (decisions.md). The engine names
+such a step in `stoppedAt` with `external-tool` and the tool.
+
+**A cassette reproduces a session's first turn.** A replay session starts fresh, so the recording's earlier conversation is not rebuilt:
+a cassette replay of a later turn would report a prompt change of its own making. It refuses with `mid-session` and says to replay the
+session's first turn or the turn against a provider. The refusal is read from the recording as well as from the turn list, because a trace
+exported for one turn holds only that turn: a recorded request that carries the conversation block is a later turn's, whatever the file
+says. Only the session's own records seed a replay; nothing is reconstructed.
+
+**The estimate comes first.** `estimateReplay` reads the recording's own provider-reported input tokens for the calls that would run
+and the target's output cap per call, `maxOutputTokens` plus `thinkingTokens`, and prices them from the target's `pricePer1k` when it
+has one. A caller shows that before it spends anything: `caotang replay` prints it and waits for `y`, and the app's **Replay…**
+dialog on a traced turn shows it the same way (§8's cost rule for a review), because **What it would cost** must be pressed before
+**Replay** is offered.
+
+**A bound is a bound.** `maxModelCalls` is the replayed session's bound, and the estimate multiplies the target's cap by no more calls
+than that, so the number a writer confirms is the number the run may spend. `caotang replay` passes the `agent` command's flag through;
+`--plan-file` is refused, because a replay runs the recording's steps and never a plan the caller names.
+
+**A recorded prompt cannot be filtered.** A call replay sends the messages the recording holds, so a read-deny the writer added since
+would not apply to them. When the project has rules, a call replay checks them and refuses with `withheld-text` (or `no-snapshot` when
+it cannot check) rather than send text the writer currently withholds, and says to replay the whole turn — which is assembled again
+under the rules. A JSON request's schema travels in the recording (`responseFormatHint`); a recording that asks for JSON and kept no
+schema refuses with `no-schema` instead of sending an empty one.
+
+**What is compared** is what a writer can act on: the steps, their params (`stepDiffs`), the text each side left (`draftDiffs`), the
+reply of a call replay, both sides' usage and the replay's own report. `draftDiffs` reads the documents and synopses of the two states
+the replay already holds — the snapshot it started on and the scratch copy it changed — because a trace records what a turn ran, never
+the words a draft held; the dialog draws each row word by word, and it is the only place a draft's text is shown. The replay's starting
+state is kept by the tab, beside the trace and for as long as it: five turns, never the project, never the app database.
+
+**The dialog offers only what the recording supports.** **Replay…** sits on a traced turn, and a mode is offered only when its needs
+are met: a call replay needs a request the recording kept whole, and a turn and a cassette both need the starting state, which exists
+only while traces were on when the turn ran. A mode that cannot run says why in its own row rather than disappearing, a destination is
+one of the writer's saved real profiles (never the demo provider, which answers from a script), and a new card that names tools the
+recording did not run cancels the replay and says so: the dialog has no Approve, because nobody approved the like of that card.
+
+**A cassette is a function of its recording.** `cassetteScripts` answers the turn's requests in the order they were made and compares
+each against the recorded messages; a request whose messages differ ends the turn as a protocol error naming the first differing
+message and the character it moved at, so a prompt change reads as a diff rather than a wrong answer. The envelope id an untrusted region
+carries is masked on both sides before the comparison, because that id is a digest of the turn id and a replay is a turn of its own: it
+is the engine's own value, never a prompt change to report. The wire is the recording's too:
+the harness picks the native or JSON planner prompt from the model's capability row, so the cassette's mock reports the capabilities its
+own recording spoke — a trace whose requests declared tools is answered on the native wire. Tool definitions are not compared: a trace
+names the tools a request declared and not their descriptions. A provider's reasoning payload is never replayed —
+only its size is recorded — so a replay on the same model starts its reasoning fresh.
+
+**Retry, not replay.** The ghost region's **Retry** regenerates one draft from the same assembled context with the same seed (§8);
+that is the loop's own second attempt. Replay against another model is §8.1.
+
+### 8.2 Headless and command-line replay
+
+`CaotangProject.replayEstimate(input)` and `replay(input)` (sdk) do the same over one project's provider: the destination is the
+profile the project was opened with, so a replay can only be sent where the caller already pointed it. `caotang replay <trace.jsonl>`
+does it from a shell, with `--mode call|turn|cassette`, `--turn`, `--call`, the `agent` command's provider and key flags, `--yes` to
+skip the confirmation, and `--output-format json`. A trace made elsewhere describes a project that has moved on: a turn replay runs on
+the project as it is now and the comparison is read, not the bytes.
 
 ## 9. Evals (deterministic, mock-provider)
 

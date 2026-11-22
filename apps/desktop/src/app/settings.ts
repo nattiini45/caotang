@@ -17,7 +17,7 @@
 
 import { t } from '@lingui/core/macro';
 import { DETERMINISTIC_CHECK_IDS, MAX_FINDINGS_CAP, MAX_FINDINGS_DEFAULT, type DeterministicCheckId } from '@caotang/coherence';
-import type { ThinkingLevel } from '@caotang/gateway';
+import { STEP_CLASSES, type StepClass, type TaskRole, type ThinkingLevel } from '@caotang/gateway';
 import { isPermissionMode, type ContextConfig, type PermissionMode } from '@caotang/harness';
 import { numberFormat } from '@caotang/i18n';
 import { DEFAULT_RETENTION, parseRules, resolveRetentionConfig, type PermissionRule, type RetentionConfig } from '@caotang/store';
@@ -173,6 +173,25 @@ const THINKING_LEVELS: readonly ThinkingLevel[] = ['off', 'low', 'medium', 'high
  * `resolveForRole`) treats it as "follow" when the named profile is gone.
  */
 export interface RoleRef {
+  readonly profileId: string;
+  readonly model?: string;
+  readonly thinking?: ThinkingLevel;
+  /**
+   * The profiles this role may move to when its own profile cannot answer (provider-gateway §6): at most two, in the order the
+   * writer chose. Naming one is the writer's consent to send that role's requests, context included, through it; an absent or empty
+   * list keeps the role on its own profile.
+   */
+  readonly fallbacks?: readonly RoleTargetRef[];
+  /**
+   * The destinations this role's own steps run on, each one a profile, model and level of its own (provider-gateway §6). A step
+   * absent here runs on the role's own choice, so a writer who never opens the section sees no change; naming a profile for a step
+   * is the writer's consent to send that step's requests, context included, through it.
+   */
+  readonly steps?: Readonly<Partial<Record<StepClass, RoleTargetRef>>>;
+}
+
+/** One fallback destination: a profile, and the model and level it defaults to. It can hold no fallbacks of its own. */
+export interface RoleTargetRef {
   readonly profileId: string;
   readonly model?: string;
   readonly thinking?: ThinkingLevel;
@@ -357,8 +376,7 @@ export function targetOf(value: unknown): number | undefined {
  * has no one to follow but the active profile), and a `RoleRef` keeps the fields it recognises. A malformed entry
  * is dropped to absent, which is what following reads as.
  */
-function normalizeRoleRef(value: unknown, followAllowed: boolean): RoleRef | 'follow' | undefined {
-  if (value === 'follow') return followAllowed ? 'follow' : undefined;
+function normalizeRoleTarget(value: unknown): RoleTargetRef | undefined {
   if (!isRecord(value)) return undefined;
   const profileId = value['profileId'];
   if (typeof profileId !== 'string' || profileId.length === 0) return undefined;
@@ -371,6 +389,77 @@ function normalizeRoleRef(value: unknown, followAllowed: boolean): RoleRef | 'fo
       ? { thinking: thinking as ThinkingLevel }
       : {}),
   };
+}
+
+/**
+ * A role's fallback list as it loads: at most two destinations, in order, each a profile with the fields recognised. The role's
+ * own profile and a profile named twice are dropped, and so is anything malformed, so a hand-edited record can never widen a role
+ * past the profiles it lists.
+ */
+function normalizeRoleFallbacks(value: unknown, ownProfileId: string | undefined): readonly RoleTargetRef[] {
+  if (!Array.isArray(value)) return [];
+  const kept: RoleTargetRef[] = [];
+  for (const raw of value) {
+    const target = normalizeRoleTarget(raw);
+    if (target === undefined || target.profileId === ownProfileId) continue;
+    if (kept.some((entry) => entry.profileId === target.profileId)) continue;
+    kept.push(target);
+    if (kept.length === 2) break;
+  }
+  return kept;
+}
+
+function normalizeRoleRef(value: unknown, followAllowed: boolean): RoleRef | 'follow' | undefined {
+  if (value === 'follow') return followAllowed ? 'follow' : undefined;
+  if (!isRecord(value)) return undefined;
+  const profileId = value['profileId'];
+  if (typeof profileId !== 'string' || profileId.length === 0) return undefined;
+  const model = value['model'];
+  const thinking = value['thinking'];
+  const fallbacks = normalizeRoleFallbacks(value['fallbacks'], profileId);
+  const steps = normalizeSteps(value['steps']);
+  return {
+    profileId,
+    ...(typeof model === 'string' && model.length > 0 ? { model } : {}),
+    ...(typeof thinking === 'string' && (THINKING_LEVELS as readonly string[]).includes(thinking)
+      ? { thinking: thinking as ThinkingLevel }
+      : {}),
+    ...(fallbacks.length === 0 ? {} : { fallbacks }),
+    ...(steps === undefined ? {} : { steps }),
+  };
+}
+
+/** The steps a role's row offers in Settings, in the order the section shows them (provider-gateway §6). */
+export const ROLE_STEP_ROWS: Readonly<Partial<Record<TaskRole, readonly StepClass[]>>> = {
+  chat: ['plan', 'draft', 'summarize', 'review'],
+  background: ['utility'],
+};
+
+/** One step's own destination as it loads: a profile id is all it needs, and anything malformed is dropped. */
+function normalizeStepRef(value: unknown): RoleTargetRef | undefined {
+  if (!isRecord(value)) return undefined;
+  const profileId = value['profileId'];
+  if (typeof profileId !== 'string' || profileId.length === 0) return undefined;
+  const model = value['model'];
+  const thinking = value['thinking'];
+  return {
+    profileId,
+    ...(typeof model === 'string' && model.length > 0 ? { model } : {}),
+    ...(typeof thinking === 'string' && (THINKING_LEVELS as readonly string[]).includes(thinking)
+      ? { thinking: thinking as ThinkingLevel }
+      : {}),
+  };
+}
+
+/** A role's `steps` as they load: only the classes this build knows, each a destination; an empty one is absent. */
+function normalizeSteps(value: unknown): Readonly<Partial<Record<StepClass, RoleTargetRef>>> | undefined {
+  if (!isRecord(value)) return undefined;
+  const steps: Partial<Record<StepClass, RoleTargetRef>> = {};
+  for (const step of STEP_CLASSES) {
+    const ref = normalizeStepRef(value[step]);
+    if (ref !== undefined) steps[step] = ref;
+  }
+  return Object.keys(steps).length === 0 ? undefined : steps;
 }
 
 /**

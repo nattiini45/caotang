@@ -594,6 +594,13 @@ export class AgentController {
     }
   }
 
+  /** Keeps the project as the turn that just started found it, for a replay of it (§8.1). Off, nothing is kept. */
+  private keepSnapshot(turnId: string): void {
+    const trace = (this.providers as Partial<ProviderService>).trace;
+    if (trace === undefined || !trace.enabled) return;
+    trace.snapshots.keep(turnId, this.session.state);
+  }
+
   traceMachine(record: Pick<Extract<TraceInput, { kind: 'machine' }>, 'machine' | 'subjectId' | 'from' | 'event' | 'to'>): void {
     this.writeTrace({ kind: 'machine', at: this.clock(), turnId: TRACE_REVIEWS, ...record });
   }
@@ -959,7 +966,7 @@ export class AgentController {
   async previewRequest(intent: string, options: SubmitOptions = {}): Promise<RequestContextPreview | null> {
     const contextOverrides = copyContext(options.contextOverrides);
     const loop = await this.harnessLoop();
-    const pinned = this.providers.resolveForRole?.('chat');
+    const pinned = this.providers.resolveForRole?.('chat', 'plan');
     const profile = pinned?.profile ?? this.providers.active();
     if (profile === undefined) return null;
     return this.sessionFor('chat', loop).previewRequest(intent, {
@@ -1223,7 +1230,9 @@ export class AgentController {
       // thinking resolve once here and pin the session: a turn cannot change provider mid-flight, and the pinned id is what
       // the loop's capability reads (modelCaps/modelLimits) must see.
       const role = options.role ?? 'chat';
-      const resolved = options.demo === true ? undefined : this.providers.resolveForRole?.(role);
+      // The session pins the destination its *planning* runs on (provider-gateway §6): a writer who routed the planning step
+      // separately gets that destination here, and the turn's other steps resolve through the role's route without it.
+      const resolved = options.demo === true ? undefined : this.providers.resolveForRole?.(role, 'plan');
       const profile: ProfileView | undefined =
         options.demo === true ? await this.providers.demoProfile() : (resolved?.profile ?? this.providers.active());
       if (profile === undefined) {
@@ -3408,6 +3417,8 @@ export class AgentController {
     const agent = loop.createAgentSession({
       harness,
       gateway: this.providers.gateway,
+      // A model hook is pinned to the Background role's own destination: its consent names one profile, and the turn's request carries
+      // that as its approved route, so it is never routed by a step.
       modelHookRoute: () => pinsOf(this.providers.resolveForRole?.('background')),
       pictureOutbox: this.session.pictureOutbox,
       transcribe: (input) => this.session.transcribePictures(input),
@@ -3431,6 +3442,8 @@ export class AgentController {
             this.writeTrace({ ...record, at: this.startupTrace[0]?.at ?? record.at });
             for (const pending of this.startupTrace) this.writeTrace({ kind: 'machine', turnId: record.turnId, machine: agentControllerTable.id, ...pending });
             this.startupTrace = [];
+            // A replay runs on the project as the turn found it, which nothing else keeps (agent-harness §8.1).
+            this.keepSnapshot(record.turnId);
           }
           else this.writeTrace(record);
         } };

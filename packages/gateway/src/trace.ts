@@ -1,6 +1,6 @@
 import type { Clock } from './clock.js';
 import { ProviderError } from './errors.js';
-import type { GatewayTraceEvent } from './gateway.js';
+import type { GatewayTraceEvent, MovedFrom } from './gateway.js';
 import { redactDeep } from './redact.js';
 import type { RequestLogEntry, RequestOutcome } from './request-log.js';
 import type { StreamStats } from './transport.js';
@@ -21,6 +21,7 @@ export function startTrace(
   id: number,
   clock: Clock,
   iteratorAbandoned: symbol,
+  moved?: MovedFrom,
 ) {
   let secrets: readonly string[] = [];
   let requested = false;
@@ -42,6 +43,9 @@ export function startTrace(
     secrets = revealed;
     const { expectedRoute: _approval, ...display } = req;
     tell({ type: 'request', id, req: display, profileId: profile.id, ...(profile.preset === undefined ? {} : { preset: profile.preset }), model, at: clock.now() });
+    // A route that moved says so under the call that answered: the switch belongs to this call's record, not to a call of its
+    // own, so a reader sees which provider took over and the fault that ended the attempt before it (provider-gateway §3.1, §6).
+    if (moved !== undefined) tell({ type: 'fallback', id, from: moved.from, to: { profileId: profile.id, model }, reason: moved.reason, at: clock.now() });
   };
   const respond = (stats: StreamStats, terminal: ChatChunk | undefined, signal: AbortSignal | undefined): void => {
     if (responded) return;

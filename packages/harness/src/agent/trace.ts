@@ -122,6 +122,11 @@ export interface ModelRequestRecord extends Base {
   readonly messages: readonly string[];
   readonly tools?: readonly { readonly name: string }[];
   readonly responseFormat?: 'text' | 'json';
+  /**
+   * The JSON schema hint the request carried, so a replay sends the instruction the recording sent rather than a made-up one. Absent
+   * when the request was `text`, or when a recording predates this field.
+   */
+  readonly responseFormatHint?: unknown;
 }
 export interface ModelResponseRecord extends Base {
   readonly kind: 'model.response';
@@ -133,6 +138,8 @@ export interface ModelResponseRecord extends Base {
   readonly finishedAt: number;
   readonly attempts: number;
   readonly tries: readonly TraceTry[];
+  /** Each move to a fallback target, in order: which provider answered, and the fault that ended the attempt before it. */
+  readonly fallbacks?: readonly { readonly from: { readonly profileId: string; readonly model: string }; readonly to: { readonly profileId: string; readonly model: string }; readonly reason: string; readonly at: number }[];
   readonly 'gen_ai.response.finish_reasons': readonly FinishReason[];
   readonly content: Text;
   readonly reasoningText?: Text;
@@ -735,6 +742,7 @@ export function traceGateway(sink: TraceSink): (event: GatewayTraceEvent) => voi
     readonly agentPath?: string;
     firstTokenAt?: number;
     readonly tries: TraceTry[];
+    fallbacks?: { from: { profileId: string; model: string }; to: { profileId: string; model: string }; reason: string; at: number }[];
   }
   const open = new Map<number, Open>();
   return (event) => {
@@ -762,6 +770,7 @@ export function traceGateway(sink: TraceSink): (event: GatewayTraceEvent) => voi
         messages: req.messages,
         ...(req.tools === undefined || req.tools.length === 0 ? {} : { tools: req.tools.map((tool) => ({ name: tool.name })) }),
         ...(req.responseFormat === undefined ? {} : { responseFormat: req.responseFormat === 'text' ? ('text' as const) : ('json' as const) }),
+        ...(req.responseFormat === undefined || req.responseFormat === 'text' ? {} : { responseFormatHint: req.responseFormat.jsonSchemaHint }),
       });
       return;
     }
@@ -769,6 +778,9 @@ export function traceGateway(sink: TraceSink): (event: GatewayTraceEvent) => voi
     if (call === undefined) return;
     if (event.type === 'first-token') {
       call.firstTokenAt = event.at;
+    } else if (event.type === 'fallback') {
+      // A switch is recorded under the call it moved, so the export says which provider answered after which fault.
+      call.fallbacks = [...(call.fallbacks ?? []), { from: event.from, to: event.to, reason: event.reason, at: event.at }];
     } else if (event.type === 'attempt') {
       call.tries.push({ attempt: event.attempt, outcome: event.outcome, ...(event.status === undefined ? {} : { status: event.status }), ...(event.errorKind === undefined ? {} : { errorKind: event.errorKind }), at: event.at });
     } else {
@@ -784,6 +796,7 @@ export function traceGateway(sink: TraceSink): (event: GatewayTraceEvent) => voi
         finishedAt: event.at,
         attempts: event.attempts,
         tries: call.tries,
+        ...(call.fallbacks === undefined ? {} : { fallbacks: call.fallbacks }),
         'gen_ai.response.finish_reasons': [event.finishReason],
         content: event.content,
         ...(event.reasoningText === '' ? {} : { reasoningText: event.reasoningText }),

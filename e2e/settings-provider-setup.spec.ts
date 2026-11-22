@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { endpointRoute, FAKE_ENDPOINT, planThenAnswer } from './endpoint.js';
 import { openProviderSetup } from './provider-setup-support.js';
+import { chooseInterfaceLanguage } from './support.js';
 
 /**
  * Adding a provider is a key and one press (provider-gateway §2, "Adding a provider"): paste a key, the provider is recognised,
@@ -251,4 +252,58 @@ test('correcting the key while the check runs lists the new key\'s models, not t
   expect(keys).toContain(ANTHROPIC_KEY + 'B');
   await expect(settings.locator('[data-profile="Anthropic (Claude)"]')).toContainText('new-model');
   await expect(settings.locator('[data-profile]')).toHaveCount(2);
+});
+
+/**
+ * The setup form's recovery wording in German (#596): the package-side ProfileError refs render through the
+ * interface catalogue, and a provider's own words stay isolated in the bdi, never translated in place.
+ */
+test('de: a bad base URL and a rejected key answer with German recovery wording', { tag: '@i18n' }, async ({ page }) => {
+  const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, POST, OPTIONS' };
+  await page.route('https://rejected.example.test/v1/**', (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    return route.fulfill({ status: 401, headers: cors, json: { error: { message: 'The API key was rejected.' } } });
+  });
+  await page.route('https://flaky.example.test/v1/**', (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    return route.fulfill({ status: 500, headers: cors, json: { error: { message: 'Upstream is overloaded.' } } });
+  });
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  const settings = page.getByTestId('settings');
+  await settings.locator('[data-section="appearance"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+  await settings.locator('[data-section="providers"]').click();
+
+  const form = settings.getByRole('form', { name: 'Anbieter hinzufügen' });
+  const add = settings.getByRole('button', { name: 'Anbieter hinzufügen', exact: true });
+  await expect(form.or(add)).toBeVisible();
+  if (await add.isVisible()) await add.click();
+  await expect(form).toBeVisible();
+  await form.getByRole('button', { name: 'Eigener Endpunkt' }).click();
+  const custom = settings.getByRole('form', { name: 'Eigener Endpunkt' });
+  const endpoint = custom.getByLabel('Endpunkt (die Basis-URL, endend auf /v1)');
+  const connect = custom.getByRole('button', { name: 'Verbinden und Modelle auflisten' });
+
+  // A base URL the package validator refuses renders the fixed message in the interface language. The url-type
+  // field's own constraint means the refusal the app can show is a scheme one: http:// passes the browser's check.
+  await endpoint.fill('http://rejected.example.test/v1');
+  await connect.click();
+  await expect(settings.getByRole('alert')).toContainText('Die Basis-URL muss mit https:// beginnen');
+
+  // A host that rejects the key: the fixed wording lands in German on the key field, where the person fixes it.
+  await endpoint.fill('https://rejected.example.test/v1');
+  await custom.getByLabel('API-Schlüssel (optional – nur wenn der Endpunkt einen braucht)').fill('test-key');
+  await connect.click();
+  await expect(custom).toContainText('hat diesen Schlüssel nicht akzeptiert');
+
+  // A host that fails the key check: the cause is translated, the provider's own words stay untouched in the bdi.
+  await endpoint.fill('https://flaky.example.test/v1');
+  await connect.click();
+  const alert = settings.getByRole('alert');
+  // The gateway retries the failed check twice before it gives up, so the alert lands past the default deadline.
+  await expect(alert).toContainText('konnte die Schlüsselprüfung nicht beantworten', { timeout: 15_000 });
+  await expect(alert).toContainText('Antwort des Anbieters:');
+  await expect(alert.locator('bdi')).toContainText('Upstream is overloaded.');
 });

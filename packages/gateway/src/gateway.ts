@@ -18,13 +18,13 @@
 import { systemClock, type Clock } from './clock.js';
 import { hostOf, originOf } from './base-url.js';
 import { type ProfileStore } from './profiles.js';
-import { EgressDeniedError, ProfileError, ProviderError, providerMessages } from './errors.js';
+import { EgressDeniedError, ProfileError, ProviderError, providerMessages, providerRefs } from './errors.js';
 import type { KeyStore } from './keys/key-store.js';
 import { UsageLedger } from './ledger.js';
 import { createMockProvider, type MockProvider } from './mock/mock-provider.js';
 import { collectOnce } from './once.js';
 import { RequestLog, type RequestLogEntry, type RequestOutcome } from './request-log.js';
-import { DEFAULT_RETRY, DEFAULT_TIMEOUTS, type RetryPolicy, type TransportTimeouts } from './retry.js';
+import { DEFAULT_RETRY, DEFAULT_TIMEOUTS, fallbackReasonOf, type RetryPolicy, type TransportTimeouts } from './retry.js';
 import {
   assertEgress,
   probeJsonObject,
@@ -47,6 +47,7 @@ import { modelRowFor, presetFor, presetForProfile, resolveRoute } from './preset
 import type { AdapterContext, CallSecrets, ProviderAdapter, RouteSpec } from './adapters/types.js';
 import { decodingParser, encodeToolNames, toolNameCodec, toolNamesOf } from './tool-names.js';
 import type {
+  AttemptTarget,
   ChatChunk,
   ChatRequest,
   FinishReason,
@@ -54,12 +55,17 @@ import type {
   ToolCall,
   ModelCaps,
   ModelInfo,
+  FallbackReason,
   ModelLimits,
   ModelLimitsRequest,
   ProfileView,
+  RoleResolution,
+  RoleTarget,
+  RouteHooks,
   ProviderGateway,
   RoleResolver,
   TaskRole,
+  StepClass,
   ThinkingLevel,
   TokenPrice,
   Usage,
@@ -114,6 +120,12 @@ export interface Gateway extends ProviderGateway {
    * observer gathers nothing: the app detaches it when the writer turns traces off.
    */
   setObserver(observe: ((event: GatewayTraceEvent) => void) | undefined): void;
+  /**
+   * §6's route for a role right now: its primary target and the fallbacks the writer authorised for it, in order. A caller that
+   * pins a profile itself reads this to tell a pin that is the role's own primary, which may use the fallbacks, from one that is
+   * not, which sends to that profile alone.
+   */
+  resolveRoleRoute?(role: TaskRole, step?: StepClass): RoleResolution | undefined;
 }
 
 /**
@@ -124,6 +136,11 @@ export interface Gateway extends ProviderGateway {
 export type GatewayTraceEvent =
   /** The request after role routing, so the resolved profile, model and thinking level are known. */
   | { readonly type: 'request'; readonly id: number; readonly req: ChatRequest; readonly profileId: string; readonly preset?: string; readonly model: string; readonly at: number }
+  /**
+   * The call that answered took over from the one before it: the previous target refused with a fault another provider may not
+   * have (§6). It carries the answering call's own `id`, so it lands in that call's record, between its request and its response.
+   */
+  | { readonly type: 'fallback'; readonly id: number; readonly from: { readonly profileId: string; readonly model: string }; readonly to: { readonly profileId: string; readonly model: string }; readonly reason: FallbackReason; readonly at: number }
   /** The first delta of text or reasoning reached the caller. */
   | { readonly type: 'first-token'; readonly id: number; readonly at: number }
   /** One attempt ended, with the outcome its request-log line carries. A retry is an attempt of its own. */
@@ -143,6 +160,12 @@ export type GatewayTraceEvent =
       readonly error?: { readonly kind: string; readonly message: string };
       readonly at: number;
     };
+
+/** The route's previous target as it was sent, and the fault that ended it: what the call that took over reports it moved from. */
+export interface MovedFrom {
+  readonly from: { readonly profileId: string; readonly model: string };
+  readonly reason: FallbackReason;
+}
 
 export interface GatewayOptions {
   profiles: ProfileStore;
@@ -242,14 +265,17 @@ export function createGateway(options: GatewayOptions): Gateway {
    * answer's profile, model and thinking level stand in for the ones the request leaves unset. `complete` sends through it and
    * `modelLimits` settles against it, so a role-routed call is reserved and priced on the route it is sent through.
    */
-  const roleRoute = (role: TaskRole | undefined, profileId: string | undefined): ReturnType<RoleResolver['resolve']> =>
-    role === undefined || profileId !== undefined ? undefined : options.roles?.resolve(role);
+  const roleRoute = (role: TaskRole | undefined, profileId: string | undefined, step?: StepClass): ReturnType<RoleResolver['resolve']> =>
+    role === undefined || profileId !== undefined ? undefined : options.roles?.resolve(role, step);
 
-  const roleAllows = (role: TaskRole | undefined, routed: ReturnType<RoleResolver['resolve']>): boolean =>
-    routed === undefined || (role !== undefined && options.roles?.allowed(role).includes(routed.profileId) === true);
+  const roleAllows = (role: TaskRole | undefined, routed: ReturnType<RoleResolver['resolve']>, step?: StepClass): boolean =>
+    routed === undefined || (role !== undefined && options.roles?.allowed(role, step).includes(routed.profileId) === true);
 
-  function assertRoleAllows(role: TaskRole | undefined, routed: ReturnType<RoleResolver['resolve']>): void {
-    if (!roleAllows(role, routed)) {
+  const egressRefusal = (role: TaskRole | undefined): EgressDeniedError =>
+    new EgressDeniedError(`Refused a request under the "${role}" role: its fallback names a profile that role may not use.`);
+
+  function assertRoleAllows(role: TaskRole | undefined, routed: ReturnType<RoleResolver['resolve']>, step?: StepClass): void {
+    if (!roleAllows(role, routed, step)) {
       throw new EgressDeniedError(`Refused a request under the "${role}" role: it resolved to a profile that role may not use.`);
     }
   }
@@ -257,11 +283,11 @@ export function createGateway(options: GatewayOptions): Gateway {
   const targetOf = (profileId: string | undefined): ProfileView => {
     if (profileId !== undefined) {
       const found = profiles.get(profileId);
-      if (found === undefined) throw new ProfileError('not-found', `No provider profile has the id ${profileId}.`);
+      if (found === undefined) throw new ProfileError('not-found', `No provider profile has the id ${profileId}.`, { messageRef: providerRefs.notFound(profileId) });
       return found;
     }
     const active = profiles.active();
-    if (active === undefined) throw new ProfileError('no-active', 'No provider profile is active. Add one in Settings.');
+    if (active === undefined) throw new ProfileError('no-active', 'No provider profile is active. Add one in Settings.', { messageRef: providerRefs.noActive() });
     return active;
   };
 
@@ -276,12 +302,12 @@ export function createGateway(options: GatewayOptions): Gateway {
       ? await keys.revealPayload(profile.id)
       : await keys.revealPayload(profile.id, expectedRevision);
     if (payload === undefined) {
-      if (profile.hasKey) throw new ProfileError('key-unreadable', providerMessages.missingKey(profile.name));
+      if (profile.hasKey) throw new ProfileError('key-unreadable', providerMessages.missingKey(profile.name), { messageRef: providerRefs.missingKey(profile.name) });
       return { secrets: {}, redact: [] };
     }
     const apiKey = payload.apiKey === '' ? undefined : payload.apiKey;
     if (apiKey === undefined && profile.hasKey) {
-      throw new ProfileError('key-unreadable', providerMessages.missingKey(profile.name));
+      throw new ProfileError('key-unreadable', providerMessages.missingKey(profile.name), { messageRef: providerRefs.missingKey(profile.name) });
     }
     const headers = Object.entries(payload.customHeaders ?? {}).map(([name, value]) => ({ name, value }));
     const redact = [apiKey, ...headers.map((h) => h.value)].filter((v): v is string => v !== undefined && v !== '');
@@ -384,10 +410,10 @@ export function createGateway(options: GatewayOptions): Gateway {
     };
   };
 
-  function complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncIterableIterator<ChatChunk> {
+  function complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void, route?: RouteHooks): AsyncIterableIterator<ChatChunk> {
     const controller = new AbortController();
     const combined = signal === undefined ? controller.signal : AbortSignal.any([signal, controller.signal]);
-    const iterator = runComplete(req, combined, beforeSend);
+    const iterator = runRouted(req, combined, beforeSend, route);
     return {
       [Symbol.asyncIterator]() { return this; },
       next: (...args) => iterator.next(...args),
@@ -402,14 +428,16 @@ export function createGateway(options: GatewayOptions): Gateway {
     };
   }
 
-  async function* runComplete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncGenerator<ChatChunk, void, undefined> {
+  async function* runComplete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void, gaveUp?: (fault: unknown) => void, moved?: MovedFrom, target?: RoleTarget): AsyncGenerator<ChatChunk, void, undefined> {
     // §6: a request that names a role and no profile resolves through the injected router. The answer is the
     // profile it sends through, and the model and thinking level become the defaults the request's own fields
     // still beat. A resolver with no answer leaves the named-or-active rule in place, as a roleless request.
-    const routed = roleRoute(req.role, req.profileId);
+    // `target` is the destination the route chose for this attempt (§6): it stands in for the role's own resolution, so the
+    // allow-list below still decides whether this request may be sent at all.
+    const routed = target ?? roleRoute(req.role, req.profileId, req.step);
     // The role-referenced set is the egress allow-list for a routed request: a role may only ever send
     // through a profile the resolver names for it. This refusal lands before any profile lookup or key reveal.
-    assertRoleAllows(req.role, routed);
+    assertRoleAllows(req.role, routed, req.step);
     const queuedProfile = targetOf(routed?.profileId ?? req.profileId);
     let release: () => void;
     try {
@@ -424,7 +452,7 @@ export function createGateway(options: GatewayOptions): Gateway {
         yield { finishReason: 'error', usage: ZERO };
         return;
       }
-      assertRoleAllows(req.role, routed);
+      assertRoleAllows(req.role, routed, req.step);
       const profile = targetOf(queuedProfile.id);
       const model = req.model ?? routed?.model ?? profile.defaultModel;
       const sent: ChatRequest =
@@ -435,7 +463,7 @@ export function createGateway(options: GatewayOptions): Gateway {
         throw new EgressDeniedError('The approved route changed. No request was sent.');
       }
       const sendGuard = expected?.stamp === undefined && routed === undefined ? beforeSend : () => {
-        if (expected?.stamp === undefined) assertRoleAllows(req.role, routed);
+        if (expected?.stamp === undefined) assertRoleAllows(req.role, routed, req.step);
         else if (resolveRequestRoute(req)?.expected.stamp !== expected.stamp) {
           throw new EgressDeniedError('The approved route changed. This attempt was not sent.');
         }
@@ -461,7 +489,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       const traceReady = observe === undefined || traceId === undefined
         ? undefined
         : import('./trace.js').then(
-          ({ startTrace }) => startTrace(observe, sent, profile, model, traceId, clock, ITERATOR_ABANDONED),
+          ({ startTrace }) => startTrace(observe, sent, profile, model, traceId, clock, ITERATOR_ABANDONED, moved),
           () => undefined,
         );
       let trace: Awaited<typeof traceReady>;
@@ -509,8 +537,14 @@ export function createGateway(options: GatewayOptions): Gateway {
         let limited = false;
         let finished: ChatChunk['finishReason'];
         const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal, onRateLimit: (delayMs: number) => { limited = true; limiter.rateLimited(profile.id, delayMs); }, ...(checkCredentials === undefined ? {} : { beforeAttempt: checkCredentials }), ...(sendGuard === undefined ? {} : { beforeSend: sendGuard }) };
-        for await (const chunk of streamChat(deps, spec, stats)) {
-          if (chunk.finishReason !== undefined) finished = chunk.finishReason;
+        // The transport ends an exhausted stream with `finishReason: 'error'` and throws nothing, so the fault it gave up on is
+        // handed over here: §6's ordered route decides a fallback from it, and every other caller ignores it.
+        let exhausted: ProviderError | undefined;
+        for await (const chunk of streamChat(deps, spec, stats, (fault) => { exhausted = fault; })) {
+          if (chunk.finishReason !== undefined) {
+            finished = chunk.finishReason;
+            if (chunk.finishReason === 'error') gaveUp?.(exhausted);
+          }
           trace?.chunk(chunk, stats, signal);
           yield chunk;
         }
@@ -523,7 +557,7 @@ export function createGateway(options: GatewayOptions): Gateway {
         trace?.end(stats, signal);
         if (stats.attempts > 0) {
           ledger.record(
-            { profileId: profile.id, model, turnId: req.turnId ?? req.usageTurnId, sessionId: req.sessionId, agentPath: req.agentPath, role: req.role, at: startedAt, pricePer1k: price },
+            { profileId: profile.id, model, turnId: req.turnId ?? req.usageTurnId, sessionId: req.sessionId, agentPath: req.agentPath, role: req.role, ...(req.step === undefined ? {} : { step: req.step }), at: startedAt, pricePer1k: price },
             { ...(stats.usage ?? ZERO), source: profile.kind === 'mock' ? 'provider' : stats.usageSource ?? 'estimate' },
             stats.attempts,
           );
@@ -532,6 +566,155 @@ export function createGateway(options: GatewayOptions): Gateway {
     } finally {
       release();
     }
+  }
+
+  /**
+   * §6's ordered route: the role's primary, then each fallback the writer listed for it, in order. A target is left for the next
+   * one only on a fault another provider may not share, and only before any output reached the caller. Authorisation, a partial
+   * answer, a cancelled turn and every request with no fallbacks behave exactly as they did before the list existed: the single
+   * target's own refusal or error reaches the caller unchanged.
+   */
+  async function* runRouted(req: ChatRequest, signal: AbortSignal, beforeSend?: () => void, route?: RouteHooks): AsyncGenerator<ChatChunk, void, undefined> {
+    const routed = roleRoute(req.role, req.profileId, req.step);
+    // A request that carries an approval stamp names its own destination (`expectedRoute`), so it is pinned like one that names a
+    // profile: one target, and its own refusal or fault reaches the caller instead of the route moving on.
+    const written: readonly RoleTarget[] = routed === undefined || req.expectedRoute !== undefined ? [] : [routed, ...(routed.fallbacks ?? [])];
+    const allowed = req.role === undefined ? [] : options.roles?.allowed(req.role, req.step) ?? [];
+    // §6's stickiness: a caller that owns a turn names the destination that answered its last request, and that destination starts
+    // the route, with the rest of the route behind it. It is only ever a target the role names now and may still use, so a profile the
+    // writer removed mid-turn leaves the route as written and the request starts at the role's primary again.
+    const start = written.find((candidate) => candidate.profileId === route?.startAt && allowed.includes(candidate.profileId));
+    const first = start ?? written[0];
+    const targets: readonly RoleTarget[] = first === undefined ? [] : [first, ...written.filter((candidate) => candidate !== first)];
+    // What the caller is told answered: the destination as it was sent, which is what its next request starts at.
+    const answeredAt = (profile: ProfileView, target: RoleTarget | undefined): AttemptTarget => {
+      const thinking = req.thinking ?? target?.thinking;
+      return {
+        profileId: profile.id,
+        model: req.model ?? target?.model ?? profile.defaultModel,
+        ...(thinking === undefined ? {} : { thinking }),
+      };
+    };
+    if (targets.length <= 1) {
+      const profile = first === undefined ? undefined : profiles.get(first.profileId);
+      // A stream that ended on a fault chunk did not answer, so it is not remembered as the destination that did.
+      let faulted = false;
+      for await (const chunk of runComplete(req, signal, beforeSend, undefined, undefined, first)) {
+        if (chunk.finishReason === 'error') faulted = true;
+        yield chunk;
+      }
+      if (profile !== undefined && !faulted) route?.answered?.(answeredAt(profile, first));
+      return;
+    }
+    let pending: unknown;
+    // A window refusal is the one move that needs a destination that can hold the request: its prompt estimate plus the output cap
+    // the attempt will actually be sent with. That cap is the target's own settlement — the request's cap or the profile's, plus the
+    // thinking its level adds — and the level is the target's, exactly as the attempt above applies it. A target whose known window is
+    // smaller is skipped, and one whose window nobody knows is not tried on a guess.
+    const promptTokens = usageFor(req.messages, '').promptTokens;
+    const holdsRequest = (target: RoleTarget): boolean => {
+      const limits = modelLimits(target.profileId, target.model ?? req.model, target.thinking ?? req.thinking, req);
+      if (limits.contextWindow === undefined) return false;
+      const cap = (req.maxOutputTokens ?? limits.maxOutputTokens) + (limits.thinkingTokens ?? 0);
+      return limits.contextWindow >= promptTokens + cap;
+    };
+    // The first target after `index` this route may still move to, for the fault that ended the attempt: a destination the role
+    // still names and allows, and — for a window refusal — one whose window can take the request.
+    const usableAfter = (index: number, reason: FallbackReason): number => {
+      for (let at = index + 1; at < targets.length; at += 1) {
+        const candidate = targets[at] as RoleTarget;
+        const candidateProfile = profiles.get(candidate.profileId);
+        if (candidateProfile === undefined || !allowed.includes(candidateProfile.id)) continue;
+        if (reason === 'context_length' && !holdsRequest(candidate)) continue;
+        return at;
+      }
+      return -1;
+    };
+    // A target the role's route names but its allow-set does not: no destination, and the only thing that makes the route's
+    // misconfiguration worth a refusal rather than the primary's own fault.
+    const refusesAfter = (index: number): boolean => targets.slice(index + 1).some((candidate) => {
+      const found = profiles.get(candidate.profileId);
+      return found !== undefined && !allowed.includes(found.id);
+    });
+    // What the next call's trace reports it took over from: the target most recently sent to, named as it was sent, and the fault
+    // that ended it. A move with nothing after it never starts a call, so nothing is written to a trace.
+    let moved: MovedFrom | undefined;
+    // Whether any output reached the caller, over every target: once the writer has seen part of an answer, another provider may
+    // not silently begin it again (the transport's own rule, kept for the route).
+    let deliveredToCaller = false;
+    for (let index = 0; index < targets.length; index += 1) {
+      const target = targets[index] as RoleTarget;
+      const profile = profiles.get(target.profileId);
+      if (index === 0) {
+        // The first target's own failures, and a first target whose profile is gone, reach the caller as they always have.
+        let fault: unknown;
+        let faulted = false;
+        try {
+          for await (const chunk of runComplete(req, signal, beforeSend, (error) => { fault = error; }, undefined, target)) {
+            if ((chunk.delta ?? '') !== '' || (chunk.reasoningDelta ?? '') !== '') deliveredToCaller = true;
+            if (chunk.finishReason === 'error') faulted = true;
+            yield chunk;
+          }
+          if (profile !== undefined && !faulted) route?.answered?.(answeredAt(profile, target));
+          return;
+        } catch (error) {
+          fault = error;
+        }
+        const reason = fallbackReasonOf(fault);
+        const next = reason === undefined || deliveredToCaller || signal.aborted ? -1 : usableAfter(index, reason);
+        if (reason === undefined) throw fault;
+        if (next === -1) throw refusesAfter(index) ? egressRefusal(req.role) : fault;
+        pending = fault;
+        moved = { from: { profileId: target.profileId, model: req.model ?? target.model ?? targetOf(target.profileId).defaultModel }, reason };
+        index = next - 1;
+        continue;
+      }
+      if (profile === undefined || !allowed.includes(profile.id)) {
+        // A fallback the writer removed, deleted or never authorised is not a destination: skip it, or refuse when nothing else
+        // is left, so a misconfigured route can never send to a profile the role does not allow.
+        if (index === targets.length - 1) {
+          if (profile !== undefined) throw egressRefusal(req.role);
+          throw pending;
+        }
+        const later = targets.slice(index + 1).find((candidate) => profiles.get(candidate.profileId) !== undefined);
+        if (later === undefined) throw pending;
+        continue;
+      }
+      const attempt: ChatRequest = {
+        ...req,
+        profileId: profile.id,
+        ...(target.model === undefined ? {} : { model: target.model }),
+        ...(target.thinking === undefined ? {} : { thinking: target.thinking }),
+      };
+      // Before this target's request opens, the caller holds the attempt to the destination's own limits and price (§6). A refusal
+      // here is the caller's, not a fault of the route: it ends the call, and the fault it came from is never rethrown.
+      const admitted = answeredAt(profile, target);
+      route?.admitAttempt?.(admitted);
+      let delivered = false;
+      let ended = false;
+      let faulted = false;
+      let fault: unknown;
+      try {
+        for await (const chunk of runComplete(attempt, signal, beforeSend, (error) => { fault = error; }, moved)) {
+          if ((chunk.delta ?? '') !== '' || (chunk.reasoningDelta ?? '') !== '') delivered = deliveredToCaller = true;
+          if (chunk.finishReason !== undefined) ended = true;
+          if (chunk.finishReason === 'error') faulted = true;
+          yield chunk;
+        }
+        if (!faulted) route?.answered?.(admitted);
+        return;
+      } catch (error) {
+        fault = error;
+      }
+      const reason = fallbackReasonOf(fault);
+      const next = reason === undefined || delivered || ended || signal.aborted ? -1 : usableAfter(index, reason);
+      if (reason === undefined) throw fault;
+      if (next === -1) throw refusesAfter(index) ? egressRefusal(req.role) : fault;
+      pending = fault;
+      moved = { from: { profileId: profile.id, model: attempt.model ?? profile.defaultModel }, reason };
+      index = next - 1;
+    }
+    if (pending !== undefined) throw pending;
   }
 
   /** What `listModels` last reported, per profile. The limits an assembly reads come from here, so they are as fresh as that listing. */
@@ -587,6 +770,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       if (error instanceof ProviderError && error.rejected && preset?.cors === 'ok') {
         throw new ProviderError('network', providerMessages.modelListUnreadable(hostOf(profile.baseUrl)), {
           reason: 'model-list-unreadable',
+          messageRef: providerRefs.modelListUnreadable(hostOf(profile.baseUrl)),
           ...(error.detail === undefined ? {} : { detail: error.detail }),
           rejected: true,
         });
@@ -595,7 +779,9 @@ export function createGateway(options: GatewayOptions): Gateway {
     });
     const models = adapter.parseModels(json);
     if (models === undefined) {
-      throw new ProviderError('protocol', providerMessages.protocol(hostOf(profile.baseUrl), 'the model list had no data array'));
+      throw new ProviderError('protocol', providerMessages.protocol(hostOf(profile.baseUrl), 'the model list had no data array'), {
+        messageRef: providerRefs.protocol(hostOf(profile.baseUrl), 'the model list had no data array'),
+      });
     }
     reported.set(profile.id, models);
     return models;
@@ -603,7 +789,7 @@ export function createGateway(options: GatewayOptions): Gateway {
 
   function modelLimits(profileId?: string, model?: string, askedThinking?: ThinkingLevel, request?: ModelLimitsRequest): ModelLimits {
     // The route `complete` would send the same request through: a role with no named profile resolves as it does there.
-    const routed = roleRoute(request?.role, profileId);
+    const routed = roleRoute(request?.role, profileId, request?.step);
     const target = routed?.profileId ?? profileId;
     const profile = target === undefined ? profiles.active() : profiles.get(target);
     if (profile === undefined) return { maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS };
@@ -658,9 +844,9 @@ export function createGateway(options: GatewayOptions): Gateway {
     return { expected: { profileId: profile.id, model, stamp }, limits };
   }
 
-  function resolveRequestRoute(request: Pick<ChatRequest, 'role' | 'profileId' | 'model' | 'thinking'> & ModelLimitsRequest) {
-    const routed = roleRoute(request.role, request.profileId);
-    if (!roleAllows(request.role, routed)) return undefined;
+  function resolveRequestRoute(request: Pick<ChatRequest, 'role' | 'profileId' | 'model' | 'thinking' | 'step'> & ModelLimitsRequest) {
+    const routed = roleRoute(request.role, request.profileId, request.step);
+    if (!roleAllows(request.role, routed, request.step)) return undefined;
     const target = routed?.profileId ?? request.profileId;
     const profile = target === undefined ? profiles.active() : profiles.get(target);
     if (profile === undefined) return undefined;
@@ -752,7 +938,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     profiles,
     ledger,
     requestLog,
-    complete: (req, signal, beforeSend) => complete(req, signal, beforeSend),
+    complete: (req, signal, beforeSend, route) => complete(req, signal, beforeSend, route),
     completeOnce: (req, signal, beforeSend) => collectOnce(complete(req, signal, beforeSend), signal),
     listModels,
     modelLimits,
@@ -761,6 +947,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     modelCaps,
     accountTokens,
     probeResponseFormat,
+    resolveRoleRoute: (role, step) => roleRoute(role, undefined, step),
     setObserver: (observe) => {
       observer = observe;
     },

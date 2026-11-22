@@ -1,3 +1,5 @@
+// i18n: package-refs
+
 /**
  * Gateway errors — [provider-gateway.md §4](docs/architecture/provider-gateway.md).
  *
@@ -10,6 +12,8 @@
  * `redact()`. A provider that echoes the key back inside an error body is harmless:
  * the echo is replaced before anything can quote it.
  */
+
+import type { MessageRef } from '@caotang/i18n';
 
 export type ProviderErrorKind =
   | 'network'
@@ -33,6 +37,8 @@ export interface ProviderErrorInit {
   permanent?: boolean;
   /** The browser's `fetch` rejected without an HTTP answer and without saying why: a CORS refusal looks the same as a dropped connection. */
   rejected?: boolean;
+  /** I7: the fixed text's stable id, values and English template, so the app can render it in the interface language. */
+  messageRef?: MessageRef;
 }
 
 /** A failure the harness can act on. Thrown from `complete` and `listModels`. */
@@ -45,6 +51,7 @@ export class ProviderError extends Error {
   readonly retryAfterMs: number | undefined;
   readonly permanent: boolean;
   readonly rejected: boolean;
+  readonly messageRef: MessageRef | undefined;
 
   constructor(kind: ProviderErrorKind, message: string, init: ProviderErrorInit = {}) {
     super(message);
@@ -57,6 +64,7 @@ export class ProviderError extends Error {
     this.retryAfterMs = init.retryAfterMs;
     this.permanent = init.permanent === true;
     this.rejected = init.rejected === true;
+    this.messageRef = init.messageRef;
   }
 }
 
@@ -98,6 +106,91 @@ export const providerMessages = {
 };
 
 /**
+ * I7's refs for §4's fixed text, mirroring {@link providerMessages} sentence for sentence: the throw site hands the app
+ * the id, the values and the English ICU template, and the app renders it in the interface language where the
+ * catalogue has the id — the English `message` still goes to the SDK, the CLI, the logs and every host that shows the
+ * package's own text. An interpolated clause a catalogue value cannot express as a bare word is composed the way the
+ * English composes it (`reason` carries its parentheses, `excerpt` its colon or the closing stop).
+ */
+export const providerRefs = {
+  network: (host: string, reason?: string): MessageRef => ({
+    id: 'gateway.network',
+    message: 'Could not reach {host}{reason}. Check your connection and the base URL in Settings.',
+    values: { host, reason: reason === undefined || reason === '' ? '' : ` (${reason})` },
+  }),
+  auth: (host: string): MessageRef => ({
+    id: 'gateway.auth',
+    message: 'Key rejected by {host}. Check the profile in Settings.',
+    values: { host },
+  }),
+  endpoint: (path: string, baseUrl: string): MessageRef => ({
+    id: 'gateway.endpoint',
+    message: 'No {path} at {baseUrl}. Most OpenAI-compatible bases end in /v1.',
+    values: { path, baseUrl },
+  }),
+  rateLimit: (host: string): MessageRef => ({
+    id: 'gateway.rateLimit',
+    message: '{host} is rate limiting this profile. Wait a moment and try again, or switch profiles in Settings.',
+    values: { host },
+  }),
+  provider: (host: string, status: number, excerpt: string): MessageRef => ({
+    id: 'gateway.provider',
+    message: '{host} returned HTTP {status}{excerpt}',
+    values: { host, status, excerpt: excerpt === '' ? '.' : `: ${excerpt}` },
+  }),
+  providerStream: (host: string, excerpt: string): MessageRef => ({
+    id: 'gateway.providerStream',
+    message: '{host} reported an error: {excerpt}',
+    values: { host, excerpt },
+  }),
+  protocol: (host: string, excerpt: string): MessageRef => ({
+    id: 'gateway.protocol',
+    message: '{host} sent a response Caotang could not read: {excerpt}',
+    values: { host, excerpt },
+  }),
+  contextLength: (promptTokens: number, window: number | string): MessageRef => ({
+    id: 'gateway.contextLength',
+    message: 'Prompt ≈ {promptTokens} tokens exceeds model window ({window}). Reduce context: see activity log token budget.',
+    values: { promptTokens, window },
+  }),
+  modelListUnreadable: (host: string): MessageRef => ({
+    id: 'gateway.modelListUnreadable',
+    message:
+      'The browser did not let this page read the model list from {host}. That happens when the connection is down, and also when {host} does not allow a web page to read that answer (a mistyped key can look the same). Chat may still work: send a message to find out, or check the key in Settings.',
+    values: { host },
+  }),
+  localCors: (product: string, fix: string): MessageRef => ({
+    id: 'gateway.localCors',
+    message: '{product} did not accept the request from this page, so the browser blocked it. {fix}',
+    values: { product, fix },
+  }),
+  localRefused: (product: string, address: string): MessageRef => ({
+    id: 'gateway.localRefused',
+    message: 'Nothing is listening on {address}. Is {product} running? Start it, or correct the address in Settings.',
+    values: { product, address },
+  }),
+  localDenied: (product: string): MessageRef => ({
+    id: 'gateway.localDenied',
+    message: 'Your browser blocked this page from reaching {product} on this computer. Allow this site to connect to apps on your device in the browser’s site settings, then try again.',
+    values: { product },
+  }),
+  missingKey: (name: string): MessageRef => ({
+    id: 'gateway.missingKey',
+    message: 'The key stored for "{name}" cannot be read on this device. Enter it again in Settings.',
+    values: { name },
+  }),
+  notFound: (profileId: string): MessageRef => ({
+    id: 'gateway.profileNotFound',
+    message: 'No provider profile has the id {profileId}.',
+    values: { profileId },
+  }),
+  noActive: (): MessageRef => ({
+    id: 'gateway.noActive',
+    message: 'No provider profile is active. Add one in Settings.',
+  }),
+};
+
+/**
  * A request the egress guard refused. Not a provider failure, so it is not one of the
  * seven kinds: the gateway never sent anything, and retrying cannot change the answer.
  */
@@ -114,12 +207,14 @@ export type ProfileErrorCode = 'invalid' | 'not-found' | 'no-active' | 'key-unre
 export class ProfileError extends Error {
   readonly code: ProfileErrorCode;
   readonly field: string | undefined;
+  readonly messageRef: MessageRef | undefined;
 
-  constructor(code: ProfileErrorCode, message: string, field?: string) {
+  constructor(code: ProfileErrorCode, message: string, init?: { field?: string; messageRef?: MessageRef }) {
     super(message);
     this.name = 'ProfileError';
     this.code = code;
-    this.field = field;
+    this.field = init?.field;
+    this.messageRef = init?.messageRef;
   }
 }
 

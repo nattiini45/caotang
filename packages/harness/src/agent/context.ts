@@ -37,7 +37,7 @@ import {
   type RecentTurn,
   type SessionSummary,
 } from '@caotang/context';
-import type { ChatMessage, MessageContent } from '@caotang/gateway';
+import type { ChatMessage, MessageContent, ModelLimits } from '@caotang/gateway';
 import { contentTokens, partsOf, promptTokensOf } from '@caotang/gateway';
 import type { ProjectState } from '@caotang/store';
 import { isRecord } from '../util.js';
@@ -68,6 +68,12 @@ export interface ContextRequest {
   readonly languages?: LanguagePolicy;
   /** The id of the call's untrusted envelopes: the turn's (`nonceFor`). Absent, the fixed one (context `untrusted.ts`). */
   readonly nonce?: string;
+  /**
+   * The limits of the model this call is sent to (context-assembly §5), when they are not the port's own: a call routed to another
+   * destination inside its role (provider-gateway §6) is assembled and priced for that destination's window and caps. Absent, the
+   * port's configured model is the call's.
+   */
+  readonly limits?: ModelLimits;
 }
 
 /** The interface language and the project language, as BCP 47 tags. The model writes to the writer in the first and the manuscript in the second. */
@@ -217,20 +223,25 @@ export function createContextPort(options: ContextPortOptions): ContextPort {
       ...(request.nonce === undefined ? {} : { nonce: request.nonce }),
     };
   };
+  // A call that names its own destination's limits is assembled and priced for that model, not the port's (context-assembly §5).
+  const configFor = (request: ContextRequest): ContextConfig => {
+    const config = configOf();
+    return request.limits === undefined ? config : { ...config, model: request.limits };
+  };
   const render = (task: AgentTask, app: AppSnapshot, config: ContextConfig, request: ContextRequest): AssembledCall => {
     const prompt = withLanguages(withRole(assemble(task, app, config), request.role), request.languages);
     return { prompt, messages: toChatMessages(prompt), preview: buildPreview(prompt) };
   };
   const port: ContextPort = {
     assemble(request: ContextRequest): AssembledCall {
-      return render(request.task, snapshotOf(request), configOf(), request);
+      return render(request.task, snapshotOf(request), configFor(request), request);
     },
   };
   const computeAsync = options.computeAsync;
   if (computeAsync !== undefined) {
     port.assembleAsync = async (request: ContextRequest, signal?: AbortSignal): Promise<AssembledCall> => {
       signal?.throwIfAborted();
-      const input = projectContextInput(request.task, snapshotOf(request), configOf());
+      const input = projectContextInput(request.task, snapshotOf(request), configFor(request));
       return computeAsync(input, request.role, request.languages, signal);
     };
   }

@@ -11,7 +11,13 @@
  *     never leaves the project folder. The check is textual first (no absolute
  *     paths, no `..`, no backslashes), then it is repeated on the real path: a
  *     symlink inside the folder that points out of it is refused, because a
- *     project folder synced or unzipped by someone else can contain one.
+ *     project folder synced or unzipped by someone else can contain one. Both
+ *     sides of that second check are resolved by the same call
+ *     (`fs.promises.realpath`), because the canonical forms Windows offers do not
+ *     always agree — a short name (`C:\PROGRA~1\…`) may survive one and be
+ *     expanded by another — and a mismatch made a folder read as if it were
+ *     outside itself (#812). Only the spelling is canonicalised: a link out of the
+ *     folder is still refused.
  *   - **Readers ignore what they do not own.** A missing directory lists as empty,
  *     and a listing carries names only, never directories or links (§1).
  *
@@ -27,6 +33,20 @@ import { lstat, mkdir, open, readFile, readdir, realpath, rename, stat, unlink }
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { ArtifactNotFoundError, type ArtifactFs } from '@caotang/store/artifact-fs';
+
+/**
+ * Whether `real` (the real path of a target, or of its nearest existing ancestor) sits inside `realRoot` (the real path of the
+ * project folder). A path is compared to the folder itself or to the folder followed by a separator, so a sibling whose name
+ * starts with the folder's name is outside it. Windows compares case-insensitively, because `C:\Projects\Book` and
+ * `c:\projects\book` are one directory there, and accepts either separator.
+ */
+export function withinRealRoot(real: string, realRoot: string, platform: NodeJS.Platform = process.platform): boolean {
+  if (platform !== 'win32') return real === realRoot || real.startsWith(`${realRoot}/`);
+  // One separator for the comparison: Windows accepts both, and a caller may hold either.
+  const lowered = real.replaceAll('\\', '/').toLowerCase();
+  const root = realRoot.replaceAll('\\', '/').toLowerCase();
+  return lowered === root || lowered.startsWith(`${root}/`);
+}
 
 /** A path the port refuses before it touches the disk. The message names the path and the rule it broke. */
 export class ArtifactPathError extends Error {
@@ -120,12 +140,31 @@ export async function renameWithRetry(
 export class NodeArtifactFs implements ArtifactFs {
   /** The absolute project folder. Every path the port accepts is relative to it. */
   readonly root: string;
-  private readonly realRoot: string;
+  /**
+   * The real path of the folder, resolved on first use **by the same call the containment check makes for a target**
+   * (`fs.promises.realpath`). Both sides must come from one implementation: on Windows the two available realpath calls do not
+   * always agree on the canonical form — an 8.3 short name such as `C:\Users\RUNNER~1\…` may survive one and be expanded by
+   * the other — and a mismatch made a folder read as if it were outside itself (#812).
+   */
+  private realRoot: Promise<string> | undefined;
 
-  /** `root` must already exist: the real path of the folder is what containment is checked against. */
+  /**
+   * `root` must already exist: a missing folder is refused here, as `ENOENT`, because callers report that as "the folder could not
+   * be opened" before they read anything. The canonical form is resolved on first use instead of being taken here, so it comes from
+   * the same call the containment check makes (#812).
+   */
   constructor(root: string) {
     this.root = resolve(root);
-    this.realRoot = realpathSync(this.root);
+    realpathSync(this.root);
+  }
+
+  private realRootOf(): Promise<string> {
+    // A failed resolution is not cached, so a folder that appears later is still usable.
+    this.realRoot ??= realpath(this.root).catch((error: unknown) => {
+      this.realRoot = undefined;
+      throw error;
+    });
+    return this.realRoot;
   }
 
   async read(path: string): Promise<string> {
@@ -257,11 +296,12 @@ export class NodeArtifactFs implements ArtifactFs {
    * leads out is refused here, whichever way the path reached it.
    */
   private async assertContained(target: string): Promise<void> {
+    const realRoot = await this.realRootOf();
     let probe = target;
     for (;;) {
       try {
         const real = await realpath(probe);
-        if (real !== this.realRoot && !real.startsWith(`${this.realRoot}${sep}`)) {
+        if (!withinRealRoot(real, realRoot)) {
           throw new ArtifactPathError(relative(this.root, target), 'resolves through a link outside the project folder');
         }
         return;

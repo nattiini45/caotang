@@ -2705,6 +2705,73 @@ dialog.confirm:has(.folder-file-preview) {
   font-weight: 600;
 }
 
+/* A role's fallbacks sit under its own row: the label starts the line, and the two pickers follow in order (provider-gateway §6).
+   They wrap on a narrow Settings pane before the row's own controls do, so the order stays readable. */
+.role-fallbacks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  flex-basis: 100%;
+}
+
+.role-fallbacks > .muted {
+  font-size: var(--text-md);
+  min-width: 120px;
+}
+
+.role-fallbacks select {
+  font: inherit;
+  font-size: var(--text-md);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* A role's per-step disclosure sits between its own row and its fallbacks: closed until the writer opens it, so the panel's height
+   is the summary line alone (provider-gateway §6). */
+.role-steps {
+  flex-basis: 100%;
+  font-size: var(--text-md);
+}
+
+.role-steps > summary {
+  cursor: pointer;
+  width: fit-content;
+  padding: var(--space-1) 0;
+}
+
+.role-steps > .muted {
+  margin: var(--space-2) 0 var(--space-3);
+  max-width: 60ch;
+}
+
+.role-step-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.role-step-row > span {
+  min-width: 120px;
+  font-weight: 600;
+}
+
+.role-step-row select,
+.role-step-row input {
+  font: inherit;
+  font-size: var(--text-md);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+}
+
 .form-message {
   margin: 10px 0;
   padding: var(--space-4) 10px;
@@ -4450,6 +4517,14 @@ label.settings-check {
 
 .trace-rows {
   padding: var(--space-2);
+}
+
+/* The turn's own actions, under its timeline: Replay… compares this turn against another model (agent-harness §8.1). */
+.trace-turn-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-3);
 }
 
 .trace-row {

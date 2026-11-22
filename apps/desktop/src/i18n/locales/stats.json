@@ -2,12 +2,12 @@
   "sourceLocale": "en",
   "locales": {
     "de": {
-      "total": 4638,
-      "translated": 4638,
+      "total": 5194,
+      "translated": 5194,
       "untranslated": 0,
       "missing": 0,
       "fuzzy": 0,
-      "sameAsEnglish": 103,
+      "sameAsEnglish": 112,
       "completion": 100
     }
   }

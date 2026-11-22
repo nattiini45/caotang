@@ -11,6 +11,12 @@
 #   - `e2e (chromium)` summarizes two duration-balanced Node 24 shard jobs and their merged report, beside `e2e (chromium, Modern gate)`,
 #     which runs the Modern reachability walk and accessibility gate (#313) in parallel. The cross-browser workflow merges the
 #     sharded reports and also runs nightly/on demand.
+#   - `verify (Windows)` runs the same `pnpm verify` gate on windows-latest (#812). It is its own job rather than a leg of
+#     `verify`, so it reports instead of blocking until the suite is green on that runner; the desktop release job runs the same
+#     gate on Windows, so a red suite there stops a release. It leaves out three `packages/sync-server/test` suites —
+#     `account-mode`, `storage` and `server` — each of which boots a Miniflare Worker runtime per case and reaches the case deadline
+#     on that runner; #815 moves them onto one shared runtime and #820 tracks the third until then. The step's own name lists the
+#     files and the reason.
 #   - `office-interop` and `pdf-validate` remain separate Node 24 jobs and run alongside the PR gate.
 #   - `pnpm verify` runs lint, typecheck and the vitest suites (packages/ and test/), once and on Node 24. The desktop's pure model
 #     specs live in e2e/unit as Playwright specs, so they run under `pnpm test:e2e`, not under `pnpm verify`.
@@ -40,10 +46,10 @@
 # Details that are load-bearing rather than tidy:
 #   - permissions stay `contents: read`: the workflow needs no write token, so a pull request from a fork cannot use it to
 #     change the repository. First-time contributors' runs wait for a maintainer's approval (a repository setting).
-#   - `merge_group` is here for the merge queue on `main`: the queue runs the required `verify` on the merge group's own
-#     head, and a workflow without that trigger never reports there, so the group would sit until the queue's check
-#     timeout. No job reads pull-request context, and `github.ref` is the group's own ref, so the concurrency group
-#     still cancels only the same group.
+#   - `merge_group` is here so a merge queue can be switched on without touching this file: a queue runs the required
+#     `verify` on the merge group's own head, and a workflow without that trigger never reports there, so every group
+#     would sit until the queue's check timeout. No job reads pull-request context, and `github.ref` is the group's own
+#     ref, so the concurrency group still cancels only the same group.
 #   - CI uses the exact pnpm release and integrity in the packageManager field. The Node 22 leg tests the 22 floor, 22.19.0 since Lingui 6
 #     (#322); Node 22.12.0's bundled Corepack 0.29.4 could not verify pnpm 12.9.1's current signing key, and an updated Corepack
 #     left an incomplete cache on the hosted runner, so that leg still installs the pinned pnpm tarball only after checking its SHA-512 against packageManager; Node 24 uses Corepack.
@@ -173,6 +179,35 @@ jobs:
           test "$MODERN_RESULT" = success
           test "$CROSS_BROWSER_RESULT" = success
           test "$VISUAL_RESULT" = success
+
+  # The same gate on Windows (#812): the suites, the folder writer and the MCP server all run there in the packaged app, and
+  # until this job existed no CI run touched Windows at all, so a contained-path bug and a test runner that could not start its
+  # children both went unseen. It is its own job and not part of `verify`'s needs, so it reports rather than blocks while the
+  # suite is brought to green on that runner; the release job for Caotang for desktop runs `pnpm verify` on Windows too
+  # (.github/workflows/desktop-release.yml), so a red suite there stops a release.
+  verify_windows:
+    name: verify (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+
+      - name: Install (frozen lockfile, strict engines)
+        run: pnpm install --frozen-lockfile --engine-strict
+
+      - name: "Lint, typecheck and every unit suite, less sync-server account-mode, storage and server suites (each boots a Worker runtime per case: #815, #820)"
+        env:
+          CAOTANG_SKIP_WORKER_SUITES: '1'
+        run: pnpm verify
 
   e2e:
     name: e2e (chromium)
