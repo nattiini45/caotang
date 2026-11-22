@@ -6,7 +6,7 @@ import { i18n } from '@lingui/core';
 import { I18nProvider } from '@lingui/react';
 import { createAgent } from '@ui-sdk/react/agent';
 import { addDocument, createEmptyManifest, createProjectState } from '@caotang/store';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 
 import type { ProjectSession } from '../src/app/session.js';
 import GoalComposer, { type GoalComposerProps } from '../src/components/GoalComposer.js';
@@ -18,8 +18,7 @@ let props: GoalComposerProps;
 let approve = false;
 const agent = createAgent({ allow: (step) => !step.confirm || approve });
 
-beforeEach(() => {
-  activateEnglish();
+function stubEnvironment(): void {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   Element.prototype.getAnimations = () => [];
   Element.prototype.scrollIntoView = () => undefined;
@@ -27,6 +26,34 @@ beforeEach(() => {
   HTMLElement.prototype.showPopover = () => undefined;
   HTMLElement.prototype.hidePopover = () => undefined;
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+}
+
+// The first case used to carry the file's cold start: the SDK agent's first mount, registration and
+// accessible-name pass run cold code paths that can outlast the case deadline on a loaded runner (#817).
+// Warming them here keeps every case's clock on the interaction it measures.
+beforeAll(async () => {
+  stubEnvironment();
+  activateEnglish();
+  const state = createProjectState(createEmptyManifest('warm', new Date(0)));
+  const session = { state, rulesNow: () => [], view: { activeDocId: null }, subscribe: () => () => undefined, getVersion: () => 0 } as unknown as ProjectSession;
+  const warmHost = document.createElement('div');
+  document.body.append(warmHost);
+  const warmRoot = createRoot(warmHost);
+  await act(async () => warmRoot.render(
+    <I18nProvider i18n={i18n}>
+      <GoalComposer open={true} session={session} coherenceChecks={[]} draft={null} unavailable={null} busy={false} onStart={() => undefined} onClose={() => undefined} />
+    </I18nProvider>,
+  ));
+  agent.snapshot();
+  await act(async () => warmRoot.unmount());
+  warmHost.remove();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+beforeEach(() => {
+  activateEnglish();
+  stubEnvironment();
   const state = createProjectState(createEmptyManifest('The harbour', new Date(0)));
   addDocument(state, { parentId: 'manuscript', id: 'n_HARBOUR001', title: 'The landing', body: 'The boat arrived.', now: new Date(0) });
   const session = { state, rulesNow: () => [], view: { activeDocId: 'n_HARBOUR001' }, subscribe: () => () => undefined, getVersion: () => 0 } as unknown as ProjectSession;
@@ -62,6 +89,15 @@ async function change(ref: string, action: string, args: unknown[]): Promise<voi
   });
 }
 
+// Every `agent.act` call re-describes the registered components, so consecutive steps a case already
+// knows go in one call (the SDK's own batching) instead of paying that cost per step (#817).
+async function changes(...steps: { ref: string; action: string; args: unknown[] }[]): Promise<void> {
+  await act(async () => {
+    const outcome = await agent.act({ steps });
+    expect(outcome.ok, outcome.error?.message).toBe(true);
+  });
+}
+
 async function submit(): Promise<void> {
   await act(async () => { host.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
 }
@@ -71,9 +107,11 @@ it('names its controls for agents and requires confirmation before starting a fi
   const entries = agent.snapshot().filter((entry) => !entry.offPage && entry.component !== 'more');
   for (const entry of entries) expect(entry.label, `${entry.component} is unnamed`).toBeTruthy();
   for (const name of ['Goal intent', 'Every synopsis is filled', 'Model-call limit', 'Start the goal']) expect(entries.map((entry) => entry.label)).toContain(name);
-  await change('Goal intent', 'setValue', ['Fill the scene synopses.']);
-  await change('Every synopsis is filled', 'setChecked', [true]);
-  await change('Model-call limit', 'setValue', ['3']);
+  await changes(
+    { ref: 'Goal intent', action: 'setValue', args: ['Fill the scene synopses.'] },
+    { ref: 'Every synopsis is filled', action: 'setChecked', args: [true] },
+    { ref: 'Model-call limit', action: 'setValue', args: ['3'] },
+  );
   let outcome;
   await act(async () => { outcome = await agent.act({ steps: [{ ref: 'Start the goal', action: 'press', args: [] }] }); });
   expect(outcome).toMatchObject({ ok: false });
@@ -100,9 +138,11 @@ it('exposes optional review and its explicit gate through the SDK agent without 
   const optional = [...host.querySelectorAll('label')].find(label => label.textContent === 'Add an independent review')?.querySelector('[role="checkbox"]');
   expect(optional).not.toBeNull();
   expect(optional?.getAttribute('aria-checked')).toBe('false');
-  await change('Goal intent', 'setValue', ['Clarify the departure.']);
-  await change('Every synopsis is filled', 'setChecked', [true]);
-  await change('Add an independent review', 'setChecked', [true]);
+  await changes(
+    { ref: 'Goal intent', action: 'setValue', args: ['Clarify the departure.'] },
+    { ref: 'Every synopsis is filled', action: 'setChecked', args: [true] },
+    { ref: 'Add an independent review', action: 'setChecked', args: [true] },
+  );
   const entries = agent.snapshot().filter(entry => !entry.offPage && entry.component !== 'more');
   for (const entry of entries) expect(entry.label, `${entry.component} is unnamed`).toBeTruthy();
   for (const name of ['Add an independent review', 'Review criterion', 'Require this review to pass']) expect(entries.map(entry => entry.label)).toContain(name);
@@ -121,8 +161,10 @@ it('exposes optional review and its explicit gate through the SDK agent without 
 
 it('focuses a missing review criterion only after submission and clears its error on input', async () => {
   await render();
-  await change('Goal intent', 'setValue', ['Clarify the departure.']);
-  await change('Add an independent review', 'setChecked', [true]);
+  await changes(
+    { ref: 'Goal intent', action: 'setValue', args: ['Clarify the departure.'] },
+    { ref: 'Add an independent review', action: 'setChecked', args: [true] },
+  );
   await change('Require this review to pass', 'setChecked', [true]);
   const rubric = host.querySelector<HTMLTextAreaElement>('[data-goal-field="rubric"] textarea');
   expect(host.querySelector('[role="alert"]')).toBeNull();
@@ -140,9 +182,11 @@ it('focuses a missing review criterion only after submission and clears its erro
 
 it('matches writes to the default named document without requiring another picker change', async () => {
   await render();
-  await change('Goal intent', 'setValue', ['Fill this scene synopsis.']);
-  await change('Every synopsis is filled', 'setChecked', [true]);
-  await change('Check scope', 'setValue', ['doc']);
+  await changes(
+    { ref: 'Goal intent', action: 'setValue', args: ['Fill this scene synopsis.'] },
+    { ref: 'Every synopsis is filled', action: 'setChecked', args: [true] },
+    { ref: 'Check scope', action: 'setValue', args: ['doc'] },
+  );
   await submit();
   expect(props.onStart).toHaveBeenCalledWith(expect.objectContaining({
     checks: [{ kind: 'synopsis.filled', scope: { mode: 'doc', docIds: ['n_HARBOUR001'] } }],
@@ -152,9 +196,11 @@ it('matches writes to the default named document without requiring another picke
 
 it('selects a named binder folder with a matching explicit write scope', async () => {
   await render();
-  await change('Goal intent', 'setValue', ['Fill synopses in this folder.']);
-  await change('Every synopsis is filled', 'setChecked', [true]);
-  await change('Check scope', 'setValue', ['doc']);
+  await changes(
+    { ref: 'Goal intent', action: 'setValue', args: ['Fill synopses in this folder.'] },
+    { ref: 'Every synopsis is filled', action: 'setChecked', args: [true] },
+    { ref: 'Check scope', action: 'setValue', args: ['doc'] },
+  );
   await change('Binder document or folder', 'setValue', ['manuscript']);
   await submit();
   expect(props.onStart).toHaveBeenCalledWith(expect.objectContaining({
@@ -172,18 +218,22 @@ it('does not request large-scope consent for documents withheld from the goal', 
 
 it('defaults a named coherence scope to a live document when none is open', async () => {
   await render({ session: { ...props.session, view: { activeDocId: null } } as unknown as ProjectSession });
-  await change('Goal intent', 'setValue', ['Resolve the scene findings.']);
-  await change('No open coherence findings', 'setChecked', [true]);
-  await change('Check scope', 'setValue', ['doc']);
+  await changes(
+    { ref: 'Goal intent', action: 'setValue', args: ['Resolve the scene findings.'] },
+    { ref: 'No open coherence findings', action: 'setChecked', args: [true] },
+    { ref: 'Check scope', action: 'setValue', args: ['doc'] },
+  );
   await submit();
   expect(props.onStart).toHaveBeenCalledWith(expect.objectContaining({ checks: [{ kind: 'coherence.clean', scope: { mode: 'doc', docIds: ['n_HARBOUR001'] }, checks: ['codex.alias-collisions'] }] }), false);
 });
 
 it('refuses a named coherence scope archived while the composer stays open', async () => {
   await render();
-  await change('Goal intent', 'setValue', ['Resolve the scene findings.']);
-  await change('No open coherence findings', 'setChecked', [true]);
-  await change('Check scope', 'setValue', ['doc']);
+  await changes(
+    { ref: 'Goal intent', action: 'setValue', args: ['Resolve the scene findings.'] },
+    { ref: 'No open coherence findings', action: 'setChecked', args: [true] },
+    { ref: 'Check scope', action: 'setValue', args: ['doc'] },
+  );
   expect(button('Start the goal').getAttribute('aria-disabled')).not.toBe('true');
   props.session.state.manifest.tree.find((node) => node.id === 'n_HARBOUR001')!.status = 'archived';
   await render();
@@ -274,8 +324,10 @@ it('lets an incomplete large-scope goal explain and focus its missing fields bef
 
 it('ignores an IME-confirming Enter submit', async () => {
   await render();
-  await change('Goal intent', 'setValue', ['Fill the synopses.']);
-  await change('Every synopsis is filled', 'setChecked', [true]);
+  await changes(
+    { ref: 'Goal intent', action: 'setValue', args: ['Fill the synopses.'] },
+    { ref: 'Every synopsis is filled', action: 'setChecked', args: [true] },
+  );
   await act(async () => {
     host.querySelector('textarea')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true }));
     host.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
@@ -307,8 +359,10 @@ it('operates all four completion checks with Space and keeps ordinary Enter avai
 it('does not ask for large coherence consent for a synopsis-only goal', async () => {
   for (let n = 0; n < 21; n++) addDocument(props.session.state, { parentId: 'manuscript', id: `n_EXTRA${String(n).padStart(5, '0')}`, title: `Extra ${n}`, body: 'The boat arrived.', now: new Date(0) });
   await render();
-  await change('Goal intent', 'setValue', ['Fill the synopses.']);
-  await change('Every synopsis is filled', 'setChecked', [true]);
+  await changes(
+    { ref: 'Goal intent', action: 'setValue', args: ['Fill the synopses.'] },
+    { ref: 'Every synopsis is filled', action: 'setChecked', args: [true] },
+  );
   expect(host.textContent).not.toContain('I approve reading this large scope');
   await submit();
   expect(props.onStart).toHaveBeenCalledWith(expect.objectContaining({ checks: [{ kind: 'synopsis.filled', scope: { mode: 'full' } }] }), false);
