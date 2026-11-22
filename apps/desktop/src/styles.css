@@ -4519,6 +4519,14 @@ label.settings-check {
   padding: var(--space-2);
 }
 
+/* The turn's own actions, under its timeline: Replay… compares this turn against another model (agent-harness §8.1). */
+.trace-turn-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-3);
+}
+
 .trace-row {
   border-inline-start: 3px solid var(--line-strong);
   border-radius: 3px;

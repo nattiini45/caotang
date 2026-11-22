@@ -13,12 +13,16 @@ import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
-import { TRACE_REVIEWS, type TraceTurn } from '@caotang/harness';
+import { TRACE_REVIEWS, type SourcedRule, type TraceTurn } from '@caotang/harness';
 
 import { downloadBytes } from '../app/download.js';
+import type { ProjectSession } from '../app/session.js';
 import type { AppServices } from '../app/services.js';
 import { barSentence, turnTimeline, type TraceCallRow, type TraceMessageView, type TraceRow, type TraceTimeline, type TraceToolRow } from '../app/trace-model.js';
 import { traceFileName } from '../app/trace-store.js';
+import { estimate, runReplay } from '../app/replay-run.js';
+import { draftRows, estimateLine, headlineOf, stepLine, stopText, targetOf, tokensLine } from '../app/replay-model.js';
+import { ReplayDialog } from './ReplayDialog.js';
 import { EmptyState, More, formatCount, useReport } from './shared.js';
 import { PanelGlyph as Icon } from './panel-glyph.js';
 
@@ -210,7 +214,7 @@ function Rows({ rows, spanMs }: { rows: readonly TraceRow[]; spanMs: number }): 
 const turnName = (turn: TraceTurn): string => (turn.turnId === TRACE_REVIEWS ? t`Reviews` : turn.intent === '' ? turn.turnId : turn.intent);
 
 /** A turn of the trace: its head always, and its timeline while it is open (only one turn is built at a time). */
-function TurnBlock({ turn, timeline, onToggle }: { turn: TraceTurn; timeline: TraceTimeline | null; onToggle: () => void }): ReactNode {
+function TurnBlock({ turn, timeline, onToggle, onReplay }: { turn: TraceTurn; timeline: TraceTimeline | null; onToggle: () => void; onReplay?: (button: HTMLButtonElement) => void }): ReactNode {
   useLingui();
   const bodyId = useId();
   const open = timeline !== null;
@@ -231,6 +235,13 @@ function TurnBlock({ turn, timeline, onToggle }: { turn: TraceTurn; timeline: Tr
       </button>
       <div id={bodyId} hidden={!open}>
         {timeline === null ? null : <Rows rows={timeline.rows} spanMs={timeline.spanMs} />}
+        {onReplay === undefined ? null : (
+          <div className="trace-turn-actions">
+            <button type="button" className="button is-quiet" onClick={(event) => onReplay(event.currentTarget)} data-testid="trace-replay">
+              <Trans>Replay…</Trans>
+            </button>
+          </div>
+        )}
       </div>
     </li>
   );
@@ -309,7 +320,7 @@ function ExportDialog({
   );
 }
 
-export function TracePanel({ services, projectName }: { services: AppServices; projectName: string }): ReactNode {
+export function TracePanel({ services, session, projectName }: { services: AppServices; session: ProjectSession; projectName: string }): ReactNode {
   useLingui();
   const { trace } = services.providers;
   const version = useSyncExternalStore(trace.subscribe, trace.snapshot);
@@ -319,6 +330,13 @@ export function TracePanel({ services, projectName }: { services: AppServices; p
   // `undefined` is the writer's silence: the newest turn is open. `null` is every turn closed.
   const [opened, setOpened] = useState<string | null | undefined>(undefined);
   const [exporting, setExporting] = useState(false);
+  // The turn the Replay… dialog is open on (null when it is closed), and what the app's services hold for it.
+  const [replaying, setReplaying] = useState<TraceTurn | null>(null);
+  /**
+   * The Replay… button that opened the dialog, so focus goes back to that turn's own button. A ref on the button itself is
+   * shared by every turn (each render hands the last one the ref), which points back at the wrong turn's button.
+   */
+  const replayButton = useRef<HTMLButtonElement | null>(null);
 
   const turns = trace.store.turns();
   // Newest first, with the reviews group (always last in the store) at the bottom.
@@ -348,6 +366,16 @@ export function TracePanel({ services, projectName }: { services: AppServices; p
 
   const currentTurn = ordered.find((turn) => turn.turnId === current);
   const turnLabel = currentTurn === undefined ? null : turnName(currentTurn);
+
+  // The profiles a replay may be sent to, and the project's rules, read when the dialog asks: a change in Settings applies to the next
+  // replay without the dialog being rebuilt.
+  // Read on every render, which the trace's own subscription drives: a profile saved in Settings is offered the next time this redraws.
+  const profiles = services.providers.profiles.list();
+  const rules = (): { rules: readonly SourcedRule[] } => ({ rules: session.rulesNow() });
+  const hasSnapshot = replaying !== null && trace.snapshots.has(replaying.turnId);
+  const hasCall = replaying !== null && trace.store.records(replaying.turnId).some((record) => record.kind === 'model.request');
+  // A replay is held to the writer's own model-call limit, as any turn is, and the estimate is bounded by the same number (§8.1).
+  const maxModelCalls = settings.agent.budget.maxModelCalls;
 
   return (
     <div className="trace" data-testid="trace-panel">
@@ -387,12 +415,63 @@ export function TracePanel({ services, projectName }: { services: AppServices; p
               turn={turn}
               timeline={turn.turnId === current ? timeline : null}
               onToggle={() => setOpened(turn.turnId === current ? null : turn.turnId)}
+              // The reviews group holds the calls made outside a turn, which is not a turn to replay (§8.1).
+              {...(turn.turnId === TRACE_REVIEWS
+                ? {}
+                : {
+                    onReplay: (button: HTMLButtonElement) => {
+                      replayButton.current = button;
+                      setReplaying(turn);
+                    },
+                  })}
             />
           ))}
         </ol>
       )}
 
       <ExportDialog open={exporting} turnLabel={turnLabel} onCancel={() => setExporting(false)} onExport={doExport} />
+      <ReplayDialog
+        turn={replaying === null ? null : { turnId: replaying.turnId, intent: turnName(replaying) }}
+        profiles={profiles}
+        hasSnapshot={hasSnapshot}
+        hasCall={hasCall}
+        onEstimate={(mode, destination) =>
+          estimateLine(
+            estimate({
+              store: trace.store,
+              turnId: replaying?.turnId ?? '',
+              mode,
+              ...(destination === undefined ? {} : { target: targetOf(destination) }),
+              gateway: services.providers.gateway,
+              ...(maxModelCalls === undefined ? {} : { maxModelCalls }),
+            }),
+          )
+        }
+        onRun={async (mode, destination) => {
+          const turnId = replaying?.turnId ?? '';
+          const result = await runReplay({
+            store: trace.store,
+            turnId,
+            mode,
+            ...(destination === undefined ? {} : { target: targetOf(destination) }),
+            ...(trace.snapshots.of(turnId) === undefined ? {} : { snapshot: trace.snapshots.of(turnId) }),
+            gateway: services.providers.gateway,
+            rules,
+            ...(maxModelCalls === undefined ? {} : { maxModelCalls }),
+            clock: () => services.providers.now(),
+          });
+          return {
+            mode: result.mode,
+            headline: headlineOf(result),
+            steps: result.steps.filter((step) => step.changedParams.length > 0 || step.original === undefined || step.replay === undefined).map(stepLine),
+            drafts: draftRows(result.drafts),
+            tokens: tokensLine(result.usage),
+            ...(result.stoppedAt === undefined ? {} : { stopped: stopText(result.stoppedAt) }),
+          };
+        }}
+        onClose={() => setReplaying(null)}
+        finalFocus={() => replayButton.current}
+      />
     </div>
   );
 }

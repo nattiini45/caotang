@@ -205,6 +205,15 @@ describe('replay: the cassette answers a recorded turn', () => {
     await expect(replay({ mode: 'cassette', source, turnId: run.turnId, snapshot: run.before })).rejects.toThrow(/not the first of its session/);
   });
 
+  it('reads the turn from the store itself, because its records alone carry no messages', async () => {
+    const run = await record();
+    // `records()` is the turn's rows; a request's messages live beside them, interned by id, so a copy of the rows alone has no prompt.
+    const rowsOnly = indexTrace(run.store.records(run.turnId));
+    expect(recordedCalls(rowsOnly, run.turnId)).toEqual([]);
+    // The store answers both halves, and that is what the app hands the engine.
+    expect(recordedCalls(run.store, run.turnId).length).toBeGreaterThan(0);
+  });
+
   it('serves the recorded replies in order, so two calls in one turn are not swapped', async () => {
     const run = await record();
     const scripts = cassetteScripts(run.store, run.turnId);
@@ -225,6 +234,14 @@ describe('replay: a turn against another destination', () => {
 
     expect(projectBytes(run.state)).toBe(run.body);
     expect(result.projectBytes).not.toBe(run.body);
+    // The comparison names the text each side left, which is what the writer reads side by side (§8.1): the project held no synopsis
+    // for this document before the turn, and the replay wrote one.
+    expect(result.drafts.map((diff) => [diff.title, diff.field])).toEqual([['The Storm', 'synopsis']]);
+    expect(result.drafts[0]?.original).toBe('');
+    expect(result.drafts[0]?.replay).toBe('Something else.');
+    expect(result.drafts[0]?.words).toEqual({ original: 0, replay: 2 });
+    // A document neither side changed is not a diff.
+    expect(result.drafts.some((diff) => diff.title === 'The Landing')).toBe(false);
     // The pin reached the request: the replay's own ledger rows name the target profile, never the recording's.
     expect(result.usage.replay.modelCalls).toBeGreaterThan(0);
     expect(target).toBeTruthy();
@@ -471,6 +488,17 @@ describe('replay: the estimate a writer confirms first', () => {
       gateway.modelLimits(profileId, model, thinking),
     );
     expect(unbounded.modelCalls).toBe(DEFAULT_MAX_MODEL_CALLS);
+  });
+
+  it('prices a cassette at nothing: it answers from the recording and sends nothing', async () => {
+    const run = await record();
+    const gateway = await mockGateway([]);
+    // No target: a cassette's destination is the recording itself, and pricing it against whichever profile is active would print a
+    // figure the writer never spends.
+    const estimate = estimateReplay({ mode: 'cassette', source: run.store, turnId: run.turnId }, (profileId, model, thinking) =>
+      gateway.modelLimits(profileId, model, thinking),
+    );
+    expect(estimate).toEqual({ promptTokens: 0, maxCompletionTokens: 0, modelCalls: 0 });
   });
 
   it('refuses without a target: a replay is only ever sent to a profile the writer saved', async () => {
