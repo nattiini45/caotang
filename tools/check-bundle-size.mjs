@@ -297,7 +297,10 @@ export const BUDGET = {
   // ceiling measurement. Named: the EPUB reader package, the preview source and the Worker, all on-use chunks, and the
   // walker's anchors, notes and noterefs in the import-html chunk. The ceiling is the measurement rounded up to the
   // thousand. [delegated 2026-11-22]
-  totalJs: 8_967_000,
+  // The German catalogue's EPUB strings (#296): 8,967,257 bytes measured, +260 over the reader's own ceiling
+  // measurement. The compiled de catalogue stays on use too. Same round-up-to-the-thousand ceiling. [delegated
+  // 2026-11-22]
+  totalJs: 8_968_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
