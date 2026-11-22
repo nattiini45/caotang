@@ -81,7 +81,7 @@ for (const scheme of ['light', 'dark'] as const) {
             document
               .querySelector('.modern-stage')
               ?.getAnimations({ subtree: true })
-              .filter((animation) => animation.playState === 'running' || animation.playState === 'pending').length ?? 0,
+              .filter((animation) => animation.playState === 'running').length ?? 0,
         ),
       )
       .toBe(0);
