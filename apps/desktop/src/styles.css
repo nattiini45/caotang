@@ -58,11 +58,12 @@ h3 {
   white-space: nowrap;
 }
 
-.button:hover:not(:disabled) {
+.button:hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--panel);
 }
 
-.button:disabled {
+.button:disabled,
+.button[aria-disabled="true"] {
   opacity: 0.45;
   cursor: default;
 }
@@ -73,7 +74,7 @@ h3 {
   color: var(--accent-ink);
 }
 
-.button.is-primary:hover:not(:disabled) {
+.button.is-primary:hover:not(:disabled, [aria-disabled="true"]) {
   filter: brightness(1.06);
   background: var(--accent);
 }
@@ -2704,6 +2705,73 @@ dialog.confirm:has(.folder-file-preview) {
   font-weight: 600;
 }
 
+/* A role's fallbacks sit under its own row: the label starts the line, and the two pickers follow in order (provider-gateway §6).
+   They wrap on a narrow Settings pane before the row's own controls do, so the order stays readable. */
+.role-fallbacks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  flex-basis: 100%;
+}
+
+.role-fallbacks > .muted {
+  font-size: var(--text-md);
+  min-width: 120px;
+}
+
+.role-fallbacks select {
+  font: inherit;
+  font-size: var(--text-md);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* A role's per-step disclosure sits between its own row and its fallbacks: closed until the writer opens it, so the panel's height
+   is the summary line alone (provider-gateway §6). */
+.role-steps {
+  flex-basis: 100%;
+  font-size: var(--text-md);
+}
+
+.role-steps > summary {
+  cursor: pointer;
+  width: fit-content;
+  padding: var(--space-1) 0;
+}
+
+.role-steps > .muted {
+  margin: var(--space-2) 0 var(--space-3);
+  max-width: 60ch;
+}
+
+.role-step-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.role-step-row > span {
+  min-width: 120px;
+  font-weight: 600;
+}
+
+.role-step-row select,
+.role-step-row input {
+  font: inherit;
+  font-size: var(--text-md);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+}
+
 .form-message {
   margin: 10px 0;
   padding: var(--space-4) 10px;
@@ -2746,43 +2814,45 @@ dialog.confirm:has(.folder-file-preview) {
 .usage-table col:nth-child(7) { inline-size: 10%; }
 .usage-table col:nth-child(8) { inline-size: 22%; }
 
+/* The narrow layout's shape for a table too wide for the pane: one labelled record per row, for the usage table and the
+   request log alike (ui-modules §0.6). */
 .usage-table th,
 .usage-table td,
-.usage-records,
+.records,
 .usage-breakdown bdi {
   overflow-wrap: anywhere;
 }
 
-.usage-records {
+.records {
   list-style: none;
   margin: var(--space-4) 0;
   padding: 0;
 }
 
-.usage-records li + li {
+.records li + li {
   margin-block-start: var(--space-5);
   padding-block-start: var(--space-4);
   border-block-start: 1px solid var(--line);
 }
 
-.usage-records h5 {
+.records h5 {
   margin-block: 0 var(--space-3);
   font-size: var(--text-md);
 }
 
-.usage-record-values {
+.record-values {
   margin: 0;
   font-size: var(--text-md);
 }
 
-.usage-record-values > div {
+.record-values > div {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   gap: var(--space-3);
   margin-block: var(--space-2);
 }
 
-.usage-record-values dd {
+.record-values dd {
   min-inline-size: 0;
   margin: 0;
   font-variant-numeric: tabular-nums;
@@ -2861,8 +2931,8 @@ dialog.confirm:has(.folder-file-preview) {
   vertical-align: top;
 }
 
-.request-table tr[data-outcome='failed'] td,
-.request-table tr[data-outcome='refused'] td {
+.request-log [data-outcome='failed'],
+.request-log [data-outcome='refused'] {
   color: var(--danger);
 }
 
@@ -2937,6 +3007,28 @@ label.settings-check {
   max-height: 30%;
 }
 
+.agent.is-open.is-goal-setup,
+.agent.is-open.is-goal-running {
+  flex-shrink: 1;
+  max-height: 70%;
+}
+
+.agent.is-open:has(.goal-recovery) {
+  flex-shrink: 1;
+}
+
+:root[data-shell] .agent.is-goal-setup .agent-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+:root[data-shell] .agent.is-goal-setup .agent-body > :not(.goal-composer-slot) {
+  display: none;
+}
+
 /* Runs a reload left unfinished: shown above the drawer's body, open or closed, and scrolled inside themselves when there are several. */
 .agent-interrupted {
   display: grid;
@@ -2947,10 +3039,27 @@ label.settings-check {
   padding: 0 var(--space-6) var(--space-4);
 }
 
+:root[data-shell] .goal-recovery .button.is-primary[aria-disabled="true"],
+:root[data-shell] .goal-recovery .button.is-primary[aria-disabled="true"]:hover {
+  background: var(--k-fill, var(--panel));
+  border-color: var(--line-strong);
+  color: var(--muted);
+  cursor: not-allowed;
+  filter: none;
+  opacity: 1;
+  transform: none;
+}
+
 .activity-runs .agent-interrupted {
   max-height: none;
   overflow: visible;
   padding-inline: 0;
+}
+
+.agent-body > .goal-recovery {
+  max-height: none;
+  overflow: visible;
+  padding: 0;
 }
 
 .interrupted-run {
@@ -3004,8 +3113,17 @@ label.settings-check {
   overflow-wrap: anywhere;
 }
 
+.agent-one-turn-composer:not([hidden]) {
+  display: contents;
+}
+
+.agent-intent .goal-entry {
+  align-self: flex-start;
+}
+
 .agent-intent {
   display: flex;
+  align-items: flex-start;
   gap: var(--space-4);
   margin: var(--space-3) 0 10px;
 }
@@ -3210,6 +3328,12 @@ label.settings-check {
 .agent-tasks-note {
   margin: 0 0 var(--space-3);
   font-size: var(--text-md);
+}
+
+.agent-tasks .agent-inbox-group-title {
+  margin-block: var(--space-4) var(--space-2);
+  font-size: var(--text-md);
+  font-weight: 600;
 }
 
 .agent-task-list {
@@ -4393,6 +4517,14 @@ label.settings-check {
 
 .trace-rows {
   padding: var(--space-2);
+}
+
+/* The turn's own actions, under its timeline: Replay… compares this turn against another model (agent-harness §8.1). */
+.trace-turn-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-3);
 }
 
 .trace-row {

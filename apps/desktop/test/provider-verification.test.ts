@@ -180,3 +180,36 @@ describe('verification metadata', () => {
     expect(service.get(id)?.defaultModel).toBe('second-model');
   });
 });
+
+describe('saved profiles written before the automatic settings', () => {
+  it('restores them with their key and model, drops the request-limit and caching fields, and writes them back without those', async () => {
+    const db = memoryDb();
+    await db.put(APP_KEYS.profiles, [
+      { id: 'prv_0000000000', name: 'Legacy endpoint', kind: 'endpoint', baseUrl: endpoint.baseUrl, defaultModel: endpoint.defaultModel, hasKey: false, isActive: true },
+      {
+        id: 'prv_1111111111', name: 'Limited endpoint', kind: 'endpoint', baseUrl: endpoint.baseUrl, defaultModel: 'second-model', hasKey: false, isActive: false,
+        maxConcurrentRequests: 6, promptCache: { mode: 'off', ttl: '1h' }, pricePer1k: { prompt: 1, completion: 2 }, temperature: 0.4,
+      },
+      { id: 'prv_2222222222', name: 'Legacy mock', kind: 'mock', baseUrl: '', defaultModel: 'mock', hasKey: false, isActive: false, maxConcurrentRequests: 2 },
+    ]);
+
+    const opened = await ProviderService.open({ db, vault: null });
+    expect(opened.notices).toEqual([]);
+    const limited = opened.service.get('prv_1111111111');
+    expect(limited).toMatchObject({ name: 'Limited endpoint', defaultModel: 'second-model', pricePer1k: { prompt: 1, completion: 2 }, temperature: 0.4 });
+    for (const profile of opened.service.list()) {
+      expect(profile).not.toHaveProperty('maxConcurrentRequests');
+      expect(profile).not.toHaveProperty('promptCache');
+    }
+
+    await opened.service.persist();
+    const stored = db.rows.get(APP_KEYS.profiles) as Record<string, unknown>[];
+    expect(stored).toHaveLength(3);
+    for (const profile of stored) {
+      expect(profile).not.toHaveProperty('maxConcurrentRequests');
+      expect(profile).not.toHaveProperty('promptCache');
+    }
+    const reopened = await ProviderService.open({ db, vault: null });
+    expect(reopened.service.get('prv_1111111111')).toMatchObject({ defaultModel: 'second-model', pricePer1k: { prompt: 1, completion: 2 } });
+  });
+});

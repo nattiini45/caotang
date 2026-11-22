@@ -1,0 +1,133 @@
+/* The Replay… dialog (agent-harness §8.1). Materials, radii and type come from the app's tokens; nothing here is a new colour. */
+
+.replay-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  block-size: fit-content;
+  inline-size: min(640px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--raised);
+  color: var(--ink);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  max-block-size: 88dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.replay-dialog .confirm-body {
+  max-block-size: calc(88dvh - 2px);
+  box-sizing: border-box;
+}
+
+.replay-dialog p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.replay-faint {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.replay-modes {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.replay-mode {
+  align-items: flex-start;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.replay-mode > span {
+  flex: 1 1 18rem;
+  min-inline-size: 0;
+}
+
+/* A mode the recording cannot support says why in the row itself, so the writer reads the reason where they reach for it. */
+.replay-refused {
+  flex: 1 1 100%;
+  margin-inline-start: var(--space-6);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.replay-target {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.replay-select {
+  inline-size: 100%;
+}
+
+.replay-estimate {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.replay-cost {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.replay-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-block-start: 1px solid var(--line);
+  padding-block-start: var(--space-3);
+}
+
+.replay-headline {
+  font-weight: 600;
+}
+
+.replay-steps {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+.replay-step {
+  font-variant-numeric: tabular-nums;
+}
+
+.replay-draft {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.replay-draft h4 {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+/* Old to new: an added run is underlined and a removed one struck, so the difference does not rest on colour. */
+.replay-draft-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-block-size: 16rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+
+.replay-stopped {
+  color: var(--danger);
+}

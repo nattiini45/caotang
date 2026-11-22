@@ -180,8 +180,8 @@ test('Settings lists a project hook, switches it off without deleting it, and de
   await expect(row).toContainText('No lanterns');
   await row.getByRole('checkbox').uncheck();
   await expect(row.getByRole('checkbox')).not.toBeChecked();
-  await expect(settings.getByRole('status')).toContainText('Saved.');
+  await expect(settings.getByRole('status').filter({ hasText: 'Saved. The hook applies to the next matching event.' })).toBeVisible();
   await row.getByRole('button', { name: /Delete/ }).click();
   await expect(row).toHaveCount(0);
-  await expect(settings.getByRole('status')).toContainText('Undo brings it back.');
+  await expect(settings.getByRole('status').filter({ hasText: 'Deleted the hook. Undo brings it back.' })).toBeVisible();
 });

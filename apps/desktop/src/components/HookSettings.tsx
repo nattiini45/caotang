@@ -8,7 +8,10 @@ import { createHookRunner, TOOL_NAMES, type HookInput } from '@caotang/harness';
 import { getBody } from '@caotang/store';
 import { isolate } from '@caotang/i18n';
 import type { ProjectSession } from '../app/session.js';
+import type { AppServices } from '../app/services.js';
 import { explain } from './actions.js';
+import { McpHookSettings } from './McpHookSettings.js';
+import { ModelHookSettings } from './ModelHookSettings.js';
 import { useSession } from './shared.js';
 
 const blankCheck = (kind: HookCheck['kind']): HookCheck => {
@@ -24,12 +27,16 @@ const listOf = (value: string): string[] => value.split(',').map((item) => item.
 const isToolEvent = (event: HookEvent): boolean => event === 'tool.before' || event === 'tool.after';
 const isExportEvent = (event: HookEvent): boolean => event === 'export.before' || event === 'export.after';
 
-export function HookSettings({ session }: { readonly session: ProjectSession | null }): ReactNode {
+export function HookSettings({ session, services }: { readonly session: ProjectSession | null; readonly services: AppServices }): ReactNode {
   return (
     <section className="settings-section" aria-labelledby="settings-hooks" data-testid="hook-settings">
       <h3 id="settings-hooks"><Trans>Hooks</Trans></h3>
-      <p className="settings-note"><Trans>Hooks check this project at selected events. They can warn or stop an action, but never approve it, change your text or call a provider.</Trans></p>
-      {session === null ? <p className="settings-note"><Trans>Open a project to manage its hooks.</Trans></p> : <ProjectHooks session={session} />}
+      <p className="settings-note"><Trans>Hooks check this project at selected events. They can warn or stop an action, but never approve it or change your text.</Trans></p>
+      {session === null ? <p className="settings-note"><Trans>Open a project to manage its hooks.</Trans></p> : <>
+        <ProjectHooks session={session} />
+        <McpHookSettings key={`mcp:${session.projectId}`} projectId={session.projectId} services={services} />
+        <ModelHookSettings key={`model:${session.projectId}`} projectId={session.projectId} services={services} />
+      </>}
     </section>
   );
 }
@@ -51,7 +58,7 @@ function ProjectHooks({ session }: { readonly session: ProjectSession }): ReactN
   return (
     <>
       {draft === null ? <>
-        {hooks.length === 0 ? <p className="settings-note"><Trans>This project has no hooks yet. Add one to check a word, a word count, a status or continuity.</Trans></p> : null}
+        {hooks.length === 0 ? <p className="settings-note"><Trans>This project has no local checks yet. Add a hook to check a word, a word count, a status or continuity.</Trans></p> : null}
         <ul className="settings-rules" aria-label={t`Project hooks`}>
           {hooks.map((hook) => {
             const name = isolate(hook.name);

@@ -8,8 +8,10 @@
  * Ctrl+Enter sends it to the running turn as a note, and Stop (or Escape, with the box empty) stops the turn.
  */
 
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import './request-context.css';
+// The Skills note in this panel's list is styled by the sheet the Skills dialog also uses.
+import './skills-dialog.css';
 import { plural, t } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
@@ -38,10 +40,10 @@ import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, 
 import { formatUsd } from '../app/plan-preview.js';
 import { sumUsage } from '@caotang/gateway';
 import { groupUsage } from '../app/usage-model.js';
-import { isImeEnter, keyFacts, keyboardLayoutStore, resolveKey, shortcutLabel } from '../app/keymap.js';
+import { isImeEnter, keyFacts, keyboardLayoutStore, MODAL_DIALOG_SELECTOR, resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
-import { UNRESOLVED_NOTICE } from '../app/review-text.js';
-import type { AgentController, AgentSnapshot } from '../app/agent.js';
+import { unresolvedNotice } from '../app/review-text.js';
+import type { AgentController, AgentSnapshot, GoalRecoveryView } from '../app/agent.js';
 import type { CommandNote } from '../app/slash-model.js';
 import type { RecurringTasks } from '../app/recurring-tasks.js';
 import type { StartIntent } from '../App.js';
@@ -61,6 +63,7 @@ import { PlanOfferCard } from './PlanOfferCard.js';
 import { BackgroundTasks } from './BackgroundTasks.js';
 import { RecurringTasksPanel } from './RecurringTasks.js';
 import { TaskOffers } from './TaskOffers.js';
+import { GoalRecovery } from './GoalRecovery.js';
 import { InterruptedRuns } from './InterruptedRuns.js';
 import { TaskChecklist } from './TaskChecklist.js';
 import { renderRef, WRITER_VALUE_KEYS } from '../i18n/render-ref.js';
@@ -77,8 +80,9 @@ import { RequestContext } from './RequestContext.js';
 
 /** Fetched when a turn has suggestions pending, which only an editor in review mode makes. */
 const TurnReview = lazy(() => import('./TurnReview.js').then((module) => ({ default: module.TurnReview })));
+const GoalComposer = lazy(() => import('./GoalComposer.js'));
 
-/* lingui-set comment="Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content." */
+/* lingui-set comment="Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id." */
 
 const MODE_LABELS: Readonly<Record<PermissionMode, string>> = {
   get 'plan-only'() { return t`Plan only`; },
@@ -114,6 +118,9 @@ export interface AgentPanelProps {
   /** Opens Settings › Providers. Only the window gets it, and offers it under the demo's refusal (#363). */
   readonly onAddProvider?: () => void;
   readonly onOpenProviders?: () => void;
+  readonly onOpenTaskFindings?: (taskId: string, runId: string) => void | Promise<void>;
+  readonly inboxFocus?: { readonly taskId: string; readonly serial: number } | null;
+  readonly onInboxFocused?: () => void;
 }
 
 /**
@@ -162,6 +169,9 @@ export function AgentPanel({
   onClose,
   onAddProvider,
   onOpenProviders,
+  onOpenTaskFindings,
+  inboxFocus = null,
+  onInboxFocused,
 }: AgentPanelProps): ReactNode {
   const inWindow = placement === 'window';
   const sectionHeading = inWindow ? 3 : 4;
@@ -170,6 +180,7 @@ export function AgentPanel({
   useLingui();
   const sessionVersion = useSession(session);
   const snapshot = useSyncExternalStore(agent.subscribe, agent.snapshot);
+  const goalInConversation = (goal: GoalRecoveryView): boolean => open && (goal.goalId === snapshot.activeGoalId || (goal.status === 'settled' && !goal.unreadable));
   const chatMemory = snapshot.sessionMemory.find((memory) => memory.role === 'chat');
   const windowRecovery: WindowRecovery = {
     disabled: snapshot.busy || snapshot.queue.length > 0 || snapshot.sessionSave.kind === 'writing' || snapshot.sessionSave.failure !== null,
@@ -195,6 +206,24 @@ export function AgentPanel({
     return () => { offHealth?.(); offTools?.(); };
   }, [session]);
   const [intent, setIntent] = useState(() => memoryFor(agent).intent);
+  const [goalOpen, setGoalOpen] = useState(false);
+  const [goalLoaded, setGoalLoaded] = useState(false);
+  const goalButtonRef = useRef<HTMLButtonElement>(null);
+  const stopButtonRef = useRef<HTMLButtonElement>(null);
+  const goalStopFocused = useRef(false);
+  const previousGoal = useRef(snapshot.activeGoalId);
+  const goalComposerId = useId();
+  const goalEntryBlocked = snapshot.busy || snapshot.pending !== null || snapshot.offer !== null;
+  const goalShowing = !goalEntryBlocked && (goalOpen || snapshot.goalDraft !== null);
+  const goalWasShowing = useRef(goalShowing);
+  useEffect(() => {
+    if (goalWasShowing.current && !goalShowing) (snapshot.activeGoalId === null ? goalButtonRef : stopButtonRef).current?.focus();
+    const settled = previousGoal.current !== null && snapshot.activeGoalId === null;
+    if (settled && goalStopFocused.current && document.activeElement === document.body) goalButtonRef.current?.focus();
+    if (settled) goalStopFocused.current = false;
+    previousGoal.current = snapshot.activeGoalId;
+    goalWasShowing.current = goalShowing;
+  }, [goalShowing, snapshot.activeGoalId]);
   const [contextOverrides, setContextOverrides] = useState(() => memoryFor(agent).contextOverrides);
   const updateContext = (next: ContextOverrides): void => {
     memoryFor(agent).contextOverrides = next;
@@ -298,7 +327,7 @@ export function AgentPanel({
   const onPanelKey = (event: ReactKeyboardEvent<HTMLElement>): void => {
     // A dialog inside the panel (the restore confirmation) has Escape for itself.
     const target = event.target;
-    if (event.defaultPrevented || (target instanceof HTMLElement && target.closest('dialog') !== null)) return;
+    if (event.defaultPrevented || (target instanceof HTMLElement && target.closest(MODAL_DIALOG_SELECTOR) !== null)) return;
     const action = resolveKey(
       // keyFacts reads AltGraph from the modifier state (Windows reports it as Ctrl+Alt); isImeEnter reads the native event's composition.
       { ...keyFacts(event), composing: isImeEnter(event) },
@@ -339,12 +368,12 @@ export function AgentPanel({
     if (result === null) {
       // The menu is enabled from the last render; a turn may have started, or the turn may already be rewound, since.
       report({
-        text: agent.snapshot().busy ? 'The conversation could not be rewound: a turn is running.' : 'The conversation could not be rewound: that turn is no longer available to rewind.',
+        text: agent.snapshot().busy ? t`The conversation could not be rewound: a turn is running.` : t`The conversation could not be rewound: that turn is no longer available to rewind.`,
         tone: 'error',
       });
       return;
     }
-    report({ text: 'Rewound the conversation to before that turn. The project was not changed.', tone: 'info' });
+    report({ text: t`Rewound the conversation to before that turn. The project was not changed.`, tone: 'info' });
     refill(result.intent);
   };
 
@@ -392,9 +421,9 @@ export function AgentPanel({
       return;
     }
     void agent.restoreBoth(turnId).then((outcome) => {
-      if (!outcome.ok) report({ text: outcome.projectRestored ? outcome.message : `${outcome.message} The conversation was not rewound.`, tone: 'error' });
+      if (!outcome.ok) report({ text: outcome.projectRestored ? outcome.message : t`${{ message: outcome.message }} The conversation was not rewound.`, tone: 'error' });
       else {
-        report({ text: `${restoredLine(outcome.later)} The conversation was rewound too.`, tone: 'info' });
+        report({ text: t`${{ restored: restoredLine(outcome.later) }} The conversation was rewound too.`, tone: 'info' });
         refill(outcome.intent);
       }
     });
@@ -405,6 +434,13 @@ export function AgentPanel({
   const running = snapshot.turns[snapshot.turns.length - 1];
   const stepRef = running === undefined || isSettled(running) ? null : headerRefOf(running.tasks, (ref) => renderRef(ref, { userValues: WRITER_VALUE_KEYS }));
   const stepLine = stepRef !== null ? renderRef(stepRef) : running === undefined || isSettled(running) ? null : headerLineOf(running.tasks);
+  const stepOverride = snapshot.phase === 'starting' ? t`The agent is loading.`
+    : snapshot.phase === 'approving' ? t`Your approval is being processed.`
+      : snapshot.phase === 'stopping' ? t`The agent is stopping.`
+        : running?.compacting === true ? t`Summarising earlier conversation with Background…`
+          : null;
+  const stepStatus = stepOverride ?? stepLine ?? (snapshot.pending !== null || snapshot.offer !== null ? t`Waiting for you` : t`Working…`);
+  const goalWaiting = stepOverride === null && snapshot.activeGoalId !== null && (snapshot.pending !== null || snapshot.offer !== null);
   const spend = running === undefined || isSettled(running) ? undefined : spendLine(running.run);
   const sessionUsage = <SessionUsage usage={snapshot.sessionUsage} names={new Map(snapshot.usageProfiles.map((profile) => [profile.id, profile.name]))} />;
   const choices = agent.contextChoices();
@@ -416,8 +452,8 @@ export function AgentPanel({
     ? droppedContextPins(request.preview.layers, contextOverrides.include).map((drop) => contextKey(drop.ref!)) : []);
   const contextControls = <div className="composer-context">
     {included.size === 0 && (contextOverrides.exclude?.length ?? 0) === 0 ? null : <details className="context-scope">
-      <summary><Trans>Foreground only</Trans></summary>
-      <p className="muted context-hint"><Trans>Requests with pins or leave-outs run here, not as background tasks. Remove these choices before requesting a background task.</Trans></p>
+      <summary><Trans>Context choices</Trans></summary>
+      <p className="muted context-hint"><Trans>Pins and leave-outs stay with this request when it runs in the background.</Trans></p>
       <p className="muted context-hint"><Trans>Pins and leave-outs affect optional context only. Required tool input, conversation history and read permissions do not change.</Trans></p>
     </details>}
     {(contextOverrides.include?.length ?? 0) + (contextOverrides.exclude?.length ?? 0) === 0 ? null : <ul className="context-chips" aria-label={t`Context choices for the next request`}>
@@ -460,6 +496,7 @@ export function AgentPanel({
         </button>
         {snapshot.busy ? <small className="muted context-next"><Trans>For the next request</Trans></small> : null}
       </span>
+      {snapshot.activeGoalId === null ? <Button ref={goalButtonRef} type="button" className="button is-quiet goal-entry" disabled={goalEntryBlocked} focusableWhenDisabled aria-expanded={goalShowing} aria-controls={goalLoaded || snapshot.goalDraft !== null ? goalComposerId : undefined} title={goalEntryBlocked ? t`A goal or turn is active. Wait for it to finish.` : t`Set up a goal run`} onClick={() => { setGoalLoaded(true); setGoalOpen(true); }}><Trans>Goal</Trans></Button> : null}
       {snapshot.busy ? (
         <button type="button" className="button" disabled={intent.trim() === '' || snapshot.providerName === null || runActionPending} onClick={steer}>
           <Trans>Steer</Trans>
@@ -467,11 +504,33 @@ export function AgentPanel({
       ) : null}
     </form>
   );
+  const closeGoal = (): void => {
+    setGoalLoaded(true);
+    setGoalOpen(false);
+    if (snapshot.goalDraft !== null) agent.clearGoalDraft(snapshot.goalDraft.id);
+  };
+  const goalComposer = goalLoaded || snapshot.goalDraft !== null ? <div id={goalComposerId} hidden={!goalShowing} className="goal-composer-slot"><Suspense fallback={<p role="status"><Trans>Loading the goal form…</Trans></p>}>
+      <GoalComposer
+        open={goalShowing}
+        session={session}
+        coherenceChecks={session.goalChecks()?.enabled ?? []}
+        draft={snapshot.goalDraft}
+        unavailable={snapshot.goalUnavailable ?? (snapshot.providerName === null ? t`Connect a provider in Settings before starting a goal.` : snapshot.sessionSave.failure ?? (snapshot.sessionLoad.kind === 'failed' || snapshot.sessionLoad.kind === 'loading' ? t`Wait for the conversation to load, or reopen the project to try again.` : null))}
+        busy={snapshot.busy || runActionPending}
+        onClose={closeGoal}
+        onStart={(goal, approvedLargeScope) => {
+          const running = agent.startGoal(goal, { approvedLargeScope });
+          if (agent.snapshot().activeGoalId === goal.id) closeGoal();
+          void running;
+        }}
+      />
+    </Suspense></div> : null;
+  const oneTurnComposer = <div className="agent-one-turn-composer" hidden={goalShowing}>{intentForm}{inWindow && snapshot.activeGoalId !== null ? null : contextControls}</div>;
   // The drawer is a named region of its own; the window is inside Modern's `aside` "Agent", which names it.
   const Root = inWindow ? 'div' : 'section';
   return (
     <Root
-      className={`agent${open ? ' is-open' : ''}${inWindow ? ' is-window' : ''}`}
+      className={`agent${open ? ' is-open' : ''}${inWindow ? ' is-window' : ''}${goalShowing ? ' is-goal-setup' : ''}${snapshot.activeGoalId === null ? '' : ' is-goal-running'}`}
       aria-label={inWindow ? undefined : t`Agent`}
       data-testid="agent-panel"
       data-state={snapshot.phase}
@@ -504,12 +563,8 @@ export function AgentPanel({
         {/* The step line names where the turn is, with the drawer open or closed. It is a live region that polite-announces a change
             of step, not each streamed word: the line is derived from the task list and only moves when the step does. */}
         {snapshot.pending !== null || snapshot.busy ? (
-          <span className="agent-busy" role="status" aria-live="polite" data-testid="agent-step">
-            {snapshot.phase === 'starting' ? t`The agent is loading.`
-              : snapshot.phase === 'approving' ? t`Your approval is being processed.`
-                : snapshot.phase === 'stopping' ? t`The agent is stopping.`
-                  : running?.compacting === true ? t`Summarising earlier conversation with Background…`
-                    : stepLine ?? (snapshot.pending !== null || snapshot.offer !== null ? t`Waiting for you` : t`Working…`)}
+          <span className={goalWaiting ? 'agent-busy is-goal-waiting' : 'agent-busy'} role="status" aria-live="polite" data-testid="agent-step" title={stepStatus}>
+            {stepStatus}
           </span>
         ) : null}
         {/* What the run has used of the limits the writer set: tokens, cost, steps and time worked, after each model call. */}
@@ -522,9 +577,12 @@ export function AgentPanel({
           <button
             type="button"
             className="button is-danger agent-stop"
+            ref={stopButtonRef}
             data-testid="agent-stop"
             disabled={snapshot.stopping}
-            title={t`Stop the turn (${{ shortcut: shortcutLabel('agent-stop', keyboardLayout) }} with the Intent box empty)`}
+            onFocus={() => { goalStopFocused.current = snapshot.activeGoalId !== null; }}
+            onBlur={(event) => { if (event.relatedTarget !== null) goalStopFocused.current = false; }}
+            title={snapshot.activeGoalId === null ? t`Stop the turn (${{ shortcut: shortcutLabel('agent-stop', keyboardLayout) }} with the Intent box empty)` : t`Stop the whole goal (${{ shortcut: shortcutLabel('agent-stop', keyboardLayout) }} with the Intent box empty)`}
             onClick={() => agent.stop()}
           >
             {snapshot.stopping ? t`Stopping…` : t`Stop`}
@@ -551,16 +609,23 @@ export function AgentPanel({
       {/* An unfinished run is shown with the drawer closed too: it is the first thing the writer has to decide after a reload. */}
       <InterruptedRuns agent={agent} runs={snapshot.interrupted} busy={snapshot.busy} onResume={() => (open ? undefined : onToggle())} />
 
+      {/* A goal the project was left with waits for the same answer (agent-harness §7.2): it never resumes on its own. */}
+      <GoalRecovery agent={agent} goals={snapshot.goals.filter((goal) => !goalInConversation(goal))} unavailable={snapshot.goalUnavailable} activeGoalId={snapshot.activeGoalId} compact={!open} onResume={() => (open ? undefined : onToggle())} />
+
       {/* A task that is due waits for the writer's answer, so its offer is shown with the drawer closed too. */}
       <TaskOffers recurring={recurring} />
 
       {open ? (
         <div key={snapshot.sessionId} id="agent-body" className="agent-body">
-          {inWindow ? sessionUsage : <>{intentForm}{contextControls}{sessionUsage}</>}
+          {snapshot.goalDraft !== null && goalEntryBlocked ? <p className="form-message" role="status" data-testid="goal-draft-deferred">{t`A goal or turn is active. Wait for it to finish.`}</p> : null}
+          {goalComposer}
+          {inWindow ? sessionUsage : <>{oneTurnComposer}{sessionUsage}</>}
+          <GoalRecovery agent={agent} goals={snapshot.goals.filter(goalInConversation)} unavailable={snapshot.goalUnavailable} activeGoalId={snapshot.activeGoalId} />
+          {inWindow && snapshot.activeGoalId !== null ? contextControls : null}
 
           {oldInstruction !== null ? (
             <p className="agent-old-instruction" data-testid="agent-old-instruction">
-              <span className="muted">The Intent box holds your draft. The rewound instruction was:</span> <q>{oldInstruction}</q>{' '}
+              <span className="muted"><Trans>The Intent box holds your draft. The rewound instruction was:</Trans></span> <q>{oldInstruction}</q>{' '}
               <button
                 type="button"
                 className="button is-quiet"
@@ -570,10 +635,10 @@ export function AgentPanel({
                   intentRef.current?.focus();
                 }}
               >
-                Use the old instruction
+                <Trans>Use the old instruction</Trans>
               </button>
               <button type="button" className="button is-quiet" onClick={() => setOldInstruction(null)}>
-                Dismiss
+                <Trans>Dismiss</Trans>
               </button>
             </p>
           ) : null}
@@ -606,12 +671,12 @@ export function AgentPanel({
             headingLevel={sectionHeading}
           />
 
-          <BackgroundTasks agent={agent} tasks={agent.taskViews()} headingLevel={sectionHeading} />
+          <BackgroundTasks agent={agent} tasks={agent.taskViews()} headingLevel={sectionHeading} onOpenFindings={onOpenTaskFindings} focusTask={inboxFocus} onTaskFocused={onInboxFocused} />
 
           {/* In the window it is one line under the turns, its explanation shown with a task's form (#363, companion.css). */}
           <RecurringTasksPanel recurring={recurring} headingLevel={sectionHeading} />
 
-          {snapshot.offer !== null ? <PlanOfferCard agent={agent} view={snapshot.offer} /> : null}
+          {snapshot.offer !== null ? <PlanOfferCard agent={agent} view={snapshot.offer} onReturnFocus={() => intentRef.current?.focus()} /> : null}
 
           {sample && snapshot.turns.length === 0 ? (
             <div className="agent-demos" role="group" aria-label={t`Demo intents`}>
@@ -653,7 +718,7 @@ export function AgentPanel({
                     windowRecovery={windowRecovery}
                     onResolveReview={(turnId, mode) => {
                       // The card offers this only while it shows a pending count, so nothing settled means the marks are still there.
-                      if (agent.resolveReview(turnId, mode) === 0) report({ text: UNRESOLVED_NOTICE, tone: 'info' });
+                      if (agent.resolveReview(turnId, mode) === 0) report({ text: unresolvedNotice(), tone: 'info' });
                     }}
                   />
                 ));
@@ -684,7 +749,7 @@ export function AgentPanel({
           ) : null}
         </div>
       ) : null}
-      {inWindow ? <footer className="agent-foot">{intentForm}{contextControls}</footer> : null}
+      {inWindow ? <footer className="agent-foot" hidden={goalShowing}>{oneTurnComposer}</footer> : null}
 
       <TranscriptionReviewDialog session={session} broker={session.transcriptionReviews} />
       <ConfirmDialog
@@ -749,7 +814,7 @@ function CommandNoteView({ note, onDismiss, onRun, contextOverrides, onContextCh
   onContextChoice: (ref: ContextRef, choice: 'remove' | 'exclude') => void;
 }): ReactNode {
   return (
-    <section className={`agent-command-note is-${note.kind}`} role="status" aria-label="Command result" data-testid="agent-command-note">
+    <section className={`agent-command-note is-${note.kind}`} role="status" aria-label={t`Command result`} data-testid="agent-command-note">
       <p className="agent-command-title">{note.title}</p>
       {note.requestContext === undefined ? null : <RequestContext request={note.requestContext} running={note.contextRunning === true} pinned={note.contextRunning ? undefined : contextOverrides.include}
         onExclude={note.contextRunning ? undefined : (ref) => onContextChoice(ref, 'exclude')} onRestore={note.contextRunning ? undefined : (ref) => onContextChoice(ref, 'remove')} />}
@@ -762,7 +827,7 @@ function CommandNoteView({ note, onDismiss, onRun, contextOverrides, onContextCh
         </ul>
       )}
       <button type="button" className="button is-quiet" onClick={onDismiss}>
-        Dismiss
+        <Trans>Dismiss</Trans>
       </button>
     </section>
   );
@@ -806,14 +871,14 @@ function runsOf(turns: readonly TurnView[]): readonly { readonly rewound: boolea
 
 /** What a restore that kept the later edits says. */
 function onlyLine(step: boolean, kept: number): string {
-  const what = step ? 'that step' : 'that turn';
-  return `Restored to before ${what}. Your ${kept} later ${kept === 1 ? 'change was' : 'changes were'} kept.`;
+  const what = step ? t`that step` : t`that turn`;
+  return t`Restored to before ${what}. Your ${plural(kept, { one: '# later change was', other: '# later changes were' })} kept.`;
 }
 
 /** What a finished step restore says: how many later changes went back with it, if any. */
 function restoredStepLine(later: number): string {
-  if (later === 0) return 'Restored to before that step.';
-  return `Restored to before that step. ${later} later ${later === 1 ? 'change was' : 'changes were'} taken back with it.`;
+  if (later === 0) return t`Restored to before that step.`;
+  return t`Restored to before that step. ${plural(later, { one: '# later change was', other: '# later changes were' })} taken back with it.`;
 }
 
 /** What a finished restore says: how many later changes went back with the turn, if any. */
@@ -1031,7 +1096,7 @@ function TurnBlock({
 
       {turn.restoredFromStep !== null && stands ? (
         <p className="muted agent-partial-restore" data-testid="partial-restore">
-          Restored from step {turn.restoredFromStep}: the steps before it are still in the project.
+          <Trans>Restored from step {{ step: turn.restoredFromStep }}: the steps before it are still in the project.</Trans>
         </p>
       ) : null}
 
@@ -1101,13 +1166,13 @@ function StatusCardRow({ card, steps }: { card: StatusCard; steps?: StepRestore 
         <ElapsedTime card={card} />
         {steps !== undefined && menu.show ? (
           <TurnMenu
-            label={`Rewind options for step ${card.tool}`}
+            label={t`Rewind options for step ${{ step: card.tool }}`}
             testId="step-menu"
             note={menu.note}
             items={[
               {
-                label: 'Restore project to before this step',
-                hint: 'Takes back this step and the ones after it. The steps before it stay.',
+                label: t`Restore project to before this step`,
+                hint: t`Takes back this step and the ones after it. The steps before it stay.`,
                 disabled: steps.disabled || !restorable,
                 onSelect: () => steps.onRestore(card.id),
               },
@@ -1119,11 +1184,11 @@ function StatusCardRow({ card, steps }: { card: StatusCard; steps?: StepRestore 
       {progress === undefined ? null : (
         // The server's report on a call that is still running. The message is its own text, shown as text and labelled as the server's.
         <div className="status-card-progress" data-testid="call-progress">
-          {progress.fraction === undefined ? null : <progress max={1} value={progress.fraction} aria-label={`Progress of ${card.tool}`} />}
+          {progress.fraction === undefined ? null : <progress max={1} value={progress.fraction} aria-label={t`Progress of ${{ name: card.tool }}`} />}
           <span className="status-card-progress-count">{progress.label}</span>
           {progress.message === undefined ? null : (
             <p className="status-card-text status-card-progress-message">
-              <span className="muted">The server says: </span>
+              <span className="muted"><Trans>The server says: </Trans></span>
               {progress.message}
             </p>
           )}

@@ -10,7 +10,7 @@
  * `pnpm list --prod`, which walks the same lockfile the build uses, so the list cannot name a package the build does not
  * contain. Development tools are not shipped, so they are not listed. Caotang's own packages are MIT, under LICENSE, and
  * are not repeated here, except the workspace packages that hold third-party work under its own license
- * (VENDORED_WORKSPACE_PACKAGES): the Noto Sans Mono CJK, Noto Emoji, Noto Sans Arabic, Noto Sans Hebrew and Noto Sans Devanagari fonts, under the SIL Open Font License, are listed like any
+ * (VENDORED_WORKSPACE_PACKAGES): the Noto Sans Mono CJK, Noto Emoji, Noto Sans Arabic, Noto Sans Hebrew and ten Indic fonts, under the SIL Open Font License, are listed like any
  * other package.
  *
  * Why each license text is kept. MIT and Apache-2.0 both require the copyright notice and the license to travel with
@@ -21,10 +21,16 @@
  * Windows. pnpm's `.cmd` shim cannot be spawned directly from node on Windows, so the call goes through `cmd /c`.
  */
 
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+/**
+ * How long `pnpm list` may take before the run is called stalled. A healthy listing of this workspace answers in about a
+ * second; the ceiling exists so a child that waits on a lock leaves a line in the log instead of an empty step.
+ */
+const PNPM_TIMEOUT_MS = 120_000;
 
 /** The workspace packages whose production closure ships. Paths are relative to the repository root. */
 export const SHIPPED_FILTERS = ['./apps/desktop', './packages/mcp-server', './packages/cli'];
@@ -73,6 +79,41 @@ export const BUNDLED_ASSETS = Object.freeze([
     shippedAs: 'packages/screenplay/src/fonts/cousine-regular.ts',
     licenseFile: 'packages/screenplay/src/fonts/OFL-Cousine.txt',
   }),
+  Object.freeze({
+    name: 'inklewriter-to-ink (Inklewriter JSON to Ink converter)',
+    version: 'f62fcfd51d3391ba8ad4c7192778451d9f6769b7',
+    license: 'MIT',
+    repository: 'https://github.com/inkle/inklewriter-to-ink',
+    shippedAs: 'packages/import-inklewriter/src/inklewriter-convert.ts',
+    licenseFile: 'packages/import-inklewriter/src/LICENSE-INKLEWRITER',
+  }),
+]);
+
+/**
+ * The runtime every package of Caotang for desktop carries (#401): Electron and the Chromium inside it. Neither is a dependency
+ * of the studio's own code — Electron is a development dependency that ships as the application binary — so the lockfile never
+ * lists them, and the package root carries their own licence files exactly as Electron publishes them. Chromium's text is the
+ * aggregated `LICENSES.chromium.html` (thousands of files' worth); reproducing it here would be a second copy of a file that
+ * travels with the binary, so the entry names where it ships instead.
+ */
+export const RUNTIME_NOTICES = Object.freeze([
+  Object.freeze({
+    name: 'Electron',
+    version: '45.4.1',
+    license: 'MIT',
+    repository: 'https://github.com/electron/electron',
+    shipsAs: 'the application binary; LICENSE.electron.txt and LICENSES.chromium.html sit at the root of every Caotang for desktop package (Resources on macOS)',
+    licenseFile: 'apps/desktop-shell/LICENSE-ELECTRON',
+  }),
+  Object.freeze({
+    name: 'Chromium',
+    version: '156.0.8078.100',
+    license: 'BSD-3-Clause and others',
+    repository: 'https://chromium.googlesource.com/chromium/src/+/main/LICENSE',
+    shipsAs: 'inside Electron, as the application binary; its aggregated licence ships beside it as LICENSES.chromium.html',
+    licenseNote:
+      'Chromium\'s aggregated licence text ships inside every Caotang for desktop package as LICENSES.chromium.html, exactly as Electron publishes it, so it travels with the binary rather than being reproduced here.',
+  }),
 ]);
 
 /**
@@ -99,6 +140,15 @@ export const VENDORED_WORKSPACE_PACKAGES = Object.freeze([
   '@caotang/font-noto-arabic',
   '@caotang/font-noto-hebrew',
   '@caotang/font-noto-devanagari',
+  '@caotang/font-noto-bengali',
+  '@caotang/font-noto-gurmukhi',
+  '@caotang/font-noto-gujarati',
+  '@caotang/font-noto-oriya',
+  '@caotang/font-noto-tamil',
+  '@caotang/font-noto-telugu',
+  '@caotang/font-noto-kannada',
+  '@caotang/font-noto-malayalam',
+  '@caotang/font-noto-sinhala',
   '@caotang/font-comic-lettering',
 ]);
 
@@ -171,11 +221,17 @@ export function listProductionTree(root, filters = SHIPPED_FILTERS) {
   const args = ['list', '--prod', '--depth', 'Infinity', '--json'];
   for (const filter of filters) args.push('--filter', filter);
   const options = { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] };
-  const output =
-    process.platform === 'win32'
-      ? execFileSync('cmd', ['/c', 'pnpm', ...args], options)
-      : execFileSync('pnpm', args, options);
-  return JSON.parse(output);
+  const command = process.platform === 'win32' ? 'cmd' : 'pnpm';
+  const commandArgs = process.platform === 'win32' ? ['/c', 'pnpm', ...args] : args;
+  const result = spawnSync(command, commandArgs, { ...options, timeout: PNPM_TIMEOUT_MS, killSignal: 'SIGTERM' });
+  // A stalled pnpm prints nothing on a pipe, so a run that never returns reads as a silent step. The timeout turns it into a
+  // line that names the command and shows what the child did say (see docs/decisions.md, "A child that never answers").
+  if (result.error !== undefined || result.status !== 0) {
+    const took = result.error?.code === 'ETIMEDOUT' ? ` did not answer within ${PNPM_TIMEOUT_MS / 1000} s` : ` exited ${String(result.status)}`;
+    throw new Error(`pnpm ${args.join(' ')}${took}:
+${result.stdout ?? ''}${result.stderr ?? ''}`.trimEnd());
+  }
+  return JSON.parse(result.stdout);
 }
 
 /**
@@ -243,7 +299,7 @@ function repositoryOf(manifest) {
  * The notices document for the given packages. It is deterministic: the same packages and the same license files give the
  * same bytes, on any machine, so a committed copy can be compared with a fresh one.
  */
-export function renderNotices(packages, { filters = SHIPPED_FILTERS, assets = [] } = {}) {
+export function renderNotices(packages, { filters = SHIPPED_FILTERS, assets = [], runtime = [] } = {}) {
   const lines = [];
   lines.push('# Third-party notices');
   lines.push('');
@@ -298,6 +354,28 @@ export function renderNotices(packages, { filters = SHIPPED_FILTERS, assets = []
       lines.push(fence);
     }
   }
+  if (runtime.length > 0) {
+    lines.push('');
+    lines.push('## The runtime');
+    lines.push('');
+    lines.push('Caotang for desktop runs on Electron, which carries Chromium. Each package holds their own licence files.');
+    for (const entry of runtime) {
+      lines.push('');
+      lines.push(`### ${entry.name} ${entry.version}`);
+      lines.push('');
+      lines.push(`License: ${entry.license}. Source: ${entry.repository}. Ships as ${entry.shipsAs}.`);
+      if (entry.text === undefined) {
+        lines.push('');
+        lines.push(entry.licenseNote);
+        continue;
+      }
+      lines.push('');
+      const fence = fenceFor(entry.text);
+      lines.push(`${fence}text`);
+      lines.push(entry.text.replace(/\n+$/, ''));
+      lines.push(fence);
+    }
+  }
   lines.push('');
   return lines.join('\n');
 }
@@ -318,7 +396,12 @@ export function bundledAssetNotices(root = REPO_ROOT, assets = BUNDLED_ASSETS) {
 /** Generates the document for the shipped packages in `root`. */
 export function generateNotices({ root = REPO_ROOT, filters = SHIPPED_FILTERS } = {}) {
   const packages = externalPackages(listProductionTree(root, filters)).map(describePackage);
-  return renderNotices(packages, { filters, assets: bundledAssetNotices(root) });
+  return renderNotices(packages, { filters, assets: bundledAssetNotices(root), runtime: runtimeNotices(root) });
+}
+
+/** The runtime entries whose licence text is kept in `root`; an entry without one carries the note instead. */
+export function runtimeNotices(root = REPO_ROOT, entries = RUNTIME_NOTICES) {
+  return entries.map((entry) => (entry.licenseFile === undefined ? entry : { ...entry, text: normalizeText(readFileSync(join(root, entry.licenseFile), 'utf8')) }));
 }
 
 function fenceFor(text) {

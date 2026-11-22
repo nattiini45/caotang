@@ -211,6 +211,29 @@ export function parseTasksFile(text: string): ParseOutcome {
   return { kind: 'ok', file: { formatVersion: TASKS_FORMAT_VERSION, tasks }, notices };
 }
 
+/** A plan's steps as the editor shows them: the file's own JSON, two-space indented. */
+export function planText(steps: readonly PlanStep[]): string {
+  return JSON.stringify(steps, null, 2);
+}
+
+/**
+ * The steps a writer typed, checked the way the file loader checks a plan body: the planner's own `parsePlan`. The answer is the
+ * steps, or the sentence the editor shows. A plan that reads here reads again from the saved file, and the other way round.
+ */
+export function readPlanText(text: string): { readonly ok: true; readonly steps: readonly PlanStep[] } | { readonly ok: false; readonly message: string } {
+  if (text.trim() === '') return { ok: false, message: 'Write the plan’s steps as a list.' };
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (error) {
+    return { ok: false, message: `The steps are not valid JSON: ${error instanceof Error ? error.message : String(error)}` };
+  }
+  if (!Array.isArray(value)) return { ok: false, message: 'Write the plan’s steps as a list, between [ and ].' };
+  const parsed = parsePlan({ steps: value });
+  if (!parsed.ok) return { ok: false, message: `The plan does not parse: ${parsed.error.message}` };
+  return { ok: true, steps: parsed.value.steps as readonly PlanStep[] };
+}
+
 /** The file as it is written: two-space JSON, keys in a fixed order, a trailing newline. `problem` is derived and never written. */
 export function serializeTasksFile(file: TasksFile): string {
   const tasks = file.tasks.map((task) => ({

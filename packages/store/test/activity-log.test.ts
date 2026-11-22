@@ -260,6 +260,13 @@ const CASES: readonly Case[] = [
     digestMentions: 'keyword',
   },
   {
+    name: 'binder.setPublish',
+    params: { nodeId: STORM, patch: { slug: 'the-storm' } },
+    titles: ['The Storm'],
+    ids: [STORM],
+    digestMentions: 'slug',
+  },
+  {
     // timeline.md §4.3: one batch is one row, naming every scene its ops named.
     name: 'timeline.apply',
     params: { ops: [{ op: 'meta', nodeId: STORM, patch: { dayOffset: 3 }, expect: { dayOffset: null } }] },

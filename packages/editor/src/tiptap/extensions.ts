@@ -146,7 +146,12 @@ const DocumentBoundaryKeys = Extension.create({
           const { state } = view;
           const boundary = event.key === 'Home' ? Selection.atStart(state.doc) : Selection.atEnd(state.doc);
           const selection = event.shiftKey ? TextSelection.between(state.selection.$anchor, boundary.$head) : boundary;
+          const moved = !selection.eq(state.selection);
           view.dispatch(state.tr.setSelection(selection).scrollIntoView());
+          // A transaction that leaves the model's selection where it was writes nothing to the DOM, and the DOM caret can
+          // still be where a native click put it while the library has not read that click yet. The handler has taken the
+          // command over, so it puts the DOM caret at the boundary itself rather than leaving the writer's key undone (#665).
+          if (!moved) view.focus();
           return true;
         },
       },

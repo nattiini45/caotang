@@ -16,9 +16,9 @@
  * with `needs_input` when there is none, so a port can never generate its own text.
  */
 
-import { err, ok, type CommandError, type Result } from '@caotang/bus';
+import { err, ok, readCodexReference, readCodexRelation, type CommandError, type Result } from '@caotang/bus';
 import type { ReviewPlan } from '@caotang/coherence';
-import { codexRead, type CodexReadQuery } from '@caotang/codex';
+import { codexRead, type CodexEntryLinks, type CodexReadQuery } from '@caotang/codex';
 import { entryWithheld } from '@caotang/context';
 import { dialogueDraftTool } from '@caotang/dialogue';
 import { resolveAnchor, type TextAnchor } from '@caotang/editor';
@@ -73,7 +73,7 @@ export const codexReadPort: ToolPort = (params, context) => {
     ...(typeof params['id'] === 'string' ? { id: params['id'] } : {}),
     ...(typeof params['limit'] === 'number' ? { limit: params['limit'] } : {}),
   };
-  const result = codexRead(query, { entries });
+  const result = codexRead(query, { entries, links: linksOf(entries) });
   const count = result.entries.length;
   return ok({
     data: {
@@ -488,6 +488,37 @@ export function createAgentPorts(): Partial<Record<PortToolName, ToolPort>> {
     // The loop answers a delegation inside a turn; the port is the refusal a call outside one gets (tools/delegate.ts).
     'agent.delegate': delegatePort,
   };
+}
+
+/**
+ * Every entry's stored references and relations, read with the bus's own readers so the ids are the
+ * ones `codex.write` documents, and named with the target's name where the target is still there.
+ * `codex.read` carries them because they are the only way an agent learns a `ref_` or `rel_` id it
+ * could update or remove; automatic context still carries none of them.
+ */
+function linksOf(entries: readonly CodexEntry[]): Map<string, CodexEntryLinks> {
+  const names = new Map(entries.map((entry) => [entry.id, entry.name] as const));
+  const links = new Map<string, CodexEntryLinks>();
+  for (const entry of entries) {
+    const references = (entry.references ?? []).flatMap((value) => {
+      const reference = readCodexReference(value);
+      return reference === undefined ? [] : [{ id: reference.id, title: reference.title }];
+    });
+    const relations = (entry.relations ?? []).flatMap((value) => {
+      const relation = readCodexRelation(value);
+      if (relation === undefined) return [];
+      const target = names.get(relation.targetId) ?? relation.targetId;
+      return [relation.label === undefined
+        ? { id: relation.id, targetId: relation.targetId, target }
+        : { id: relation.id, targetId: relation.targetId, target, label: relation.label }];
+    });
+    if (references.length === 0 && relations.length === 0) continue;
+    links.set(entry.id, {
+      ...(references.length === 0 ? {} : { references }),
+      ...(relations.length === 0 ? {} : { relations }),
+    });
+  }
+  return links;
 }
 
 /* ------------------------------------------------------------------ *

@@ -8,7 +8,7 @@
  *
  * The chain, for each grapheme cluster: the balloon's own face; Bangers (or Comic Neue, for a sound effect) for what that face lacks
  * and the other has, which is the capital ẞ a book that opts into it asks for, since Comic Neue has none; Arabic and Hebrew
- * (`@caotang/pdf-fonts/shaper`, with the bidirectional algorithm), Devanagari, Noto Sans Mono CJK (which also has Greek and Cyrillic), and
+ * (`@caotang/pdf-fonts/shaper`, with the bidirectional algorithm), the Indic scripts (Devanagari through Sinhala), Noto Sans Mono CJK (which also has Greek and Cyrillic), and
  * the emoji font; a character no font has is drawn as `?`, once counted, and the compile log names it.
  *
  * The fonts are read before any line is laid out: the layout that breaks a balloon's lines measures text synchronously
@@ -21,14 +21,13 @@ import {
   BANGERS_FONT_NAME,
   CJK_FONT_NAME,
   COMIC_NEUE_FONT_NAME,
-  DEVANAGARI_FONT_NAME,
   EMOJI_FONT_NAME,
   HEBREW_FONT_NAME,
   clustersOf,
   countMarks,
-  devanagariFontPrints,
   emojiStyleOf,
   fallbackCovers,
+  indicFontPrints,
   isBidiControl,
   isRtlMark,
   loadFont,
@@ -38,6 +37,7 @@ import {
   type ComicLetteringFace,
   type ComicLetteringFontLoader,
   type FontLoader,
+  type IndicScript,
   type RtlScript,
 } from '@caotang/pdf-fonts';
 import type * as Bidi from '@caotang/pdf-fonts/bidi';
@@ -46,7 +46,7 @@ import type * as PdfLib from 'pdf-lib';
 
 import { CidEmbedding, type CidGlyph, type FontkitFont } from './cid-embedding.js';
 import { CjkEmbedding, CjkFace } from './cjk-font.js';
-import { DevanagariEmbedding, DevanagariFace } from './devanagari-font.js';
+import { IndicEmbedding, IndicFace, INDIC_FONT_INFO, type IndicFontLoaders } from './indic-font.js';
 import { EmojiEmbedding, EmojiFace } from './emoji-font.js';
 import { RtlEmbedding, RtlFace, type PlacedGlyph } from './rtl-font.js';
 
@@ -57,8 +57,9 @@ export interface ComicTextLoaders {
   readonly loadEmojiFont?: FontLoader;
   readonly loadArabicFont?: FontLoader;
   readonly loadHebrewFont?: FontLoader;
-  readonly loadDevanagariFont?: FontLoader;
-  /** The project's language (a BCP 47 tag): Han characters and Devanagari take its forms. */
+  /** The Indic fonts, by script. Each is read only when a text holds its script. */
+  readonly loadIndicFonts?: IndicFontLoaders;
+  /** The project's language (a BCP 47 tag): Han characters and the Indic scripts take its forms. */
   readonly language?: string;
 }
 
@@ -74,7 +75,7 @@ export interface TextRun {
   readonly style: ComicLetteringFace;
 }
 
-type Face = 'main' | 'cjk' | 'emoji' | 'devanagari' | RtlScript;
+type Face = 'main' | 'cjk' | 'emoji' | IndicScript | RtlScript;
 
 interface Piece {
   readonly text: string;
@@ -98,7 +99,7 @@ type Class =
   | { readonly kind: 'emoji' }
   | { readonly kind: 'main'; readonly style: ComicLetteringFace }
   | { readonly kind: 'script'; readonly script: RtlScript }
-  | { readonly kind: 'devanagari' }
+  | { readonly kind: 'indic'; readonly script: IndicScript }
   | { readonly kind: 'other'; readonly codes: readonly number[]; readonly presentation: 'text' | 'emoji' | undefined };
 
 const VS15 = 0xfe0e;
@@ -166,13 +167,21 @@ class LetteringFace {
 }
 
 const CHAIN_FONT = (face: Face): string =>
-  face === 'cjk' ? CJK_FONT_NAME : face === 'emoji' ? EMOJI_FONT_NAME : face === 'devanagari' ? DEVANAGARI_FONT_NAME : face === 'arabic' ? ARABIC_FONT_NAME : HEBREW_FONT_NAME;
+  face === 'cjk'
+    ? CJK_FONT_NAME
+    : face === 'emoji'
+      ? EMOJI_FONT_NAME
+      : face === 'arabic'
+        ? ARABIC_FONT_NAME
+        : face === 'hebrew'
+          ? HEBREW_FONT_NAME
+          : INDIC_FONT_INFO[face as IndicScript].name;
 
 export class ComicTextKit {
   private readonly lettering = new Map<ComicLetteringFace, LetteringFace>();
   private cjk: CjkEmbedding | null = null;
   private emoji: EmojiEmbedding | null = null;
-  private devanagari: DevanagariEmbedding | null = null;
+  private readonly indic = new Map<IndicScript, IndicEmbedding | null>();
   private readonly rtl = new Map<RtlScript, RtlEmbedding>();
   private tools: { readonly bidi: typeof Bidi; readonly shape: Shape } | undefined;
   /** Why a font a text needed could not be read, by face. */
@@ -236,7 +245,8 @@ export class ComicTextKit {
     const first = String.fromCodePoint(codes[0] ?? 0);
     const script = rtlFontPrints(first);
     if (script !== undefined) return { kind: 'script', script };
-    if (devanagariFontPrints(first)) return { kind: 'devanagari' };
+    const indic = indicFontPrints(first);
+    if (indic !== undefined) return { kind: 'indic', script: indic };
     return { kind: 'other', codes: textCodes, presentation: presentation === 'text' ? 'text' : undefined };
   }
 
@@ -244,13 +254,13 @@ export class ComicTextKit {
     const cjkChars = new Set<string>();
     const emojiClusters = new Set<string>();
     const scripts = new Set<RtlScript>();
-    let devanagari = false;
+    const indicScripts = new Set<IndicScript>();
     for (const { text, style } of texts) {
       for (const cluster of clustersOf(text.normalize('NFC'))) {
         const kind = this.classify(cluster, style);
         if (kind.kind === 'emoji') emojiClusters.add(cluster);
         else if (kind.kind === 'script') scripts.add(kind.script);
-        else if (kind.kind === 'devanagari') devanagari = true;
+        else if (kind.kind === 'indic') indicScripts.add(kind.script);
         else if (kind.kind === 'other') {
           for (const code of kind.codes) cjkChars.add(String.fromCodePoint(code));
           if (kind.presentation === 'text' && !kind.codes.every((code) => fallbackCovers(String.fromCodePoint(code)))) {
@@ -296,10 +306,12 @@ export class ComicTextKit {
         this.rtl.set(script, new RtlEmbedding(lib, doc, new RtlFace(script, font, (this.tools as { shape: Shape }).shape)));
       });
     }
-    if (devanagari) {
-      await attempt('devanagari', loaders.loadDevanagariFont, 'Devanagari', async (load) => {
-        this.devanagari = new DevanagariEmbedding(lib, doc, await DevanagariFace.load(load, loaders.language));
+    for (const script of indicScripts) {
+      const name = INDIC_FONT_INFO[script].name;
+      await attempt(script, loaders.loadIndicFonts?.[script], name, async (load) => {
+        this.indic.set(script, new IndicEmbedding(lib, doc, await IndicFace.load(load, script, loaders.language)));
       });
+      if (!this.indic.has(script)) this.indic.set(script, null);
     }
   }
 
@@ -334,8 +346,8 @@ export class ComicTextKit {
         case 'script':
           pieces.push(this.rtl.has(kind.script) ? { text: cluster, face: kind.script, style } : this.missingPiece(cluster, style, kind.script));
           break;
-        case 'devanagari':
-          pieces.push(this.devanagari !== null ? { text: cluster, face: 'devanagari', style } : this.missingPiece(cluster, style, 'devanagari'));
+        case 'indic':
+          pieces.push(this.indic.get(kind.script) ? { text: cluster, face: kind.script, style } : this.missingPiece(cluster, style, kind.script));
           break;
         case 'other': {
           const cjk = this.cjk;
@@ -411,10 +423,11 @@ export class ComicTextKit {
       case 'arabic':
       case 'hebrew':
         return this.rtlWidth(first.face, run, size);
-      case 'devanagari': {
-        if (this.devanagari === null) return 0;
-        const word = this.devanagari.face.shapeRun(run.map((piece) => piece.text).join(''));
-        return word === null ? this.runWidth([{ text: '?'.repeat(run.length), face: 'main', style: first.style }], size) : this.devanagari.face.widthOf(word, size);
+      default: {
+        const embedding = this.indic.get(first.face);
+        if (embedding === null || embedding === undefined) return 0;
+        const word = embedding.face.shapeRun(run.map((piece) => piece.text).join(''));
+        return word === null ? this.runWidth([{ text: '?'.repeat(run.length), face: 'main', style: first.style }], size) : embedding.face.widthOf(word, size);
       }
     }
   }
@@ -489,10 +502,11 @@ export class ComicTextKit {
           if (embedding !== undefined && piece.placed !== undefined) embedding.drawPlaced(page, piece.placed, pen, y, size, ink);
           pen += piece.width ?? 0;
         }
-      } else if (first.face === 'devanagari') {
+      } else if (first.face !== 'emoji' && first.face !== 'cjk') {
+        const embedding = this.indic.get(first.face);
         const typed = run.map((piece) => piece.text).join('');
-        const word = this.devanagari?.face.shapeRun(typed) ?? null;
-        if (this.devanagari !== null && word !== null) this.devanagari.drawPlaced(page, word.glyphs, at, y, size, ink, typed);
+        const word = embedding?.face.shapeRun(typed) ?? null;
+        if (embedding !== null && embedding !== undefined && word !== null) embedding.drawPlaced(page, word.glyphs, at, y, size, ink, typed);
         else {
           for (const piece of run) this.missing.set(piece.text, (this.missing.get(piece.text) ?? 0) + 1);
           this.draw(page, { pieces: [{ text: '?'.repeat(run.length), face: 'main', style: first.style }], width: 0 }, at, y, size, ink);
@@ -531,14 +545,14 @@ export class ComicTextKit {
     const chain: [Face, CidEmbedding | null | undefined][] = [
       ['arabic', this.rtl.get('arabic')],
       ['hebrew', this.rtl.get('hebrew')],
-      ['devanagari', this.devanagari],
+      ...[...this.indic.entries()].map(([script, embedding]) => [script, embedding] as [IndicScript, IndicEmbedding | null]),
       ['cjk', this.cjk],
       ['emoji', this.emoji],
     ];
     for (const [face, embedding] of chain) {
       if (embedding?.used !== true) continue;
       await embedding.finish();
-      notes.push(`comic PDF: ${face === 'cjk' ? 'text outside Latin script' : face === 'emoji' ? 'emoji' : `${face === 'arabic' ? 'Arabic, Persian and Urdu' : face === 'hebrew' ? 'Hebrew' : 'Devanagari'} text`} is set in ${CHAIN_FONT(face)}, embedded with only the glyphs it uses`);
+      notes.push(`comic PDF: ${face === 'cjk' ? 'text outside Latin script' : face === 'emoji' ? 'emoji' : `${face === 'arabic' ? 'Arabic, Persian and Urdu' : face === 'hebrew' ? 'Hebrew' : INDIC_FONT_INFO[face as IndicScript].name.split(' ').slice(2).join(' ')} text`} is set in ${CHAIN_FONT(face)}, embedded with only the glyphs it uses`);
     }
     for (const script of ['hebrew', 'arabic'] as const) {
       const n = this.marksLeftOut[script];

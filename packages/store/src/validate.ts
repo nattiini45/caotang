@@ -26,12 +26,13 @@ import {
 } from './manifest.js';
 import {
   FIRST_FORMAT_VERSION,
+  migrationTarget,
   PRODUCTION_FORMAT,
   runMigrations,
   type AppliedMigration,
   type FormatContext,
 } from './migrations.js';
-import { CALENDAR_JSON_MAX_CHARS, CHAR_LIMIT_MAX, CRITERIA_KEYS, EPUB_IMAGE_MAX_PX_MAX, EPUB_IMAGE_MAX_PX_MIN, HOOKS_MAX, HOOK_EVENTS_RUN, MACROS_MAX, PICTURE_MODES, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits, readHook, readMacro } from '@caotang/bus';
+import { CALENDAR_JSON_MAX_CHARS, CHAR_LIMIT_MAX, CRITERIA_KEYS, EPUB_IMAGE_MAX_PX_MAX, EPUB_IMAGE_MAX_PX_MIN, HOOKS_MAX, HOOK_EVENTS_RUN, MACROS_MAX, PICTURE_MODES, PUBLISH_FIELD_NAMES, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits, publishFieldValueOk, readHook, readMacro } from '@caotang/bus';
 // The shapes the bus names for the furniture commands. The *values* the bus
 // refuses at the command boundary are restated below, for the load; the types
 // are the bus's own, so a value the bus does not know cannot be listed here.
@@ -41,6 +42,7 @@ import type {
   GoalKindParam,
   GoalMetricParam,
 } from '@caotang/bus';
+import { CODEX_DETAIL_FIELDS_MAX, CODEX_DETAIL_FIELDS_PER_TYPE_MAX, isCodexDetailObject, readCodexDetailField, type CodexDetailField } from '@caotang/bus';
 import { isGeneratedId, isIdWithPrefix } from '@caotang/ids';
 import { readAssetLinks, readAssetRecords, validateLinkSet } from '@caotang/pictures';
 import { parseRules } from './agent-rules.js';
@@ -138,6 +140,22 @@ function isIsoDate(v: unknown): v is string {
   return typeof v === 'string' && !Number.isNaN(Date.parse(v));
 }
 
+/** What §2 expects a stored publish field to hold — the message half of `publishFieldValueOk`. */
+function publishFieldExpectation(field: (typeof PUBLISH_FIELD_NAMES)[number]): string {
+  switch (field) {
+    case 'slug':
+      return 'a non-empty slug of one address segment a file can be named for';
+    case 'publishedAt':
+      return 'an RFC 3339 instant';
+    case 'canonical':
+      return 'an absolute https address';
+    case 'tags':
+      return 'a list of tags';
+    default:
+      return 'a string';
+  }
+}
+
 /**
  * epub-metadata.md: `{ uuid: string, isbn?: string | null }`. The uuid is the identity a book is deduped on, so a block
  * that has one is kept whatever else is wrong with it. Only the uuid's presence decides that, not the ISBN's.
@@ -166,6 +184,7 @@ function isCharLimit(v: unknown): boolean {
 function isRecipeOptions(v: unknown): boolean {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
   const o = v as Record<string, unknown>;
+  const width = o['teleprompterWidth'];
   return (
     (o['titlePage'] === undefined || typeof o['titlePage'] === 'boolean') &&
     (o['toc'] === undefined || typeof o['toc'] === 'boolean') &&
@@ -188,7 +207,14 @@ function isRecipeOptions(v: unknown): boolean {
         o['epubImageMaxPx'] <= EPUB_IMAGE_MAX_PX_MAX)) &&
     (o['epubKeepWebp'] === undefined || typeof o['epubKeepWebp'] === 'boolean') &&
     (o['keepPictureMetadata'] === undefined || typeof o['keepPictureMetadata'] === 'boolean') &&
-    (o['timelinePictures'] === undefined || typeof o['timelinePictures'] === 'boolean')
+    (o['timelinePictures'] === undefined || typeof o['timelinePictures'] === 'boolean') &&
+    (o['notes'] === undefined || o['notes'] === 'footnote' || o['notes'] === 'endnote') &&
+    (width === undefined || (typeof width === 'number' && Number.isSafeInteger(width) && width >= 1)) &&
+    (o['frontMatter'] === undefined || typeof o['frontMatter'] === 'boolean') &&
+    (o['htmlMode'] === undefined || o['htmlMode'] === 'standalone' || o['htmlMode'] === 'fragment') &&
+    (o['css'] === undefined || typeof o['css'] === 'string') &&
+    (o['siteUrl'] === undefined || typeof o['siteUrl'] === 'string') &&
+    (o['pdfProfile'] === undefined || o['pdfProfile'] === 'pdfa-2u')
   );
 }
 
@@ -356,8 +382,9 @@ function validateFields(
   // project untouched", which is an abort rather than a field complaint.
   let source: Record<string, unknown> = input;
   let migrations: readonly AppliedMigration[] = [];
-  if (version < format.current) {
-    const result = runMigrations(format.registry, input, format.current);
+  const target = migrationTarget(format);
+  if (version < target) {
+    const result = runMigrations(format.registry, input, target);
     source = result.manifest;
     migrations = result.applied;
   }
@@ -459,7 +486,7 @@ function validateFields(
           // a saved selection the writer chose, and the options it cannot read fall back to the template's defaults.
           const options = (recipe as Record<string, unknown>)['options'];
           if (options !== undefined && !isRecipeOptions(options)) {
-            warn(`recipes[${i}].options`, 'not a set of recipe options (titlePage, toc, author, charLimit, sceneNumbers, continued, pageSize, scriptFont, paperFrames, colourEmoji, bleed, cropMarks, contentsLabel, pictures, epubImageMaxPx, epubKeepWebp, keepPictureMetadata, timelinePictures); dropped, and the recipe uses the template defaults');
+            warn(`recipes[${i}].options`, 'not a set of recipe options (titlePage, toc, author, charLimit, sceneNumbers, continued, pageSize, scriptFont, paperFrames, colourEmoji, bleed, cropMarks, contentsLabel, pictures, epubImageMaxPx, epubKeepWebp, keepPictureMetadata, timelinePictures, notes, teleprompterWidth); dropped, and the recipe uses the template defaults');
             delete (recipe as Record<string, unknown>)['options'];
           }
           return true;
@@ -655,7 +682,7 @@ function validateFields(
         warn(`${at}.style`, `unknown scene style "${node.style}"; kept as-is, and exports render the scene as normal`);
       }
     }
-    for (const key of ['shot', 'dialogue', 'comic', 'comicPage', 'showMeta', 'episodeMeta'] as const) {
+    for (const key of ['shot', 'dialogue', 'comic', 'comicPage', 'showMeta', 'episodeMeta', 'publish'] as const) {
       const value = node[key];
       if (value === undefined) continue;
       if (!isRecord(value)) {
@@ -671,6 +698,21 @@ function validateFields(
       if (problem !== undefined) {
         warn(`${at}.${key}${problem.path}`, `expected a value JSON can hold (${problem.reason}); ignoring field`);
         delete node[key];
+      }
+      if (key === 'publish' && isRecord(node.publish)) {
+        // A *named* field holding a value the command could never write — `publish.slug: 17`, or the
+        // right type with a bad reading, `publish.publishedAt: 'soon'` — would land in a
+        // `binder.setPublish` undo inverse the command then refuses to re-apply, leaving an edit undo
+        // cannot restore. The load drops it the way a malformed scene style goes; unknown keys stay —
+        // §2's tolerance is for names it does not know, not for values no patch could produce.
+        for (const field of PUBLISH_FIELD_NAMES) {
+          if (!(field in node.publish)) continue;
+          const fieldValue = node.publish[field];
+          if (fieldValue !== null && !publishFieldValueOk(field, fieldValue)) {
+            warn(`${at}.publish.${field}`, `expected ${publishFieldExpectation(field)}; ignoring field`);
+            delete node.publish[field];
+          }
+        }
       }
     }
   });
@@ -690,7 +732,8 @@ function validateFields(
   // `dropDanglingAttachments` already runs over the whole codex once, after the
   // imports, which is the only point at which the answer is knowable. One
   // implementation, in the one place the question has an answer.
-  validateCodex(source.codex, { fatal, warn });
+  const detailFields = validateCodexDetailFields(source, warn);
+  validateCodex(source.codex, { fatal, warn }, new Set(detailFields.map((field) => field.type)));
 
   // Step 3 — the furniture the author's own saved work lives in: `filters[]`
   // (binder-filters §4) and `goals[]` (goals-progress §2.2/§3). Both are
@@ -771,12 +814,37 @@ function validateFields(
  * strict half. Two limits (2000 description, 32 × 64 keywords) are shared with
  * the bus rather than retyped; see the module header.
  */
+function validateCodexDetailFields(source: Record<string, unknown>, warn: (path: string, message: string) => void): CodexDetailField[] {
+  const raw = source.codexDetailFields;
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) {
+    warn('codexDetailFields', 'expected a list of detail definitions; ignored');
+    delete source.codexDetailFields;
+    return [];
+  }
+  const fields: CodexDetailField[] = [];
+  for (const [i, value] of raw.entries()) {
+    const field = readCodexDetailField(value);
+    const peers = field === undefined ? [] : fields.filter((candidate) => candidate.type === field.type);
+    if (field === undefined || peers.some((candidate) => candidate.key === field.key) ||
+        fields.length >= CODEX_DETAIL_FIELDS_MAX || peers.length >= CODEX_DETAIL_FIELDS_PER_TYPE_MAX) {
+      warn(`codexDetailFields[${i}]`, 'invalid, duplicate or over-limit detail definition; ignored');
+    } else {
+      fields.push(field);
+    }
+  }
+  if (fields.length === 0) delete source.codexDetailFields;
+  else source.codexDetailFields = fields;
+  return fields;
+}
+
 function validateCodex(
   raw: unknown,
   sink: {
     fatal: (path: string, message: string) => void;
     warn: (path: string, message: string) => void;
   },
+  declaredTypes: ReadonlySet<string>,
 ): void {
   const { fatal, warn } = sink;
   if (raw === undefined) return;
@@ -953,7 +1021,7 @@ function validateCodex(
     // user sees, and a value nobody is told about is a value nobody can fix.
     const type = coerceType(entryNode.type);
     if (typeof entryNode.type === 'string' && entryNode.type !== '') {
-      if (!(CODEX_TYPES as readonly string[]).includes(entryNode.type)) {
+      if (!(CODEX_TYPES as readonly string[]).includes(entryNode.type) && !declaredTypes.has(entryNode.type)) {
         warn(
           `${at}.type`,
           `"${entryNode.type}" is not a v0.1 codex type; kept as-is and shown as an unknown-type chip (v0.1: ${CODEX_TYPES.join(', ')})`,
@@ -1036,6 +1104,21 @@ function validateCodex(
     // --- visualRefs -------------------------------------------------------
     // video-prompt-pack.md §3: asset ids. Shape only here. A reference to a file that is not in `assets/` is kept, not dropped: the
     // pack and the codex panel report it as missing (only the host can list that folder, and the writer fixes it there).
+    const details = entryNode.details;
+    if (details !== undefined && (!isCodexDetailObject(details) || jsonValueProblem(details) !== undefined)) {
+      warn(`${at}.details`, 'expected a JSON object; details were ignored');
+      delete entryNode.details;
+    }
+    const references = entryNode.references;
+    if (references !== undefined && (!Array.isArray(references) || jsonValueProblem(references) !== undefined)) {
+      warn(`${at}.references`, 'expected a JSON list; external references were ignored');
+      delete entryNode.references;
+    }
+    const relations = entryNode.relations;
+    if (relations !== undefined && (!Array.isArray(relations) || jsonValueProblem(relations) !== undefined)) {
+      warn(`${at}.relations`, 'expected a JSON list; entry relations were ignored');
+      delete entryNode.relations;
+    }
     const visualRefs = entryNode.visualRefs;
     if (visualRefs !== undefined) {
       if (!Array.isArray(visualRefs)) {
@@ -1651,8 +1734,7 @@ export interface ValidateOptions {
   /**
    * Which steps this build knows, and which version it is at. Defaults to
    * {@link PRODUCTION_FORMAT}; the substitution exists so §6's migration branch
-   * can be reached in a test while `FORMAT_VERSION` is still 1, and nothing in
-   * this package passes anything else.
+   * can be reached in a test without changing what production accepts.
    */
   format?: FormatContext;
 }

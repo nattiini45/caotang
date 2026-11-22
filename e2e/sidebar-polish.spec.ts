@@ -1,7 +1,8 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
+import { test } from './test.js';
 
 import { NO_PIN } from './classic-pin.js';
-import { createProject } from './support.js';
+import { createProject, chooseInterfaceLanguage} from './support.js';
 
 test.use({ storageState: NO_PIN });
 
@@ -15,7 +16,7 @@ async function edges(target: Locator, value: string): Promise<void> {
 }
 
 for (const shell of ['classic', 'modern'] as const) {
-  test(`${shell}: Settings fades follow vertical scroll, content changes and resizes`, async ({ page }) => {
+  test(`${shell}: Settings fades follow vertical scroll, content changes and resizes`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
     await chooseShell(page, shell);
     await page.setViewportSize({ width: 1280, height: 600 });
     await page.goto('/');
@@ -38,7 +39,7 @@ for (const shell of ['classic', 'modern'] as const) {
     await expect.poll(() => body.evaluate((element) => getComputedStyle(element, '::after').visibility)).toBe('hidden');
   });
 
-  test(`${shell}: narrow Settings shows which way more sections remain`, async ({ page }) => {
+  test(`${shell}: narrow Settings shows which way more sections remain`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
     await chooseShell(page, shell);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
@@ -54,14 +55,14 @@ for (const shell of ['classic', 'modern'] as const) {
   });
 }
 
-test('German sidebar labels remain whole at normal and enlarged type', async ({ page }) => {
+test('German sidebar labels remain whole at normal and enlarged type', { tag: '@modern' }, async ({ page }) => {
   await chooseShell(page, 'modern');
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByTestId('settings');
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Auf Kontinuitätsprobleme prüfen', exact: true }).click();
@@ -78,7 +79,7 @@ test('German sidebar labels remain whole at normal and enlarged type', async ({ 
   }
 });
 
-test('the sidebar fades only while content remains, with an opaque accessibility fallback', async ({ page }) => {
+test('the sidebar fades only while content remains, with an opaque accessibility fallback', { tag: '@modern' }, async ({ page }) => {
   await chooseShell(page, 'modern');
   await page.setViewportSize({ width: 1280, height: 800 });
   await createProject(page, 'Scroll Book');
@@ -93,7 +94,7 @@ test('the sidebar fades only while content remains, with an opaque accessibility
   await expect.poll(() => panel.evaluate((element) => getComputedStyle(element, '::before').visibility)).toBe('hidden');
 });
 
-test('the 1280 px companion sheet stays between both ornaments', async ({ page }) => {
+test('the 1280 px companion sheet stays between both ornaments', { tag: '@modern' }, async ({ page }) => {
   await chooseShell(page, 'modern');
   await page.setViewportSize({ width: 1280, height: 800 });
   await createProject(page, 'Clearance Book');

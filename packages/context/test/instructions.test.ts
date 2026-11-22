@@ -56,6 +56,7 @@ describe('LI renders between L0 and L1', () => {
 
   it('is in every profile, the metadata tools included, when the project has instructions', () => {
     const tasks: Record<AssemblyTool, AgentTask> = {
+      'goal.verify': { tool: 'goal.verify', instruction: 'Check the supplied before and after excerpts.' },
       'scene.draft': CONTINUE,
       'dialogue.draft': META,
       'continuity.scan': { tool: 'continuity.scan', instruction: 'Find drift.', scope: [IDS.ch1, IDS.ch2] },
@@ -65,8 +66,8 @@ describe('LI renders between L0 and L1', () => {
     };
     for (const [tool, task] of Object.entries(tasks)) {
       const assembled = assemble(task, withInstructions(buildApp()));
-      expect(layer(assembled, 'LI').included, tool).toBe(true);
-      expect(userOf(assembled).startsWith('# Instructions\n'), tool).toBe(true);
+      expect(layer(assembled, 'LI').included, tool).toBe(tool !== 'goal.verify');
+      expect(userOf(assembled).startsWith('# Instructions\n'), tool).toBe(tool !== 'goal.verify');
     }
   });
 

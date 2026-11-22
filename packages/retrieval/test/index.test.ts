@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { addDocument, setBody } from '@caotang/store';
-import { createLexicalIndex, searchCandidates } from '../src/index.js';
+import { codexSearchable, createLexicalIndex, searchCandidates } from '../src/index.js';
 import { entry, id, project } from './fixtures.js';
 
 describe('local lexical passages', () => {
@@ -121,6 +121,19 @@ describe('local lexical passages', () => {
     state.manifest.codex![0]!.description = 'A letter.';
     index.bumpCodexRevision();
     expect(index.search(state, 'letter')).toEqual(createLexicalIndex().search(state, 'letter'));
+  });
+
+  it('leaves out a codex entry whose every attachment is read-denied, and keeps one with a readable attachment', () => {
+    const state = project(['lighthouse storm', 'lighthouse calm']);
+    entry(state);
+    const codex = state.manifest.codex![0]!;
+    codex.description = 'The lighthouse keeper.';
+    codex.attachments = [id(0)];
+    expect(createLexicalIndex().search(state, 'keeper', { excluded: new Set([id(0)]) })).toEqual([]);
+    codex.attachments = [id(0), id(1)];
+    expect(createLexicalIndex().search(state, 'keeper', { excluded: new Set([id(0)]) }).map((hit) => hit.unit.field)).toEqual(['codex']);
+    expect(codexSearchable({ id: codex.id, includePolicy: 'detected', attachments: [id(0)] }, new Set([id(0)]))).toBe(false);
+    expect(codexSearchable({ id: codex.id, includePolicy: 'detected' }, new Set([id(0)]))).toBe(true);
   });
 
   it('expands scope and labels forward, focus and research results correctly', () => {

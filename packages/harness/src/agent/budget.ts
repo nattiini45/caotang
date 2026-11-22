@@ -28,6 +28,8 @@ export interface RunLimits extends Partial<Pick<TurnBudget, 'maxModelCalls' | 'm
 /** A superset of `BudgetUse` for the dimensions a meter owns. */
 export interface BudgetSpend {
   readonly modelCalls: number;
+  readonly chapterCalls?: number;
+  readonly reservedChapterCalls?: number;
   readonly promptTokens: number;
   readonly completionTokens: number;
   /** Tokens counted from the local estimate because the provider reported no usage for that call. */
@@ -66,6 +68,12 @@ export interface BudgetMeter {
    * arrived) or, with none given, at its whole reservation, and the tokens count as estimated.
    */
   settle(reservation: Reservation, usage: Usage | undefined, estimate?: Usage): void;
+  /**
+   * The same call on another route: settles the attempt that just ended with what it used, and holds the next destination's worst
+   * case in the same call's place. It counts no second call, so a move is not a call of the turn's bound; a refusal leaves the call
+   * with nothing held, and the caller ends it where it stands.
+   */
+  renew(reservation: Reservation, usage: Usage | undefined, estimate: Usage | undefined, call: Omit<Reservation, 'id'>): Result<Reservation, BudgetStop>;
   /** Counts applied steps. Refused, with the step counted, when it passes `maxSteps`. */
   countStep(count?: number): Result<void, BudgetStop>;
   /** Steps the run may still apply; `Infinity` without a step limit. */
@@ -251,6 +259,35 @@ export function createBudgetMeter(limits: RunLimits = {}, options: BudgetMeterOp
     return total;
   };
 
+  /** The cap a call's worst case would pass, against spend plus every other held reservation; `countsCall` also checks the call count. */
+  const exceeds = (call: Omit<Reservation, 'id'>, countsCall: boolean): BudgetStop | undefined => {
+    if (countsCall && limits.maxModelCalls !== undefined && modelCalls >= limits.maxModelCalls) {
+      return { dimension: 'model-calls', limit: limits.maxModelCalls, spent: modelCalls };
+    }
+    const spentTokens = promptTokens + completionTokens;
+    if (limits.maxTokens !== undefined) {
+      const needed = spentTokens + reservedTokens() + call.promptTokens + call.maxOutputTokens;
+      if (needed > limits.maxTokens) return { dimension: 'tokens', limit: limits.maxTokens, spent: spentTokens, needed };
+    }
+    if (limits.maxCostUsd !== undefined) {
+      if (call.price === undefined) return { dimension: 'cost', limit: limits.maxCostUsd, spent: costUsd ?? 0, unpriced: true };
+      const needed = (costUsd ?? 0) + reservedCost() + costOf(call.price, call.promptTokens, call.maxOutputTokens);
+      if (needed > limits.maxCostUsd + COST_EPSILON) return { dimension: 'cost', limit: limits.maxCostUsd, spent: costUsd ?? 0, needed };
+    }
+    return undefined;
+  };
+
+  /** Counts one held reservation as what the call used: the reported figure, else the estimate, else its whole worst case. */
+  const settleInto = (reservation: Reservation, usage: Usage | undefined, estimate: Usage | undefined): void => {
+    // A figure a provider reports that is not an amount (negative or not finite) is no usage: the call settles at the estimate.
+    const reported = usage !== undefined && isAmount(usage.promptTokens) && isAmount(usage.completionTokens) ? usage : undefined;
+    const used = reported ?? estimate ?? { promptTokens: reservation.promptTokens, completionTokens: reservation.maxOutputTokens };
+    promptTokens += used.promptTokens;
+    completionTokens += used.completionTokens;
+    if (reported === undefined) estimatedTokens += used.promptTokens + used.completionTokens;
+    if (reservation.price !== undefined) costUsd = (costUsd ?? 0) + costOf(reservation.price, used.promptTokens, used.completionTokens);
+  };
+
   const meter: BudgetMeter = {
     limits,
     signal: controller.signal,
@@ -268,24 +305,26 @@ export function createBudgetMeter(limits: RunLimits = {}, options: BudgetMeterOp
     reserve(call) {
       const time = check();
       if (time !== undefined) return err(time);
-      if (limits.maxModelCalls !== undefined && modelCalls >= limits.maxModelCalls) {
-        return err({ dimension: 'model-calls', limit: limits.maxModelCalls, spent: modelCalls });
-      }
-      const spentTokens = promptTokens + completionTokens;
-      if (limits.maxTokens !== undefined) {
-        const needed = spentTokens + reservedTokens() + call.promptTokens + call.maxOutputTokens;
-        if (needed > limits.maxTokens) return err({ dimension: 'tokens', limit: limits.maxTokens, spent: spentTokens, needed });
-      }
-      if (limits.maxCostUsd !== undefined) {
-        if (call.price === undefined) return err({ dimension: 'cost', limit: limits.maxCostUsd, spent: costUsd ?? 0, unpriced: true });
-        const needed = (costUsd ?? 0) + reservedCost() + costOf(call.price, call.promptTokens, call.maxOutputTokens);
-        if (needed > limits.maxCostUsd + COST_EPSILON) return err({ dimension: 'cost', limit: limits.maxCostUsd, spent: costUsd ?? 0, needed });
-      }
+      const stop = exceeds(call, true);
+      if (stop !== undefined) return err(stop);
       sequence += 1;
       const reservation: Reservation = { id: `reservation-${sequence}`, ...call };
       held.set(reservation.id, reservation);
       modelCalls += 1;
       return ok(reservation);
+    },
+
+    renew(reservation, usage, estimate, call) {
+      const time = check();
+      if (time !== undefined) return err(time);
+      // The attempt that just ended is spend now, not a held worst case, so the next destination is sized against what was used.
+      if (held.delete(reservation.id)) settleInto(reservation, usage, estimate);
+      const stop = exceeds(call, false);
+      if (stop !== undefined) return err(stop);
+      sequence += 1;
+      const next: Reservation = { id: `reservation-${sequence}`, ...call };
+      held.set(next.id, next);
+      return ok(next);
     },
 
     release(reservation) {
@@ -294,13 +333,7 @@ export function createBudgetMeter(limits: RunLimits = {}, options: BudgetMeterOp
 
     settle(reservation, usage, estimate) {
       if (!held.delete(reservation.id)) return;
-      // A figure a provider reports that is not an amount (negative or not finite) is no usage: the call settles at the estimate.
-      const reported = usage !== undefined && isAmount(usage.promptTokens) && isAmount(usage.completionTokens) ? usage : undefined;
-      const used = reported ?? estimate ?? { promptTokens: reservation.promptTokens, completionTokens: reservation.maxOutputTokens };
-      promptTokens += used.promptTokens;
-      completionTokens += used.completionTokens;
-      if (reported === undefined) estimatedTokens += used.promptTokens + used.completionTokens;
-      if (reservation.price !== undefined) costUsd = (costUsd ?? 0) + costOf(reservation.price, used.promptTokens, used.completionTokens);
+      settleInto(reservation, usage, estimate);
     },
 
     countStep(count = 1) {

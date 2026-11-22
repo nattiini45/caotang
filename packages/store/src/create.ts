@@ -1,6 +1,7 @@
 import { DEFAULT_RECIPE_NAME } from '@caotang/bus';
 import type { ExportRecipe, Manifest, TreeNode } from './manifest.js';
-import { FIXED_ROOT_IDS, FORMAT_VERSION } from './manifest.js';
+import { FIXED_ROOT_IDS } from './manifest.js';
+import { FIRST_FORMAT_VERSION } from './migrations.js';
 import { defaultLanguage, mintIdentifier, type BackfillOptions } from './project-identity.js';
 import { newId } from '@caotang/ids';
 import { WORD_RULE_VERSION, wordRuleInUse } from './word-count.js';
@@ -26,7 +27,7 @@ export function createEmptyManifest(name: string, now: Date = new Date(), option
   const base = { status: null, label: null, keywords: [], synopsis: '', notes: '' };
   return {
     app: 'caotang',
-    formatVersion: FORMAT_VERSION,
+    formatVersion: FIRST_FORMAT_VERSION,
     project: {
       id: newId('p'),
       name,

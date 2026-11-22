@@ -30,7 +30,17 @@
  */
 
 import { err, ok, type CommandError, type Result } from './result.js';
-import { SCENE_STYLES } from './command.js';
+import { PUBLISH_FIELD_NAMES, SCENE_STYLES } from './command.js';
+import {
+  CODEX_DETAIL_FIELDS_MAX,
+  CODEX_DETAIL_FIELDS_PER_TYPE_MAX,
+  isCodexDetailObject,
+  matchesCodexDetail,
+  readCodexDetailField,
+  type CodexDetailField,
+} from './codex-details.js';
+import { CODEX_REFERENCE_MAX, codexReferenceId, referenceEditProblem } from './codex-references.js';
+import { CODEX_RELATION_MAX, codexRelationId, relationEditProblem } from './codex-relations.js';
 import type {
   McpInvokeParams,
   McpReadResourceParams,
@@ -41,7 +51,9 @@ import type {
   BinderMoveParams,
   BinderRenameParams,
   BinderSetMetaParams,
+  BinderSetPublishParams,
   BinderSetSynopsisParams,
+  PublishPatch,
   CodexAttachParams,
   CodexUpsertOp,
   CodexUpsertParams,
@@ -122,6 +134,129 @@ export const KEYWORD_CHARS_MAX = 64;
 export const NOTES_MAX = 50_000;
 const NOTES_APPEND_MAX = 2000;
 const CODEX_BATCH_MAX = 20;
+/**
+ * web-publishing.md §2's limits for `binder.setPublish`, local like the notes caps. A load keeps an
+ * unknown key it finds, but drops a named field whose value the command could never write — see
+ * `publishFieldValueOk`, which the store's loader shares so an undo inverse can never hold one.
+ */
+const PUBLISH_TEXT_MAX = 2000;
+const PUBLISH_TAGS_MAX = 64;
+/** The RFC 3339 shape §2 pins `publishedAt` to — a full instant, not a date. `t`/`z` may be lowercase. */
+const RFC3339 = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?([Zz]|[+-](\d{2}):(\d{2}))$/;
+const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+/**
+ * The IERS leap seconds through the latest Bulletin C — each the `23:59:60` ending a UTC day. RFC 3339
+ * allows `60` in the second field for one of these instants and for nothing else; every other `:60` is
+ * an instant that never was.
+ */
+const LEAP_SECOND_MS = new Set(
+  [
+    [1972, 6, 30], [1972, 12, 31], [1973, 12, 31], [1974, 12, 31], [1975, 12, 31], [1976, 12, 31],
+    [1977, 12, 31], [1978, 12, 31], [1979, 12, 31], [1981, 6, 30], [1982, 6, 30], [1983, 6, 30],
+    [1985, 6, 30], [1987, 12, 31], [1989, 12, 31], [1990, 12, 31], [1992, 6, 30], [1993, 6, 30],
+    [1994, 6, 30], [1995, 12, 31], [1997, 6, 30], [1998, 12, 31], [2005, 12, 31], [2008, 12, 31],
+    [2012, 6, 30], [2015, 6, 30], [2016, 12, 31],
+  ].map(([y, m, d]) => Date.UTC(y!, m! - 1, d!, 23, 59, 60)),
+);
+
+/**
+ * A `publishedAt` the command will write and re-apply: the RFC 3339 shape **and** a real instant.
+ * The shape alone lets `2026-02-30` and `T24:00` through, and `Date.parse` only deepens the trap —
+ * it normalizes `24:00` into the next day, so the stored string is not what a reader parses it as.
+ * Every field's range is checked outright, day-of-month against the year's leap rule.
+ */
+export function isPublishInstant(value: string): boolean {
+  const m = RFC3339.exec(value);
+  // `$` matches before a trailing line terminator, so `'…Z\n'` would pass the shape and store a string
+  // no instant was written as — a match that does not cover the whole string is not the shape.
+  if (!m || m[0] !== value) return false;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const second = Number(m[6]);
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 60) return false;
+  if (!/^[Zz]$/.test(m[7] ?? '') && (Number(m[8]) > 23 || Number(m[9]) > 59)) return false;
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = (DAYS_IN_MONTH[month - 1] ?? 0) + (month === 2 && leap ? 1 : 0);
+  if (day < 1 || day > days) return false;
+  // A leap second is real only at the IERS instant it names, shifted by its own numeric offset.
+  if (second === 60) {
+    const offsetMs = /^[+-]/.test(m[7] ?? '')
+      ? (Number(m[8]) * 60 + Number(m[9])) * 60_000 * (m[7]?.startsWith('-') ? -1 : 1)
+      : 0;
+    // `Date.UTC` reads years 0–99 as 1900–1999 — a `0072-…` stamp would land on 1972's leap second.
+    // `setUTCFullYear` takes the year as written.
+    const instant = new Date(0);
+    instant.setUTCFullYear(year, month - 1, day);
+    instant.setUTCHours(hour, minute, 0, 0);
+    return LEAP_SECOND_MS.has(instant.getTime() + 60_000 - offsetMs);
+  }
+  return true;
+}
+
+/**
+ * A `slug` the command will write: one address segment (web-publishing.md §2) the export also names
+ * its file for, so it must be a file name unchanged — no path separator, no character a file name
+ * forbids, no leading or trailing space, no trailing dot, no run of spaces, at most 120 characters,
+ * and no Windows device name before a first dot (`CON.txt` writes `_CON.txt`). Keep in step with
+ * `fileStem` in the exporter: a slug it would rewrite makes the file name disagree with the
+ * front-matter permalink.
+ */
+const PUBLISH_SLUG_FORBIDDEN = '<>:"/\\|?*';
+const PUBLISH_SLUG_DEVICE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+export function isPublishSlug(value: string): boolean {
+  if (value.length === 0 || value.length > 120) return false;
+  if (value !== value.trim() || value.endsWith('.') || value.includes('  ')) return false;
+  for (const ch of value) {
+    if (ch.charCodeAt(0) < 32 || PUBLISH_SLUG_FORBIDDEN.includes(ch)) return false;
+    if (ch !== ' ' && /\s/.test(ch)) return false;
+  }
+  return !PUBLISH_SLUG_DEVICE.test(value.split('.')[0] ?? value);
+}
+
+/**
+ * A `canonical` the command will write: an absolute `https` address carrying no credentials — a
+ * `user:pass@` inside the address would land in the manifest and every export that reads it.
+ */
+export function isPublishCanonical(value: string): boolean {
+  // WHATWG's parser silently strips ASCII tabs and newlines — the stored string must be the URL
+  // that was validated, so a control character or space inside it is refused outright.
+  if ([...value].some((ch) => ch <= ' ')) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.username === '' && url.password === '';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether `value` is one a `binder.setPublish` patch can write to `field` — the predicate half of
+ * the descriptor's per-field checks, shared with the store's load. A stored field the command could
+ * never produce lands in an undo inverse it then refuses to re-apply, so the load drops it.
+ */
+export function publishFieldValueOk(field: (typeof PUBLISH_FIELD_NAMES)[number], value: unknown): boolean {
+  switch (field) {
+    case 'tags':
+      return (
+        Array.isArray(value) &&
+        value.length <= PUBLISH_TAGS_MAX &&
+        value.every((tag) => typeof tag === 'string' && tag.trim().length > 0)
+      );
+    case 'slug':
+      return typeof value === 'string' && [...value].length <= PUBLISH_TEXT_MAX && isPublishSlug(value);
+    case 'publishedAt':
+      return typeof value === 'string' && [...value].length <= PUBLISH_TEXT_MAX && isPublishInstant(value);
+    case 'canonical':
+      return typeof value === 'string' && [...value].length <= PUBLISH_TEXT_MAX && isPublishCanonical(value);
+    default:
+      // `requireString` counts code points, not UTF-16 units — a value the command accepts (1001 emoji)
+      // must survive the load too, so the check counts the same way.
+      return typeof value === 'string' && [...value].length <= PUBLISH_TEXT_MAX;
+  }
+}
 
 /**
  * codex.md §2's limits, **exported**.
@@ -214,6 +349,9 @@ const CODEX_OP_KEYS = [
   'sources',
   // The asset ids an entry's pack references carry (video-prompt-pack.md §3, A5). An update replaces the list, as `aliases` does.
   'visualRefs',
+  'details',
+  'referenceEdits',
+  'relationEdits',
 ] as const;
 
 function narrowCodexOp(op: Record<string, unknown>): CodexUpsertOp {
@@ -695,6 +833,93 @@ export const binderSetSynopsis: CommandDescriptor<BinderSetSynopsisParams> = {
   },
 };
 
+/**
+ * `binder.setPublish` — a patch of a document's publish metadata (web-publishing.md §2), validated as a whole: one bad
+ * field refuses the patch. A named key sets the field, `null` clears it and a key left out is untouched; `publishedAt`
+ * must be an RFC 3339 instant and `canonical` an absolute https address, because those are the two fields a feed or a
+ * page reaches for without asking.
+ */
+export const binderSetPublish: CommandDescriptor<BinderSetPublishParams> = {
+  mutates: 'project',
+  agentRisk: 'write-auto',
+  undo: 'inverse',
+  validate: (params, snapshot) => {
+    const p = requireDeclaredParams('binder.setPublish', params);
+    if (!p.ok) return p;
+    const node = requireNode(snapshot, p.value, 'nodeId');
+    if (!node.ok) return node;
+    if (node.value.type !== 'document') {
+      return invalid(
+        `"${node.value.title}" is a ${node.value.type}, and only a document carries publish metadata`,
+        'name a document node',
+        'nodeId',
+      );
+    }
+    const patch = p.value['patch'];
+    if (!isRecord(patch)) {
+      return invalid(
+        `params.patch must be an object, got ${patch === undefined ? 'nothing' : typeof patch}`,
+        `pass a patch with any of: ${PUBLISH_FIELD_NAMES.join(', ')}`,
+        'patch',
+      );
+    }
+    for (const key of Object.keys(patch)) {
+      if (!(PUBLISH_FIELD_NAMES as readonly string[]).includes(key)) {
+        return invalid(
+          `params.patch.${key} is not a publish field`,
+          `a patch carries only: ${PUBLISH_FIELD_NAMES.join(', ')}`,
+          `patch.${key}`,
+        );
+      }
+    }
+    const typed: PublishPatch = {};
+    for (const key of ['slug', 'publishedAt', 'canonical', 'description', 'layout'] as const) {
+      const field = optionalNullableString(patch, key, PUBLISH_TEXT_MAX);
+      if (!field.ok) return field;
+      if (field.value !== undefined) typed[key] = field.value;
+    }
+    if (typeof typed.slug === 'string' && !isPublishSlug(typed.slug)) {
+      return invalid(
+        `"${typed.slug}" is not a slug: a slug is one address segment a file is named for, so it cannot be empty, hold a character a file name forbids (\`< > : " / \\ | ? *\` or a control character), start or end with a space, end with a dot, run of spaces, pass 120 characters, or start as a device name like "CON"`,
+        'type a slug like "first-post", or null to clear it',
+        'patch.slug',
+      );
+    }
+    if (typeof typed.publishedAt === 'string' && !isPublishInstant(typed.publishedAt)) {
+      return invalid(
+        `"${typed.publishedAt}" is not an RFC 3339 instant`,
+        'type a full timestamp like "2026-11-15T12:00:00Z", or null to clear the date',
+        'patch.publishedAt',
+      );
+    }
+    if (typeof typed.canonical === 'string' && !isPublishCanonical(typed.canonical)) {
+      return invalid(
+        `"${typed.canonical}" is not an absolute https address`,
+        'type the full address without credentials, like "https://example.com/post", or null to clear it',
+        'patch.canonical',
+      );
+    }
+    if (patch['tags'] !== undefined) {
+      if (patch['tags'] === null) {
+        typed.tags = null;
+      } else {
+        const tags = requireStringArray(patch, 'tags', { maxItems: PUBLISH_TAGS_MAX });
+        if (!tags.ok) return tags;
+        typed.tags = tags.value;
+      }
+    }
+    // The same shape refusal as `binder.setMeta`: a patch naming no field asks for nothing at all.
+    if (Object.keys(typed).length === 0) {
+      return changesNothing(
+        'the patch names no field to write, so it asks for nothing to change',
+        `name at least one of: ${PUBLISH_FIELD_NAMES.join(', ')}`,
+        'patch',
+      );
+    }
+    return ok({ nodeId: node.value.id, patch: typed });
+  },
+};
+
 /* ------------------------------------------------------------------ *
  * §9 — notes
  * ------------------------------------------------------------------ */
@@ -994,6 +1219,10 @@ function validateCodexOp(
   target: string,
   failures: PerOpFailure[],
   projectNames: Map<string, { name: string; id: string }>,
+  entryTypes: Map<string, string | undefined>,
+  detailFields: readonly CodexDetailField[],
+  references: Map<string, { ids: string[]; count: number }>,
+  relations: Map<string, { ids: string[]; count: number }>,
 ): void {
   const push = <T>(refusal: Result<T, CommandError>): void => {
     if (!refusal.ok) failures.push(toPerOpFailure(target, refusal.error));
@@ -1133,8 +1362,90 @@ function validateCodexOp(
   }
 
   const type = op['type'];
-  if (type !== undefined && !CODEX_TYPES.includes(type as string)) {
+  if (type !== undefined && !CODEX_TYPES.includes(type as string) && !detailFields.some((field) => field.type === type)) {
     push(invalid(`type must be one of ${CODEX_TYPES.join(', ')}, got ${showValue(type)}`, 'v0.1 codex types are a closed enum — custom types are v0.2', 'type'));
+  }
+  const selectedType = typeof type === 'string' ? type : typeof id === 'string' ? entryTypes.get(id) : 'other';
+  if (action === 'update' && typeof id === 'string' && typeof type === 'string') entryTypes.set(id, type);
+
+  const details = op['details'];
+  if (details !== undefined) {
+    if (!isCodexDetailObject(details)) {
+      push(invalid('details must be an object keyed by field name', undefined, 'details'));
+    } else {
+      for (const [key, value] of Object.entries(details)) {
+        const field = detailFields.find((candidate) => candidate.type === selectedType && candidate.key === key);
+        if (field === undefined) {
+          push(invalid(`details field "${key}" is not defined for type "${selectedType ?? 'other'}"`, undefined, `details.${key}`));
+        } else if (value !== null && !matchesCodexDetail(field.kind, value)) {
+          push(invalid(`details field "${key}" must be a valid ${field.kind} or null to clear it`, undefined, `details.${key}`));
+        }
+      }
+    }
+  }
+
+  const edits = op['referenceEdits'];
+  if (edits !== undefined) {
+    if (!Array.isArray(edits) || edits.length === 0 || edits.length > CODEX_REFERENCE_MAX) {
+      push(invalid(`referenceEdits must have between 1 and ${CODEX_REFERENCE_MAX} operations`, undefined, 'referenceEdits'));
+    } else {
+      const current = typeof id === 'string' ? references.get(id) : undefined;
+      const refs = { ids: [...(current?.ids ?? [])], count: current?.count ?? 0 };
+      // The cap is the batch's net effect, so a create may precede the remove that makes room for it.
+      const removes = edits.filter((edit) => isCodexDetailObject(edit) && edit['action'] === 'remove').length;
+      let remaining = CODEX_REFERENCE_MAX - refs.count + removes;
+      for (const [i, edit] of edits.entries()) {
+        const problem = referenceEditProblem(edit, refs.ids, remaining);
+        if (problem !== undefined) {
+          push(invalid(`referenceEdits[${i}] ${problem}`, undefined, `referenceEdits[${i}]`));
+          continue;
+        }
+        if (edit.action === 'create') {
+          refs.count += 1;
+          remaining -= 1;
+        }
+        if (edit.action === 'remove') {
+          refs.count -= 1;
+          refs.ids = refs.ids.filter((candidate) => candidate !== edit.id);
+        }
+      }
+      if (typeof id === 'string') references.set(id, refs);
+    }
+  }
+
+  const relationEdits = op['relationEdits'];
+  if (relationEdits !== undefined) {
+    if (!Array.isArray(relationEdits) || relationEdits.length === 0 || relationEdits.length > CODEX_RELATION_MAX) {
+      push(invalid(`relationEdits must have between 1 and ${CODEX_RELATION_MAX} operations`, undefined, 'relationEdits'));
+    } else {
+      const current = typeof id === 'string' ? relations.get(id) : undefined;
+      const held = { ids: [...(current?.ids ?? [])], count: current?.count ?? 0 };
+      const targets = (snapshot.manifest.codex ?? []).map((entry) => entry.id);
+      // The cap is the batch's net effect, so a create may precede the remove that makes room for it.
+      const removes = relationEdits.filter((edit) => isCodexDetailObject(edit) && edit['action'] === 'remove').length;
+      let remaining = CODEX_RELATION_MAX - held.count + removes;
+      for (const [i, edit] of relationEdits.entries()) {
+        const problem = relationEditProblem(edit, {
+          liveIds: held.ids,
+          targets,
+          ownId: typeof id === 'string' ? id : '',
+          remaining,
+        });
+        if (problem !== undefined) {
+          push(invalid(`relationEdits[${i}] ${problem}`, undefined, `relationEdits[${i}]`));
+          continue;
+        }
+        if (edit.action === 'create') {
+          held.count += 1;
+          remaining -= 1;
+        }
+        if (edit.action === 'remove') {
+          held.count -= 1;
+          held.ids = held.ids.filter((candidate) => candidate !== edit.id);
+        }
+      }
+      if (typeof id === 'string') relations.set(id, held);
+    }
   }
 
   const policy = op['includePolicy'];
@@ -1299,6 +1610,21 @@ export const codexUpsert: CommandDescriptor<CodexUpsertParams> = {
   validate: (params, snapshot) => {
     const p = requireDeclaredParams('codex.upsert', params);
     if (!p.ok) return p;
+    const detailFields = snapshot.manifest.codexDetailFields ?? [];
+    const rawField = p.value['detailField'];
+    const detailField = readCodexDetailField(rawField);
+    if (rawField !== undefined && detailField === undefined) {
+      return invalid('a detail field needs a valid type, key, label and kind', undefined, 'detailField');
+    }
+    if (detailField !== undefined) {
+      const sameType = detailFields.filter((field) => field.type === detailField.type);
+      if (sameType.some((field) => field.key === detailField.key)) {
+        return invalid(`"${detailField.key}" already names a field for "${detailField.type}"`, undefined, 'detailField.key');
+      }
+      if (detailFields.length >= CODEX_DETAIL_FIELDS_MAX || sameType.length >= CODEX_DETAIL_FIELDS_PER_TYPE_MAX) {
+        return limitExceeded(`A project can hold ${CODEX_DETAIL_FIELDS_MAX} detail fields and each type can hold ${CODEX_DETAIL_FIELDS_PER_TYPE_MAX}.`, undefined, 'detailField');
+      }
+    }
     const entries = p.value['entries'];
     if (!Array.isArray(entries)) {
       return invalid(
@@ -1317,17 +1643,28 @@ export const codexUpsert: CommandDescriptor<CodexUpsertParams> = {
     // "no case-insensitive name collisions within batch **or project**" — the
     // project's existing names seed the map, so one map catches both.
     const projectNames = new Map<string, { name: string; id: string }>();
+    const entryTypes = new Map<string, string | undefined>();
+    const references = new Map<string, { ids: string[]; count: number }>();
+    const relations = new Map<string, { ids: string[]; count: number }>();
     for (const entry of snapshot.manifest.codex ?? []) {
       projectNames.set(entry.name.toLowerCase(), { name: entry.name, id: entry.id });
+      entryTypes.set(entry.id, entry.type);
+      if (entry.references !== undefined) {
+        references.set(entry.id, { ids: entry.references.flatMap((reference) => codexReferenceId(reference) ?? []), count: entry.references.length });
+      }
+      if (entry.relations !== undefined) {
+        relations.set(entry.id, { ids: entry.relations.flatMap((relation) => codexRelationId(relation) ?? []), count: entry.relations.length });
+      }
     }
     const failures: PerOpFailure[] = [];
+    const fields = detailField === undefined ? detailFields : [...detailFields, detailField];
     for (const [i, op] of entries.entries()) {
-      validateCodexOp(snapshot, op, `entries[${i}]`, failures, projectNames);
+      validateCodexOp(snapshot, op, `entries[${i}]`, failures, projectNames, entryTypes, fields, references, relations);
     }
     if (failures.length > 0) {
       return batchRefusal(failures, 'fix every listed op and resend the whole batch — nothing was written');
     }
-    return ok({ entries: entries.filter(isRecord).map(narrowCodexOp) });
+    return ok({ entries: entries.filter(isRecord).map(narrowCodexOp), ...(detailField === undefined ? {} : { detailField }) });
   },
 };
 
@@ -1431,6 +1768,24 @@ export const EXPORT_FORMATS = [
   // The comic's raster formats (comics.md §5), appended as the twenty-second and twenty-third. Only the app makes them; a Node host refuses.
   'cbz',
   'comic-epub',
+  // The AV script's VO script (av-script.md §5), as CSV and as a spreadsheet. Appended as the twenty-fourth and twenty-fifth.
+  'vo-script-csv',
+  'vo-script-xlsx',
+  // The AV script's reading formats (av-script.md §5): show notes, the transcript and the teleprompter. Appended as the twenty-sixth to twenty-eighth.
+  'show-notes',
+  'transcript-md',
+  'teleprompter',
+  // The AV script's captions and chapters (av-script.md §5). Appended as the twenty-ninth and thirtieth.
+  'vtt',
+  'chapters-json',
+  // The web publish targets (web-publishing.md §3): the HTML article and the two feeds, appended as the last three.
+  'html',
+  'rss',
+  'atom',
+  // The AV script's podcast feed (av-script.md §5), appended last.
+  'podcast-rss',
+  // The manuscript's prose PDF (exporter.md §3), appended after the podcast feed.
+  'prose-pdf',
 ] as const;
 
 function exportFormatRefusal(format: string): Result<never, CommandError> | undefined {

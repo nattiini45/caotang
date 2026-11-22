@@ -56,6 +56,11 @@ export interface ToolProfile {
 }
 
 const PROFILES: Readonly<Record<AssemblyTool, ToolProfile>> = {
+  'goal.verify': {
+    layers: ['L0', 'L7'],
+    budgets: {},
+    totalBudget: DEFAULT_CONTEXT_BUDGET,
+  },
   'scene.draft': {
     layers: ALL_LAYERS,
     budgets: { LI: DEFAULT_INSTRUCTIONS_BUDGET, L1: 1_500, L2: 1_000, L3: 1_200, L4: 2_000, L5: 2_000, L6: 1_500 },

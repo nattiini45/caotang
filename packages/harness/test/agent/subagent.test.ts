@@ -382,7 +382,7 @@ describe('agent.delegate’s params', () => {
 
   it('name no budget, tools or permission an agent could take for itself', () => {
     const row = harness.tools().find((tool) => tool.name === 'agent.delegate');
-    expect(Object.keys(row?.schema['properties'] as Record<string, unknown>).sort()).toEqual(['agent', 'brief', 'scope']);
+    expect(Object.keys(row?.schema['properties'] as Record<string, unknown>).sort()).toEqual(['agent', 'brief', 'fanOut', 'scope']);
     expect(row?.risk).toBe('read');
     expect(row?.load).toBe('deferred');
   });

@@ -77,13 +77,17 @@ export async function dragShotCard(page: Page, source: Locator, target: Locator)
   await dragVisibleElement(page, source, target, /is-drop-target/);
 }
 
-async function visibleDragPoint(locator: Locator, purpose: 'source' | 'target'): Promise<{ x: number; y: number }> {
-  const point = await locator.evaluate((element, purpose) => {
+async function visibleDragPoint(locator: Locator, purpose: 'source' | 'target', position?: { x: number; y: number }): Promise<{ x: number; y: number }> {
+  const point = await locator.evaluate((element, { purpose, position }) => {
     const box = element.getBoundingClientRect();
     const receives = (x: number, y: number) => {
       const hit = document.elementFromPoint(x, y);
       return element.contains(hit) && (purpose !== 'source' || hit?.closest('button, input, textarea, select, a, [contenteditable="true"]') === null);
     };
+    if (position !== undefined) {
+      const requested = { x: box.x + position.x, y: box.y + position.y };
+      return receives(requested.x, requested.y) ? requested : null;
+    }
     const preferred = { x: box.x + box.width / 2, y: purpose === 'source' ? Math.min(box.y + 32, box.bottom - 4) : box.y + box.height * 0.75 };
     if (receives(preferred.x, preferred.y)) return preferred;
     for (let y = Math.min(box.bottom, innerHeight) - 4; y > Math.max(box.top, 0); y -= 8) {
@@ -92,12 +96,12 @@ async function visibleDragPoint(locator: Locator, purpose: 'source' | 'target'):
       }
     }
     return null;
-  }, purpose);
+  }, { purpose, position });
   if (point === null) throw new Error(`${purpose} element has no visible, unobscured native drag point`);
   return point;
 }
 
-export async function dragVisibleElement(page: Page, source: Locator, target: Locator, dropTargetClass?: RegExp): Promise<void> {
+export async function dragVisibleElement(page: Page, source: Locator, target: Locator, dropTargetClass?: RegExp, targetPosition?: { x: number; y: number }): Promise<void> {
   await source.scrollIntoViewIfNeeded();
   const start = await visibleDragPoint(source, 'source');
   const started = await source.evaluateHandle((element) => {
@@ -111,7 +115,7 @@ export async function dragVisibleElement(page: Page, source: Locator, target: Lo
     await page.mouse.move(start.x + 10, start.y, { steps: 4 });
     await expect.poll(() => started.evaluate((state) => state.started)).toBe(true);
     await target.evaluate((element) => element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }));
-    const end = await visibleDragPoint(target, 'target');
+    const end = await visibleDragPoint(target, 'target', targetPosition);
     await page.mouse.move(end.x, end.y, { steps: 12 });
     await page.mouse.move(end.x, end.y);
     if (dropTargetClass !== undefined) await expect(target).toHaveClass(dropTargetClass);
@@ -219,6 +223,31 @@ export async function projectIdOf(page: Page): Promise<string | null> {
   });
 }
 
+/**
+ * Clicks the interface-language radio for `tag` after the catalogue module is warm. A language
+ * switch awaits a lazy `import()` of the catalogue (apps/desktop/src/i18n/language.ts); on a
+ * contended runner a cold transform can outlast the plain assertion deadline (#667), so the warm
+ * goes through the app's own loader first — a real load of the same module the radio's switch then
+ * finds in the browser's module map. A failed warm is ignored: the switch reports it like any
+ * failed load. Specs that intercept the catalogue route call the radio's click directly.
+ */
+export async function chooseInterfaceLanguage(page: Page, scope: Page | Locator, tag: string): Promise<void> {
+  const runtimeUrl = `${new URL(page.url()).origin}/src/i18n/runtime.ts`;
+  const runtimeProbe = await page.context().request.get(runtimeUrl);
+  if (runtimeProbe.ok() && (runtimeProbe.headers()['content-type'] ?? '').includes('javascript')) {
+    await page.evaluate(async (t) => {
+      try {
+        const specifier = '/src/i18n/runtime.ts';
+        const runtime = (await import(specifier)) as { loadMessages: (tag: string) => Promise<unknown> };
+        await runtime.loadMessages(t);
+      } catch {
+        /* the switch surfaces a failed catalogue load itself */
+      }
+    }, tag);
+  }
+  await scope.locator(`input[name="interface-language"][value="${tag}"]`).click();
+}
+
 /** The shell's save indicator reads "saved": every change has reached the browser store. */
 export async function waitForSaved(page: Page): Promise<void> {
   await expect(page.getByTestId('save-state')).toHaveAttribute('data-state', 'saved');
@@ -249,10 +278,10 @@ export async function idOf(page: Page, title: string): Promise<string> {
 }
 
 /** The project's tree, as the hook reports it. */
-export async function treeOf(page: Page): Promise<{ id: string; parentId: string | null; type: string; title: string }[]> {
+export async function treeOf(page: Page): Promise<{ id: string; parentId: string | null; type: string; title: string; kind: string | null }[]> {
   return page.evaluate(() => {
     const caotang = (globalThis as unknown as {
-      __caotang?: { tree(): { id: string; parentId: string | null; type: string; title: string }[] };
+      __caotang?: { tree(): { id: string; parentId: string | null; type: string; title: string; kind: string | null }[] };
     }).__caotang;
     return caotang?.tree() ?? [];
   });

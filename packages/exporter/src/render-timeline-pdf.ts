@@ -30,14 +30,15 @@
 
 import {
   clustersOf,
-  devanagariFontPrints,
   emojiStyleOf,
+  indicFontPrints,
   isBidiControl,
   isRtlMark,
   loadFont,
   rtlFontPrints,
   scriptRuns,
   type FontLoader,
+  type IndicScript,
   type RtlScript,
 } from '@caotang/pdf-fonts';
 import type * as Bidi from '@caotang/pdf-fonts/bidi';
@@ -48,7 +49,7 @@ import type { Box, StoryPart, TimelineItem, TimelineModel } from '@caotang/timel
 
 import type { FontkitFont } from './cid-embedding.js';
 import { CjkEmbedding, CjkFace } from './cjk-font.js';
-import { DevanagariEmbedding, DevanagariFace } from './devanagari-font.js';
+import { IndicEmbedding, IndicFace, INDIC_FONT_INFO, type IndicFontLoaders } from './indic-font.js';
 import { EmojiEmbedding, EmojiFace, type EmojiGlyph } from './emoji-font.js';
 import { fallbackNeeds } from './render-contact-sheet.js';
 import { RtlEmbedding, RtlFace, type PlacedGlyph } from './rtl-font.js';
@@ -102,7 +103,8 @@ export interface TimelinePdfInput extends TimelineTableInput {
   readonly loadEmojiFont?: FontLoader;
   readonly loadArabicFont?: FontLoader;
   readonly loadHebrewFont?: FontLoader;
-  readonly loadDevanagariFont?: FontLoader;
+  /** The Indic fonts (`./indic-font.ts`), by script. Each is called at most once, and only when the PDF holds its script. */
+  readonly loadIndicFonts?: IndicFontLoaders;
   /**
    * Draws the pictures on each scene as small images on its chip (timeline.md §9.1): at most three and a "+N" for the rest, the card
    * first. Absent draws none, so a PDF made without it is the PDF it always was. A picture the host cannot read or shrink is an empty
@@ -262,11 +264,11 @@ const AXIS_LINE: Shade = { r: 0.54, g: 0.54, b: 0.54 };
  * One grapheme cluster of a line, resolved to the font that draws it. Copied from the contact sheet's emitter
  * (render-contact-sheet.ts), which owns the same routing: Helvetica for what WinAnsi encodes, the CJK fallback for
  * the rest, the emoji font for emoji presentation, Noto Sans Arabic and Hebrew (shaped) before the CJK font, and
- * Noto Sans Devanagari after them.
+ * its own Noto Sans Indic font after them.
  */
 interface Piece {
   readonly text: string;
-  readonly face: 'base' | 'cjk' | 'emoji' | 'devanagari' | RtlScript;
+  readonly face: 'base' | 'cjk' | 'emoji' | IndicScript | RtlScript;
   readonly glyphs?: readonly EmojiGlyph[] | readonly (EmojiGlyph | { readonly glyph: number })[];
   readonly placed?: readonly PlacedGlyph[];
   readonly width?: number;
@@ -509,21 +511,26 @@ export async function drawTimelinePdf(input: TimelinePdfInput): Promise<Timeline
       return null;
     }
   };
-  let devanagari: DevanagariEmbedding | null | undefined;
-  let devanagariError = '';
-  const devanagariFont = async (): Promise<DevanagariEmbedding | null> => {
-    if (devanagari !== undefined) return devanagari;
-    devanagari = null;
-    if (input.loadDevanagariFont === undefined) {
-      devanagariError = 'this compile has no Devanagari font';
-      return devanagari;
+  const indic = new Map<IndicScript, IndicEmbedding | null>();
+  const indicErrors = new Map<IndicScript, string>();
+  const indicFont = async (script: IndicScript): Promise<IndicEmbedding | null> => {
+    const known = indic.get(script);
+    if (known !== undefined) return known;
+    indic.set(script, null);
+    const name = INDIC_FONT_INFO[script].name;
+    const load = input.loadIndicFonts?.[script];
+    if (load === undefined) {
+      indicErrors.set(script, `this compile has no ${name} font`);
+      return null;
     }
     try {
-      devanagari = new DevanagariEmbedding(lib, pdf, await DevanagariFace.load(input.loadDevanagariFont, input.language));
+      const embedding = new IndicEmbedding(lib, pdf, await IndicFace.load(load, script, input.language));
+      indic.set(script, embedding);
+      return embedding;
     } catch (error) {
-      devanagariError = `the Devanagari font could not be read (${error instanceof Error ? error.message : String(error)})`;
+      indicErrors.set(script, `the ${name} font could not be read (${error instanceof Error ? error.message : String(error)})`);
+      return null;
     }
-    return devanagari;
   };
   const missing = new Map<string, number>();
   const neededUnavailable = new Set<string>();
@@ -565,12 +572,13 @@ export async function drawTimelinePdf(input: TimelinePdfInput): Promise<Timeline
         pieces.push({ text: '?', face: 'base' });
         continue;
       }
-      if (devanagariFontPrints(String.fromCodePoint(codes[0] ?? 0))) {
-        if ((await devanagariFont()) !== null) {
-          pieces.push({ text: cluster, face: 'devanagari' });
+      const indicScript = indicFontPrints(String.fromCodePoint(codes[0] ?? 0));
+      if (indicScript !== undefined) {
+        if ((await indicFont(indicScript)) !== null) {
+          pieces.push({ text: cluster, face: indicScript });
           continue;
         }
-        neededUnavailable.add('devanagari');
+        neededUnavailable.add(indicScript);
         missing.set(cluster, (missing.get(cluster) ?? 0) + 1);
         pieces.push({ text: '?', face: 'base' });
         continue;
@@ -635,10 +643,11 @@ export async function drawTimelinePdf(input: TimelinePdfInput): Promise<Timeline
     return width;
   };
 
-  const devanagariWidth = (run: readonly Piece[], base: PdfLib.PDFFont, size: number): number => {
-    if (devanagari === null || devanagari === undefined) return 0;
-    const word = devanagari.face.shapeRun(run.map((piece) => piece.text).join(''));
-    return word === null ? base.widthOfTextAtSize('?'.repeat(run.length), size) : devanagari.face.widthOf(word, size);
+  const indicWidth = (run: readonly Piece[], base: PdfLib.PDFFont, size: number, script: IndicScript): number => {
+    const embedding = indic.get(script);
+    if (embedding === null || embedding === undefined) return 0;
+    const word = embedding.face.shapeRun(run.map((piece) => piece.text).join(''));
+    return word === null ? base.widthOfTextAtSize('?'.repeat(run.length), size) : embedding.face.widthOf(word, size);
   };
 
   const visualPieces = (pieces: readonly Piece[], size: number, dir: 'ltr' | 'rtl'): Piece[] => {
@@ -677,7 +686,7 @@ export async function drawTimelinePdf(input: TimelinePdfInput): Promise<Timeline
     if (face === 'emoji') return emoji ? emoji.face.widthOf(glyphs as readonly EmojiGlyph[], size) : 0;
     if (face === 'cjk') return fallback ? fallback.face.widthOf(glyphs as never, size) : 0;
     if (face === 'arabic' || face === 'hebrew') return rtlWidth(face, run, size);
-    if (face === 'devanagari') return devanagariWidth(run, base, size);
+    if (face !== 'base') return indicWidth(run, base, size, face);
     return base.widthOfTextAtSize(run.map((piece) => piece.text).join(''), size);
   };
 
@@ -695,12 +704,13 @@ export async function drawTimelinePdf(input: TimelinePdfInput): Promise<Timeline
         at = pen;
         continue;
       }
-      if (face === 'devanagari') {
+      if (face !== 'base' && face !== 'cjk' && face !== 'emoji') {
+        const embedding = indic.get(face);
         const typed = run.map((piece) => piece.text).join('');
-        const word = devanagari?.face.shapeRun(typed) ?? null;
-        if (devanagari && word !== null) devanagari.drawPlaced(page, word.glyphs, at, y, size, ink, typed);
+        const word = embedding?.face.shapeRun(typed) ?? null;
+        if (embedding && word !== null) embedding.drawPlaced(page, word.glyphs, at, y, size, ink, typed);
         else page.drawText('?'.repeat(run.length), { x: at, y, size, font: base, color: color(ink) });
-        at += devanagariWidth(run, base, size);
+        at += indicWidth(run, base, size, face);
         continue;
       }
       const glyphs = run.flatMap((piece) => piece.glyphs ?? []);
@@ -938,7 +948,14 @@ export async function drawTimelinePdf(input: TimelinePdfInput): Promise<Timeline
     notes.push(`the character ${cluster} has no font this compile can read, so it is drawn as “?” (${count} time${count === 1 ? '' : 's'})`);
   }
   for (const font of neededUnavailable) {
-    const reason = font === 'cjk' ? fallbackError : font === 'emoji' ? emojiError : font === 'devanagari' ? devanagariError : rtlErrors.get(font as RtlScript);
+    const reason =
+      font === 'cjk'
+        ? fallbackError
+        : font === 'emoji'
+          ? emojiError
+          : font === 'arabic' || font === 'hebrew'
+            ? rtlErrors.get(font as RtlScript)
+            : indicErrors.get(font as IndicScript);
     notes.push(`the ${font} font is needed but unavailable: ${reason ?? 'no loader'}`);
   }
 
@@ -947,7 +964,7 @@ export async function drawTimelinePdf(input: TimelinePdfInput): Promise<Timeline
   if (emoji?.used === true) await emoji.finish();
   if (fallback?.used === true) await fallback.finish();
   for (const embedding of rtl.values()) if (embedding?.used === true) await embedding.finish();
-  if (devanagari?.used === true) await devanagari.finish();
+  for (const embedding of indic.values()) if (embedding?.used === true) await embedding.finish();
 
   const contents = await pdf.save({ useObjectStreams: false });
   return { contents, notes, pages: pages.length };

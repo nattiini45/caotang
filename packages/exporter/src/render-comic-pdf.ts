@@ -55,6 +55,7 @@ import {
   type Rect,
 } from '@caotang/comic';
 import type { ComicLetteringFace, ComicLetteringFontLoader, FontLoader } from '@caotang/pdf-fonts';
+import type { IndicFontLoaders } from './indic-font.js';
 import { sniffImage } from '@caotang/storyboard';
 import type * as PdfLib from 'pdf-lib';
 
@@ -114,7 +115,7 @@ export interface ComicPdfInput {
   readonly bleed?: boolean;
   /** Whether crop marks are drawn outside the bleed. Default off. */
   readonly cropMarks?: boolean;
-  /** The project's language (a BCP 47 tag): capitals are made in it, and Han characters and Devanagari take its forms. */
+  /** The project's language (a BCP 47 tag): capitals are made in it, and Han characters and the Indic scripts take its forms. */
   readonly language?: string;
   /** Reads Comic Neue and Bangers. Required when any balloon has text and the output is full art. */
   readonly loadComicFont?: ComicLetteringFontLoader;
@@ -122,7 +123,8 @@ export interface ComicPdfInput {
   readonly loadEmojiFont?: FontLoader;
   readonly loadArabicFont?: FontLoader;
   readonly loadHebrewFont?: FontLoader;
-  readonly loadDevanagariFont?: FontLoader;
+  /** The Indic fonts (`./indic-font.ts`), by script. Each is read only when a balloon holds its script. */
+  readonly loadIndicFonts?: IndicFontLoaders;
   readonly transcodePicture?: PictureTranscoder;
 }
 
@@ -204,7 +206,7 @@ export async function drawComicPdf(input: ComicPdfInput): Promise<ComicPdf> {
             ...(input.loadEmojiFont === undefined ? {} : { loadEmojiFont: input.loadEmojiFont }),
             ...(input.loadArabicFont === undefined ? {} : { loadArabicFont: input.loadArabicFont }),
             ...(input.loadHebrewFont === undefined ? {} : { loadHebrewFont: input.loadHebrewFont }),
-            ...(input.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: input.loadDevanagariFont }),
+            ...(input.loadIndicFonts === undefined ? {} : { loadIndicFonts: input.loadIndicFonts }),
             language,
           },
           texts,

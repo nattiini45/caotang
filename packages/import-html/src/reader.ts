@@ -9,6 +9,7 @@ import type { ImportDocument, ImportAsset } from '@caotang/import-core';
 import { decodePlainText } from '@caotang/import-read/text';
 import { openZip, isArchiveResidue, type ImportArchive } from '@caotang/import-read/zip';
 import { htmlToBlocks, type HtmlDropped } from './walker.js';
+import { dropUnresolvedPictures, pictureRefusal, relativeCandidates, type PictureRefusal } from './pictures.js';
 
 export interface HtmlImport {
   document: ImportDocument;
@@ -31,15 +32,13 @@ export type HtmlError =
 export type HtmlResult = { ok: true; value: HtmlImport } | { ok: false; error: HtmlError };
 
 const HTML_EXT = /\.(html?|xhtml)$/i;
-const EMPTY_DROPPED: HtmlDropped = { scripts: 0, styles: 0, iframes: 0, eventAttrs: 0, unsafeLinks: 0, media: 0 };
+const EMPTY_DROPPED: HtmlDropped = { scripts: 0, styles: 0, iframes: 0, forms: 0, eventAttrs: 0, unsafeLinks: 0, media: 0 };
 
 const titleOf = (html: string, fallback: string): string => {
   const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   const text = (match?.[1] ?? '').replace(/\s+/g, ' ').trim();
   return text !== '' ? text : fallback.replace(HTML_EXT, '');
 };
-
-const dirOf = (path: string): string => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
 
 /** Decode a `data:` image URI to bytes, or null when it is not a base64 image we can read. */
 function dataUriBytes(target: string): Uint8Array | null {
@@ -68,15 +67,24 @@ export function readHtmlFile(bytes: Uint8Array, fileName: string): HtmlResult {
 
   const assetData = new Map<string, Uint8Array>();
   const assets: ImportAsset[] = [];
+  const refused = new Map<string, PictureRefusal>();
   for (const [ref, target] of images) {
     const data = dataUriBytes(target);
     if (data === null) continue; // a relative target with no archive to resolve it against
+    // The commit's picture pipeline is strict over the whole batch, so bytes it would refuse never become an offer.
+    const why = pictureRefusal(data);
+    if (why !== undefined) {
+      refused.set(ref, why);
+      continue;
+    }
     assetData.set(ref, data);
     assets.push({ ref, name: ref, bytes: data.length });
   }
 
+  // A picture with no bytes behind it keeps its alt text and is named, rather than leaving a ref that resolves to nothing.
+  const kept = dropUnresolvedPictures(blocks, new Set(assetData.keys()), images, refused);
   const title = titleOf(decoded.text, fileName);
-  const document: ImportDocument = { blocks, losses, assets, metadata: { title } };
+  const document: ImportDocument = { blocks: kept.blocks, losses: [...losses, ...kept.losses], assets, metadata: { title } };
   return { ok: true, value: { document, title, assetData, remoteImages, dropped } };
 }
 
@@ -96,6 +104,8 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
   const losses: NonNullable<ImportDocument['losses']> = [];
   const assetData = new Map<string, Uint8Array>();
   const assets = new Map<string, ImportAsset>();
+  const targets = new Map<string, string>();
+  const refused = new Map<string, PictureRefusal>();
   const remoteImages: string[] = [];
   const dropped: HtmlDropped = { ...EMPTY_DROPPED };
   let title: string | undefined;
@@ -120,31 +130,42 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
     dropped.scripts += walked.value.dropped.scripts;
     dropped.styles += walked.value.dropped.styles;
     dropped.iframes += walked.value.dropped.iframes;
+    dropped.forms += walked.value.dropped.forms;
     dropped.eventAttrs += walked.value.dropped.eventAttrs;
     dropped.unsafeLinks += walked.value.dropped.unsafeLinks;
     dropped.media += walked.value.dropped.media;
 
-    // Resolve each image: a data: URI decodes; a relative path reads from the zip near the page.
+    // Resolve each image: a data: URI decodes; a relative path reads from the zip near the page, `./` and `../` included.
     for (const [ref, target] of walked.value.images) {
+      targets.set(ref, target);
       const data = dataUriBytes(target);
       if (data !== null) {
+        const why = pictureRefusal(data);
+        if (why !== undefined) {
+          refused.set(ref, why);
+          continue;
+        }
         assetData.set(ref, data);
         assets.set(ref, { ref, name: ref, bytes: data.length });
         continue;
       }
       if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('//')) continue; // remote: listed, not fetched
-      const clean = target.replace(/^\.\//, '');
-      const dir = dirOf(path);
-      const candidate = dir === '' ? clean : `${dir}/${clean}`;
-      const resolved = archive.entry(candidate) !== undefined ? candidate : archive.entry(clean) !== undefined ? clean : null;
+      const resolved = relativeCandidates(path, target).find((candidate) => archive.entry(candidate) !== undefined) ?? null;
       if (resolved === null) continue;
       const imageRead = await archive.read(resolved);
       if (!imageRead.ok) continue;
+      const why = pictureRefusal(imageRead.value);
+      if (why !== undefined) {
+        refused.set(ref, why);
+        continue;
+      }
       assetData.set(ref, imageRead.value);
       assets.set(ref, { ref, name: resolved.split('/').pop() ?? ref, bytes: imageRead.value.length });
     }
   }
 
-  const document: ImportDocument = { blocks, losses, assets: [...assets.values()], ...(title === undefined ? {} : { metadata: { title } }) };
+  // Every picture the pages name but the archive does not carry keeps its alt text and is named once for the whole import.
+  const kept = dropUnresolvedPictures(blocks, new Set(assetData.keys()), targets, refused);
+  const document: ImportDocument = { blocks: kept.blocks, losses: [...losses, ...kept.losses], assets: [...assets.values()], ...(title === undefined ? {} : { metadata: { title } }) };
   return { ok: true, value: { document, title: title ?? '', assetData, remoteImages, dropped } };
 }

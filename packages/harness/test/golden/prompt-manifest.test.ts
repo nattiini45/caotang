@@ -14,11 +14,13 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { extractionPrompt, verificationPrompt } from '@caotang/coherence';
+import { textOf } from '@caotang/gateway';
 
 import { DERIVE_SCHEMA_HINT, deriveRole } from '../../src/agent/storyboard-model.js';
 import { continuityRole, dialogueRole, sceneRole, synopsisRole } from '../../src/agent/drafting.js';
 import { compactionSystem } from '../../src/agent/protocol.js';
-import { MORE_TOOLS_LINE, TOOL_METADATA, SUBAGENT_SPECS, UNTRUSTED_RULE, createProductHarness, plannerSystem, plannerSystemNative, plannerToolDefs } from '../../src/index.js';
+import { assembleGoalVerifierCall } from '../../src/agent/goal-verifier.js';
+import { MORE_TOOLS_LINE, TOOL_METADATA, SUBAGENT_SPECS, UNTRUSTED_RULE, createContextPort, createProductHarness, plannerSystem, plannerSystemNative, plannerToolDefs } from '../../src/index.js';
 import { makeState } from '../fixtures.js';
 
 const DIR = __dirname;
@@ -69,6 +71,7 @@ function sources(): readonly Source[] {
   const tools = productTools();
   const extraction = extractionPrompt({ docId: 'd1', title: 'Title', body: 'Body.', categories: ['characterization'], codex: '', storySoFar: '' });
   const verification = verificationPrompt([BLOCK]);
+  const goalVerification = assembleGoalVerifierCall({ rubric: 'The changed passage is clear.', excerpts: [], omitted: 0, truncated: false }, createContextPort({ state: makeState() }));
   const out: Source[] = [
     { id: 'planner.system.json', text: plannerSystem(tools) },
     { id: 'planner.system.native', text: plannerSystemNative(tools) },
@@ -93,6 +96,8 @@ function sources(): readonly Source[] {
     { id: 'review.extraction.schema', text: JSON.stringify(extraction.jsonSchemaHint) },
     { id: 'review.verification.system', text: verification.system },
     { id: 'review.verification.schema', text: JSON.stringify(verification.jsonSchemaHint) },
+    { id: 'review.goal.system', text: textOf(goalVerification.messages[0]?.content ?? '') },
+    { id: 'review.goal.task', text: textOf(goalVerification.messages[1]?.content ?? '') },
     ...Object.values(SUBAGENT_SPECS).map((spec): Source => ({ id: `subagent.${spec.name}`, text: spec.system, descriptionVersion: spec.descriptionVersion })),
     ...TOOL_METADATA.map((meta): Source => ({ id: `tool.${meta.name}`, text: meta.description, descriptionVersion: meta.descriptionVersion })),
   ];
