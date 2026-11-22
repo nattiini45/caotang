@@ -1,9 +1,10 @@
 import { createHmac } from 'node:crypto';
 import { once } from 'node:events';
-import { Miniflare, Response } from 'miniflare';
-import type { Request as RuntimeRequest, RequestInit as RuntimeRequestInit } from 'miniflare';
+import { Response } from 'miniflare';
+import type { Miniflare, MiniflareOptions, Request as RuntimeRequest, RequestInit as RuntimeRequestInit } from 'miniflare';
 import WebSocketClient from 'ws';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { sharedRuntime } from './miniflare-shared.js';
 import { workerModules } from './worker-modules.js';
 
 const ORIGIN = 'https://studio.example.invalid';
@@ -45,13 +46,13 @@ async function login(code = 'reader-one'): Promise<string> {
   return session.split(';')[0]!;
 }
 
-function createRuntime(bindings: Record<string, string> = {}, upstream?: string) {
-  return new Miniflare({
+function createOptions(bindings: Record<string, string> = {}, upstream?: string): MiniflareOptions {
+  return {
     ...(upstream ? { upstream } : {}),
     modules: workerModules(),
     compatibilityDate: '2026-07-30',
     bindings: { PUBLIC_ORIGIN: ORIGIN, ALLOWED_GITHUB_LOGINS: 'reader-one,reader-two', GITHUB_CLIENT_ID: 'mock-client', GITHUB_CLIENT_SECRET: 'mock-secret', SESSION_SECRET: TEST_SECRET, ...bindings },
-    durableObjects: { ACCOUNT_HUBS: { className: 'AccountHub', useSQLite: true } },
+    durableObjects: { ACCOUNT_HUBS: { className: 'AccountHub', useSQLite: true, unsafeUniqueKey: `hubs-${crypto.randomUUID()}` } },
     serviceBindings: { ASSETS: () => new Response('static shell') },
     outboundService: async (request: RuntimeRequest) => {
       const url = new URL(request.url);
@@ -73,15 +74,20 @@ function createRuntime(bindings: Record<string, string> = {}, upstream?: string)
       }
       throw new Error('Unexpected outbound request in the local test.');
     },
-  });
+  };
 }
 
-beforeAll(async () => {
-  runtime = createRuntime();
-  await runtime.ready;
-}, 30_000);
+const shared = sharedRuntime(() => createOptions());
 
-afterAll(async () => { await runtime?.dispose(); });
+beforeAll(() => {
+  runtime = shared.instance;
+});
+
+// Every case re-deploys the shared runtime, so a case that changed the bindings or left Durable Object state behind
+// cannot leak either into the next one.
+beforeEach(async () => {
+  await shared.setShared(createOptions());
+});
 
 describe('the standalone Worker', () => {
   it('serves health and static assets without a session and never redirects a protected API call', async () => {
@@ -164,39 +170,36 @@ describe('the standalone Worker', () => {
   it('fails closed on missing authentication configuration without blocking the shell', async () => {
     const configurations: Record<string, string>[] = [{ SESSION_SECRET: '' }, { SESSION_SECRET: 'short-test-secret' }, { PUBLIC_ORIGIN: `${ORIGIN}/path` }, { PUBLIC_ORIGIN: 'http://studio.example.invalid' }];
     for (const config of configurations) {
-      const missing = createRuntime(config);
-      try {
-        const result = await missing.dispatchFetch(`${ORIGIN}/v1/auth/github`, { redirect: 'manual' });
-        expect(result.status).toBe(503);
-        expect(result.headers.get('Cache-Control')).toBe('no-store');
-        expect((await missing.dispatchFetch(`${ORIGIN}/healthz`)).status).toBe(200);
-        expect(await (await missing.dispatchFetch(`${ORIGIN}/`)).text()).toBe('static shell');
-      } finally {
-        await missing.dispose();
-      }
+      await shared.setShared(createOptions(config));
+      const result = await dispatch(`${ORIGIN}/v1/auth/github`);
+      expect(result.status).toBe(503);
+      expect(result.headers.get('Cache-Control')).toBe('no-store');
+      expect((await dispatch(`${ORIGIN}/healthz`)).status).toBe(200);
+      expect(await (await dispatch(`${ORIGIN}/`)).text()).toBe('static shell');
     }
+    await shared.setShared(createOptions());
   });
 
   it('rechecks the allowlist on an existing signed session', async () => {
     const session = await login();
-    const changed = createRuntime({ ALLOWED_GITHUB_LOGINS: 'reader-two' });
+    await shared.setShared(createOptions({ ALLOWED_GITHUB_LOGINS: 'reader-two' }));
     try {
-      expect((await changed.dispatchFetch(`${ORIGIN}/v1/session`, { headers: { Cookie: session } })).status).toBe(401);
+      expect((await dispatch(`${ORIGIN}/v1/session`, { headers: { Cookie: session } })).status).toBe(401);
     } finally {
-      await changed.dispose();
+      await shared.setShared(createOptions());
     }
   });
 
   it('closes expired sockets before a fresh same-identity session publishes a notification', async () => {
     const session = await login();
-    const local = createRuntime({}, ORIGIN);
+    await shared.setShared(createOptions({}, ORIGIN));
     let socket: WebSocketClient | undefined;
     try {
-      const endpoint = new URL('/v1/live', String(await local.ready));
+      const endpoint = new URL('/v1/live', shared.address);
       endpoint.protocol = 'ws:';
       const expires = Date.now() + 1000;
       const clientOptions = { headers: { Cookie: signedTestCookie('session', expires), Origin: ORIGIN }, closeTimeout: 100 };
-      socket = new WebSocketClient(endpoint.href, clientOptions);
+      socket = shared.track(new WebSocketClient(endpoint.href, clientOptions));
       let upgradeStatus: number | undefined;
       socket.on('upgrade', (response) => { upgradeStatus = response.statusCode; });
       const messages: string[] = [];
@@ -206,12 +209,12 @@ describe('the standalone Worker', () => {
       await once(socket, 'open');
       expect(upgradeStatus).toBe(101);
       await new Promise((resolve) => setTimeout(resolve, Math.max(0, expires - Date.now() + 10)));
-      expect((await local.dispatchFetch(`${ORIGIN}/v1/live/ping`, { method: 'POST', headers: { Cookie: session, Origin: ORIGIN } })).status).toBe(204);
+      expect((await dispatch(`${ORIGIN}/v1/live/ping`, { method: 'POST', headers: { Cookie: session, Origin: ORIGIN } })).status).toBe(204);
       await expect.poll(() => closed).toBe(1008);
       expect(messages).toEqual([]);
     } finally {
       socket?.terminate();
-      await local.dispose();
+      await shared.setShared(createOptions());
     }
   });
 

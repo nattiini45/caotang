@@ -1,11 +1,12 @@
 import { once } from 'node:events';
 import { createHmac } from 'node:crypto';
-import { Log, LogLevel, Miniflare, Response } from 'miniflare';
-import type { Request as RuntimeRequest } from 'miniflare';
+import { Log, LogLevel, Response } from 'miniflare';
+import type { MiniflareOptions, Request as RuntimeRequest } from 'miniflare';
 import WebSocketClient from 'ws';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { accountOperatorSql } from '../account-policy.mjs';
 import { applyMigrations } from './d1-fixture.js';
+import { sharedRuntime } from './miniflare-shared.js';
 import { workerModules } from './worker-modules.js';
 
 const ORIGIN = 'https://studio.example.invalid';
@@ -26,7 +27,6 @@ export class TestAccountHub extends AccountHub {
 `;
 const ONE = '00000000-0000-4000-8000-000000000001';
 const TWO = '00000000-0000-4000-8000-000000000002';
-const open: Miniflare[] = [];
 const KEY_RECORD_PATH = '/v1/account/key-record';
 const wrappedRecord = (fill: number) => ({
   format: 1,
@@ -52,15 +52,15 @@ const boundRecord = (accountId: string, fill: number) => ({
   verifier: Buffer.alloc(32, fill).toString('base64'),
 });
 
-async function runtime(bindings: Record<string, string> = {}, options: { migrate?: boolean; database?: boolean; log?: Log } = {}) {
-  const instance = new Miniflare({
+function baseOptions(bindings: Record<string, string>, options: { database?: boolean; log?: Log }): MiniflareOptions {
+  return {
     log: options.log,
     upstream: ORIGIN,
     modules: workerModules(hubs),
     compatibilityDate: '2026-07-30',
     bindings: { PUBLIC_ORIGIN: ORIGIN, GITHUB_CLIENT_ID: 'mock-client', GITHUB_CLIENT_SECRET: 'mock-secret', SESSION_SECRET: SECRET, AUTHENTICATION_MODE: 'accounts', ...bindings },
     ...(options.database === false ? {} : { d1Databases: { ACCOUNT_DB: `accounts-${crypto.randomUUID()}` } }),
-    durableObjects: { ACCOUNT_HUBS: { className: 'TestAccountHub', useSQLite: true } },
+    durableObjects: { ACCOUNT_HUBS: { className: 'TestAccountHub', useSQLite: true, unsafeUniqueKey: `hubs-${crypto.randomUUID()}` } },
     serviceBindings: { ASSETS: () => new Response('static shell') },
     outboundService: async (request: RuntimeRequest) => {
       const url = new URL(request.url);
@@ -71,9 +71,14 @@ async function runtime(bindings: Record<string, string> = {}, options: { migrate
       }
       throw new Error('Unexpected outbound request in the local test.');
     },
-  });
-  open.push(instance);
-  const address = String(await instance.ready);
+  };
+}
+
+const shared = sharedRuntime(() => baseOptions({}, {}));
+
+async function runtime(bindings: Record<string, string> = {}, options: { migrate?: boolean; database?: boolean; log?: Log } = {}) {
+  const instance = await shared.set(baseOptions(bindings, options));
+  const address = shared.address;
   const db = options.database === false ? undefined : await instance.getD1Database('ACCOUNT_DB');
   if (db && options.migrate !== false) await applyMigrations(db, ['0001_accounts.sql']);
   const invite = (login: string, limitBytes = 1_000) => db!.prepare(accountOperatorSql({ type: 'invite', identity: { id: `github:${IDS[login]}`, login }, limitBytes })).run();
@@ -92,7 +97,7 @@ async function runtime(bindings: Record<string, string> = {}, options: { migrate
     url.protocol = 'ws:';
     if (profile) url.searchParams.set('presence', profile);
     const options = { headers: { Cookie: session, Origin: ORIGIN }, closeTimeout: 100 };
-    const socket = new WebSocketClient(url.href, options);
+    const socket = shared.track(new WebSocketClient(url.href, options));
     const messages: string[] = [];
     let closeCode: number | undefined;
     socket.on('message', (data) => messages.push(String(data)));
@@ -107,8 +112,6 @@ function signed(payload: object): string {
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   return `__Host-caotang-session=${body}.${createHmac('sha256', SECRET).update(body).digest('base64url')}`;
 }
-
-afterEach(async () => { await Promise.all(open.splice(0).map((instance) => instance.dispose())); });
 
 describe('wrapped account key records', () => {
   it('applies the additive migration to existing accounts, elects one creator, and reads the winning record only for that account', async () => {

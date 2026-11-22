@@ -204,9 +204,7 @@ jobs:
       - name: Install (frozen lockfile, strict engines)
         run: pnpm install --frozen-lockfile --engine-strict
 
-      - name: "Lint, typecheck and every unit suite, less sync-server account-mode, storage and server suites (each boots a Worker runtime per case: #815, #820)"
-        env:
-          CAOTANG_SKIP_WORKER_SUITES: '1'
+      - name: Lint, typecheck and every unit suite
         run: pnpm verify
 
   e2e:

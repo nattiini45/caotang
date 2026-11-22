@@ -1,7 +1,7 @@
 import { request as httpRequest } from 'node:http';
-import { Miniflare, Response } from 'miniflare';
-import type { Request as RuntimeRequest } from 'miniflare';
-import { afterEach, describe, expect, it } from 'vitest';
+import { Response } from 'miniflare';
+import type { MiniflareOptions, Request as RuntimeRequest } from 'miniflare';
+import { describe, expect, it } from 'vitest';
 import { accountOperatorSql } from '../account-policy.mjs';
 import { QuotaStore } from '../src/quota.js';
 import { payloadFingerprint } from '../src/fingerprint.js';
@@ -9,6 +9,7 @@ import { BlobPreconditionFailedError } from '../../remote-store/src/blob-store.j
 import { RemoteQuotaExceededError } from '../../remote-store/src/errors.js';
 import { createHttpBlobStore } from '../../remote-store/src/http-blob-store.js';
 import { applyMigrations } from './d1-fixture.js';
+import { sharedRuntime } from './miniflare-shared.js';
 import { workerModules } from './worker-modules.js';
 
 const MAX_OBJECT_BYTES = 64 * 1024 * 1024;
@@ -16,10 +17,8 @@ const ORIGIN = 'https://studio.example.invalid';
 const SECRET = 'test-only-storage-secret-not-a-real-credential';
 const IDS: Record<string, number> = { 'reader-one': 101, 'reader-two': 202 };
 const PROJECT = 'p_0123456789';
-const open: Miniflare[] = [];
-
-async function runtime(bindings: Record<string, string> = {}, options: { store?: boolean; mode?: string } = {}) {
-  const instance = new Miniflare({
+function baseOptions(bindings: Record<string, string>, options: { store?: boolean; mode?: string }): MiniflareOptions {
+  return {
     upstream: ORIGIN,
     modules: workerModules(),
     compatibilityDate: '2026-07-30',
@@ -30,7 +29,10 @@ async function runtime(bindings: Record<string, string> = {}, options: { store?:
     },
     d1Databases: { ACCOUNT_DB: `accounts-${crypto.randomUUID()}` },
     ...(options.store === false ? {} : { r2Buckets: { PROJECT_STORE: `projects-${crypto.randomUUID()}` } }),
-    durableObjects: { ACCOUNT_HUBS: { className: 'AccountHub', useSQLite: true }, STORAGE_COORDINATOR: { className: 'StorageCoordinator', useSQLite: true } },
+    durableObjects: {
+      ACCOUNT_HUBS: { className: 'AccountHub', useSQLite: true, unsafeUniqueKey: `hubs-${crypto.randomUUID()}` },
+      STORAGE_COORDINATOR: { className: 'StorageCoordinator', useSQLite: true, unsafeUniqueKey: `coordinator-${crypto.randomUUID()}` },
+    },
     serviceBindings: { ASSETS: () => new Response('static shell') },
     outboundService: async (request: RuntimeRequest) => {
       const url = new URL(request.url);
@@ -41,9 +43,14 @@ async function runtime(bindings: Record<string, string> = {}, options: { store?:
       }
       throw new Error('Unexpected outbound request in the local test.');
     },
-  });
-  open.push(instance);
-  const address = String(await instance.ready);
+  };
+}
+
+const shared = sharedRuntime(() => baseOptions({}, {}));
+
+async function runtime(bindings: Record<string, string> = {}, options: { store?: boolean; mode?: string } = {}) {
+  const instance = await shared.set(baseOptions(bindings, options));
+  const address = shared.address;
   const db = await instance.getD1Database('ACCOUNT_DB');
   await applyMigrations(db, ['0001_accounts.sql', '0002_quota.sql', '0003_quota_prune.sql']);
   const bucket = options.store === false ? undefined : await instance.getR2Bucket('PROJECT_STORE');
@@ -72,8 +79,6 @@ async function runtime(bindings: Record<string, string> = {}, options: { store?:
   const accountId = async (session: string) => (await (await dispatch('/v1/account', { headers: { Cookie: session } })).json() as { id: string }).id;
   return { instance, address, db, bucket, invite, dispatch, signIn, call, put, usage, sweep, settleAll, accountId };
 }
-
-afterEach(async () => { await Promise.all(open.splice(0).map((instance) => instance.dispose())); });
 
 describe('the Worker’s encrypted object storage', () => {
   it('creates, reads, replaces, lists and soft-deletes with ETag preconditions, retaining every version', async () => {

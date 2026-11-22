@@ -19,13 +19,6 @@ function jobBlock(workflow: string, id: string): string {
   return jobs.slice(blockStart, blockEnd);
 }
 
-/**
- * The suites `CAOTANG_SKIP_WORKER_SUITES` leaves out, each of which boots its own Miniflare Worker runtime per case: too slow for
- * GitHub's Windows runner to finish inside the case deadline (#815, and #820 for the third). The list lives here so the two
- * Windows legs' step names and the exclusion itself are checked against one another rather than each being trusted alone.
- */
-const WORKER_SUITE_FILES = ['account-mode', 'storage', 'server'];
-
 const ci = read('.github/workflows/ci.yml');
 const browsers = read('.github/workflows/e2e-browsers.yml');
 const summaryScript = jobBlock(ci, 'e2e').split('        run: |\n')[1]?.split('\n').map((line) => line.slice(10)).join('\n') ?? '';
@@ -337,14 +330,11 @@ describe('the packaging legs run the gate', () => {
     }
   });
 
-  it('leaves the Worker suites out on Windows only, and names each of them in the step', () => {
-    expect(windows).toContain("CAOTANG_SKIP_WORKER_SUITES: '1'");
+  it('runs every unit suite on every leg, with no exclusion flag left after #815 shared the Worker runtime', () => {
+    expect(windows).not.toContain('CAOTANG_SKIP_WORKER_SUITES');
     expect(macAndLinux).not.toContain('CAOTANG_SKIP_WORKER_SUITES');
-    const names = [...windows.slice(0, windows.indexOf('CAOTANG_SKIP_WORKER_SUITES')).matchAll(/^ {6}- name: (.*)$/gm)];
-    const name = names.at(-1)?.[1];
-    if (name === undefined) throw new Error('the Windows leg has no named step before the exclusion');
-    for (const file of WORKER_SUITE_FILES) expect(name, file).toContain(file);
-    expect(name).toContain('boots a Worker runtime per case');
+    expect(read('.github/workflows/desktop-release.yml')).not.toContain('CAOTANG_SKIP_WORKER_SUITES');
+    expect(read('vitest.config.ts')).not.toContain('CAOTANG_SKIP_WORKER_SUITES');
   });
 
   it('quotes any step name carrying what an unquoted YAML value cannot hold', () => {
@@ -359,8 +349,4 @@ describe('the packaging legs run the gate', () => {
     }
   });
 
-  it('excludes exactly the suites its step names, so neither can drift from the other', () => {
-    const excluded = [.../CAOTANG_SKIP_WORKER_SUITES'\] === '1'\s*\? \[([^\]]+)\]/.exec(read('vitest.config.ts'))![1]!.matchAll(/test\/([\w-]+)\.test\.ts/g)].map((match) => match[1]!);
-    expect(excluded).toEqual(WORKER_SUITE_FILES.map((file) => file));
-  });
 });
