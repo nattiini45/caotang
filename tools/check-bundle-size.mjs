@@ -171,7 +171,11 @@ export const BUDGET = {
   // count, and the dead exports written before measuring were deleted. [delegated 2026-11-21]
   // Measured again on the merge of main 04f250ae, which carries both of the above: 1,114,869 bytes, and 1,114,863 on a clean rebuild, whose
   // chunk hashes differ by a few bytes. The ceiling is that plus at most 137 bytes, so later work inherits no free room. [delegated 2026-11-21]
-  initialGzip: 1_115_000,
+  // The HTML import (#299) on the merge of main at 4b470810: 1,115,499 bytes gzip measured, +607 over main's 1,114,892. Named: the
+  // compiled English catalogue's twenty HTML messages (+1,392 raw), which must precede first paint (i18n.md §3.3), and the entry's
+  // loader for the command; the XHTML walker, the reader, its preview source and the Worker stay on use. The ceiling is the
+  // measurement rounded up to the thousand. [delegated 2026-11-22]
+  initialGzip: 1_116_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).

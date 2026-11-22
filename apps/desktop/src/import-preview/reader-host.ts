@@ -9,13 +9,14 @@
  * Worker failure the host sends its cached `open` again before the read (#597 F4): without that, every later option change would fail
  * with "the import reader was not opened" and the preview could never read again.
  *
- * The Worker is same-origin (`new URL(..., import.meta.url)`, `type: 'module'`), never a `blob:` URL: the app's CSP is
+ * The Worker is same-origin (`readerWorkerUrl`, `type: 'module'`), never a `blob:` URL: the app's CSP is
  * `worker-src 'self'` with no `blob:` (the pattern e2e/import-rtf-worker.spec.ts proves).
  */
 
 import { t } from '@lingui/core/macro';
 
 import type { ReaderOpen, ReaderRead, ReaderReply, ReaderResult } from './reader-protocol.js';
+import { readerWorkerUrl } from './reader-worker-url.js';
 
 export type ReaderHostErrorCode = 'timeout' | 'cancelled' | 'worker-error';
 
@@ -55,7 +56,7 @@ export class ReaderHost {
 
   private ensure(): Worker {
     if (this.worker !== null) return this.worker;
-    const worker = new Worker(new URL('./reader.worker.ts', import.meta.url), { type: 'module' });
+    const worker = new Worker(readerWorkerUrl, { type: 'module' });
     worker.onmessage = (event: MessageEvent<ReaderReply>) => {
       const reply = event.data;
       const entry = this.pending.get(reply.id);

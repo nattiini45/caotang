@@ -370,15 +370,40 @@ export function previewBlockOf(block: ImportBlock): PreviewBlock {
   }
 }
 
-/** A Markdown paragraph that is one imported picture, `![alt](import:…)`: what leaves a body when the pictures option is off. */
-const PICTURE_PARAGRAPH = /^!\[[^\]\n]*\]\(import:[^)\s]*\)$/u;
+/** An imported picture's alt text as the walkers write it: escaped pairs (`\]`, `\\`) or any character but `]`, `\` and a newline. */
+const PICTURE_ALT = String.raw`(?:\\.|[^\]\\\n])*`;
+/** A Markdown paragraph that is one imported picture, `![alt](import:…)`: what leaves a body whole when the pictures option is off. */
+const PICTURE_PARAGRAPH = new RegExp(`^!\\[${PICTURE_ALT}\\]\\(import:[^)\\s]*\\)$`, 'u');
+/** An imported picture inside a sentence: its alt text stays and the ref goes, so no body keeps a target the import will not write. */
+const PICTURE_INLINE = new RegExp(`!\\[(${PICTURE_ALT})\\]\\(import:[^)\\s]*\\)`, 'gu');
 
-/** The body without its imported pictures (each is a paragraph of its own, as the splitter writes them). */
+/** The body without its imported pictures: a picture's own paragraph leaves, and an inline picture becomes its alt text. */
 export function withoutPictures(body: string): string {
-  return body
-    .split('\n\n')
-    .filter((part) => !PICTURE_PARAGRAPH.test(part.trim()))
-    .join('\n\n');
+  const kept: string[] = [];
+  for (const part of body.split('\n\n')) {
+    if (PICTURE_PARAGRAPH.test(part.trim())) continue;
+    const rest = part.replace(PICTURE_INLINE, '$1');
+    // A paragraph that was only pictures and the spaces between them leaves too, rather than staying as an empty line.
+    if (rest.trim() === '' && part.trim() !== '') continue;
+    kept.push(rest);
+  }
+  return kept.join('\n\n');
+}
+
+/** How many imported pictures the bodies name: each a paragraph of its own, or inline in a sentence. What leaving them out removes. */
+function pictureCount(tree: readonly PreviewNode[]): number {
+  let count = 0;
+  const walk = (nodes: readonly PreviewNode[]): void => {
+    for (const node of nodes) {
+      for (const part of (node.body ?? '').split('\n\n')) {
+        if (PICTURE_PARAGRAPH.test(part.trim())) count += 1;
+        else count += (part.match(PICTURE_INLINE) ?? []).length;
+      }
+      walk(node.children ?? []);
+    }
+  };
+  walk(tree);
+  return count;
 }
 
 function nodeOf(node: ProposedNode, pictures: boolean): PreviewNode {
@@ -531,7 +556,12 @@ export function planOfSplit(result: SplitResult, blocks: readonly PreviewBlock[]
   const markers: PreviewMarker[] = result.splits.map((split) => ({ blockIndex: split.blockIndex, kind: split.kind, reason: reasonText(split.reason) }));
   const s = result.stats;
   const losses = [...(options.losses ?? []), ...result.losses.map(lossOf)];
-  if (!pictures && s.images > 0) losses.push({ message: t`Pictures are left out: Import pictures is off.`, count: s.images });
+  // Count what leaving the pictures out actually removes, inline ones included: a page whose pictures all sit in sentences has
+  // no image block for `stats.images` to count, yet the writer still left pictures out and the report must say so.
+  if (!pictures) {
+    const leftOut = pictureCount(treeOf(result, true));
+    if (leftOut > 0) losses.push({ message: t`Pictures are left out: Import pictures is off.`, count: leftOut });
+  }
   return {
     blocks,
     markers,
