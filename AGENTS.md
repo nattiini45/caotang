@@ -154,7 +154,7 @@ These are the project's own rules (see `CONTRIBUTING.md` and `docs/decisions.md`
 | `CAOTANG_BASE` | Build for a sub-path, e.g. `CAOTANG_BASE=/app/ pnpm build`. Default: asset paths start at `/`. |
 | `CAOTANG_E2E_PORT` | Dev-server port for the Playwright suite (default 5173). Setting it also stops the suite from reusing an existing server. |
 | `CAOTANG_E2E_PREVIEW_PORT` | Production-preview port (default = dev port + 1000). |
-| `CAOTANG_SKIP_WORKER_SUITES` | `1` leaves `packages/sync-server/test/account-mode.test.ts` and `storage.test.ts` out of `pnpm test`, because each case boots its own Miniflare Worker runtime. Set by the Windows legs only, until #815 gives those files one shared runtime. |
+| `CAOTANG_SKIP_WORKER_SUITES` | `1` leaves `packages/sync-server/test/account-mode.test.ts`, `storage.test.ts` and `server.test.ts` out of `pnpm test`, because each case there boots its own Miniflare Worker runtime. Set by the Windows legs only, until #815 gives those files one shared runtime; #820 tracks the third until then. |
 | `CAOTANG_MCP_ALLOW_WRITES` | `true` allows the MCP server to write to the project folder. |
 | `CAOTANG_MCP_TOKEN` | Bearer token for the MCP server over HTTP (at least 16 characters). |
 
