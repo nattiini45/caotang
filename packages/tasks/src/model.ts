@@ -80,8 +80,8 @@ export const MAX_MODEL_CALLS = 100;
 export const DEFAULT_MAX_MODEL_CALLS = 8;
 
 /** How a run ended. `skipped` is the writer declining an offer; it is a record so the offer is not made again before the next occurrence. */
-export type TaskRunStatus = 'done' | 'failed' | 'stopped' | 'skipped';
-export const TASK_RUN_STATUSES: readonly TaskRunStatus[] = ['done', 'failed', 'stopped', 'skipped'];
+export type TaskRunStatus = 'queued' | 'ready' | 'done' | 'failed' | 'stopped' | 'skipped';
+export const TASK_RUN_STATUSES: readonly TaskRunStatus[] = ['queued', 'ready', 'done', 'failed', 'stopped', 'skipped'];
 
 /** One run of a task, kept on the writer's machine (the app database), never in the project. */
 export interface TaskRunRecord {
@@ -99,6 +99,8 @@ export interface TaskRunRecord {
   readonly completionTokens: number;
   /** The agent turn the run was, so a Restore to before the run is offered while the app still holds that turn (it does not survive a reload). */
   readonly turnId?: string;
+  /** The background queue task a consented run staged, so a settled run an earlier visit left unrecorded is recorded once. */
+  readonly queueTaskId?: string;
 }
 
 /** The most records kept for one task. */

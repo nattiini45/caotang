@@ -1,4 +1,5 @@
-import { test as base, expect, type BrowserContextOptions, type Locator, type Page } from '@playwright/test';
+import { expect, type BrowserContextOptions, type Locator, type Page } from '@playwright/test';
+import { test as base } from './test.js';
 
 import { NO_PIN, classicPin } from './classic-pin.js';
 import { DEMO_INTENTS } from '../packages/gateway/src/mock/index.js';

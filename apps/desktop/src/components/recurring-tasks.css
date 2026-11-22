@@ -1,0 +1,15 @@
+.recurring-form > fieldset {
+  display: grid;
+  gap: 10px;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.recurring-form textarea.recurring-steps {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: var(--text-md);
+  white-space: pre;
+  overflow-x: auto;
+}

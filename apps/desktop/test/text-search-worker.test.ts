@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createTextSearchWorker } from '../src/app/text-search-worker.js';
 import type { TextSearchReply, TextSearchRequest } from '../src/app/text-search-protocol.js';
 import { textSearchPort } from '@caotang/harness';
-import { CHAPTER_ONE, CHAPTER_TWO, ENTRY_TWO, FRIEND, LANDING, STORM, makeHarness } from '../../../packages/harness/test/fixtures.js';
+import { CHAPTER_ONE, CHAPTER_TWO, ENTRY, ENTRY_TWO, FRIEND, LANDING, STORM, makeHarness } from '../../../packages/harness/test/fixtures.js';
 
 class HeldWorker {
   static instances: HeldWorker[] = [];
@@ -54,6 +54,20 @@ it.each([
   expect(snapshot.manifest.codex?.some((entry) => entry.id === ENTRY_TWO)).toBe(false);
   for (const id of [LANDING, STORM, FRIEND].filter((id) => !ids.includes(id))) expect(snapshot.manifest.tree.find((node) => node.id === id)).toMatchObject({ synopsis: '', notes: '' });
   expect(Object.keys(snapshot.manifest.tree[0]!)).toEqual(['id', 'parentId', 'type', 'title', 'order', 'synopsis', 'notes']);
+  worker.answer();
+  expect((await call).ok).toBe(true);
+  search.dispose();
+});
+
+it('omits a codex entry attached only to withheld nodes from the transferred snapshot', async () => {
+  const search = createTextSearchWorker();
+  const rules = { rules: [{ source: 'app' as const, tool: 'doc.read', effect: 'deny' as const, access: 'read' as const, scope: { subtree: CHAPTER_ONE } }] };
+  const harness = makeHarness({ asyncPorts: { 'text.search': search.port }, rules: () => rules });
+  harness.state.manifest.codex!.find((entry) => entry.id === ENTRY)!.attachments = [LANDING];
+  const call = harness.callAsync({ callId: 'attached', name: 'text.search', params: { query: 'keeper' } }, { turnId: 'search' });
+  const worker = HeldWorker.instances[0]!;
+  expect(worker.messages[0]!.state.manifest.codex?.some((entry) => entry.id === ENTRY)).toBe(false);
+  expect(JSON.stringify(worker.messages[0]!.state)).not.toContain('The keeper.');
   worker.answer();
   expect((await call).ok).toBe(true);
   search.dispose();

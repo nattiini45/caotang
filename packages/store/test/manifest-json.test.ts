@@ -113,16 +113,65 @@ describe('manifest serializer', () => {
     const m = rich();
     m.project.author = 'Ada Writer';
     m.recipes = [
-      { name: 'beta', includeRootIds: ['manuscript'], format: 'epub', options: { toc: false, titlePage: true, author: 'A. N. Other' } },
+      { name: 'beta', includeRootIds: ['manuscript'], format: 'epub', options: { toc: false, titlePage: true, author: 'A. N. Other', notes: 'endnote' } },
       { name: 'plain', includeRootIds: ['manuscript'], format: 'md', options: {} },
     ];
     const text = serializeManifest(m);
     expect(text).toContain('"author": "Ada Writer"');
-    expect(text).toContain('"options": { "titlePage": true, "toc": false, "author": "A. N. Other" }');
+    expect(text).toContain('"options": { "titlePage": true, "toc": false, "author": "A. N. Other", "notes": "endnote" }');
     expect(text).toContain('"options": {}');
     const back = JSON.parse(text) as Manifest;
     expect(back.recipes).toEqual(m.recipes);
     expect(back.project.author).toBe('Ada Writer');
+  });
+
+  it('round-trips a document’s publish fields, keeps an unknown key and writes nothing when unset (web-publishing.md §2)', () => {
+    const m = rich();
+    m.tree[1]!.publish = {
+      slug: 'the-landing',
+      publishedAt: '2026-11-15T12:00:00Z',
+      tags: ['serial'],
+      canonical: 'https://example.com/posts/the-landing',
+      description: 'The ferry was late.',
+      layout: 'post',
+      customField: 'kept',
+    };
+
+    const back = JSON.parse(serializeManifest(m)) as Manifest;
+    expect(back.tree[1]!.publish).toEqual(m.tree[1]!.publish);
+    // The unknown key comes back untouched — unknown-tolerant means kept, not read.
+    expect(back.tree[1]!.publish?.['customField']).toBe('kept');
+
+    const r = validateManifest(back);
+    expect(r.ok).toBe(true);
+    if (r.ok && r.manifest !== undefined) {
+      expect(r.manifest.tree[1]!.publish).toEqual(m.tree[1]!.publish);
+    }
+
+    const bare = JSON.parse(serializeManifest(createEmptyManifest('Bare', T))) as Manifest;
+    expect(bare.tree[1]).not.toHaveProperty('publish');
+  });
+
+  it('drops a malformed named publish field with a warning and keeps the rest, so undo stays re-appliable', () => {
+    const m = rich();
+    m.tree[1]!.publish = {
+      slug: 'news/post',
+      publishedAt: '2026-02-30T00:00:00Z',
+      canonical: 'http://example.com/posts/x',
+      tags: 'serial',
+      layout: 'post',
+      // 1 500 code points but 3 000 UTF-16 units — inside the command's limit, so the load keeps it.
+      description: '🙂'.repeat(1500),
+      customField: 'kept',
+    } as unknown as Record<string, unknown>;
+
+    const r = validateManifest(m);
+    expect(r.ok).toBe(true);
+    const publish = r.manifest?.tree[1]!.publish as Record<string, unknown>;
+    expect(publish).toEqual({ layout: 'post', description: '🙂'.repeat(1500), customField: 'kept' });
+    for (const field of ['slug', 'publishedAt', 'canonical', 'tags']) {
+      expect(r.warnings.some((w) => w.path.includes(`publish.${field}`))).toBe(true);
+    }
   });
 
   it('drops a malformed EPUB slot or recipe with a warning, and keeps the rest (load tolerance)', () => {
@@ -171,6 +220,14 @@ describe('manifest serializer', () => {
       expect(r.warnings.map((w) => w.path), String(good)).not.toContain('recipes[0].options');
       expect((r.manifest as Manifest).recipes?.[0]?.options).toEqual({ charLimit: good });
     }
+  });
+
+  it.each([0, -1, 1.5, '32', null, Number.MAX_SAFE_INTEGER + 1])('warns on an invalid saved teleprompter width (%s) and keeps the recipe', (teleprompterWidth) => {
+    const recipe = { name: 'Reading copy', includeRootIds: ['manuscript'], format: 'teleprompter' };
+    const result = validateManifest({ ...rich(), recipes: [{ ...recipe, options: { teleprompterWidth } }] });
+    expect(result.ok).toBe(true);
+    expect(result.warnings.map((warning) => warning.path)).toContain('recipes[0].options');
+    expect(result.manifest?.recipes).toEqual([recipe]);
   });
 
   it('keeps the contact sheet’s paper size, A4 or Letter, through a save and a load, and drops any other value with a warning', () => {

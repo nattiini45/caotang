@@ -18,8 +18,12 @@ import type { ProjectState } from '@caotang/store';
 
 import { formatterLocale } from '../i18n/format-locale.js';
 import type { Shadow } from './persistence-plan.js';
+import { scopedStoreName } from './storage-scope.js';
 
-/** The storage key prefix. The key is the prefix and the project id, so two projects never share a copy. */
+/**
+ * The storage key prefix. The key is the prefix, the project id and — where a studio is named by its account — that name, so two
+ * projects never share a copy and two accounts holding the same project id never do either.
+ */
 export const UNSENT_KEY_PREFIX = 'caotang.unsent.';
 
 /** The part of the browser's storage the copy uses. `undefined` where the browser keeps none (a private window, a blocked site). */
@@ -100,7 +104,7 @@ export function browserStorage(): UnsentStorage | undefined {
 
 /** The key one project's copy is kept under. */
 export function unsentKey(projectId: string): string {
-  return `${UNSENT_KEY_PREFIX}${projectId}`;
+  return scopedStoreName(`${UNSENT_KEY_PREFIX}${projectId}`);
 }
 
 /**

@@ -55,7 +55,7 @@
 
 import { assertNever, defineMachine, type MachineTable } from '@caotang/machine';
 import { agentFileTexts, hasAgentFiles, parseAgentFiles, type AgentFiles } from '../agent-files.js';
-import type { Manifest } from '../manifest.js';
+import { CODEX_DETAILS_FORMAT_VERSION, CODEX_RELATIONS_FORMAT_VERSION, CODEX_REFERENCES_FORMAT_VERSION, requiredManifestVersion, type Manifest } from '../manifest.js';
 import { createProjectState, rebuildDerived, type DocumentRecord, type ProjectState } from '../state.js';
 import { assertSessionRecord, type SessionRecord } from '../sessions.js';
 
@@ -65,6 +65,8 @@ import { assertSessionRecord, type SessionRecord } from '../sessions.js';
 
 export const RUNTIME_DB_NAME = 'caotang';
 /**
+ * 6: `goalRuns` holds durable goal checkpoints and their conversation ownership.
+ *
  * 5: `agentSessions` holds conversation metadata referencing settled runs. Upgrades
  * from shipped versions add missing stores without rewriting existing records.
  *
@@ -74,7 +76,11 @@ export const RUNTIME_DB_NAME = 'caotang';
  * 3: the `snapshots` object store joined `projects`, `documents` and
  * `sessions`.
  */
-export const RUNTIME_DB_VERSION = 5;
+export const RUNTIME_DB_VERSION = 6;
+const CODEX_DETAILS_RUNTIME_DB_VERSION = 7;
+const CODEX_REFERENCES_RUNTIME_DB_VERSION = 8;
+const CODEX_RELATIONS_RUNTIME_DB_VERSION = 9;
+export const MAX_RUNTIME_DB_VERSION = CODEX_RELATIONS_RUNTIME_DB_VERSION;
 
 /** The manifest — structural truth, vocabulary, codex (§2). */
 export const PROJECT_STORE = 'projects';
@@ -129,6 +135,8 @@ export const RUN_EVENT_STORE = 'runEvents';
 export const RUN_EVENT_RUN_INDEX = 'byRun';
 export const AGENT_SESSION_STORE = 'agentSessions';
 export const AGENT_SESSION_PROJECT_INDEX = 'byProject';
+export const GOAL_RUN_STORE = 'goalRuns';
+export const GOAL_RUN_PROJECT_INDEX = 'byProject';
 
 export interface ProjectRow {
   id: string;
@@ -449,8 +457,19 @@ export function transact<T>(
   db: IDBDatabase,
   storeNames: string[],
   mode: IDBTransactionMode,
-  body: (tx: IDBTransaction, done: (value: T) => void, fail: (error: unknown) => void) => void,
+  body: TransactionBody<T>,
 ): Promise<T> {
+  if (connectionStates.get(db)?.state.kind === 'stale') return Promise.reject(new RuntimeStoreStaleError());
+  try {
+    return runTransaction(db.transaction(storeNames, mode), body);
+  } catch (error) {
+    return Promise.reject(connectionStates.get(db)?.state.kind === 'stale' ? new RuntimeStoreStaleError() : error);
+  }
+}
+
+type TransactionBody<T> = (tx: IDBTransaction, done: (value: T) => void, fail: (error: unknown) => void) => void;
+
+function runTransaction<T>(tx: IDBTransaction, body: TransactionBody<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     let result: T | undefined;
     // The first real cause of the failure, which is what the promise rejects with. An echo of the abort is not a cause (see
@@ -458,18 +477,6 @@ export function transact<T>(
     // refusal that aborted it.
     let cause: unknown;
     let caused = false;
-
-    if (connectionStates.get(db)?.state.kind === 'stale') {
-      reject(new RuntimeStoreStaleError());
-      return;
-    }
-    let tx: IDBTransaction;
-    try {
-      tx = db.transaction(storeNames, mode);
-    } catch (error) {
-      reject(connectionStates.get(db)?.state.kind === 'stale' ? new RuntimeStoreStaleError() : error);
-      return;
-    }
 
     const done = (value: T): void => {
       result = value;
@@ -541,14 +548,51 @@ export function guarded(fail: (error: unknown) => void, callback: () => void): (
  * reserves for an OPFS fallback, and it means the store's tests run headless
  * with no new dependency.
  */
-export function openRuntimeStore(
+export async function openRuntimeStore(
   factory: IDBFactory,
   name: string = RUNTIME_DB_NAME,
 ): Promise<RuntimeStore> {
+  const active = await openRuntimeConnection(factory, name, RUNTIME_DB_VERSION).catch((error: unknown) => {
+    if (!(error instanceof RuntimeStoreNewerError)) throw error;
+    return openRuntimeConnection(factory, name);
+  });
+  const connection: RuntimeHandle = { factory, active, closed: false };
+  const store: RuntimeStore = {
+    get db() { return connection.active.db; },
+    name,
+    close() {
+      connection.closed = true;
+      connection.active.close();
+    },
+  };
+  runtimeHandles.set(store, connection);
+  return store;
+}
+
+interface RuntimeHandle {
+  factory: IDBFactory;
+  active: RuntimeStore;
+  closed: boolean;
+  upgrading?: Promise<unknown>;
+}
+
+const runtimeHandles = new WeakMap<RuntimeStore, RuntimeHandle>();
+
+function openRuntimeConnection(
+  factory: IDBFactory,
+  name: string,
+  version?: number,
+  upgrade?: (tx: IDBTransaction) => void,
+): Promise<RuntimeStore> {
   return new Promise<RuntimeStore>((resolve, reject) => {
     const connection: { state: ConnectionState } = { state: { kind: 'opening' } };
-    const request = factory.open(name, RUNTIME_DB_VERSION);
+    const request = factory.open(name, version);
     request.onupgradeneeded = () => {
+      if (upgrade !== undefined) {
+        if (connection.state.kind === 'blocked') request.transaction!.abort();
+        else upgrade(request.transaction!);
+        return;
+      }
       const db = request.result;
       if (!db.objectStoreNames.contains(PROJECT_STORE)) {
         db.createObjectStore(PROJECT_STORE, { keyPath: 'id' });
@@ -595,8 +639,17 @@ export function openRuntimeStore(
         const sessions = db.createObjectStore(AGENT_SESSION_STORE, { keyPath: ['projectId', 'sessionId'] });
         sessions.createIndex(AGENT_SESSION_PROJECT_INDEX, 'projectId', { unique: false });
       }
+      if (!db.objectStoreNames.contains(GOAL_RUN_STORE)) {
+        const goals = db.createObjectStore(GOAL_RUN_STORE, { keyPath: 'goalId' });
+        goals.createIndex(GOAL_RUN_PROJECT_INDEX, 'projectId', { unique: false });
+      }
     };
     request.onsuccess = () => {
+      if (request.result.version > MAX_RUNTIME_DB_VERSION) {
+        request.result.close();
+        reject(new RuntimeStoreNewerError());
+        return;
+      }
       connection.state = runtimeConnectionMachine.step(connection.state, { type: 'opened', db: request.result });
       if (connection.state.kind !== 'open') {
         request.result.close();
@@ -636,6 +689,52 @@ export function openRuntimeStore(
       else if (connection.state.kind === 'failed') reject(connection.state.error);
     };
   });
+}
+
+function writeProjectTransaction<T>(store: RuntimeStore, manifest: Manifest, body: TransactionBody<T>): Promise<T> {
+  const connection = runtimeHandles.get(store);
+  if (connection?.upgrading !== undefined) {
+    return connection.upgrading.then(() => writeProjectTransaction(store, manifest, body));
+  }
+  const minimum = manifest.formatVersion >= CODEX_RELATIONS_FORMAT_VERSION ? CODEX_RELATIONS_RUNTIME_DB_VERSION
+    : manifest.formatVersion >= CODEX_REFERENCES_FORMAT_VERSION ? CODEX_REFERENCES_RUNTIME_DB_VERSION
+    : manifest.formatVersion >= CODEX_DETAILS_FORMAT_VERSION ? CODEX_DETAILS_RUNTIME_DB_VERSION : RUNTIME_DB_VERSION;
+  const previousVersion = store.db.version;
+  if (minimum === RUNTIME_DB_VERSION || previousVersion >= minimum) {
+    return transact(store.db, [PROJECT_STORE, DOCUMENT_STORE], 'readwrite', body);
+  }
+  if (connection === undefined || connection.closed || connectionStates.get(store.db)?.state.kind !== 'open') {
+    return Promise.reject(new RuntimeStoreStaleError());
+  }
+  let written: Promise<T> | undefined;
+  const upgraded = openRuntimeConnection(connection.factory, store.name, minimum, (tx) => {
+    if (connection.closed) {
+      tx.abort();
+      return;
+    }
+    written = runTransaction(tx, body);
+    void written.catch(() => {});
+  }).then(async (next) => {
+    if (written === undefined || connection.closed) {
+      next.close();
+      throw new RuntimeStoreStaleError();
+    }
+    connection.active = next;
+    return written;
+  }, async (error: unknown) => {
+    if (written !== undefined && !connection.closed) {
+      connection.active = await openRuntimeConnection(connection.factory, store.name, previousVersion);
+      return written;
+    }
+    throw error;
+  }).finally(() => { delete connection.upgrading; });
+  connection.upgrading = upgraded;
+  return upgraded;
+}
+
+function persistedManifest(manifest: Manifest): Manifest {
+  const formatVersion = requiredManifestVersion(manifest);
+  return formatVersion === manifest.formatVersion ? manifest : { ...manifest, formatVersion };
 }
 
 // ---------------------------------------------------------------------------
@@ -808,10 +907,10 @@ function agentFilesRowOf(files: AgentFiles): Pick<ProjectRow, 'agentFiles' | 'ag
 
 export function commitProject(store: RuntimeStore, commit: ProjectCommit): Promise<void> {
   const storedAt = (commit.now ?? new Date()).toISOString();
-  return transact<void>(
-    store.db,
-    [PROJECT_STORE, DOCUMENT_STORE],
-    'readwrite',
+  const manifest = persistedManifest(commit.manifest);
+  return writeProjectTransaction<void>(
+    store,
+    manifest,
     (tx, _done, fail) => {
       const projects = tx.objectStore(PROJECT_STORE);
       const documents = tx.objectStore(DOCUMENT_STORE);
@@ -825,7 +924,7 @@ export function commitProject(store: RuntimeStore, commit: ProjectCommit): Promi
       const existingRequest = projects.get(commit.projectId);
       existingRequest.onsuccess = guarded(fail, () => {
         const previous = existingRequest.result as ProjectRow | undefined;
-        const row: ProjectRow = { id: commit.projectId, manifest: commit.manifest, storedAt };
+        const row: ProjectRow = { id: commit.projectId, manifest, storedAt };
         const floors = { ...previous?.revisionFloors };
         row.revisionFloors = floors;
         if (previous?.declinedCodexFiles !== undefined) {
@@ -1028,17 +1127,17 @@ export function writeProjectState(
 ): Promise<WriteProjectStateResult> {
   const projectId = state.manifest.project.id;
   const storedAt = (options.now ?? new Date()).toISOString();
-  return transact<WriteProjectStateResult>(
-    store.db,
-    [PROJECT_STORE, DOCUMENT_STORE],
-    'readwrite',
+  const manifest = persistedManifest(state.manifest);
+  return writeProjectTransaction<WriteProjectStateResult>(
+    store,
+    manifest,
     (tx, done, fail) => {
       const projects = tx.objectStore(PROJECT_STORE);
       const documents = tx.objectStore(DOCUMENT_STORE);
       const index = documents.index(DOCUMENT_PROJECT_INDEX);
       const project: ProjectRow = {
         id: projectId,
-        manifest: state.manifest,
+        manifest,
         storedAt,
         declinedCodexFiles: [...state.declinedCodexFiles],
         declinedDocFiles: [...state.declinedDocFiles],
@@ -1061,7 +1160,7 @@ export function writeProjectState(
             for (const doc of expected.documents.values()) expectedFloors.set(doc.id, Math.max(expectedFloors.get(doc.id) ?? 0, doc.revision));
             const actualFloors = new Map(Object.entries(previous?.revisionFloors ?? {}));
             for (const doc of existing) actualFloors.set(doc.id, Math.max(actualFloors.get(doc.id) ?? 0, doc.revision));
-            const same = previous !== undefined && JSON.stringify(previous.manifest) === JSON.stringify(expected.manifest)
+            const same = previous !== undefined && JSON.stringify(previous.manifest) === JSON.stringify(persistedManifest(expected.manifest))
               && actualFloors.size === expectedFloors.size && [...actualFloors].every(([id, revision]) => expectedFloors.get(id) === revision)
               && JSON.stringify(previous.declinedCodexFiles ?? []) === JSON.stringify([...expected.declinedCodexFiles])
               && JSON.stringify(previous.declinedDocFiles ?? []) === JSON.stringify([...expected.declinedDocFiles])
@@ -1378,7 +1477,7 @@ export function readBodySnapshots(store: RuntimeStore, projectId: string): Promi
 export function deleteProject(store: RuntimeStore, projectId: string): Promise<boolean> {
   return transact<boolean>(
     store.db,
-    [PROJECT_STORE, DOCUMENT_STORE, SESSION_STORE, SNAPSHOT_STORE, RUN_STORE, RUN_EVENT_STORE, AGENT_SESSION_STORE],
+    [PROJECT_STORE, DOCUMENT_STORE, SESSION_STORE, SNAPSHOT_STORE, RUN_STORE, RUN_EVENT_STORE, AGENT_SESSION_STORE, GOAL_RUN_STORE],
     'readwrite',
     (tx, done, fail) => {
       const projects = tx.objectStore(PROJECT_STORE);
@@ -1389,6 +1488,11 @@ export function deleteProject(store: RuntimeStore, projectId: string): Promise<b
       existing.onsuccess = guarded(fail, () => {
         const existed = existing.result !== undefined;
         projects.delete(projectId);
+        const goals = tx.objectStore(GOAL_RUN_STORE);
+        const goalsRequest = goals.index(GOAL_RUN_PROJECT_INDEX).getAll(projectId);
+        goalsRequest.onsuccess = guarded(fail, () => {
+          for (const row of goalsRequest.result as { goalId: string }[]) goals.delete(row.goalId);
+        });
         const agentSessions = tx.objectStore(AGENT_SESSION_STORE);
         const agentSessionsRequest = agentSessions.index(AGENT_SESSION_PROJECT_INDEX).getAll(projectId);
         agentSessionsRequest.onsuccess = guarded(fail, () => {

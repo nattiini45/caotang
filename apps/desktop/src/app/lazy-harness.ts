@@ -6,7 +6,7 @@
  */
 
 import type { ActivityLog, CommandRegistry, UndoStore } from '@caotang/bus';
-import { createPictureOutbox, createProductHarness, picturePorts, withReviewLanguages, type Harness, type PictureOutbox, type SourcedRule } from '@caotang/harness';
+import { createPictureOutbox, createProductHarness, picturePorts, withReviewLanguages, type Harness, type McpReadHook, type ModelHook, type PictureOutbox, type SourcedRule } from '@caotang/harness';
 import { createImageStager, type ImageStager, type McpClient } from '@caotang/mcp-client';
 import type { ProjectState, RetryableAssetStaging } from '@caotang/store';
 
@@ -19,7 +19,7 @@ import { resizePictureInBrowser } from './picture-transcoder.js';
 import { activeCoherenceModel } from './coherence-review.js';
 import { createTextSearchWorker } from './text-search-worker.js';
 
-export { createAgentSession, createBudgetMeter, createContextPort, preloadFor, summaryPrefix } from '@caotang/harness';
+export { createAgentSession, createBudgetMeter, createContextPort, createGoalRunner, createGoalVerifierPort, GoalVerifierPersistenceError, recoverGoalVerifierCheckpoint, goalRules, preloadFor, summaryPrefix } from '@caotang/harness';
 
 /** What a session lends its harness: the project, the registry and history it already runs, and the stores the picture tools reach. */
 export interface HarnessHost {
@@ -35,6 +35,8 @@ export interface HarnessHost {
   /** The agent's rules: the project file's, then the writer's own in the app's settings (agent-harness §4). Read at each call. */
   readonly rules: () => { readonly rules: readonly SourcedRule[] };
   readonly mcp?: { readonly client: McpClient };
+  readonly mcpHooks?: () => readonly McpReadHook[];
+  readonly modelHooks?: () => readonly ModelHook[];
   readonly presentAssets?: () => ReadonlySet<string>;
   readonly coherence?: SessionCoherence;
 }
@@ -78,6 +80,8 @@ export function createHarnessRuntime(host: HarnessHost): HarnessRuntime {
     notify: host.notify,
     rules: host.rules,
     ...(host.mcp === undefined ? {} : { mcp: { ...host.mcp, images: imageStager } }),
+    ...(host.mcpHooks === undefined ? {} : { mcpHooks: host.mcpHooks }),
+    ...(host.modelHooks === undefined ? {} : { modelHooks: host.modelHooks }),
     ...(host.presentAssets === undefined ? {} : { presentAssets: host.presentAssets }),
     // The agent's coherence scans read the writer's Coherence settings, and its review runs through the app's model
     // (coherence.md §5.3). The settings and the model are read at each call. The factory adds the dialogue facts and the review context.

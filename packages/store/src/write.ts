@@ -218,6 +218,9 @@ function codexFrontMatterFor(entry: CodexEntry): CodexFrontMatter {
     attachments: entry.attachments,
     keywords: entry.keywords,
     ...(entry.visualRefs === undefined ? {} : { visualRefs: entry.visualRefs }),
+    ...(entry.details === undefined ? {} : { details: entry.details }),
+    ...(entry.references === undefined ? {} : { references: entry.references }),
+    ...(entry.relations === undefined ? {} : { relations: entry.relations }),
     origin: entry.origin,
     sources: entry.sources,
   };

@@ -13,6 +13,12 @@ export const BUNDLE_EMOJI_FONT: string;
 export const WRITE_SETTING: string;
 export const WRITE_VARIABLE: string;
 
+/**
+ * The V8 switches every MCPB CLI child runs under: no background compilation, so the child's own `process.exit` after its
+ * synchronous deflate cannot wait on a compile job that is parked until the exit's own thread join finishes.
+ */
+export const MCPB_NODE_FLAGS: readonly string[];
+
 /** Every problem with a manifest for the bundle; an empty list means it is valid. */
 export function manifestProblems(
   manifest: unknown,
@@ -44,8 +50,14 @@ export function stageBundle(input: StageInput): { readonly staging: string; read
 /** The pinned MCPB CLI's entry point in this package's dependencies. */
 export function mcpbCliPath(packageDir?: string): string;
 
-/** Runs the MCPB CLI; a non-zero exit throws with its output. Returns the output. */
-export function runMcpb(args: readonly string[], options?: { readonly cli?: string; readonly cwd?: string }): string;
+/**
+ * Runs the MCPB CLI; a non-zero exit or a stall throws with its output and the wait. Returns the output. `timeoutMs` shortens
+ * the ceiling, for a test that runs a CLI which never answers.
+ */
+export function runMcpb(
+  args: readonly string[],
+  options?: { readonly cli?: string; readonly cwd?: string; readonly timeoutMs?: number },
+): string;
 
 export interface PackInput extends StageInput {
   /** The CLI to run, for a test that supplies another. Defaults to the pinned one. */

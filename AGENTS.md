@@ -9,7 +9,7 @@ There is **no backend server, no account, no telemetry**. The app is static file
 | Part | Stack |
 |---|---|
 | Workspace | pnpm monorepo (`pnpm@12.9.1` pinned in the root `packageManager` field), `corepack enable` |
-| Node | `^22.19.0 \|\| ^24.0.0 \|\| >=26.0.0` — **CI tests Node 22.19.0 and 24; Node 26 is allowed but not covered** |
+| Node | `^22.19.0 \|\| ^24.0.0 \|\| >=26.0.0` — **CI tests Node 22.19.0 and 24; the whole gate runs on 24 and the floor proof on 22.19.0; Node 26 is allowed but not covered** |
 | Language | TypeScript `^6.0.3` (strict) |
 | App | React `19.3`, Vite `8.3.2` (rolldown/oxc, not esbuild) |
 | Unit tests | Vitest `5.0.3` (node environment) |
@@ -38,6 +38,7 @@ pnpm lint                # eslint .
 pnpm typecheck           # pnpm -r typecheck && tsc --noEmit -p tsconfig.json
 pnpm test                # vitest run
 pnpm test:watch          # vitest
+pnpm test:node-floor     # the suites whose subject runs in Node itself (the Node floor leg of CI)
 pnpm test:e2e            # playwright test (needs a Chromium install)
 pnpm build               # → apps/desktop/dist/
 pnpm --filter @caotang/desktop preview   # serves the built app on :4173
@@ -69,7 +70,7 @@ packages/bus/            the command bus — every change goes through it
 packages/codex/          codex entries (characters, places, lore, subplots)
 packages/coherence/      findings and coherence checks
 packages/context/        context assembly for agent requests
-packages/crypto/         key hierarchy, file sealing and rollback marks for the hosted instance (specified, not built; nothing imports it)
+packages/crypto/         key hierarchy, sealing, account keys, Argon2id and remember-device for the hosted instance (built; the app does not import it yet)
 packages/dialogue/       branching dialogue (Ink)
 packages/editor/         the scene editor
 packages/editor-audit/   editor audit trail
@@ -83,11 +84,12 @@ packages/machine/       pure lifecycle steps and typed transition tables; exhaus
 packages/import-read/   the readers every import shares: a namespace-aware XML reader (no DOMParser) and a zip/folder reader over fflate's unzipSync with caps; main thread, Worker and Node; and the plain-text reader (any common encoding, to import blocks)
 packages/i18n/          interface locale, formatter locale, cached Intl formatters, collation, bidi isolation, MessageRef (no React, no Lingui)
 packages/import-core/   the import block model and the pure chapter and scene splitter every document reader shares (no DOM, no dependencies)
+packages/import-captions/ the SRT and WebVTT reader: timed text → cues → one AV script episode with declared durations and its losses (no DOM, no third-party dependencies)
 packages/mcp-client/     MCP client (Streamable HTTP)
 packages/mcp-server/     Caotang as an MCP server (@caotang/mcp-server)
 packages/pdf-fonts/      what both PDFs share for their fallback fonts (byte checks, fontkit, CID writer, emoji)
 packages/pictures/       the picture registry's pure parts: the record, usesOf, assets/ file names, the import pipeline (GPS strip, hash)
-packages/remote-store/   ArtifactFs over an encrypted remote blob store for the hosted instance (specified, not built; nothing imports it)
+packages/remote-store/   ArtifactFs over an encrypted remote blob store for the hosted instance, with the HTTP blob client (built; the app does not import it yet)
 packages/screenplay/     Fountain screenplay model
 packages/script/         the AV script: the linear timed script model, its parser, line ids and runtime totals (pure)
 packages/scan/           the deterministic continuity scan as a library, for a writer's own CI (@caotang/scan); the `caotang scan` command is in packages/cli
@@ -131,7 +133,7 @@ These are the project's own rules (see `CONTRIBUTING.md` and `docs/decisions.md`
 
 **Do**
 
-- Run `pnpm verify`, `pnpm build` and `pnpm test:e2e` before opening a PR. CI runs `pnpm verify`, the production build, bundle-size check, MCP pack and CLI build on Node 22.19.0 and 24; Chromium E2E runs on Node 24 in parallel, and a separate workflow gates PRs in Firefox and WebKit.
+- Run `pnpm verify`, `pnpm build` and `pnpm test:e2e` before opening a PR. CI runs the whole gate (`pnpm verify`, bundle-size check, landing page, MCP pack) once on Node 24, and on both Node 22.19.0 and 24 the engine-strict install, typecheck, production build, CLI bundle and `pnpm test:node-floor`; Chromium E2E runs on Node 24 in parallel, and a separate workflow gates PRs in Firefox and WebKit.
 - Use `pnpm` — the workspace uses `workspace:*` dependencies, which npm and yarn do not resolve the same way.
 - Regenerate `THIRD-PARTY-NOTICES.md` when you add or upgrade a dependency.
 - Add a line to `docs/decisions.md` when you change a standing rule, and update the matching spec.
@@ -152,6 +154,7 @@ These are the project's own rules (see `CONTRIBUTING.md` and `docs/decisions.md`
 | `CAOTANG_BASE` | Build for a sub-path, e.g. `CAOTANG_BASE=/app/ pnpm build`. Default: asset paths start at `/`. |
 | `CAOTANG_E2E_PORT` | Dev-server port for the Playwright suite (default 5173). Setting it also stops the suite from reusing an existing server. |
 | `CAOTANG_E2E_PREVIEW_PORT` | Production-preview port (default = dev port + 1000). |
+| `CAOTANG_SKIP_WORKER_SUITES` | `1` leaves `packages/sync-server/test/account-mode.test.ts`, `storage.test.ts` and `server.test.ts` out of `pnpm test`, because each case there boots its own Miniflare Worker runtime. Set by the Windows legs only, until #815 gives those files one shared runtime; #820 tracks the third until then. |
 | `CAOTANG_MCP_ALLOW_WRITES` | `true` allows the MCP server to write to the project folder. |
 | `CAOTANG_MCP_TOKEN` | Bearer token for the MCP server over HTTP (at least 16 characters). |
 

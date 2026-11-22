@@ -527,7 +527,19 @@
           "timeline-svg",
           "timeline-pdf",
           "cbz",
-          "comic-epub"
+          "comic-epub",
+          "vo-script-csv",
+          "vo-script-xlsx",
+          "show-notes",
+          "transcript-md",
+          "teleprompter",
+          "vtt",
+          "chapters-json",
+          "html",
+          "rss",
+          "atom",
+          "podcast-rss",
+          "prose-pdf"
         ],
         "description": "The output format."
       },
@@ -600,14 +612,14 @@
   },
   "codex.write": {
     "type": "object",
-    "description": "The codex entries to create or update, as one batch.",
+    "description": "Codex writes.",
     "properties": {
       "entries": {
         "type": "array",
-        "description": "Entries to create or update: at most 20 per call. Each is validated before any of them is written.",
+        "description": "Validate the whole batch before writing.",
         "items": {
           "type": "object",
-          "description": "One codex entry: a create, or an update of an existing entry by id.",
+          "description": "One entry.",
           "properties": {
             "action": {
               "type": "string",
@@ -615,7 +627,7 @@
                 "create",
                 "update"
               ],
-              "description": "create makes a new entry; update changes one named by id."
+              "description": "Create or update."
             },
             "id": {
               "type": "string",
@@ -641,15 +653,8 @@
             },
             "type": {
               "type": "string",
-              "enum": [
-                "character",
-                "location",
-                "object",
-                "lore",
-                "subplot",
-                "other"
-              ],
-              "description": "The entry type."
+              "description": "Built-in or project-defined entry type.",
+              "minLength": 1
             },
             "description": {
               "type": "string",
@@ -668,6 +673,30 @@
             "caseSensitive": {
               "type": "boolean",
               "description": "Whether the name and aliases match case-sensitively."
+            },
+            "details": {
+              "type": "object",
+              "description": "Details by key; null clears."
+            },
+            "referenceEdits": {
+              "type": "array",
+              "description": "External refs.",
+              "items": {
+                "type": "object",
+                "description": "action: create/update/remove; title on create; id on update/remove; url/publisher/date/quote (date YYYY-MM-DD, null clears)."
+              },
+              "minItems": 1,
+              "maxItems": 24
+            },
+            "relationEdits": {
+              "type": "array",
+              "description": "Entry links.",
+              "items": {
+                "type": "object",
+                "description": "create: targetId; update/remove: id; label, null clears."
+              },
+              "minItems": 1,
+              "maxItems": 40
             },
             "exclude": {
               "type": "array",
@@ -700,7 +729,7 @@
             },
             "visualRefs": {
               "type": "array",
-              "description": "The image asset ids the entry's visual references are, at most 10: images already in this project, by id. An update replaces the list.",
+              "description": "Project image ids; replaces the list.",
               "items": {
                 "type": "string",
                 "description": "One image asset id.",
@@ -1453,12 +1482,20 @@
         "minLength": 1,
         "maxLength": 4000
       },
+      "fanOut": {
+        "type": "string",
+        "enum": [
+          "none",
+          "per-chapter"
+        ],
+        "description": "Run one helper per top-level Manuscript folder, or omit this for one helper."
+      },
       "scope": {
         "type": "array",
-        "description": "Documents the agent starts from: titles or ids, at most 20. Omit it and the agent finds what it needs with its read tools.",
+        "description": "Titles or ids, at most 20. Name documents for one helper or top-level Manuscript folders for per-chapter. Omit to use all eligible chapters in per-chapter mode.",
         "items": {
           "type": "string",
-          "description": "One document: a title, or an id.",
+          "description": "One document or chapter: a title, or an id.",
           "minLength": 1
         },
         "maxItems": 20

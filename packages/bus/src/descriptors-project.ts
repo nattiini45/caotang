@@ -77,9 +77,17 @@ export const METADATA_PATCH_KEYS = ['author', 'language', 'isbn', 'coverAssetId'
  * storyboard.md §6; `colourEmoji` is both PDFs' colour emoji, screenplay.md §5.3; `bleed` and `cropMarks` are the comic PDF's, comics.md §5,
  * and a comic's reading direction is its book's own setting, never a recipe's; `contentsLabel` is the contents heading, i18n.md §7.1;
  * `pictures`, `epubImageMaxPx`, `epubKeepWebp` and `keepPictureMetadata` are the prose exports' picture options, pictures.md §4;
- * `timelinePictures` is the timeline PDF's thumbnails, timeline.md §9.1).
+ * `timelinePictures` is the timeline PDF's thumbnails, timeline.md §9.1; `notes` is the footnote placement, exporter.md §3,
+ * `teleprompterWidth` the teleprompter's wrap, av-script.md §5; `frontMatter`, `htmlMode` and `css` are the
+ * HTML article's options, web-publishing.md §3).
  */
-const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued', 'pageSize', 'scriptFont', 'paperFrames', 'colourEmoji', 'bleed', 'cropMarks', 'contentsLabel', 'pictures', 'epubImageMaxPx', 'epubKeepWebp', 'keepPictureMetadata', 'timelinePictures'] as const;
+const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued', 'pageSize', 'scriptFont', 'paperFrames', 'colourEmoji', 'bleed', 'cropMarks', 'contentsLabel', 'pictures', 'epubImageMaxPx', 'epubKeepWebp', 'keepPictureMetadata', 'timelinePictures', 'notes', 'teleprompterWidth', 'frontMatter', 'htmlMode', 'css', 'siteUrl', 'pdfProfile'] as const;
+
+/** The HTML article's two shapes (web-publishing.md §3): a full document, or the fragment a site template hosts. */
+export const HTML_MODES = ['standalone', 'fragment'] as const;
+
+/** The longest stylesheet address a recipe may name (web-publishing.md §3). */
+export const CSS_MAX = 512;
 
 /** Where the screenplay PDF may print scene numbers (screenplay.md §5.3). */
 export const SCENE_NUMBER_OPTIONS = ['off', 'left', 'right', 'both'] as const;
@@ -170,7 +178,7 @@ function recipeOptionsOf(value: unknown): Result<RecipeOptionsParams | undefined
     }
   }
   const typed: RecipeOptionsParams = {};
-  for (const flag of ['titlePage', 'toc', 'continued', 'paperFrames', 'colourEmoji', 'bleed', 'cropMarks', 'epubKeepWebp', 'keepPictureMetadata', 'timelinePictures'] as const) {
+  for (const flag of ['titlePage', 'toc', 'continued', 'paperFrames', 'colourEmoji', 'bleed', 'cropMarks', 'epubKeepWebp', 'keepPictureMetadata', 'timelinePictures', 'frontMatter'] as const) {
     const v = value[flag];
     if (v === undefined) continue;
     if (typeof v !== 'boolean') return invalid(`params.options.${flag} must be true or false, got ${showValue(v)}`, undefined, `options.${flag}`);
@@ -186,6 +194,17 @@ function recipeOptionsOf(value: unknown): Result<RecipeOptionsParams | undefined
       );
     }
     typed.pictures = pictures as (typeof PICTURE_MODES)[number];
+  }
+  const notes = value['notes'];
+  if (notes !== undefined) {
+    if (notes !== 'footnote' && notes !== 'endnote') {
+      return invalid(
+        `params.options.notes must be 'footnote' or 'endnote', got ${showValue(notes)}`,
+        "pass 'footnote' for page-foot / chapter-end notes, or 'endnote' for document-end / book-end notes",
+        'options.notes',
+      );
+    }
+    typed.notes = notes;
   }
   const epubImageMaxPx = value['epubImageMaxPx'];
   if (epubImageMaxPx !== undefined) {
@@ -229,6 +248,17 @@ function recipeOptionsOf(value: unknown): Result<RecipeOptionsParams | undefined
     }
     typed.charLimit = charLimit as number;
   }
+  const teleprompterWidth = value['teleprompterWidth'];
+  if (teleprompterWidth !== undefined) {
+    if (!Number.isSafeInteger(teleprompterWidth) || (teleprompterWidth as number) < 1) {
+      return invalid(
+        `params.options.teleprompterWidth must be a whole number of characters above zero, got ${showValue(teleprompterWidth)}`,
+        'pass a width such as 60, or leave it out for the default',
+        'options.teleprompterWidth',
+      );
+    }
+    typed.teleprompterWidth = teleprompterWidth as number;
+  }
   const sceneNumbers = value['sceneNumbers'];
   if (sceneNumbers !== undefined) {
     if (typeof sceneNumbers !== 'string' || !(SCENE_NUMBER_OPTIONS as readonly string[]).includes(sceneNumbers)) {
@@ -261,6 +291,44 @@ function recipeOptionsOf(value: unknown): Result<RecipeOptionsParams | undefined
       );
     }
     typed.scriptFont = scriptFont as (typeof RECIPE_SCRIPT_FONTS)[number];
+  }
+  const htmlMode = value['htmlMode'];
+  if (htmlMode !== undefined) {
+    if (typeof htmlMode !== 'string' || !(HTML_MODES as readonly string[]).includes(htmlMode)) {
+      return invalid(
+        `params.options.htmlMode must be one of ${HTML_MODES.join(', ')}, got ${showValue(htmlMode)}`,
+        `pass ${HTML_MODES.join(' or ')}, or leave it out for standalone`,
+        'options.htmlMode',
+      );
+    }
+    typed.htmlMode = htmlMode as (typeof HTML_MODES)[number];
+  }
+  const css = value['css'];
+  if (css !== undefined) {
+    if (typeof css !== 'string') {
+      return invalid(`params.options.css must be a string, got ${showValue(css)}`, undefined, 'options.css');
+    }
+    if (css.length > CSS_MAX) {
+      return invalid(`params.options.css is longer than ${CSS_MAX} characters`, 'shorten the stylesheet address', 'options.css');
+    }
+    typed.css = css.trim();
+  }
+  const siteUrl = value['siteUrl'];
+  if (siteUrl !== undefined) {
+    if (typeof siteUrl !== 'string') {
+      return invalid(`params.options.siteUrl must be a string, got ${showValue(siteUrl)}`, undefined, 'options.siteUrl');
+    }
+    if (siteUrl.length > CSS_MAX) {
+      return invalid(`params.options.siteUrl is longer than ${CSS_MAX} characters`, 'shorten the site address', 'options.siteUrl');
+    }
+    typed.siteUrl = siteUrl.trim();
+  }
+  const pdfProfile = value['pdfProfile'];
+  if (pdfProfile !== undefined) {
+    if (pdfProfile !== 'pdfa-2u') {
+      return invalid(`params.options.pdfProfile must be "pdfa-2u", got ${showValue(pdfProfile)}`, undefined, 'options.pdfProfile');
+    }
+    typed.pdfProfile = pdfProfile;
   }
   return ok(typed);
 }

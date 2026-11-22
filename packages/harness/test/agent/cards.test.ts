@@ -54,6 +54,18 @@ function editable(over: Partial<EditableSteps> = {}): EditableSteps {
 }
 
 describe('plan edits (agent-harness §2)', () => {
+  it('attributes a change to the writer when they edit a hook’s replacement', () => {
+    const step = { tool: 'notes.append', params: { doc: 'The Storm', text: 'Rain fell.' }, expect: 'Add a note.' };
+    const rewrite = { tool: step.tool, field: 'text', before: 'Snow fell.', name: 'Weather check' };
+    const changed = applyEdit(editable({ steps: [step], origins: [0], hookRewrites: [rewrite] }), {
+      op: 'set', index: 0, path: ['params', 'text'], value: 'Hail fell.',
+    });
+    expect(changed).toMatchObject({ ok: true, value: {
+      steps: [{ params: { text: 'Hail fell.' } }],
+      hookRewrites: [{ ...rewrite, edited: true }],
+    } });
+  });
+
   it('reorders steps with their origins, proposals and staleness moving together', () => {
     const withDraft = editable({ proposals: [undefined, undefined, { text: 'Rain falls.', words: 2 }] });
     const moved = applyEdit(withDraft, { op: 'reorder', from: 2, to: 0 });
@@ -147,6 +159,17 @@ describe('the plan card', () => {
   it('is not approvable until the latest edit has been previewed, so an approval always covers the card as it stands', () => {
     const view = planCardOf({ id: 'card', turnId: 't', kind: 'plan', revision: 2, previewRevision: 1, from: 0, state: editable(), preflight: ready, previews: [], risks: [] });
     expect(view.approvable).toBe(false);
+  });
+
+  it('shows model-hook estimates only for ready steps that are still to run', () => {
+    const estimate = { id: 'hook', name: 'Review point of view', event: 'tool.before' as const, promptTokens: 80, outputTokens: 256 };
+    const view = planCardOf({
+      id: 'card', turnId: 't', kind: 'plan', revision: 0, previewRevision: 0, from: 1,
+      state: editable({ completed: [0] }), previews: [], risks: [],
+      preflight: { ok: false, steps: [...ready.steps.slice(0, 2), { ...refused.steps[0]!, index: 2 }] },
+      modelHooks: [[estimate], [estimate], [estimate]],
+    });
+    expect(view.steps.map(step => step.modelHooks)).toEqual([undefined, [estimate], undefined]);
   });
 
   it('shows the steps a resumed plan will not run again as done, by the origins it has applied', () => {

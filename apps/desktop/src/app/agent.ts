@@ -83,11 +83,17 @@ import {
   summarizeRun,
   parseRunEvents,
   withheldAnywhere,
+  backgroundCoherenceModel,
+  reviewContextOf,
+  reviewCostAt,
+  excludedBy,
+  withheldState,
   DEFAULT_ACTIVE_MS,
   PERMISSION_MODES,
   TRACE_REVIEWS,
   turnMarkerFields,
   type ContextConfig,
+  type ContextComputeAsync,
   type ContextOverrides,
   type RequestContextPreview,
   type LanguagePolicy,
@@ -101,6 +107,11 @@ import {
   type PlanStep,
   type PlanCardView,
   type PlanOffer,
+  type PlanOfferReview,
+  type BudgetMeter,
+  type Goal,
+  type GoalCheckpoint,
+  type WriteScope,
   type RunLimits,
   type RunLogPort,
   type RunRecord,
@@ -111,9 +122,11 @@ import {
   type TurnReport,
   type SubmitOptions as SessionSubmitOptions,
 } from '@caotang/harness';
+import { computeReview, emptyCoherenceFile, emptyReviewCheckpoint, planReview, publishReview, reviewExecutionPlanOf, type CoherenceRun, type DeterministicCheckId, type ReviewCheckpoint, type ReviewComputed, type ReviewExecutionPlan, type ReviewPlan, type ScopeSpec } from '@caotang/coherence';
+import { goalWatchOf, type GoalWatchView } from './goal-watch.js';
 import { createMcpTransport } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
-import { createRunLogPort, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot, readAgentSessions, saveAgentSession, settleAgentSessionTurn, removeAgentSession, pruneAgentSessions, agentSessionReferences, type AgentSessionRow, type AgentSessionTurnRef, type SessionSummary } from '@caotang/store';
+import { createRunLogPort, getRevision, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot, readAgentSessions, saveAgentSession, settleAgentSessionTurn, removeAgentSession, pruneAgentSessions, agentSessionReferences, appendGoalCheckpoint, checkpointReadable, goalRowReadable, createGoalRun, deleteGoalRun, markGoalsInterrupted, openGoalRecovery, readGoalRun, readGoalRuns, recordGoalIteration, resumeGoalRun, settleGoalRun, type AgentSessionRow, type AgentSessionTurnRef, type GoalRunRow, type SessionSummary } from '@caotang/store';
 import { captureTextAnchor } from '@caotang/storyboard';
 
 import { registerAgent } from './agent-registry.js';
@@ -127,16 +140,21 @@ import { DEFAULT_AGENT_SETTINGS, type AgentSettings } from './settings.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
 import type { ProviderService } from './providers.js';
 import type { ProjectSession, RestoreResult } from './session.js';
-import type { RestorePlan } from '@caotang/bus';
-import { TaskQueue, type TaskAgent } from './task-queue.js';
+import { textDigest, type RestorePlan } from '@caotang/bus';
+import { TaskQueue, type TaskAgent, type TaskReviewRunner, type EnqueueResult } from './task-queue.js';
 import { announcementFor, viewOf, type TaskView } from './task-model.js';
-import { TaskStore, type TaskRecord } from './task-store.js';
+import { TaskStore, type TaskRecord, type TaskReviewReport } from './task-store.js';
+import { bodyHash, effectiveMode, effectiveWhenDue, type AgentTask } from '@caotang/tasks';
+import { TaskConsents } from './task-consents.js';
+import { freezeDeep, reviewCallCap, type QueuedReviewApproval, type QueuedReviewPrepared, type QueuedReviewPreview, type QueuedReviewRoute } from './queued-review.js';
+import type { ReviewChoice } from './coherence-review.js';
 import type * as LazyHarness from './lazy-harness.js';
 import { uiLocale } from '../i18n/format-locale.js';
+import { isolate } from '@caotang/i18n';
 import { contextNote, helpNote, restoreTarget, type CommandNote, type LineOutcome } from './slash-model.js';
 import { commandArguments, expandSkillCommand, projectCommands, type ProjectCommand } from './project-commands.js';
 import { currentEditorCaret } from './editor-selection.js';
-import { initialAgentState, controllerTurn, stepAgentState, agentControllerTable, type AgentStateEvent } from './agent-state.js';
+import { initialAgentState, controllerTurn, stepAgentState, agentControllerTable, type AgentStateEvent, type ParkedOffer } from './agent-state.js';
 import { groupUsage, type UsageGroup } from './usage-model.js';
 import { contextChoices, copyContext } from './context-choices.js';
 import { formatCount } from '../i18n/locale.js';
@@ -171,7 +189,7 @@ interface LimitPins {
 }
 
 /** The pins of a role's resolution, or undefined when no profile exists. */
-function pinsOf(resolved: { readonly profile: ProfileView; readonly model: string; readonly thinking?: ThinkingLevel } | undefined): LimitPins | undefined {
+function pinsOf(resolved: { readonly profile: ProfileView; readonly model: string; readonly thinking?: ThinkingLevel } | undefined): (LimitPins & { readonly model: string }) | undefined {
   if (resolved === undefined) return undefined;
   return { profileId: resolved.profile.id, model: resolved.model, ...(resolved.thinking === undefined ? {} : { thinking: resolved.thinking }) };
 }
@@ -203,6 +221,39 @@ export interface SubmitOptions {
   readonly hiddenFromPlanner?: boolean;
   /** The slash command that started the turn (`draft`), which the report and the run log name. */
   readonly command?: string;
+}
+
+/**
+ * A durable goal as recovery offers it (agent-harness §7.2). A goal whose tab died is `interrupted` and stays that way until the
+ * writer resumes or discards it: nothing here restarts a run on its own.
+ */
+export interface GoalRecoveryView {
+  readonly goalId: string;
+  readonly watch: GoalWatchView | null;
+  readonly outcome: string | null;
+  /** The writer's words, from the stored checkpoint. */
+  readonly intent: string;
+  readonly status: 'running' | 'interrupted' | 'settled';
+  /** The iteration the checkpoint was saved for. */
+  readonly nextIteration: number;
+  /** Turns the goal's iterations ran, as the record names them. */
+  readonly turns: number;
+  /** How the run ended, for a settled goal. */
+  readonly reason: string | null;
+  /** The stored checkpoint is not one this build can read: it is offered for discarding only. */
+  readonly unreadable: boolean;
+  /** Whether Resume is offered: an interrupted goal with a readable checkpoint. */
+  readonly resumable: boolean;
+  readonly note: string | null;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
+export interface GoalDraft {
+  readonly id: number;
+  readonly intent: string;
+  readonly scope: ScopeSpec;
+  readonly coherenceChecks: readonly DeterministicCheckId[];
 }
 
 /** A run the project was left with, as the panel's interrupted-run card shows it (agent-harness §5.1). */
@@ -264,6 +315,29 @@ export interface BackgroundOptions {
   readonly sleep?: (ms: number) => Promise<void>;
 }
 
+/** A stored goal row as the panel offers it: the words from its checkpoint, and whether this build can resume it. */
+function goalRecoveryView(row: GoalRunRow): GoalRecoveryView {
+  const validRow = goalRowReadable(row);
+  const readable = validRow && checkpointReadable(row.checkpoint, row.goalId);
+  const checkpoint = readable ? row.checkpoint as GoalCheckpoint : null;
+  const result = validRow ? row.result : undefined;
+  return {
+    goalId: row.goalId,
+    watch: checkpoint === null ? null : goalWatchOf(checkpoint),
+    outcome: result?.status ?? null,
+    intent: checkpoint?.goal.intent ?? '',
+    status: validRow ? row.status : 'interrupted',
+    nextIteration: checkpoint?.nextIteration ?? 1,
+    turns: Array.isArray(row.iterationRunIds) ? row.iterationRunIds.length : 0,
+    reason: result === undefined ? null : `${result.status}: ${result.reason}`,
+    unreadable: !readable,
+    resumable: readable && row.status === 'interrupted',
+    note: null,
+    createdAt: Number.isFinite(row.createdAt) ? row.createdAt : 0,
+    updatedAt: Number.isFinite(row.updatedAt) ? row.updatedAt : 0,
+  };
+}
+
 export interface AgentSnapshot {
   readonly sessionId: string;
   readonly sessionLoad: SessionSelection;
@@ -287,6 +361,13 @@ export interface AgentSnapshot {
   readonly stopping: boolean;
   /** The runs this project was left with unfinished, oldest first. */
   readonly interrupted: readonly InterruptedRunView[];
+  /** The durable goals this project holds, newest first: a run a reload or a closed tab abandoned is offered for an explicit resume. */
+  readonly goals: readonly GoalRecoveryView[];
+  /** The goal an action is under way for, or `null`. */
+  readonly goalAction: 'running' | 'start' | 'resume' | 'discard' | null;
+  readonly activeGoalId: string | null;
+  readonly goalDraft: GoalDraft | null;
+  readonly goalUnavailable: string | null;
   readonly runHistory: readonly InterruptedRunView[];
   readonly runHistoryLoad: { readonly kind: 'loading' | 'ready' } | { readonly kind: 'failed'; readonly message: string };
   readonly runCopyFailure: string | null;
@@ -394,6 +475,19 @@ export class AgentController {
   private conversation: AgentSessionRow | null = null;
   private readonly presentations = new Map<string, SessionTurnPresentation>();
   private readonly sessionRunRows = new Map<string, RunRecord>();
+  /** The durable goals this project holds, as recovery offers them. */
+  private goals: readonly GoalRecoveryView[] = [];
+  /** The meter a goal run shares across its iterations; the session's turns reserve from it while the run lasts. */
+  private goalMeter: BudgetMeter | null = null;
+  private goalScope: WriteScope | null = null;
+  /** The goal a run is under way for, so no other turn starts beside it. */
+  private goalRunning: string | null = null;
+  private goalAbort: AbortController | null = null;
+  private goalAction: 'start' | 'resume' | 'discard' | null = null;
+  private goalActionId: string | null = null;
+  private goalDraft: GoalDraft | null = null;
+  private goalDraftSeq = 0;
+  private goalLoadSeq = 0;
   private readonly runForTurn = new Map<string, string>();
   private readonly roleForTurn = new Map<string, TaskRole>();
   private readonly liveTurnIds = new Set<string>();
@@ -444,6 +538,11 @@ export class AgentController {
   private loadSeq = 0;
   private runHistoryLoad: AgentSnapshot['runHistoryLoad'] = { kind: 'loading' };
   private readonly tasks: TaskQueue;
+  private preparedReview: { readonly id: string; readonly approval: QueuedReviewApproval } | null = null;
+  private preparedOfferApproval: QueuedReviewApproval | null = null;
+  /** The parked offer's own steps and choices, owned by the controller: what is queued is what was offered, never a caller's copy. */
+  private preparedOffer: { readonly steps: readonly PlanStep[]; readonly contextOverrides?: ContextOverrides } | null = null;
+  private offerAnswer: { readonly held: ParkedOffer; readonly abort: AbortController } | null = null;
   /** The status each task had when the panel last heard of it, so only a change is announced. */
   private readonly taskStatus = new Map<string, TaskRecord['status']>();
   /** Opening and closing the queue run one after the other, so a panel that attaches twice reads the tasks once at a time. */
@@ -451,7 +550,7 @@ export class AgentController {
 
   private get turn() { return controllerTurn(this.state); }
   private get actionBusy() { return (this.selection.kind === 'loading' && this.sessionLoading === null) || this.turn !== null || this.state.interrupted.some((run) => run.pending !== null && run.pending !== undefined); }
-  private get busy() { return this.selection.kind === 'loading' || this.actionBusy; }
+  private get busy() { return this.selection.kind === 'loading' || this.actionBusy || this.goalRunning !== null || this.goalAction !== null; }
   private get detached() { return this.state.kind === 'detached'; }
   private get stopping() { return this.state.kind === 'stopping' || (this.state.kind === 'detached' && this.state.from === 'stopping'); }
   private get pending() { return this.state.kind === 'parked-on-card' ? this.state.decision.pending : null; }
@@ -495,6 +594,13 @@ export class AgentController {
     }
   }
 
+  /** Keeps the project as the turn that just started found it, for a replay of it (§8.1). Off, nothing is kept. */
+  private keepSnapshot(turnId: string): void {
+    const trace = (this.providers as Partial<ProviderService>).trace;
+    if (trace === undefined || !trace.enabled) return;
+    trace.snapshots.keep(turnId, this.session.state);
+  }
+
   traceMachine(record: Pick<Extract<TraceInput, { kind: 'machine' }>, 'machine' | 'subjectId' | 'from' | 'event' | 'to'>): void {
     this.writeTrace({ kind: 'machine', at: this.clock(), turnId: TRACE_REVIEWS, ...record });
   }
@@ -514,8 +620,10 @@ export class AgentController {
     this.tasks = new TaskQueue({
       projectId: session.projectId,
       store: background.store ?? new TaskStore(),
-      agentFor: (_task, sessionId, maxModelCalls) => this.agentForTask(sessionId, maxModelCalls),
+      agentFor: (task, sessionId, maxModelCalls) => this.agentForTask(sessionId, maxModelCalls, task),
+      reviewFor: (task, sessionId) => this.reviewRunnerFor(task, sessionId),
       foregroundBusy: () => this.busy,
+      callCap: (task) => task.recurringTaskId === undefined ? task.cap : Math.min(task.cap, this.agentSettings().budget.maxModelCalls ?? 8),
       ...(background.locksAvailable === undefined ? {} : { locksAvailable: background.locksAvailable }),
       ...(background.sleep === undefined ? {} : { sleep: background.sleep }),
     });
@@ -524,6 +632,7 @@ export class AgentController {
       await port.append(runId, events, patch);
       for (const event of events) if (event.t === 'turn.start') {
         this.runForTurn.set(event.turnId, runId);
+        if (this.goalRunning !== null) await recordGoalIteration(session.runtimeStore(), this.goalRunning, runId, this.clock());
         if (event.hiddenFromPlanner === true) this.hiddenTurnIds.add(event.turnId);
       }
       this.runCopyWork = this.runCopyWork.then(() => this.copyRunLogs(runId)).catch((error: unknown) => {
@@ -596,9 +705,14 @@ export class AgentController {
       }),
       pending: this.pending,
       busy: this.busy,
-      stoppable: this.turn !== null || this.pending !== null,
-      stopping: this.stopping,
+      stoppable: this.turn !== null || this.pending !== null || this.goalAbort !== null,
+      stopping: this.stopping || this.goalAbort?.signal.aborted === true,
       interrupted: this.interrupted,
+      goals: this.goals,
+      goalAction: this.goalRunning !== null ? 'running' : this.goalAction,
+      activeGoalId: this.goalRunning ?? (this.goalAction === 'start' || this.goalAction === 'resume' ? this.goalActionId : null),
+      goalDraft: this.goalDraft,
+      goalUnavailable: this.goalUnavailable,
       runHistory: this.state.interrupted,
       runHistoryLoad: this.runHistoryLoad,
       runCopyFailure: this.runCopyFailure,
@@ -852,7 +966,7 @@ export class AgentController {
   async previewRequest(intent: string, options: SubmitOptions = {}): Promise<RequestContextPreview | null> {
     const contextOverrides = copyContext(options.contextOverrides);
     const loop = await this.harnessLoop();
-    const pinned = this.providers.resolveForRole?.('chat');
+    const pinned = this.providers.resolveForRole?.('chat', 'plan');
     const profile = pinned?.profile ?? this.providers.active();
     if (profile === undefined) return null;
     return this.sessionFor('chat', loop).previewRequest(intent, {
@@ -1094,8 +1208,10 @@ export class AgentController {
     intent: string,
     options: SubmitOptions,
     start: (agent: AgentSession, turn: TurnOptions, loop: HarnessModule) => Promise<TurnReport>,
+    goalIteration = false,
   ): Promise<TurnReport | null> {
     if (this.actionBusy || this.sessionSave.failure !== null) return null;
+    if (!goalIteration && (this.goalRunning !== null || this.goalAction !== null)) return null;
     let settle = (): void => {};
     this.turnSettled = new Promise<void>((resolve) => { settle = resolve; });
     this.message = null;
@@ -1114,7 +1230,9 @@ export class AgentController {
       // thinking resolve once here and pin the session: a turn cannot change provider mid-flight, and the pinned id is what
       // the loop's capability reads (modelCaps/modelLimits) must see.
       const role = options.role ?? 'chat';
-      const resolved = options.demo === true ? undefined : this.providers.resolveForRole?.(role);
+      // The session pins the destination its *planning* runs on (provider-gateway §6): a writer who routed the planning step
+      // separately gets that destination here, and the turn's other steps resolve through the role's route without it.
+      const resolved = options.demo === true ? undefined : this.providers.resolveForRole?.(role, 'plan');
       const profile: ProfileView | undefined =
         options.demo === true ? await this.providers.demoProfile() : (resolved?.profile ?? this.providers.active());
       if (profile === undefined) {
@@ -1400,6 +1518,7 @@ export class AgentController {
       return active;
     });
     await this.loadInterrupted();
+    await this.loadGoals();
   }
 
   async compactSession(role: TaskRole = 'chat', focus?: string): Promise<TurnReport | null> {
@@ -1514,6 +1633,361 @@ export class AgentController {
    * Interrupted runs
    * ------------------------------------------------------------------ */
 
+  /* ------------------------------------------------------------------ *
+   * Durable goals (agent-harness §7.2)
+   * ------------------------------------------------------------------ */
+
+  private get goalUnavailable(): string | null {
+    return typeof (globalThis as { navigator?: { locks?: { request?: unknown } } }).navigator?.locks?.request === 'function'
+      ? null
+      : t`Goal runs need Web Locks to prevent two tabs from running the same goal.`;
+  }
+
+  offerGoal(draft: Omit<GoalDraft, 'id'>): void {
+    this.goalDraft = structuredClone({ ...draft, id: ++this.goalDraftSeq });
+    this.bump();
+  }
+
+  clearGoalDraft(id: number): void {
+    if (this.goalDraft?.id !== id) return;
+    this.goalDraft = null;
+    this.bump();
+  }
+
+  /**
+   * Reads this project's goal records. An idle call marks any goal a closed tab or a crash left `running` as `interrupted`, which
+   * is what makes recovery explicit: the record waits for the writer, and nothing starts a turn on its own. A store that cannot be
+   * written leaves the rows as they are; the offer below still reads them.
+   */
+  async loadGoals(): Promise<void> {
+    const seq = ++this.goalLoadSeq;
+    const store = this.session.runtimeStore();
+    let markFailed = false;
+    if (this.goalUnavailable === null && this.goalRunning === null && this.goalAction === null) {
+      try {
+        await markGoalsInterrupted(store, this.session.projectId, this.clock());
+      } catch {
+        markFailed = true;
+        // A read-only or stale store: the records are still read below, and no goal is resumed from one this build could not mark.
+      }
+    }
+    let rows: readonly GoalRunRow[];
+    try {
+      rows = await readGoalRuns(store, this.session.projectId);
+    } catch {
+      if (seq !== this.goalLoadSeq) return;
+      if (this.goals.length === 0) return;
+      this.goals = [];
+      this.bump();
+      return;
+    }
+    let owners: ReadonlySet<string> | null = null;
+    try {
+      owners = new Set((await readAgentSessions(store, this.session.projectId)).map((row) => row.sessionId));
+    } catch {
+      owners = null;
+    }
+    const goals: GoalRecoveryView[] = [];
+    for (const row of rows) {
+      let view = goalRecoveryView(row);
+      if (view.status === 'running' && markFailed) view = { ...view, note: t`The goal’s interruption could not be saved. Reopen the project to try again, or discard the goal record.` };
+      if (view.resumable && owners === null) view = { ...view, resumable: false, note: t`The goal’s conversation could not be checked. Reopen the project to try again, or discard the goal record.` };
+      else if (view.resumable && !owners?.has(row.sessionId)) view = { ...view, resumable: false, note: t`That goal’s conversation is no longer saved. Discard the goal record.` };
+      if (view.resumable) for (const runId of row.iterationRunIds) {
+        try {
+          const summary = await this.goalIterationSummary(runId, row.checkpoint as GoalCheckpoint);
+          if (summary.reservedCalls > 0) view = { ...view, note: t`A model call’s usage was not recorded. Any token, cost or active-time limits are treated as spent.` };
+        } catch (error) {
+          view = { ...view, resumable: false, note: error instanceof Error ? error.message : String(error) };
+          break;
+        }
+      }
+      goals.push(view);
+    }
+    if (seq !== this.goalLoadSeq) return;
+    this.goals = goals.sort((a, b) => b.updatedAt - a.updatedAt);
+    this.bump();
+  }
+
+  private async goalIterationSummary(runId: string, checkpoint: GoalCheckpoint) {
+    const run = await readRun(this.session.runtimeStore(), runId);
+    const summary = await this.summarizeLogged(runId);
+    if (run?.projectId !== this.session.projectId || run.schema !== RUN_LOG_VERSION || run.cannotResume === true || summary === undefined || !summary.resumable) {
+      throw new Error(summary?.note ?? 'The goal iteration log cannot be safely resumed.');
+    }
+    const parsed = parseRunEvents(await this.runLog.events(runId));
+    if (!parsed.ok) throw new Error(parsed.detail);
+    const ended = parsed.events.findLast((event) => event.t === 'turn.end');
+    if (ended !== undefined && !checkpoint.iterations.some((iteration) => iteration.turnId === ended.turnId)) {
+      throw new Error('A completed iteration has no saved goal checkpoint. Discard the goal record rather than repeating its work.');
+    }
+    if (parsed.events.some((event) => event.t === 'step.applied' && event.tool.startsWith('mcp__') && !checkpoint.iterations.some((iteration) => iteration.turnId === event.turnId))) {
+      throw new Error(t`The goal iteration already completed an MCP action. Discard the goal record rather than repeating it.`);
+    }
+    return summary;
+  }
+
+  /**
+   * Runs a goal from its first iteration, recording the checkpoint ahead of each one. It refuses while another turn or goal runs: a
+   * goal run owns the panel until it settles, because it is the thing that decides what the next turn is for.
+   */
+  async startGoal(goal: Goal, options: { readonly approvedLargeScope?: boolean } = {}): Promise<void> {
+    if (this.goalUnavailable !== null) {
+      this.message = this.goalUnavailable;
+      this.bump();
+      return;
+    }
+    if (this.busy) {
+      this.message = t`The agent is working on another turn. Start the goal when it has finished.`;
+      this.bump();
+      return;
+    }
+    this.goalAction = 'start';
+    this.goalActionId = goal.id;
+    const abort = new AbortController();
+    this.goalAbort = abort;
+    this.message = null;
+    this.bump();
+    try {
+      if (!(await this.loadSessions()) || this.conversation === null) return;
+      if (abort.signal.aborted) return;
+      await saveAgentSession(this.session.runtimeStore(), this.conversation);
+      if (abort.signal.aborted) return;
+      await createGoalRun(this.session.runtimeStore(), {
+        goalId: goal.id, projectId: this.session.projectId, sessionId: this.sessionId,
+        checkpoint: { goal, approvedLargeScope: options.approvedLargeScope === true, iterations: [], results: [], nextIteration: 1, spend: { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 } }, at: this.clock(),
+      });
+      await this.loadGoals();
+      await this.runGoal(goal, { signal: abort.signal, approvedLargeScope: options.approvedLargeScope === true });
+    } catch (error) {
+      this.message = t`The goal could not be saved, so it was not started: ${{ reason: error instanceof Error ? error.message : String(error) }}`;
+      this.bump();
+    } finally {
+      await this.releaseGoalAction();
+    }
+  }
+
+  /** The writer's explicit resume of an interrupted goal: the same goal, spending what it already spent. */
+  async resumeGoal(goalId: string): Promise<void> {
+    if (this.goalUnavailable !== null) {
+      this.message = this.goalUnavailable;
+      this.bump();
+      return;
+    }
+    if (this.goalAction !== null) return;
+    if (this.busy) {
+      this.message = t`The agent is working on another turn. Resume the goal when it has finished.`;
+      this.bump();
+      return;
+    }
+    this.goalAction = 'resume';
+    this.goalActionId = goalId;
+    const abort = new AbortController();
+    this.goalAbort = abort;
+    this.message = null;
+    this.bump();
+    try {
+      const recovery = await openGoalRecovery(this.session.runtimeStore(), goalId);
+      if (abort.signal.aborted) return;
+      if (recovery.kind !== 'offer' || recovery.row.status !== 'interrupted') {
+        this.message = t`That goal can no longer be resumed.`;
+        return;
+      }
+      const checkpoint = structuredClone(recovery.row.checkpoint as GoalCheckpoint);
+      await this.sessionWrites;
+      if (abort.signal.aborted) return;
+      if (this.sessionSave.failure !== null) {
+        this.message = this.sessionSave.failure;
+        return;
+      }
+      const conversation = (await readAgentSessions(this.session.runtimeStore(), this.session.projectId)).find((row) => row.sessionId === recovery.row.sessionId);
+      if (abort.signal.aborted) return;
+      if (conversation === undefined) {
+        this.message = t`That goal can no longer be resumed.`;
+        return;
+      }
+      if (this.sessionId !== recovery.row.sessionId) {
+        await saveAgentSession(this.session.runtimeStore(), { ...conversation, active: true });
+        if (abort.signal.aborted) return;
+        await this.readConversations();
+        if (abort.signal.aborted) return;
+        await this.showConversation(conversation);
+        if (abort.signal.aborted) return;
+      }
+      const spend = { ...checkpoint.spend };
+      let uncertainUsage = false;
+      for (const runId of recovery.row.iterationRunIds) {
+        const summary = await this.goalIterationSummary(runId, checkpoint);
+        if (abort.signal.aborted) return;
+        const logged = summary.restoredSpend;
+        uncertainUsage ||= summary.reservedCalls > 0;
+        for (const key of ['modelCalls', 'promptTokens', 'completionTokens', 'estimatedTokens', 'steps', 'activeMs'] as const) spend[key] = Math.max(spend[key], logged[key]);
+        if (logged.costUsd !== undefined) spend.costUsd = Math.max(spend.costUsd ?? 0, logged.costUsd);
+      }
+      if (uncertainUsage) {
+        const limits = checkpoint.goal.limits;
+        if (limits.maxTokens !== undefined) {
+          spend.promptTokens = Math.max(spend.promptTokens, limits.maxTokens - spend.completionTokens);
+        }
+        if (limits.maxCostUsd !== undefined) spend.costUsd = Math.max(spend.costUsd ?? 0, limits.maxCostUsd);
+        if (limits.maxActiveMs !== undefined) spend.activeMs = Math.max(spend.activeMs, limits.maxActiveMs);
+      }
+      await resumeGoalRun(this.session.runtimeStore(), goalId, this.clock());
+      const restored = { ...checkpoint, spend };
+      await this.runGoal(checkpoint.goal, { checkpoint: restored, uncertainUsage, signal: abort.signal });
+    } catch (error) {
+      this.message = t`The goal could not be resumed: ${{ reason: error instanceof Error ? error.message : String(error) }}`;
+    } finally {
+      await this.releaseGoalAction();
+    }
+  }
+
+  /** Throws a goal's record away. Its turns and what they wrote stay in the project; only the recovery offer goes. */
+  async discardGoal(goalId: string): Promise<void> {
+    if (this.goalAction !== null) return;
+    this.goalAction = 'discard';
+    this.bump();
+    try {
+      await deleteGoalRun(this.session.runtimeStore(), goalId);
+    } finally {
+      await this.releaseGoalAction();
+    }
+  }
+
+  private async releaseGoalAction(): Promise<void> {
+    if (this.goalAbort?.signal.aborted === true) this.announcement = t`The goal was stopped.`;
+    this.goalAbort = null;
+    this.goalAction = null;
+    this.goalActionId = null;
+    await this.loadGoals();
+    if (this.queue.length > 0 && !this.queuePaused && !this.detached) queueMicrotask(() => void this.runNext());
+  }
+
+  /**
+   * The run itself: one shared meter, the checkpoint saved ahead of every iteration, and one settled record at the end. A checkpoint
+   * that cannot be saved ends the run before that iteration: the meter is never spent on work whose record was lost.
+   */
+  private async runGoal(goal: Goal, options: { readonly checkpoint?: GoalCheckpoint; readonly uncertainUsage?: boolean; readonly signal: AbortSignal; readonly approvedLargeScope?: boolean }): Promise<void> {
+    const store = this.session.runtimeStore();
+    const signal = options.signal;
+    let meter: BudgetMeter | null = null;
+    try {
+      signal.throwIfAborted();
+      const loop = await this.harnessLoop();
+      signal.throwIfAborted();
+      const recovered = options.checkpoint === undefined ? undefined : loop.recoverGoalVerifierCheckpoint(options.checkpoint);
+      const checkpoint = recovered?.checkpoint;
+      const uncertainUsage = options.uncertainUsage === true || recovered?.uncertainUsage === true;
+      if (checkpoint !== undefined && (uncertainUsage || checkpoint !== options.checkpoint)) {
+        await appendGoalCheckpoint(store, goal.id, { checkpoint, at: this.clock() });
+        signal.throwIfAborted();
+      }
+      meter = loop.createBudgetMeter(goal.limits, checkpoint === undefined ? {} : { restored: checkpoint.spend });
+      if (checkpoint !== undefined && goal.limits.maxModelCalls !== undefined && checkpoint.spend.modelCalls >= goal.limits.maxModelCalls) {
+        meter.stop({ dimension: 'model-calls', limit: goal.limits.maxModelCalls, spent: checkpoint.spend.modelCalls });
+      }
+      if (checkpoint !== undefined && uncertainUsage) {
+        const spend = checkpoint.spend;
+        if (goal.limits.maxTokens !== undefined) meter.stop({ dimension: 'tokens', limit: goal.limits.maxTokens, spent: spend.promptTokens + spend.completionTokens });
+        else if (goal.limits.maxCostUsd !== undefined) meter.stop({ dimension: 'cost', limit: goal.limits.maxCostUsd, spent: spend.costUsd ?? 0 });
+        else if (goal.limits.maxActiveMs !== undefined) meter.stop({ dimension: 'active-time', limit: goal.limits.maxActiveMs, spent: spend.activeMs });
+      }
+      this.goalScope = goal.writeScope ?? { mode: 'full' };
+      const agent = this.sessionFor('chat', loop);
+      this.goalMeter = meter;
+      this.goalRunning = goal.id;
+      this.message = null;
+      this.bump();
+      const owner = this.sessionId;
+      const state = this.session.state;
+      const runMeter = meter;
+      const ownershipFence = (): void => {
+        if (this.detached || this.goalRunning !== goal.id || this.sessionId !== owner || this.session.state !== state) throw new Error('The goal no longer owns this project and conversation.');
+        if (this.sessionSave.failure !== null) throw new loop.GoalVerifierPersistenceError('iteration');
+      };
+      const run = await loop.createGoalRunner().start(goal, {
+        session: {
+          ...agent,
+          submit: async (intent, submitOptions) => {
+            const report = await this.turnWith(intent, {}, (session, turn) => session.submit(intent, { ...turn, ...submitOptions, signal: turn.signal === undefined ? signal : AbortSignal.any([turn.signal, signal]) }), true);
+            if (report === null) throw new Error(this.message ?? 'The goal iteration could not start.');
+            return report;
+          },
+        },
+        state,
+        meter,
+        signal,
+        verifier: async (input, save, fence) => {
+          const savedIteration = async (phase: 'prepared' | 'reserved'): Promise<number> => {
+            const row = await readGoalRun(store, goal.id);
+            if (row === undefined || !goalRowReadable(row) || !checkpointReadable(row.checkpoint, goal.id) || row.status !== 'running' || row.sessionId !== owner || row.projectId !== this.session.projectId) throw new loop.GoalVerifierPersistenceError('iteration');
+            const saved = row.checkpoint as GoalCheckpoint;
+            const pending = saved.pendingVerification;
+            const iteration = saved.iterations.find(record => record.n === pending?.iteration);
+            const runId = iteration === undefined ? undefined : this.runForTurn.get(iteration.turnId);
+            if (pending === undefined || pending.phase !== phase || JSON.stringify(saved.goal) !== JSON.stringify(goal) || JSON.stringify(pending.input) !== JSON.stringify(input) || runId === undefined || !row.iterationRunIds.includes(runId)) throw new loop.GoalVerifierPersistenceError('iteration');
+            try {
+              const summary = await this.goalIterationSummary(runId, saved);
+              if (summary.reservedCalls !== 0) throw new Error('The actor usage was not saved.');
+            } catch {
+              throw new loop.GoalVerifierPersistenceError('iteration');
+            }
+            return pending.iteration;
+          };
+          let iteration: number;
+          try {
+            iteration = await savedIteration('prepared');
+          } catch (error) {
+            if (signal.aborted) return { kind: 'cancelled' };
+            throw error;
+          }
+          const port = loop.createGoalVerifierPort({
+            gateway: this.providers.gateway,
+            context: loop.createContextPort({ state, withheld: tool => this.session.harness.withheld(tool) }),
+            meter: runMeter, signal,
+            route: () => this.reviewRoute(),
+            sessionId: owner, turnId: `${owner}.goal-${goal.id}.verify-${iteration}`,
+            languages: () => this.languagePolicy(),
+            fence: ownershipFence,
+          });
+          return port(input, async admission => {
+            await save(admission);
+            if (admission.phase === 'reserved') await savedIteration('reserved');
+          }, fence);
+        },
+        checks: this.session.goalChecks(),
+        ...(options.approvedLargeScope === undefined ? {} : { approvedLargeScope: options.approvedLargeScope }),
+        ...(checkpoint === undefined ? {} : { checkpoint }),
+        withheld: () => this.session.harness.withheldAnywhere(),
+        recordCoherence: (file) => this.session.applyCoherenceFile(file),
+        saveCheckpoint: async (checkpoint) => {
+          await appendGoalCheckpoint(store, goal.id, { checkpoint, at: this.clock() });
+          await this.loadGoals();
+        },
+        saveIteration: async (checkpoint, record) => {
+          const runId = this.runForTurn.get(record.report.turnId);
+          if (runId === undefined) throw new Error('The goal iteration has no durable run log.');
+          await appendGoalCheckpoint(store, goal.id, { checkpoint, runId, at: this.clock() });
+          await this.loadGoals();
+        },
+      });
+      await settleGoalRun(store, goal.id, { status: run.status, reason: run.reason, at: this.clock() });
+      this.announcement = run.reason;
+    } catch (error) {
+      const reason = signal.aborted ? t`The goal was stopped.` : error instanceof Error ? error.message : String(error);
+      this.message = signal.aborted ? reason : t`The goal stopped unexpectedly: ${{ error: reason }}`;
+      if (signal.aborted) this.announcement = reason;
+      await settleGoalRun(store, goal.id, { status: signal.aborted ? 'cancelled' : 'failed', reason, at: this.clock() }).catch(() => undefined);
+    } finally {
+      this.goalMeter = null;
+      this.goalScope = null;
+      this.goalRunning = null;
+      this.goalAbort = null;
+      meter?.dispose();
+      await this.loadGoals();
+    }
+  }
+
   /**
    * Reads the project's unfinished runs from the run log and checks each against the project as it stands. A run whose log could not be
    * written is not offered: it does not describe the run. A log this build cannot read is offered for discarding only.
@@ -1527,8 +2001,10 @@ export class AgentController {
     // A turn that has started since, a newer check, or a panel that has gone: what this check found is no longer the list to show.
     const superseded = (): boolean => this.busy || this.turnsStarted !== turns || this.loadSeq !== seq || this.detached;
     let rows: Awaited<ReturnType<RunLogPort['open']>>;
+    let goalOwned: ReadonlySet<string>;
     try {
       rows = await this.runLog.open(this.session.projectId, { includeSettled: true });
+      goalOwned = new Set((await readGoalRuns(this.session.runtimeStore(), this.session.projectId)).flatMap((goal) => Array.isArray(goal.iterationRunIds) ? goal.iterationRunIds : []));
     } catch (error) {
       if (!superseded()) {
         const reason = error instanceof Error ? error.message : String(error);
@@ -1552,7 +2028,7 @@ export class AgentController {
       if (run.status === 'running' || run.status === 'awaiting-approval') continue;
       let restorable = false;
       try { restorable = (await readRunBaseline(this.session.runtimeStore(), this.session.projectId, run.runId)) !== undefined; } catch { restorable = false; }
-      const fields = { createdAt: run.createdAt, feedback: previous.get(run.runId)?.feedback ?? null, status: run.status, cannotResume: run.cannotResume === true, ...(run.outcome === undefined ? {} : { outcome: run.outcome }), restorable };
+      const fields = { createdAt: run.createdAt, feedback: previous.get(run.runId)?.feedback ?? null, status: run.status, cannotResume: run.cannotResume === true || goalOwned.has(run.runId), ...(run.outcome === undefined ? {} : { outcome: run.outcome }), restorable };
       let summary: ReturnType<typeof summarizeRun>;
       try {
         summary = await this.summarizeLogged(run.runId);
@@ -1572,8 +2048,8 @@ export class AgentController {
         applied: summary.applied,
         total: summary.total,
         spend: summary.spend === undefined ? null : { spend: summary.spend, limits: this.runLimits() },
-        resumable: run.status === 'interrupted' && run.cannotResume !== true && summary.resumable,
-        note: run.status === 'interrupted' ? summary.note ?? null : null,
+        resumable: run.status === 'interrupted' && !fields.cannotResume && summary.resumable,
+        note: goalOwned.has(run.runId) ? t`This turn belongs to a goal. Resume the goal instead.` : run.status === 'interrupted' ? summary.note ?? null : null,
       });
     }
     if (superseded()) return;
@@ -1725,13 +2201,20 @@ export class AgentController {
     // The resumed meter starts from the logged spend. A log that cannot be read gives no spend to start from, so the run is not resumed.
     let restoredSpend: BudgetSpend | undefined;
     let readError: string | undefined;
+    let goalOwned = false;
     try {
-      restoredSpend = (await this.summarizeLogged(runId))?.restoredSpend;
+      goalOwned = (await readGoalRuns(this.session.runtimeStore(), this.session.projectId)).some((goal) => Array.isArray(goal.iterationRunIds) && goal.iterationRunIds.includes(runId));
+      if (!goalOwned) restoredSpend = (await this.summarizeLogged(runId))?.restoredSpend;
     } catch (error) {
       readError = error instanceof Error ? error.message : String(error);
     }
     this.releaseRunAction(runId);
     if (this.detached) return null;
+    if (goalOwned) {
+      this.message = t`This turn belongs to a goal. Resume the goal instead.`;
+      this.bump();
+      return null;
+    }
     if (restoredSpend === undefined) {
       // A read that failed may work next time; a log that was read and cannot be summarized will not.
       this.message =
@@ -1782,7 +2265,11 @@ export class AgentController {
    * and a bus command that has started is not interrupted. A card that waits is cancelled, exactly as its Cancel does.
    */
   stop(): void {
-    if (this.turnAbort === null || this.stopping) return;
+    this.goalAbort?.abort();
+    if (this.turnAbort === null || this.stopping) {
+      if (this.goalAbort !== null) this.bump();
+      return;
+    }
     this.announcement = t`Stopping the turn.`;
     const abort = this.turnAbort;
     const resolve = this.resolveDecision;
@@ -2410,6 +2897,10 @@ export class AgentController {
         return;
       }
       this.dropOffer();
+      this.preparedOffer = freezeDeep({
+        steps: structuredClone(offer.steps),
+        ...(offer.contextOverrides === undefined ? {} : { contextOverrides: copyContext(offer.contextOverrides) }),
+      });
       this.move({ type: 'offer', offer: { view: { offer, unavailable: this.tasks.unavailable(), error: null }, resolve } });
       const calls = offer.estimatedCalls;
       this.announcement = t`This plan needs ${{ calls }} ${plural(calls, { one: 'model call', other: 'model calls' })}. Choose how it runs.`;
@@ -2420,6 +2911,7 @@ export class AgentController {
   /** Cancels an offer that waits, so no answer is left parked. */
   private dropOffer(): void {
     const held = this.offer;
+    this.offerAnswer?.abort.abort();
     this.move({ type: 'offer-answered' });
     held?.resolve('cancel');
   }
@@ -2431,16 +2923,37 @@ export class AgentController {
   async answerOffer(choice: OfferAnswer): Promise<void> {
     const held = this.offer;
     if (held === null) return;
+    if (choice === 'cancel') {
+      this.preparedOfferApproval = null;
+      this.preparedOffer = null;
+      this.offerAnswer?.abort.abort();
+      this.move({ type: 'offer-answered' });
+      this.bump();
+      held.resolve('cancel');
+      return;
+    }
+    if (this.offerAnswer?.held === held) return;
     if (choice === 'background') {
       if (held.view.unavailable !== null) return;
-      const queued = await this.tasks.enqueue(this.intentForNextTurn ?? '', held.view.offer.steps);
-      if (this.offer !== held) return;
+      const abort = new AbortController();
+      this.offerAnswer = { held, abort };
+      const queued = await this.queuePlanOffer(held.view.offer, abort.signal);
+      if (this.offerAnswer?.held === held) this.offerAnswer = null;
+      if (this.offer !== held || abort.signal.aborted) {
+        if (!queued.ok && queued.cancelled !== true) {
+          this.message = queued.reason;
+          this.bump();
+        }
+        return;
+      }
       if (!queued.ok) {
         this.move({ type: 'offer-error', held, error: queued.reason });
         this.bump();
         return;
       }
     }
+    this.preparedOfferApproval = null;
+    this.preparedOffer = null;
     this.move({ type: 'offer-answered' });
     this.bump();
     held.resolve(choice);
@@ -2463,10 +2976,18 @@ export class AgentController {
       return null;
     }
     const { task, review } = found;
-    const report = await this.turnWith(task.intent, {}, (agent, turn) =>
+    const currentTask = this.session.tasksHome()?.current().tasks.find((entry) => entry.id === task.recurringTaskId);
+    const options = {
+      ...(task.contextOverrides === undefined ? {} : { contextOverrides: task.contextOverrides }),
+      ...(task.recurringPermission === undefined ? {} : { mode: effectiveMode(task.recurringPermission, effectiveMode(currentTask?.permission ?? task.recurringPermission), this.settingMode(), this.mode()) }),
+      ...(task.recurringTaskId === undefined ? {} : { role: 'background' as const, maxModelCalls: task.cap }),
+    };
+    const report = await this.turnWith(task.intent, options, (agent, turn) =>
       agent.submitStaged(task.intent, { steps: review.steps }, review.proposals, review.revisions, turn),
     );
-    if (report?.status === 'applied') await this.tasks.markApplied(id);
+    const hasDraftToApply = review.proposals.some((proposal) => proposal !== undefined);
+    const readsSucceeded = report !== null && report !== undefined && report.steps.length > 0 && report.steps.every((step) => step.status === 'done');
+    if (report?.status === 'applied' || (report?.status === 'replied' && !hasDraftToApply && readsSucceeded)) await this.tasks.markApplied(id);
     return report;
   }
 
@@ -2475,16 +2996,16 @@ export class AgentController {
     return this.tasks.snapshot().map((task) => viewOf(task, this.session.state));
   }
 
-  cancelTask(id: string): void {
-    void this.tasks.cancel(id);
+  cancelTask(id: string): Promise<void> {
+    return this.tasks.cancel(id);
   }
 
-  resumeTask(id: string): void {
-    void this.tasks.resume(id);
+  resumeTask(id: string): Promise<void> {
+    return this.tasks.resume(id);
   }
 
-  dismissTask(id: string): void {
-    void this.tasks.dismiss(id);
+  dismissTask(id: string): Promise<void> {
+    return this.tasks.dismiss(id);
   }
 
   /** Whether a task is being drafted or waits to be: the leave prompt warns about it. */
@@ -2495,6 +3016,327 @@ export class AgentController {
   /** Resolves when the queue has nothing left to run. A test waits on it. */
   tasksIdle(): Promise<void> {
     return this.tasks.idle();
+  }
+
+
+  private reviewRoute(): QueuedReviewRoute | undefined {
+    const resolved = this.providers.resolveForRole?.('background');
+    const profile = resolved?.profile ?? this.providers.active();
+    if (profile === undefined) return undefined;
+    const model = resolved?.model ?? profile.defaultModel;
+    return { profileId: profile.id, model, ...(resolved?.thinking === undefined ? {} : { thinking: resolved.thinking }), label: `${profile.name}, ${model}` };
+  }
+
+  private reviewFingerprint(scopeDocIds: readonly string[], categories: readonly string[], maxFindings: number, route: QueuedReviewRoute, contextOverrides?: ContextOverrides): string {
+    const harness = this.session.harness;
+    const withheld = harness.withheld('coherence.review');
+    const view = withheldState(this.session.state, withheld);
+    const context = reviewContextOf(view, contextOverrides);
+    const tree = this.session.state.manifest.tree;
+    const effective = scopeDocIds.map((id) => {
+      const node = tree.find((candidate) => candidate.id === id);
+      return {
+        doc: [id, getRevision(this.session.state, id), node?.title ?? '', node?.status === 'archived'],
+        codex: (context.codex?.(id) ?? []).map((block) => [block.key, block.text]),
+        story: (context.storySoFar?.(id) ?? []).map((block) => [block.key, block.text]),
+      };
+    });
+    const endpoint = this.providers.get(route.profileId)?.baseUrl ?? null;
+    const languages = this.languagePolicy();
+    return textDigest(JSON.stringify({
+      effective,
+      categories: [...categories].sort(),
+      maxFindings,
+      route: [route.profileId, route.model, route.thinking ?? null, endpoint],
+      readPolicy: harness.readPolicy() ?? null,
+      withheld: [...withheld].sort(),
+      language: [languages.ui, languages.project],
+    }));
+  }
+
+  private reviewExclusions(plan: ReviewExecutionPlan, withheld: ReadonlySet<string>): readonly string[] {
+    const tree = this.session.state.manifest.tree;
+    const lines: string[] = [];
+    for (const id of withheld) {
+      const node = tree.find((candidate) => candidate.id === id);
+      if (node !== undefined) lines.push(t`Withheld by a read rule: ${{ title: isolate(node.title) }}`);
+    }
+    for (const doc of plan.documents) {
+      for (const key of doc.codexDropped) lines.push(t`Left out of ${{ title: isolate(doc.title) }} to fit the budget: ${{ key: isolate(key) }}`);
+      for (const key of doc.storyDropped) lines.push(t`Left out of ${{ title: isolate(doc.title) }} to fit the budget: ${{ key: isolate(key) }}`);
+    }
+    return [...new Set(lines)];
+  }
+
+  private reviewApprovalFor(plan: ReviewPlan, route: QueuedReviewRoute, contextOverrides?: ContextOverrides): QueuedReviewApproval {
+    return freezeDeep({
+      plan: structuredClone(reviewExecutionPlanOf(plan)),
+      route: structuredClone(route),
+      callBound: { extractCalls: plan.estimate.extractCalls, verifyCallsAtMost: plan.estimate.verifyCallsAtMost },
+      scopeDocIds: [...plan.scopeDocIds],
+      categories: [...plan.categories],
+      maxFindings: plan.maxFindings,
+      fingerprint: this.reviewFingerprint(plan.scopeDocIds, plan.categories, plan.maxFindings, route, contextOverrides),
+      ...(contextOverrides === undefined ? {} : { contextOverrides: copyContext(contextOverrides) }),
+    });
+  }
+
+  private reviewBoundaryProblem(approval: QueuedReviewApproval): string | null {
+    if (this.mode() === 'plan-only') return t`Plan only mode does not run reviews. Switch to Ask, then queue the review again.`;
+    const status = this.session.coherenceStatus();
+    if (!status.attached) return t`No findings file is open for this project, so the review cannot publish.`;
+    if (!status.writable) return t`The findings file is read-only, so the review cannot publish to it.`;
+    const route = this.reviewRoute();
+    if (route === undefined) return noProviderText();
+    if (route.profileId !== approval.route.profileId || route.model !== approval.route.model || (route.thinking ?? null) !== (approval.route.thinking ?? null)) {
+      return t`The Background route changed since this review was approved. Approve the queue preview again.`;
+    }
+    const withheld = this.session.harness.withheld('coherence.review');
+    if (approval.scopeDocIds.some((id) => withheld.has(id))) {
+      return t`A read rule now keeps a document this review approved. Approve the queue preview again.`;
+    }
+    const denied = this.session.harness.ruleCheck('coherence.review', { scope: { mode: 'doc', docIds: [...approval.scopeDocIds] }, categories: [...approval.categories], maxFindings: approval.maxFindings }).denied;
+    if (denied !== undefined) {
+      return t`A rule now refuses this review: ${{ reason: denied.message }} Approve the queue preview again.`;
+    }
+    if (this.reviewFingerprint(approval.scopeDocIds, approval.categories, approval.maxFindings, approval.route, approval.contextOverrides) !== approval.fingerprint) {
+      return t`The review's documents or read rules changed since it was approved. Approve the queue preview again.`;
+    }
+    return null;
+  }
+
+  async prepareQueuedReview(choice: ReviewChoice): Promise<QueuedReviewPrepared> {
+    if (this.mode() === 'plan-only') return { ok: false, reason: t`Plan only mode does not run reviews. Switch to Ask, then queue the review.` };
+    const status = this.session.coherenceStatus();
+    if (!status.attached) return { ok: false, reason: t`No findings file is open for this project.` };
+    if (!status.writable) return { ok: false, reason: t`The findings file is read-only, so a review cannot publish to it.` };
+    const route = this.reviewRoute();
+    if (route === undefined) return { ok: false, reason: noProviderText() };
+    await this.harnessLoop();
+    const denial = this.session.harness.ruleCheck('coherence.review', { scope: choice.scope, ...(choice.categories === undefined ? {} : { categories: choice.categories }), maxFindings: choice.maxFindings }).denied;
+    if (denial !== undefined) return { ok: false, reason: t`A rule refuses this review: ${{ reason: denial.message }}` };
+    const withheld = this.session.harness.withheld('coherence.review');
+    const excluded = excludedBy(withheld);
+    const file = this.session.coherenceFile() ?? emptyCoherenceFile();
+    let plan: ReviewPlan;
+    try {
+      plan = planReview(this.session.state, file, {
+        scope: choice.scope,
+        ...(choice.categories === undefined ? {} : { categories: choice.categories }),
+        maxFindings: choice.maxFindings,
+        ...(excluded === undefined ? {} : { isExcluded: excluded }),
+      }, reviewContextOf(withheldState(this.session.state, withheld)));
+    } catch (error) {
+      return { ok: false, reason: error instanceof Error ? error.message : String(error) };
+    }
+    if (plan.scopeDocIds.length === 0) return { ok: false, reason: t`No readable documents are in this review's scope. Widen the scope, or check the read rules.` };
+    const approval = this.reviewApprovalFor(plan, route);
+    const cost = reviewCostAt(plan, this.providers.gateway, route.profileId, route.model, route.thinking);
+    const id = newId('cmd');
+    this.preparedReview = { id, approval };
+    return {
+      ok: true,
+      preview: {
+        id,
+        plan: structuredClone(plan),
+        route: structuredClone(approval.route),
+        callBound: structuredClone(approval.callBound),
+        cost,
+        costUnknownReason: cost === undefined ? t`This model has no price, so the estimate is unknown, not zero.` : null,
+        scopeTitles: approval.plan.documents.map((doc) => doc.title),
+        exclusions: this.reviewExclusions(approval.plan, withheld),
+      },
+    };
+  }
+
+  async queuePreparedReview(preview: QueuedReviewPreview, signal?: AbortSignal): Promise<EnqueueResult> {
+    const held = this.preparedReview;
+    if (held === null || held.id !== preview.id) return { ok: false, reason: t`That review preview is no longer held. Approve the queue preview again.` };
+    this.preparedReview = null;
+    if (signal?.aborted === true) return { ok: false, reason: t`Cancelled before it started.`, cancelled: true };
+    const problem = this.reviewBoundaryProblem(held.approval);
+    if (problem !== null) return { ok: false, reason: problem };
+    const { approval } = held;
+    const step: PlanStep = {
+      tool: 'coherence.review',
+      params: { scope: { mode: 'doc', docIds: [...approval.scopeDocIds] }, categories: [...approval.categories], maxFindings: approval.maxFindings },
+      expect: t`A coherence review`,
+    };
+    const scope = approval.plan.documents.map((doc) => isolate(doc.title)).join(', ');
+    return this.tasks.enqueue(t`Coherence review: ${{ scope }}`, [step], approval.contextOverrides, approval, signal);
+  }
+
+  discardQueuedReview(preview: QueuedReviewPreview): void {
+    if (this.preparedReview?.id === preview.id) this.preparedReview = null;
+  }
+
+  async queuePlanOffer(offer: PlanOffer, signal?: AbortSignal): Promise<EnqueueResult> {
+    const reviews = offer.reviews ?? [];
+    if (reviews.length > 1) return { ok: false, reason: t`Queue one coherence review at a time. Split this plan into one review per task.` };
+    const canonical = this.preparedOffer;
+    const review = reviews[0];
+    if (review === undefined) {
+      if (canonical === null) return { ok: false, reason: t`That plan offer is no longer held. Ask for the plan again.` };
+      this.preparedOffer = null;
+      return this.tasks.enqueue(this.intentForNextTurn ?? '', canonical.steps, canonical.contextOverrides, undefined, signal);
+    }
+    const approval = this.preparedOfferApproval;
+    if (canonical === null || approval === null || approval.fingerprint !== review.fingerprint) return { ok: false, reason: t`That plan offer is no longer held. Ask for the plan again.` };
+    this.preparedOfferApproval = null;
+    this.preparedOffer = null;
+    const problem = this.reviewBoundaryProblem(approval);
+    if (problem !== null) return { ok: false, reason: problem };
+    return this.tasks.enqueue(this.intentForNextTurn ?? '', canonical.steps, canonical.contextOverrides, approval, signal);
+  }
+
+  async acknowledgeReviewTask(id: string): Promise<void> {
+    await this.tasks.acknowledge(id);
+  }
+
+  /**
+   * Stages a consented recurring task's plan in the background queue (agent-harness §12): the task's call cap is the queue's cap, and the
+   * record names the recurring task so its run can be recorded when staging settles. Nothing applies; the drafts wait in the Inbox.
+   */
+  async queueRecurringPlan(task: AgentTask, signal?: AbortSignal): Promise<EnqueueResult> {
+    if (task.body.kind !== 'plan') return { ok: false, reason: t`Only a plan can stage its results in the Inbox.` };
+    const consent = (await TaskConsents.open(this.session.projectId)).get(task.id);
+    const current = this.session.tasksHome()?.current().tasks.find((entry) => entry.id === task.id);
+    if (current === undefined || !current.enabled || bodyHash(current) !== bodyHash(task) || effectiveWhenDue(current, consent) !== 'run') {
+      return { ok: false, reason: t`This task is no longer allowed to start by itself. Review its allowance before running it again.` };
+    }
+    return this.tasks.enqueue(task.name, task.body.steps, undefined, undefined, signal, { taskId: task.id, cap: task.maxModelCalls ?? 1, hash: bodyHash(task), permission: task.permission });
+  }
+
+  private reviewOfferFor(step: PlanStep, plan: ReviewPlan): PlanOfferReview | undefined {
+    if (this.mode() === 'plan-only' || plan.scopeDocIds.length === 0) return undefined;
+    const status = this.session.coherenceStatus();
+    if (!status.attached || !status.writable) return undefined;
+    const route = this.reviewRoute();
+    if (route === undefined) return undefined;
+    const approval = this.reviewApprovalFor(plan, route, step.contextOverrides);
+    this.preparedOfferApproval = approval;
+    const cost = reviewCostAt(plan, this.providers.gateway, route.profileId, route.model, route.thinking);
+    return freezeDeep({
+      stepIndex: 0,
+      plan: structuredClone(plan),
+      callBound: approval.callBound,
+      route: structuredClone(route),
+      scopeDocIds: approval.scopeDocIds,
+      categories: approval.categories,
+      maxFindings: approval.maxFindings,
+      fingerprint: approval.fingerprint,
+      cost,
+      costUnknownReason: cost === undefined ? t`This model has no price, so the estimate is unknown, not zero.` : null,
+      scopeTitles: plan.documents.map((doc) => doc.title),
+      exclusions: this.reviewExclusions(plan, this.session.harness.withheld('coherence.review')),
+      ...(step.contextOverrides === undefined ? {} : { contextOverrides: copyContext(step.contextOverrides) }),
+    });
+  }
+
+  private reviewReportOf(run: CoherenceRun, plan: ReviewExecutionPlan, approval: QueuedReviewApproval, usage: TaskReviewReport['usage']): TaskReviewReport {
+    return {
+      runId: run.id,
+      outcome: run.status === 'partial' ? 'partial' : 'complete',
+      findingsCount: run.findingsUpserted.length,
+      scopeTitles: plan.documents.map((doc) => doc.title),
+      routeLabel: approval.route.label,
+      usage,
+    };
+  }
+
+  private async reviewRunnerFor(task: TaskRecord, sessionId: string): Promise<TaskReviewRunner | string> {
+    const approval = task.review;
+    if (approval === undefined) return t`This task has no review approval.`;
+    const profile = this.providers.get(approval.route.profileId);
+    if (profile === undefined) return t`The review's provider is no longer available. Add it again in Settings › Providers.`;
+    const [, harness] = await Promise.all([loadHarnessModule(), this.session.harnessReady()]);
+    const gateway = this.providers.gateway;
+    const turnId = `${task.id}.review`;
+    const languages = this.languagePolicy();
+    return async (current, host) => {
+      const plan = approval.plan;
+      const existingRun = current.reviewRunId === undefined ? undefined : this.session.coherenceFile()?.runs.find((run) => run.id === current.reviewRunId);
+      if (existingRun !== undefined) {
+        await this.session.saved();
+        const checkpoint = current.reviewCheckpoint;
+        const usage = checkpoint !== undefined && typeof checkpoint.modelCalls === 'number' && checkpoint.usageSource !== undefined
+          ? { modelCalls: checkpoint.modelCalls, source: checkpoint.usageSource }
+          : { modelCalls: 0, source: 'unknown' as const };
+        const report = this.reviewReportOf(existingRun, plan, approval, { modelCalls: usage.modelCalls, promptTokens: existingRun.tokens?.promptTokens ?? 0, completionTokens: existingRun.tokens?.completionTokens ?? 0, source: usage.source });
+        return { status: report.outcome, report };
+      }
+      const total = reviewCallCap(approval.callBound);
+      const revalidate = (): void => {
+        const problem = this.reviewBoundaryProblem(approval);
+        if (problem !== null) throw new Error(problem);
+      };
+      const withheld = harness.withheld('coherence.review');
+      const excluded = excludedBy(withheld);
+      const model = backgroundCoherenceModel(gateway, profile, { turnId, sessionId, model: approval.route.model, ...(approval.route.thinking === undefined ? {} : { thinking: approval.route.thinking }), languages }, () => { revalidate(); host.fence(); });
+      const resume = current.reviewCheckpoint;
+      const baseline = gateway.ledger.turnTotals(turnId);
+      const prior = resume === undefined
+        ? { calls: 0, source: 'reported' as const, known: true }
+        : typeof resume.modelCalls === 'number' && resume.usageSource !== undefined
+          ? { calls: resume.modelCalls, source: resume.usageSource, known: true }
+          : { calls: 0, source: 'unknown' as const, known: false };
+      const accounting = (): { modelCalls: number; source: 'reported' | 'estimated' | 'unknown' } => {
+        if (!prior.known) return { modelCalls: 0, source: 'unknown' };
+        const totals = gateway.ledger.turnTotals(turnId);
+        const modelCalls = prior.calls + Math.max(0, totals.requests - baseline.requests);
+        if (modelCalls === 0) return { modelCalls: 0, source: 'unknown' };
+        const newEstimated = Math.max(0, totals.estimatedRequests - baseline.estimatedRequests);
+        const source = prior.source === 'unknown' ? 'unknown' : prior.source === 'estimated' || newEstimated > 0 ? 'estimated' : 'reported';
+        return { modelCalls, source };
+      };
+      let lastCheckpoint: ReviewCheckpoint | undefined;
+      const persistAccounting = async (checkpoint: ReviewCheckpoint): Promise<void> => {
+        if (!prior.known) {
+          await host.checkpoint(checkpoint);
+          return;
+        }
+        const usage = accounting();
+        await host.checkpoint({ ...checkpoint, modelCalls: usage.modelCalls, usageSource: usage.source });
+      };
+      await host.phase('extracting', (resume?.extractedDocIds.length ?? 0) + (resume?.verifiedBatches ?? 0), total);
+      let computed: ReviewComputed;
+      try {
+        computed = await computeReview(this.session.state, this.session.coherenceFile() ?? emptyCoherenceFile(), plan, {
+          model,
+          approved: true,
+          context: reviewContextOf(withheldState(this.session.state, withheld), approval.contextOverrides),
+          signal: host.signal,
+          ...(excluded === undefined ? {} : { isExcluded: excluded }),
+          ...(resume === undefined ? {} : { resumeFrom: resume }),
+          beforeCall: async () => { revalidate(); await host.reserve(); },
+          yieldToHost: async () => {
+            await new Promise<void>((resolve) => { setTimeout(resolve, 0); });
+            if (host.signal.aborted) throw new Error(t`The review was cancelled.`);
+          },
+          onCheckpoint: async (checkpoint) => {
+            lastCheckpoint = checkpoint;
+            await persistAccounting(checkpoint);
+            const done = checkpoint.extractedDocIds.length + checkpoint.verifiedBatches;
+            await host.phase(checkpoint.extractedDocIds.length < plan.scopeDocIds.length ? 'extracting' : 'verifying', done, total);
+          },
+        });
+      } finally {
+        await persistAccounting(lastCheckpoint ?? resume ?? emptyReviewCheckpoint()).catch(() => undefined);
+      }
+      if (host.signal.aborted) return { status: 'cancelled' };
+      await host.phase('publishing', total, total);
+      revalidate();
+      const currentFile = this.session.coherenceFile();
+      if (currentFile === undefined) return { status: 'failed', error: t`No findings file is open for this project, so the review cannot publish.` };
+      if (host.signal.aborted) return { status: 'cancelled' };
+      const result = publishReview(currentFile, computed, { now: new Date(this.clock()), ...(current.reviewRunId === undefined ? {} : { runId: current.reviewRunId }) });
+      if (host.signal.aborted) return { status: 'cancelled' };
+      this.session.applyCoherenceFile(result.file);
+      await this.session.saved();
+      const usage = accounting();
+      const report = this.reviewReportOf(result.run, plan, approval, { modelCalls: usage.modelCalls, promptTokens: computed.promptTokens, completionTokens: computed.completionTokens, source: usage.source });
+      return { status: result.status, report };
+    };
   }
 
   /** The configured routes a writer may explicitly choose for a transcription's second read. */
@@ -2562,14 +3404,22 @@ export class AgentController {
     }, Number.isSafeInteger(seed) && seed > 0 ? seed : 1);
   }
 
+  private contextCompute(): ContextComputeAsync | undefined {
+    if (typeof document === 'undefined' || typeof document.createElement !== 'function') return undefined;
+    return (input, role, languages, signal) => this.session.harnessWorker().assemble(input, role, languages, signal);
+  }
+
   /** The session of a task role, made on its first use (see `sessions`). The harness has loaded (`harnessLoop`) before this runs. */
   private sessionFor(role: TaskRole, loop: HarnessModule): AgentSession {
     const kept = this.sessions.get(role);
     if (kept !== undefined) return kept;
-    const harness = this.session.harness;
+    const harness = this.session.harness.withRules(() => this.goalScope === null ? { rules: [] } : loop.goalRules(undefined, this.goalScope, this.session.state)());
     const agent = loop.createAgentSession({
       harness,
       gateway: this.providers.gateway,
+      // A model hook is pinned to the Background role's own destination: its consent names one profile, and the turn's request carries
+      // that as its approved route, so it is never routed by a step.
+      modelHookRoute: () => pinsOf(this.providers.resolveForRole?.('background')),
       pictureOutbox: this.session.pictureOutbox,
       transcribe: (input) => this.session.transcribePictures(input),
       transcriptionRoute: (profileId, model) => this.transcriptionRoute(profileId, model),
@@ -2592,12 +3442,15 @@ export class AgentController {
             this.writeTrace({ ...record, at: this.startupTrace[0]?.at ?? record.at });
             for (const pending of this.startupTrace) this.writeTrace({ kind: 'machine', turnId: record.turnId, machine: agentControllerTable.id, ...pending });
             this.startupTrace = [];
+            // A replay runs on the project as the turn found it, which nothing else keeps (agent-harness §8.1).
+            this.keepSnapshot(record.turnId);
           }
           else this.writeTrace(record);
         } };
       },
       loadEveryTool: this.loadEveryTool,
       beforeStage: (offer) => this.askOffer(offer),
+      reviewOffer: (step, plan) => this.reviewOfferFor(step, plan),
       mode: () => this.mode(),
       lockAuto: () => this.agentSettings().lockAuto,
       budget: () => {
@@ -2606,9 +3459,11 @@ export class AgentController {
         // A task's cap can only lower the writer's limit, never raise it.
         return this.runCalls === null ? budget : { ...budget, maxModelCalls: Math.min(budget.maxModelCalls ?? Infinity, this.runCalls) };
       },
-      meter: () => this.meter ?? undefined,
+      // A goal run's iterations spend from one meter across turns; an ordinary turn carries its own (`turnWith`).
+      meter: () => this.goalMeter ?? this.meter ?? undefined,
       beforeAutoApply: (card) => this.beforeAutoApply(card),
       runLog: {
+        required: () => this.goalRunning !== null,
         port: this.runLog,
         projectId: this.session.projectId,
         // A step's record is written only once the project holds the step, so "applied" in the log means saved.
@@ -2626,7 +3481,19 @@ export class AgentController {
   }
 
   /** The session a task is staged with: the Background role's profile, the task's id as its name, and no way to decide a card. */
-  private async agentForTask(sessionId: string, maxModelCalls: number): Promise<TaskAgent | string> {
+  private async agentForTask(sessionId: string, maxModelCalls: number, task?: TaskRecord): Promise<TaskAgent | string> {
+    const consent = task?.recurringTaskId === undefined ? undefined : (await TaskConsents.open(this.session.projectId)).get(task.recurringTaskId);
+    const fence = (): void => {
+      if (task?.recurringTaskId === undefined) return;
+      const current = this.session.tasksHome()?.current().tasks.find((entry) => entry.id === task.recurringTaskId);
+      if (current === undefined || !current.enabled || current.body.kind !== 'plan' || bodyHash(current) !== task.recurringHash
+        || bodyHash({ ...current, body: { kind: 'plan', steps: task.steps } }) !== task.recurringHash
+        || current.permission !== task.recurringPermission || (current.maxModelCalls ?? 1) !== task.cap
+        || effectiveWhenDue(current, consent) !== 'run') {
+        throw new Error(t`This task is no longer allowed to start by itself. Review its allowance before running it again.`);
+      }
+    };
+    fence();
     const resolved = this.providers.resolveForRole?.('background');
     const profile = resolved?.profile ?? this.providers.active();
     if (profile === undefined) return noProviderText();
@@ -2634,18 +3501,22 @@ export class AgentController {
     const [loop, harness] = await Promise.all([loadHarnessModule(), this.session.harnessReady()]);
     return loop.createAgentSession({
       harness,
-      gateway: this.providers.gateway,
+      gateway: {
+        ...this.providers.gateway,
+        complete: (request, signal, beforeSend) => this.providers.gateway.complete(request, signal, () => { fence(); beforeSend?.(); }),
+        completeOnce: (request, signal, beforeSend) => this.providers.gateway.completeOnce(request, signal, () => { fence(); beforeSend?.(); }),
+      },
       pictureOutbox: this.session.pictureOutbox,
       transcribe: (input) => this.session.transcribePictures(input),
       transcriptionRoute: (profileId, model) => this.transcriptionRoute(profileId, model),
-      context: loop.createContextPort({ state: this.session.state, config: this.contextConfigFor(() => pinsOf(resolved) ?? { profileId: profile.id }), withheld: (tool) => harness.withheld(tool) }),
+      context: loop.createContextPort({ state: this.session.state, config: this.contextConfigFor(() => pinsOf(resolved) ?? { profileId: profile.id }), withheld: (tool) => harness.withheld(tool), computeAsync: this.contextCompute() }),
       // Staging shows no card. A card that did arrive would be cancelled, so nothing here waits on a writer who is not looking.
       decide: async () => ({ action: 'cancel' }),
       languages: () => this.languagePolicy(),
       role: 'background',
       sessionId,
       usageSessionId: this.sessionId,
-      maxModelCalls,
+      maxModelCalls: Math.min(maxModelCalls, this.agentSettings().budget.maxModelCalls ?? 8),
       clock: this.clock,
       trace: this.traceSink,
       loadEveryTool: this.loadEveryTool,
@@ -2720,6 +3591,9 @@ export class AgentController {
     const resolve = this.resolveDecision;
     this.retireApproval(this.approving?.token ?? null);
     this.dropOffer();
+    this.preparedReview = null;
+    this.preparedOfferApproval = null;
+    this.preparedOffer = null;
     this.move({ type: 'detach' });
     this.clearGhosts();
     resolve?.({ action: 'cancel' });
@@ -2745,7 +3619,7 @@ export class AgentController {
         return JSON.parse(JSON.stringify(held)) as unknown;
       }),
     );
-    void this.loadSessions().then(() => this.loadInterrupted());
+    void this.loadSessions().then(() => this.loadInterrupted()).then(() => this.loadGoals());
     this.queueWork = this.queueWork.then(() => this.tasks.open());
     // Registered here, where the panel that shows the controller attaches it, so a controller React discarded (StrictMode builds
     // one twice) is never the one a findings panel reaches.

@@ -81,6 +81,7 @@ export function buildRegistry(): CommandRegistry {
     'binder.rename': { descriptor: descriptors.binderRename },
     'binder.setMeta': { descriptor: descriptors.binderSetMeta },
     'binder.setSynopsis': { descriptor: descriptors.binderSetSynopsis },
+    'binder.setPublish': { descriptor: descriptors.binderSetPublish },
     'notes.set': { descriptor: descriptors.notesSet },
     'notes.append': { descriptor: descriptors.notesAppend },
     'doc.write': { descriptor: descriptors.docWrite },

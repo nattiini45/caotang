@@ -33,7 +33,8 @@ async function projectWithScene(page: Page, name: string): Promise<void> {
 /** Opens the agent drawer when it is closed: a new project starts with it shut. */
 async function openAgent(page: Page): Promise<void> {
   const toggle = page.getByRole('button', { name: 'Agent', exact: true });
-  if ((await toggle.count()) > 0) await toggle.click();
+  await expect(toggle).toBeVisible();
+  await toggle.click();
 }
 
 async function sendIntent(page: Page, intent: string): Promise<void> {

@@ -5,7 +5,7 @@ import { Trans } from '@lingui/react/macro';
 import { DAY_OFFSET_LIMIT, SCENE_STYLES, STORY_PARTS, THREAD_ID_LIMIT, THREAD_NOTE_LIMIT, TIMELINE_MODES, isDayOffset, type DeclaredStoryPart, type KnowledgeLinkRecord, type ScenePatch, type SceneThread } from '@caotang/bus';
 import { isolate } from '@caotang/i18n';
 import type { CodexEntry, TreeNode } from '@caotang/store';
-import { attachEntry, explain, setSceneStyle } from './actions.js';
+import { attachEntry, explain, setPublish, setSceneStyle } from './actions.js';
 import { afterCandidates, dayLabel, dialogueContainerChoices, inheritedStoryPart, inheritedStoryPartOf, modeLabel, povCandidates, sceneMetaOf, storyPartLabel } from '../app/findings-model.js';
 import { characterCandidates, pairWords } from '../app/knowledge-model.js';
 import { accessibleText } from '../i18n/accessible-text.js';
@@ -14,7 +14,7 @@ import { isImeEnter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import { projectCollator } from '../i18n/project-collator.js';
 import { useStoreDraft } from './store-draft.js';
-import { useReport, useSession } from './shared.js';
+import { useDebouncedText, useReport, useSession } from './shared.js';
 
 /* lingui-set comment="Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions." */
 
@@ -428,5 +428,130 @@ function ChipList({ label, items, addLabel, placeholder, candidates, onAdd, onRe
         {candidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.label}</option>)}
       </select> : null}
     </div>
+  );
+}
+
+/**
+ * The publish fields a document carries (web-publishing.md §2), one debounced input each — the same commit shape as
+ * the synopsis field: a refusal keeps what was typed and reports the bus's sentence. Empty clears the field; the tags
+ * input takes a comma list. A document with no publish date is a draft, so the date field's note says what clearing it
+ * does.
+ */
+export function PublishSection({ session, node }: { session: ProjectSession; node: TreeNode }): ReactNode {
+  useSession(session);
+  useLingui();
+  const publish = node.publish ?? {};
+  return (
+    <section className="inspector-section" aria-label={t`Publishing`} data-testid="publish-section">
+      <h3 className="field-label">
+        <Trans>Publishing</Trans>
+      </h3>
+      <PublishField
+        session={session}
+        node={node}
+        field="slug"
+        label={t`Slug`}
+        placeholder={t`The address segment`}
+        stored={typeof publish['slug'] === 'string' ? (publish['slug'] as string) : ''}
+      />
+      <PublishField
+        session={session}
+        node={node}
+        field="publishedAt"
+        label={t`Publish date`}
+        placeholder={t`2026-11-15T12:00:00Z`}
+        stored={typeof publish['publishedAt'] === 'string' ? (publish['publishedAt'] as string) : ''}
+      />
+      <PublishField
+        session={session}
+        node={node}
+        field="tags"
+        label={t`Tags`}
+        placeholder={t`A comma-separated list`}
+        stored={publishTagsOf(publish).join(', ')}
+        commit={(text) => {
+          const tags = text
+            .split(',')
+            .map((tag) => tag.trim())
+            .filter((tag) => tag !== '');
+          return tags.length > 0 ? tags : null;
+        }}
+      />
+      <PublishField
+        session={session}
+        node={node}
+        field="canonical"
+        label={t`Canonical address`}
+        placeholder={t`https://example.com/post`}
+        stored={typeof publish['canonical'] === 'string' ? (publish['canonical'] as string) : ''}
+      />
+      <PublishField
+        session={session}
+        node={node}
+        field="description"
+        label={t`Description`}
+        placeholder={t`The summary a feed item shows`}
+        stored={typeof publish['description'] === 'string' ? (publish['description'] as string) : ''}
+      />
+      <PublishField
+        session={session}
+        node={node}
+        field="layout"
+        label={t`Layout`}
+        placeholder={t`A template name, passed through`}
+        stored={typeof publish['layout'] === 'string' ? (publish['layout'] as string) : ''}
+      />
+      <p className="field-note">
+        <Trans>A document with no publish date is a draft: it compiles into a preview but stays out of a feed.</Trans>
+      </p>
+    </section>
+  );
+}
+
+/** The tags a publish record carries, as the input shows them — any non-string entries are left for the store to carry. */
+function publishTagsOf(publish: Record<string, unknown>): string[] {
+  const tags = publish['tags'];
+  return Array.isArray(tags) ? tags.filter((tag): tag is string => typeof tag === 'string') : [];
+}
+
+function PublishField({
+  session,
+  node,
+  field,
+  label,
+  placeholder,
+  stored,
+  commit,
+}: {
+  session: ProjectSession;
+  node: TreeNode;
+  field: 'slug' | 'publishedAt' | 'tags' | 'canonical' | 'description' | 'layout';
+  label: string;
+  placeholder: string;
+  stored: string;
+  commit?: (text: string) => string | string[] | null;
+}): ReactNode {
+  const report = useReport();
+  const draft = useDebouncedText(stored, (text) => {
+    const value = commit !== undefined ? commit(text) : text.trim() === '' ? null : text;
+    const outcome = setPublish(session, node.id, field, value);
+    if (!outcome.ok) {
+      report({ text: explain(outcome.error), tone: 'error' });
+      return false;
+    }
+    return true;
+  });
+  return (
+    <label className="scene-field">
+      <span className="field-label">{label}</span>
+      <input
+        type="text"
+        aria-label={label}
+        placeholder={placeholder}
+        value={draft.value}
+        onChange={(event) => draft.change(event.target.value)}
+        onBlur={draft.flush}
+      />
+    </label>
   );
 }

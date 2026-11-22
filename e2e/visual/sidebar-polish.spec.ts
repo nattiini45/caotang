@@ -1,3 +1,4 @@
+import { chooseInterfaceLanguage } from '../support.js';
 import { expect, test } from '@playwright/test';
 
 import { NO_PIN } from '../classic-pin.js';
@@ -43,7 +44,7 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     const settings = page.getByTestId('settings');
     await settings.locator('[data-section="appearance"]').click();
-    await settings.locator('input[name="interface-language"][value="de"]').click();
+    await chooseInterfaceLanguage(page, settings, 'de');
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
     await page.keyboard.press('Escape');
     await page.getByLabel('Projektname', { exact: true }).fill('Der Leuchtturmwärter');
@@ -58,13 +59,34 @@ for (const scheme of ['light', 'dark'] as const) {
     await expect(page).toHaveScreenshot(`modern-${scheme}-german-sidebar-empty.png`, { animations: 'disabled', caret: 'hide', mask: [page.getByTestId('save-state'), page.locator('time')], maxDiffPixels: 0 });
     await page.goto('/');
     await page.getByRole('button', { name: 'Auf Kontinuitätsprobleme prüfen', exact: true }).click();
-    await expect(page.getByTestId('modern-binder-findings-count')).toHaveText(/[1-9]/);
+    // The demo scan on the fixed sample manuscript reports exactly one finding; asserting the digit makes a
+    // count change a test failure instead of a screenshot diff (#644).
+    await expect(page.getByTestId('modern-binder-findings-count')).toHaveText('1');
     await expect(page.locator('.agent-report-text')).toHaveCount(1);
     await page.locator('.modern-companion .agent-close').click();
     await page.getByRole('navigation', { name: 'Binder', exact: true }).getByRole('button', { name: 'Binder', exact: true }).click();
     await expect(page.getByTestId('modern-sidebar').getByRole('tab')).toHaveCount(4);
+    await expect(page.getByTestId('modern-title-dot')).toBeVisible();
     await page.mouse.move(118, 400);
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    // #644: the title's glyph raster is baked inside the ornament's composited glass layer. The findings
+    // dot's mount and the panel's fade still animate after the scan's reply lands; a raster committed
+    // mid-animation sticks at a different subpixel phase. Wait until no animation under the stage is
+    // running, the fonts are settled and two more frames are committed before reading the pixels. A forced
+    // repaint is deliberately avoided — repainting the glass ornament bakes a different glyph phase.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            document
+              .querySelector('.modern-stage')
+              ?.getAnimations({ subtree: true })
+              .filter((animation) => animation.playState === 'running').length ?? 0,
+        ),
+      )
+      .toBe(0);
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
+    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
     await expect(page).toHaveScreenshot(`modern-${scheme}-german-sidebar-count.png`, { animations: 'disabled', caret: 'hide', mask: [page.getByTestId('save-state'), page.locator('time')], maxDiffPixels: 0 });
   });
 }

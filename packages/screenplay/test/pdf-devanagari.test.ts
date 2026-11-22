@@ -184,7 +184,7 @@ describe('the language forms', () => {
     const subset = async (language: string | undefined, line: string) => {
       const support = await loadRtlSupport(['devanagari'], LOADERS, undefined, language === undefined ? {} : { language });
       const layout = layoutPdf(blocksOf(text('INT. A - DAY', '', line)), { title: 'T' }, support.measure);
-      const program = (await loadRtlFallback(layout, support))?.devanagari?.program ?? new Uint8Array();
+      const program = (await loadRtlFallback(layout, support))?.indic?.devanagari?.program ?? new Uint8Array();
       return Buffer.from(program).toString('base64');
     };
     // The Marathi la and sha, and the Nepali jha and digits, are other glyphs of the same font.
@@ -225,7 +225,7 @@ describe('the plan of a line', () => {
     expect(word.glyphs).toHaveLength(2);
     // The glyphs go left to right as drawn: the narrow i sign first, then ka. Both belong to the cluster कि.
     expect(word.glyphs[0]?.x).toBeLessThan(word.glyphs[1]?.x ?? 0);
-    const texts = word.glyphs.map((glyph) => fonts?.devanagari?.entries[glyph.cid - 1]?.text);
+    const texts = word.glyphs.map((glyph) => fonts?.indic?.devanagari?.entries[glyph.cid - 1]?.text);
     expect(texts).toEqual(['कि', '']);
   });
 
@@ -243,7 +243,7 @@ describe('the plan of a line', () => {
     const { items, fonts } = await plan('द्ध द्ध');
     const words = (items ?? []).filter((item) => item.kind === 'shaped');
     expect(words.map((item) => item.glyphs.length)).toEqual([1, 1]);
-    expect(fonts?.devanagari?.entries.map((entry) => entry.text)).toEqual(['द्ध']);
+    expect(fonts?.indic?.devanagari?.entries.map((entry) => entry.text)).toEqual(['द्ध']);
   });
 
   it('plans a mixed line of Devanagari and Arabic, each word in its own font', async () => {
@@ -253,14 +253,18 @@ describe('the plan of a line', () => {
     const fonts = await loadRtlFallback(layout, support);
     const items = fonts?.lines.get(rtlLineKey(line, false)) ?? [];
     expect(items.filter((item) => item.kind === 'shaped').map((item) => item.font).sort()).toEqual(['arabic', 'devanagari']);
-    expect(fonts?.devanagari).toBeDefined();
+    expect(fonts?.indic?.devanagari).toBeDefined();
     expect(fonts?.arabic).toBeDefined();
   });
 
-  it('leaves a line unplanned, to print as "?", when the Devanagari font is not loaded', async () => {
+  it('plans a script whose font is missing as plain text that prints as "?", keeping the rest shaped', async () => {
     const support = await loadRtlSupport(['devanagari'], {});
     const layout = layoutPdf(blocksOf(text('INT. A - DAY', '', 'हिन्दी')), { title: 'T' }, support.measure);
-    expect((await loadRtlFallback(layout, support))?.lines.size).toBe(0);
+    const fallback = await loadRtlFallback(layout, support);
+    expect(fallback?.lines.size).toBe(1);
+    const items = [...(fallback?.lines.values() ?? [])][0]!;
+    expect(items.every((item) => item.kind === 'plain')).toBe(true);
+    expect(items.map((item) => (item.kind === 'plain' ? item.text : '')).join('')).toContain('हिन्दी');
   });
 });
 
@@ -281,12 +285,13 @@ describe('the file', () => {
 
   it('says nothing about Devanagari in the compile log, and names a script that has no font', () => {
     expect(layoutPdf(blocksOf(HINDI), { title: 'T' }).notes).toEqual([]);
-    const tamil = layoutPdf(blocksOf(text('@ராம', 'தமிழ்')), { title: 'T' }).notes;
-    expect(tamil).toEqual([expect.stringMatching(/printed as "\?": .*த/)]);
-    // Tamil and Hindi together: only the Tamil is named.
-    const both = layoutPdf(blocksOf(text('@राम', 'हिन्दी தமிழ்')), { title: 'T' }).notes;
-    expect(both).toHaveLength(1);
-    expect(both[0]).not.toContain('ह');
+    const tamil = renderPdf(blocksOf(text('@ராம', 'தமிழ்')), { title: 'T' }).notes;
+    expect(tamil).toEqual([expect.stringContaining('the Tamil font was not passed to renderPdf')]);
+    // Tamil and Hindi together with no fonts: each script is named.
+    const both = renderPdf(blocksOf(text('@राम', 'हिन्दी தமிழ்')), { title: 'T' }).notes;
+    expect(both).toHaveLength(2);
+    expect(both[0]).toContain('the Devanagari font was not passed');
+    expect(both[1]).toContain('the Tamil font was not passed');
   });
 
   it('prints Devanagari as "?" when the host passes no font for it, and says so', () => {
@@ -297,8 +302,8 @@ describe('the file', () => {
 
   it('loads the font only for a document with Devanagari, and writes a Latin-only file as it was', async () => {
     const latin = text('INT. A - DAY', '', 'Hello. World.', '', 'ANNA', '(quietly)', 'Fine, thanks.');
-    const devanagari = vi.fn(LOADERS.devanagari);
-    const loaders = { cjk: LOADERS.cjk, emoji: LOADERS.emoji, arabic: LOADERS.arabic, hebrew: LOADERS.hebrew, devanagari };
+    const devanagari = vi.fn(LOADERS.indic.devanagari);
+    const loaders = { cjk: LOADERS.cjk, emoji: LOADERS.emoji, arabic: LOADERS.arabic, hebrew: LOADERS.hebrew, indic: { devanagari } };
     const plain = await pdfOf(latin, {}, { cjk: LOADERS.cjk, emoji: LOADERS.emoji });
     expect(await pdfOf(latin, {}, loaders)).toBe(plain);
     expect(await pdfOf(latin, { language: 'hi' }, loaders)).toBe(plain);

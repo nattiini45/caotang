@@ -19,20 +19,22 @@
  */
 
 import { ApplyRefusal, DEFAULT_RECIPE_NAME, type CommandError } from '@caotang/bus';
-import { ArtifactNotFoundError, identifierUrn, type ArtifactFs, type ProjectState } from '@caotang/store';
-import { PDF_MIME } from '@caotang/screenplay';
+import { ArtifactNotFoundError, EXPORTS_DIR, FIXED_ROOT_IDS, identifierUrn, type ArtifactFs, type ProjectState } from '@caotang/store';
+import { PDF_MIME, type PdfFontLoaders } from '@caotang/screenplay';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
 import type { ComicLetteringFontLoader, FontLoader } from '@caotang/pdf-fonts';
 import { extensionOfMime, isAssetId, planPicture, finishPassthrough, sniffPicture, PictureRefusal, type ProcessPicture, type PictureBytes } from '@caotang/pictures';
 import type { PictureTranscoder } from './render-contact-sheet.js';
+import type { IndicFontLoaders } from './indic-font.js';
 import { CBZ_MIME, type ComicRasterizer } from './comic-raster.js';
-import type { ImageRef } from './prose.js';
+import { parseProse, type ImageRef } from './prose.js';
 import { figureSourcesOf, formatBytes, resolveFigures, usedAssetFilesOf, type FigureHost, type FigurePack, type FigureRecord } from './figures.js';
 import { copySpec, docxSpec, epubCoverSpec, epubSpec, profileForSource, type FigureTargetSpec } from './picture-profile.js';
 import { createEmitter, isSkippedRendered, splitRendered, type ByteArtifacts, type Emitter, type EmitFailure, type RenderedContents } from './emit.js';
 import type { ExportJob } from './export-job.js';
 import {
   ExportUnavailableError,
+  MediaRefusedError,
   NoPersistentIdentifierError,
   UnknownExportFormatError,
   UnknownRecipeError,
@@ -47,8 +49,11 @@ import { boilerplateFor } from './boilerplate.js';
 import { renderDocx, DOCX_MIME } from './render-docx.js';
 import { renderEpub, EPUB_MIME, type EpubCover, type EpubInput } from './render-epub.js';
 import { XLSX_MIME } from './render-xlsx.js';
+import { renderHtmlArticle, type PublishMeta } from './render-html.js';
+import { renderAtom, renderRss, type FeedItem } from './render-feed.js';
 import { renderMarkdown, renderText } from './render-text.js';
 import type { RenderInput } from './render-input.js';
+import { drawProsePdf, layoutProsePdf, prepareProsePdf, type ProsePdfOptions } from './render-prose-pdf.js';
 import { DEFAULT_TEMPLATE_ID, fileStem, resolveTemplate, type ExportTemplate } from './template.js';
 import {
   hasTextProof,
@@ -112,7 +117,7 @@ export interface ExporterOptions {
   readonly loadFallbackFont?: FontLoader;
   /**
    * Reads the Bold of the PDF fallback font (Noto Sans Mono CJK SC Bold, `@caotang/font-noto-cjk`), the same way, for text the CJK
-   * font sets (Han, kana, Hangul, Greek, Cyrillic) in a bold place; Arabic, Hebrew, Devanagari and emoji keep their own fonts there.
+   * font sets (Han, kana, Hangul, Greek, Cyrillic) in a bold place; Arabic, Hebrew, the Indic scripts and emoji keep their own fonts there.
    * The contact sheet reads it only when its title, page label or a number chip holds such text; the screenplay PDF draws nothing in
    * bold and does not read it. Without it, that text is the regular weight thickened by a stroke, and the compile log says so.
    */
@@ -130,13 +135,19 @@ export interface ExporterOptions {
    */
   readonly loadColourEmoji?: FontLoader;
   /**
-   * Reads Noto Sans Arabic (`@caotang/font-noto-arabic`), Noto Sans Hebrew (`@caotang/font-noto-hebrew`) and Noto Sans Devanagari
-   * (`@caotang/font-noto-devanagari`) for both PDFs' Arabic, Persian, Urdu, Hebrew, Hindi, Marathi, Nepali and Sanskrit text, the
-   * same way. Each is called only when a file holds its script. Without one, that script is drawn as `?`, and the compile log says so.
+   * Reads Noto Sans Arabic (`@caotang/font-noto-arabic`) and Noto Sans Hebrew (`@caotang/font-noto-hebrew`) for both PDFs' Arabic,
+   * Persian, Urdu and Hebrew text, the same way. Each is called only when a file holds its script. Without one, that script is drawn
+   * as `?`, and the compile log says so.
    */
   readonly loadArabicFont?: FontLoader;
   readonly loadHebrewFont?: FontLoader;
-  readonly loadDevanagariFont?: FontLoader;
+  /**
+   * Reads the Indic Noto Sans fonts (`@caotang/font-noto-devanagari` and the other `@caotang/font-noto-*` script packages), one loader
+   * per script (`indic-font.ts`), for the Indic text the PDFs draw: Devanagari (Hindi, Marathi, Nepali, Sanskrit), Bengali, Gurmukhi,
+   * Gujarati, Odia, Tamil, Telugu, Kannada, Malayalam and Sinhala. A script's loader is called only when a file holds it. Without
+   * one, that script is drawn as `?`, and the compile log says so.
+   */
+  readonly loadIndicFonts?: IndicFontLoaders;
   /**
    * Reads Comic Neue and Bangers (`@caotang/font-comic-lettering`) for the comic PDF's lettering, one face at a time. The app fetches
    * them from its own origin; Node reads them from the package (`@caotang/pdf-fonts/node-loader`). Called only when a balloon has text.
@@ -258,6 +269,18 @@ const EXTENSION: Record<ExportFormat, string> = {
   'timeline-pdf': 'pdf',
   cbz: 'cbz',
   'comic-epub': 'epub',
+  'vo-script-csv': 'csv',
+  'vo-script-xlsx': 'xlsx',
+  'show-notes': 'md',
+  'transcript-md': 'md',
+  teleprompter: 'txt',
+  vtt: 'vtt',
+  'chapters-json': 'json',
+  html: 'html',
+  rss: 'rss.xml',
+  atom: 'atom.xml',
+  'podcast-rss': 'rss.xml',
+  'prose-pdf': 'pdf',
 };
 
 /**
@@ -288,6 +311,18 @@ export const EXPORT_MIME: Readonly<Record<ExportFormat, string>> = {
   'timeline-pdf': PDF_MIME,
   cbz: CBZ_MIME,
   'comic-epub': EPUB_MIME,
+  'vo-script-csv': 'text/csv;charset=utf-8',
+  'vo-script-xlsx': XLSX_MIME,
+  'show-notes': 'text/markdown;charset=utf-8',
+  'transcript-md': 'text/markdown;charset=utf-8',
+  teleprompter: 'text/plain;charset=utf-8',
+  vtt: 'text/vtt;charset=utf-8',
+  'chapters-json': 'application/json+chapters',
+  html: 'text/html;charset=utf-8',
+  rss: 'application/rss+xml',
+  atom: 'application/atom+xml',
+  'podcast-rss': 'application/rss+xml',
+  'prose-pdf': PDF_MIME,
 };
 
 const NO_ASSETS: ReadonlyMap<string, AssetRecord> = new Map();
@@ -434,6 +469,21 @@ export function createExporter(options: ExporterOptions): ExporterService {
       };
     }
 
+    // The HTML article is one file per document (web-publishing.md §3), each named by its slug or its title, each
+    // carrying its publish record. A compile that names no document with a body is refused before anything is reserved.
+    const html = request.format === 'html' ? htmlPlanOf(state, flat.blocks, request.options, metadata.language) : undefined;
+    if (request.format === 'html' && html !== undefined && html.articles.length === 0) {
+      throw new MediaRefusedError('html', ['the selection holds no document with a body, so there is no article to write']);
+    }
+
+    // A feed is one file for the whole selection (web-publishing.md §3): its channel is the recipe's folder, its
+    // items every document the flatten kept, drafts among them (the render skips and names them). Its `siteUrl` is
+    // required — RSS's channel link and Atom's feed id — and absent or not absolute https it refuses here, before
+    // anything is reserved.
+    const feed = request.format === 'rss' || request.format === 'atom'
+      ? feedPlanOf(state, request.format, flat.blocks, request.options, request.selection.includeRootIds, metadata.language)
+      : undefined;
+
     // The pictures the bodies place (pictures.md §4): the mode, the assets folder a copy writes beside the file, and the
     // resolution plan (the host, the target's profile and the placements) the render runs.
     const pictures = picturesPlanOf(state, request, flat.blocks, request.base);
@@ -449,9 +499,42 @@ export function createExporter(options: ExporterOptions): ExporterService {
       toc: tocIncluded && request.format !== 'epub',
       contentsLabel: boilerplate.contents,
       boilerplate,
+      ...(request.options.notes === undefined ? {} : { notes: request.options.notes }),
       ...(pictures.mode === undefined ? {} : { pictures: pictures.mode }),
       ...(pictures.assetsDir === undefined ? {} : { assetsDir: pictures.assetsDir }),
     };
+
+    // The prose PDF (exporter.md §3): laid out at plan time, so a compile that prints nothing is refused
+    // before anything is reserved, and the fonts are loaded when the file renders, not before.
+    let prosePdf: ProsePdfPlan | undefined;
+    if (request.format === 'prose-pdf') {
+      const pdfOpts: ProsePdfOptions = {
+        ...(metadata.language === undefined ? {} : { language: metadata.language }),
+        ...(request.options.pageSize === undefined ? {} : { pageSize: request.options.pageSize }),
+        ...(request.options.scriptFont === undefined ? {} : { scriptFont: request.options.scriptFont }),
+        ...(request.options.colourEmoji === undefined ? {} : { colourEmoji: request.options.colourEmoji }),
+        ...(request.options.notes === undefined ? {} : { notes: request.options.notes }),
+        ...(request.options.pdfProfile === undefined ? {} : { profile: request.options.pdfProfile }),
+      };
+      // PDF/A embeds every font it names, so the base-14 Courier cannot write it (exporter.md §3).
+      if (pdfOpts.profile !== undefined && pdfOpts.scriptFont === 'courier') {
+        throw new MediaRefusedError('prose-pdf', ['pdf: PDF/A embeds every font it names, so the Courier face cannot write it — pick Courier Prime or Cousine']);
+      }
+      const layout = layoutProsePdf(input, pdfOpts);
+      if (layout.scriptPageCount === 0) {
+        throw new MediaRefusedError('prose-pdf', ['the selection holds no text that prints, so there is nothing to print']);
+      }
+      notes.push(...layout.notes);
+      const loaders: PdfFontLoaders = {
+        ...(options.loadFallbackFont === undefined ? {} : { cjk: options.loadFallbackFont }),
+        ...(options.loadEmojiFont === undefined ? {} : { emoji: options.loadEmojiFont }),
+        ...(options.loadColourEmoji === undefined ? {} : { colourEmoji: options.loadColourEmoji }),
+        ...(options.loadArabicFont === undefined ? {} : { arabic: options.loadArabicFont }),
+        ...(options.loadHebrewFont === undefined ? {} : { hebrew: options.loadHebrewFont }),
+        ...(options.loadIndicFonts === undefined ? {} : { indic: options.loadIndicFonts }),
+      };
+      prosePdf = { opts: pdfOpts, layout, loaders };
+    }
 
     const entry: Omit<CompileLogEntry, 'output'> = {
       at: at.toISOString(),
@@ -466,7 +549,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
       notes,
     };
 
-    return { kind: 'prose', format: request.format, input, flat, entry, title, epub, at: request.at, base: request.base, pictures: pictures.plan };
+    return { kind: 'prose', format: request.format, input, flat, entry, title, epub, html, feed, prosePdf, at: request.at, base: request.base, pictures: pictures.plan };
   };
 
   /**
@@ -492,7 +575,8 @@ export function createExporter(options: ExporterOptions): ExporterService {
     // EPUB always carries a contents document (nav.xhtml, §3a), so its flag is on
     // whenever it has a chapter or a part to list; the other formats follow the recipe.
     const headings = flat.chapterCount + flat.partCount;
-    const tocIncluded = request.format === 'epub' ? headings > 0 : request.format !== 'txt' && wantToc && headings > 0;
+    // An article has no contents list: the `html` writer writes one file per document, each its own piece.
+    const tocIncluded = request.format === 'epub' ? headings > 0 : request.format !== 'txt' && request.format !== 'html' && wantToc && headings > 0;
 
     const notes: string[] = [...flat.notes];
     if (templateNote !== undefined) notes.push(templateNote);
@@ -521,6 +605,8 @@ export function createExporter(options: ExporterOptions): ExporterService {
       ...(request.templateId === undefined ? {} : { vendor: request.templateId }),
       // The recipe's character limit reaches the dialogue table (dialogue-narrative.md §4), as CSV or as a spreadsheet.
       charLimit: request.options.charLimit ?? null,
+      // The teleprompter's wrap width in characters (av-script.md §5). Absent is the compile's own default. Only `teleprompter` reads it.
+      teleprompterWidth: request.options.teleprompterWidth ?? null,
       // The screenplay PDF's scene numbers and continuation marks (screenplay.md §5.3). Only `pdf` reads them.
       ...(request.options.sceneNumbers === undefined ? {} : { sceneNumbers: request.options.sceneNumbers }),
       ...(request.options.continued === undefined ? {} : { continued: request.options.continued }),
@@ -549,7 +635,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
       ...(options.loadColourEmoji === undefined ? {} : { loadColourEmoji: options.loadColourEmoji }),
       ...(options.loadArabicFont === undefined ? {} : { loadArabicFont: options.loadArabicFont }),
       ...(options.loadHebrewFont === undefined ? {} : { loadHebrewFont: options.loadHebrewFont }),
-      ...(options.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: options.loadDevanagariFont }),
+      ...(options.loadIndicFonts === undefined ? {} : { loadIndicFonts: options.loadIndicFonts }),
       ...(options.transcodePicture === undefined ? {} : { transcodePicture: options.transcodePicture }),
       ...(common.language === undefined ? {} : { language: common.language }),
       ...(options.reportWords === undefined ? {} : { reportWords: options.reportWords() }),
@@ -768,6 +854,20 @@ export function createExporter(options: ExporterOptions): ExporterService {
 
     // The names are reserved together, and only after the plan has accepted the compile: a refused plan reserves nothing.
     const placed = emitter.reserveGroup(filesOf(compiled, `${base}.${EXTENSION[format]}`));
+    // A slugged article's file name IS its front-matter route: under `frontMatter` an occupied name
+    // cannot take a suffix — `post-2.html` would still declare `permalink: post`. Refuse the route's
+    // collision rather than write a second file claiming it.
+    if (compiled.kind === 'prose' && compiled.format === 'html' && compiled.html?.frontMatter === true) {
+      const articles = compiled.html.articles;
+      const occupied = placed.filter((file, i) => articles[i]?.slugged === true && file.path !== `${EXPORTS_DIR}/${file.name}`);
+      if (occupied.length > 0) {
+        emitter.restoreAll(placed.map((file) => file.path));
+        const names = occupied.slice(0, 3).map((file) => `"${file.name.replace(/\.html$/, '')}"`);
+        throw new MediaRefusedError('html', [
+          `the route ${names.join(', ')} is already taken by an export — a second file would publish the same permalink; remove the older export and compile again`,
+        ]);
+      }
+    }
     const paths = placed.map((file) => file.path);
     const job = emitter.publishFiles({
       files: placed.map((file) => ({ path: file.path, format, render: file.render })),
@@ -803,6 +903,45 @@ export function createExporter(options: ExporterOptions): ExporterService {
    */
   function filesOf(compiled: CompilePlan, proseName: string): RenderedFile[] {
     if (compiled.kind === 'prose') {
+      if (compiled.format === 'html' && compiled.html !== undefined) {
+        const html = compiled.html;
+        return html.articles.map((article) => ({
+          name: `${article.name}.html`,
+          mimeType: EXPORT_MIME.html,
+          render: async () => {
+            const notes: string[] = [];
+            const parsed = parseProse(article.body);
+            const text = renderHtmlArticle({
+              title: article.title,
+              blocks: parsed.blocks,
+              ...(parsed.notes.size === 0 ? {} : { notes: parsed.notes }),
+              ...(article.publish === undefined ? {} : { publish: article.publish }),
+              standalone: html.standalone,
+              frontMatter: html.frontMatter,
+              ...(html.css === undefined ? {} : { css: html.css }),
+              lang: html.lang,
+            });
+            return { contents: text, notes };
+          },
+        }));
+      }
+      if ((compiled.format === 'rss' || compiled.format === 'atom') && compiled.feed !== undefined) {
+        const feed = compiled.feed;
+        const at = compiled.at;
+        return [
+          {
+            name: proseName,
+            mimeType: EXPORT_MIME[compiled.format],
+            render: async () => {
+              const rendered =
+                compiled.format === 'rss'
+                  ? renderRss({ siteUrl: feed.siteUrl, channelTitle: feed.channelTitle, ...(feed.channelDescription === undefined ? {} : { channelDescription: feed.channelDescription }), lang: feed.lang, author: feed.author, at, items: feed.items })
+                  : renderAtom({ siteUrl: feed.siteUrl, channelTitle: feed.channelTitle, ...(feed.channelDescription === undefined ? {} : { channelDescription: feed.channelDescription }), lang: feed.lang, author: feed.author, at, items: feed.items });
+              return { contents: rendered.xml, notes: [...rendered.notes] };
+            },
+          },
+        ];
+      }
       const files: RenderedFile[] = [{ name: proseName, mimeType: EXPORT_MIME[compiled.format], render: () => renderProse(compiled) }];
       if (compiled.format === 'md' && compiled.pictures?.mode === 'copy') {
         for (const file of usedAssetFilesOf(compiled.flat.blocks)) {
@@ -831,6 +970,125 @@ export function createExporter(options: ExporterOptions): ExporterService {
   }
 
   return exporter;
+}
+
+/**
+ * The documents an `html` compile writes one file each for (web-publishing.md §3): the flat blocks' scenes, named by
+ * the document's slug or its title made safe, each carrying the `publish` record its node holds. Two documents that
+ * resolve to the same stem are told apart by a `-2`/`-3` suffix, so the group reservation never sees a duplicate.
+ */
+function htmlPlanOf(
+  state: ProjectState,
+  blocks: readonly FlatBlock[],
+  options: CompileOptions,
+  language: string | undefined,
+): HtmlPlan {
+  const taken = new Set<string>();
+  const articles: HtmlArticlePlan[] = [];
+  const frontMatter = options.frontMatter ?? false;
+  const slugs = new Map<string, string>();
+  for (const block of blocks) {
+    if (block.kind !== 'scene') continue;
+    const publish = state.manifest.tree.find((node) => node.id === block.docId)?.publish;
+    const slug = typeof publish?.['slug'] === 'string' && publish['slug'] !== '' ? publish['slug'] : undefined;
+    // A front-matter slug is the route a static site serves the article under: two documents sharing
+    // it would get distinct files but one permalink, so the compile refuses rather than diverging.
+    // Compared exactly — hosts that distinguish `Post` from `post` serve both routes.
+    if (frontMatter && slug !== undefined) {
+      const owner = slugs.get(slug);
+      if (owner !== undefined) {
+        throw new MediaRefusedError('html', [
+          `"${owner}" and "${block.title}" share the slug "${slug}", so their front matter would publish the same permalink`,
+        ]);
+      }
+      slugs.set(slug, block.title);
+    }
+    const stem = fileStem(slug ?? block.title);
+    let name = stem;
+    // Compared without case: two stems that differ only in case share a file on a synced folder.
+    for (let n = 2; taken.has(name.toLowerCase()); n += 1) name = `${stem}-${n}`;
+    // A synced folder holds a file name of at most 255 bytes: the stem, `.html` and a collision
+    // suffix must fit inside it — a name that cannot is refused rather than failing at write time.
+    if (new TextEncoder().encode(`${name}.html`).length > 255) {
+      throw new MediaRefusedError('html', [
+        `"${block.title}" asks for the file "${name}.html", which is more than a folder's 255-byte name limit — shorten the title or the slug`,
+      ]);
+    }
+    taken.add(name.toLowerCase());
+    articles.push({
+      name,
+      docId: block.docId,
+      title: block.title,
+      body: block.body,
+      slugged: slug !== undefined,
+      ...(publish === undefined ? {} : { publish }),
+    });
+  }
+  return {
+    standalone: options.htmlMode !== 'fragment',
+    frontMatter,
+    ...(options.css === undefined || options.css === '' ? {} : { css: options.css }),
+    lang: language ?? 'en',
+    articles,
+  };
+}
+
+/**
+ * A feed compile's shape (web-publishing.md §3): the recipe's `siteUrl`, checked to be an absolute `https` address or
+ * the compile is refused; the channel from the folder the selection names (the project's name for a fixed root); and
+ * every document the flatten kept, drafts among them, in binder order.
+ */
+function feedPlanOf(
+  state: ProjectState,
+  format: 'rss' | 'atom',
+  blocks: readonly FlatBlock[],
+  options: CompileOptions,
+  includeRootIds: readonly string[],
+  language: string | undefined,
+): FeedPlan {
+  const siteUrl = options.siteUrl;
+  // The same bar `binder.setPublish` holds a canonical to: a string the WHATWG parser would rewrite
+  // (a control character or space) is refused, then the address must parse as https with a host and
+  // no credentials — the feed's <link> and every entry id are built on it verbatim.
+  const siteOk =
+    typeof siteUrl === 'string' &&
+    ![...siteUrl].some((ch) => ch <= ' ') &&
+    (() => {
+      try {
+        const url = new URL(siteUrl);
+        return url.protocol === 'https:' && url.hostname !== '' && url.username === '' && url.password === '';
+      } catch {
+        return false;
+      }
+    })();
+  if (!siteOk) {
+    throw new MediaRefusedError(format, [
+      'the recipe needs the siteUrl option: the site\'s absolute https address, like https://example.com — set it on the recipe and compile again',
+    ]);
+  }
+  const root = includeRootIds[0] === undefined ? undefined : state.manifest.tree.find((node) => node.id === includeRootIds[0]);
+  const rootIsFixed = root !== undefined && (FIXED_ROOT_IDS as readonly string[]).includes(root.id);
+  const items: FeedItem[] = [];
+  for (const block of blocks) {
+    if (block.kind !== 'scene') continue;
+    const publish = state.manifest.tree.find((node) => node.id === block.docId)?.publish;
+    items.push({
+      docId: block.docId,
+      title: block.title,
+      body: block.body,
+      ...(publish === undefined ? {} : { publish }),
+    });
+  }
+  const channelTitle = root === undefined || rootIsFixed ? state.manifest.project.name : root.title;
+  return {
+    siteUrl,
+    channelTitle,
+    ...(root !== undefined && root.synopsis !== '' ? { channelDescription: root.synopsis } : {}),
+    lang: language ?? 'en',
+    // Atom requires a byline: the recipe's author override, the project's author, then the channel itself.
+    author: options.author ?? state.manifest.project.author ?? channelTitle,
+    items,
+  };
 }
 
 /** The MIME type of an `assets/` file name, from its extension. */
@@ -867,9 +1125,19 @@ async function renderProse(compiled: ProsePlan): Promise<RenderedContents> {
       return { contents: await renderDocx(input), notes };
     case 'epub':
       return renderEpubArtifactFor(compiled, input, notes);
+    case 'prose-pdf':
+      return renderProsePdfFor(compiled, input, notes);
     default:
       throw new Error(`"${compiled.format}" is not a prose format, so it has no prose renderer`);
   }
+}
+
+/** The prose PDF's render: the fonts load now, the layout the plan kept is recomputed against the measured text. */
+async function renderProsePdfFor(compiled: ProsePlan, input: RenderInput, notes: string[]): Promise<{ readonly contents: Uint8Array; readonly notes: readonly string[] }> {
+  if (compiled.prosePdf === undefined) throw new Error('a prose PDF reached the renderer without its plan');
+  const prepared = await prepareProsePdf(input, compiled.prosePdf.opts, compiled.prosePdf.loaders);
+  notes.push(...prepared.colourNotes);
+  return { contents: drawProsePdf(prepared), notes };
 }
 
 async function renderEpubArtifactFor(compiled: ProsePlan, input: RenderInput, notes: string[]): Promise<{ readonly contents: Uint8Array; readonly notes: readonly string[] }> {
@@ -999,6 +1267,54 @@ interface ProsePlan extends PlanCommon {
   readonly pictures?: ProsePictures;
   /** Present for an EPUB only: the identifier and language its package document carries. */
   readonly epub?: EpubFacts;
+  /** Present for the HTML article only: the documents it writes a file each for, and its recipe options (web-publishing.md §3). */
+  readonly html?: HtmlPlan;
+  /** Present for the feeds only: the channel facts and every document the selection holds, drafts included (web-publishing.md §3). */
+  readonly feed?: FeedPlan;
+  /** Present for the prose PDF only: its recipe options and the layout the plan computed (exporter.md §3). */
+  readonly prosePdf?: ProsePdfPlan;
+}
+
+/** The prose PDF's planned half: the recipe options it reads and the layout the plan's gate refused or accepted. */
+interface ProsePdfPlan {
+  readonly opts: ProsePdfOptions;
+  readonly layout: ReturnType<typeof layoutProsePdf>;
+  /** The host's font loaders, from the service options — the same fields `preparePdf` reads for the screenplay PDF. */
+  readonly loaders: PdfFontLoaders;
+}
+
+/** One feed's shape: the channel facts and the candidate items, drafts among them (the render skips and names them). */
+interface FeedPlan {
+  readonly siteUrl: string;
+  readonly channelTitle: string;
+  readonly channelDescription?: string;
+  readonly lang: string;
+  /** RFC 4287's required byline: the recipe's `author`, the project's author, or the channel title. */
+  readonly author: string;
+  readonly items: readonly FeedItem[];
+}
+
+/** One document's article file, as the html compile knows it from the flat blocks and the manifest. */
+interface HtmlArticlePlan {
+  /** The file stem, unique within the compile: the document's slug, else its title made safe. */
+  readonly name: string;
+  readonly docId: string;
+  readonly title: string;
+  readonly body: string;
+  /** A `publish.slug` set on the document — the article's file name is the route it publishes. */
+  readonly slugged: boolean;
+  /** The document's `publish` record, when it has one (web-publishing.md §2). */
+  readonly publish?: PublishMeta;
+}
+
+/** The HTML article compile's shape: one file per document, under the recipe's frontMatter/htmlMode/css options. */
+interface HtmlPlan {
+  readonly standalone: boolean;
+  readonly frontMatter: boolean;
+  /** The stylesheet address the recipe names, emitted as `<link rel="stylesheet">` (web-publishing.md §3). */
+  readonly css?: string;
+  readonly lang: string;
+  readonly articles: readonly HtmlArticlePlan[];
 }
 
 /** One prose compile's picture resolution: built at plan time (synchronously), run once at render. */

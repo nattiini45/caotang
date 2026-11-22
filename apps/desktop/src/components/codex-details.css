@@ -1,0 +1,37 @@
+.codex-detail-control {
+  display: grid;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.codex-detail-form {
+  gap: var(--space-3);
+  margin-block-start: var(--space-3);
+}
+
+.codex-detail-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: start;
+}
+
+.codex-detail-options {
+  min-inline-size: 8rem;
+  max-inline-size: 90vw;
+  padding: var(--space-1);
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  z-index: 20;
+}
+
+.codex-detail-options [data-slot='select-item'] {
+  padding: var(--space-3) var(--space-4);
+}
+
+.codex-detail-options [data-highlighted] {
+  background: var(--accent-soft);
+}

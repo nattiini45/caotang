@@ -1,0 +1,129 @@
+.codex-view-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-inline-start: auto;
+}
+
+.codex-view-switch [aria-pressed='true'] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.codex-graph {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.codex-graph-summary {
+  margin: 0;
+  color: var(--muted);
+}
+
+.codex-graph-drawing {
+  inline-size: 100%;
+  block-size: auto;
+  max-block-size: 24rem;
+  overflow: visible;
+}
+
+.codex-graph-edge {
+  stroke: var(--line-strong);
+  stroke-width: 1.25;
+}
+
+.codex-graph-arrowhead {
+  fill: var(--line-strong);
+}
+
+.codex-graph-node {
+  fill: var(--accent);
+}
+
+.codex-graph-name {
+  fill: var(--ink);
+  font-size: 13px;
+}
+
+.codex-graph-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.codex-graph-item {
+  display: grid;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  padding-block-start: var(--space-2);
+  border-block-start: 1px solid var(--line);
+}
+
+.codex-graph-entry {
+  justify-self: start;
+  padding-inline: 0;
+  color: var(--accent);
+  font-weight: 600;
+  text-align: start;
+}
+
+.codex-graph-links {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.codex-graph-links li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.codex-graph-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  text-align: start;
+}
+
+.codex-graph-arrow {
+  color: var(--muted);
+}
+
+.codex-graph-label {
+  color: var(--muted);
+}
+
+.codex-graph-back {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+@media (min-width: 720px) {
+  .codex-graph {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    column-gap: var(--space-4);
+  }
+
+  .codex-graph-summary,
+  .codex-graph-back {
+    grid-column: 1 / -1;
+  }
+
+  .codex-graph-drawing {
+    position: sticky;
+    inset-block-start: 0;
+    max-block-size: none;
+  }
+}

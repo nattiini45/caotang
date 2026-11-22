@@ -108,7 +108,8 @@ function trimEndDotsAndSpaces(text: string): string {
  * A title made safe to use as a file name in `exports/` on every platform the
  * artifact folder may be synced to. Reserved characters and control characters
  * become spaces; trailing dots and spaces go (Windows drops them); the stem is
- * capped; and the three-letter device names get a leading underscore.
+ * capped; and the device names get a leading underscore — matched on the part before the first
+ * dot as well as the whole stem, since Windows reserves `CON.txt` too.
  * A title with nothing left is the project language's word for an untitled document (i18n.md §7.1), "Untitled" by default.
  */
 export function fileStem(title: string, untitled = 'Untitled'): string {
@@ -121,7 +122,8 @@ export function fileStem(title: string, untitled = 'Untitled'): string {
     .slice(0, 120)
     .trim();
   if (cleaned.length === 0) return untitled;
-  return RESERVED_WINDOWS_NAME.test(cleaned) ? `_${cleaned}` : cleaned;
+  const device = cleaned.split('.')[0] ?? cleaned;
+  return RESERVED_WINDOWS_NAME.test(device) ? `_${cleaned}` : cleaned;
 }
 
 /**

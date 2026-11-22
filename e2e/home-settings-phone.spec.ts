@@ -1,8 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from './test.js';
 
 test.use({ viewport: { width: 390, height: 844 } });
 
-test('Modern Home wraps unbroken introduction text and demo labels without page overflow', async ({ page }) => {
+test('Modern Home wraps unbroken introduction text and demo labels without page overflow', { tag: '@modern' }, async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('caotang.interface', 'modern'));
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('data-shell', 'modern');
@@ -34,7 +35,7 @@ for (const shell of ['classic', 'modern'] as const) {
       await expect(page.getByRole('heading', { name: 'Projects in this browser', exact: true })).toBeVisible();
     });
 
-    test('Home keeps its header first and prioritizes returning projects below it', async ({ page }, testInfo) => {
+    test('Home keeps its header first and prioritizes returning projects below it', { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }, testInfo) => {
       await expect(page.getByRole('heading', { name: 'No projects here yet', exact: true })).toBeVisible();
       await expect(page.locator('.project-list')).toHaveCount(0);
       const emptyOrder = await page.locator('.home').evaluate((home) => {
@@ -65,7 +66,7 @@ for (const shell of ['classic', 'modern'] as const) {
       await expect(page.locator(shell === 'modern' ? '[data-testid="modern-stage"]' : '.workspace')).toBeVisible();
     });
 
-    test('Settings sections stay in one scrolling strip, with a pill on the section in use', async ({ page }, testInfo) => {
+    test('Settings sections stay in one scrolling strip, with a pill on the section in use', { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }, testInfo) => {
       await page.getByRole('button', { name: 'Settings', exact: true }).click();
       const settings = page.getByRole('dialog', { name: 'Settings', exact: true });
       const nav = settings.getByRole('navigation', { name: 'Settings sections', exact: true });

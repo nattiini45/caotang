@@ -67,6 +67,7 @@ export function microtaskSubtle(): SubtleCrypto {
     generateKey: async () => ({ type: 'secret', extractable: false, algorithm: { name: 'AES-GCM' }, usages: ['encrypt', 'decrypt'] }),
     encrypt: async (_alg: unknown, _key: unknown, data: BufferSource) => xor(data),
     decrypt: async (_alg: unknown, _key: unknown, data: BufferSource) => xor(data),
+    digest: globalThis.crypto.subtle.digest.bind(globalThis.crypto.subtle),
   } as unknown as SubtleCrypto;
 }
 
@@ -183,6 +184,8 @@ export interface HarnessOptions {
   mock?: MockProvider;
   /** the trace observer, as `GatewayOptions.observe` */
   observe?: Parameters<typeof createGateway>[0]['observe'];
+  /** the adaptive request limit's start and ceiling, as `GatewayOptions.concurrency` */
+  concurrency?: Parameters<typeof createGateway>[0]['concurrency'];
 }
 
 /**
@@ -208,6 +211,7 @@ export function harness(options: HarnessOptions = {}): Harness {
     loopbackPermission: options.loopbackPermission ?? (async () => undefined),
     ...(options.mock === undefined ? {} : { mock: options.mock }),
     ...(options.observe === undefined ? {} : { observe: options.observe }),
+    ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
   });
   return { clock, keys, profiles, net, gateway };
 }

@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // DOM is here for `lib.dom`'s types only. This package imports the AV script's grammar constants from
+    // `@caotang/script`, whose sources import types from `@caotang/store`, and the store's sources reference
+    // IndexedDB interfaces, so the type-check program pulls them in, as in `packages/script` itself. Nothing here runs in a browser.
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

@@ -157,7 +157,7 @@ function importTreeApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectAp
       const status = termId('statuses', node.status);
       const label = termId('labels', node.label);
       if (node.type === 'folder') {
-        const folder = addNode(state, { parentId, title: node.title, type: 'folder', now: at });
+        const folder = addNode(state, { parentId, title: node.title, type: 'folder', now: at, ...(node.kind === undefined ? {} : { kind: node.kind }) });
         folder.synopsis = node.synopsis ?? '';
         folder.notes = node.notes ?? '';
         folder.keywords = [...(node.keywords ?? [])];
@@ -175,6 +175,7 @@ function importTreeApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectAp
         title: node.title,
         body: rewritten.body,
         type: 'document',
+        ...(node.kind === undefined ? {} : { kind: node.kind }),
         synopsis: node.synopsis ?? '',
         keywords: [...(node.keywords ?? [])],
         notes: node.notes ?? '',

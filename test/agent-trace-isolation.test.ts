@@ -47,12 +47,19 @@ describe('nothing the model can reach touches the trace store', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('is written only by the loop, the eval runner and the app', () => {
+  it('is written only by the loop, the eval runner, the replay engine and the app', () => {
     const writers = sourcesUnder(resolve(repoRoot, 'packages/harness/src'))
       .filter((file) => TRACE_NAMES.test(readFileSync(file, 'utf8')))
       .map((file) => relative(repoRoot, file).split(sep).join('/'))
       .sort();
-    expect(writers).toEqual(['packages/harness/src/agent/eval.ts', 'packages/harness/src/agent/loop.ts', 'packages/harness/src/agent/trace.ts', 'packages/harness/src/index.ts']);
+    // A replay keeps its own trace (agent-harness §8.1), which is what the app exports next to the original's.
+    expect(writers).toEqual([
+      'packages/harness/src/agent/eval.ts',
+      'packages/harness/src/agent/loop.ts',
+      'packages/harness/src/agent/replay.ts',
+      'packages/harness/src/agent/trace.ts',
+      'packages/harness/src/index.ts',
+    ]);
   });
 
   it('is not a tool: no registry row is named for it or reads it', () => {

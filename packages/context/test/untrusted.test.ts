@@ -25,6 +25,10 @@ const SOURCE = { kind: 'mcp-result', serverName: 'Notion', toolName: 'search' } 
 const tag = (text: string): string => [...text].map((char) => String.fromCodePoint(0xe0000 + (char.codePointAt(0) as number))).join('');
 
 describe('spotlight', () => {
+  it('labels independent goal-verifier output as outside data', () => {
+    expect(spotlight('A reason.', { kind: 'goal-verifier' }, 'REVIEW')).toBe('<<untrusted source="goal-verifier" id="REVIEW">>\nA reason.\n<</untrusted id="REVIEW">>');
+  });
+
   it('wraps the text between an opening marker with its source and id and a closing marker with the same id', () => {
     expect(spotlight('Five results.', SOURCE, '7F3A')).toBe('<<untrusted source="mcp:Notion/search" id="7F3A">>\nFive results.\n<</untrusted id="7F3A">>');
   });

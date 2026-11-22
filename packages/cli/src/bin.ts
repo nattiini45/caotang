@@ -6,11 +6,22 @@
 import { untilDone } from '@caotang/mcp-server';
 
 import { main } from './cli.js';
+import { answerFrom } from './run-replay.js';
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk as Uint8Array));
   return Buffer.concat(chunks).toString('utf8');
+}
+
+/**
+ * One line from stdin, for a command that asks a question: `readStdin` waits for the stream to end, which on a terminal is Ctrl-D
+ * and not Enter. This resolves at the first newline — or at Ctrl-D and Ctrl-C, which answer nothing — so `y` and Enter is an answer.
+ */
+async function readLine(): Promise<string> {
+  if (process.stdin.isTTY !== true) return readStdin();
+  const { createInterface } = await import('node:readline');
+  return answerFrom(createInterface({ input: process.stdin, terminal: true }));
 }
 
 // SIGINT and SIGTERM end an agent turn the way the app's Stop does: the waiting card is cancelled, the turn ends, the lock is
@@ -36,6 +47,7 @@ main(process.argv.slice(2), {
     process.stderr.write(text);
   },
   readStdin,
+  readLine,
   signal: controller.signal,
   stoppedBy: () => stopped,
   untilDone,

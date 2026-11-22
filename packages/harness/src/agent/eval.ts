@@ -27,14 +27,17 @@
 
 import type { CoherenceModel, ModelReply, ModelRequest } from '@caotang/coherence';
 import { createManualClock, textOf, type ChatRequest, type Clock, type Gateway, type GatewayTraceEvent } from '@caotang/gateway';
-import { agentFileTexts, type ProjectState } from '@caotang/store';
+import type { ProjectState } from '@caotang/store';
+
+import { projectBytes } from './bytes.js';
+
+export { projectBytes };
 
 import { metadataFor, type ToolName } from '../metadata.js';
 import { createHarness } from '../runtime.js';
 import { withResultChecks } from '../testing.js';
 import type { SkillsOption } from '../tools/skills.js';
 import type { AskBackCode } from '../plan.js';
-import { canonicalJson } from '../util.js';
 import { producedOutputs, runChecks, type Check, type CheckVerdict } from './checks.js';
 import { createAgentSession, type AgentSession, type AgentSessionOptions } from './loop.js';
 import { createAgentPorts } from './ports.js';
@@ -258,24 +261,11 @@ export interface Evaluation {
 function recording(base: Gateway, into: ChatRequest[]): Gateway {
   return {
     ...base,
-    complete: (request, signal, beforeSend) => {
+    complete: (request, signal, beforeSend, route) => {
       into.push(request);
-      return base.complete(request, signal, beforeSend);
+      return base.complete(request, signal, beforeSend, route);
     },
   };
-}
-
-/**
- * The bytes of everything an undo has to restore: the manifest, every body, and the decline record. Two projects with
- * the same bytes are the same project to the bus (command-bus §10). The agent's files are in it (CAOTANG.md and the memory notes), so a
- * restore that leaves a note behind is a failure. A document's revision is left out: it is runtime
- * bookkeeping that is never serialized, and an undo is a write that raises it.
- */
-export function projectBytes(state: ProjectState): string {
-  const documents = [...state.documents.entries()]
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([id, record]) => [id, { id: record.id, body: record.body }] as const);
-  return canonicalJson({ manifest: state.manifest, documents, declinedCodexFiles: [...state.declinedCodexFiles].sort(), agentFiles: agentFileTexts(state.agentFiles) });
 }
 
 /** The run-context checks over a finished turn. `initial` is a second build of the scenario's project, which no turn has touched. */

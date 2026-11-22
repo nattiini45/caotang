@@ -67,8 +67,11 @@ const EXPORT: Record<string, string | Buffer> = {
     '<h1>Chapter Two</h1><p>The letter arrived on a Tuesday.</p>' +
     '<script>alert(1)</script>' +
     '<p><img src="images/cover.png" alt="cover"/><img src="https://example.com/x.png" alt="remote"/></p>' +
+    '<p>The lamp stood by the door. <img src="images/lamp.png" alt="the lamp"/></p>' +
+    '<p>The chart was lost. <img src="images/not-carried.png" alt="the chart"/></p>' +
     '</body></html>',
   'images/cover.png': PNG,
+  'images/lamp.png': PNG,
 };
 
 const choose = async (page: Page): Promise<void> => {
@@ -83,8 +86,8 @@ test('a web-page zip opens with its script removed and remote picture listed, an
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('.import-preview-detected')).toContainText('2 chapters');
   // The report names the removed script and the remote picture that was not downloaded.
-  await expect(dialog.getByRole('list', { name: 'What the import removed' })).toContainText('1 script was removed');
-  await expect(dialog.getByRole('list', { name: 'What was not downloaded' })).toContainText('1 picture on the internet was not downloaded');
+  await expect(dialog.getByRole('list', { name: 'What the import removed' })).toContainText('1 script removed');
+  await expect(dialog.getByRole('list', { name: 'What was not downloaded' })).toContainText('1 picture on the internet not downloaded');
 
   // Cancel writes nothing.
   await dialog.getByRole('button', { name: 'Cancel' }).click();
@@ -106,4 +109,34 @@ test('a web-page zip opens with its script removed and remote picture listed, an
   const body = await bodyOf(page, scenes[0]?.id ?? '');
   expect(body).toContain('The ferry came at noon.');
   expect(body).not.toContain('alert');
+  // A picture the page names but the zip does not carry keeps its words, and no ref that resolves to nothing is written.
+  const two = tree.find((node) => node.title === 'Chapter Two');
+  const later = tree.filter((node) => node.parentId === two?.id && node.type === 'document');
+  const last = await bodyOf(page, later[later.length - 1]?.id ?? '');
+  expect(last).toContain('The chart was lost. the chart');
+  expect(last).not.toContain('import:html-image-');
+});
+
+test('unticking Import pictures leaves no picture reference in the manuscript, an inline one included', async ({ page }) => {
+  await createProject(page, 'HTML Without Pictures');
+  await choose(page);
+
+  const dialog = page.getByRole('dialog', { name: 'Import “page.zip”' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('checkbox', { name: /Import \d+ picture/ }).uncheck();
+  await expect(dialog.getByRole('list', { name: 'What the import cannot keep' })).toContainText('Pictures are left out: Import pictures is off.');
+  await dialog.getByRole('button', { name: 'Import 2 chapters' }).click();
+  await expect(dialog).toBeHidden();
+  await waitForSaved(page);
+
+  expect((await traceNames(page)).filter((name) => name === 'binder.importTree')).toHaveLength(1);
+  const tree = await treeOf(page);
+  const two = tree.find((node) => node.title === 'Chapter Two');
+  const scenes = tree.filter((node) => node.parentId === two?.id && node.type === 'document');
+  const body = await bodyOf(page, scenes[0]?.id ?? '');
+  // The inline picture's words stay and its ref goes; the picture that was a paragraph of its own leaves whole.
+  expect(body).toContain('The lamp stood by the door. the lamp');
+  expect(body).toContain('The chart was lost. the chart');
+  expect(body).not.toContain('import:');
+  expect(body).not.toContain('![cover]');
 });

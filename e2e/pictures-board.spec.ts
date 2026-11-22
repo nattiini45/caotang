@@ -15,7 +15,7 @@ import type { ReadAssetRecord } from '../packages/pictures/src/index.js';
 import { createEmptyManifest, createProjectState, exportProjectZip } from '../packages/store/src/index.js';
 
 import { asSent, bigPhoto, BLUE, GREEN, RED, registry, send, solidPng, undoLatest } from './pictures-support.js';
-import { binderTitle, countOf, createProject, firstChapter, idOf, rejected, trace, waitForSaved } from './support.js';
+import { binderTitle, countOf, createProject, firstChapter, idOf, rejected, trace, waitForSaved, chooseInterfaceLanguage} from './support.js';
 
 const board = (page: Page): Locator => page.locator('section.pb-board');
 const tiles = (page: Page): Locator => board(page).locator('.pb-tile');
@@ -364,7 +364,7 @@ test('the board is read in the same order in a right-to-left interface, and adds
   await page.keyboard.press('Enter');
   const settings = page.getByTestId('settings');
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="ar-XB"]').click();
+  await chooseInterfaceLanguage(page, settings, 'ar-XB');
   await expect.poll(() => page.evaluate(() => document.documentElement.dir)).toBe('rtl');
   await settings.locator('.settings-head button').click();
 
