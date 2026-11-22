@@ -126,5 +126,8 @@ request has a hard timeout (a hung reader is terminated) and the dialog's Cancel
 thread, where it re-runs on every rule chip. **A terminated Worker holds no input**, so the host keeps the last `open` and sends it
 again before the next read: after a timeout, a cancel, a Worker failure or a disposal, the writer's next option change reads the file
 again instead of failing with "the import reader was not opened" (#597 F4). Reads that arrive together share one re-open, so the bytes
-are not sent twice, and a re-open that fails leaves the next read free to try again. The `.rtfd` package picker (`ManuscriptImport.tsx`) reads the picked folder's bytes on the
+are not sent twice, and a re-open that fails leaves the next read free to try again. A `prepare` call that rejects or times out —
+a Worker failure on a reader-chip or option re-read — does not strand the dialog on Reading…: the dialog names the failure in an
+alert with a **Try again** that runs the read once more, and until it succeeds the preview keeps the last prepared settings' plan
+rather than an empty document (#600). The `.rtfd` package picker (`ManuscriptImport.tsx`) reads the picked folder's bytes on the
 main thread (I/O) and unpacks and parses the package in the same Worker through the archive reader (import-rtf.md §4).

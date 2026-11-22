@@ -111,6 +111,8 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
   const abort = useRef<AbortController | null>(null);
   const [readVersion, setReadVersion] = useState(0);
   const [readFailure, setReadFailure] = useState<{ readonly settings: PreviewSettings; readonly message: string } | null>(null);
+  const [retryVersion, setRetryVersion] = useState(0);
+  const [preparedSettings, setPreparedSettings] = useState<PreviewSettings | null>(null);
   const readSeq = useRef(0);
 
   useModalDialog(ref);
@@ -126,7 +128,9 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
       }, controller.signal)
       .then(() => {
         if (controller.signal.aborted) return;
-        setSettings(initialSettings(source.chips(), source.options()));
+        const initial = initialSettings(source.chips(), source.options());
+        setPreparedSettings(initial);
+        setSettings(initial);
         setMapping(Object.fromEntries((source.fields?.() ?? []).map((field) => [field.key, field.suggested ?? 'ignore'])));
         send({ type: 'loaded' });
       })
@@ -146,33 +150,42 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
   // callback only) re-renders once the read lands, so the derived `reading` flips back and the plan re-runs.
   const reading = ready && source.prepare !== undefined && (source.prepared?.(settings) ?? true) === false && readFailure?.settings !== settings;
   useEffect(() => {
-    if (!ready || source.prepare === undefined || source.prepared?.(settings) === true) return;
+    if (!ready || source.prepare === undefined) return;
+    if (source.prepared?.(settings) === true) return;
     const controller = new AbortController();
     const seq = ++readSeq.current;
     const settle = (): void => {
-      if (seq === readSeq.current && !controller.signal.aborted) setReadVersion((version) => version + 1);
+      if (seq !== readSeq.current || controller.signal.aborted) return;
+      setPreparedSettings(settings);
+      setReadVersion((version) => version + 1);
     };
     const fail = (failure: unknown): void => {
       if (seq !== readSeq.current || controller.signal.aborted) return;
-      // A failed re-read must not leave the preview on Reading…: name the failure and let the plan show it as a loss.
+      // A failed re-read must not leave the preview on Reading…: the dialog names the failure and offers a retry.
       setReadFailure({ settings, message: failure instanceof Error ? failure.message : String(failure) });
       setReadVersion((version) => version + 1);
     };
     source.prepare(settings, controller.signal).then(settle, fail);
     return () => controller.abort();
-  }, [source, settings, ready]);
+  }, [source, settings, ready, retryVersion]);
 
   // The preview's Worker (if any) is released when the dialog goes away, including when a newer import replaces it.
   useEffect(() => () => source.dispose?.(), [source]);
 
+  // A failed re-read names the failure and keeps the last prepared settings' plan, so the preview is never stranded on
+  // Reading… and never shows an empty document under the new chip (#600); a retry re-runs the read.
+  const failedRead = ready && readFailure !== null && readFailure.settings === settings;
+  const retryRead = (): void => {
+    setReadFailure(null);
+    setRetryVersion((version) => version + 1);
+  };
   const plan: PreviewPlan | null = useMemo(() => {
     // readVersion advances when an off-thread read lands, so the source's cached document for these settings is fresh.
     void readVersion;
     if (!ready || reading) return null;
-    const base = source.plan(settings, edits.overrides);
-    if (readFailure === null || readFailure.settings !== settings) return base;
-    return { ...base, losses: [{ message: readFailure.message }, ...base.losses] };
-  }, [ready, reading, source, settings, edits.overrides, readVersion, readFailure]);
+    const shown = failedRead && preparedSettings !== null ? preparedSettings : settings;
+    return source.plan(shown, edits.overrides);
+  }, [ready, reading, source, settings, edits.overrides, readVersion, failedRead, preparedSettings]);
   const shown = useMemo(() => (plan === null ? [] : applyEdits(plan.tree, edits)), [plan, edits]);
   const rows = useMemo(() => visibleRows(shown, collapsed), [shown, collapsed]);
   const extraScan = useMemo(() => (ready ? (source.scanExtra?.() ?? []) : []), [ready, source]);
@@ -198,8 +211,14 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
     closeImportPreview(committed, request.id);
   };
 
+  // Settings only leave the dialog through this helper, so the settings a failed re-read was asked for are never the
+  // ones `preparedSettings` keeps: the fallback plan stays the last one the reader actually prepared (#600).
+  const applySettings = (change: (current: PreviewSettings) => PreviewSettings): void => {
+    if (source.prepared?.(settings) === true) setPreparedSettings(settings);
+    setSettings(change);
+  };
   const changeRule = (id: string, value: string, keep: boolean): void => {
-    setSettings((current) => ({ ...current, chips: { ...current.chips, [id]: value } }));
+    applySettings((current) => ({ ...current, chips: { ...current.chips, [id]: value } }));
     if (!keep) setEdits(NO_EDITS);
     setPendingRule(null);
   };
@@ -305,6 +324,14 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
         {ready && reading ? (
           <p className="import-preview-progress" role="status" aria-live="polite">
             {t`Reading…`}
+          </p>
+        ) : null}
+        {failedRead ? (
+          <p className="import-preview-error" role="alert">
+            <Trans>The settings could not be re-read: {{ message: readFailure.message }}</Trans>{' '}
+            <button type="button" className="button" onClick={retryRead}>
+              {t`Try again`}
+            </button>
           </p>
         ) : null}
         {plan !== null ? (
@@ -483,7 +510,7 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
                       checked={settings.options[option.id] ?? false}
                       onChange={(event) => {
                         const checked = event.currentTarget.checked;
-                        setSettings((current) => ({ ...current, options: { ...current.options, [option.id]: checked } }));
+                        applySettings((current) => ({ ...current, options: { ...current.options, [option.id]: checked } }));
                       }}
                     />
                     {networkLabel(option)}
