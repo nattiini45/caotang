@@ -11,6 +11,21 @@ nothing is sent anywhere except the AI provider and the MCP servers you configur
 | macOS on Apple silicon or Intel | `Caotang-<version>-<arch>.dmg` | [macOS](#macos) |
 | Linux, 64-bit | `Caotang-<version>.AppImage` | [Linux](#linux) |
 
+## Where a package comes from
+
+There is no download page yet: the app is built, but no release has been tagged. Until one is, you can have a package in either of two ways.
+
+- **Build one from this source.** From a checkout, `pnpm install`, then `pnpm build`, then the packaging script for your platform: `pnpm --filter @caotang/desktop-shell run package:win:installer` on Windows, `package:mac-arm64` or `package:mac-x64` on a Mac, `package:linux` on Linux. Each needs the platform it packages; the files land in `apps/desktop-shell/release/` with a `SHA256SUMS` file beside them. The [development shell's README](../apps/desktop-shell/README.md) has the details, including how to run the app without packaging it.
+- **Take a CI run's packages.** [`.github/workflows/desktop-release.yml`](../.github/workflows/desktop-release.yml) builds the packages on GitHub-hosted runners, both for a `desktop-v<version>` tag and for a manual run. A manual run publishes nothing: its packages and their `SHA256SUMS` files are that run's workflow artifacts, on the run's summary page under *Artifacts*. A tag publishes the same files as the release.
+
+Either way, the file you get is built by that workflow from this repository's source, and the hash in `SHA256SUMS` is what you compare a download against.
+
+## What the app needs
+
+- **One of the three platforms in the table.** Nothing else is needed to run it: the app brings the browser it is built for, so you do not need Chrome or Edge, and opening a project folder needs no browser permission and no Chromium-specific browser feature.
+- **A keychain the app can use.** Provider keys and MCP tokens are kept by your operating system's own store: DPAPI on Windows, your login keychain on macOS, and libsecret or KWallet on Linux. On a Linux desktop with no keyring, the app says so at start-up and keeps the keys encrypted in its own storage instead; the keys work the same, and Settings tells you which of the two holds them.
+- **Writing you can open.** A new project is an empty folder you choose. An existing project opens from the folder that holds its `caotang.json`; a folder from another app, or from a newer Caotang, is refused with a sentence rather than opened.
+
 ## Check the download first
 
 Each package ships beside a `SHA256SUMS` file. Run the line for your platform in the folder you downloaded both files into,
@@ -64,6 +79,9 @@ Your projects are folders you choose, and the folder holds the manuscript: unins
 project kept only inside the app, without a folder, lives in the app's own profile and is removed when you uninstall it, so
 **Copy to a folder** first if you want to keep one. The app sends your manuscript nowhere: model requests go to the provider
 you configured, with your key.
+
+The app has no update check. To move to a newer version, install its package over this one; your projects, your project
+folders and your settings stay where they are.
 
 ## If something goes wrong
 

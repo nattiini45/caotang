@@ -613,7 +613,7 @@ The first public version: a free, local-first writing studio for novels, scripts
 
 ### Known limits
 
-- **Not in this build:** a desktop wrapper and the hosted instance. The user guide's last section lists them.
+- **Not in this build:** the hosted instance. The user guide's last section lists it.
 - Knowledge is checked only where you declare it. The scan does not look for a fact in a character's lines or in the prose, and a group or faction cannot be said to know a fact, only the characters in it.
 - `/draft` cannot rewrite a selection, because a command line cannot carry the editor's selection: ask for a rewrite in words. `/scan` and `/review` take one document, the changed ones or the whole manuscript, not a list. Skills shared across projects are not built.
 - The golden writing tasks replay synthetic cassettes in CI. Recording real-model responses, benchmarking models and an optional judge score are not built, so nothing here says how well any model writes through Caotang.
