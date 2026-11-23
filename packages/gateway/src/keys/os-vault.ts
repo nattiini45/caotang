@@ -47,6 +47,18 @@ export interface OsVaultHost {
   open(sealed: string): Promise<string>;
 }
 
+/**
+ * Whether what was read back is what was written: the key, and every extra header value beside it. A dropped or reordered header
+ * would otherwise pass as stored and fail on the first call that needed it.
+ */
+function samePayload(read: OsVaultPayload | undefined, written: OsVaultPayload): boolean {
+  if (read === undefined || read.apiKey !== written.apiKey) return false;
+  const expected = Object.entries(written.customHeaders ?? {});
+  const found = Object.entries(read.customHeaders ?? {});
+  if (expected.length !== found.length) return false;
+  return expected.every(([name, value]) => read.customHeaders?.[name] === value);
+}
+
 /** A vault id: a provider profile id, or an `mcp:` reference. Never a secret, and never a path. */
 export const VAULT_ID = /^[A-Za-z0-9:_.-]{1,128}$/u;
 
@@ -123,7 +135,7 @@ export async function openOsVault(host: OsVaultHost): Promise<OsKeyVault> {
         // A key is stored when it can be read back, not when the file said so: reading it again is the one operation that proves
         // the seal, the file and the opener all work for what was just written, and a failure puts the earlier file back.
         const match = await open(id);
-        if (match?.apiKey !== payload.apiKey) {
+        if (!samePayload(match, payload)) {
           await write(before);
           throw new Error('The key did not survive being stored, so it was not kept.');
         }

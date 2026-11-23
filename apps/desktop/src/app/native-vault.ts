@@ -19,6 +19,8 @@ import {
 } from '@caotang/gateway';
 import type { KeyStore, NativeKeyVault } from '@caotang/gateway';
 
+import { t } from '@lingui/core/macro';
+
 import type { VaultPayload, VaultReply } from '../../../desktop-shell/src/vault-contract.cjs';
 import { scopedStoreName } from './storage-scope.js';
 
@@ -53,8 +55,11 @@ function vaultPort(api: NonNullable<ReturnType<typeof bridge>>): NativeKeyVault 
       unwrap(await api.put(id, stored));
     },
     headers: async (id) => {
+      // A call that failed answers no headers, and saying "none" would read as a key stored without any: the store's answer is
+      // "not known", which is an error, not silence.
       const reply = await api.headers(id);
-      return reply.ok ? (reply.value ?? undefined) : undefined;
+      if (!reply.ok) throw new Error(t`Caotang could not read this key's extra header values from the keychain.`);
+      return reply.value ?? undefined;
     },
     restore: async (id) => {
       unwrap(await api.restore(id));

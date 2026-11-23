@@ -109,6 +109,8 @@ export {
   keyHandle,
   KEY_HANDLE_PREFIX,
   NATIVE_EGRESS_LIMITS,
+  REDACTED_SECRET,
+  redactSecrets,
   nativeEgressTargets,
   normalizeOrigin,
   pumpResponse,

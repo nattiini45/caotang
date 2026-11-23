@@ -127,6 +127,21 @@ describe('a vault that cannot do what it was asked', () => {
     await expect(broken.put(ID, { apiKey: 'sk-new' })).rejects.toThrow(/did not survive/u);
     expect(held.file.text).toBe(before);
   });
+
+  it('does not call a store that lost its extra headers stored, because the first call needing one would fail', async () => {
+    const held = host();
+    const vault = await openOsVault(held);
+    await vault.put(ID, { apiKey: KEY });
+    const before = held.file.text;
+    const lossy = await openOsVault({
+      ...held,
+      read: async () => before,
+      // The key comes back and the headers beside it do not: a read-back that compared only the key would pass this.
+      open: async () => JSON.stringify({ apiKey: 'sk-with-headers' }),
+    });
+    await expect(lossy.put(ID, { apiKey: 'sk-with-headers', customHeaders: { 'x-workspace': 'w1' } })).rejects.toThrow(/did not survive/u);
+    expect(held.file.text).toBe(before);
+  });
 });
 
 describe('undoing a store', () => {

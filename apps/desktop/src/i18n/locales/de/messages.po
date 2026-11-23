@@ -6429,6 +6429,10 @@ msgstr "Caotang konnte diesen Vergleich nicht vorbereiten."
 msgid "Caotang could not reach the folder it remembers. Choose Open a folder… to find it."
 msgstr "Caotang konnte den Ordner, an den es sich erinnert, nicht erreichen. Wählen Sie „Ordner öffnen…“, um ihn zu finden."
 
+#: apps/desktop/src/app/native-vault.ts
+msgid "Caotang could not read this key's extra header values from the keychain."
+msgstr "Caotang konnte die zusätzlichen Header-Werte dieses Schlüssels nicht aus dem Schlüsselbund lesen."
+
 #. Encoding conversion results. Interpolated values: name is a document title, codex entry name or file path of the writer's project; from and named are text encoding names; why and reason are failure messages; backup is a file path.
 #: apps/desktop/src/app/encoding-review.ts
 msgid "Caotang could not tell which encoding to read it with"
@@ -23408,6 +23412,11 @@ msgstr "Die meisten Feststellungen, die eine Prüfung hinzufügen darf, ist eine
 #: apps/desktop/src/media/TranscriptionReviewDialog.tsx
 msgid "The new read matches the approved text."
 msgstr "Die neue Lesung stimmt mit dem genehmigten Text überein."
+
+#. Interpolated values: key
+#: apps/desktop/src/app/mcp.ts
+msgid "The new token was not kept, and the old one could not be put back. Enter the token again for this server."
+msgstr "Der neue Token wurde nicht behalten, und der alte ließ sich nicht zurückschreiben. Trage den Token für diesen Server erneut ein."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #. Slash command replies. Interpolated values: id and name are a context layer's key and name, tokens and budget are token counts, budgetNote is the budget phrase, topic is a command name, drop is a dropped layer, number and arg are turn numbers.

@@ -169,9 +169,15 @@ export class McpApp {
       message = error instanceof Error ? error.message : String(error);
     }
     const named = this.client.settings().servers.some((current) => current.auth.kind === 'bearer' && current.auth.tokenRef === ref);
-    if (previous === undefined || !named) await this.keys.remove(ref);
-    else if (restore !== undefined) await restore(ref);
-    else await this.keys.put(ref, previous);
+    // The undo is best effort: the answer is already a refusal, and a vault that cannot put the old token back must not turn it
+    // into a rejection the caller has no shape for.
+    try {
+      if (previous === undefined || !named) await this.keys.remove(ref);
+      else if (restore !== undefined) await restore(ref);
+      else await this.keys.put(ref, previous);
+    } catch {
+      message = t`The new token was not kept, and the old one could not be put back. Enter the token again for this server.`;
+    }
     return { ok: false, message };
   }
 
