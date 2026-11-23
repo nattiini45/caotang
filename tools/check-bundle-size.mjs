@@ -180,13 +180,15 @@ export const BUDGET = {
   // (i18n.md §3.3), and the entry's loader for the command; the reader, the preview source and the Worker stay on use. The
   // ceiling is the measurement rounded up to the thousand. [delegated 2026-11-22]
   // The Kanka import (#293) on the merge of #297's branch: 1,118,072 bytes gzip measured, +1,072 over the
-  // ceiling the merged tree sat under. Named: the compiled English catalogue's Kanka messages, which must
+  // ceiling the merged tree sat under; 1,118,949 on the merge of main aec90b9b which also carries the Word
+  // import's catalogue messages. Named: the compiled English catalogue's Kanka messages, which must
   // precede first paint (i18n.md §3.3); the reader, the preview source and the Worker stay on use. The
   // ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   // The OpenDocument import (#298) on the merge of #279's branch: 1,119,286 bytes gzip measured. Named:
   // the compiled English catalogue's ODT button and error copy beside the Word import's. The ceiling is
   // the measurement rounded up to the thousand. [delegated 2026-11-23]
-  // The spreadsheet import (#288) on the merge of #298's branch: 1,120,357 bytes gzip measured. Named: the compiled
+  // The spreadsheet import (#288) on the merge of #298's branch: 1,120,357 bytes gzip measured; 1,120,940 on the
+  // merge of main aec90b9b which also carries the Excel import's catalogue messages. Named: the compiled
   // English catalogue's column roles, the two modes and the report's words, which must precede first paint (i18n.md
   // §3.3), and the entry's codex-only import guard and sentence. The reader stays on use. The ceiling is the
   // measurement rounded up to the thousand. [delegated 2026-11-23]
@@ -312,20 +314,21 @@ export const BUDGET = {
   // measurement. The compiled de catalogue stays on use too. Same round-up-to-the-thousand ceiling. [delegated
   // 2026-11-22]
   // The AO3 import (#297) on the merge of #296's branch: 8,984,782 bytes measured, +17,525 over the merged #296
-  // tree. Named: the @caotang/import-ao3 adapter and its preview source, all on-use chunks, and the German AO3
+  // tree. Measured again on the merge of main aec90b9b, which carries the merged EPUB import: 8,984,862 bytes.
+  // Named: the @caotang/import-ao3 adapter and its preview source, all on-use chunks, and the German AO3
   // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   // The Kanka import (#293) on the merge of #297's branch: 9,008,325 bytes measured, +23,543 over the merged #297
-  // tree. Named: the @caotang/import-kanka reader and its preview source, all on-use chunks, and the German Kanka
+  // tree; 9,008,341 on the merge of main aec90b9b. Named: the @caotang/import-kanka reader and its preview source, all on-use chunks, and the German Kanka
   // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   // The Word import (#279) on the merge of #293's branch: 9,035,664 bytes measured, +27,339 over the merged #293
-  // tree. Named: the @caotang/import-docx reader and its preview source, all on-use chunks, and the German Word
+  // tree; 9,035,665 on the merge of main aec90b9b. Named: the @caotang/import-docx reader and its preview source, all on-use chunks, and the German Word
   // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   // The OpenDocument import (#298) on the merge of #279's branch: 9,053,813 bytes measured, +18,149 over the
   // merged #279 tree. Named: the @caotang/import-odt reader and its preview source, all on-use chunks, and the
   // German OpenDocument strings in the de catalogue. The ceiling is the measurement rounded up to the
   // thousand. [delegated 2026-11-23]
   // The spreadsheet import (#288) on the merge of #298's branch: 9,075,608 bytes measured, +21,795 over the
-  // merged #298 tree. Named: the @caotang/import-csv reader, its role tables and the spreadsheet preview
+  // merged #298 tree; 9,075,838 on the merge of main aec90b9b without the Excel import's chunks. Named: the @caotang/import-csv reader, its role tables and the spreadsheet preview
   // source, all on-use chunks. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   // The Excel workbook import (#289): 9,085,933 bytes measured on the merge of #288's branch
   // (+10,325: the workbook reader and its sheet parser, all in lazy chunks, reusing the shared zip,
