@@ -7,13 +7,15 @@
  * module compiles and its test runs without the app's component graph.
  */
 import type { ArtifactFs } from '@caotang/store';
+import type { EncryptedRemoteArtifactFs } from '@caotang/remote-store';
+import { HostedTarget } from './hosted-target.js';
 import type { HostedProjectSource } from './studio-host.js';
 
 /** `assets/` in a project — pictures, the cover among them (project-format §2). */
 const ASSETS_DIR = 'assets';
 
 /** The encrypted adapter over one project, opened on the key the host handed over. */
-export async function openRemoteProject(source: HostedProjectSource): Promise<ArtifactFs> {
+export async function openRemoteProject(source: HostedProjectSource): Promise<EncryptedRemoteArtifactFs> {
   const { EncryptedRemoteArtifactFs, createHttpBlobStore } = await import('@caotang/remote-store');
   const blob = createHttpBlobStore({ origin: source.origin, projectId: source.projectId, device: source.device });
   return await EncryptedRemoteArtifactFs.open({ store: blob, projectId: source.projectId, projectKey: source.key });
@@ -28,4 +30,14 @@ export async function picturesOnProjectFs(fs: ArtifactFs): Promise<Record<string
   const pictures: Record<string, Uint8Array> = {};
   for (const name of await fs.listFiles(ASSETS_DIR)) pictures[`${ASSETS_DIR}/${name}`] = await fs.readBytes(`${ASSETS_DIR}/${name}`);
   return pictures;
+}
+
+/**
+ * The project's save target, on the same adapter: the whole project's save goes through `saveProjectToAccount`, which stages
+ * the app's write path into one commit. Built here because this is the module that may import the package at all.
+ */
+export async function openHostedTarget(source: HostedProjectSource): Promise<HostedTarget> {
+  const fs = await openRemoteProject(source);
+  const { saveProjectToAccount } = await import('@caotang/remote-store');
+  return new HostedTarget(source.projectId, fs, (state) => saveProjectToAccount(fs, state));
 }

@@ -108,7 +108,8 @@ import { applyEncodingDecisions, encodingResultLines, type EncodingDecision } fr
 import { changedDuringSave, pruneFolderBackups, watchSave } from './folder-guard.js';
 import { folderArtifactFs, folderIsEmpty, isSameFolder, type DirectoryHandleLike } from './fs-access.js';
 import type { HostedProjectSource } from './studio-host.js';
-import { openRemoteProject, picturesOnProjectFs } from './hosted-project.js';
+import { openHostedTarget, picturesOnProjectFs } from './hosted-project.js';
+import { rememberHostedTarget, type HostedTarget } from './hosted-target.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
 import {
   copiedFromOf,
@@ -1260,14 +1261,18 @@ export interface FolderDiffers {
 export async function openHostedProject(
   store: RuntimeStore,
   source: HostedProjectSource,
-  open: (source: HostedProjectSource) => Promise<ArtifactFs> = openRemoteProject,
+  openTarget: (source: HostedProjectSource) => Promise<HostedTarget> = openHostedTarget,
 ): Promise<Opened> {
-  const fs = await open(source);
-  const loaded = await readProject(fs);
+  const target = await openTarget(source);
+  const loaded = await readProject(target.fs);
   // The project's pictures travel with it: the copy this browser keeps is what a later save is measured on, so a picture left
   // behind here would be a picture the next save prunes from the account.
-  const pictures = await picturesOnProjectFs(fs);
-  return await adopt(store, loaded.state, await folderSessionsOf(fs), noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
+  const pictures = await picturesOnProjectFs(target.fs);
+  const opened = await adopt(store, loaded.state, await folderSessionsOf(target.fs), noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
+  // The account is this project's home: the target is kept for the session and follows every save this browser finishes.
+  rememberHostedTarget(target);
+  target.attach(opened.session);
+  return opened;
 }
 
 /**
