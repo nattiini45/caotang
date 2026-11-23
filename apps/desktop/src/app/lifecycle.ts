@@ -1949,13 +1949,11 @@ async function writeFolder(
   // A file the write replaces or removes that this session did not last write is copied to .caotang-backup first, and checked once more
   // as it is copied (folder-guard.ts).
   const watch = watchSave(fs, { now, expected: before, held: held === null ? null : held.digests, report });
-  const toWrite = copyState(session.state);
-  const warnings = session.saveHookWarnings();
-  // As with documents, only the copy's own folder can hold skill files this session removed. Any other folder keeps every file it has.
-  if (held === null) {
-    toWrite.removedSkillFiles.clear();
-    toWrite.removedAgentFiles.clear();
-  }
+  // The copy can change the session — a picture it writes is a change of its own — so the state this save writes and the hook
+  // warnings that describe it are both read after the copy, inside the pause below. Reading them before it would save text the
+  // copy has already replaced and warn about words the writer no longer has.
+  let toWrite: ReturnType<typeof copyState> | undefined;
+  let warnings: readonly string[] = [];
   // **The pause.** The server this app runs serves the same folder, so it is paused from the first file this save writes to the last:
   // a write tool is refused rather than starting between the digest check above and a rename below. A save the verdict refused never
   // reached this point, so a save that writes nothing never pauses. A write already running when the pause arrives finishes, and the
@@ -1966,8 +1964,16 @@ async function writeFolder(
     // The pictures are copied before the manifest names them, so the folder never holds a manifest without the files it names. A folder
     // holding a different file under one of those names is refused here, before anything is written (project-assets.ts).
     await session.assets.copyTo(root);
+    const state = copyState(session.state);
+    // As with documents, only the copy's own folder can hold skill files this session removed. Any other folder keeps every file it has.
+    if (held === null) {
+      state.removedSkillFiles.clear();
+      state.removedAgentFiles.clear();
+    }
+    toWrite = state;
+    warnings = session.saveHookWarnings();
     try {
-      await writeProject(watch.fs, toWrite, {
+      await writeProject(watch.fs, state, {
         now,
         // Only the copy's own folder can hold documents this session deleted. Any other folder keeps every file it has.
         pruneDocumentIds: held === null ? [] : deletedSince(held, session.state),
@@ -1998,10 +2004,11 @@ async function writeFolder(
     }
   });
   if (refused !== null) return refused;
+  const copied = toWrite;
   // The skill files the folder no longer holds are no longer owed a removal.
-  if (held !== null) for (const path of [...session.state.removedSkillFiles]) if (!toWrite.removedSkillFiles.has(path)) session.state.removedSkillFiles.delete(path);
+  if (held !== null && copied !== undefined) for (const path of [...session.state.removedSkillFiles]) if (!copied.removedSkillFiles.has(path)) session.state.removedSkillFiles.delete(path);
   // Likewise the forgotten memory notes: a file the folder no longer holds is no longer owed a removal.
-  if (held !== null) for (const path of [...session.state.removedAgentFiles]) if (!toWrite.removedAgentFiles.has(path)) session.state.removedAgentFiles.delete(path);
+  if (held !== null && copied !== undefined) for (const path of [...session.state.removedAgentFiles]) if (!copied.removedAgentFiles.has(path)) session.state.removedAgentFiles.delete(path);
   // What is on disk now is what the next save is checked against, so it is read back rather than assumed, with one exception: a file another
   // program changed while the save wrote (the folder's files are digested again and compared with what the save left, folder-guard.ts) is
   // not taken as this save's own, so the next save asks about it. The same goes for caotang.json.
