@@ -301,7 +301,8 @@ export const BUDGET = {
   // measurement. The compiled de catalogue stays on use too. Same round-up-to-the-thousand ceiling. [delegated
   // 2026-11-22]
   // The AO3 import (#297) on the merge of #296's branch: 8,984,782 bytes measured, +17,525 over the merged #296
-  // tree. Named: the @caotang/import-ao3 adapter and its preview source, all on-use chunks, and the German AO3
+  // tree. Measured again on the merge of main aec90b9b, which carries the merged EPUB import: 8,984,862 bytes.
+  // Named: the @caotang/import-ao3 adapter and its preview source, all on-use chunks, and the German AO3
   // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   totalJs: 8_985_000,
   /**
