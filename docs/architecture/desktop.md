@@ -130,6 +130,11 @@ allowed plain http
 ([native-egress.ts](../../packages/gateway/src/native-egress.ts)). A provider profile is never such an entry, so a local model
 server keeps the browser's path exactly as it was.
 
+**The two calls answer different shapes.** On the pinned Electron, `safeStorage.encryptStringAsync` resolves the sealed bytes and
+`decryptStringAsync` resolves a record whose `result` is the plain text; a host that unwraps one like the other stores a value its
+own read-back cannot match. The seal and the open both live in `apps/desktop-shell/src/vault.mts`, behind one `Sealer` a spec can
+replace, so the vault's put, read-back and read run on a machine with no keyring as well as on one with.
+
 What is not verified here: `safeStorage` on a real Windows, macOS or KDE desktop. The vault's rules are tested with a scripted
 sealer (`packages/gateway/test/os-vault.test.ts`), and the shell suite proves the channels the page gets; the Linux runner the
 suite runs on has no keyring, so the fallback is the path it exercises. Signing and notarisation (#409) and the upgrade train

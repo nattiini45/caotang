@@ -37,15 +37,32 @@ function realKeychain(): boolean {
   return backend !== 'basic_text' && backend !== 'unknown';
 }
 
-export async function openKeyVault(profile: string): Promise<KeyVault> {
+/**
+ * How one value is sealed and opened. The two calls answer different shapes on the pinned Electron: `encryptStringAsync` resolves
+ * the sealed bytes, and `decryptStringAsync` resolves a record whose `result` is the plain text. A spec may pass its own, so the
+ * vault's put, read-back and read are exercised on a machine with no keyring, which is every CI runner.
+ */
+export interface Sealer {
+  available(): boolean;
+  seal(plain: string): Promise<string>;
+  open(sealed: string): Promise<string>;
+}
+
+export const electronSealer = (): Sealer => ({
+  available: () => safeStorage.isEncryptionAvailable(),
+  seal: async (plain) => (await safeStorage.encryptStringAsync(plain)).toString('base64'),
+  open: async (sealed) => (await safeStorage.decryptStringAsync(Buffer.from(sealed, 'base64'))).result,
+});
+
+export async function openKeyVault(profile: string, sealer: Sealer = electronSealer()): Promise<KeyVault> {
   const fs = new NodeArtifactFs(profile);
   const path = join(profile, FILE);
   return openOsVault({
     available: async () => realKeychain(),
     read: async () => await fs.exists(FILE) ? readFile(path, 'utf8') : undefined,
     write: (text) => fs.writeAtomic(FILE, text),
-    seal: async (plain) => (await safeStorage.encryptStringAsync(plain)).toString('base64'),
-    open: async (sealed) => (await safeStorage.decryptStringAsync(Buffer.from(sealed, 'base64'))).result,
+    seal: (plain) => sealer.seal(plain),
+    open: (sealed) => sealer.open(sealed),
   });
 }
 

@@ -7,7 +7,8 @@
  * that is not the studio's own is refused.
  */
 
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
@@ -61,5 +62,40 @@ test('the page can store a secret and can never read one back', async () => {
     }
   } finally {
     await closeShell(electron);
+  }
+});
+
+/**
+ * The seal and the open, end to end, on a machine that has a keychain: a key written by one run of the app is read back by the
+ * next one, and the file it sits in holds no plain text. A runner without a keyring (CI) cannot run this and skips it, which is
+ * the gap desktop.md names; on Windows, macOS and a Linux desktop with libsecret or KWallet it is the whole path.
+ */
+test('a key survives the app closing, and the file it sits in holds no plain text', async () => {
+  const profile = test.info().outputPath('profile-relaunch');
+  const first = await launch(profile);
+  const id = 'prv_RELAUNCH01';
+  try {
+    const page = await first.firstWindow();
+    await expect(page.getByRole('textbox', { name: 'Project name' })).toBeVisible();
+    const available = await page.evaluate(() => window.caotangDesktop!.vault.available());
+    test.skip(!(available.ok && available.value), 'this machine has no keychain, so the fallback is the path it exercises');
+    const stored = await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'sk-relaunch-secret', customHeaders: { 'x-workspace': 'w1' } }), id);
+    expect(stored).toEqual({ ok: true, value: null });
+    const file = await readFile(join(profile, 'native-key-vault.json'), 'utf8');
+    expect(file).not.toContain('sk-relaunch-secret');
+  } finally {
+    await closeShell(first);
+  }
+
+  const second = await launch(profile);
+  try {
+    const page = await second.firstWindow();
+    await expect(page.getByRole('textbox', { name: 'Project name' })).toBeVisible();
+    expect(await page.evaluate((id) => window.caotangDesktop!.vault.has(id), id)).toEqual({ ok: true, value: true });
+    // The extra headers come back only if the next process could open what the first one sealed.
+    expect(await page.evaluate((id) => window.caotangDesktop!.vault.headers(id), id)).toEqual({ ok: true, value: { 'x-workspace': 'w1' } });
+    expect(await page.evaluate((id) => window.caotangDesktop!.vault.remove(id), id)).toEqual({ ok: true, value: null });
+  } finally {
+    await closeShell(second);
   }
 });
