@@ -175,12 +175,13 @@ export const BUDGET = {
   // compiled English catalogue's twenty HTML messages (+1,392 raw), which must precede first paint (i18n.md §3.3), and the entry's
   // loader for the command; the XHTML walker, the reader, its preview source and the Worker stay on use. The ceiling is the
   // measurement rounded up to the thousand. [delegated 2026-11-22]
-  // One connection holding many models (#824), re-measured on the merge of main 89268e20 (which carries #725's HTML import and #823):
-  // 1,116,706 bytes gzip. What grew is the English catalogue's new messages for the models step and the chat picker, which i18n.md §3.3
-  // keeps in the entry before first paint, plus the role write the picker makes. Optimisations tried first: the picker is a menu in the
-  // already lazy Agent panel, its model and the level names were measured out of the entry (0.3 kB of the 1.2 kB), and no dependency was
-  // added. The ceiling is that measurement plus under 1 kB. [delegated 2026-11-22]
-  initialGzip: 1_117_400,
+  // The EPUB import (#296) and one connection holding many models (#824), measured together on the merge of main aec90b9b:
+  // 1,117,621 bytes gzip. Named: the compiled English catalogue's new EPUB messages and the models step's and picker's, which
+  // must precede first paint (i18n.md §3.3), the entry's loader for the EPUB command, and the role write the picker makes. The
+  // picker and the models step themselves are already in lazily loaded views, and the picker's stylesheet was moved out of the
+  // entry onto its own chunk, which is what keeps the entry CSS under its cap. The ceiling is the measurement plus under 1 kB.
+  // [delegated 2026-11-22]
+  initialGzip: 1_118_500,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -294,10 +295,14 @@ export const BUDGET = {
   // measurement left the dialog's new German entries untranslated; translating them, so the Appearance screen still shows 100% complete,
   // put 736 more bytes in the on-use `locale-de` chunk and none in the first load. 8,949,346 on the rebuild with them, and the ceiling is
   // that plus 654 bytes, so later work inherits no free room. [delegated 2026-11-22]
-  // One connection holding many models (#824), re-measured on the merge of main 89268e20: 8,954,115 bytes raw. Named: the gateway's
-  // picked-model list and its checks, the client's several-model setup, the chat picker with its levels, and both catalogues' new
-  // messages. The ceiling is that measurement plus under 1 kB. [delegated 2026-11-22]
-  totalJs: 8_954_900,
+  // The EPUB import (#296) and one connection holding many models (#824), measured together on the merge of main aec90b9b:
+  // 8,975,867 bytes. Named: the EPUB reader package, the preview source and the Worker, all on-use chunks, and the walker's
+  // anchors, notes and noterefs in the import-html chunk; and for the picker the gateway's picked-model list and its checks,
+  // the client's several-model setup, the chat picker with its levels and both catalogues' new messages. Optimisations tried
+  // first: the picker sits in the already lazy Agent panel and its stylesheet on its own chunk, its model and level names were
+  // measured out of the entry, and no dependency was added. The ceiling is the measurement plus under 1 kB. [delegated
+  // 2026-11-22]
+  totalJs: 8_976_800,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

@@ -232,6 +232,45 @@ describe('the XHTML walker (#299)', () => {
     expect(remoteImages).toEqual(['//cdn.example/x.png', '//cdn.example/y.png']);
   });
 
+  it('names the block each element id produced, a wrapper’s id included', () => {
+    const { blocks, anchors } = walk('<div id="ch1"><h1 id="head">Chapter One</h1><p>The ferry.</p></div><h1 id="ch2">Chapter Two</h1><p>The letter.</p>');
+    expect(anchors.get('ch1')).toBe(0);
+    expect(anchors.get('head')).toBe(0);
+    expect(anchors.get('ch2')).toBe(2);
+    expect(blocks[2]).toMatchObject({ kind: 'heading', text: 'Chapter Two' });
+  });
+
+  it('writes an EPUB footnote reference as [^n] and keeps the note out of the text', () => {
+    const epubPage = (body: string): string => `<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body>${body}</body></html>`;
+    const out = htmlToBlocks(epubPage('<p>A claim<a epub:type="noteref" href="#fn1">1</a> and another<a epub:type="noteref" href="#fn2">2</a>.</p><aside epub:type="footnote" id="fn1">The first note.</aside><aside epub:type="footnote" id="fn2">The second note.</aside>'));
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.value.blocks).toHaveLength(1);
+    expect(out.value.blocks[0]?.kind === 'para' && out.value.blocks[0].md).toBe('A claim[^1] and another[^2].');
+    expect(out.value.noterefs).toEqual([
+      { fragment: 'fn1', label: '1', blockIndex: 0 },
+      { fragment: 'fn2', label: '2', blockIndex: 0 },
+    ]);
+    expect(out.value.notes).toEqual([
+      { fragment: 'fn1', md: 'The first note.' },
+      { fragment: 'fn2', md: 'The second note.' },
+    ]);
+  });
+
+  it('drops an audio or video player and counts it', () => {
+    const { blocks, dropped } = walk('<p>Listen.</p><audio src="a.mp3"><source src="a.ogg"/></audio><video src="v.mp4"/>');
+    expect(blocks).toHaveLength(1);
+    expect(dropped.media).toBe(2);
+  });
+
+  it('gives each page its own picture refs and unit when the reader asks', () => {
+    const out = htmlToBlocks(page('<p><img src="a.png" alt="a"/></p>'), { unit: 'OEBPS/ch1.xhtml', refPrefix: 'import:epub-image-2-' });
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect([...out.value.images.keys()]).toEqual(['import:epub-image-2-0']);
+    expect(out.value.blocks[0]?.kind === 'para' && out.value.blocks[0].src?.sourceUnit).toBe('OEBPS/ch1.xhtml');
+  });
+
   it('reads the class rules of a page built to make a scanning regex quadratic, in one pass', () => {
     // 40,000 dots with no brace inside a stylesheet: a regex that scans from every position would take minutes.
     const started = Date.now();

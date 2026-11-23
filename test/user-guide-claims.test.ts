@@ -730,7 +730,7 @@ describe('the import preview (#267)', () => {
     expect(read('apps/desktop/src/components/TweeImportDialog.tsx')).toContain('tweePreviewSource(');
     expect(guide).toContain('- **The import preview.** An import that brings in a whole book shows it first as a proposed binder beside its text');
     expect(guide).toContain('one **Undo** takes all of it back, pictures and codex entries included');
-    expect(guide).toContain('**Import Twee**, **Import Inklewriter**, **Import Highland**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import captions…** and **Import HTML…** open it.');
+    expect(guide).toContain('**Import Twee**, **Import Inklewriter**, **Import Highland**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import captions…**, **Import HTML…** and **Import EPUB…** open it.');
     expect(guide).toContain('**Import Inklewriter** reads an Inklewriter story export');
     expect(read('apps/desktop/src/components/ScriptImport.tsx')).toContain('inklewriterPreviewSource');
     expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
@@ -766,10 +766,28 @@ describe('the import preview (#267)', () => {
     expect(manuscript).toContain('htmlZipPreviewSource');
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<ManuscriptImportActions />');
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, captions and HTML imports open the preview');
+    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, captions, HTML and EPUB imports open the preview');
     expect(notYet).not.toContain('There is no **Import RTF** command yet');
     expect(changelog).toContain('**One import preview for every structured import.**');
     expect(read('docs/architecture/import-preview.md')).toContain('## 5. The commit: `binder.importTree`');
+  });
+
+  it('the EPUB import: the guide’s claims match the reader, the button and the spec', () => {
+    expect(guide).toContain('- **Import EPUB…** reads an EPUB book (`.epub`)');
+    expect(guide).toContain('its own contents give their titles');
+    expect(guide).toContain("setting it as the project's cover is not part of this import");
+    expect(guide).toContain('A book protected by DRM is refused with a plain message.');
+    const manuscript = read('apps/desktop/src/components/ManuscriptImport.tsx');
+    expect(manuscript).toContain("await import('../import-preview/epub-source.js')");
+    expect(manuscript).toContain('epubPreviewSource(file.name, bytes)');
+    const reader = read('packages/import-epub/src/reader.ts');
+    expect(reader).toContain("kind: 'drm'");
+    expect(reader).toContain('META-INF/rights.xml');
+    expect(reader).toContain('parseNcx');
+    expect(reader).toContain('matter.push(');
+    const source = read('apps/desktop/src/import-preview/epub-source.ts');
+    expect(source).toContain("place: 'research' as const");
+    expect(read('docs/architecture/import-epub.md')).toContain('## ');
   });
 });
 

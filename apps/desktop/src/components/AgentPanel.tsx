@@ -447,6 +447,8 @@ export function AgentPanel({
   // A pick pins chat to its own connection, so this line names the connection the next turn goes through rather than the active
   // profile, and a narrow header can show the picker without hiding the only place the connection is named.
   const connection = model?.connection === null || model?.connection === undefined ? null : isolate(model.connection);
+  // One message for one line: the connection a pick pinned, else the active profile's label.
+  const named = connection ?? (provider === null ? null : isolate(providerLabel(provider, snapshot.providerIsDemo)));
   const runActionPending = snapshot.runHistory.some((run) => run.pending !== null && run.pending !== undefined);
   const running = snapshot.turns[snapshot.turns.length - 1];
   const stepRef = running === undefined || isSettled(running) ? null : headerRefOf(running.tasks, (ref) => renderRef(ref, { userValues: WRITER_VALUE_KEYS }));
@@ -563,9 +565,7 @@ export function AgentPanel({
           </button>
         )}
         <span className="agent-provider" data-testid="agent-provider">
-          {connection === null
-            ? (provider === null ? t`No provider` : t`Provider: ${{ provider: isolate(providerLabel(provider, snapshot.providerIsDemo)) }}`)
-            : t`Provider: ${{ provider: connection }}`}
+          {named === null ? t`No provider` : t`Provider: ${{ provider: named }}`}
         </span>
         {model === undefined || onPickModel === undefined || snapshot.providerIsDemo ? null : (
           <ChatModelPicker

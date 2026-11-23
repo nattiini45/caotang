@@ -16,6 +16,8 @@ import { activateCatalogue, activateEnglish } from '../src/i18n/runtime.js';
 import { PREVIEW_HELPERS } from '../src/import-preview/helpers.js';
 import { NO_EDITS, NO_OVERRIDES, buildCommit, initialSettings, scanTree, type CommitInput, type ImportPreviewSource, type PreviewPlan } from '../src/import-preview/model.js';
 import { RTF_OPTIONS, rtfErrorText, rtfPreviewSource, rtfSizeRefusal } from '../src/import-preview/rtf-source.js';
+import { epubPreviewSource } from '../src/import-preview/epub-source.js';
+import { rawZip } from '../../../packages/import-read/test/zip-fixtures.js';
 import {
   SPLIT_CHIPS,
   chipsFromSplit,
@@ -68,6 +70,7 @@ const repo = resolve(__dirname, '../../..');
 const fixture = (path: string): Uint8Array => new Uint8Array(readFileSync(resolve(repo, path)));
 
 const para = (text: string): ImportDocument['blocks'][number] => ({ kind: 'para', text, md: text });
+const enc = (text: string): Uint8Array => new TextEncoder().encode(text);
 const heading = (level: number, text: string): ImportDocument['blocks'][number] => ({ kind: 'heading', level, text, md: `${'#'.repeat(level)} ${text}` });
 
 /** Front matter, three Heading 1 chapters with a "* * *" break, a picture, a degraded table and back matter. */
@@ -383,6 +386,47 @@ describe('the sources', () => {
   it('an RTF file that is not RTF fails the load with the reader’s reason', async () => {
     const source = rtfPreviewSource('notes.rtf', new TextEncoder().encode('just text'));
     await expect(source.load?.(() => {}, new AbortController().signal)).rejects.toThrow(rtfErrorText('not-rtf'));
+  });
+
+  it('an EPUB names its chapters from the contents and offers the book’s matter as Research', async () => {
+    const page = (body: string): string =>
+      `<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body>${body}</body></html>`;
+    const zip = rawZip([
+      { name: 'META-INF/container.xml', data: enc('<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>') },
+      {
+        name: 'OEBPS/content.opf',
+        data: enc(
+          '<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>The Lighthouse Keeper</dc:title></metadata>' +
+            '<manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="tp" href="title.xhtml" media-type="application/xhtml+xml"/><item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/><item id="c2" href="ch2.xhtml" media-type="application/xhtml+xml"/></manifest>' +
+            '<spine><itemref idref="tp"/><itemref idref="c1"/><itemref idref="c2"/></spine></package>',
+        ),
+      },
+      {
+        name: 'OEBPS/nav.xhtml',
+        data: enc(
+          page(
+            '<nav epub:type="toc"><ol><li><a href="ch1.xhtml">Chapter One: The Landing</a></li><li><a href="ch2.xhtml">Chapter Two: Salt</a></li></ol></nav>' +
+              '<nav epub:type="landmarks"><ol><li><a epub:type="titlepage" href="title.xhtml">Title page</a></li></ol></nav>',
+          ),
+        ),
+      },
+      { name: 'OEBPS/title.xhtml', data: enc(page('<p>The Lighthouse Keeper</p>')) },
+      { name: 'OEBPS/ch1.xhtml', data: enc(page('<h1>The Landing</h1><p>The ferry came at noon.</p>')) },
+      { name: 'OEBPS/ch2.xhtml', data: enc(page('<h1>Salt</h1><p>The letter arrived on a Tuesday.</p>')) },
+    ]);
+    const source = epubPreviewSource('keeper.epub', zip);
+    await source.load?.(() => {}, new AbortController().signal);
+    const settings = initialSettings(source.chips(), source.options());
+    const plan = source.plan(settings, NO_OVERRIDES);
+    expect(plan.tree.map((node) => node.title)).toEqual(['Before chapter 1', 'Chapter One: The Landing', 'Chapter Two: Salt']);
+    expect(plan.tree[0]?.place).toBe('research');
+    expect(plan.tree[0]?.body).toContain('The Lighthouse Keeper');
+    expect(source.report?.(plan).map((list) => list.heading)).toContain('EPUB');
+    expect(source.report?.(plan)[0]?.lines[0]).toBe('2 chapter titles came from the book’s contents');
+
+    const commit = commitOf(plan, source, settings);
+    expect(COMMAND_REGISTRY['binder.importTree'].descriptor.validate({ ...commit.params, pictures: [] }, project() as never).ok).toBe(true);
+    expect(commit.params.nodes[0]).toMatchObject({ title: 'Before chapter 1', place: 'research' });
   });
 
   it('a source keeps the document while only rule chips change', () => {

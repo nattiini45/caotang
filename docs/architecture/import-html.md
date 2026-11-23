@@ -30,8 +30,8 @@ The walker turns the page into the import block list (`import-core`) with the si
   down to the blocks inside it, a descendant's own style winning over the inherited one; a wrapper's page break belongs to the first
   block it produces, not to every block under it. The class rules are read by a forward scan rather than a scanning regex, so a page
   of unclosed `<style>` tags or of dots with no brace cannot make the read quadratic.
-- `<script>`, `<style>`, `<iframe>`, `<noscript>`, `<template>`, the `<head>` and form controls are dropped and counted; event
-  attributes (`on…`) are counted. Nothing dropped is ever executed. **Scripts, iframes and event attributes are counted once over the
+- `<script>`, `<style>`, `<iframe>`, `<noscript>`, `<template>`, the `<head>`, form controls and `<audio>`/`<video>` players are dropped
+  and counted; event attributes (`on…`) are counted. Nothing dropped is ever executed. **Scripts, iframes and event attributes are counted once over the
   whole document**, the head and the inside of dropped elements included, so a page's own `<script>` in its head is reported.
 - **Stylesheets are counted over the whole document**, head included: every `<style>` element and every `<link rel="stylesheet">`.
   The body walk never reaches the head, so counting only what it drops would report nothing for the usual export. The report says the
@@ -58,6 +58,15 @@ The walker turns the page into the import block list (`import-core`) with the si
 its picture refs (`import:html-image-` by default). A reader of several pages gives each its own prefix, so two pages' pictures never
 share a ref.
 
+Besides the blocks it returns three tables a reader of a structured book needs (the EPUB import, [import-epub.md](import-epub.md)):
+
+- `anchors`: every element `id` to the first block it produced, a wrapper's id included, so a navigation entry's fragment can be
+  resolved to a block.
+- `noterefs`: an `<a epub:type="noteref" href="#fn">` (or `role="doc-noteref"`) is written as `[^n]` in the text, numbered in reading
+  order, and returned with its fragment and block.
+- `notes`: an `<aside epub:type="footnote" id="fn">` (or `role="doc-footnote"`) is kept out of the text and returned as its Markdown,
+  so the reader can write it as the footnote definition of the scene that holds its reference (decision 3).
+
 ## 3. The reader
 
 **The size is checked before the file is read into memory.** `htmlSizeRefusal(fileName, size, maxBytes)` answers with a sentence
@@ -77,6 +86,6 @@ on first use; it never lands in the entry chunk. There is no `eval`, `new Functi
 
 ## 5. What is lost
 
-Scripts, styles, iframes and form controls are dropped and counted; unsafe link schemes keep their text; tables degrade to prose;
+Scripts, styles, iframes, form controls and audio/video players are dropped and counted; unsafe link schemes keep their text; tables degrade to prose;
 remote images are listed, not fetched; a picture the store would refuse keeps its alt text and is named with its reason. The losses
 report names each, so nothing is dropped silently.

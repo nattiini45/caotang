@@ -32,7 +32,7 @@ export type HtmlError =
 export type HtmlResult = { ok: true; value: HtmlImport } | { ok: false; error: HtmlError };
 
 const HTML_EXT = /\.(html?|xhtml)$/i;
-const EMPTY_DROPPED: HtmlDropped = { scripts: 0, styles: 0, iframes: 0, forms: 0, eventAttrs: 0, unsafeLinks: 0 };
+const EMPTY_DROPPED: HtmlDropped = { scripts: 0, styles: 0, iframes: 0, forms: 0, eventAttrs: 0, unsafeLinks: 0, media: 0 };
 
 const titleOf = (html: string, fallback: string): string => {
   const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
@@ -133,6 +133,7 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
     dropped.forms += walked.value.dropped.forms;
     dropped.eventAttrs += walked.value.dropped.eventAttrs;
     dropped.unsafeLinks += walked.value.dropped.unsafeLinks;
+    dropped.media += walked.value.dropped.media;
 
     // Resolve each image: a data: URI decodes; a relative path reads from the zip near the page, `./` and `../` included.
     for (const [ref, target] of walked.value.images) {
