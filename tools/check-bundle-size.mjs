@@ -310,7 +310,10 @@ export const BUDGET = {
   // The Kanka import (#293) on the merge of #297's branch: 9,008,325 bytes measured, +23,543 over the merged #297
   // tree. Named: the @caotang/import-kanka reader and its preview source, all on-use chunks, and the German Kanka
   // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  totalJs: 9_009_000,
+  // The Word import (#279) on the merge of #293's branch: 9,035,664 bytes measured, +27,339 over the merged #293
+  // tree. Named: the @caotang/import-docx reader and its preview source, all on-use chunks, and the German Word
+  // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  totalJs: 9_036_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
