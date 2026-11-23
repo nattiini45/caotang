@@ -6,7 +6,9 @@
  * as well as in the interface.
  *
  * The device names itself with a label it draws once per session and keeps. It authorizes nothing — the account still
- * comes from the session cookie — and it is never shown to another device.
+ * comes from the session cookie — and it is never shown to another device. Every call also names the signed-in account
+ * (`X-Caotang-Account`), which the server checks as a precondition beside the cookie: a browser whose cookie moved to
+ * another account gets a refusal to read again rather than another project's lease.
  */
 import { RemoteSessionError } from './http-project-records.js';
 import { RemoteUnavailableError } from './blob-store.js';
@@ -29,6 +31,8 @@ export interface HttpLeaseOptions {
   /** The server's HTTPS origin, without a path. */
   readonly origin: string;
   readonly projectId: string;
+  /** The account this browser is signed in as, as the shell read it. The server refuses a lease call without it. */
+  readonly accountId: string;
   /** This session's label: at most 64 letters, digits, - and _. The same label goes on every blob write. */
   readonly device: string;
   readonly fetch?: typeof fetch;
@@ -47,12 +51,13 @@ export function createHttpLease(options: HttpLeaseOptions): ProjectLease {
   }
   if (origin.protocol !== 'https:' || origin.origin !== options.origin) throw new RangeError('Use the server’s HTTPS origin without a path.');
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(options.projectId)) throw new RangeError('Use a project id of at most 64 letters, digits, - and _.');
+  if (options.accountId === '') throw new RangeError('Use the account id this browser is signed in as.');
   if (!DEVICE.test(options.device)) throw new RangeError('Use a device label of at most 64 letters, digits, - and _.');
   const attempts = options.attempts ?? 3;
   if (!Number.isSafeInteger(attempts) || attempts < 1) throw new RangeError('Use at least one attempt.');
   const call = options.fetch ?? fetch;
   const url = `${options.origin}/v1/projects/${options.projectId}/lease`;
-  const headers = { 'X-Caotang-Device': options.device };
+  const headers = { 'X-Caotang-Account': options.accountId, 'X-Caotang-Device': options.device };
 
   async function request(method: string, extra: Record<string, string> = {}): Promise<Response> {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
