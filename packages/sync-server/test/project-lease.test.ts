@@ -3,7 +3,7 @@
  * lease lapses on its own, and only a request that says so takes it over. The lease is soft, so a device that never
  * takes one is not blocked by it.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Miniflare, Response } from 'miniflare';
 import type { Request as RuntimeRequest } from 'miniflare';
 import { accountOperatorSql } from '../account-policy.mjs';
@@ -15,6 +15,11 @@ const SECRET = 'test-only-lease-secret-not-a-real-credential';
 const IDS: Record<string, number> = { 'reader-one': 101, 'reader-two': 202 };
 const PROJECT = 'p_lighthouse';
 const open: Miniflare[] = [];
+let h: Awaited<ReturnType<typeof runtime>>;
+
+// The runtime boots in the hook, not inside the case: it starts a workerd instance, which on GitHub's Windows
+// runner can take seconds, and the case's own deadline is five.
+beforeEach(async () => { h = await runtime(); }, 30_000);
 
 async function runtime() {
   const instance = new Miniflare({
@@ -79,7 +84,6 @@ afterEach(async () => { await Promise.all(open.splice(0).map((instance) => insta
 
 describe('the project lease', () => {
   it('lets the holder write and refuses another device, which can still read, until the lease lapses', async () => {
-    const h = await runtime();
     await h.invite('reader-one');
     const one = await h.signIn('reader-one');
     const two = await h.signIn('reader-one');
@@ -113,7 +117,6 @@ describe('the project lease', () => {
   });
 
   it('is taken over only when the request says so, and released by the device that holds it', async () => {
-    const h = await runtime();
     await h.invite('reader-one');
     const one = await h.signIn('reader-one');
     await h.lease('laptop', one.accountId, one.session);
@@ -129,7 +132,6 @@ describe('the project lease', () => {
   });
 
   it('asks a write that names no device for one while a lease is live, and never blocks a device that took none', async () => {
-    const h = await runtime();
     await h.invite('reader-one');
     const one = await h.signIn('reader-one');
     expect((await h.put(one.session, null, 'no lease held')).status).toBe(201);
@@ -139,7 +141,6 @@ describe('the project lease', () => {
   });
 
   it('cannot be taken or read for another account, from no session, or with a malformed device', async () => {
-    const h = await runtime();
     await h.invite('reader-one');
     await h.invite('reader-two');
     const one = await h.signIn('reader-one');

@@ -76,7 +76,7 @@ export function createHttpProjectRegistry(options: HttpProjectRegistryOptions): 
   const call = options.fetch ?? fetch;
   const headers = { 'X-Caotang-Account': options.accountId };
 
-  async function request(method: string, path: string, body?: string): Promise<Response> {
+  async function request(method: string, path: string, body?: string, extra: Record<string, string> = {}): Promise<Response> {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
       let response: Response;
@@ -84,7 +84,7 @@ export function createHttpProjectRegistry(options: HttpProjectRegistryOptions): 
         response = await call(`${options.origin}${path}`, {
           method,
           credentials: 'include',
-          headers: { ...headers, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+          headers: { ...headers, ...extra, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
           ...(body === undefined ? {} : { body }),
           cache: 'no-store',
         });
@@ -125,7 +125,13 @@ export function createHttpProjectRegistry(options: HttpProjectRegistryOptions): 
     put: async (id, record, putOptions): Promise<void> => {
       if (!PROJECT_ID.test(id)) throw new RangeError('Use a project id of at most 64 letters, digits, - and _.');
       const create = putOptions?.create === true;
-      const response = await request('PUT', `/v1/projects/${id}`, JSON.stringify({ wrappedKey: encodeBase64(record.wrappedKey), record: encodeBase64(record.record) }));
+      // `create` is the server's `If-None-Match: *`: without it the route replaces the row, which is a rename and not a create.
+      const response = await request(
+        'PUT',
+        `/v1/projects/${id}`,
+        JSON.stringify({ wrappedKey: encodeBase64(record.wrappedKey), record: encodeBase64(record.record) }),
+        create ? { 'If-None-Match': '*' } : {},
+      );
       if (response.status === 401 || response.status === 412) throw new RemoteSessionError(response.status);
       if (response.status === 409 && create) throw new RemoteProjectExistsError(id);
       if (response.status !== 200 && response.status !== 201) return malformed(response, 'project record');
