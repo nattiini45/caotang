@@ -207,13 +207,18 @@ describe('the Kanka entities (#293)', () => {
   });
 
   it('never lets a script’s text through, even when an entry is not readable HTML', async () => {
-    const broken = '<p>Unclosed <b>bold<script>alert(1)</script><style>p{color:red}</style> and a stray </p> tag.';
+    const broken =
+      '<p>Unclosed <b>bold<script>alert(1)</script><style>p{color:red}</style> and a stray </p> tag.' +
+      ' <<script>alert(2)</script> <script>alert(3)';
     const read = await readKanka(zipOf({ ...CAMPAIGN, 'characters/mara_12.json': entity(12, 'Mara', { entry: broken }) }));
     expect(read.ok).toBe(true);
     if (!read.ok) return;
     const body = read.value.pages.find((row) => row.entityId === 12)?.body ?? '';
     expect(body).toContain('Unclosed');
     expect(body).not.toContain('alert(1)');
+    expect(body).not.toContain('alert(2)');
+    expect(body).not.toContain('alert(3)');
+    expect(body).not.toContain('<script');
     expect(body).not.toContain('color:red');
     expect(read.value.losses.some((loss) => loss.message?.includes('not readable HTML'))).toBe(true);
   });
@@ -223,5 +228,11 @@ describe('the Kanka entities (#293)', () => {
     expect(rewriteMentions('with [entity:12]', names)).toEqual({ text: 'with Mara', unresolved: 0, targets: [12] });
     expect(rewriteMentions('with [entity:99|the stranger]', names)).toEqual({ text: 'with the stranger', unresolved: 1, targets: [] });
     expect(rewriteMentions('with [entity:99]', names)).toEqual({ text: 'with #99', unresolved: 1, targets: [] });
+    // A label stops at a nested or unclosed `[entity:` instead of spanning it.
+    expect(rewriteMentions('with [entity:99|a [entity:12]', names)).toEqual({
+      text: 'with [entity:99|a Mara',
+      unresolved: 0,
+      targets: [12],
+    });
   });
 });
