@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@caotang/artifact-fs-node": "workspace:*",
+    "@caotang/gateway": "workspace:*",
     "@caotang/store": "workspace:*",
     "@parcel/watcher": "2.6.0"
   },

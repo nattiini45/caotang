@@ -52,8 +52,9 @@ function crockford(raw: Buffer): string {
 const mac = (key: Buffer, message: string): Buffer => createHmac('sha256', key).update(message).digest();
 
 describe('fixed vectors', () => {
-  it('derives the file, path and manifest keys as HKDF-SHA-256 with their own info labels', async () => {
-    expect(Object.values(INFO_LABELS)).toEqual(['caotang/v1/file-key', 'caotang/v1/path-hmac-key', 'caotang/v1/manifest-key']);
+  it('derives the file, path, manifest and name keys as HKDF-SHA-256 with their own info labels', async () => {
+    expect(Object.values(INFO_LABELS)).toEqual(['caotang/v1/file-key', 'caotang/v1/path-hmac-key', 'caotang/v1/manifest-key', 'caotang/v1/name-key']);
+    expect(hex(await deriveSubkey(project, 'name'))).toBe(hex(nodeHkdf('caotang/v1/name-key')));
     expect(hex(await deriveSubkey(project, 'path'))).toBe(hex(nodeHkdf('caotang/v1/path-hmac-key')));
     expect(hex(await deriveSubkey(project, 'manifest'))).toBe(hex(nodeHkdf('caotang/v1/manifest-key')));
     expect(hex(await deriveSubkey(project, 'file', 'h1'))).toBe(hex(nodeHkdf('caotang/v1/file-key\0h1')));

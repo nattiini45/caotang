@@ -7,7 +7,7 @@ import type { DirectoryHandleLike, FileHandleLike, HandleLike } from './fs-acces
 const nativeIds = new WeakMap<DirectoryHandleLike, string>();
 
 function bridge(): NativeFolderBridge | undefined {
-  return typeof window !== 'undefined' && window.caotangDesktop?.version === 2 ? window.caotangDesktop.folders : undefined;
+  return typeof window !== 'undefined' && window.caotangDesktop?.version === 3 ? window.caotangDesktop.folders : undefined;
 }
 
 export function nativeFoldersAvailable(): boolean {
