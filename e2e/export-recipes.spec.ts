@@ -44,8 +44,13 @@ test('the export dialog offers the prose formats, then the media formats, then t
 
   const prose = dialog.getByRole('group', { name: 'Prose' });
   const media = dialog.getByRole('group', { name: 'Media' });
-  await expect(prose.getByRole('radio')).toHaveCount(4);
-  await expect(media.getByRole('radio')).toHaveCount(10);
+  await expect(prose.getByRole('radio')).toHaveCount(8);
+  await expect(prose.getByRole('radio', { name: /^Prose PDF \(\.pdf\)/ })).toBeVisible();
+  await expect(prose.getByRole('radio', { name: /^Web article \(\.html\)/ })).toBeVisible();
+  await expect(prose.getByRole('radio', { name: /^RSS feed \(\.rss\.xml\)/ })).toBeVisible();
+  await expect(prose.getByRole('radio', { name: /^Atom feed \(\.atom\.xml\)/ })).toBeVisible();
+  await expect(media.getByRole('radio')).toHaveCount(11);
+  await expect(media.getByRole('radio', { name: /^Podcast feed \(.rss.xml\)/ })).toBeVisible();
   await expect(media.getByRole('radio', { name: /^Shot list \(\.xlsx\)/ })).toBeVisible();
   await expect(media.getByRole('radio', { name: /^Storyboard contact sheet \(\.pdf\)/ })).toBeVisible();
   await expect(media.getByRole('radio', { name: /^Fountain \(\.fountain\)/ })).toBeVisible();

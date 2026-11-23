@@ -17,12 +17,22 @@
     "@caotang/coherence": "workspace:*",
     "@caotang/font-comic-lettering": "workspace:*",
     "@caotang/font-noto-arabic": "workspace:*",
+    "@caotang/font-noto-bengali": "workspace:*",
     "@caotang/font-noto-cjk": "workspace:*",
     "@caotang/font-noto-color-emoji": "workspace:*",
     "@caotang/font-noto-devanagari": "workspace:*",
     "@caotang/font-noto-emoji": "workspace:*",
+    "@caotang/font-noto-gujarati": "workspace:*",
+    "@caotang/font-noto-gurmukhi": "workspace:*",
     "@caotang/font-noto-hebrew": "workspace:*",
+    "@caotang/font-noto-kannada": "workspace:*",
+    "@caotang/font-noto-malayalam": "workspace:*",
+    "@caotang/font-noto-oriya": "workspace:*",
+    "@caotang/font-noto-sinhala": "workspace:*",
+    "@caotang/font-noto-tamil": "workspace:*",
+    "@caotang/font-noto-telugu": "workspace:*",
     "@caotang/gateway": "workspace:*",
+    "@caotang/ids": "workspace:*",
     "@caotang/mcp-server": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",
     "@caotang/scan": "workspace:*",
@@ -30,7 +40,8 @@
     "@jsquash/webp": "1.5.0"
   },
   "devDependencies": {
-    "@caotang/store": "workspace:*"
+    "@caotang/store": "workspace:*",
+    "@caotang/tasks": "workspace:*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

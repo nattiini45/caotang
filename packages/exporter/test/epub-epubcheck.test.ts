@@ -135,7 +135,25 @@ const CORPUS: readonly {
     build: () => bytesOf(epubInput({ language: 'ja', author: 'M. Ortega' })),
     contents: '目次',
   },
+  {
+    name: 'fixture 14: footnotes at the chapter end — noteref markers and footnote asides',
+    build: () => bytesOf(epubInput({}, notedProject())),
+  },
+  {
+    name: 'fixture 15: endnotes — the noterefs point into one endnotes.xhtml in the spine',
+    build: () => bytesOf(epubInput({ notes: 'endnote' }, notedProject())),
+  },
 ];
+
+/** A project whose first scene carries two footnotes — the notes corpus the footnote renders run through epubcheck. */
+function notedProject(): ProjectState {
+  const state = makeProject();
+  const landing = state.manifest.tree.find((node) => node.type === 'document' && node.title === 'The Landing');
+  const document = landing === undefined ? undefined : state.documents.get(landing.id);
+  if (document === undefined) throw new Error('the fixture has no Landing scene');
+  document.body = 'The ferry was late[^1], again[^2].\n\n[^1]: The Marta.\n\n[^2]: Always.';
+  return state;
+}
 
 /** The bytes of one render, from the input the fixture builds. */
 function bytesOf(input: EpubInput): Promise<Uint8Array> {

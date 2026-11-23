@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { binderTitle, createProject, waitForSaved } from './support.js';
+import { binderTitle, createProject, waitForSaved, chooseInterfaceLanguage} from './support.js';
 
 /**
  * The I7 acceptance demonstration (i18n.md §3.2, §6.2, §8.3): a deterministic timeline finding is
@@ -63,7 +63,7 @@ test('a pseudo-locale run shows a localised timeline finding with each title iso
   await page.getByTestId('open-settings').click();
   const settings = page.getByTestId('settings');
   await settings.getByRole('button', { name: 'Appearance' }).click();
-  await settings.locator('input[name="interface-language"][value="en-XA"]').click();
+  await chooseInterfaceLanguage(page, settings, 'en-XA');
   await expect.poll(() => page.evaluate(() => document.documentElement.lang)).toBe('en-XA');
   // Close by structure: the button's words are pseudo text after the switch.
   await settings.locator('.settings-head button').click();

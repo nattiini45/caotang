@@ -36,6 +36,7 @@ import {
   createExporter,
   drawContactSheet,
   fitToWidth,
+  type IndicFontLoaders,
   renderMedia,
   type ByteArtifacts,
   type ExporterService,
@@ -61,7 +62,7 @@ function rig(
     loadEmojiFont?: FontLoader;
     loadArabicFont?: FontLoader;
     loadHebrewFont?: FontLoader;
-    loadDevanagariFont?: FontLoader;
+    loadIndicFonts?: IndicFontLoaders;
     transcodePicture?: PictureTranscoder;
     readAsset?: (path: string) => Promise<Uint8Array | null>;
     language?: string;
@@ -85,7 +86,7 @@ function rig(
     ...(options.loadEmojiFont === undefined ? {} : { loadEmojiFont: options.loadEmojiFont }),
     ...(options.loadArabicFont === undefined ? {} : { loadArabicFont: options.loadArabicFont }),
     ...(options.loadHebrewFont === undefined ? {} : { loadHebrewFont: options.loadHebrewFont }),
-    ...(options.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: options.loadDevanagariFont }),
+    ...(options.loadIndicFonts === undefined ? {} : { loadIndicFonts: options.loadIndicFonts }),
     ...(options.transcodePicture === undefined ? {} : { transcodePicture: options.transcodePicture }),
   });
   return { exporter, reads };
@@ -698,7 +699,7 @@ describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans Mono
     const state = withAction('雨 ⲁ and க');
     const { result, pdf } = await compileSheet(rig({ state, loadFallbackFont: loadCjkFontInNode }).exporter);
     expect(result.log.notes).toContain(
-      'contact sheet: 2 characters neither the PDF\'s built-in font nor Noto Sans Mono CJK SC can show were drawn as "?": ⲁ (U+2C81), க (U+0B95)',
+      'contact sheet: 2 characters neither the PDF\'s built-in font nor Noto Sans Mono CJK SC can show, and this compile has no Noto Sans Tamil font, were drawn as "?": ⲁ (U+2C81), க (U+0B95)',
     );
     expect(toUnicodeText(pdf)).toContain('雨');
   });
@@ -996,7 +997,7 @@ describe('contact-sheet-pdf — Devanagari, in Noto Sans Devanagari', () => {
   }
 
   it('sets Hindi in the font, shaped, with each word as marked content, the typed text in the ToUnicode map, and no "?"', async () => {
-    const { pdf, result } = await compileSheet(rig({ state: withAction(HINDI), loadDevanagariFont: loadDevanagariFontInNode }).exporter);
+    const { pdf, result } = await compileSheet(rig({ state: withAction(HINDI), loadIndicFonts: { devanagari: loadDevanagariFontInNode } }).exporter);
     const copied = actualTexts(pdf);
     for (const word of ['राम', 'हिन्दी', 'में', 'क्षत्रिय', 'श्रीमान्', 'प्रेम', 'कार्यक्रम', 'स्त्री', 'की', 'बात।']) expect(copied, word).toContain(word);
     expect(copied.indexOf('हिन्दी')).toBeLessThan(copied.indexOf('क्षत्रिय'));
@@ -1011,7 +1012,7 @@ describe('contact-sheet-pdf — Devanagari, in Noto Sans Devanagari', () => {
 
   it('cuts a line wider than its box with an ellipsis on a cluster boundary, and never inside a conjunct', async () => {
     const word = 'क्षत्रिय'.repeat(40);
-    const { pdf } = await compileSheet(rig({ state: withAction(word), loadDevanagariFont: loadDevanagariFontInNode }).exporter);
+    const { pdf } = await compileSheet(rig({ state: withAction(word), loadIndicFonts: { devanagari: loadDevanagariFontInNode } }).exporter);
     const drawn = actualTexts(pdf).filter((text) => text.startsWith('क्ष'));
     expect(drawn.length).toBeGreaterThan(0);
     for (const text of drawn) {
@@ -1023,7 +1024,7 @@ describe('contact-sheet-pdf — Devanagari, in Noto Sans Devanagari', () => {
   });
 
   it('shapes the precomposed nukta letter and the letter with its nukta alike, as NFC does', async () => {
-    const state = (text: string) => rig({ state: withAction(text), loadDevanagariFont: loadDevanagariFontInNode }).exporter;
+    const state = (text: string) => rig({ state: withAction(text), loadIndicFonts: { devanagari: loadDevanagariFontInNode } }).exporter;
     const composed = await compileSheet(state('क़ फ़ क़ फ़'));
     const decomposed = await compileSheet(state('क़ फ़ क़ फ़'));
     expect(pageContent(composed.pdf, 0)).toBe(pageContent(decomposed.pdf, 0));
@@ -1031,25 +1032,25 @@ describe('contact-sheet-pdf — Devanagari, in Noto Sans Devanagari', () => {
 
   it('reads the font once, and only for a sheet that holds Devanagari', async () => {
     const loader = countingLoader(loadDevanagariFontInNode);
-    await compileSheet(rig({ state: withAction('Weißdorn crosses the café © 2026'), loadDevanagariFont: loader.load }).exporter);
+    await compileSheet(rig({ state: withAction('Weißdorn crosses the café © 2026'), loadIndicFonts: { devanagari: loader.load } }).exporter);
     expect(loader.calls()).toBe(0);
-    await compileSheet(rig({ state: withAction(`${HINDI} ${HINDI}`), loadDevanagariFont: loader.load }).exporter);
+    await compileSheet(rig({ state: withAction(`${HINDI} ${HINDI}`), loadIndicFonts: { devanagari: loader.load } }).exporter);
     expect(loader.calls()).toBe(1);
   });
 
   it('draws Devanagari as "?", and says why, when the compile has no font or the font cannot be read', async () => {
     const none = await compileSheet(rig({ state: withAction('हिन्दी') }).exporter);
     expect(embeddedFontFiles(none.pdf)).toHaveLength(0);
-    expect(none.result.log.notes.find((line) => line.includes('drawn as "?"'))).toContain('this compile has no Devanagari font');
+    expect(none.result.log.notes.find((line) => line.includes('drawn as "?"'))).toContain('this compile has no Noto Sans Devanagari font');
     const failing: FontLoader = async () => {
       throw new Error('offline');
     };
-    const failed = await compileSheet(rig({ state: withAction('हिन्दी'), loadDevanagariFont: failing }).exporter);
-    expect(failed.result.log.notes.find((line) => line.includes('drawn as "?"'))).toContain('the Devanagari font could not be read (offline)');
+    const failed = await compileSheet(rig({ state: withAction('हिन्दी'), loadIndicFonts: { devanagari: failing } }).exporter);
+    expect(failed.result.log.notes.find((line) => line.includes('drawn as "?"'))).toContain('the Noto Sans Devanagari font could not be read (offline)');
   });
 
   it('names a script that has no font, and not Devanagari, when both are in the sheet', async () => {
-    const { result } = await compileSheet(rig({ state: withAction('हिन्दी தமிழ்'), loadDevanagariFont: loadDevanagariFontInNode }).exporter);
+    const { result } = await compileSheet(rig({ state: withAction('हिन्दी தமிழ்'), loadIndicFonts: { devanagari: loadDevanagariFontInNode } }).exporter);
     const note = result.log.notes.find((line) => line.includes('drawn as "?"')) ?? '';
     expect(note).toContain('த (U+0BA4)');
     expect(note).not.toContain('U+0939');
@@ -1058,7 +1059,7 @@ describe('contact-sheet-pdf — Devanagari, in Noto Sans Devanagari', () => {
   it('writes a Latin-only sheet byte for byte as it was, with the Devanagari font given', async () => {
     const state = withAction('Weißdorn crosses the café © 2026');
     const plain = await compileSheet(rig({ state }).exporter);
-    const given = await compileSheet(rig({ state, loadDevanagariFont: loadDevanagariFontInNode }).exporter);
+    const given = await compileSheet(rig({ state, loadIndicFonts: { devanagari: loadDevanagariFontInNode } }).exporter);
     expect(given.bytes).toEqual(plain.bytes);
   });
 });

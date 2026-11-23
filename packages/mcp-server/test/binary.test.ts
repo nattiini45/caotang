@@ -34,6 +34,15 @@ import { LOCK_FILE } from '../src/index.js';
 import { webpFixture } from '../../exporter/test/webp-fixtures.js';
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
+/**
+ * The environment a spawned child gets: ours, without `NODE_OPTIONS`. The test runner fills that variable with its own preload
+ * script, which a child started on a different path cannot resolve, so the child would die before running anything (#812).
+ */
+function childEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  const { NODE_OPTIONS: _runnerPreload, ...rest } = process.env;
+  return { ...rest, ...extra };
+}
+
 const BUNDLE = join(PACKAGE, 'dist', 'caotang-mcp.mjs');
 
 /** Resolves once `pattern` appears in what the child wrote to stderr, or rejects after `ms`. */
@@ -116,7 +125,7 @@ describe('the built caotang-mcp binary', () => {
   it('is a single file, and it runs: --help prints the usage on stdout and exits 0', async () => {
     expect(existsSync(BUNDLE)).toBe(true);
     expect(statSync(BUNDLE).size).toBeGreaterThan(100_000);
-    const child = spawn(process.execPath, [BUNDLE, '--help']);
+    const child = spawn(process.execPath, [BUNDLE, '--help'], { env: childEnv() });
     let stdout = '';
     child.stdout.on('data', (chunk: Buffer) => {
       stdout += chunk.toString('utf8');
@@ -146,7 +155,7 @@ describe('the built caotang-mcp binary', () => {
     const child = spawn(
       process.execPath,
       [BUNDLE, 'serve', '--project', join(root, 'http'), '--create', 'Spawned Book', '--port', '0'],
-      { env: { ...process.env, CAOTANG_MCP_TOKEN: token }, stdio: ['ignore', 'pipe', 'pipe'] },
+      { env: childEnv({ CAOTANG_MCP_TOKEN: token }), stdio: ['ignore', 'pipe', 'pipe'] },
     );
     let stdout = '';
     child.stdout?.on('data', (chunk: Buffer) => {
@@ -177,7 +186,7 @@ describe('the built caotang-mcp binary', () => {
     const child = spawn(
       process.execPath,
       [BUNDLE, 'serve', '--project', join(root, 'auth'), '--create', 'Guarded', '--port', '0'],
-      { env: { ...process.env, CAOTANG_MCP_TOKEN: token }, stdio: ['ignore', 'pipe', 'pipe'] },
+      { env: childEnv({ CAOTANG_MCP_TOKEN: token }), stdio: ['ignore', 'pipe', 'pipe'] },
     );
     try {
       const [, url] = await waitForStderr(child, /MCP endpoint (http:\/\/127\.0\.0\.1:\d+\/mcp)/);
@@ -265,6 +274,7 @@ describe('the built caotang-mcp binary', () => {
 
   it('ends with exit 0 when the host closes stdin, and writes nothing to stdout', async () => {
     const child = spawn(process.execPath, [BUNDLE, 'serve', '--project', join(root, 'stdio-eof'), '--create', 'Eof Book', '--stdio'], {
+      env: childEnv(),
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let stdout = '';
@@ -372,7 +382,7 @@ describe('the built caotang-mcp binary', () => {
     const orphan = join(folder, 'docs', HAND_WRITTEN_DOC_NAME);
     writeFileSync(orphan, HAND_WRITTEN_DOC);
     const child = spawn(process.execPath, [BUNDLE, 'serve', '--project', folder, '--create', 'Recovered', '--port', '0'], {
-      env: { ...process.env, CAOTANG_MCP_TOKEN: testToken() },
+      env: childEnv({ CAOTANG_MCP_TOKEN: testToken() }),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stderr = '';
@@ -389,7 +399,7 @@ describe('the built caotang-mcp binary', () => {
     const folder = join(root, 'contended');
     await seedProject(folder, 'Contended');
     // A lock whose holder has exited: the case every writer is entitled to take over.
-    const gone = spawn(process.execPath, ['-e', '']);
+    const gone = spawn(process.execPath, ['-e', ''], { env: childEnv() });
     const pid = gone.pid;
     if (pid === undefined) throw new Error('could not start a child process');
     await new Promise<void>((done) => gone.once('exit', () => done()));
@@ -397,7 +407,7 @@ describe('the built caotang-mcp binary', () => {
 
     const running = Array.from({ length: 8 }, () =>
       spawn(process.execPath, [BUNDLE, 'serve', '--project', folder, '--port', '0'], {
-        env: { ...process.env, CAOTANG_MCP_TOKEN: testToken() },
+        env: childEnv({ CAOTANG_MCP_TOKEN: testToken() }),
         stdio: ['ignore', 'pipe', 'pipe'],
       }),
     );

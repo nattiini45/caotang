@@ -49,6 +49,7 @@ import {
 
 import { activeAppDb, type AppDb } from './app-db.js';
 import { folderArtifactFs, isSameFolder, type DirectoryHandleLike } from './fs-access.js';
+import { nativeFolderId } from './native-folders.js';
 import { CoherenceFolderError, type CoherencePort, type ProjectSession } from './session.js';
 
 /* lingui-set comment="Interpolated values: error" */
@@ -221,13 +222,15 @@ export async function attachCoherence(session: ProjectSession, store: RuntimeSto
 
   let load: LoadResult = mirrorLoad;
   let folderTarget: FolderCopy | null = null;
+  const native = nativeFolderId(folder) !== undefined;
   const notices: string[] = mirror.notice === null ? [] : [mirror.notice];
   if (folder !== null) {
     try {
       folderTarget = await readFolderCopy(folder);
       // A folder that holds a file is the copy the writer put there, so it wins over the browser's copy.
-      if (folderTarget.load.status !== 'absent') load = folderTarget.load;
+      if (native || folderTarget.load.status !== 'absent') load = folderTarget.load;
     } catch (error) {
+      if (native) throw error;
       // The folder stays out of the saves for this session; the browser's copy is what is shown and saved.
       const errorText = messageOf(error);
       notices.push(t`${{ error: errorText }} Findings are kept in this browser.`);
@@ -245,8 +248,9 @@ export async function attachCoherence(session: ProjectSession, store: RuntimeSto
       if (!mirror.readable) {
         throw new Error('the findings file could not be read when the project opened, so it is not saved over. Reopen the project to save again.');
       }
+      if (native && folderTarget !== null) await saveToFolder(folderTarget, file);
       await saveCoherence(mirror.fs, mirrorLoad, file);
-      if (folderTarget !== null) await saveToFolder(folderTarget, file);
+      if (!native && folderTarget !== null) await saveToFolder(folderTarget, file);
     },
     attachFolder: async (root: DirectoryHandleLike, file: CoherenceFile): Promise<void> => {
       // The folder this session already holds a file of is checked against it. Any other folder is written only after its own copy has

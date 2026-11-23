@@ -858,8 +858,8 @@ describe('the registration refusal is never reached, because the captures are co
     // The picture registry adds `asset.setMeta` (the two imports need the asset port): 47 + 1 + 2 (`script.setShowMeta`, `script.setEpisodeMeta`) = 50.
     // The writer's codex batch import adds `codex.importBatch`: 50 + 1 = 51.
     // The timeline batch and the calendar setting are compensable and need no port: 51 + 2 = 53.
-    // The eight picture commands that touch only the manifest beyond `asset.setMeta` need no port: 53 + 8 = 61. The seven comic commands make 68.
-    expect(implemented).toHaveLength(68);
+    // The eight picture commands that touch only the manifest beyond `asset.setMeta` need no port: 53 + 8 = 61. The seven comic commands make 68. The publish field patch `binder.setPublish` adds one more: 69.
+    expect(implemented).toHaveLength(69);
   });
 
   it('the sink is not consulted for notes, and a notes undo needs no store', () => {

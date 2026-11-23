@@ -14,6 +14,8 @@ import { t } from '@lingui/core/macro';
  * writer's text, not an app action, so a composing Enter resolves to nothing at all.
  */
 
+export const MODAL_DIALOG_SELECTOR = 'dialog, [role="dialog"]:not([aria-modal="false"]), [role="alertdialog"]:not([aria-modal="false"])';
+
 export type KeyAction =
   | 'new-document'
   | 'rename'

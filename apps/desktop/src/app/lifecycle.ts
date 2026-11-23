@@ -33,6 +33,7 @@
  */
 
 import { t } from '@lingui/core/macro';
+import type { McpReadHook, ModelHook } from '@caotang/harness';
 import { COHERENCE_FILE, serializeCoherenceFile, type CoherenceFile } from '@caotang/coherence';
 import { collatorFor, isolate } from '@caotang/i18n';
 import { TASKS_FILE } from '@caotang/tasks';
@@ -105,7 +106,7 @@ import { interfaceCollator } from '../i18n/locale.js';
 import { folderFileDiff, type FolderDiffLine } from './folder-diff.js';
 import { applyEncodingDecisions, encodingResultLines, type EncodingDecision } from './encoding-review.js';
 import { changedDuringSave, pruneFolderBackups, watchSave } from './folder-guard.js';
-import { folderArtifactFs, isSameFolder, type DirectoryHandleLike } from './fs-access.js';
+import { folderArtifactFs, folderIsEmpty, isSameFolder, type DirectoryHandleLike } from './fs-access.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
 import {
   copiedFromOf,
@@ -135,12 +136,15 @@ import { SkillReviews, dropReviewsOf } from './skill-reviews.js';
 import { forgetPictureNotices } from './picture-notices.js';
 import { dropTasksOf } from './task-store.js';
 import { dropTaskRunsOf } from './task-runs.js';
+import { dropTaskConsentsOf } from './task-consents.js';
 import { openTasksHome } from './tasks-io.js';
 import { recoverPending, recoveryNotice } from './pending-journal.js';
 import { copyState, shadowOf, type Shadow } from './persistence-plan.js';
 import { acquireProjectLease, ProjectOpenElsewhereError, type ProjectLease } from './project-lease.js';
 import { ProjectSession, type FolderBaseline, type SessionCoherence } from './session.js';
 import { ProjectAssets, coverFileHeld, folderPictures, forgetBrowserAssets } from './project-assets.js';
+import { nativeFolderId, rememberNativeFolder } from './native-folders.js';
+import { nativeRuntimeStore } from './runtime.js';
 
 /* lingui-set comment="Interpolated values: count, path, reason" */
 
@@ -155,6 +159,8 @@ export interface SessionDefaults {
   readonly retention?: RetentionConfig;
   /** The app's MCP client, so the agent's `tool.search` and `mcp.invoke` reach the servers the writer connected (extensibility §5). */
   readonly mcp?: { readonly client: McpClient };
+  readonly mcpHooks?: (projectId: string) => readonly McpReadHook[];
+  readonly modelHooks?: (projectId: string) => readonly ModelHook[];
   /** What the agent's coherence tools read from the app: the checks the writer has on, and the review's model (coherence.md §7). */
   readonly coherence?: SessionCoherence;
   /** The writer's own agent rules, read by every session at each agent call (Settings › Agent; agent-harness §4). */
@@ -228,6 +234,9 @@ async function sessionFor(
   folder: DirectoryHandleLike | null = null,
 ): Promise<ProjectSession> {
   let session: ProjectSession | undefined;
+  const nativeId = nativeFolderId(folder);
+  const assets = nativeId === undefined ? assetsFor(state.manifest.project.id) : new ProjectAssets();
+  const nativeFs = nativeId !== undefined && folder !== null ? folderArtifactFs(folder) : undefined;
   try {
     // The lease allows one live tab per project, so an agent run still marked running or waiting on a card is one whose tab is gone: it is
     // interrupted, and only the writer resumes or discards it (agent-harness §5.1). A store that cannot be written does not stop the open.
@@ -237,13 +246,21 @@ async function sessionFor(
       projectId: state.manifest.project.id,
       state,
       shadow,
+      ...(nativeFs === undefined ? {} : { sessionLog: {
+        read: () => folderSessionsOf(nativeFs),
+        append: async (record) => {
+          await writeSessionsFile(nativeFs, [...await folderSessionsOf(nativeFs), record]);
+        },
+      } }),
       saveChannels: defaults.saveChannels,
       // The writer's reviews of this project's skills are kept in the app database, and never in the project (skill-reviews.ts).
       skillReviews: await SkillReviews.open(state.manifest.project.id),
-      assets: assetsFor(state.manifest.project.id),
+      assets,
       // The agent's image check reads the project's images at each call (storyboard.md §4).
-      presentAssets: () => assetsFor(state.manifest.project.id).presentIds(),
+      presentAssets: () => assets.presentIds(),
       ...(defaults.mcp === undefined ? {} : { mcp: defaults.mcp }),
+      ...(defaults.mcpHooks === undefined ? {} : { mcpHooks: defaults.mcpHooks }),
+      ...(defaults.modelHooks === undefined ? {} : { modelHooks: defaults.modelHooks }),
       ...(defaults.coherence === undefined ? {} : { coherence: defaults.coherence }),
       ...(defaults.appRules === undefined ? {} : { appRules: defaults.appRules }),
       ...(defaults.debounceMs === undefined ? {} : { debounceMs: defaults.debounceMs }),
@@ -257,7 +274,7 @@ async function sessionFor(
     // A failed load does not stop the open: the dialogue views say so and offer Try again.
     await requestInkCompilerFor(state);
     // Words the last page held when it went away are put back (or offered) before the editor mounts (pending-journal.ts).
-    session.setReloadNotice(recoveryNotice(await recoverPending(session)));
+    if (nativeId === undefined) session.setReloadNotice(recoveryNotice(await recoverPending(session)));
     // The undo kept for a document this project no longer has goes (history-store.ts).
     void dropHistoryOf(state.manifest.project.id, new Set(state.documents.keys()));
   } catch (error) {
@@ -538,6 +555,7 @@ export async function removeProject(store: RuntimeStore, projectId: string): Pro
     await dropTasksOf(projectId);
     // And the run history of its recurring tasks (task-runs.ts).
     await dropTaskRunsOf(projectId);
+    await dropTaskConsentsOf(projectId);
     // And what the writer answered about keeping its pictures safe (picture-notices.ts).
     await forgetPictureNotices(projectId);
   } finally {
@@ -581,10 +599,23 @@ export interface ExportedBundle {
  */
 export async function exportBundle(store: RuntimeStore, session: ProjectSession): Promise<ExportedBundle> {
   await session.settle();
-  const sessions = await readSessions(store, session.projectId);
+  let sessions: SessionRecord[];
+  let historyUnavailable = false;
+  if (nativeFolderId(session.folderBaseline()?.folder ?? null) === undefined) {
+    sessions = await readSessions(store, session.projectId);
+  } else {
+    try {
+      sessions = await session.sessionLog();
+    } catch {
+      historyUnavailable = true;
+      sessions = [];
+    }
+  }
   const bundle = await bundleOf(session.state, sessions, session.assets, coherenceTextOf(session), session.tasksHome()?.text(), 'user', () => session.saveHookWarnings());
   session.markExported();
-  return bundle;
+  return historyUnavailable
+    ? { ...bundle, notices: [...bundle.notices, t`The folder’s writing history could not be read, so it is not in the backup.`] }
+    : bundle;
 }
 
 /**
@@ -927,13 +958,19 @@ async function openStored(
   folder: DirectoryHandleLike,
   load: { readonly notices: readonly string[]; readonly droppedFields: readonly string[]; readonly folderLog: readonly SessionRecord[] },
   assets: Readonly<Record<string, Uint8Array>>,
+  artifactState?: ProjectState,
 ): Promise<Opened> {
   // The lease comes first, as an open takes it. A refusal propagates to the writer: the folder is not opened as a copy of a project another
   // tab has open.
   const lease = await leaseFor(projectId);
   let state: ProjectState;
   try {
-    state = await readProjectState(store, projectId);
+    if (artifactState === undefined) {
+      state = await readProjectState(store, projectId);
+    } else {
+      await writeProjectState(store, artifactState);
+      state = artifactState;
+    }
   } catch (error) {
     lease.release();
     throw error;
@@ -941,12 +978,13 @@ async function openStored(
   const session = await sessionFor(store, state, shadowOf(state), lease, folder);
   try {
     // Every line of the folder's log the store does not hold is carried into the store, so the save can write the folder's whole history back.
-    await carryFolderSessions(store, projectId, load.folderLog);
+    if (artifactState === undefined) await carryFolderSessions(store, projectId, load.folderLog);
     await session.assets.loadAll(assets);
     const noticesOut = [...load.notices];
     try {
       await session.attachFolder(folder);
     } catch (error) {
+      if (artifactState !== undefined) throw error;
       noticesOut.push(exportsKeptHere(error));
     }
     await settleForOpen(session);
@@ -1042,6 +1080,32 @@ export async function importBundle(store: RuntimeStore, bytes: Uint8Array, name:
   };
 }
 
+export async function createNativeProject(
+  store: RuntimeStore, root: DirectoryHandleLike, name: string, copyFrom?: string,
+): Promise<OpenOutcome> {
+  if (nativeFolderId(root) === undefined || !await folderIsEmpty(root)) {
+    throw new Error(t`Choose an empty folder for the new project. Nothing was copied.`);
+  }
+  const fs = folderArtifactFs(root);
+  if (copyFrom === undefined) {
+    const title = name.trim() === '' ? t`Untitled project` : name.trim();
+    await writeProject(fs, createProjectState(createEmptyManifest(title)));
+  } else {
+    const bundle = await exportStoredBundle(store, copyFrom);
+    const unpacked = await importProjectZip(bundle.bytes);
+    const { state } = await readProject(unpacked.fs);
+    state.manifest.project.id = newId('p');
+    if (!await folderIsEmpty(root)) throw new Error(t`The chosen folder is no longer empty. Choose another folder.`);
+    await writeSessionsFile(fs, unpacked.sessions);
+    for (const [path, bytes] of Object.entries(unpacked.assets)) await fs.writeBytesAtomic(path, bytes);
+    for (const path of [COHERENCE_FILE, TASKS_FILE]) {
+      if (await unpacked.fs.exists(path)) await fs.writeBytesAtomic(path, await unpacked.fs.readBytes(path));
+    }
+    await writeProject(fs, state);
+  }
+  return openFolder(store, root);
+}
+
 /**
  * Open a project folder through the File System Access API, as a working copy in the runtime store. The folder's `caotang.json`
  * text is kept as the baseline a later save is checked against. A folder whose manifest will not load is offered its recovery.
@@ -1116,6 +1180,18 @@ async function finishFolderOpen(
   // later open from the list (no folder) reads them too.
   const pictures = await folderPictures(root);
   const projectId = loaded.state.manifest.project.id;
+  const nativeId = nativeFolderId(root);
+  if (nativeId !== undefined) {
+    const cache = await nativeRuntimeStore(nativeId);
+    const opened = await openStored(cache, projectId, root, { notices, droppedFields, folderLog }, pictures, loaded.state);
+    try {
+      await liveInItsFolder(opened, root, baselineText, digests);
+      return { kind: 'opened', opened };
+    } catch (error) {
+      await opened.session.closeSafely().catch(() => undefined);
+      throw error;
+    }
+  }
   const stored = (await listProjectIds(store)).includes(projectId) ? await readProjectState(store, projectId) : null;
   const route = folderOpenRoute({ storedHasId: stored !== null, sameBook: stored !== null && sameBook(stored, loaded.state) });
   // A stored copy that differs from the folder is not copied without a word: the writer is asked which version to keep (answerFolderDiffers).
@@ -1440,13 +1516,75 @@ export async function completeRecovery(
       },
     };
   }
+  const root = recovery.folder;
   // The recovery's own notes say which copy was used, and the dialog has already said it, so they are not repeated as field notices.
-  const opened = await adopt(store, offer.state, recovery.sessions, [], [], recovery.folder);
-  if (recovery.folder !== null) {
-    // The recovery wrote the folder, so the digests are taken as the folder now stands: the next save is checked against what it holds.
-    holdFolderCopy(opened.session, recovery.folder, (await readManifestText(recovery.fs)) ?? '', await projectFileDigests(recovery.fs));
+  if (root !== null) {
+    const opened = await openRecoveredInItsFolder(recovery.fs, root, offer.state, recovery.sessions, []);
+    if (opened !== null) return { kind: 'opened', opened };
+  }
+  const opened = await adopt(store, offer.state, recovery.sessions, [], [], root);
+  if (root !== null) {
+    // A folder the writer picked in the browser is not the project's home: the recovery opens in the browser's store, and "Save to
+    // folder" stays the writer's action.
+    holdFolderCopy(opened.session, root, (await readManifestText(recovery.fs)) ?? '', await projectFileDigests(recovery.fs));
   }
   return { kind: 'opened', opened };
+}
+
+/**
+ * Opens a recovered project in the folder it came from, when that folder is a native one: the recovered state is stored in the
+ * folder's own cache under the project id the recovered manifest names — a snapshot rung keeps that id, while a rebuild mints a new
+ * one, so the row the cache held before stays beside it and is simply not named by the folder — and the session lives in the folder,
+ * so it opens the way a native open opens and every later save writes the folder. Returns `null` for a folder picked in the browser,
+ * which is not a project's home; the caller adopts it instead. A pause for non-UTF-8 files goes through here too, so the answers
+ * cannot land the project in the browser store (#744).
+ */
+async function openRecoveredInItsFolder(
+  fs: ArtifactFs,
+  root: DirectoryHandleLike,
+  state: ProjectState,
+  sessions: readonly SessionRecord[],
+  notices: readonly string[],
+): Promise<Opened | null> {
+  const nativeRoot = nativeFolderId(root);
+  if (nativeRoot === undefined) return null;
+  const cache = await nativeRuntimeStore(nativeRoot);
+  const opened = await openStored(
+    cache,
+    state.manifest.project.id,
+    root,
+    { notices, droppedFields: [], folderLog: sessions },
+    await folderPictures(root),
+    state,
+  );
+  try {
+    // The recovery wrote the folder, so the digests are taken as the folder now stands: the next save is checked against what it holds.
+    await liveInItsFolder(opened, root, (await readManifestText(fs)) ?? '', await projectFileDigests(fs));
+    return opened;
+  } catch (error) {
+    await opened.session.closeSafely().catch(() => undefined);
+    throw error;
+  }
+}
+
+/**
+ * Makes a session opened from a native folder live in that folder: the copy it holds is the folder's as it stands, every later save
+ * writes the folder through the one writer (`writeFolder`), and the folder is in the recent list. Both the open path and an accepted
+ * recovery route here, so a project cannot open looking like a folder's while saving somewhere else (#744).
+ */
+async function liveInItsFolder(
+  opened: Opened,
+  root: DirectoryHandleLike,
+  baselineText: string,
+  digests: ReadonlyMap<string, string>,
+): Promise<void> {
+  holdFolderCopy(opened.session, root, baselineText, digests);
+  opened.session.persistence.setArtifactSaver(async () => {
+    const outcome = await withFolderWrite(opened.session, () => writeFolder(opened.session, root, {}, true));
+    if (outcome.kind === 'refused') throw new Error(t`The project folder changed outside Caotang or is in use. Reopen it before saving.`);
+  });
+  const nativeId = nativeFolderId(root);
+  if (nativeId !== undefined) await rememberNativeFolder(nativeId);
 }
 
 /**
@@ -1509,7 +1647,12 @@ export async function completeEncodingReview(
       };
     case 'recovery': {
       // As the accepted recovery itself would open it: the conversion lines are the whole report, since the recovery
-      // dialog already said which copy was used.
+      // dialog already said which copy was used. The answers are what completes the recovery, so a paused one takes the
+      // folder path too instead of opening a copy in the browser (#744).
+      if (resume.folder !== null) {
+        const opened = await openRecoveredInItsFolder(pending.fs, resume.folder, loaded.state, resume.sessions, lines);
+        if (opened !== null) return { kind: 'opened', opened };
+      }
       const opened = await adopt(store, loaded.state, resume.sessions, lines, [], resume.folder);
       if (resume.folder !== null) {
         holdFolderCopy(opened.session, resume.folder, (await readManifestText(pending.fs)) ?? '', await projectFileDigests(pending.fs));
@@ -1600,7 +1743,7 @@ function folderFilePreviewTargets(
   const currentTitles = projectFileTitles(state);
   const target = (path: string, change: ProjectFileChange['change']): FolderFilePreviewTarget => ({
     path,
-    label: projectFileLabel(path, currentTitles, heldTitles, 'this copy'),
+    label: projectFileLabel(path, currentTitles, heldTitles, t`this copy`),
     change,
   });
   const previewable = (path: string): boolean => path.startsWith(`${DOCS_DIR}/`) || path.startsWith('codex/');
@@ -1637,7 +1780,7 @@ export async function previewFolderChanges(
   try {
     await writeProject(proposedFs, copyState(session.state), { copyFor: 'internal' });
   } catch {
-    const previews = targets.map((file) => ({ ...file, lines: [{ kind: 'note' as const, text: 'Caotang could not prepare this comparison.' }] }));
+    const previews = targets.map((file) => ({ ...file, lines: [{ kind: 'note' as const, text: t`Caotang could not prepare this comparison.` }] }));
     return { previews, omitted: previouslyOmitted + files.length - previews.length };
   }
   const previews: FolderFilePreview[] = [];
@@ -1729,6 +1872,26 @@ export async function saveFolder(
     throw new Error('This tab cannot save: another tab has newer text for this project. Export a backup to keep the words in this tab.');
   }
   await session.settle();
+  return withFolderWrite(session, () => writeFolder(session, root, answers, false));
+}
+
+/**
+ * Runs a write into the open folder with the copy the session holds marked out of date until the write ends: the copy advances only
+ * as the save finishes, however many files it re-digests, and a reader of the folder waits for that instead of judging a save in
+ * progress as another program's edit (#778).
+ */
+async function withFolderWrite<T>(session: ProjectSession, work: () => Promise<T>): Promise<T> {
+  session.beginFolderWrite();
+  try {
+    return await work();
+  } finally {
+    session.endFolderWrite();
+  }
+}
+
+async function writeFolder(
+  session: ProjectSession, root: DirectoryHandleLike, answers: FolderSaveAnswers, nativeAutosave: boolean,
+): Promise<FolderSaveOutcome> {
   const fs = folderArtifactFs(root);
   const onDisk = await readManifestText(fs);
   // Whose project the folder holds (`folderProjectRoute`). A separate copy made from the folder's own book has an id of its own (adopt), and
@@ -1745,7 +1908,7 @@ export async function saveFolder(
   // folder is compared with nothing.
   const copy = session.folderBaseline();
   let held = copy !== null && (await isSameFolder(copy.folder, root)) ? copy : null;
-  if (held === null && route === 'own') held = await rememberedCopyFor(session.projectId, root);
+  if (!nativeAutosave && held === null && route === 'own') held = await rememberedCopyFor(session.projectId, root);
   // What the folder holds now, digested before anything is compared or written, so the check and the write see the same files.
   const before = await projectFileDigests(fs);
   const drift = held === null ? null : driftOf(held.digests, before);
@@ -1778,7 +1941,7 @@ export async function saveFolder(
     }, { manifestText: onDisk, digests: before });
   }
   // The session log is written first, so a log the folder cannot take refuses the save before any project file is written (writeFolderLog).
-  await writeFolderLog(session, fs);
+  if (!nativeAutosave) await writeFolderLog(session, fs);
   // The pictures are copied before the manifest names them, so the folder never holds a manifest without the files it names. A folder
   // holding a different file under one of those names is refused here, before anything is written (project-assets.ts).
   await session.assets.copyTo(root);
@@ -1838,11 +2001,13 @@ export async function saveFolder(
   const manifestMoved = written !== undefined && manifestNow !== written;
   holdFolderCopy(session, root, manifestMoved ? written : manifestNow, settled.digests);
   // The findings file goes beside the project, and stays in step with it from now on (coherence.md §3).
-  await session.attachCoherenceFolder(root);
-  await session.attachTasksFolder(root);
-  // The project remembers the folder it was saved to, so the projects list can reopen it with one click (folder-memory.ts).
-  await rememberFolder(session.projectId, root);
-  await rememberHeldCopy(session);
+  if (!nativeAutosave) {
+    await session.attachCoherenceFolder(root);
+    await session.attachTasksFolder(root);
+    // The project remembers the folder it was saved to, so the projects list can reopen it with one click (folder-memory.ts).
+    await rememberFolder(session.projectId, root);
+    await rememberHeldCopy(session);
+  }
   const backup = watch.backup();
   if (backup !== undefined) await pruneFolderBackups(fs);
   // The lock is read again: a server that took the folder while the save wrote may have read half of it.

@@ -63,11 +63,15 @@ export function parseCsv(text: string, delimiter: Delimiter): CsvGrid {
   let field = '';
   let quoted = false;
   let started = false;
+  // Whether this field opened with a quote. `quoted` goes false again at the closing quote, so it cannot answer this: a quoted
+  // field keeps the spaces the writer put inside the quotes, and only an unquoted one is trimmed.
+  let wasQuoted = false;
   const endField = (): void => {
-    row.push(quoted ? field : field.trim());
+    row.push(wasQuoted ? field : field.trim());
     field = '';
     quoted = false;
     started = false;
+    wasQuoted = false;
   };
   const endRow = (): void => {
     endField();
@@ -92,6 +96,7 @@ export function parseCsv(text: string, delimiter: Delimiter): CsvGrid {
     if (char === '"' && !started) {
       quoted = true;
       started = true;
+      wasQuoted = true;
       continue;
     }
     if (char === delimiter) {

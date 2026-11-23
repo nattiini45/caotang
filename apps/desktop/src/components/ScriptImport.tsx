@@ -2,8 +2,9 @@
  * The import actions for a whole script, a whole Ink story and a Twee story (screenplay.md §2.2, dialogue-narrative.md §4). The file
  * is read in the browser and handed to the bus: `screenplay.import` takes a Fountain or FDX file, and `dialogue.importInk` takes the
  * containers an Ink or Twee plan makes. An FDX file is decoded as its byte-order mark and XML declaration say, UTF-16 included, by the
- * shared import reader, loaded on first use (xml-file.ts). Each import is one undo group, and what it could not bring in is read back on the status
- * line. A Twee story strips logic and a Final Draft file carries notes and dual dialogue, so the report of each is shown first, and
+ * shared import reader, loaded on first use (xml-file.ts). The FDX and Twee parsers and the Ink planner are fetched when a file is
+ * chosen (script-import-readers.ts), so the menu this file draws does not carry them in the first load. Each import is one undo group,
+ * and what it could not bring in is read back on the status line. A Twee story strips logic and a Final Draft file carries notes and dual dialogue, so the report of each is shown first, and
  * nothing is written until the writer confirms it. Each file is scanned
  * for passages that read like instructions to an AI (hidden characters, role markers, "ignore previous instructions"), and the status line
  * says so; the file is imported as it is either way (issue #54).
@@ -14,18 +15,23 @@ import { plural, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { isolate } from '@caotang/i18n';
 
-import { compileInk, mintImportIds, planInkImport, planTweeImport, type TweeImportPlan } from '@caotang/dialogue';
+import type { ImportedContainer, TweeImportPlan } from '@caotang/dialogue';
 import { importScanSentence, scanImport } from '@caotang/harness';
-import { importFdx, type FdxCodexSeed, type FdxImportedScript } from '@caotang/screenplay';
+import type { FdxCodexSeed, FdxImportedScript } from '@caotang/screenplay';
 
 import { explain } from './actions.js';
 import { requestInkCompiler } from '../app/ink-compiler.js';
+import { openImportPreview } from '../import-preview/requests.js';
 import { readXmlFileText } from '../app/xml-file.js';
 import type { ProjectSession } from '../app/session.js';
 import { importLineIdsSentence } from '../media/ink-model.js';
+import { seedFlagged } from '../app/import-scan.js';
 import { More, useReport, useSession } from './shared.js';
-import { FdxImportDialog, seedFlagged } from './FdxImportDialog.js';
+import { FdxImportDialog } from './FdxImportDialog.js';
 import { TweeImportDialog } from './TweeImportDialog.js';
+
+/** The FDX and Twee parsers and the Ink planner, fetched when a file is chosen (script-import-readers.ts). */
+const loadReaders = () => import('../app/script-import-readers.js');
 
 /* lingui-set comment="Interpolated values: choices, count, entries, file, name, scenes, sections, stripped" */
 
@@ -51,9 +57,24 @@ function scanSentenceOf(fileName: string, text: string): string[] {
 export function ScriptImportActions({ session, children }: { session: ProjectSession; children?: ReactNode }): ReactNode {
   useSession(session);
   const report = useReport();
+  /**
+   * The readers, once, with a failure the writer can act on. A chunk that cannot be fetched (an open tab older than the deploy that
+   * renamed it, or a dropped connection) rejects here, and an import that has already picked its file would otherwise do nothing at
+   * all: the status line says so and the import stops. The other on-use readers in this file are caught the same way.
+   */
+  const withReaders = async (): Promise<Awaited<ReturnType<typeof loadReaders>> | null> => {
+    try {
+      return await loadReaders();
+    } catch {
+      report({ text: t`The import readers could not be loaded. Reload the page and try again.`, tone: 'error' });
+      return null;
+    }
+  };
   const scriptFile = useRef<HTMLInputElement>(null);
   const inkFile = useRef<HTMLInputElement>(null);
   const tweeFile = useRef<HTMLInputElement>(null);
+  const inklewriterFile = useRef<HTMLInputElement>(null);
+  const highlandFile = useRef<HTMLInputElement>(null);
   const [addIds, setAddIds] = useState(false);
   const [pendingTwee, setPendingTwee] = useState<{ readonly fileName: string; readonly plan: TweeImportPlan; readonly scan: string[] } | null>(null);
   const [pendingFdx, setPendingFdx] = useState<{
@@ -111,7 +132,9 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
       return;
     }
     // A Final Draft file is read first, so the dialog can count the notes and dual dialogue it keeps before anything is written.
-    setPendingFdx({ fileName: file.name, text, script: importFdx(text), scan });
+    const readers = await withReaders();
+    if (readers === null) return;
+    setPendingFdx({ fileName: file.name, text, script: readers.importFdx(text), scan });
   };
 
   const importFdxFile = (seeds: readonly FdxCodexSeed[]): void => {
@@ -121,17 +144,36 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
     writeScript(fileName, 'fdx', text, scan, seeds);
   };
 
+  // A Highland package is unzipped and parsed in the preview's Worker, and the shared preview shows the screenplay it makes
+  // before anything is written (issue #284). The source and its reader host load on first use.
+  const importHighland = async (file: File): Promise<void> => {
+    try {
+      const { highlandPreviewSource, highlandSizeRefusal } = await import('../import-preview/highland-source.js');
+      const refusal = highlandSizeRefusal(file.name, file.size);
+      if (refusal !== undefined) {
+        report({ text: refusal, tone: 'error' });
+        return;
+      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      openImportPreview({ source: highlandPreviewSource(file.name, bytes) });
+    } catch {
+      report({ text: t`${{ file: isolate(file.name) }} could not be read as a Highland script.`, tone: 'error' });
+    }
+  };
+
   const importInk = async (file: File): Promise<void> => {
     const text = await file.text();
     // The imported containers are read with the Ink compiler, so it loads before they are made (ink-compiler.ts).
     await requestInkCompiler();
-    const plan = planInkImport(text);
+    const readers = await withReaders();
+    if (readers === null) return;
+    const plan = readers.planInkImport(text);
     if (plan.containers.length === 0) {
       report({ text: t`${{ file: isolate(file.name) }} has no knot to import. An Ink story makes one container for each knot.`, tone: 'error' });
       return;
     }
     // The ids are minted here, before the one dispatch, so one undo takes the containers and their ids together (dialogue-narrative.md A3).
-    const minted = addIds ? mintImportIds(plan.containers, { compiles: (body) => compileInk(body).ok }) : null;
+    const minted = addIds ? readers.mintImportIds(plan.containers, { compiles: (body) => readers.compileInk(body).ok }) : null;
     const outcome = session.dispatch('dialogue.importInk', {
       containers: (minted?.containers ?? plan.containers).map((container) => ({ title: container.title, body: container.body })),
     });
@@ -157,7 +199,9 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
 
   const planTwee = async (file: File): Promise<void> => {
     const text = await file.text();
-    const plan = planTweeImport(text);
+    const readers = await withReaders();
+    if (readers === null) return;
+    const plan = readers.planTweeImport(text);
     if (plan.container === null) {
       report({ text: t`${{ file: isolate(file.name) }} has no passage to import. A Twee story makes one knot for each passage.`, tone: 'error' });
       return;
@@ -185,12 +229,46 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
     report({ text: [text, ...scan].join(' '), tone: 'info' });
   };
 
+  // Inklewriter (issue #286): the JSON is converted to Ink in the preview's Worker, and the shared preview shows the containers
+  // and what the import does not keep before anything is written. The line-ids option is the preview's own, not the switch above.
+  const writeInklewriter = async (
+    fileName: string,
+    imported: readonly ImportedContainer[],
+    addIds: boolean,
+  ): Promise<{ readonly ok: true } | { readonly ok: false; readonly message: string }> => {
+    await requestInkCompiler();
+    const readers = await withReaders();
+    if (readers === null) return { ok: false, message: t`The import readers could not be loaded. Reload the page and try again.` };
+    const minted = addIds ? readers.mintImportIds(imported, { compiles: (body) => readers.compileInk(body).ok }) : null;
+    const outcome = session.dispatch('dialogue.importInk', {
+      containers: (minted?.containers ?? imported).map((container) => ({ title: container.title, body: container.body })),
+    });
+    if (!outcome.ok) return { ok: false, message: explain(outcome.error) };
+    const containers = imported.length;
+    const made = t`Imported ${plural(containers, { one: '# dialogue container', other: '# dialogue containers' })} from ${{ file: isolate(fileName) }}.`;
+    const ids = minted === null ? [] : [importLineIdsSentence(minted)];
+    report({ text: [made, ...ids].join(' '), tone: 'info' });
+    return { ok: true };
+  };
+
+  const openInklewriter = async (file: File): Promise<void> => {
+    try {
+      const { inklewriterPreviewSource } = await import('../import-preview/inklewriter-source.js');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      openImportPreview({
+        source: inklewriterPreviewSource({ fileName: file.name, bytes, write: (containers, addIds) => writeInklewriter(file.name, containers, addIds) }),
+      });
+    } catch (failure) {
+      report({ text: t`${{ file: isolate(file.name) }} could not be read: ${{ problem: failure instanceof Error ? failure.message : String(failure) }}`, tone: 'error' });
+    }
+  };
+
   return (
     <>
       <More summary={t`Import…`} className="binder-import">
         <div className="k-more-body">
           {children}
-          <div className="script-import" role="group" aria-label={t`Import a script, an Ink story or a Twee story`}>
+          <div className="script-import" role="group" aria-label={t`Import a script, an Ink story, a Twee story or a Highland script`}>
             <button type="button" className="button is-quiet" onClick={() => scriptFile.current?.click()}>
               <Trans>Import script</Trans>
             </button>
@@ -199,6 +277,12 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
             </button>
             <button type="button" className="button is-quiet" onClick={() => tweeFile.current?.click()}>
               <Trans>Import Twee</Trans>
+            </button>
+            <button type="button" className="button is-quiet" onClick={() => inklewriterFile.current?.click()}>
+              <Trans>Import Inklewriter</Trans>
+            </button>
+            <button type="button" className="button is-quiet" onClick={() => highlandFile.current?.click()}>
+              <Trans>Import Highland</Trans>
             </button>
             <label className="script-import-ids">
               <input type="checkbox" role="switch" className="k-switch" checked={addIds} onChange={(event) => setAddIds(event.currentTarget.checked)} />
@@ -238,6 +322,30 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
                 const file = event.currentTarget.files?.[0];
                 event.currentTarget.value = '';
                 if (file !== undefined) void planTwee(file);
+              }}
+            />
+            <input
+              ref={inklewriterFile}
+              type="file"
+              hidden
+              accept=".json,application/json"
+              aria-label={t`Inklewriter story file`}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = '';
+                if (file !== undefined) void openInklewriter(file);
+              }}
+            />
+            <input
+              ref={highlandFile}
+              type="file"
+              hidden
+              accept=".highland"
+              aria-label={t`Highland script file`}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = '';
+                if (file !== undefined) void importHighland(file);
               }}
             />
           </div>

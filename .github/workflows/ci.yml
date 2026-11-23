@@ -1,36 +1,55 @@
 # The standing gate: lint, typecheck, unit tests, the production build and the Playwright suite.
 #
 # What runs, and on which Node:
-#   - `verify_matrix` runs the frozen engine-strict install, verification, build, bundle-size check, MCP pack and CLI build
-#     on Node 22.19.0 and 24 for every PR and main push. Stable required `verify` waits for both matrix legs, Chromium's shard summary and Modern gate,
-#     and the called Firefox/WebKit workflow; it passes only when every acceptance gate succeeds.
+#   - `verify_matrix` runs the frozen engine-strict install and the production build on both Node 22.19.0 and 24. Everything else is
+#     the floor's or the gate's: lint, the recursive typecheck, every unit suite, the bundle-size check, the landing page and the MCP
+#     pack run once, on Node 24, while the Node 22.19.0 leg runs only what proves the floor — that typecheck, the CLI bundle and the
+#     tests whose subject runs in Node itself (`pnpm run test:node-floor`: the command line, the SDK, the MCP server, the sync server
+#     and the store's folder and filesystem layer). The two matrix legs keep their check names, and `verify (Node 22.19.0)` still
+#     fails when the floor stops installing, compiling or running. Stable required `verify` waits for both matrix legs, Chromium's
+#     shard summary and Modern gate, and the called Firefox/WebKit workflow; it passes only when every acceptance gate succeeds.
 #   - `e2e (chromium)` summarizes two duration-balanced Node 24 shard jobs and their merged report, beside `e2e (chromium, Modern gate)`,
 #     which runs the Modern reachability walk and accessibility gate (#313) in parallel. The cross-browser workflow merges the
 #     sharded reports and also runs nightly/on demand.
+#   - `verify (Windows)` runs the same `pnpm verify` gate on windows-latest (#812). It is its own job rather than a leg of
+#     `verify`, so it reports instead of blocking until the suite is green on that runner; the desktop release job runs the same
+#     gate on Windows, so a red suite there stops a release. It leaves out three `packages/sync-server/test` suites —
+#     `account-mode`, `storage` and `server` — each of which boots a Miniflare Worker runtime per case and reaches the case deadline
+#     on that runner; #815 moves them onto one shared runtime and #820 tracks the third until then. The step's own name lists the
+#     files and the reason.
 #   - `office-interop` and `pdf-validate` remain separate Node 24 jobs and run alongside the PR gate.
-#   - `pnpm verify` runs lint, typecheck and the vitest suites (packages/ and test/). The desktop's pure model specs live in
-#     e2e/unit as Playwright specs, so they run under `pnpm test:e2e`, not under `pnpm verify`.
-#   - `pnpm build` builds the desktop app, which writes THIRD-PARTY-NOTICES.md beside it. `tools/check-bundle-size.mjs` then checks
-#     the build against its size budget (CONTRIBUTING.md, Bundle size). `tools/build-site.mjs` builds the landing page as pages.yml
-#     publishes it (and fails if it would carry a script or an inline style), and `tools/check-site-size.mjs` holds its HTML, CSS and
-#     asset caps and its zero JavaScript. The MCP server bundle is then packed as an MCPB, which checks its manifest with the pinned
-#     MCPB CLI.
+#   - `pnpm verify` runs lint, typecheck and the vitest suites (packages/ and test/), once and on Node 24. The desktop's pure model
+#     specs live in e2e/unit as Playwright specs, so they run under `pnpm test:e2e`, not under `pnpm verify`.
+#   - `pnpm build` builds the desktop app on both Node versions, which writes THIRD-PARTY-NOTICES.md beside it.
+#     `tools/check-bundle-size.mjs` then checks the build against its size budget (CONTRIBUTING.md, Bundle size).
+#     `tools/build-site.mjs` builds the landing page as pages.yml publishes it (and fails if it would carry a script or an inline
+#     style), and `tools/check-site-size.mjs` holds its HTML, CSS and asset caps and its zero JavaScript. The MCP server bundle is
+#     then packed as an MCPB, which checks its manifest with the pinned MCPB CLI.
 #   - `pnpm test:e2e` runs the dev-server suite, and the production-preview project, which smoke-tests the build from the step
 #     above on its own port (e2e/prod-smoke.spec.ts).
 #     The two mobile projects run only e2e/mobile-shell.spec.ts, the narrow layout, in Chromium with touch (emulation, not WebKit).
 #   - `office-interop` writes the .xlsx corpus through the exporter (packages/exporter/test/xlsx-write-corpus.test.ts, which writes only
 #     when CAOTANG_XLSX_OUT is set, so `pnpm verify` is unchanged) and checks every file with tools/office-interop/check_xlsx.py: the
-#     package parts, openpyxl, then LibreOffice's CSV and its re-saved XLSX. LibreOffice (apt) and openpyxl (a venv) are installed for
-#     this job alone and never ship; it is a separate job so the main gate does not wait for the install. It is not a check in Excel or
-#     Numbers (docs/testing/office-interop.md).
+#     package parts, openpyxl, then LibreOffice's CSV and its re-saved XLSX. It does the same for the .docx contents-field corpus
+#     (packages/exporter/test/docx-write-corpus.test.ts, CAOTANG_DOCX_OUT) with tools/office-interop/check_docx.py: the package parts,
+#     LibreOffice's PDF, its re-saved DOCX, and an index regenerated over a UNO socket. LibreOffice (apt), python3-uno, Poppler and
+#     openpyxl (a venv) are installed for this job alone and never ship; it is a separate job so the main gate does not wait for the
+#     install. It is not a check in Excel, Numbers, Word, Pages or Google Docs (docs/testing/office-interop.md).
 #   - `pdf-validate` writes the PDF corpus through the exporter (packages/exporter/test/pdf-write-corpus.test.ts, which writes only when
 #     CAOTANG_PDF_OUT is set, so `pnpm verify` is unchanged) and checks every file with tools/pdf-validate/check.mjs: pdf.js in Node,
-#     then qpdf, Poppler, Ghostscript and MuPDF. Those are installed from apt for this job alone; they never ship, and a tool that is
-#     missing fails the job rather than being skipped.
+#     then qpdf, Poppler, Ghostscript, MuPDF and veraPDF. qpdf, Poppler, Ghostscript and MuPDF are installed from apt, and veraPDF
+#     from a pinned release download kept in its own cache (it has no Ubuntu package and is a Java program, so the job uses the
+#     runner's Java); all of them are CI-only for this job alone and never ship. A tool that is missing fails the job rather than
+#     being skipped. The PDFs claim no PDF/A conformance, so veraPDF's PDF/A-1b fallback is checked only for the rules a file makes
+#     no claim to be bound by (tools/pdf-validate/check.mjs); a file whose metadata names a flavour is held to every rule of it.
 #
 # Details that are load-bearing rather than tidy:
 #   - permissions stay `contents: read`: the workflow needs no write token, so a pull request from a fork cannot use it to
 #     change the repository. First-time contributors' runs wait for a maintainer's approval (a repository setting).
+#   - `merge_group` is here so a merge queue can be switched on without touching this file: a queue runs the required
+#     `verify` on the merge group's own head, and a workflow without that trigger never reports there, so every group
+#     would sit until the queue's check timeout. No job reads pull-request context, and `github.ref` is the group's own
+#     ref, so the concurrency group still cancels only the same group.
 #   - CI uses the exact pnpm release and integrity in the packageManager field. The Node 22 leg tests the 22 floor, 22.19.0 since Lingui 6
 #     (#322); Node 22.12.0's bundled Corepack 0.29.4 could not verify pnpm 12.9.1's current signing key, and an updated Corepack
 #     left an incomplete cache on the hosted runner, so that leg still installs the pinned pnpm tarball only after checking its SHA-512 against packageManager; Node 24 uses Corepack.
@@ -41,6 +60,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
 
 permissions:
   contents: read
@@ -87,22 +107,43 @@ jobs:
       - name: Install (frozen lockfile, strict engines)
         run: pnpm install --frozen-lockfile --engine-strict
 
-      - name: Lint, typecheck, unit tests
+      # The whole gate, once. Lint, the recursive typecheck and every unit suite are the same work on either Node version, so
+      # the newer one runs them and the Node floor leg runs only what the floor itself needs (the two steps below).
+      - name: Lint, typecheck and every unit suite (the whole gate, once)
+        if: matrix.node == '24'
         run: pnpm verify
+
+      # The Node floor proves the floor, not the whole gate: the install above is the engine-strict one, this typecheck reads
+      # every package against the floor's own `@types/node`, and the tests below are the ones whose subject runs in Node itself.
+      - name: Typecheck (the Node floor)
+        if: matrix.node == '22.19.0'
+        run: pnpm run typecheck
+
+      - name: Unit tests that run in Node itself (the Node floor)
+        if: matrix.node == '22.19.0'
+        run: pnpm run test:node-floor
 
       - name: Production build (desktop app, with its notices)
         run: pnpm build
 
       - name: Bundle size (chunk caps, first load, total JS)
+        if: matrix.node == '24'
         run: node tools/check-bundle-size.mjs
 
       - name: Build the landing page (site/dist, as the pages workflow publishes it)
+        if: matrix.node == '24'
         run: node tools/build-site.mjs
 
       - name: Landing page size (HTML, CSS and assets caps; no JavaScript)
+        if: matrix.node == '24'
         run: node tools/check-site-size.mjs
 
+      # A bounded step, because an unbounded one took the whole job's budget when a child stalled: five minutes is over a
+      # hundred times what this pack takes, so a red step here means something is wrong rather than slow. The script itself
+      # bounds its own children and names the one that stalled (pack-mcpb.mjs, third-party-notices.mjs).
       - name: Pack the MCP server bundle (manifest checked by the pinned MCPB CLI)
+        if: matrix.node == '24'
+        timeout-minutes: 5
         run: pnpm --filter @caotang/mcp-server run pack
 
       - name: Build the caotang command-line bundle (one file, with its fonts/)
@@ -138,6 +179,35 @@ jobs:
           test "$MODERN_RESULT" = success
           test "$CROSS_BROWSER_RESULT" = success
           test "$VISUAL_RESULT" = success
+
+  # The same gate on Windows (#812): the suites, the folder writer and the MCP server all run there in the packaged app, and
+  # until this job existed no CI run touched Windows at all, so a contained-path bug and a test runner that could not start its
+  # children both went unseen. It is its own job and not part of `verify`'s needs, so it reports rather than blocks while the
+  # suite is brought to green on that runner; the release job for Caotang for desktop runs `pnpm verify` on Windows too
+  # (.github/workflows/desktop-release.yml), so a red suite there stops a release.
+  verify_windows:
+    name: verify (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+
+      - name: Install (frozen lockfile, strict engines)
+        run: pnpm install --frozen-lockfile --engine-strict
+
+      - name: "Lint, typecheck and every unit suite, less sync-server account-mode, storage and server suites (each boots a Worker runtime per case: #815, #820)"
+        env:
+          CAOTANG_SKIP_WORKER_SUITES: '1'
+        run: pnpm verify
 
   e2e:
     name: e2e (chromium)
@@ -327,6 +397,7 @@ jobs:
     timeout-minutes: 30
     env:
       CAOTANG_XLSX_OUT: ${{ github.workspace }}/test-results/xlsx
+      CAOTANG_DOCX_OUT: ${{ github.workspace }}/test-results/docx
     steps:
       - uses: actions/checkout@v7
 
@@ -348,10 +419,10 @@ jobs:
           key: apt-libreoffice-${{ steps.week.outputs.week }}
           restore-keys: apt-libreoffice-
 
-      - name: Install LibreOffice and openpyxl (CI only; neither ships)
+      - name: Install LibreOffice, python3-uno, Poppler and openpyxl (CI only; none of them ships)
         # tools/ci/apt-install.sh retries a slow mirror within a time limit instead of letting it run out the job's time.
         run: |
-          APT_ARCHIVES="$GITHUB_WORKSPACE/.apt-archives" bash tools/ci/apt-install.sh libreoffice-calc
+          APT_ARCHIVES="$GITHUB_WORKSPACE/.apt-archives" bash tools/ci/apt-install.sh libreoffice-calc libreoffice-writer python3-uno poppler-utils
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install openpyxl==3.1.5
 
@@ -367,6 +438,15 @@ jobs:
       - name: Prove the checker fails on a broken workbook (three negative controls)
         run: '"$RUNNER_TEMP/venv/bin/python" tools/office-interop/xlsx_negative_controls.py "$CAOTANG_XLSX_OUT"'
 
+      - name: Write the DOCX corpus
+        run: pnpm exec vitest run packages/exporter/test/docx-write-corpus.test.ts
+
+      - name: Check the corpus (package parts, LibreOffice PDF, re-saved DOCX and a regenerated index)
+        run: python3 tools/office-interop/check_docx.py "$CAOTANG_DOCX_OUT"
+
+      - name: Prove the checker fails on a broken document (three negative controls)
+        run: python3 tools/office-interop/docx_negative_controls.py "$CAOTANG_DOCX_OUT"
+
       - name: Upload the corpus and the LibreOffice logs on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -375,11 +455,24 @@ jobs:
           path: ${{ env.CAOTANG_XLSX_OUT }}/
           retention-days: 7
 
+      - name: Upload the DOCX corpus and the LibreOffice logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: docx-corpus
+          path: ${{ env.CAOTANG_DOCX_OUT }}/
+          retention-days: 7
+
   pdf-validate:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       CAOTANG_PDF_OUT: ${{ github.workspace }}/pdfs
+      # veraPDF has no Ubuntu package: the pin is the release version and the installer's SHA-256, and the installed tree is kept
+      # in its own cache, so a run with the same pin downloads and installs nothing. tools/ci/verapdf-install.sh checks both.
+      VERAPDF_VERSION: 1.30.4
+      VERAPDF_SHA256: 04415ef3f149526a3048b9889723e81320ddf013bd891bcc7f0f297f3eadcc23
+      VERAPDF_HOME: ${{ github.workspace }}/.verapdf
     steps:
       - uses: actions/checkout@v7
 
@@ -405,13 +498,29 @@ jobs:
         # tools/ci/apt-install.sh retries a slow mirror within a time limit instead of letting it run out the job's time.
         run: APT_ARCHIVES="$GITHUB_WORKSPACE/.apt-archives" APT_DOWNLOAD_SECONDS=180 bash tools/ci/apt-install.sh qpdf poppler-utils ghostscript mupdf-tools
 
+      - name: Restore the installed veraPDF (one tree per pin)
+        id: verapdf
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.VERAPDF_HOME }}
+          key: verapdf-${{ env.VERAPDF_VERSION }}-${{ runner.os }}
+
+      - name: Install veraPDF (CI only; it never ships)
+        if: steps.verapdf.outputs.cache-hit != 'true'
+        run: bash tools/ci/verapdf-install.sh "$VERAPDF_VERSION" "$VERAPDF_SHA256" "$VERAPDF_HOME"
+
+      - name: Put veraPDF on PATH and check the pin it unpacked as
+        run: |
+          echo "$VERAPDF_HOME" >> "$GITHUB_PATH"
+          test "$("$VERAPDF_HOME/verapdf" --version | head -1)" = "veraPDF $VERAPDF_VERSION"
+
       - name: Install
         run: pnpm install --frozen-lockfile
 
       - name: Write the PDF corpus
         run: pnpm exec vitest run packages/exporter/test/pdf-write-corpus.test.ts
 
-      - name: Validate the corpus (pdf.js, qpdf, Poppler, Ghostscript, MuPDF)
+      - name: Validate the corpus (pdf.js, qpdf, Poppler, Ghostscript, MuPDF, veraPDF)
         run: node tools/pdf-validate/check.mjs "$CAOTANG_PDF_OUT" --external
 
       - name: Upload the corpus and the tool logs on failure

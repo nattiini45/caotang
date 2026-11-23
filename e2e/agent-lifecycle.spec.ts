@@ -1,7 +1,8 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from './test.js';
 
 for (const shell of ['classic', 'modern'] as const) {
-  test(`${shell}: a loading turn keeps the composer and Stop available and settles on its published idle state`, async ({ page }, testInfo) => {
+  test(`${shell}: a loading turn keeps the composer and Stop available and settles on its published idle state`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }, testInfo) => {
     let release: () => void = () => undefined;
     const held = new Promise<void>((resolve) => { release = resolve; });
     await page.addInitScript((chosen) => localStorage.setItem('caotang.interface', chosen), shell);

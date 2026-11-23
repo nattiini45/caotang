@@ -38,6 +38,8 @@ proposed tree?* A source gives:
 | `scanExtra()` | Text the reader kept out of the tree (RTF hidden text, deleted revisions, field codes, link targets) that the injection scan reads too; its hits are listed by what they are, with no node. |
 | `report(plan)`, `importLabel(plan)`, `commit`, `readOnly` | For a source whose import is not a binder tree (the Twee import: one dialogue container, written with `dialogue.importInk`). |
 
+The sources built on this contract: the splitter source (`splitter-source.ts`) with the plain-text and RTF/RTFD readers on it (#283, #274, #390), the Twee source (`twee-source.ts`, a custom commit), and the captions source (`captions-source.ts`, #287), which proposes **one AV script episode in a show folder** instead of chapters and scenes and carries the node kinds `binder.create` takes ([import-captions.md](import-captions.md) §5).
+
 ## 3. Rules first, manual edits second
 
 A chip change re-runs `plan`. The manual edits are kept apart from the rules, so the re-run can keep them: splits by block index
@@ -68,9 +70,11 @@ the old rule. Import waits while it asks.
   that name; an import never merges into an entry (codex.md §7). An imported row cites the first imported document that holds its
   quote (its own node first); a row named nowhere in the text but with a page of its own cites that page; any other row is reported
   and not made.
-- **Report.** The source's losses; the sanity flags, a fix as a button; the injection scan over every body and its notes
-  (`scanImport`, issue #54), each passage named by the node it is in, a link that selects that node; and any lists the source adds.
-  The text is imported as it is either way.
+- **Report.** The source's losses; the sanity flags, a fix as a button; the injection scan (`scanImport`, issue #54) over **every text the
+  import writes**: each node's body, its notes and its synopsis, each codex row's description and page body, and the text the reader kept
+  outside the tree (`scanExtra()`). A passage in the tree is named by the node it is in, with a link that selects that node; a codex
+  passage is named by the entry it would land in (the name the writer chose, and the page's title when it differs), with no node. A row
+  the writer skips is not scanned, since it is not imported. Any lists the source adds come after. The text is imported as it is either way.
 
 ## 5. The commit: `binder.importTree`
 
@@ -84,6 +88,9 @@ imported document by index as `node`), and `pictures`. `nodes` may be empty when
 spreadsheet (#288) imports as codex entries with their own Research pages and adds no chapter or scene. An import that would write
 nothing at all — no node, no entry, no page — is refused before the command, and by the command itself.
 
+- **A document's kind.** A document node may carry `kind` — `screenplay`, `av-script` or `comic-script`, the kinds `binder.create`
+  takes for a document — and the apply makes that kind of document; absent, the document is prose. A folder takes no kind. The
+  Highland import (screenplay.md §2.2) marks its scenes `screenplay` this way, so a script keeps its kind through the shared preview.
 - **What the preview decides before the command.** A node left out is not sent, nor anything under it, nor a picture only its text
   used (the status line says so). A scene or front matter at the top of an import into the manuscript gets a folder of its own name,
   because a document goes inside a chapter. Keywords, synopsis and notes are fitted to the binder's limits. Every body is checked
@@ -112,11 +119,19 @@ its own lazy chunk (#268).
 
 The plain-text and RTF readers run in a `'self'` module Worker (`reader-host.ts` owns it, `reader.worker.ts` is its entry,
 `reader-session.ts` is the DOM-free dispatch), so a large file never blocks typing or scrolling while it parses (#390). The Worker is
-made from a same-origin URL (`new URL('./reader.worker.ts', import.meta.url)`, `type: 'module'`), never a `blob:` URL: the CSP is
-`worker-src 'self'`. The input bytes are sent once on `open` and cached in the Worker; a reader chip or option change re-reads that
+made from a same-origin URL (`reader-worker-url.ts`, `type: 'module'`), never a `blob:` URL: the CSP is
+`worker-src 'self'`. Production emits its URL from the app's build graph so shared modules are shipped once. The host still starts
+the Worker only on demand, and the Worker imports readers without the DOM-based module preloader. The input bytes are sent once
+on `open` and cached in the Worker; a reader chip or option change re-reads that
 copy through `prepare`, and a read's picture bytes are transferred back so an image-heavy RTF costs the main thread no copy. A buffer
 shared by several attachments (the same picture placed twice in an `.rtfd` package) is transferred once, so the reply never lists a
 duplicate transferable and the cloned views keep sharing it. Every
 request has a hard timeout (a hung reader is terminated) and the dialog's Cancel terminates it too; the splitter stays on the main
-thread, where it re-runs on every rule chip. The `.rtfd` package picker (`ManuscriptImport.tsx`) reads the picked folder's bytes on the
+thread, where it re-runs on every rule chip. **A terminated Worker holds no input**, so the host keeps the last `open` and sends it
+again before the next read: after a timeout, a cancel, a Worker failure or a disposal, the writer's next option change reads the file
+again instead of failing with "the import reader was not opened" (#597 F4). Reads that arrive together share one re-open, so the bytes
+are not sent twice, and a re-open that fails leaves the next read free to try again. A `prepare` call that rejects or times out —
+a Worker failure on a reader-chip or option re-read — does not strand the dialog on Reading…: the dialog names the failure in an
+alert with a **Try again** that runs the read once more, and until it succeeds the preview keeps the last prepared settings' plan
+rather than an empty document (#600). The `.rtfd` package picker (`ManuscriptImport.tsx`) reads the picked folder's bytes on the
 main thread (I/O) and unpacks and parses the package in the same Worker through the archive reader (import-rtf.md §4).

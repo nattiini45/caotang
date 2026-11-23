@@ -1,3 +1,4 @@
+import { chooseInterfaceLanguage } from './support.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 
 import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
@@ -329,7 +330,7 @@ test('a left-to-right book under a right-to-left interface keeps its canvas and 
   await page.getByTestId('open-settings').click();
   const settings = page.getByTestId('settings');
   await settings.locator('[data-section="appearance"]').click();
-  await settings.locator('input[name="interface-language"][value="ar-XB"]').click();
+  await chooseInterfaceLanguage(page, settings, 'ar-XB');
   await expect.poll(() => page.evaluate(() => document.documentElement.dir)).toBe('rtl');
   await settings.locator('.settings-head button').click();
 

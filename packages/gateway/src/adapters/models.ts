@@ -38,14 +38,36 @@ export function parseModels(json: unknown, extra: ListingFields = {}): ModelInfo
       ...(extra.output ?? []).map((name) => record[name]),
     ].find(positive);
     const price = priceOf(record.pricing);
+    const writes = writesText(record.architecture);
+    const created = createdAt(record.created ?? record.created_at);
     models.push({
       id: record.id,
+      ...(writes === undefined ? {} : { writes }),
+      ...(created === undefined ? {} : { created }),
       ...(window === undefined ? {} : { contextWindow: window }),
       ...(output === undefined ? {} : { maxOutputTokens: output }),
       ...(price === undefined ? {} : { pricePer1k: price }),
     });
   }
   return models;
+}
+
+/** OpenRouter's `architecture.output_modalities` (or `modality: "text->text"`): whether the model's output includes text. Absent when the listing does not say. */
+function writesText(value: unknown): boolean | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const record = value as Record<string, unknown>;
+  const outputs = record.output_modalities;
+  if (Array.isArray(outputs) && outputs.every((item) => typeof item === 'string')) return outputs.includes('text');
+  if (typeof record.modality === 'string' && record.modality.includes('->')) return (record.modality.split('->')[1] ?? '').includes('text');
+  return undefined;
+}
+
+/** A publication time as epoch milliseconds: a count of seconds (OpenAI, Groq) or an ISO date (Anthropic). Anything else is not stated. */
+function createdAt(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value < 1e11 ? value * 1000 : value;
+  if (typeof value !== 'string') return undefined;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 /** A count the provider states as a positive number. Anything else is not stated, and the field is left out. */

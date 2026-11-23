@@ -1,3 +1,4 @@
+import { chooseInterfaceLanguage } from './support.js';
 import { expect, type Page } from '@playwright/test';
 
 export async function openHealthCard(page: Page, locale: 'en' | 'de', shell: 'classic' | 'modern' = 'classic') {
@@ -13,7 +14,7 @@ export async function openHealthCard(page: Page, locale: 'en' | 'de', shell: 'cl
   const settings = page.getByTestId('settings');
   if (locale === 'de') {
     await settings.locator('[data-section="appearance"]').click();
-    await settings.locator('input[name="interface-language"][value="de"]').click();
+    await chooseInterfaceLanguage(page, settings, 'de');
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
   }
   await settings.locator('[data-section="mcp"]').click();

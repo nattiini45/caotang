@@ -1,10 +1,11 @@
 /**
- * **Import plain text…** and **Import RTF…** (import-preview.md §2, issues #283 and #274): a manuscript file opens in the shared
- * import preview, split into chapters and scenes by the splitter (import-core.md), and nothing is written until the writer chooses
- * Import there; the import is one undo step (`binder.importTree`).
+ * **Import plain text…**, **Import RTF…**, **Import RTFD…** and **Import captions…** (import-preview.md §2, issues #283, #274 and #287):
+ * a manuscript file opens in the shared import preview, split into chapters and scenes by the splitter (import-core.md), and nothing is
+ * written until the writer chooses Import there; the import is one undo step (`binder.importTree`). Captions become one AV script
+ * episode instead of chapters (import-captions.md §5).
  *
- * The readers, the splitter and the preview's sources load when a file is chosen (text-source.ts, rtf-source.ts), so the first load
- * carries only these two buttons and their file inputs. The file is read in the browser and goes nowhere.
+ * The readers, the splitter and the preview's sources load when a file is chosen (text-source.ts, rtf-source.ts, captions-source.ts), so
+ * the first load carries only these buttons and their file inputs. The file is read in the browser and goes nowhere.
  */
 /* lingui-set comment="The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)" */
 
@@ -21,6 +22,7 @@ export function ManuscriptImportActions(): ReactNode {
   const textFile = useRef<HTMLInputElement>(null);
   const rtfFile = useRef<HTMLInputElement>(null);
   const rtfdFolder = useRef<HTMLInputElement>(null);
+  const captionsFile = useRef<HTMLInputElement>(null);
   const htmlFile = useRef<HTMLInputElement>(null);
   const epubFile = useRef<HTMLInputElement>(null);
   const ao3File = useRef<HTMLInputElement>(null);
@@ -70,6 +72,26 @@ export function ManuscriptImportActions(): ReactNode {
     }
   };
 
+  const openCaptions = async (file: File): Promise<void> => {
+    try {
+      const { captionsPreviewSource, captionsSizeRefusal } = await import('../import-preview/captions-source.js');
+      const refusal = captionsSizeRefusal(file.name, file.size);
+      if (refusal !== undefined) {
+        report({ text: refusal, tone: 'error' });
+        return;
+      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const opened = captionsPreviewSource(file.name, bytes);
+      if (!opened.ok) {
+        report({ text: opened.message, tone: 'error' });
+        return;
+      }
+      openImportPreview({ source: opened.source });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
   // An `.rtfd` is a package folder (TXT.rtf plus the pictures it names), so it is picked whole; the browser lists its files with
   // their paths. The bytes are read here (I/O), and the package is unpacked and parsed in the preview's Worker (import-rtf.md §4).
   const openRtfd = async (files: readonly File[]): Promise<void> => {
@@ -99,9 +121,19 @@ export function ManuscriptImportActions(): ReactNode {
 
   const openHtml = async (file: File): Promise<void> => {
     try {
-      const { htmlPreviewSource, htmlZipPreviewSource } = await import('../import-preview/html-source.js');
+      const { htmlPreviewSource, htmlZipPreviewSource, htmlSizeRefusal } = await import('../import-preview/html-source.js');
+      const zip = /\.zip$/i.test(file.name);
+      // The size is checked before the file is loaded into memory, as the plain-text and RTF actions do: a 4 GB pick must be
+      // refused with a sentence, not crash the tab on its way to the reader's own cap.
+      const { MAX_TEXT_BYTES } = await import('@caotang/import-read/text');
+      const { ARCHIVE_LIMITS } = await import('@caotang/import-read/zip');
+      const refusal = htmlSizeRefusal(file.name, file.size, zip ? ARCHIVE_LIMITS.maxArchiveBytes : MAX_TEXT_BYTES);
+      if (refusal !== undefined) {
+        report({ text: refusal, tone: 'error' });
+        return;
+      }
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const source = /\.zip$/i.test(file.name) ? htmlZipPreviewSource(file.name, bytes) : htmlPreviewSource(file.name, bytes);
+      const source = zip ? htmlZipPreviewSource(file.name, bytes) : htmlPreviewSource(file.name, bytes);
       openImportPreview({ source });
     } catch (failure) {
       failed(file, failure);
@@ -110,7 +142,13 @@ export function ManuscriptImportActions(): ReactNode {
 
   const openEpub = async (file: File): Promise<void> => {
     try {
-      const { epubPreviewSource } = await import('../import-preview/epub-source.js');
+      const { epubPreviewSource, epubSizeRefusal } = await import('../import-preview/epub-source.js');
+      const { ARCHIVE_LIMITS } = await import('@caotang/import-read/zip');
+      const refusal = epubSizeRefusal(file.name, file.size, ARCHIVE_LIMITS.maxArchiveBytes);
+      if (refusal !== undefined) {
+        report({ text: refusal, tone: 'error' });
+        return;
+      }
       const bytes = new Uint8Array(await file.arrayBuffer());
       openImportPreview({ source: epubPreviewSource(file.name, bytes) });
     } catch (failure) {
@@ -183,6 +221,9 @@ export function ManuscriptImportActions(): ReactNode {
       <button type="button" className="button is-quiet" onClick={() => rtfdFolder.current?.click()}>
         <Trans>Import RTFD…</Trans>
       </button>
+      <button type="button" className="button is-quiet" onClick={() => captionsFile.current?.click()}>
+        <Trans>Import captions…</Trans>
+      </button>
       <button type="button" className="button is-quiet" onClick={() => htmlFile.current?.click()}>
         <Trans>Import HTML…</Trans>
       </button>
@@ -226,6 +267,18 @@ export function ManuscriptImportActions(): ReactNode {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
           if (file !== undefined) void openRtf(file);
+        }}
+      />
+      <input
+        ref={captionsFile}
+        type="file"
+        hidden
+        accept=".srt,.vtt,text/vtt,application/x-subrip"
+        aria-label={t`Captions file`}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file !== undefined) void openCaptions(file);
         }}
       />
       <input

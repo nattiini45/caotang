@@ -64,10 +64,10 @@ function expectedOf(entry: DocxCase): ExpectedDocx {
 const unescapeXml = (text: string): string =>
   text.replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&quot;', '"').replaceAll('&apos;', "'").replaceAll('&amp;', '&');
 
-/** The text of each paragraph inside the contents control, in order. */
+/** The text of each paragraph inside the contents field, in order. */
 function cachedEntries(documentXml: string): string[] {
-  const start = documentXml.indexOf('<w:sdt>');
-  const end = documentXml.indexOf('</w:sdt>');
+  const start = documentXml.indexOf('<w:fldChar w:fldCharType="begin"');
+  const end = documentXml.indexOf('<w:fldChar w:fldCharType="end"');
   if (start < 0 || end < 0) return [];
   const field = documentXml.slice(start, end);
   const out: string[] = [];
@@ -98,11 +98,14 @@ describe('the DOCX write corpus — structure', () => {
     const body = strFromU8(parts['word/document.xml'] ?? new Uint8Array());
     const settings = strFromU8(parts['word/settings.xml'] ?? new Uint8Array());
 
-    expect(body.includes('<w:sdt>')).toBe(expected.contents);
+    // The field shape LibreOffice keeps: a complex `w:fldChar` field, each field part in its own run, no `w:sdt`
+    // wrapper (render-docx.ts "Why the field is written by hand").
+    expect(body.includes('<w:fldChar w:fldCharType="begin"')).toBe(expected.contents);
     expect(settings.includes('<w:updateFields/>')).toBe(expected.contents);
     expect(cachedEntries(body)).toEqual(expected.entries);
     if (expected.contents) {
       for (const type of ['begin', 'separate', 'end']) expect(body).toContain(`<w:fldChar w:fldCharType="${type}"`);
+      expect(body).not.toContain('<w:sdt>');
       expect(body).not.toContain('<w:hyperlink');
       expect(body).not.toContain('_Toc');
     }

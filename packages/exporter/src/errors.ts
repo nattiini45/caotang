@@ -46,7 +46,21 @@ const MEDIA_FORMAT_NAMES: Readonly<Record<string, string>> = {
   'timeline-xlsx': 'the timeline table',
   'timeline-svg': 'the timeline SVG',
   'timeline-pdf': 'the timeline PDF',
+  'vo-script-csv': 'the VO script',
+  'vo-script-xlsx': 'the VO script',
+  'show-notes': 'the show notes',
+  'transcript-md': 'the transcript',
+  teleprompter: 'the teleprompter',
+  vtt: 'the captions',
+  'chapters-json': 'the chapters document',
   promptpack: 'the prompt pack',
+  // `html` and the feeds are prose formats, but their gates refuse through this class too: an empty selection or a missing siteUrl names them.
+  html: 'the HTML article',
+  rss: 'the RSS feed',
+  atom: 'the Atom feed',
+  'podcast-rss': 'the podcast feed',
+  // The prose PDF is a prose format too, but its no-text gate refuses through this class, as `html`'s does.
+  'prose-pdf': 'the prose PDF',
 };
 
 /**

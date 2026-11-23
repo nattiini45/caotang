@@ -1,4 +1,4 @@
-import { getBody, type ProjectState } from '@caotang/store';
+import { getBody, type ProjectState, type TreeNode } from '@caotang/store';
 import { newBlock, type Block } from './block.js';
 import { dropRecord } from './drops.js';
 import { compareText } from './text.js';
@@ -23,7 +23,7 @@ export function excludeDocuments(block: Block, excluded: ReadonlySet<string>, dr
   return newBlock({ ...block, items, display: block.display.flatMap((index) => positions.has(index) ? [positions.get(index)!] : []) });
 }
 
-export function pinnedDocuments(overrides: ContextOverrides | undefined, tree: TreeIndex, state: ProjectState): { block: Block; drops: DropRecord[] } {
+export function pinnedNodes(overrides: ContextOverrides | undefined, tree: TreeIndex): { nodes: TreeNode[]; drops: DropRecord[] } {
   const excluded = overrideIds(overrides, 'exclude', 'doc');
   const drops: DropRecord[] = [];
   const nodes = [...overrideIds(overrides, 'include', 'doc')].sort(compareText).flatMap((id) => {
@@ -35,6 +35,11 @@ export function pinnedDocuments(overrides: ContextOverrides | undefined, tree: T
     }
     return [node];
   });
+  return { nodes, drops };
+}
+
+export function pinnedDocuments(overrides: ContextOverrides | undefined, tree: TreeIndex, state: ProjectState): { block: Block; drops: DropRecord[] } {
+  const { nodes, drops } = pinnedNodes(overrides, tree);
   const items = nodes.slice(0, 3).map((node) => ({
     ref: { kind: 'doc' as const, id: node.id },
     label: node.title,

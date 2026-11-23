@@ -246,7 +246,7 @@ describe('validation', () => {
     },
   );
 
-  it.each(['fields', 'customHeaders', 'pricePer1k', 'promptCache'])(
+  it.each(['fields', 'customHeaders', 'pricePer1k'])(
     'rejects malformed %s containers on create and update',
     async (field) => {
       const { profiles, keys } = store();
@@ -292,16 +292,13 @@ describe('validation', () => {
     ['customHeaders', 'x-team'],
     ['pricePer1k', 'prompt'],
     ['pricePer1k', 'completion'],
-    ['promptCache', 'mode'],
-    ['promptCache', 'ttl'],
   ])('rejects malformed %s.%s members on create and update', async (field, member) => {
     const { profiles, keys } = store();
     const created = await profiles.create(endpoint('saved'));
     const payload = await keys.revealPayload(created.id);
     const values = field === 'pricePer1k' ? ['1', ...malformedValues.slice(1)] : malformedValues;
-    const validMembers = field === 'pricePer1k' ? { prompt: 0, completion: 0 } : field === 'promptCache' ? { mode: 'auto' } : {};
+    const validMembers = field === 'pricePer1k' ? { prompt: 0, completion: 0 } : {};
     for (const value of [...values, null, undefined]) {
-      if (field === 'promptCache' && member === 'ttl' && value === undefined) continue;
       const input = {
         [field]: { ...validMembers, [member]: value },
       };
@@ -343,7 +340,6 @@ describe('validation', () => {
       temperature: 0.5,
       maxOutputTokens: 64,
       pricePer1k: { prompt: 1, completion: 2 },
-      promptCache: { mode: 'off' },
       customHeaders: { ' X-Team ': ' blue ' },
     }));
     const kept = await profiles.update(created.id, {
@@ -352,7 +348,6 @@ describe('validation', () => {
       defaultModel: null,
       fields: null,
       maxOutputTokens: null,
-      promptCache: null,
     } as unknown as ProfilePatch);
     expect(kept).toEqual(created);
     expect((await keys.revealPayload(created.id))?.customHeaders).toEqual({ 'x-team': 'blue' });
@@ -378,7 +373,7 @@ describe('validation', () => {
     expect(kept).toEqual(created);
   });
 
-  it.each(['pricePer1k', 'promptCache'])('rejects a null %s on create with a field-specific error', async (field) => {
+  it.each(['pricePer1k'])('rejects a null %s on create with a field-specific error', async (field) => {
     const { profiles } = store();
     const attempt = profiles.create(endpoint('invalid', { [field]: null }));
     await expect(attempt).rejects.toBeInstanceOf(ProfileError);
@@ -731,5 +726,35 @@ describe('local model presets (Ollama, LM Studio, llama.cpp)', () => {
   it('takes no custom headers: those belong to the generic endpoint', async () => {
     const { profiles } = store();
     await expect(profiles.create(local('ollama', { customHeaders: { 'x-a': 'b' } }))).rejects.toMatchObject({ field: 'customHeaders' });
+  });
+});
+
+describe('the key mirror', () => {
+  it('reports what a profile key now is, and the endpoint origin it may be sent to', async () => {
+    const seen: { profileId: string; change: unknown }[] = [];
+    const keys = createKeyStore(createMemoryVaultPort());
+    const profiles = createProfileStore({ keys, mirror: { changed: (profileId, change) => seen.push({ profileId, change }) } });
+
+    const created = await profiles.create(endpoint('Mirrored'));
+    expect(seen).toEqual([{ profileId: created.id, change: { origin: 'https://a.example', payload: { apiKey: KEY } } }]);
+
+    // A profile with no key has nothing for a host to keep, and the demo profile is one of those.
+    await profiles.create({ name: 'Demo', kind: 'mock', isActive: false });
+    expect(seen).toHaveLength(1);
+
+    // A save that re-enters the key for another address reports the address that save chose.
+    await profiles.update(created.id, { baseUrl: 'https://c.example/v1', apiKey: 'sk-second' });
+    expect(seen.at(-1)).toEqual({ profileId: created.id, change: { origin: 'https://c.example', payload: { apiKey: 'sk-second' } } });
+
+    // A removal says so, so a host can drop its copy.
+    await profiles.remove(created.id);
+    expect(seen.at(-1)).toEqual({ profileId: created.id, change: null });
+    expect(seen).toHaveLength(3);
+  });
+
+  it('opens without a mirror exactly as before', async () => {
+    const { profiles } = store();
+    const created = await profiles.create(endpoint('Plain'));
+    expect((await profiles.get(created.id))?.hasKey).toBe(true);
   });
 });

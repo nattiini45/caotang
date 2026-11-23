@@ -31,7 +31,7 @@ function stringValue(node: ts.Node | undefined): string | undefined {
 }
 
 function propertyName(node: ts.ObjectLiteralElementLike): string | undefined {
-  if (!ts.isPropertyAssignment(node)) return undefined;
+  if (!ts.isPropertyAssignment(node) && !ts.isShorthandPropertyAssignment(node)) return undefined;
   if (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name)) return node.name.text;
   return undefined;
 }
@@ -79,7 +79,7 @@ function extract(filename: string, code: string, onMessageExtracted: Parameters<
 /** `lingui.config.ts` adds this after the default extractor; it matches only marked package sources. */
 export const packageRefsExtractor: ExtractorType = {
   match(filename) {
-    return /(?:^|[\\/])packages[\\/](?:harness|coherence|bus|store|dialogue)[\\/]src[\\/].*\.ts$/.test(filename);
+    return /(?:^|[\\/])packages[\\/](?:harness|coherence|bus|store|dialogue|gateway)[\\/]src[\\/].*\.ts$/.test(filename);
   },
   extract(filename, code, onMessageExtracted) {
     extract(filename, code, onMessageExtracted);

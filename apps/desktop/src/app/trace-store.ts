@@ -14,6 +14,8 @@
 import { createTraceStore, traceGateway, type TraceExportOptions, type TraceSink, type TraceStore } from '@caotang/harness';
 import type { Gateway } from '@caotang/gateway';
 
+import { ReplaySnapshots } from './replay-snapshots.js';
+
 /** A label for this tab's trace, stamped on every record: `tab-` and eight hex digits from the browser's random source. */
 function tabSessionId(): string {
   const bytes = new Uint8Array(4);
@@ -23,6 +25,8 @@ function tabSessionId(): string {
 
 export class TabTrace {
   readonly store: TraceStore;
+  /** The project as each of the last few turns found it, which is what a replay runs on (§8.1). */
+  readonly snapshots = new ReplaySnapshots();
   private on = false;
   private project = '';
   private version = 0;
@@ -49,6 +53,7 @@ export class TabTrace {
     } else {
       this.gateway.setObserver(undefined);
       this.store.clear();
+      this.snapshots.clear();
     }
   }
 
@@ -65,9 +70,10 @@ export class TabTrace {
     return this.store.toJsonl(options);
   }
 
-  /** Clears the trace now. Recording stays as it was. */
+  /** Clears the trace now, and the starting states kept with it. Recording stays as it was. */
   clear(): void {
     this.store.clear();
+    this.snapshots.clear();
   }
 
   /** A number that changes whenever the store does: what a view subscribes to. */

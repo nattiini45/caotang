@@ -337,7 +337,7 @@ for (const surface of SURFACES) {
     test.use({ bypassCSP: true, setup: surface.setup });
     for (const scheme of SCHEMES) {
       for (const material of MATERIALS) {
-        test(`${scheme}, ${material}: axe, contrast computed on ${material}, every control 44 px`, async ({ page, browserName }) => {
+        test(`${scheme}, ${material}: axe, contrast computed on ${material}, every control 44 px`, { tag: '@modern' }, async ({ page, browserName }) => {
           test.fixme(surface.pending !== undefined, `#${surface.pending ?? ''}: ${surface.why ?? ''}`);
           // Solid is the same CSS in every engine (no backdrop-filter to differ on), so Chromium alone holds it; glass runs everywhere.
           test.skip(material === 'solid' && browserName !== 'chromium', 'the solid material is checked in Chromium');
@@ -355,7 +355,7 @@ for (const surface of SURFACES) {
 }
 
 for (const shell of ['classic', 'modern'] as const) {
-  test(`shared panel switches in ${shell}: visible labels name switches operable with Space`, async ({ page }) => {
+  test(`shared panel switches in ${shell}: visible labels name switches operable with Space`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
     if (shell === 'modern') {
       await setUp(page, 'scene');
       await showBinder(page);
@@ -389,7 +389,7 @@ for (const shell of ['classic', 'modern'] as const) {
 }
 
 test.describe('the default Write screen', () => {
-  test('at most ten controls outside the page, and they are the nine of §9.5', async ({ page }) => {
+  test('at most ten controls outside the page, and they are the nine of §9.5', { tag: '@modern' }, async ({ page }) => {
     await setUp(page, 'scene');
     const controls = await page.evaluate(() =>
       [...document.querySelectorAll('[data-testid="modern-stage"] *')]
@@ -407,7 +407,7 @@ test.describe('the default Write screen', () => {
     for (const name of ['More', 'New', 'Write', 'Ask', 'Search', 'Binder', 'Findings', 'Agent']) expect(controls.some((control) => control.startsWith(name)), name).toBe(true);
   });
 
-  test('keyboard only: the skip link first, then every stop in reading order, each shown with its ring', async ({ page }) => {
+  test('keyboard only: the skip link first, then every stop in reading order, each shown with its ring', { tag: '@modern' }, async ({ page }) => {
     await setUp(page, 'scene');
     await page.locator('body').click({ position: { x: 2, y: 2 } });
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());

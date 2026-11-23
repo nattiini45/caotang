@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import {
+  FORMAT_VERSION,
   MANIFEST_FILE,
   FolderDriftError,
   MemoryArtifactFs,
@@ -839,14 +840,14 @@ test.describe('a manifest another program wrote in a newer format is refused, no
     const fs = folderArtifactFs(root);
     await writeProject(fs, project());
     const manifest = JSON.parse(await fs.read(MANIFEST_FILE)) as Record<string, unknown>;
-    manifest.formatVersion = 2;
+    manifest.formatVersion = FORMAT_VERSION + 1;
     const newer = JSON.stringify(manifest);
     await fs.writeAtomic(MANIFEST_FILE, newer);
     const store = await openRuntimeStore(new MemoryIndexedDb());
 
     const refused = openFolder(store, root);
     await expect(refused).rejects.toBeInstanceOf(ProjectRefusedError);
-    await expect(refused).rejects.toThrow('format version 2');
+    await expect(refused).rejects.toThrow(`format version ${FORMAT_VERSION + 1}`);
     expect(await fs.read(MANIFEST_FILE)).toBe(newer);
     expect((await fs.listFiles('')).some((name) => name.startsWith('caotang.json.corrupt-'))).toBe(false);
     expect(await listProjectIds(store)).toEqual([]);
@@ -1121,13 +1122,14 @@ function documentIdsOf(state: ReturnType<typeof project>): string[] {
 /** A session whose project is in an in-memory folder, with the folder's copy as its baseline, as opening the folder leaves it. */
 async function folderSession(
   state: ReturnType<typeof project> = project(),
-): Promise<{ session: ProjectSession; root: DirectoryHandleLike; state: ReturnType<typeof project> }> {
+): Promise<{ session: ProjectSession; root: DirectoryHandleLike; state: ReturnType<typeof project>; store: RuntimeStore }> {
   const root = memoryFolder('Fixture Book');
   await writeProject(folderArtifactFs(root), state);
   // The session is opened from the folder as the lifecycle opens one, so its folder copy holds the digests and titles a folder open takes.
-  const opened = await openFolder(await openRuntimeStore(new MemoryIndexedDb()), root);
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const opened = await openFolder(store, root);
   if (opened.kind !== 'opened') throw new Error('the fixture folder should open as a project');
-  return { session: opened.opened.session, root, state: opened.opened.session.state };
+  return { session: opened.opened.session, root, state: opened.opened.session.state, store };
 }
 
 async function confirmFolderOverwrite(session: ProjectSession, root: DirectoryHandleLike, refusal?: FolderSaveOutcome): Promise<FolderSaveOutcome> {
@@ -1139,6 +1141,31 @@ async function confirmFolderOverwrite(session: ProjectSession, root: DirectoryHa
 }
 
 test.describe('saving to a folder: what is written, and what is left alone', () => {
+  for (const destination of ['folder', 'bundle'] as const) {
+    test(`a saved teleprompter width survives a ${destination} round trip`, async () => {
+      const { session, root, store } = await folderSession();
+      const recipe = { name: 'Reading copy', format: 'teleprompter', includeRootIds: ['manuscript'], options: { teleprompterWidth: 32 } };
+      let bundle: Uint8Array | undefined;
+      try {
+        expect(session.dispatch('recipe.save', recipe).ok).toBe(true);
+        if (destination === 'folder') expect(await saveFolder(session, root)).toEqual({ kind: 'saved' });
+        else bundle = (await exportBundle(store, session)).bytes;
+      } finally {
+        await session.close();
+      }
+      const fresh = await openRuntimeStore(new MemoryIndexedDb());
+      const reopened = bundle === undefined
+        ? await openFolder(fresh, root)
+        : await importBundle(fresh, bundle, 'Reading copy.caotang');
+      if (reopened.kind !== 'opened') throw new Error('expected the saved project to reopen');
+      try {
+        expect(reopened.opened.session.state.manifest.recipes).toContainEqual(expect.objectContaining(recipe));
+      } finally {
+        await reopened.opened.session.close();
+      }
+    });
+  }
+
   test('a folder holding the copy this session loaded is written, and the copy is read back as the new baseline', async () => {
     const { session, root } = await folderSession();
     session.dispatch('doc.write', { docId: IDS.sceneA, body: 'Saved to the folder' });

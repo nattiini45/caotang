@@ -100,6 +100,16 @@ export function setNotes(session: ProjectSession, nodeId: string, notes: string)
   return session.dispatch('notes.set', { nodeId, notes });
 }
 
+/** `binder.setPublish` for one field (web-publishing.md §2): the value, or `null` to clear it. */
+export function setPublish(
+  session: ProjectSession,
+  nodeId: string,
+  field: 'slug' | 'publishedAt' | 'tags' | 'canonical' | 'description' | 'layout',
+  value: string | string[] | null,
+): Outcome {
+  return session.dispatch('binder.setPublish', { nodeId, patch: { [field]: value } });
+}
+
 /**
  * `codex.upsert` for one entry (codex.md §7): a create, or an update that names only the fields it changes. The
  * bus validates the whole op, so a refusal (a duplicate name, a limit) comes back as an error for the panel to say.

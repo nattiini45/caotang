@@ -2,16 +2,16 @@
 // The `?url` imports below are typed by Vite's client types; the root typecheck (e2e/) reaches this file through the session.
 /**
  * The PDFs' fallback fonts, read in the browser (the contact sheet and the screenplay PDF load the same five, and the colour emoji file): Noto Sans Mono
- * CJK SC for text outside Latin script, Noto Emoji (monochrome) for emoji, and Noto Sans Arabic, Noto Sans Hebrew and Noto Sans
- * Devanagari for those scripts. The colour emoji (`@caotang/font-noto-color-emoji`, Noto Color Emoji as vector pictures, 5 MB) is one more file
+ * CJK SC for text outside Latin script, Noto Emoji (monochrome) for emoji, and Noto Sans Arabic, Noto Sans Hebrew and the ten Noto Sans Indic fonts
+ * for those scripts. The colour emoji (`@caotang/font-noto-color-emoji`, Noto Color Emoji as vector pictures, 5 MB) is one more file
  * the same way, fetched only for an export with Colour emoji on and an emoji the file has; it is checked by length and SHA-256 when it is opened
  * (`@caotang/pdf-fonts/colour`), so it is not a font file and is not given the font signature check.
  *
  * The font files come from `@caotang/font-noto-cjk`, `@caotang/font-noto-emoji`, `@caotang/font-noto-arabic`,
- * `@caotang/font-noto-hebrew` and `@caotang/font-noto-devanagari`. The `?url` imports make Vite emit each
+ * `@caotang/font-noto-hebrew` and the `@caotang/font-noto-*` script packages. The `?url` imports make Vite emit each
  * as an asset of its own, served from this app's origin like every other file, so the Content-Security-Policy needs no
  * change and no CDN is involved. Each import is dynamic and sits inside its loader, so neither the URL module nor the file is
- * fetched until a contact sheet holds text that needs it (CJK text, an emoji, or Arabic, Hebrew or Devanagari) and the exporter asks for it.
+ * fetched until a contact sheet holds text that needs it (CJK text, an emoji, or Arabic, Hebrew or an Indic script) and the exporter asks for it.
  *
  * The CJK and the emoji font each have a second, smaller file beside the full one, cut to the characters of everyday use
  * (`NotoSansMonoCJKsc-Regular-common.woff`, 2.0 MB of the full 10.7 MB, and `NotoEmoji-Regular-common.woff`, 0.3 of 0.6 MB). The
@@ -23,6 +23,7 @@
  */
 
 import { checkFontBytes, withCommon, type CommonFontLoader, type ComicLetteringFontLoader, type FontLoader } from '@caotang/pdf-fonts';
+import type { IndicFontLoaders } from '@caotang/exporter';
 
 /**
  * The font file at a URL. A body that does not start as a font file does (an HTML page from a dev server's fallback, a service
@@ -89,9 +90,51 @@ export const loadHebrewFontOverHttp: FontLoader = async () => {
   return fetchBytes(url);
 };
 
-export const loadDevanagariFontOverHttp: FontLoader = async () => {
-  const { default: url } = await import('@caotang/font-noto-devanagari/NotoSansDevanagari-Regular.ttf?url');
-  return fetchBytes(url);
+/**
+ * The Indic fonts, one file each from its `@caotang/font-noto-*` package. Each import is dynamic and sits inside its case,
+ * so a PDF fetches only the scripts its text holds, and nothing is fetched before a file is exported.
+ */
+export const loadIndicFontsOverHttp: IndicFontLoaders = {
+  devanagari: async () => {
+    const { default: url } = await import('@caotang/font-noto-devanagari/NotoSansDevanagari-Regular.ttf?url');
+    return fetchBytes(url);
+  },
+  bengali: async () => {
+    const { default: url } = await import('@caotang/font-noto-bengali/NotoSansBengali-Regular.ttf?url');
+    return fetchBytes(url);
+  },
+  gurmukhi: async () => {
+    const { default: url } = await import('@caotang/font-noto-gurmukhi/NotoSansGurmukhi-Regular.ttf?url');
+    return fetchBytes(url);
+  },
+  gujarati: async () => {
+    const { default: url } = await import('@caotang/font-noto-gujarati/NotoSansGujarati-Regular.ttf?url');
+    return fetchBytes(url);
+  },
+  oriya: async () => {
+    const { default: url } = await import('@caotang/font-noto-oriya/NotoSansOriya-Regular.ttf?url');
+    return fetchBytes(url);
+  },
+  tamil: async () => {
+    const { default: url } = await import('@caotang/font-noto-tamil/NotoSansTamil-Regular.ttf?url');
+    return fetchBytes(url);
+  },
+  telugu: async () => {
+    const { default: url } = await import('@caotang/font-noto-telugu/NotoSansTelugu-Regular.ttf?url');
+    return fetchBytes(url);
+  },
+  kannada: async () => {
+    const { default: url } = await import('@caotang/font-noto-kannada/NotoSansKannada-Regular.ttf?url');
+    return fetchBytes(url);
+  },
+  malayalam: async () => {
+    const { default: url } = await import('@caotang/font-noto-malayalam/NotoSansMalayalam-Regular.ttf?url');
+    return fetchBytes(url);
+  },
+  sinhala: async () => {
+    const { default: url } = await import('@caotang/font-noto-sinhala/NotoSansSinhala-Regular.ttf?url');
+    return fetchBytes(url);
+  },
 };
 
 /**

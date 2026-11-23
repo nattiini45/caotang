@@ -224,7 +224,24 @@ describe('SplitResult → plan', () => {
     expect(bodies).not.toContain('import:rtf-image-1.png');
     expect(plan.losses.at(-1)).toEqual({ message: 'Pictures are left out: Import pictures is off.', count: 1 });
     expect(withoutPictures('One.\n\n![A](import:a.png)\n\nTwo.')).toBe('One.\n\nTwo.');
-    expect(withoutPictures('See ![A](import:a.png) inline.')).toBe('See ![A](import:a.png) inline.');
+    // An inline picture becomes its alt text: a ref the import will not write never stays in a body (#299 review F11).
+    expect(withoutPictures('See ![A](import:a.png) inline.')).toBe('See A inline.');
+    expect(withoutPictures('See ![a\\]b](import:a.png) inline.')).toBe('See a\\]b inline.');
+    expect(withoutPictures('![One](import:a.png) and ![Two](import:b.png)')).toBe('One and Two');
+    expect(withoutPictures('![](import:a.png) ![](import:b.png)')).toBe('');
+    expect(withoutPictures('No pictures here.')).toBe('No pictures here.');
+  });
+
+  it('leaves an inline picture’s ref out of the committed body when the pictures option is off, keeping its words', () => {
+    const doc: ImportDocument = {
+      blocks: [heading(1, 'Chapter One'), para('The lamp stood by the door. ![the lamp](import:html-image-0-0)')],
+    };
+    const plan = planOfSplit(split(doc), [], { pictures: false });
+    const bodies = JSON.stringify(plan.tree);
+    expect(bodies).not.toContain('import:html-image-0-0');
+    expect(bodies).toContain('The lamp stood by the door. the lamp');
+    // The report says pictures were left out even though the page has no image block, only an inline one.
+    expect(plan.losses.at(-1)).toEqual({ message: 'Pictures are left out: Import pictures is off.', count: 1 });
   });
 
   it('words every reason, flag and notice, and offers a join for a short chapter a split starts', () => {

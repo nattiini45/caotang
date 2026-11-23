@@ -7,9 +7,11 @@ import { describe, expect, it } from 'vitest';
 import {
   INFO_LABELS,
   SecretKey,
+  VAULT_INFO_LABEL,
   decodeRecoveryKey,
   deriveKek,
   deriveSubkey,
+  deriveVaultKey,
   encodeRecoveryKey,
   generateMasterKey,
   generateProjectKey,
@@ -119,6 +121,19 @@ describe('fixed vectors', () => {
     expect(text.replaceAll('-', '')).toBe(crockford(Buffer.concat([Buffer.of(1), Buffer.from(master.export()), check])));
     expect(text).toBe('07ZZX-ZFWZF-XFKY7-QYVTZ-9WZJY-7REZV-QDXKN-YNTF8-WZKEB-S73WB-GY0TJ-XZ3E0');
   });
+
+  it('derives the vault key as HKDF-SHA-256 over the master key with a label no project subkey uses', async () => {
+    const master = new SecretKey('master', Uint8Array.from({ length: 32 }, (_, i) => i));
+    const expected = Buffer.from(hkdfSync('sha256', Buffer.from(master.export()), Buffer.alloc(0), Buffer.from('caotang/v1/vault-key'), 32));
+    expect(VAULT_INFO_LABEL).toBe('caotang/v1/vault-key');
+    expect(Object.values(INFO_LABELS)).not.toContain(VAULT_INFO_LABEL);
+    expect(hex(await deriveVaultKey(master))).toBe(hex(expected));
+    // The same 32 bytes used as a project key derive different subkeys: the vault label is its own domain.
+    const asProject = new SecretKey('project', master.export());
+    for (const purpose of ['file', 'path', 'manifest'] as const) {
+      expect(hex(await deriveVaultKey(master))).not.toBe(hex(await deriveSubkey(asProject, purpose)));
+    }
+  });
 });
 
 describe('property loops (seeded)', () => {
@@ -155,7 +170,7 @@ describe('property loops (seeded)', () => {
       const master = new SecretKey('master', seededBytes(next, 32));
       expect((await decodeRecoveryKey(await encodeRecoveryKey(master))).export()).toEqual(master.export());
       const kek = await deriveKek(fastKdf, `passphrase ${i}`, generateSalt());
-      expect((await unwrapMasterKey(kek, await wrapMasterKey(kek, master))).export()).toEqual(master.export());
+      expect((await unwrapMasterKey(kek, await wrapMasterKey(kek, master, 'acct_test_one'), 'acct_test_one')).export()).toEqual(master.export());
     }
     expect(generateMasterKey().export()).not.toEqual(generateMasterKey().export());
   });

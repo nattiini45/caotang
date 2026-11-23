@@ -11,9 +11,9 @@
  * tarball command, and it would never reach this script.
  *
  * The steps, each of which stops the pack when it fails:
- *  1. Stage `dist/mcpb/`: `server/caotang-mcp.mjs` (the built bundle), `server/fonts/` (the CJK, emoji, Arabic, Hebrew and Devanagari fonts
+ *  1. Stage `dist/mcpb/`: `server/caotang-mcp.mjs` (the built bundle), `server/fonts/` (the CJK, emoji, Arabic, Hebrew and ten Indic fonts
  *     both PDFs set text in: `@caotang/font-noto-cjk`, `@caotang/font-noto-emoji`, `@caotang/font-noto-arabic`,
- *     `@caotang/font-noto-hebrew` and `@caotang/font-noto-devanagari`, staged as `NotoSansMonoCJKsc-Regular.woff`,
+ *     `@caotang/font-noto-hebrew`, `@caotang/font-noto-devanagari` and the nine `@caotang/font-noto-<script>` packages, staged as `NotoSansMonoCJKsc-Regular.woff`,
  *     `NotoSansMonoCJKsc-Regular-common.woff`, `NotoSansMonoCJKsc-Bold.woff`, `NotoSansMonoCJKsc-Bold-common.woff` (the CJK font's Bold, for bold places of the contact sheet), `NotoEmoji-Regular.woff`, `NotoEmoji-Regular-common.woff`, `NotoColorEmoji.bin` (the colour emoji, `@caotang/font-noto-color-emoji`), `NotoSansArabic-Regular.ttf`, `NotoSansHebrew-Regular.ttf` and `NotoSansDevanagari-Regular.ttf`, where the Node loaders look first, packages/pdf-fonts/src/node-loader.ts),
  *     `server/webp_dec.wasm` (the WebP decoder of `@jsquash/webp`, beside the bundle, where the contact sheet's transcoder looks first,
  *     packages/exporter/src/picture-transcoder-node.ts), `manifest.json`,
@@ -44,6 +44,25 @@ export const BUNDLE_LICENSE = 'LICENSE';
 export const BUNDLE_FONTS = 'server/fonts';
 /** The folder of the files the server reads beside its bundle: the WebP decoder. */
 export const BUNDLE_SERVER = 'server';
+
+/**
+ * How long one MCPB CLI call may take before it is called stalled. Validating, packing and reading a bundle of this size takes
+ * a fraction of a second; the ceiling exists so a child that never answers leaves a line naming it instead of a silent step.
+ */
+const MCPB_TIMEOUT_MS = 120_000;
+
+/**
+ * The V8 switches every MCPB CLI child runs under.
+ *
+ * `pack` ends with `process.exit(0)` the instant its synchronous deflate of the bundle returns, and V8 compiles in the
+ * background by default: when a compile job is still allocating at that instant it parks in V8's collection barrier, which
+ * only the main thread can serve, while the main thread is inside `process.exit` joining the platform's worker threads. The
+ * two wait on each other, so the child never exits — after writing and printing the whole archive. It was one `pack` in six
+ * and only ever `pack`, because it is the one command that follows seconds of deflate with an immediate exit; `validate` and
+ * `info` do no such work. Compiling on the main thread leaves no job for the exit to wait on, so the child stops when it says
+ * it has.
+ */
+export const MCPB_NODE_FLAGS = Object.freeze(['--single-threaded']);
 
 /** The one switch a manifest must carry for writes: the setting it reads, and the variable it sets from it. */
 export const WRITE_SETTING = 'allow_writes';
@@ -161,12 +180,27 @@ export function mcpbCliPath(packageDir = PACKAGE_DIR) {
   return cli;
 }
 
-/** Runs the MCPB CLI with the given arguments. A non-zero exit throws with what the CLI printed. */
+/** Runs the MCPB CLI with the given arguments. A non-zero exit or a stall throws with what the CLI printed. */
 export function runMcpb(args, options = {}) {
   const cli = options.cli ?? mcpbCliPath();
-  const result = spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8', cwd: options.cwd ?? PACKAGE_DIR });
-  if (result.status !== 0) {
-    throw new Error(`mcpb ${args.join(' ')} exited ${result.status}:\n${result.stdout ?? ''}${result.stderr ?? ''}`);
+  const started = Date.now();
+  // The CLI's own stdin is closed, never inherited: a child that reads it would otherwise wait for a terminal that a factory
+  // step does not have. The ceiling turns a stall into a line that names the command and what it printed. The switches keep
+  // the child's own exit from waiting on a compile job it started in the background (MCPB_NODE_FLAGS).
+  const timeout = options.timeoutMs ?? MCPB_TIMEOUT_MS;
+  const result = spawnSync(process.execPath, [...MCPB_NODE_FLAGS, cli, ...args], {
+    encoding: 'utf8',
+    cwd: options.cwd ?? PACKAGE_DIR,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout,
+    killSignal: 'SIGKILL',
+  });
+  if (result.error !== undefined || result.status !== 0) {
+    const took =
+      result.error?.code === 'ETIMEDOUT'
+        ? ` did not answer within ${timeout / 1000} s`
+        : ` exited ${String(result.status)}`;
+    throw new Error(`mcpb ${args.join(' ')}${took} after ${((Date.now() - started) / 1000).toFixed(1)} s:\n${result.stdout ?? ''}${result.stderr ?? ''}`.trimEnd());
   }
   return `${result.stdout ?? ''}${result.stderr ?? ''}`;
 }
@@ -200,6 +234,11 @@ function supportedNodeRange() {
   }
 }
 
+/** One line per phase on stderr, so a step that never finishes still says how far it got. */
+function phase(what) {
+  process.stderr.write(`pack-mcpb: ${what}\n`);
+}
+
 async function main() {
   const { version } = JSON.parse(readFileSync(join(PACKAGE_DIR, 'package.json'), 'utf8'));
   const outDir = join(PACKAGE_DIR, 'dist');
@@ -216,8 +255,10 @@ async function main() {
   if (!existsSync(serverBundle)) {
     throw new Error(`${serverBundle} is missing: run the bundle build first (pnpm --filter @caotang/mcp-server build)`);
   }
+  phase('listing the production tree for the notices');
   const { generateNotices } = await import('../../../tools/third-party-notices.mjs');
   const notices = generateNotices({ root: REPO_ROOT, filters: ['./packages/mcp-server'] });
+  phase('staging, validating, packing and reading the bundle');
   const result = packBundle({
     outDir,
     serverBundle,
@@ -238,6 +279,15 @@ async function main() {
       createRequire(import.meta.url).resolve('@caotang/font-noto-arabic/NotoSansArabic-Regular.ttf'),
       createRequire(import.meta.url).resolve('@caotang/font-noto-hebrew/NotoSansHebrew-Regular.ttf'),
       createRequire(import.meta.url).resolve('@caotang/font-noto-devanagari/NotoSansDevanagari-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-bengali/NotoSansBengali-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-gurmukhi/NotoSansGurmukhi-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-gujarati/NotoSansGujarati-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-oriya/NotoSansOriya-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-tamil/NotoSansTamil-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-telugu/NotoSansTelugu-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-kannada/NotoSansKannada-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-malayalam/NotoSansMalayalam-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-sinhala/NotoSansSinhala-Regular.ttf'),
       ...['ComicNeue-Regular', 'ComicNeue-Italic', 'ComicNeue-Bold', 'ComicNeue-BoldItalic', 'Bangers-Regular'].map((face) =>
         createRequire(import.meta.url).resolve(`@caotang/font-comic-lettering/${face}.woff`),
       ),

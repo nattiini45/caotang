@@ -32,8 +32,9 @@
  */
 
 import { err, ok, type CommandError, type Result } from '@caotang/bus';
-import { compileCodex, countMentions } from '@caotang/codex';
-import { withheldState } from '@caotang/context';
+import { withheldState, type ContextOverrides } from '@caotang/context';
+import { countIn } from '../coherence-facts.js';
+import { projectScanInput } from '../scan-worker.js';
 import {
   DETERMINISTIC_CHECK_IDS,
   SCAN_DOC_GUARD,
@@ -46,10 +47,10 @@ import {
   type CoherenceModel,
   type DeterministicCheckId,
   type DialogueFacts,
-  type MentionDetector,
   type ReviewContext,
   type ReviewPlan,
   type ScanData,
+  type ScopeSpec,
   type ToolFailure,
 } from '@caotang/coherence';
 import type { ProjectState, TreeNode } from '@caotang/store';
@@ -73,8 +74,8 @@ export interface CoherenceSource {
    * active, and then the review is refused with the sentence that names the provider. Absent, `coherence.review` is not wired.
    */
   readonly model?: () => CoherenceModel | undefined;
-  /** The review's context, the codex and the story so far (coherence.md §5.3), for the state it is planned against. */
-  readonly review?: (state: ProjectState) => ReviewContext;
+  /** The review's context, the codex and the story so far (coherence.md §5.3), for the state it is planned against and the request's one-request choices. */
+  readonly review?: (state: ProjectState, overrides?: ContextOverrides) => ReviewContext;
 }
 
 /**
@@ -91,7 +92,7 @@ interface RunnableChecks {
  * The codex's own detector, run over one body with the spellings the body adds (a screenplay's cue names). The scan counts
  * mentions with it, as the Findings tab's scan does (session.ts countInEntries), so the two scans agree.
  */
-export const countIn: MentionDetector = (body, entries, terms) => countMentions(body, compileCodex(entries), terms);
+export { countIn } from '../coherence-facts.js';
 
 /** The checks a scan runs, or the refusal when the writer has turned every one of them off. */
 function runnableChecks(requested: unknown, enabled: readonly DeterministicCheckId[] | undefined): RunnableChecks | ToolFailure {
@@ -199,13 +200,18 @@ export function coherencePorts(clock: () => number, source: CoherenceSource = {}
     // The checks the writer has on (Settings › Coherence), and the checks the model named among them (coherence.md §5.1).
     const runnable = runnableChecks(params['checks'], source.checks?.());
     if (isRefusal(runnable)) return failure(refusal('invalid-params', runnable.message, { target: 'coherence.scan' }));
-    // The dialogue facts are read from the project as the agent may read it, so a container in a withheld subtree yields none.
-    const dialogue = source.dialogue?.(context.withheld === undefined ? context.state : withheldState(context.state, context.withheld));
+    const file = heldFile(context.state);
+    const scope = params['scope'] as ScopeSpec | undefined;
+    const projectedScope = scope?.mode === 'full' || scope?.mode === 'changed' || (scope?.mode === 'doc' && Array.isArray(scope.docIds)) ? scope : undefined;
+    const projected = context.withheld === undefined ? undefined : projectScanInput(context.state, file, context.withheld, projectedScope);
+    const view = projected?.state ?? context.state;
+    const dialogue = source.dialogue?.(view);
     const excluded = excludedBy(context.withheld);
     const scanParams: Readonly<Record<string, unknown>> = runnable.checks === undefined ? params : { ...params, checks: [...runnable.checks] };
     const outcome = scanTool(scanParams, {
-      state: context.state,
-      file: heldFile(context.state),
+      state: view,
+      file,
+      excludedDocIds: projected?.excludedDocIds,
       now: new Date(clock()),
       approvedLargeScope,
       detector: countIn,
@@ -281,6 +287,7 @@ export function stageReviewPlan(
   clock: () => number,
   source: CoherenceSource,
   withheld?: ReadonlySet<string>,
+  overrides?: ContextOverrides,
 ): Result<ReviewPlan, CommandError> {
   const model = source.model?.();
   const excluded = excludedBy(withheld);
@@ -289,7 +296,7 @@ export function stageReviewPlan(
     file: heldFile(state),
     now: new Date(clock()),
     ...(model === undefined ? {} : { model }),
-    ...(source.review === undefined ? {} : { review: source.review(withheld === undefined ? state : withheldState(state, withheld)) }),
+    ...(source.review === undefined ? {} : { review: source.review(withheld === undefined ? state : withheldState(state, withheld), overrides) }),
     ...(excluded === undefined ? {} : { isExcluded: excluded }),
   });
   if (!outcome.ok) return err(refusalOf(outcome, 'coherence.review'));
@@ -324,7 +331,7 @@ export function coherenceAsyncPorts(clock: () => number, source: CoherenceSource
       file: heldFile(context.state),
       now: new Date(clock()),
       model: { model: model.model, complete: (request) => model.complete({ ...request, turnId: context.turnId, ...(context.sessionId === undefined ? {} : { sessionId: context.sessionId }) }) },
-      ...(source.review === undefined ? {} : { review: source.review(context.withheld === undefined ? context.state : withheldState(context.state, context.withheld)) }),
+      ...(source.review === undefined ? {} : { review: source.review(context.withheld === undefined ? context.state : withheldState(context.state, context.withheld), context.contextOverrides) }),
       ...(excludedBy(context.withheld) === undefined ? {} : { isExcluded: excludedBy(context.withheld) }),
       currentFile: () => heldFile(context.state),
       ...(context.signal === undefined ? {} : { signal: context.signal }),

@@ -90,21 +90,23 @@ export function BottomOrnament({ regions, pageId }: ModernSlotProps): ReactNode 
           <span ref={lens} className="modern-lens" aria-hidden="true" data-testid="modern-lens" />
           {shown.map((name) => {
             const checked = chosen === name;
+            const label = viewName(name);
             return (
               <button
                 key={name}
                 type="button"
                 id={viewControlId(name)}
                 role="radio"
+                aria-label={label}
                 aria-checked={checked}
                 aria-controls={pageId}
                 tabIndex={view.narrow || checked ? 0 : -1}
                 className="modern-capsule modern-view"
-                title={viewName(name)}
+                title={label}
                 onClick={() => chooseView(view, name)}
               >
                 <Icon name={name} />
-                <span className="modern-label">{viewName(name)}</span>
+                <span className="modern-label">{label}</span>
               </button>
             );
           })}

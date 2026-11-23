@@ -323,7 +323,7 @@
   background-position: 2px 50%, 0 0;
 }
 
-:root[data-shell='modern'] label:where(:not(.export-option, .policy-option, .pb-select)):has(> input:is([type='checkbox'], [type='radio'])) {
+:root[data-shell='modern'] label:where(:not(.export-option, .policy-option, .pb-select, .goal-choice)):has(> input:is([type='checkbox'], [type='radio'])) {
   display: block;
   position: relative;
   min-block-size: var(--target-min);
@@ -336,7 +336,7 @@
   cursor: pointer;
 }
 
-:root[data-shell='modern'] label:where(:not(.export-option, .policy-option, .pb-select)):has(> input:is([type='checkbox'], [type='radio'])) > input {
+:root[data-shell='modern'] label:where(:not(.export-option, .policy-option, .pb-select, .goal-choice)):has(> input:is([type='checkbox'], [type='radio'])) > input {
   position: absolute;
   inset-block-start: 12px;
   inset-inline-start: 0;
@@ -459,7 +459,7 @@
 }
 
 /* Classic's `label > span` (a small muted caption) does not apply inside a check's row: the words are the label. */
-:root[data-shell='modern'] label:where(:not(.export-option, .policy-option, .pb-select)):has(> input:is([type='checkbox'], [type='radio'])) > span {
+:root[data-shell='modern'] label:where(:not(.export-option, .policy-option, .pb-select, .goal-choice)):has(> input:is([type='checkbox'], [type='radio'])) > span {
   display: inline;
   margin: 0;
   color: inherit;

@@ -74,7 +74,7 @@ Exit codes: 0 done; 1 internal error; 2 usage error; 3 the folder is held by ano
 (a card was cancelled, a bound was reached, the provider failed); 5 conflict; 6 verification failed; 130 SIGINT; 143 SIGTERM.
 `;
 
-const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+export const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const TOOL_NAME = /^[A-Za-z][A-Za-z0-9_.-]*$/;
 
 /** The flags that would take a secret as their value. They are refused by name, and the value is never echoed. */

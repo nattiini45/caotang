@@ -54,12 +54,17 @@
 import { describe, expect, it } from 'vitest';
 import { isIdWithPrefix } from '@caotang/ids';
 import {
+  CODEX_REFERENCE_MAX,
+  CODEX_RELATION_MAX,
+  codexReferenceId,
   createActivityLog,
   createIdempotencyCache,
   createUndoStore,
   createViewState,
   execute,
   lookupCommand,
+  readCodexReference,
+  readCodexRelation,
   resolveCommand,
   type BusContext,
   type Command,
@@ -72,13 +77,17 @@ import {
 import {
   addDocument,
   addFolder,
+  codexFile,
   createEmptyManifest,
   createProjectCommandRegistry,
   createProjectState,
+  MemoryArtifactFs,
   nodeById,
+  readProject,
   removeNode,
   setBody,
   validateManifest,
+  writeProject,
   type ProjectState,
 } from '../src/index.js';
 
@@ -217,6 +226,222 @@ function harness(permission?: BusContext<ProjectState>['permission']): Harness {
     },
   };
 }
+
+describe('codex detail storage', () => {
+  it('defines a custom type and preserves known and unknown details through a save and orphan recovery', async () => {
+    const h = harness();
+    const entry = h.state.manifest.codex?.find(({ id }) => id === ENTRY);
+    if (entry === undefined) throw new Error('missing fixture entry');
+    entry.details = { futureField: ['retain', { version: 2 }] };
+    const definition = h.run(cmd({ name: 'codex.upsert', params: {
+      detailField: { type: 'Guest', key: 'role', label: 'Role', kind: 'text' },
+      entries: [{ action: 'update', id: ENTRY, type: 'Guest', details: { role: 'Host' } }],
+    } }));
+
+    const state = createProjectState(createEmptyManifest('Codex fixture', OPENED));
+    const diskId = 'c_0000000001';
+    state.manifest.codex = [{ ...entry, id: diskId, attachments: [], sources: [] }];
+    if (h.state.manifest.codexDetailFields === undefined) throw new Error('missing written definition');
+    state.manifest.codexDetailFields = h.state.manifest.codexDetailFields;
+    const fs = new MemoryArtifactFs();
+    await writeProject(fs, state);
+    const loaded = await readProject(fs);
+    expect(loaded.state.manifest.codexDetailFields).toEqual([{ type: 'Guest', key: 'role', label: 'Role', kind: 'text' }]);
+    expect(loaded.state.manifest.codex?.find(({ id }) => id === diskId)?.details).toEqual({ futureField: ['retain', { version: 2 }], role: 'Host' });
+    expect(loaded.report.warnings.some((warning) => warning.path.endsWith('.type'))).toBe(false);
+    const orphan = new MemoryArtifactFs();
+    await writeProject(orphan, createProjectState(createEmptyManifest('Recovery fixture', OPENED)));
+    orphan.putFile(codexFile(diskId), await fs.read(codexFile(diskId)));
+    expect((await readProject(orphan)).state.manifest.codex?.[0]?.details).toEqual(entry.details);
+
+    h.undoGroup(definition.undoGroupId ?? '');
+    expect(h.state.manifest.codexDetailFields).toBeUndefined();
+    expect(entry.type).toBe('character');
+    expect(entry.details).toEqual({ futureField: ['retain', { version: 2 }] });
+  });
+});
+
+describe('codex references', () => {
+  it('keeps unknown records and per-record keys on edit, write, read and recovery', async () => {
+    const h = harness();
+    const entry = h.state.manifest.codex?.find(({ id }) => id === ENTRY);
+    if (entry === undefined) throw new Error('missing fixture entry');
+    const ref = { id: 'ref_0000000001', title: 'Tide Tables', publisher: 'Gull Press', future: { edition: 2 } };
+    entry.references = [ref, { futureRecord: true }];
+    const outcome = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: ENTRY, referenceEdits: [{ action: 'update', id: ref.id, publisher: null, date: '2001-01-12' }],
+    }] } }));
+    expect(entry.references).toEqual([{ id: ref.id, title: 'Tide Tables', date: '2001-01-12', future: { edition: 2 } }, { futureRecord: true }]);
+
+    const state = createProjectState(createEmptyManifest('Reference fixture', OPENED));
+    const diskId = 'c_0000000001';
+    const sceneId = 'n_0000000001';
+    addDocument(state, { parentId: 'manuscript', title: 'Scene', body: 'Fenn', now: OPENED, id: sceneId });
+    const sources = [{ docId: sceneId, quote: 'Fenn', from: 0, to: 4, extractedAt: OPENED.toISOString() }];
+    state.manifest.codex = [{ ...entry, id: diskId, origin: 'import', sources, attachments: [sceneId] }];
+    const fs = new MemoryArtifactFs();
+    await writeProject(fs, state);
+    const loaded = await readProject(fs);
+    expect(loaded.state.manifest.codex?.[0]).toMatchObject({ references: entry.references, origin: 'import', sources });
+
+    const orphan = new MemoryArtifactFs();
+    await writeProject(orphan, createProjectState(createEmptyManifest('Recovery fixture', OPENED)));
+    orphan.putFile(codexFile(diskId), await fs.read(codexFile(diskId)));
+    expect((await readProject(orphan)).state.manifest.codex?.[0]?.references).toEqual(entry.references);
+    h.undoGroup(outcome.undoGroupId ?? '');
+    expect(entry.references).toEqual([ref, { futureRecord: true }]);
+  });
+
+  it('reads the cap as the batch net effect, so a create may precede the remove that makes room', () => {
+    const h = harness();
+    const entry = h.state.manifest.codex?.find(({ id }) => id === ENTRY);
+    if (entry === undefined) throw new Error('missing fixture entry');
+    entry.references = Array.from({ length: CODEX_REFERENCE_MAX }, (_, index) => ({
+      id: `ref_${String(index).padStart(10, '0')}`,
+      title: `Reference ${String(index)}`,
+    }));
+    const oldest = `ref_${String(0).padStart(10, '0')}`;
+
+    const swapped = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: ENTRY, referenceEdits: [
+        { action: 'create', title: 'Tide Tables' },
+        { action: 'remove', id: oldest },
+      ],
+    }] } }));
+    expect(entry.references).toHaveLength(CODEX_REFERENCE_MAX);
+    expect(entry.references?.some((value) => codexReferenceId(value) === oldest)).toBe(false);
+
+    const over = execute(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: ENTRY, referenceEdits: [{ action: 'create', title: 'One' }, { action: 'create', title: 'Two' }],
+    }] } }), h.bus, h.registry);
+    expect(over.ok).toBe(false);
+    if (!over.ok) expect(JSON.stringify(over.error)).toContain(`at most ${CODEX_REFERENCE_MAX} references`);
+
+    h.undoGroup(swapped.undoGroupId ?? '');
+    expect(entry.references).toHaveLength(CODEX_REFERENCE_MAX);
+  });
+
+  it('removes a reference whose own field does not read, so none is stuck in the project for good', () => {
+    const h = harness();
+    const entry = h.state.manifest.codex?.find(({ id }) => id === ENTRY);
+    if (entry === undefined) throw new Error('missing fixture entry');
+    entry.references = Array.from({ length: CODEX_REFERENCE_MAX }, (_, index) => ({
+      id: `ref_${String(index).padStart(10, '0')}`,
+      title: `Reference ${String(index)}`,
+    }));
+    const broken = entry.references[0];
+    if (typeof broken !== 'object' || broken === null) throw new Error('missing fixture reference');
+    (broken as Record<string, unknown>)['date'] = '2026-02-30';
+    expect(readCodexReference(broken)).toBeUndefined();
+
+    const removed = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: ENTRY, referenceEdits: [{ action: 'remove', id: 'ref_0000000000' }],
+    }] } }));
+    expect(entry.references).toHaveLength(CODEX_REFERENCE_MAX - 1);
+
+    const room = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: ENTRY, referenceEdits: [{ action: 'create', title: 'Tide Tables' }],
+    }] } }));
+    expect(entry.references).toHaveLength(CODEX_REFERENCE_MAX);
+
+    h.undoGroup(room.undoGroupId ?? '');
+    h.undoGroup(removed.undoGroupId ?? '');
+    expect(entry.references).toHaveLength(CODEX_REFERENCE_MAX);
+    expect(entry.references?.[0]).toBe(broken);
+  });
+});
+
+describe('codex relations', () => {
+  it('links two entries by name, refuses a bad target by name, and an undo takes the list back', () => {
+    const h = harness();
+    const entries = h.state.manifest.codex ?? [];
+    const fenn = entries.find(({ id }) => id === ENTRY);
+    const mara = entries.find(({ id }) => id !== ENTRY);
+    if (fenn === undefined || mara === undefined) throw new Error('missing fixture entries');
+    const before = fenn.relations;
+
+    const linked = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: mara.id, label: 'ally' }],
+    }] } }));
+    const relations = (fenn.relations ?? []).flatMap((value) => readCodexRelation(value) ?? []);
+    expect(relations).toHaveLength(1);
+    expect(relations[0]).toMatchObject({ targetId: mara.id, label: 'ally' });
+
+    const selfLink = execute(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: fenn.id }],
+    }] } }), h.bus, h.registry);
+    expect(selfLink.ok).toBe(false);
+    if (!selfLink.ok) expect(selfLink.error.message).toContain('cannot relate to itself');
+
+    const missing = execute(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: 'c_NOSUCHENTRY' }],
+    }] } }), h.bus, h.registry);
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) expect(missing.error.message).toContain('must name an existing codex entry');
+
+    h.undoGroup(linked.undoGroupId ?? '');
+    expect(fenn.relations).toEqual(before);
+  });
+
+  it('reads the cap as the batch net effect, so a create may precede the remove that makes room', () => {
+    const h = harness();
+    const entries = h.state.manifest.codex ?? [];
+    const fenn = entries.find(({ id }) => id === ENTRY);
+    const mara = entries.find(({ id }) => id !== ENTRY);
+    if (fenn === undefined || mara === undefined) throw new Error('missing fixture entries');
+    fenn.relations = Array.from({ length: CODEX_RELATION_MAX }, (_, index) => ({
+      id: `rel_${String(index).padStart(10, '0')}`,
+      targetId: mara.id,
+    }));
+    const oldest = `rel_${String(0).padStart(10, '0')}`;
+
+    const swapped = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: mara.id }, { action: 'remove', id: oldest }],
+    }] } }));
+    expect(fenn.relations).toHaveLength(CODEX_RELATION_MAX);
+    expect(fenn.relations?.some((value) => readCodexRelation(value)?.id === oldest)).toBe(false);
+
+    const over = execute(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: mara.id }, { action: 'create', targetId: mara.id }],
+    }] } }), h.bus, h.registry);
+    expect(over.ok).toBe(false);
+    if (!over.ok) expect(JSON.stringify(over.error)).toContain(`at most ${CODEX_RELATION_MAX} relations`);
+
+    h.undoGroup(swapped.undoGroupId ?? '');
+    expect(fenn.relations).toHaveLength(CODEX_RELATION_MAX);
+  });
+
+  it('removes a relation whose target does not read, so none is stuck in the project for good', () => {
+    const h = harness();
+    const entries = h.state.manifest.codex ?? [];
+    const fenn = entries.find(({ id }) => id === ENTRY);
+    const mara = entries.find(({ id }) => id !== ENTRY);
+    if (fenn === undefined || mara === undefined) throw new Error('missing fixture entries');
+    fenn.relations = Array.from({ length: CODEX_RELATION_MAX }, (_, index) => ({
+      id: `rel_${String(index).padStart(10, '0')}`,
+      targetId: mara.id,
+    }));
+    const broken = fenn.relations[0];
+    if (typeof broken !== 'object' || broken === null) throw new Error('missing fixture relation');
+    (broken as Record<string, unknown>)['targetId'] = 7;
+    expect(readCodexRelation(broken)).toBeUndefined();
+
+    const removed = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'remove', id: 'rel_0000000000' }],
+    }] } }));
+    expect(fenn.relations).toHaveLength(CODEX_RELATION_MAX - 1);
+
+    const room = h.run(cmd({ name: 'codex.upsert', params: { entries: [{
+      action: 'update', id: fenn.id, relationEdits: [{ action: 'create', targetId: mara.id, label: 'ally' }],
+    }] } }));
+    expect(fenn.relations).toHaveLength(CODEX_RELATION_MAX);
+
+    h.undoGroup(room.undoGroupId ?? '');
+    h.undoGroup(removed.undoGroupId ?? '');
+    expect(fenn.relations).toHaveLength(CODEX_RELATION_MAX);
+    expect(fenn.relations?.[0]).toEqual(broken);
+  });
+});
 
 let ordinal = 0;
 function cmd(partial: Partial<Command> & Pick<Command, 'name' | 'params'>): Command {
@@ -1620,8 +1845,9 @@ describe('the bus/store split these applies depend on', () => {
     // store's own, and `asset.sweep`, `asset.relink` and `asset.storeWorkingCopies` register only with the host's asset port: 77 names, 61 implemented.
     // The seven comic commands need no port: 84 names, 68 implemented.
     // The import preview's commit adds `binder.importTree`, which registers only with the asset port: 85 names, 68 implemented.
-    expect(Object.keys(registry)).toHaveLength(86);
-    expect(implemented).toHaveLength(68);
+    // The publish field patch adds `binder.setPublish`, with an apply of the store's own: 86 names, 69 implemented.
+    expect(Object.keys(registry)).toHaveLength(87);
+    expect(implemented).toHaveLength(69);
   });
 });
 
@@ -1655,5 +1881,115 @@ describe('notes.append — one call repeated under one key', () => {
     h.run(cmd({ name: 'notes.append', params, issuedBy: 'agent', turnId: 'turn-a', callId: 'call-a' }));
     h.run(cmd({ name: 'notes.append', params, issuedBy: 'agent', turnId: 'turn-b', callId: 'call-b' }));
     expect(node(h.state, LANDING).notes.split('The tide table was wrong.')).toHaveLength(3);
+  });
+});
+
+describe('binder.setPublish — a document’s publish metadata (web-publishing.md §2)', () => {
+  it('sets every field and undoes to the prior absence', () => {
+    const h = harness();
+    const patch = {
+      slug: 'the-landing',
+      publishedAt: '2026-11-15T12:00:00Z',
+      tags: ['serial', 'lighthouse'],
+      canonical: 'https://example.com/posts/the-landing',
+      description: 'The ferry was late.',
+      layout: 'post',
+    };
+    const outcome = h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch } }));
+    expect(node(h.state, LANDING).publish).toEqual(patch);
+    // The inverse names every key the dispatch wrote, each with the value it held before — null where it held none.
+    expect(inverseOf(h, outcome.undoGroupId).params).toEqual({
+      nodeId: LANDING,
+      patch: { slug: null, publishedAt: null, tags: null, canonical: null, description: null, layout: null },
+    });
+    h.undoGroup(outcome.undoGroupId!);
+    expect('publish' in node(h.state, LANDING)).toBe(false);
+
+    // A leap day is a real instant — the range check refuses only what no calendar holds.
+    h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { publishedAt: '2028-02-29T12:00:00Z' } } }));
+    expect(node(h.state, LANDING).publish).toEqual({ publishedAt: '2028-02-29T12:00:00Z' });
+    // A real leap second, written in UTC and in its offset-shifted spelling, is a valid instant.
+    h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { publishedAt: '2016-12-31T23:59:60Z' } } }));
+    expect(node(h.state, LANDING).publish).toEqual({ publishedAt: '2016-12-31T23:59:60Z' });
+    h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { publishedAt: '2017-01-01T01:59:60+02:00' } } }));
+    expect(node(h.state, LANDING).publish).toEqual({ publishedAt: '2017-01-01T01:59:60+02:00' });
+
+    // `t`/`z` are RFC 3339's other accepted spellings — the value stores as written.
+    h.run(cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { publishedAt: '2026-11-15t12:00:00z' } } }));
+    expect(node(h.state, LANDING).publish).toEqual({ publishedAt: '2026-11-15t12:00:00z' });
+  });
+
+  it('clears a field with null, keeps the keys it was not handed, and restores them on undo', () => {
+    const h = harness();
+    node(h.state, LANDING).publish = { slug: 'old-slug', customField: 'kept' };
+    const outcome = h.run(
+      cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { slug: null, tags: ['serial'] } } }),
+    );
+    // The merge keeps `customField`: the record is unknown-tolerant, and a command drops no key it does not name.
+    expect(node(h.state, LANDING).publish).toEqual({ customField: 'kept', tags: ['serial'] });
+    expect(inverseOf(h, outcome.undoGroupId).params).toEqual({
+      nodeId: LANDING,
+      patch: { slug: 'old-slug', tags: null },
+    });
+    h.undoGroup(outcome.undoGroupId!);
+    expect(node(h.state, LANDING).publish).toEqual({ slug: 'old-slug', customField: 'kept' });
+  });
+
+  it('is idempotent: a field set to the value the node already holds writes and stamps nothing', () => {
+    const h = harness();
+    node(h.state, LANDING).publish = { slug: 'the-landing', tags: ['serial'] };
+    const before = node(h.state, LANDING).updatedAt;
+    const same = h.run(
+      cmd({ name: 'binder.setPublish', params: { nodeId: LANDING, patch: { slug: 'the-landing', tags: ['serial'] } } }),
+    );
+    expect(node(h.state, LANDING).updatedAt).toBe(before);
+    expect(inverseOf(h, same.undoGroupId).params).toEqual({ nodeId: LANDING, patch: {} });
+  });
+
+  it('refuses a relative canonical, a bad instant, an unknown field, an empty patch and a non-document', () => {
+    const h = harness();
+    const registry = createProjectCommandRegistry({ clock });
+    const refused = (patch: Record<string, unknown>, nodeId = LANDING) =>
+      refusalOf(execute(cmd({ name: 'binder.setPublish', params: { nodeId, patch } }), h.bus, registry));
+
+    expect(refused({ canonical: '/posts/the-landing' }).code).toBe('invalid-params');
+    expect(refused({ canonical: 'https://user:pass@example.com/posts/x' }).code).toBe('invalid-params');
+    expect(refused({ canonical: 'http://example.com/posts/x' }).code).toBe('invalid-params');
+    // WHATWG's URL parser strips the `\n` — the stored string must be the address that was validated.
+    expect(refused({ canonical: 'https://exa\nmple.com/posts/x' }).code).toBe('invalid-params');
+    expect(refused({ publishedAt: '2026-11-15' }).code).toBe('invalid-params');
+    expect(refused({ publishedAt: '2026-13-40T99:99:99Z' }).code).toBe('invalid-params');
+    // Calendar overflows the shape alone admits — `Date.parse` even normalizes `24:00` into the next day.
+    expect(refused({ publishedAt: '2026-11-15T24:00:00Z' }).code).toBe('invalid-params');
+    expect(refused({ publishedAt: '2029-02-29T12:00:00Z' }).code).toBe('invalid-params');
+    expect(refused({ publishedAt: '2026-11-15T12:00:00+25:00' }).code).toBe('invalid-params');
+    // A slug is one address segment — a `/` would name an address the export's file name disagrees with.
+    expect(refused({ slug: 'news/post' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'a\\b' }).code).toBe('invalid-params');
+    expect(refused({ slug: '' }).code).toBe('invalid-params');
+    // It also names the file: anything `fileStem` would rewrite would split the name from the permalink.
+    expect(refused({ slug: 'a<b' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'post ' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'a  b' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'post.' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'a\tb' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'x'.repeat(121) }).code).toBe('invalid-params');
+    expect(refused({ slug: 'CON' }).code).toBe('invalid-params');
+    expect(refused({ slug: 'com1.log' }).code).toBe('invalid-params');
+    // A trailing line terminator slips past `$` — the match must cover the whole string.
+    expect(refused({ publishedAt: '2026-11-15T12:00:00Z\n' }).code).toBe('invalid-params');
+    // `:60` is a leap second only at the IERS instants — an ordinary second past 59 is not a real instant.
+    expect(refused({ publishedAt: '2026-11-15T12:00:60Z' }).code).toBe('invalid-params');
+    expect(refused({ publishedAt: '2017-06-30T23:59:60Z' }).code).toBe('invalid-params');
+    // `Date.UTC` reads year 72 as 1972 — `0072` never had a leap second, the check must not remap it.
+    expect(refused({ publishedAt: '0072-06-30T23:59:60Z' }).code).toBe('invalid-params');
+    expect(refused({ bogus: 'x' }).code).toBe('invalid-params');
+    expect(refused({}).code).toBe('invalid-params');
+    const folder = refused({ slug: 'chapter-1' }, CHAPTER_ONE);
+    expect(folder.code).toBe('invalid-params');
+    expect(folder.message).toContain('only a document carries publish metadata');
+
+    expect('publish' in node(h.state, LANDING)).toBe(false);
+    expect(h.undo.groups()).toHaveLength(0);
   });
 });

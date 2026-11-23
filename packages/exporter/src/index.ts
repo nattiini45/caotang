@@ -89,6 +89,8 @@ export { assetRecordsOf, exportMetadataOf } from './export-metadata.js';
 export { SCENE_STYLE_ROWS, type SceneStyleRow } from './scene-style.js';
 export { flatten, documentLabel, type FlattenOptions, type FlattenResult } from './flatten.js';
 export { CONTACT_SHEET_HEADER, renderMedia, type MediaFile, type MediaOutput, type MediaRequest } from './media.js';
+// The Indic font loaders every PDF render takes, keyed by script (screenplay.md §5.3).
+export type { IndicFontLoaders } from './indic-font.js';
 // The storyboard contact sheet's PDF emitter (storyboard.md §6), over pdf-lib, loaded lazily.
 export {
   PDF_MIME,
@@ -150,9 +152,12 @@ export {
 export { DEFAULT_TEMPLATE, DEFAULT_TEMPLATE_ID, anchorOf, fileStem, resolveTemplate, suffixName, type ExportTemplate } from './template.js';
 export { DOCX_MIME, renderDocx } from './render-docx.js';
 export { EPUB_MIME, escapeXml, renderEpub, type EpubCover, type EpubInput } from './render-epub.js';
+export { renderAtom, renderRss, type FeedInput, type FeedItem, type RenderedFeed } from './render-feed.js';
+export { renderPodcastRss, type PodcastChannel, type PodcastEpisode, type PodcastFeedInput, type RenderedPodcastFeed } from './render-podcast.js';
+export { renderHtmlArticle, type HtmlArticleInput, type PublishMeta } from './render-html.js';
 export { renderMarkdown, renderText } from './render-text.js';
 export { XLSX_CELL_MAX, XLSX_MIME, prepareSheet, renderXlsx, sheetName, xlsxParts, xlsxText, type XlsxCell, type XlsxSheet } from './render-xlsx.js';
-export { parseProse, plainProse, safeHref, type ImageRef, type ProseBlock, type Run } from './prose.js';
+export { parseProse, plainProse, safeHref, type ImageRef, type NoteMarker, type ParsedProse, type ProseBlock, type Run } from './prose.js';
 export {
   ComicRasterUnavailableError,
   ExportNotReadyError,

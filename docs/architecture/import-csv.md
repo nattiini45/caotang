@@ -14,7 +14,8 @@ workbook reaches the same mapping through its own reader ([import-xlsx.md](impor
 (Excel's "Unicode text"), and the other encodings it knows. The delimiter is **sniffed** — comma, semicolon (German and French
 Excel), tab, pipe — by which one gives the most columns in the most rows, counted outside quotes; the writer can choose one
 instead. Quoted fields keep their commas, their doubled quotes and their newlines. A row whose cell count differs from the first
-row's is kept and reported, never silently dropped.
+row's is kept and reported, never silently dropped. A quoted cell keeps the spaces the writer put inside the quotes; only an
+unquoted cell is trimmed.
 
 ## 2. Two modes
 

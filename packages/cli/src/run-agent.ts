@@ -58,7 +58,7 @@ function guarded(write: (text: string) => void, key: string | undefined): (text:
   return (text) => write(spellings.reduce((line, spelling) => (line.includes(spelling) ? line.split(spelling).join('[redacted]') : line), text));
 }
 
-function providerConfig(options: AgentOptions, key: string | undefined): ProviderConfig | 'mock' {
+export function providerConfig(options: AgentOptions, key: string | undefined): ProviderConfig | 'mock' {
   const { provider } = options;
   if (provider.kind === 'mock') return 'mock';
   return {

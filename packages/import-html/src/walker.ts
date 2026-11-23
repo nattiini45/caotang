@@ -50,19 +50,58 @@ interface ClassStyle {
   bold?: boolean;
 }
 
-/** Read the simple `.class { … }` rules a web export writes for text-align and font-weight. */
+/**
+ * Read the simple `.class { … }` rules a web export writes for text-align and font-weight.
+ *
+ * Both scans walk forward once, by index rather than by a scanning regex: a page of unclosed `<style>` tags, or of `.name` runs with
+ * no brace, would make such a regex quadratic, and this reads a file the writer did not write themselves.
+ */
 function classStyles(html: string): Map<string, ClassStyle> {
   const styles = new Map<string, ClassStyle>();
-  const styleText = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((match) => match[1] ?? '').join('\n');
-  for (const rule of styleText.matchAll(/\.([a-zA-Z0-9_-]+)\s*\{([^}]*)\}/g)) {
-    const name = rule[1] ?? '';
-    const body = rule[2] ?? '';
-    const style: ClassStyle = { ...(styles.get(name) ?? {}) };
+  const lower = html.toLowerCase();
+  const bodies: string[] = [];
+  let at = 0;
+  for (;;) {
+    const open = lower.indexOf('<style', at);
+    if (open < 0) break;
+    const end = lower.indexOf('</style', open + 6);
+    if (end < 0) break;
+    const gt = lower.indexOf('>', open + 6);
+    if (gt < 0 || gt > end) {
+      at = open + 6;
+      continue;
+    }
+    bodies.push(html.slice(gt + 1, end));
+    at = end + 7;
+  }
+  const text = bodies.join('\n');
+  let cursor = 0;
+  while (cursor < text.length) {
+    const dot = text.indexOf('.', cursor);
+    if (dot < 0) break;
+    let name = dot + 1;
+    while (name < text.length && /[a-zA-Z0-9_-]/.test(text[name] as string)) name += 1;
+    if (name === dot + 1) {
+      cursor = dot + 1;
+      continue;
+    }
+    let brace = name;
+    while (brace < text.length && /\s/.test(text[brace] as string)) brace += 1;
+    if (text[brace] !== '{') {
+      cursor = name;
+      continue;
+    }
+    const close = text.indexOf('}', brace + 1);
+    if (close < 0) break;
+    const body = text.slice(brace + 1, close);
+    const key = text.slice(dot + 1, name);
+    const style: ClassStyle = { ...(styles.get(key) ?? {}) };
     const align = body.match(/text-align\s*:\s*(left|center|right|justify)/i);
     if (align !== null) style.align = (align[1] ?? '').toLowerCase() as Align;
     const weight = body.match(/font-weight\s*:\s*(bold|[6-9]00)/i);
     if (weight !== null) style.bold = true;
-    styles.set(name, style);
+    styles.set(key, style);
+    cursor = close + 1;
   }
   return styles;
 }
@@ -72,6 +111,7 @@ export interface HtmlDropped {
   scripts: number;
   styles: number;
   iframes: number;
+  forms: number;
   eventAttrs: number;
   unsafeLinks: number;
   /** `<audio>` and `<video>` players, which an import cannot keep. */
@@ -132,6 +172,64 @@ export interface HtmlWalkOptions {
 
 const BLOCK_TAGS = new Set(['p', 'div', 'section', 'article', 'header', 'footer', 'main', 'aside', 'blockquote', 'ul', 'ol', 'li', 'pre', 'table', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'figure', 'figcaption']);
 const DROP_TAGS = new Set(['script', 'style', 'iframe', 'noscript', 'template', 'head', 'object', 'embed', 'form', 'input', 'button', 'select', 'textarea', 'link', 'meta', 'audio', 'video']);
+/** The dropped tags that are form content, counted for the report so a page's fields never leave silently. */
+const FORM_TAGS = new Set(['form', 'input', 'button', 'select', 'textarea']);
+
+/**
+ * Every stylesheet the document carries: each `<style>` element and each `<link rel="stylesheet">`, in the head as well as the body.
+ * The import keeps only what `classStyles` reads (alignment, bold, page breaks), so the rest is dropped and must be counted (#299).
+ */
+function stylesheetsIn(root: XmlNode): number {
+  let count = 0;
+  const walk = (node: XmlNode): void => {
+    if (node.type !== 'element') return;
+    const tag = node.local.toLowerCase();
+    if (tag === 'style') count += 1;
+    else if (tag === 'link' && (attr(node, 'rel') ?? '').toLowerCase().split(/\s+/).includes('stylesheet')) count += 1;
+    for (const child of node.children) walk(child);
+  };
+  walk(root);
+  return count;
+}
+
+/**
+ * Literal prose as Markdown text: the characters that would otherwise be read as markup are escaped, and a line that would start
+ * a heading, a quote or a list is escaped too. The writer's own words come through as words, so `Use *literal* syntax` stays literal
+ * and `[link](https://example.test)` stays text rather than becoming a link.
+ */
+export function escapeText(text: string): string {
+  return text.replace(/[\\`*_[\]<]/g, (character) => `\\${character}`).replace(/^(\s*)([#>+-]|\d+[.)])/, '$1\\$2');
+}
+
+/**
+ * A link destination that cannot change the Markdown around it. An href may contain `)` or a space, which would close the link
+ * early and let the rest of the target be read as new markup — a second link the safe-href rule never saw. Those characters are
+ * percent-encoded, which leaves the target the same URL.
+ */
+function linkDestination(href: string): string {
+  return href.replace(/[\\()<>\s"'`[\]]/g, (character) => `%${(character.charCodeAt(0) ?? 0).toString(16).toUpperCase().padStart(2, '0')}`);
+}
+
+/** Whether an image target points off the file: any scheme but `data:`, or a protocol-relative `//host/path`. */
+function isRemoteTarget(src: string): boolean {
+  if (src.startsWith('//')) return true;
+  return /^[a-z][a-z0-9+.-]*:/i.test(src) && !/^data:/i.test(src);
+}
+
+/**
+ * Everything the document keeps out, counted once over the whole tree — the head as well as the body, and inside dropped elements
+ * too. Counting during the body walk alone left a page's own `<script>` in the head unreported.
+ */
+function countDropped(root: XmlNode, dropped: HtmlDropped): void {
+  if (root.type !== 'element') return;
+  const tag = root.local.toLowerCase();
+  if (tag === 'script') dropped.scripts += 1;
+  else if (tag === 'iframe') dropped.iframes += 1;
+  else if (FORM_TAGS.has(tag)) dropped.forms += 1;
+  else if (tag === 'audio' || tag === 'video') dropped.media += 1;
+  for (const attribute of root.attributes) if (/^on/i.test(attribute.local)) dropped.eventAttrs += 1;
+  for (const child of root.children) countDropped(child, dropped);
+}
 
 /** Walk an XHTML page into the import block list. */
 export function htmlToBlocks(html: string, options: HtmlWalkOptions = {}): HtmlWalkOutput {
@@ -146,7 +244,7 @@ export function htmlToBlocks(html: string, options: HtmlWalkOptions = {}): HtmlW
     losses: [],
     images: new Map(),
     remoteImages: [],
-    dropped: { scripts: 0, styles: 0, iframes: 0, eventAttrs: 0, unsafeLinks: 0, media: 0 },
+    dropped: { scripts: 0, styles: stylesheetsIn(root), iframes: 0, forms: 0, eventAttrs: 0, unsafeLinks: 0, media: 0 },
     styles,
     unit: options.unit ?? '',
     refPrefix: options.refPrefix ?? 'import:html-image-',
@@ -158,7 +256,8 @@ export function htmlToBlocks(html: string, options: HtmlWalkOptions = {}): HtmlW
     skip: options.skip ?? [],
     skipped: [],
   };
-  walkChildren(body, state, {});
+  countDropped(root, state.dropped);
+  walkChildren(body, state, {}, {});
   return {
     ok: true,
     value: {
@@ -268,36 +367,36 @@ function signalsOf(style: { align?: Align; bold?: boolean; pageBreak?: boolean }
   return Object.keys(signals).length === 0 ? undefined : signals;
 }
 
-/** Count and skip the elements that must never run or show. */
-function dropElement(element: XmlElement, state: WalkState): void {
-  const tag = element.local.toLowerCase();
-  if (tag === 'script') state.dropped.scripts += 1;
-  else if (tag === 'style') state.dropped.styles += 1;
-  else if (tag === 'iframe') state.dropped.iframes += 1;
-  else if (tag === 'audio' || tag === 'video') state.dropped.media += 1;
-  for (const attribute of element.attributes) {
-    if (/^on/i.test(attribute.local)) state.dropped.eventAttrs += 1;
-  }
+/** The block style a wrapper hands down: its own over what it inherited. */
+interface BlockStyle {
+  align?: Align;
+  bold?: boolean;
+  pageBreak?: boolean;
 }
 
-function walkChildren(element: XmlElement, state: WalkState, context: InlineContext): void {
-  for (const child of element.children) walkNode(child, state, context);
+/** Skip the elements that must never run or show. They are counted once over the whole document, before the walk. */
+function walkChildren(element: XmlElement, state: WalkState, context: InlineContext, inherited: BlockStyle): void {
+  for (const child of element.children) walkNode(child, state, context, inherited);
 }
 
-function walkNode(node: XmlNode, state: WalkState, context: InlineContext): void {
+function walkNode(node: XmlNode, state: WalkState, context: InlineContext, inherited: BlockStyle): void {
   if (node.type === 'text') {
     const text = node.text.replace(/\s+/g, ' ');
-    if (text.trim() !== '') emitPara(text, state, {});
+    if (text.trim() !== '') {
+      emitPara(escapeText(text.trim()), text.trim(), state, { ...inherited });
+      delete inherited.pageBreak;
+    }
     return;
   }
   if (node.type !== 'element') return;
   const tag = node.local.toLowerCase();
-  if (DROP_TAGS.has(tag)) {
-    dropElement(node, state);
-    return;
-  }
-  // Count event attributes on any kept element too.
-  for (const attribute of node.attributes) if (/^on/i.test(attribute.local)) state.dropped.eventAttrs += 1;
+  if (DROP_TAGS.has(tag)) return;
+  const own: BlockStyle = { ...inherited, ...blockStyle(node, state) };
+  // A wrapper's page break belongs to the first block it produces, so it is consumed from the shared style as well.
+  const emit = (md: string, text: string, style: BlockStyle): void => {
+    emitPara(md, text, state, style);
+    delete inherited.pageBreak;
+  };
 
   const id = attr(node, 'id');
   if (id !== undefined && id !== '') state.pendingAnchors.push(id);
@@ -313,7 +412,7 @@ function walkNode(node: XmlNode, state: WalkState, context: InlineContext): void
   // A footnote aside is kept as a note, not as text: its reference in the prose points at it by fragment.
   const semantic = semanticType(node);
   if (semantic.split(/\s+/).includes('footnote') || semantic.split(/\s+/).includes('doc-footnote')) {
-    const md = inlineText(node, state, { ...context }).replace(/\s+/g, ' ').trim();
+    const md = inlineText(node, state, { ...context }).md.replace(/\s+/g, ' ').trim();
     if (id !== undefined && md !== '') state.notes.push({ fragment: id, md });
     state.pendingAnchors.length = 0;
     return;
@@ -321,9 +420,14 @@ function walkNode(node: XmlNode, state: WalkState, context: InlineContext): void
 
   if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6') {
     const level = Number(tag.slice(1));
-    const text = inlineText(node, state, { ...context }).trim();
-    const signals = signalsOf(blockStyle(node, state), state.unit);
-    if (text !== '') pushBlock(state, { kind: 'heading', level, text, md: `${'#'.repeat(level)} ${text}`, ...(signals === undefined ? {} : { src: signals }) });
+    const rendered = inlineText(node, state, { ...context });
+    const text = rendered.text.trim();
+    if (text !== '') {
+      const signals = signalsOf(own, state.unit);
+      pushBlock(state, { kind: 'heading', level, text, md: `${'#'.repeat(level)} ${rendered.md.trim()}`, ...(signals === undefined ? {} : { src: signals }) });
+      delete own.pageBreak;
+      delete inherited.pageBreak;
+    }
     return;
   }
   if (tag === 'hr') {
@@ -343,89 +447,109 @@ function walkNode(node: XmlNode, state: WalkState, context: InlineContext): void
       if (!isElement(item) || item.local.toLowerCase() !== 'li') continue;
       const marker = tag === 'ul' ? '- ' : `${index}. `;
       index += 1;
-      const text = inlineText(item, state, { ...context }).trim();
-      if (text !== '') emitPara(marker + text, state, blockStyle(item, state));
+      const rendered = inlineText(item, state, { ...context });
+      if (rendered.md.trim() !== '') {
+        emit(marker + rendered.md.trim(), rendered.text.trim(), { ...own, ...blockStyle(item, state) });
+        // The list's own page break belongs to the first item it produces, not to every item; an item's own style still applies.
+        delete own.pageBreak;
+      }
     }
     return;
   }
   if (tag === 'blockquote') {
-    const text = inlineText(node, state, { ...context }).trim();
-    if (text !== '') emitPara(`> ${text}`, state, blockStyle(node, state));
+    const rendered = inlineText(node, state, { ...context });
+    if (rendered.md.trim() !== '') emit(`> ${rendered.md.trim()}`, rendered.text.trim(), own);
     return;
   }
   if (tag === 'pre') {
     const text = textContent(node).trim();
-    if (text !== '') emitPara(`\`\`\`\n${text}\n\`\`\``, state, blockStyle(node, state));
+    if (text !== '') {
+      // A fence longer than any run of backticks inside, so the code cannot close its own fence and spill into markup.
+      const longest = (text.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length), 0);
+      const fence = '`'.repeat(Math.max(3, longest + 1));
+      emit(`${fence}\n${text}\n${fence}`, text, own);
+    }
     return;
   }
   if (tag === 'table') {
-    const text = textContent(node).replace(/\s+/g, ' ').trim();
+    const text = tableText(node);
     if (text !== '') {
-      emitPara(text, state, blockStyle(node, state));
+      emit(text, text, own);
       state.losses.push({ code: 'table', message: 'A table was kept as prose.' });
     }
     return;
   }
   if (BLOCK_TAGS.has(tag)) {
-    // A block with block children walks them; a block with only inline content becomes one paragraph.
+    // A block with block children walks them, carrying its own alignment, weight and page break down to them.
     if (hasBlockChild(node)) {
-      walkChildren(node, state, context);
+      walkChildren(node, state, context, own);
       return;
     }
-    const text = inlineText(node, state, { ...context }).trim();
-    if (text !== '') emitPara(text, state, blockStyle(node, state));
+    const rendered = inlineText(node, state, { ...context });
+    if (rendered.md.trim() !== '') emit(rendered.md.trim(), rendered.text.trim(), own);
     return;
   }
   // An inline element at block level (a stray <span>, <a>, <strong>): render it as a paragraph.
-  const text = inlineText(node, state, { ...context }).trim();
-  if (text !== '') emitPara(text, state, blockStyle(node, state));
+  const rendered = inlineText(node, state, { ...context });
+  if (rendered.md.trim() !== '') emit(rendered.md.trim(), rendered.text.trim(), own);
 }
 
 function hasBlockChild(element: XmlElement): boolean {
   return element.children.some((child) => isElement(child) && (BLOCK_TAGS.has(child.local.toLowerCase()) || DROP_TAGS.has(child.local.toLowerCase())));
 }
 
-function emitPara(md: string, state: WalkState, style: { align?: Align; bold?: boolean; pageBreak?: boolean }): void {
-  const text = md.replace(/[*_`>#[\]()!-]/g, '').replace(/\s+/g, ' ').trim();
+function emitPara(md: string, text: string, state: WalkState, style: BlockStyle): void {
   const signals = signalsOf(style, state.unit);
-  pushBlock(state, { kind: 'para', md, text, ...(signals === undefined ? {} : { src: signals }) });
+  pushBlock(state, { kind: 'para', md, text: text.replace(/\s+/g, ' ').trim(), ...(signals === undefined ? {} : { src: signals }) });
+  // A page break belongs to the first block a wrapper produces, not to every block under it.
+  delete style.pageBreak;
 }
 
-/** Render an element's inline content as Caotang-dialect Markdown. */
-function inlineText(element: XmlElement, state: WalkState, context: InlineContext): string {
-  let out = '';
+/** An element's inline content as Markdown and as the writer's plain words, in one pass. */
+interface InlineRender {
+  md: string;
+  text: string;
+}
+
+function inlineText(element: XmlElement, state: WalkState, context: InlineContext): InlineRender {
+  let md = '';
+  let text = '';
   for (const child of element.children) {
     if (child.type === 'text') {
-      out += child.text.replace(/\s+/g, ' ');
+      const raw = child.text.replace(/\s+/g, ' ');
+      md += escapeText(raw);
+      text += raw;
       continue;
     }
     if (child.type !== 'element') continue;
     const tag = child.local.toLowerCase();
-    if (DROP_TAGS.has(tag)) {
-      dropElement(child, state);
-      continue;
-    }
+    if (DROP_TAGS.has(tag)) continue;
     if (tag === 'br') {
-      out += '\n';
+      md += '\n';
+      text += '\n';
       continue;
     }
     if (tag === 'img') {
-      out += imageMarkdown(child, state);
+      md += imageMarkdown(child, state);
+      text += attr(child, 'alt') ?? '';
       continue;
     }
     if (tag === 'strong' || tag === 'b') {
       const inner = inlineText(child, state, { ...context, bold: true });
-      out += inner.trim() === '' ? '' : `**${inner}**`;
+      md += inner.md.trim() === '' ? '' : `**${inner.md}**`;
+      text += inner.text;
       continue;
     }
     if (tag === 'em' || tag === 'i') {
       const inner = inlineText(child, state, { ...context, italic: true });
-      out += inner.trim() === '' ? '' : `*${inner}*`;
+      md += inner.md.trim() === '' ? '' : `*${inner.md}*`;
+      text += inner.text;
       continue;
     }
     if (tag === 'code') {
       const inner = textContent(child);
-      out += inner === '' ? '' : `\`${inner}\``;
+      md += inner === '' ? '' : `\`${inner}\``;
+      text += inner;
       continue;
     }
     if (tag === 'a') {
@@ -441,23 +565,27 @@ function inlineText(element: XmlElement, state: WalkState, context: InlineContex
           state.noteLabels.set(fragment, label);
         }
         state.noterefs.push({ fragment, label, blockIndex: state.blocks.length });
-        out += `[^${label}]`;
+        md += `[^${label}]`;
+        text += inner.text;
         continue;
       }
       if (href === '' || !isSafeLinkTarget(href)) {
         if (href !== '') state.dropped.unsafeLinks += 1;
-        out += inner;
+        md += inner.md;
       } else {
-        out += `[${inner}](${href})`;
+        md += `[${inner.md}](${linkDestination(href)})`;
       }
+      text += inner.text;
       continue;
     }
-    out += inlineText(child, state, context);
+    const inner = inlineText(child, state, context);
+    md += inner.md;
+    text += inner.text;
   }
-  return out;
+  return { md, text };
 }
 
-/** The plain text of an element, for tables and code. */
+/** The plain text of an element, for code. Elements that must never show contribute nothing. */
 function textContent(element: XmlElement): string {
   let out = '';
   const stack: XmlNode[] = [...element.children];
@@ -465,29 +593,58 @@ function textContent(element: XmlElement): string {
     const node = stack.shift();
     if (node === undefined) continue;
     if (node.type === 'text') out += node.text;
-    else if (node.type === 'element') stack.unshift(...node.children);
+    else if (node.type === 'element' && !DROP_TAGS.has(node.local.toLowerCase())) stack.unshift(...node.children);
   }
   return out;
+}
+
+/** A table as prose: a space between cells, a line between rows, so two names never run into one word. */
+function tableText(element: XmlElement): string {
+  const rows: string[] = [];
+  const collectRows = (node: XmlElement): void => {
+    for (const child of node.children) {
+      if (!isElement(child)) continue;
+      const tag = child.local.toLowerCase();
+      if (DROP_TAGS.has(tag)) continue;
+      if (tag === 'tr') {
+        const cells: string[] = [];
+        for (const cell of child.children) {
+          if (!isElement(cell)) continue;
+          const cellTag = cell.local.toLowerCase();
+          if (cellTag !== 'td' && cellTag !== 'th') continue;
+          const value = textContent(cell).replace(/\s+/g, ' ').trim();
+          if (value !== '') cells.push(value);
+        }
+        if (cells.length > 0) rows.push(cells.join(' '));
+        continue;
+      }
+      collectRows(child);
+    }
+  };
+  collectRows(element);
+  // A table with no rows at all still keeps its words, rather than losing them.
+  if (rows.length === 0) return textContent(element).replace(/\s+/g, ' ').trim();
+  return rows.join('\n');
 }
 
 function imageMarkdown(element: XmlElement, state: WalkState): string {
   const src = attr(element, 'src') ?? '';
   const alt = attr(element, 'alt') ?? '';
   if (src === '') return '';
-  if (/^https?:/i.test(src)) {
+  if (isRemoteTarget(src)) {
     state.remoteImages.push(src);
     return '';
   }
   const ref = `${state.refPrefix}${state.images.size}`;
   state.images.set(ref, src);
-  return `![${alt}](${ref})`;
+  return `![${alt.replace(/[\\[\]]/g, (character) => `\\${character}`)}](${ref})`;
 }
 
 function emitImage(element: XmlElement, state: WalkState): void {
   const src = attr(element, 'src') ?? '';
   const alt = attr(element, 'alt') ?? '';
   if (src === '') return;
-  if (/^https?:/i.test(src)) {
+  if (isRemoteTarget(src)) {
     state.remoteImages.push(src);
     return;
   }

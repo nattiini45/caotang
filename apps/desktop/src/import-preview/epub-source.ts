@@ -42,6 +42,15 @@ export function epubErrorText(error: EpubError): string {
   }
 }
 
+/**
+ * Why a file of this size is not read at all, before its bytes are loaded; undefined when the reader takes it. `maxBytes` is the
+ * archive reader's cap for the book, as the HTML and captions actions check their own before reading.
+ */
+export function epubSizeRefusal(fileName: string, size: number, maxBytes: number): string | undefined {
+  if (size <= maxBytes) return undefined;
+  return t`${{ file: fileName }} is too large to import as an EPUB (${{ limit: formatCount(Math.round(maxBytes / (1024 * 1024))) }} MB max).`;
+}
+
 /** Name the proposed chapters with the book's own contents, and offer the matter it marks as Research. */
 function applyNavigation(tree: readonly PreviewNode[], read: EpubImport): readonly PreviewNode[] {
   const titleOf = new Map(read.chapters.map((chapter) => [chapter.unit, chapter.title]));

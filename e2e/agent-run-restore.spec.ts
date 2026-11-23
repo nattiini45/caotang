@@ -1,6 +1,7 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './test.js';
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint as pointAtFakeEndpoint } from './endpoint.js';
-import { bodyOf, createProject, idOf, projectTrace, waitForSaved } from './support.js';
+import { bodyOf, createProject, idOf, projectTrace, waitForSaved, chooseInterfaceLanguage} from './support.js';
 
 async function finishedRun(page: Page, name: string): Promise<void> {
   await fakeEndpoint(page, planThenAnswer({ steps: [
@@ -15,7 +16,8 @@ async function finishedRun(page: Page, name: string): Promise<void> {
   await page.keyboard.press('Enter');
   await waitForSaved(page);
   const toggle = page.getByRole('button', { name: 'Agent', exact: true });
-  if (await toggle.count() > 0) await toggle.click();
+  await expect(toggle).toBeVisible();
+  await toggle.click();
   await page.getByRole('combobox', { name: 'Intent' }).fill('Add two notes to Opening.');
   await page.getByRole('button', { name: 'Send', exact: true }).click();
   const card = page.getByTestId('plan-card');
@@ -116,7 +118,7 @@ test('Activity retries a failed folder-copy preference read without enabling a c
 });
 
 for (const shell of ['classic', 'modern'] as const) {
-  test(`German run-card actions fit their ${shell} Activity rail and narrow drawer`, async ({ page }) => {
+  test(`German run-card actions fit their ${shell} Activity rail and narrow drawer`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await finishedRun(page, 'Localized Run Book');
     await page.getByRole('button', { name: 'Hide the agent', exact: true }).click();
@@ -128,7 +130,7 @@ for (const shell of ['classic', 'modern'] as const) {
       await settings.getByTestId('interface-choice').getByRole('radio', { name: 'Modern', exact: true }).check();
       await expect(page.getByTestId('shell')).toHaveAttribute('data-state', 'modern');
     }
-    await settings.locator('input[name="interface-language"][value="de"]').click();
+    await chooseInterfaceLanguage(page, settings, 'de');
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
     await settings.locator('.settings-head button').click();
     if (shell === 'modern') await page.locator('#modern-binder-agent').click();

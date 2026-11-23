@@ -41,6 +41,12 @@ describe('the grid (#288)', () => {
     expect(grid.ragged).toEqual([2]);
   });
 
+  it('keeps the spaces a writer put inside quotes, and trims only an unquoted cell', () => {
+    const grid = parseCsv('name,note\nElena,"  spaced  "\nMara,  plain  \n', ',');
+    expect(grid.rows[1]).toEqual(['Elena', '  spaced  ']);
+    expect(grid.rows[2]).toEqual(['Mara', 'plain']);
+  });
+
   it('reads a UTF-16 file and a BOM', () => {
     const text = 'name;type\nElena;character\n';
     const read = readCsv(utf16(text), { mode: 'codex' });

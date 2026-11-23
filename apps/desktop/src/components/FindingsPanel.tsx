@@ -2,9 +2,12 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { plural, select, t } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
+import { Button } from '@ui-sdk/react/button';
 import { SCAN_DOC_GUARD, validateDismissal, type CoherenceFile, type DeterministicCheckId, type ScopeSpec } from '@caotang/coherence';
 import { isolate } from '@caotang/i18n';
-import { agentFor } from '../app/agent-registry.js';
+import { agentFor, whenAgent } from '../app/agent-registry.js';
+import type { AgentController } from '../app/agent.js';
+import type { QueuedReviewPreview } from '../app/queued-review.js';
 import type { ProviderService } from '../app/providers.js';
 import {
   FILTER_LABELS,
@@ -36,6 +39,7 @@ import { UserText } from '../i18n/UserText.js';
 import type { ProjectSession } from '../app/session.js';
 import { explain } from './actions.js';
 import { KnowledgeList } from './KnowledgeList.js';
+import { QueuedReviewDetails } from './QueuedReviewDetails.js';
 import { EmptyState, More, formatCount, useReport, useSession } from './shared.js';
 import { uiLocale } from '../i18n/format-locale.js';
 import { PanelGlyph as Icon } from './panel-glyph.js';
@@ -48,6 +52,7 @@ export interface FindingsPanelProps {
   readonly onReveal: (docId: string, from: number, to: number) => void;
   readonly settings?: CoherenceSettings;
   readonly providers?: ProviderService;
+  readonly controller?: AgentController | null;
   readonly onOpenAgent?: () => void;
   readonly onOpenDocument?: (docId: string) => void;
   /** A fact group the timeline asked to see: the panel shows open findings, scrolls to the group and focuses it. `serial` makes a repeat a new request. */
@@ -56,6 +61,8 @@ export interface FindingsPanelProps {
   readonly onGroupFocused?: () => void;
   /** "Show on timeline": the scenes a finding cites and its id. Without it the group cards offer no such button. */
   readonly onShowOnTimeline?: (docIds: readonly string[], findingId: string) => void;
+  readonly focusRun?: { readonly runId: string; readonly serial: number } | null;
+  readonly onBackToInbox?: () => void;
 }
 
 const FOCUS_HEADING = 'heading';
@@ -64,21 +71,50 @@ function quoteKey(quote: QuoteView): string {
   return `${quote.docId}:${quote.from}:${quote.to}`;
 }
 
-export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_SETTINGS, providers, onOpenAgent, onOpenDocument, focusGroup = null, onGroupFocused, onShowOnTimeline }: FindingsPanelProps): ReactNode {
+export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_SETTINGS, providers, controller, onOpenAgent, onOpenDocument, focusGroup = null, onGroupFocused, onShowOnTimeline, focusRun = null, onBackToInbox }: FindingsPanelProps): ReactNode {
   useSession(session);
   useLingui();
   const report = useReport();
   const [filter, setFilter] = useState<FindingFilter>('open');
   const [scopeChoice, setScopeChoice] = useState<ReviewScope>(settings.defaultReviewScope);
+  const goalCheckReasonId = useId();
   const [approvalNeeded, setApprovalNeeded] = useState(false);
   const [dismissing, setDismissing] = useState<FindingView | null>(null);
   const review = session.coherenceReview.snapshot();
   const [stale, setStale] = useState<string | null>(null);
   const [pendingScope, setPendingScope] = useState<ScopeSpec | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const [scanNote, setScanNote] = useState<string | null>(null);
+  const [queuePreview, setQueuePreview] = useState<QueuedReviewPreview | null>(null);
+  const [queuePlanning, setQueuePlanning] = useState(false);
+  const [queueSubmitting, setQueueSubmitting] = useState(false);
+  const [queueCancelling, setQueueCancelling] = useState(false);
+  const queueAbortRef = useRef<AbortController | null>(null);
+  const queuePendingRef = useRef<Promise<unknown> | null>(null);
+  const queueButtonRef = useRef<HTMLButtonElement | null>(null);
+  const queueHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const queueFocusAfterRef = useRef<'preview' | 'toolbar' | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
   const focusAfterRef = useRef<string | null>(null);
   const headingRef = useRef<HTMLElement | null>(null);
+  const historyRef = useRef<HTMLElement | null>(null);
+  const focusedRunSerial = useRef<number | null>(null);
+  const scanButtonRef = useRef<HTMLButtonElement | null>(null);
+  const wasScanningRef = useRef(false);
+  const transientScanFocusRef = useRef(false);
+  const scanGenerationRef = useRef(0);
+  const scanBusy = session.scanInFlight();
+  useEffect(() => () => { scanGenerationRef.current += 1; }, [session]);
+  useEffect(() => () => {
+    if (queuePreview !== null) controller?.discardQueuedReview(queuePreview);
+  }, [controller, queuePreview]);
+  useEffect(() => {
+    const focus = queueFocusAfterRef.current;
+    queueFocusAfterRef.current = null;
+    if (focus === null || !document.hasFocus()) return;
+    if (document.activeElement !== document.body && document.activeElement !== null && document.activeElement !== queueButtonRef.current) return;
+    (focus === 'preview' ? queueHeadingRef.current : queueButtonRef.current)?.focus();
+  }, [queuePreview]);
   useEffect(() => {
     const target = focusAfterRef.current;
     if (target === null) return;
@@ -86,6 +122,13 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
     const element = target === FOCUS_HEADING ? headingRef.current : document.querySelector<HTMLElement>(`[data-finding="${target}"] [data-dismiss]`);
     element?.focus();
   });
+  useEffect(() => {
+    if (wasScanningRef.current && !scanBusy && transientScanFocusRef.current && document.hasFocus() && (document.activeElement === document.body || document.activeElement === null)) {
+      scanButtonRef.current?.focus();
+    }
+    if (!scanBusy) transientScanFocusRef.current = false;
+    wasScanningRef.current = scanBusy;
+  }, [scanBusy]);
   // The timeline names a group by its fact. Only open findings sit on the timeline, so the filter goes back to them first, and the
   // group is found after that render has put its card in the page.
   // The timeline names a group by its fact. Only open findings sit on the timeline, so the filter goes back to them in the render
@@ -110,10 +153,23 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
   const open = openFindingCount(file);
   const currentDocId = session.view.activeDocId ?? undefined;
   const runs = runViewsOf(file, (docId) => session.state.manifest.tree.find((node) => node.id === docId)?.title ?? docId);
+  const visibleRuns = runs.slice(0, 20);
+  const requestedRun = focusRun === null ? undefined : runs.find((run) => run.id === focusRun.runId);
+  if (requestedRun !== undefined && !visibleRuns.some((run) => run.id === requestedRun.id)) visibleRuns.push(requestedRun);
+  useEffect(() => {
+    if (focusRun === null || focusedRunSerial.current === focusRun.serial) return;
+    focusedRunSerial.current = focusRun.serial;
+    const run = [...(historyRef.current?.querySelectorAll<HTMLElement>('[data-run]') ?? [])].find((element) => element.dataset.run === focusRun.runId);
+    const target = run ?? headingRef.current;
+    target?.scrollIntoView({ block: 'nearest' });
+    target?.focus();
+  }, [focusRun]);
   const activeProfile = providers?.active();
   const chatResolution = providers?.resolveForRole?.('chat');
   const chatProfile = chatResolution?.profile ?? activeProfile;
   const mockOnly = chatProfile === undefined || chatProfile.kind === 'mock';
+  const backgroundProfile = providers?.resolveForRole?.('background')?.profile ?? activeProfile;
+  const backgroundMockOnly = backgroundProfile === undefined || backgroundProfile.kind === 'mock';
 
   const askForApproval = (scope: ScopeSpec): void => {
     setApprovalNeeded(true);
@@ -121,23 +177,27 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
     report({ text: t`This scope covers more than ${{ limit: SCAN_DOC_GUARD }} documents. Split it, or press “Scan it anyway” to scan all of it.`, tone: 'info' });
   };
 
-  const scan = (approved: boolean): void => {
-    setStale(null);
-    setFailure(null);
-    const scope = approved && pendingScope !== null ? pendingScope : scopeFor(scopeChoice, currentDocId);
-    if (scope === undefined) {
-      report({ text: t`Open the document to scan it alone, or choose another scope.`, tone: 'info' });
-      return;
-    }
+  const performScan = async (scope: ScopeSpec, approved: boolean): Promise<void> => {
+    const generation = scanGenerationRef.current;
     const checks: readonly DeterministicCheckId[] = settings.enabledChecks;
-    if (checks.length === 0) {
-      report({ text: t`Every quick check is off in Settings, so this tab’s scan runs nothing. Turn checks on in Settings › Coherence.`, tone: 'info' });
+    const result = await session.scanCoherenceAsync({ approvedLargeScope: approved, scope, checks }).catch(() => null);
+    if (generation !== scanGenerationRef.current) return;
+    if (result === null) {
+      setApprovalNeeded(false);
+      setPendingScope(null);
+      setFailure(t`The scan could not run. Nothing was written. Try again.`);
       return;
     }
-    const result = session.scanCoherence({ approvedLargeScope: approved, scope, checks });
     if (!result.ok) {
       if (result.code === 'confirmation-required') {
         askForApproval(scope);
+        return;
+      }
+      setApprovalNeeded(false);
+      setPendingScope(null);
+      if (result.code === 'cancelled' || result.code === 'stale' || result.code === 'closed' || result.code === 'busy') {
+        setScanNote(result.message);
+        report({ text: result.message, tone: 'info' });
         return;
       }
       setFailure(result.message);
@@ -149,27 +209,31 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
     report({ text: result.summary, tone: 'info' });
   };
 
-  const rerun = (scope: ScopeSpec): void => {
+  const scan = async (approved: boolean): Promise<void> => {
     setStale(null);
     setFailure(null);
-    const checks: readonly DeterministicCheckId[] = settings.enabledChecks;
-    if (checks.length === 0) {
+    setScanNote(null);
+    const scope = approved && pendingScope !== null ? pendingScope : scopeFor(scopeChoice, currentDocId);
+    if (scope === undefined) {
+      report({ text: t`Open the document to scan it alone, or choose another scope.`, tone: 'info' });
+      return;
+    }
+    if (settings.enabledChecks.length === 0) {
+      report({ text: t`Every quick check is off in Settings, so this tab’s scan runs nothing. Turn checks on in Settings › Coherence.`, tone: 'info' });
+      return;
+    }
+    await performScan(scope, approved);
+  };
+
+  const rerun = async (scope: ScopeSpec): Promise<void> => {
+    setStale(null);
+    setFailure(null);
+    setScanNote(null);
+    if (settings.enabledChecks.length === 0) {
       report({ text: t`Every quick check is off in Settings, so this run would check nothing. Turn checks on in Settings › Coherence.`, tone: 'info' });
       return;
     }
-    const result = session.scanCoherence({ approvedLargeScope: false, scope, checks });
-    if (!result.ok) {
-      if (result.code === 'confirmation-required') {
-        askForApproval(scope);
-        return;
-      }
-      setFailure(result.message);
-      report({ text: result.message, tone: 'error' });
-      return;
-    }
-    setApprovalNeeded(false);
-    setPendingScope(null);
-    report({ text: result.summary, tone: 'info' });
+    await performScan(scope, false);
   };
 
   const planReviewNow = (): void => {
@@ -191,8 +255,89 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
     session.coherenceReview.plan(plan);
   };
 
+  const prepareQueuedReview = async (): Promise<void> => {
+    if (controller === null || controller === undefined) return;
+    const scope = scopeFor(scopeChoice, currentDocId);
+    if (scope === undefined) {
+      report({ text: t`Open the document to review it alone, or choose another scope.`, tone: 'info' });
+      return;
+    }
+    const generation = scanGenerationRef.current;
+    const focused = document.activeElement === queueButtonRef.current;
+    session.coherenceReview.dismiss();
+    setQueuePlanning(true);
+    try {
+      const result = await controller.prepareQueuedReview({ scope, maxFindings: settings.maxFindings });
+      if (generation !== scanGenerationRef.current) {
+        if (result.ok) controller.discardQueuedReview(result.preview);
+        return;
+      }
+      if (!result.ok) {
+        report({ text: result.reason, tone: 'error' });
+        return;
+      }
+      if (focused) queueFocusAfterRef.current = 'preview';
+      setQueuePreview(result.preview);
+    } catch {
+      if (generation === scanGenerationRef.current) report({ text: t`The background review preview could not load. Try preparing the review again.`, tone: 'error' });
+    } finally {
+      if (generation === scanGenerationRef.current) setQueuePlanning(false);
+    }
+  };
+
+  const queueReview = async (button: HTMLElement): Promise<void> => {
+    if (queuePreview === null || controller === null || controller === undefined || queueAbortRef.current !== null) return;
+    const generation = scanGenerationRef.current;
+    const focused = button.closest('[data-testid="queued-review-plan"]')?.contains(document.activeElement) === true;
+    const pending = new AbortController();
+    queueAbortRef.current = pending;
+    setQueueSubmitting(true);
+    try {
+      const request = controller.queuePreparedReview(queuePreview, pending.signal);
+      queuePendingRef.current = request;
+      const result = await request;
+      if (generation !== scanGenerationRef.current || queueAbortRef.current !== pending) return;
+      if (!result.ok) {
+        if (focused) queueFocusAfterRef.current = 'toolbar';
+        setQueuePreview(null);
+        report({ text: result.reason, tone: result.cancelled === true ? 'info' : 'error' });
+        return;
+      }
+      if (pending.signal.aborted) {
+        await controller.cancelTask(result.task.id);
+        if (generation !== scanGenerationRef.current || queueAbortRef.current !== pending) return;
+        if (focused) queueFocusAfterRef.current = 'toolbar';
+        setQueuePreview(null);
+        report({ text: t`The task has been asked to stop. Check Background tasks for its final status.`, tone: 'info' });
+        return;
+      }
+      if (focused) queueFocusAfterRef.current = 'toolbar';
+      setQueuePreview(null);
+      report({ text: t`The review is queued. Keep this project open; its report will appear in the Review Inbox.`, tone: 'info' });
+    } catch {
+      if (generation === scanGenerationRef.current && queueAbortRef.current === pending) {
+        if (focused) queueFocusAfterRef.current = 'toolbar';
+        setQueuePreview(null);
+        report({ text: t`Queueing the review could not be confirmed. Check Background tasks and the Review Inbox before trying again.`, tone: 'error' });
+      }
+    } finally {
+      if (queueAbortRef.current === pending) {
+        queueAbortRef.current = null;
+        queuePendingRef.current = null;
+        if (generation === scanGenerationRef.current) {
+          setQueueCancelling(false);
+          setQueueSubmitting(false);
+        }
+      }
+    }
+  };
+
   const startReview = (): void => {
     setFailure(null);
+    if (session.scanInFlight()) {
+      report({ text: t`A scan is running. Wait for it to finish, or cancel it, before starting a review.`, tone: 'info' });
+      return;
+    }
     const current = session.coherenceFile();
     const resolved = providers?.resolveForRole?.('chat');
     const profile = resolved?.profile ?? activeProfile;
@@ -238,11 +383,13 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
     setDismissing(null);
   };
   const discardRun = (runId: string, at: string): void => {
+    const focusedReport = focusRun?.runId === runId && document.activeElement instanceof HTMLElement && document.activeElement.closest('[data-run]')?.getAttribute('data-run') === runId;
     const outcome = session.dispatch('coherence.discardRun', { runId });
     if (!outcome.ok) {
       report({ text: explain(outcome.error), tone: 'error' });
       return;
     }
+    if (focusedReport) focusAfterRef.current = FOCUS_HEADING;
     report({ text: t`The run of ${{ at }} is discarded. Undo puts it back.`, tone: 'info' });
   };
 
@@ -265,6 +412,8 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
         <p className="eyebrow"><Trans>Findings</Trans></p>
         <span className="findings-count" data-testid="findings-open">{plural(open, { one: '# open', other: '# open' })}</span>
       </header>
+      {onBackToInbox === undefined || requestedRun !== undefined ? null : <Button className="button is-quiet" onClick={onBackToInbox}><Trans>Back to Review Inbox</Trans></Button>}
+      {focusRun !== null && requestedRun === undefined ? <p className="field-note" role="status"><Trans>This review is no longer in the project’s run history. Read the findings below, or return to the Review Inbox.</Trans></p> : null}
       <div className="findings-actions">
         <label className="findings-filter">
           <span><Trans>Scope</Trans></span>
@@ -272,9 +421,25 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
             {SCOPE_CHOICES.map((choice) => <option key={choice.id} value={choice.id}>{choice.label}</option>)}
           </select>
         </label>
-        <button type="button" className="button is-primary" onClick={() => scan(false)} disabled={running}><Trans>Scan the manuscript</Trans></button>
-        {approvalNeeded ? <button type="button" className="button" onClick={() => scan(true)}><Trans>Scan it anyway</Trans></button> : null}
-        <button type="button" className="button" onClick={planReviewNow} disabled={mockOnly || running || plan !== null}><Trans>Review with agent</Trans></button>
+        <Button ref={scanButtonRef} className="button is-primary" onClick={() => scan(false)} disabled={running || scanBusy} focusableWhenDisabled={scanBusy} pendingAnnouncement=""><Trans>Scan the manuscript</Trans></Button>
+        {approvalNeeded ? <Button className="button" onClick={() => scan(true)} disabled={running || scanBusy} focusableWhenDisabled={scanBusy} pendingAnnouncement="" onFocus={() => { transientScanFocusRef.current = true; }} onBlur={() => { transientScanFocusRef.current = false; }}><Trans>Scan it anyway</Trans></Button> : null}
+        <Button className="button" onClick={planReviewNow} disabled={mockOnly || running || scanBusy || plan !== null || queuePlanning || queuePreview !== null}><Trans>Review with agent</Trans></Button>
+        <Button className="button" type="button" disabled={settings.enabledChecks.length === 0} focusableWhenDisabled aria-describedby={settings.enabledChecks.length === 0 ? goalCheckReasonId : undefined} onClick={async () => {
+          const scope = scopeFor(scopeChoice, currentDocId);
+          if (scope === undefined) {
+            report({ text: t`Open a document or choose the whole manuscript before setting a goal.`, tone: 'info' });
+            return;
+          }
+          const ready = controller ?? agentFor(session);
+          if (ready === undefined && onOpenAgent === undefined) {
+            report({ text: t`The agent is not ready for this project yet. Open the agent panel, then try again.`, tone: 'info' });
+            return;
+          }
+          onOpenAgent?.();
+          const agent = ready ?? await whenAgent(session);
+          agent.offerGoal({ intent: t`Fix the findings in this scope until the selected coherence checks pass.`, scope, coherenceChecks: settings.enabledChecks });
+        }}><Trans>Fix all in scope until clean</Trans></Button>
+        <Button ref={queueButtonRef} className="button" onClick={prepareQueuedReview} disabled={backgroundMockOnly || controller === null || controller === undefined || running || scanBusy || queuePreview !== null} pendingAnnouncement={t`Preparing the Background review preview`}><Trans>Queue a review</Trans></Button>
         <label className="findings-filter">
           <span><Trans>Show</Trans></span>
           <select value={filter} onChange={(event) => setFilter(event.target.value as FindingFilter)} aria-label={t`Show findings with status`}>
@@ -282,6 +447,39 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
           </select>
         </label>
       </div>
+      {settings.enabledChecks.length === 0 ? <p className="field-note" id={goalCheckReasonId}><Trans>Enable at least one coherence check in Settings before setting a clean-scope goal.</Trans></p> : null}
+      {scanBusy ? (
+        <section className="findings-plan" aria-label={t`The scan in progress`} data-testid="scan-running" {...panelState('loading')}>
+          <Icon name="loading" label={t`Scan in progress`} />
+          <p className="finding-message" role="status"><Trans>Scanning the manuscript in the background. You can keep writing; the findings appear here when it is done.</Trans></p>
+          <div className="finding-actions"><Button className="button" onClick={() => {
+            setApprovalNeeded(false);
+            setPendingScope(null);
+            setScanNote(t`The scan was cancelled. Your findings are unchanged.`);
+            session.cancelScan();
+          }} onFocus={() => { transientScanFocusRef.current = true; }} onBlur={() => { transientScanFocusRef.current = false; }}><Trans>Cancel scan</Trans></Button></div>
+        </section>
+      ) : null}
+      {scanNote !== null && !scanBusy ? <p className="field-note" role="status" data-testid="scan-note">{scanNote}</p> : null}
+      {queuePreview === null ? null : (
+        <section className="findings-plan" aria-label={t`The queued model review plan`} data-testid="queued-review-plan">
+          <h3 ref={queueHeadingRef} tabIndex={-1} className="findings-section-title"><Trans>Approve a background review</Trans></h3>
+          <QueuedReviewDetails preview={queuePreview} />
+          {queueCancelling ? <p className="field-note" role="status"><Trans>Cancelling the queue request. Waiting for its save to settle.</Trans></p> : null}
+          <div className="finding-actions">
+            <Button className="button is-quiet" disabled={queueCancelling} focusableWhenDisabled={queueCancelling} pendingAnnouncement="" onClick={(event) => {
+              if (event.currentTarget.closest('[data-testid="queued-review-plan"]')?.contains(document.activeElement) === true) queueFocusAfterRef.current = 'toolbar';
+              if (queueAbortRef.current !== null) {
+                setQueueCancelling(true);
+                queueAbortRef.current.abort();
+                return queuePendingRef.current?.then(() => undefined, () => undefined);
+              }
+              setQueuePreview(null);
+            }}>{queueSubmitting ? t`Cancel queue request` : t`Cancel this preview`}</Button>
+            <Button className="button is-primary" data-agent-confirm={t`Sends the shown documents to the Background model and records its findings.`} disabled={running || scanBusy || queueCancelling} pendingAnnouncement={t`Queuing the review`} onClick={(event) => queueReview(event.currentTarget)}><Trans>Queue this review</Trans></Button>
+          </div>
+        </section>
+      )}
       {plan !== null ? (
         <section className="findings-plan" aria-label={t`The model review plan`} data-testid="review-plan">
           <h3 className="findings-section-title"><Trans>Model review plan</Trans></h3>
@@ -297,7 +495,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
           <details className="findings-prompt"><summary><Trans>The first prompt the model reads</Trans></summary><pre>{plan.promptPreview}</pre></details>
           <div className="finding-actions">
             <button type="button" className="button is-quiet" onClick={() => session.coherenceReview.dismiss()}><Trans>Cancel</Trans></button>
-            <button type="button" className="button is-primary" onClick={startReview}><Trans>Start the review</Trans></button>
+            <Button className="button is-primary" onClick={startReview} disabled={scanBusy}><Trans>Start the review</Trans></Button>
           </div>
         </section>
       ) : null}
@@ -336,6 +534,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
         <p className="field-note findings-coverage" data-testid="findings-coverage">{scanCoverageLine(settings.enabledChecks)}</p>
       </More>
       {mockOnly ? <p className="field-note" role="status"><Trans>The model review needs a provider. Connect one in Settings to read the story for plot and character problems.</Trans></p> : null}
+      {backgroundMockOnly ? <p className="field-note" role="status"><Trans>A queued review needs a provider for the Background role. Choose one in Settings before queueing a review.</Trans></p> : null}
       {status.notices.map((notice) => <p key={notice} className="field-note" role="status">{notice}</p>)}
       {status.saveFailure !== null ? (
         <div className="form-message is-error" role="alert" data-panel-state="error">
@@ -351,7 +550,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
           <p><Trans>Run a scan or start another review to try again. Any findings already recorded are kept below.</Trans></p>
         </div>
       ) : null}
-      {sections.length === 0 && (review.kind === 'idle' || review.kind === 'planned') && failure === null && status.saveFailure === null ? (
+      {sections.length === 0 && (review.kind === 'idle' || review.kind === 'planned') && failure === null && status.saveFailure === null && !scanBusy ? (
         <EmptyState
           title={file === undefined || file.findings.length === 0 ? (runs.length === 0 ? t`No findings yet` : t`No findings recorded`) : select(filter, { open: 'No open findings', dismissed: 'No dismissed findings', fixed: 'No marked fixed findings', all: 'No all findings', other: 'No findings' })}
           glyph={<Icon name={noOpenFindings ? 'check' : 'findings'} label={noOpenFindings ? t`No open findings` : t`No findings to show`} />}
@@ -367,19 +566,20 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
         </section>
       ))}
       <KnowledgeList session={session} onOpenDocument={onOpenDocument} />
-      <section className="findings-runs" aria-label={t`Run history`} data-testid="run-history">
+      <section ref={historyRef} className="findings-runs" aria-label={t`Run history`} data-testid="run-history">
         <h3 className="findings-section-title"><Trans>Run history</Trans> <span className="findings-section-count">{runs.length}</span></h3>
         {runs.length === 0 ? <p className="field-note"><Trans>No check has run on this project yet.</Trans></p> : (
           <ol className="findings-run-list">
-            {runs.slice(0, 20).map((run) => {
+            {visibleRuns.map((run) => {
               const count = run.findingCount;
               return (
-                <li key={run.id} className="findings-run" data-run={run.id}>
+                <li key={run.id} className="findings-run" data-run={run.id} tabIndex={-1}>
                   <p className="finding-message">{run.kind} · {run.scopeLabel} · {run.at} · {plural(count, { one: '# finding', other: '# findings' })} · {run.status}</p>
                   {run.tokenLine !== undefined ? <p className="field-note">{run.tokenLine}</p> : null}
                   {run.notes.map((note) => <p key={note} className="field-note">{note}</p>)}
                   <footer className="finding-actions">
-                    {run.rerunScope !== undefined ? <button type="button" className="button is-quiet" aria-label={t`Run again the scan of ${{ at: run.at }}`} onClick={() => run.rerunScope !== undefined && rerun(run.rerunScope)}><Trans>Run again</Trans></button> : null}
+                    {focusRun?.runId === run.id && onBackToInbox !== undefined ? <Button className="button is-quiet" onClick={onBackToInbox}><Trans>Back to Review Inbox</Trans></Button> : null}
+                    {run.rerunScope !== undefined ? <Button className="button is-quiet" aria-label={t`Run again the scan of ${{ at: run.at }}`} disabled={running || scanBusy} focusableWhenDisabled={scanBusy} pendingAnnouncement="" onClick={() => run.rerunScope !== undefined ? rerun(run.rerunScope) : undefined}><Trans>Run again</Trans></Button> : null}
                     <button type="button" className="button is-quiet" aria-label={t`Discard run from ${{ at: run.at }}`} onClick={() => discardRun(run.id, run.at)}><Trans>Discard run</Trans></button>
                   </footer>
                 </li>

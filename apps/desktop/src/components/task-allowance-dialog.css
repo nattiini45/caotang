@@ -1,0 +1,61 @@
+.recurring-allowance {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  block-size: fit-content;
+  inline-size: min(460px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--raised);
+  color: var(--ink);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  max-block-size: 85dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.recurring-allowance .confirm-body {
+  max-block-size: calc(85dvh - 2px);
+  box-sizing: border-box;
+}
+
+.recurring-allowance .confirm-body > :not(.recurring-allowance-details) {
+  flex-shrink: 0;
+}
+
+.recurring-allowance p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.recurring-allowance-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-block-size: 0;
+  overflow-y: auto;
+}
+
+.recurring-allowance-details > * {
+  flex-shrink: 0;
+}
+
+.recurring-allowance::backdrop {
+  background: var(--mat-veil, rgba(20, 19, 17, 0.35));
+}
+
+:root[data-shell='modern'] .recurring-allowance {
+  border-color: var(--mat-sheet-rim);
+  border-radius: var(--radius-sheet);
+  background: var(--mat-sheet-bg);
+  backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
+  box-shadow: var(--elev-glass), inset 0 1px 0 var(--mat-glass-edge-hi), inset 0 -1px 0 var(--mat-glass-edge-lo);
+}
+
+.recurring-allowance .recurring-steps {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-block-size: 30dvh;
+  overflow-y: auto;
+}

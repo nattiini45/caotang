@@ -2,6 +2,9 @@
  * What the Intent box shows for a slash command (agent-harness §2, "Slash commands"; ui-modules §1): the note under the box, and the
  * pure rules that read a turn list and a context preview. The controller runs the command; this file holds what needs no session.
  */
+/* lingui-set comment="Slash command replies. Interpolated values: id and name are a context layer's key and name, tokens and budget are token counts, budgetNote is the budget phrase, topic is a command name, drop is a dropped layer, number and arg are turn numbers." */
+
+import { t } from '@lingui/core/macro';
 
 import { BUILTIN_COMMANDS, usageOf, type BuiltinCommand, type ContextPreview, type RequestContextPreview, type TurnReport } from '@caotang/harness';
 import { formatCount } from '../i18n/locale.js';
@@ -29,21 +32,21 @@ const lineOf = (command: BuiltinCommand): string => `${usageOf(command)}  ${comm
 export function helpNote(topic?: string): CommandNote {
   const one = topic === undefined ? undefined : BUILTIN_COMMANDS.find((command) => command.name === topic);
   if (one !== undefined) return { kind: 'help', title: `/${one.name}`, lines: [lineOf(one)] };
-  const unknown = topic === undefined || topic === '' ? [] : [`There is no command /${topic}.`];
+  const unknown = topic === undefined || topic === '' ? [] : [t`There is no command /${topic}.`];
   return {
     kind: 'help',
-    title: 'Commands',
-    lines: [...unknown, ...BUILTIN_COMMANDS.map(lineOf), 'A title with spaces goes in quotes. Start a request with // to send a slash as text.'],
+    title: t`Commands`,
+    lines: [...unknown, ...BUILTIN_COMMANDS.map(lineOf), t`A title with spaces goes in quotes. Start a request with // to send a slash as text.`],
   };
 }
 
 /** `/context`: the layers of the next planner request. Nothing was sent to get it. */
 export function contextNote(preview: ContextPreview): CommandNote {
-  const lines = preview.layers.filter((layer) => layer.included).map((layer) => `${layer.id} ${layer.name}: ${formatCount(layer.tokens)} tokens${layer.budget === undefined ? '' : ` of ${formatCount(layer.budget)}`}`);
+  const lines = preview.layers.filter((layer) => layer.included).map((layer) => t`${{ id: layer.id }} ${{ name: layer.name }}: ${{ tokens: formatCount(layer.tokens) }} tokens${{ budgetNote: layer.budget === undefined ? '' : t` of ${{ budget: formatCount(layer.budget) }}`}}`);
   return {
     kind: 'context',
-    title: `The next request would send about ${formatCount(preview.promptTokens)} tokens`,
-    lines: [...lines, ...(preview.dropped.length === 0 ? ['Nothing was left out.'] : preview.dropped.map((drop) => `Left out: ${drop}`)), 'No request was sent to work this out.'],
+    title: t`The next request would send about ${{ tokens: formatCount(preview.promptTokens) }} tokens`,
+    lines: [...lines, ...(preview.dropped.length === 0 ? [t`Nothing was left out.`] : preview.dropped.map((drop) => t`Left out: ${drop}`)), t`No request was sent to work this out.`],
   };
 }
 
@@ -64,13 +67,13 @@ export interface RestorableTurn {
 export function restoreTarget(turns: readonly RestorableTurn[], arg: string | undefined): { readonly turn: RestorableTurn } | { readonly says: string } {
   if (arg === undefined || arg === 'last') {
     const last = [...turns].reverse().find((turn) => turn.checkpoint && turn.stands);
-    return last === undefined ? { says: 'No finished turn has a checkpoint to restore: nothing the agent did can be put back yet.' } : { turn: last };
+    return last === undefined ? { says: t`No finished turn has a checkpoint to restore: nothing the agent did can be put back yet.` } : { turn: last };
   }
   const number = Number(arg);
   const picked = Number.isInteger(number) && number >= 1 ? turns[number - 1] : turns.find((turn) => turn.turnId === arg);
-  const name = Number.isInteger(number) ? `Turn ${number}` : `Turn ${arg}`;
-  if (picked === undefined) return { says: `${name} is not in this panel. Use /restore last, or the number of a turn listed here.` };
-  if (!picked.checkpoint) return { says: `${name} wrote nothing, so there is nothing to restore.` };
-  if (!picked.stands) return { says: `${name} was already restored, or the undo history has moved past it.` };
+  const name = Number.isInteger(number) ? t`Turn ${number}` : t`Turn ${arg}`;
+  if (picked === undefined) return { says: t`${name} is not in this panel. Use /restore last, or the number of a turn listed here.` };
+  if (!picked.checkpoint) return { says: t`${name} wrote nothing, so there is nothing to restore.` };
+  if (!picked.stands) return { says: t`${name} was already restored, or the undo history has moved past it.` };
   return { turn: picked };
 }

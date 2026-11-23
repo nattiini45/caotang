@@ -8,6 +8,9 @@
  */
 
 import type { CommandError, Result } from './result.js';
+import type { CodexDetailChanges, CodexDetailField } from './codex-details.js';
+import type { CodexReferenceEdit } from './codex-references.js';
+import type { CodexRelationEdit } from './codex-relations.js';
 import type { ActivityReport } from './activity-log.js';
 import type { CoherenceStatusName, ScenePatch, SceneMetaRecord } from './coherence.js';
 import type {
@@ -97,6 +100,7 @@ export const COMMAND_NAMES = [
   'binder.rename',
   'binder.setMeta',
   'binder.setSynopsis',
+  'binder.setPublish',
   'notes.set',
   'notes.append',
   'doc.write',
@@ -321,6 +325,8 @@ export interface ValidationCodexEntry {
   readonly sources?: readonly { readonly docId: string }[];
   /** The asset ids of the entry's visual references (video-prompt-pack.md §3). A use of each picture. */
   readonly visualRefs?: readonly string[] | undefined;
+  readonly references?: readonly unknown[];
+  readonly relations?: readonly unknown[];
 }
 
 export interface ValidationDocument {
@@ -373,6 +379,7 @@ export interface ValidationSnapshot {
     };
     /** additive in v1 — absent = empty codex (project-format §2) */
     readonly codex?: readonly ValidationCodexEntry[];
+    readonly codexDetailFields?: readonly CodexDetailField[];
     /**
      * The saved export recipes (exporter.md §2). Additive in v1, so absent means none. Only the name and the nodes a
      * recipe selects are read here, for the refusals `recipe.save` and `recipe.delete` make.
@@ -668,6 +675,7 @@ export interface CommandParams {
   'binder.rename': BinderRenameParams;
   'binder.setMeta': BinderSetMetaParams;
   'binder.setSynopsis': BinderSetSynopsisParams;
+  'binder.setPublish': BinderSetPublishParams;
   'notes.set': NotesSetParams;
   'notes.append': NotesAppendParams;
   'doc.write': DocWriteParams;
@@ -918,6 +926,9 @@ export type CodexUpsertOp = {
   sources?: CodexSourceCitation[];
   /** video-prompt-pack.md §3: the asset ids of the entry's visual references. An update replaces the list. */
   visualRefs?: string[];
+  details?: CodexDetailChanges;
+  referenceEdits?: CodexReferenceEdit[];
+  relationEdits?: CodexRelationEdit[];
 };
 
 /*
@@ -947,6 +958,24 @@ export type BinderSetMetaParams = { nodeId: string; patch: MetaPatch };
 
 export type BinderSetSynopsisParams = { nodeId: string; synopsis: string };
 
+/**
+ * The fields `binder.setPublish` patches (web-publishing.md §2). A named key sets the field; `null` clears it; a key
+ * left out is untouched — the same patch discipline as {@link MetaPatch}. A document with no `publishedAt` is a draft.
+ */
+export type PublishPatch = {
+  slug?: string | null;
+  publishedAt?: string | null;
+  tags?: string[] | null;
+  canonical?: string | null;
+  description?: string | null;
+  layout?: string | null;
+};
+
+/** The publish fields, in spec order — shared by the descriptor's validation and the store's apply. */
+export const PUBLISH_FIELD_NAMES = ['slug', 'publishedAt', 'tags', 'canonical', 'description', 'layout'] as const;
+
+export type BinderSetPublishParams = { nodeId: string; patch: PublishPatch };
+
 export type NotesSetParams = { nodeId: string; notes: string };
 
 export type NotesAppendParams = { nodeId: string; text: string; divider?: boolean };
@@ -967,7 +996,7 @@ export type EditorReplaceRangeParams = {
   expectedRevision?: number;
 };
 
-export type CodexUpsertParams = { entries: CodexUpsertOp[] };
+export type CodexUpsertParams = { entries: CodexUpsertOp[]; detailField?: CodexDetailField };
 
 export type CodexAttachParams = { entryId: string; attachTo: string[]; detachFrom: string[] };
 
@@ -1187,8 +1216,22 @@ export type RecipeOptionsParams = {
   keepPictureMetadata?: boolean;
   /** The timeline PDF draws each scene's pictures as thumbnails (timeline.md §9.1). Absent is off. Only `timeline-pdf` reads it. */
   timelinePictures?: boolean;
+  /** The teleprompter's wrap width in characters per line (av-script.md §5). Only `teleprompter` reads it. */
+  teleprompterWidth?: number;
   /** Emoji print in colour in the screenplay PDF and the contact sheet (screenplay.md §5.3, storyboard.md §6). Absent: the format's default. */
   colourEmoji?: boolean;
+  /** Where the prose formats put a footnote's text (exporter.md §3). Absent: footnote — page foot in DOCX, chapter end in EPUB and plain text; endnote: document end, book end. */
+  notes?: 'footnote' | 'endnote';
+  /** The HTML article emits the YAML block a static-site generator reads (web-publishing.md §3). Absent: off. Only `html` reads it. */
+  frontMatter?: boolean;
+  /** The HTML article as a full document or as a fragment for a site template (web-publishing.md §3). Absent: standalone. Only `html` reads it. */
+  htmlMode?: HtmlModeOption;
+  /** The stylesheet the writer's site serves, emitted as the article's `<link rel="stylesheet">` (web-publishing.md §3). Only `html` reads it. */
+  css?: string;
+  /** The site's absolute https address: RSS's channel link and Atom's feed id (web-publishing.md §3). A feed compile refuses without it. Only `rss` and `atom` read it. */
+  siteUrl?: string;
+  /** `pdfa-2u` writes the prose PDF as PDF/A-2u (exporter.md §3). Absent: a plain PDF. Only `prose-pdf` reads it. */
+  pdfProfile?: 'pdfa-2u';
 };
 
 /**
@@ -1207,6 +1250,9 @@ export type { RecipeScriptFont, SceneNumbersOption };
 
 /** The paper of a PDF (screenplay.md §5.3, storyboard.md §6), a recipe option. */
 export type RecipePageSize = 'A4' | 'Letter';
+
+/** The HTML article's two shapes (web-publishing.md §3), a recipe option. */
+export type HtmlModeOption = 'standalone' | 'fragment';
 
 /** `recipe.save`: a named export configuration. Saving a name that exists replaces it. */
 export type RecipeSaveParams = {

@@ -16,6 +16,7 @@ import { countBody, getBody, nodeById, type ProjectState, type TreeNode } from '
 import { TOOL_NAMES, metadataFor } from './metadata.js';
 import { ANY_NODE, descendantsOf, resolveNode } from './resolve.js';
 import { globMatches } from './rules.js';
+import { projectScanInput } from './scan-worker.js';
 import { countIn, excludedBy, heldFile } from './tools/coherence.js';
 import type { CallParams } from './types.js';
 import { isRecord } from './util.js';
@@ -116,7 +117,7 @@ export const WRITTEN_TEXT: Readonly<Record<string, WrittenText>> = {
   'export.compile': { read: [], skip: ['selection.root', 'template', 'recipeName'] },
   'codex.write': {
     read: ['entries[].name', 'entries[].aliases[]', 'entries[].description'],
-    skip: ['entries[].id', 'entries[].exclude[]', 'entries[].attachTo[]', 'entries[].detachFrom[]', 'entries[].visualRefs[]'],
+    skip: ['entries[].id', 'entries[].type', 'entries[].exclude[]', 'entries[].attachTo[]', 'entries[].detachFrom[]', 'entries[].visualRefs[]'], // The bus only accepts a built-in or already-declared type, so this selects vocabulary rather than writing prose.
   },
   'doc.import': { read: ['title', 'body', 'synopsis'], skip: ['parent', 'keywords[]', 'status', 'label'] },
   'codex.import': { read: ['entries[].name', 'entries[].aliases[]', 'entries[].description'], skip: ['entries[].exclude[]', 'entries[].attachTo[]'] },
@@ -417,10 +418,15 @@ function coherenceCheck(check: Extract<HookCheck, { kind: 'coherence' }>, input:
   const known = DETERMINISTIC_CHECK_IDS as readonly string[];
   const unknown = check.checks.find((id) => !known.includes(id));
   if (unknown !== undefined) throw new Error(`${quote(unknown)} is not a coherence check in this build`);
-  const excluded = excludedBy(deps.withheld?.(input.tool));
+  const hidden = deps.withheld?.(input.tool);
+  const file = heldFile(state);
+  const scope = { mode: 'doc' as const, docIds: docs.map((node) => node.id) };
+  const projected = hidden === undefined ? undefined : projectScanInput(state, file, hidden, scope);
+  const view = projected?.state ?? state;
+  const excluded = excludedBy(hidden);
   const outcome = scanTool(
-    { scope: { mode: 'doc', docIds: docs.map((node) => node.id) }, checks: [...check.checks] as DeterministicCheckId[] },
-    { state, file: heldFile(state), now: new Date(0), detector: countIn, ...(excluded === undefined ? {} : { isExcluded: excluded }) },
+    { scope, checks: [...check.checks] as DeterministicCheckId[] },
+    { state: view, file, excludedDocIds: projected?.excludedDocIds, now: new Date(0), detector: countIn, ...(excluded === undefined ? {} : { isExcluded: excluded }) },
   );
   if (!outcome.ok) throw new Error(outcome.message);
   const run = outcome.file?.runs.find((candidate) => candidate.id === outcome.data.runId);

@@ -24,7 +24,7 @@ for (const home of MODERN_HOMES) {
       // A route with a setup of its own (open findings) starts from that project; its title stays the same.
       test.describe(() => {
         if (route.setup !== undefined) test.use({ setup: route.setup });
-        test(`${home.modern}: ${route.via}`, async ({ page, browserName }) => {
+        test(`${home.modern}: ${route.via}`, { tag: '@modern' }, async ({ page, browserName }) => {
           test.fixme(route.pending !== undefined, `#${route.pending ?? ''}: ${route.why ?? 'its home is still being built'}`);
           test.skip(route.chromiumOnly === true && browserName !== 'chromium', 'File System Access is Chromium-only');
           await watchCsp(page);

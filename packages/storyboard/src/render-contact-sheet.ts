@@ -298,6 +298,9 @@ export interface PlacedText {
   readonly x: number;
   readonly y: number;
   readonly fontSize: number;
+  /** Set when the run is drawn in bold: the header title, the page label and the number chip. The emitter reads this to
+   * pick its base font, so the places it draws bold and the places it counts as bold can never drift apart. */
+  readonly bold?: true;
 }
 
 export interface PlacedCard {
@@ -411,12 +414,13 @@ export function paginate(cards: readonly SheetCard[], options: PaginateOptions =
         : undefined;
     pages.push({
       index,
-      title: { text: headerLine, x: margin, y: margin + SHEET_LAYOUT.headerFontSize, fontSize: SHEET_LAYOUT.headerFontSize },
+      title: { text: headerLine, x: margin, y: margin + SHEET_LAYOUT.headerFontSize, fontSize: SHEET_LAYOUT.headerFontSize, bold: true },
       pageLabel: {
         text: label,
         x: size.width - margin - labelWidth,
         y: margin + SHEET_LAYOUT.headerFontSize,
         fontSize: SHEET_LAYOUT.headerFontSize,
+        bold: true,
       },
       ...(summaryLine === undefined
         ? {}
@@ -483,7 +487,7 @@ function placeCard(
     hasImage: card.image,
     paper,
     chip: { x: x + gap, y: y + gap, width: chipWidth, height: chipHeight },
-    chipText: { text: chipText, x: x + gap + 3, y: y + gap + chipFontSize + 1, fontSize: chipFontSize },
+    chipText: { text: chipText, x: x + gap + 3, y: y + gap + chipFontSize + 1, fontSize: chipFontSize, bold: true },
     spec: specText.map((text, index) => ({ text, x, y: specY + index * specLineHeight, fontSize: specFontSize })),
     action: actionText.map((text, index) => ({
       text,
