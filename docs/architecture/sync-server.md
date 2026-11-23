@@ -22,6 +22,8 @@ Serve static assets without authentication. Run the Worker first only for `/v1/*
 | `GET /v1/account/vault` | Account mode: the sealed provider-key vault, `{version, vault}` with its ETag, or `404` before the first commit. |
 | `PUT /v1/account/vault` | Account mode: `If-None-Match: *` creates (`201`), `If-Match: "<version>"` replaces (`200`), answering `{version}`. `412` on a lost race; `400` for a malformed body. |
 | `DELETE /v1/account/vault` | Account mode: removes the vault under `If-Match` of its version, `204`. |
+| `GET /v1/projects` | Account mode: the account's [project records](#project-records), oldest first. |
+| `PUT /v1/projects/{id}` | Account mode: records a project — its wrapped key and its sealed record — under `If-None-Match: *` (`201`, `409` when it exists) or replaces that row (`200`). |
 | `GET /v1/projects/{id}/blobs` | Account mode with `PROJECT_STORE`: the live object names, ETags and sizes. See [Encrypted object storage](#encrypted-object-storage). |
 | `GET /v1/projects/{id}/blobs/{name}` | Account mode with `PROJECT_STORE`: the object's bytes and ETag, or `404`. |
 | `PUT /v1/projects/{id}/blobs/{name}` | Account mode with `PROJECT_STORE`: create or replace under an ETag precondition, quota-charged. |
@@ -85,6 +87,16 @@ The R2 writer and the scheduled sweep are wired by the encrypted object storage 
 
 The agreed test seams are verified OAuth/HTTP through actual workerd with local D1 and R2, the exported account/operator interface, and `QuotaStore` with real local D1 and a fake uploader. Cover identity rename/reuse, concurrent claims/reservations, session cutover/revocation including existing sockets, quota boundaries, idempotency, retained charges and failed/recovered reconciliation. The browser dependency boundary remains a repository guard.
 
+## Project records
+
+A device that has never opened a project needs two things before it can: the project's key, and a name to show. Account mode keeps one row per project (`0008_project_records.sql`) holding both, and the server can read neither.
+
+`GET /v1/projects` answers `{projects: [{id, wrappedKey, record, createdAt, updatedAt}]}` for the signed-in account only, oldest first. `PUT /v1/projects/{id}` records a project or replaces its row: the body is exactly `{"wrappedKey": "<base64>", "record": "<base64>"}` at most 2,048 bytes, the wrapper canonical base64 of exactly 61 bytes — a format byte, a nonce, a 32-byte key and a tag — and the record canonical base64 of 1 to 1,024 bytes. `If-None-Match: *` records a new project and answers `201`, or `409` when that id is already recorded; no precondition replaces the row and answers `200`, which is what renaming a project is. `If-Match`, extra fields, non-canonical base64 and the wrong sizes are the same fixed `400`. A project id is at most 64 letters, digits, `-` and `_`; a method either route does not serve is `405`.
+
+Every call requires `X-Caotang-Account` naming the account read from `GET /v1/account` — a precondition, not a selector: a missing or different value is `412`, so a cookie that changed in another tab cannot record a project under the wrong account. Every statement joins the active account, invitation and session revision, so a revoked session is `401` rather than an empty list. The row is written by one `INSERT … ON CONFLICT` statement, so two devices recording the same id elect one winner. In allowlist mode these routes do not exist (`404`).
+
+The server stores the wrapper and the record as bytes it was handed: it never parses, decrypts, logs or re-serializes either, and a project's name is as unreadable to it as a manuscript ([hosted.md §5](hosted.md#the-project-record-and-the-accounts-registry)). Deleting a project is not built: there is no route that removes a row, and removing a project's objects is the retention slice's business.
+
 ## Encrypted object storage
 
 **Status.** In account mode with the `PROJECT_STORE` R2 binding and the `STORAGE_COORDINATOR` namespace, the Worker implements the blob service of [hosted.md §6](hosted.md): opaque bytes under opaque names, one account at a time. The server never parses, decrypts or inspects a payload. Without the binding or the namespace the storage routes answer `503`; in allowlist mode they do not exist (`404`). The local browser app imports none of this; `@caotang/remote-store` ships the matching HTTP client.
@@ -122,4 +134,4 @@ Replaced and soft-deleted versions are retained and remain charged; nothing in t
 
 ## Not yet built
 
-This package is not a complete sync service. Retention collection, client sync, merge/history, encryption setup and public-service hardening need their own contracts and tests. Its exports do not select a deployment or alter the browser app.
+This package is not a complete sync service. Retention collection, the device lease, client sync, merge/history, encryption setup and public-service hardening need their own contracts and tests. Its exports do not select a deployment or alter the browser app.

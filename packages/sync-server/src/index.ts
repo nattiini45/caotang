@@ -2,6 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { accountKeyRecordRoute } from './account-key-record.js';
 import { accountVaultRoute } from './account-vault.js';
 import { AccountRegistry, type DurableAccount } from './accounts.js';
+import { projectRecordsRoute } from './project-records.js';
 import { StorageCoordinator, storageRoute, sweepQuota } from './storage.js';
 
 export { StorageCoordinator };
@@ -241,6 +242,9 @@ export default {
       if (account === null) return reply(401, 'Sign in to continue.');
     } else if (ticket.mode !== undefined || !allowed(ticket.identity, env)) {
       return reply(401, 'Sign in to continue.');
+    }
+    if (url.pathname === '/v1/projects' || /^\/v1\/projects\/[^/]+$/.test(url.pathname)) {
+      return account ? projectRecordsRoute(request, url, account, env.ACCOUNT_DB!.withSession('first-primary')) : reply(404, 'This API route does not exist.');
     }
     if (url.pathname.startsWith('/v1/projects/')) {
       if (!account) return reply(404, 'This API route does not exist.');

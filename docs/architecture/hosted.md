@@ -34,12 +34,12 @@ passphrase ──Argon2id(salt)──> KEK ──wraps──> MK ──wraps─�
 | KEK | Argon2id over the NFKC-normalised passphrase and a per-account salt (at least 16 bytes) | memory only, while unlocked | wraps the MK |
 | MK | 256 random bits, once per account | wrapped under the KEK on the server; encoded as the recovery key (§4); optionally wrapped under a device key (§2.3) | wraps each PK |
 | PK | 256 random bits, once per project | wrapped under the MK on the server, bound to the project id | root of that project's keys |
-| file, path, manifest keys | HKDF-SHA-256 of the PK, empty salt | derived on demand | one purpose each |
+| file, path, name, manifest keys | HKDF-SHA-256 of the PK, empty salt | derived on demand | one purpose each |
 | vault key | HKDF-SHA-256 of the MK, empty salt, info `caotang/v1/vault-key` | derived on demand | seals the provider-key vault (P9); the sync is its own slice |
 
 - **Argon2id** is `m = 64 MiB, t = 3, p = 1`. These are **provisional** until measured on low-end phones. The hash sits behind an injectable `Kdf` port (`derive(passphrase, salt)`); the adapter is `argon2id.ts`, which loads `hash-wasm` (pinned to an exact version) lazily, so the WASM enters only on setup, unlock and recovery and never the first-load bundle. The algorithm and its parameters travel with the wrapped key (§2.1), so raising the cost later never strands an existing account. Parameters read from a record are bounded — memory at most 256 MiB (four times the default), iterations at most 10, parallelism at most 4, and memory at least 8 KiB for each lane — so a tampered descriptor cannot exhaust the unlocking client or name an invalid configuration; the default sits well inside the ceiling.
 - **Wrapping** is AES-256-GCM with a random 96-bit nonce. Associated data is a label: `caotang/v1/wrap/master`, and `caotang/v1/wrap/project` ‖ NUL ‖ projectId, so a project's wrapped key cannot stand in for another's.
-- **Info labels** are `caotang/v1/file-key`, `caotang/v1/path-hmac-key`, `caotang/v1/manifest-key` and `caotang/v1/vault-key`; a file key's info is its label ‖ NUL ‖ the file's path hash. No two purposes can derive the same key, and the vault key is derived from the MK, never the PK.
+- **Info labels** are `caotang/v1/file-key`, `caotang/v1/path-hmac-key`, `caotang/v1/manifest-key`, `caotang/v1/name-key` and `caotang/v1/vault-key`; a file key's info is its label ‖ NUL ‖ the file's path hash. No two purposes can derive the same key, and the vault key is derived from the MK, never the PK.
 - Only WebCrypto is used for the primitives: AES-256-GCM, HKDF-SHA-256, HMAC-SHA-256, SHA-256. Argon2id is the one step WebCrypto does not provide, and it is the lazily loaded WASM above. The key type prints as its role, so a logged key shows no bytes, and no key enters a project, bundle, export or log.
 
 ### 2.1 The account record
@@ -61,7 +61,7 @@ A passphrase change is **refused while a rotation is waiting to be finished**. T
 **Rotating the master key** — *Revoke other devices and the old recovery key* — replaces the MK itself:
 
 1. A new MK is generated and the record is rewritten under a fresh KEK derived from the **same passphrase**, carrying the new MK's verifier. So a rotation revokes the *key*, not the passphrase: a device that knows the passphrase unlocks again, while a device that had remembered the retired MK, and any printed recovery key, stop opening what the account holds.
-2. Every project key is unwrapped under the retired MK and re-wrapped under the new one. The project keys are unchanged, so nothing they sealed is re-encrypted and no manuscript moves.
+2. Every project key is unwrapped under the retired MK and re-wrapped under the new one. The project keys are unchanged, so nothing they sealed is re-encrypted and no manuscript moves. A project's record — its name, §5 — is sealed under the project key, so re-wrapping leaves every name readable and a rotation rewrites no record.
 3. The provider-key vault is re-sealed under the vault key of the new MK (§2.5).
 4. The new recovery key is shown once, **before** the record is stored, and acknowledged.
 
@@ -143,7 +143,17 @@ There is **no escrow**. If the passphrase and the recovery key are both lost, th
 - **One writer at a time per device**: mutations run in a queue, each one reading, changing and swapping the index.
 - **Paths** are checked as `MemoryArtifactFs` checks them (project-relative, no `..`). The same contract suite runs against both bindings.
 
-What this package does not do yet: the app does not import it (§11 has the wiring), the device lease and the conflict question are Phase 3 (§7), and the server's collection of retained versions is its own slice. The offline queue is built beside the adapter (`pending-edits.ts`, §7).
+### The project record and the account's registry
+
+A server that only knows hashed names cannot tell a device which projects an account has, and a device cannot open one until it has that project's key. Both travel as one row per project on the server:
+
+- **The wrapper** is the project key sealed under the master key (§2), bound to the project id, so a key recorded for one project cannot stand in for another's.
+- **The record** is the project's name, sealed under a key of that project's own (`caotang/v1/name-key`), with the account and the project id as associated data, so a record moved to another project or account does not open. It is sealed under the project key rather than the master key deliberately: a master-key rotation re-wraps the project key, so every name stays readable without rewriting a record (§2.2).
+- **On the wire** both are opaque base64, the wrapper 61 bytes and the record at most 1,024, which is a 200-character name. The server parses neither and can read neither; the project id is the only thing it sees in the clear, and that is random.
+- **A second device** lists the account's projects, unwraps each project key under the master key, opens each record to show its name, and opens the one the writer picks through the adapter above. Nothing else about the project travels this way.
+- **Registering** a project is a write of its row, and replacing that row is what a rename is: a label, not content, so the last write wins. Manuscripts never travel this route; their edits go through the blob service, where the index precondition makes an overwrite impossible (§7).
+
+What this package does not do yet: the app does not import it (§11 has the wiring), the device lease and the conflict question are Phase 3 (§7), and the server's collection of retained versions is its own slice. The offline queue is built beside the adapter (`pending-edits.ts`, §7); the record and its registry routes are `packages/crypto/src/project-record.ts`, `packages/sync-server/src/project-records.ts` and `packages/remote-store/src/http-project-records.ts`.
 
 ## 6. The blob service
 
@@ -215,7 +225,7 @@ Limits that are stated, not hidden (SECURITY.md carries a pointer):
 | 0 | Owner decisions (§10); this spec; run and record the CORS sweep | spec written; decisions open |
 | 1 | Auth and accounts; passphrase setup, recovery-key screen, unlock; account deletion; `.caotang` export; Argon2id adapter | Argon2id adapter and account-key orchestration built; auth and the screens not started |
 | 2 | Encrypted storage: `packages/crypto`, `packages/remote-store`, a fake backend | **the two packages here**, with the account-key layer, the HTTP client and the standalone server; the app does not import them |
-| 3 | Sync: batching, offline queue, device lease, conflict question, `coherence.json` merge, import and export between the browser store, bundles and hosted | the batched save and the offline queue are built in `packages/remote-store`; the lease, the conflict question and the app wiring follow |
+| 3 | Sync: batching, offline queue, device lease, conflict question, `coherence.json` merge, import and export between the browser store, bundles and hosted | the batched save and the offline queue are built in `packages/remote-store`, and a project's record is sealed and registered (crypto, server routes, client); the lease, the conflict question and the app wiring follow |
 | 4 | Relay (§8) | waits on the CORS sweep and its own decision |
 | 5 | Hardening and launch: hosted CSP, SRI, build hash, review, deploy | not started |
 

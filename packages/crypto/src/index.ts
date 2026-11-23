@@ -35,6 +35,16 @@ export {
   type SubkeyPurpose,
 } from './keys.js';
 export {
+  PROJECT_RECORD_FORMAT_TAG,
+  MAX_PROJECT_NAME,
+  MAX_SEALED_PROJECT_RECORD,
+  sealProjectRecord,
+  openProjectRecord,
+  sealedProjectRecordLength,
+  type ProjectRecord,
+  type ProjectRecordContext,
+} from './project-record.js';
+export {
   ACCOUNT_RECORD_FORMAT,
   ACCOUNT_RECORD_FORMAT_LEGACY,
   ACCOUNT_RECORD_FORMAT_ROTATING,
