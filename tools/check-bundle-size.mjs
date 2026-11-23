@@ -183,7 +183,10 @@ export const BUDGET = {
   // ceiling the merged tree sat under. Named: the compiled English catalogue's Kanka messages, which must
   // precede first paint (i18n.md §3.3); the reader, the preview source and the Worker stay on use. The
   // ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  initialGzip: 1_119_000,
+  // The OpenDocument import (#298) on the merge of #279's branch: 1,119,286 bytes gzip measured. Named:
+  // the compiled English catalogue's ODT button and error copy beside the Word import's. The ceiling is
+  // the measurement rounded up to the thousand. [delegated 2026-11-23]
+  initialGzip: 1_120_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -313,7 +316,11 @@ export const BUDGET = {
   // The Word import (#279) on the merge of #293's branch: 9,035,664 bytes measured, +27,339 over the merged #293
   // tree. Named: the @caotang/import-docx reader and its preview source, all on-use chunks, and the German Word
   // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  totalJs: 9_036_000,
+  // The OpenDocument import (#298) on the merge of #279's branch: 9,053,813 bytes measured, +18,149 over the
+  // merged #279 tree. Named: the @caotang/import-odt reader and its preview source, all on-use chunks, and the
+  // German OpenDocument strings in the de catalogue. The ceiling is the measurement rounded up to the
+  // thousand. [delegated 2026-11-23]
+  totalJs: 9_054_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

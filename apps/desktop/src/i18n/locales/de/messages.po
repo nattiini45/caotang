@@ -864,6 +864,11 @@ msgstr "{commandCount, plural, one {# Befehl} other {# Befehle}}"
 msgid "{commandCount, plural, one {# context item} other {# context items}}"
 msgstr "{commandCount, plural, one {# Kontextelement} other {# Kontextelemente}}"
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/odt-source.ts
+msgid "{comments, plural, one {# annotation became a scene note} other {# annotations became scene notes}}"
+msgstr "{comments, plural, one {# Anmerkung wurde zu einer Szenennotiz} other {# Anmerkungen wurden zu Szenennotizen}}"
+
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
 msgid "{comments, plural, one {# comment became a scene note} other {# comments became scene notes}}"
@@ -878,6 +883,11 @@ msgstr "{comments, plural, one {# Kommentar.} other {# Kommentare.}}"
 #: apps/desktop/src/import-preview/model.ts
 msgid "{comments, plural, one {# comment} other {# comments}}"
 msgstr "{comments, plural, one {# Kommentar} other {# Kommentare}}"
+
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/odt-source.ts
+msgid "{comments, plural, one {Annotations become scene notes (#)} other {Annotations become scene notes (#)}}"
+msgstr "{comments, plural, one {Anmerkungen werden zu Szenennotizen (#)} other {Anmerkungen werden zu Szenennotizen (#)}}"
 
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
@@ -1130,6 +1140,7 @@ msgstr "{count, plural, one {Ein Bild wurde beim Öffnen des Projekts verworfen,
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
@@ -1138,6 +1149,7 @@ msgstr "{count, plural, one {Ein Bild wurde beim Öffnen des Projekts verworfen,
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "{count, plural, one {Import # picture} other {Import # pictures}}"
 msgstr "{count, plural, one {# Bild importieren} other {# Bilder importieren}}"
@@ -1466,8 +1478,10 @@ msgstr "{degree, select, least {mindestens} most {höchstens} other {etwa}} {cou
 msgid "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {word} other {words}} this week"
 msgstr "{degree, select, least {mindestens} most {höchstens} other {etwa}} {count} {target, plural, one {Wort} other {Wörter}} in dieser Woche"
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "{deletions, plural, one {# deletion was read} other {# deletions were read}}"
 msgstr "{deletions, plural, one {# Löschung wurde gelesen} other {# Löschungen wurden gelesen}}"
 
@@ -1822,8 +1836,10 @@ msgstr "{images, plural, one {# Bild} other {# Bilder}}"
 msgid "{indents, plural, one {# indent was not kept} other {# indents were not kept}}"
 msgstr "{indents, plural, one {# Einzug wurde nicht übernommen} other {# Einzüge wurden nicht übernommen}}"
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "{insertions, plural, one {# insertion was read} other {# insertions were read}}"
 msgstr "{insertions, plural, one {# Einfügung wurde gelesen} other {# Einfügungen wurden gelesen}}"
 
@@ -2173,8 +2189,10 @@ msgstr "{named, plural, one {# Kapiteltitel kam aus dem Inhaltsverzeichnis des B
 msgid "{names} are cued as one character. Use one spelling."
 msgstr "{names} werden als eine Figur angesetzt. Verwenden Sie eine einzige Schreibweise."
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "{notes, plural, one {# note became a footnote of its scene} other {# notes became footnotes of their scenes}}"
 msgstr "{notes, plural, one {# Note wurde zu einer Fußnote ihrer Szene} other {# Noten wurden zu Fußnoten ihrer Szenen}}"
 
@@ -2238,6 +2256,11 @@ msgstr "{openCount, plural, one {# offene Feststellung} other {# offene Feststel
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "{openFindings, plural, one {# open finding} other {# open findings}}"
 msgstr "{openFindings, plural, one {# offene Feststellung} other {# offene Feststellungen}}"
+
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/odt-source.ts
+msgid "{other, plural, one {# picture in a format Caotang does not keep was left out} other {# pictures in formats Caotang does not keep were left out}}"
+msgstr "{other, plural, one {# Bild in einem Format, das Caotang nicht behält, wurde ausgelassen} other {# Bilder in Formaten, die Caotang nicht behält, wurden ausgelassen}}"
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -2498,11 +2521,13 @@ msgstr "{relations, plural, one {# Verbindung wird als Text auf ihrer Seite gesc
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "{remote, plural, one {# picture on the internet was not downloaded} other {# pictures on the internet were not downloaded}}"
 msgstr "{remote, plural, one {# Bild aus dem Internet wurde nicht heruntergeladen} other {# Bilder aus dem Internet wurden nicht heruntergeladen}}"
 
@@ -2877,9 +2902,11 @@ msgid "{summary} {catalog}"
 msgstr "{summary} {catalog}"
 
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "{svg, plural, one {# SVG picture was refused, because it can carry script} other {# SVG pictures were refused, because they can carry script}}"
 msgstr "{svg, plural, one {# SVG-Bild wurde abgelehnt, weil es Skript tragen kann} other {# SVG-Bilder wurden abgelehnt, weil sie Skript tragen können}}"
 
@@ -2893,8 +2920,10 @@ msgstr "{synopsisCount, plural, one {# Zusammenfassung, vor der Genehmigung ange
 msgid "{tags, plural, one {# tag became a keyword} other {# tags became keywords}}"
 msgstr "{tags, plural, one {# Tag wurde zum Schlagwort} other {# Tags wurden zu Schlagwörtern}}"
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "{textBoxes, plural, one {# text box was read as a paragraph} other {# text boxes were read as paragraphs}}"
 msgstr "{textBoxes, plural, one {# Textfeld wurde als Absatz gelesen} other {# Textfelder wurden als Absätze gelesen}}"
 
@@ -3045,8 +3074,10 @@ msgstr "{turnCount, plural, one {Zurückgespult – nicht an das Modell gesendet
 msgid "{turns, plural, one {Summary requested for # earlier turn.} other {Summary requested for # earlier turns.}}"
 msgstr "{turns, plural, one {Zusammenfassung für # früheren Gesprächsschritt angefordert.} other {Zusammenfassung für # frühere Gesprächsschritte angefordert.}}"
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "{underline, plural, one {# underlined run was read as italics} other {# underlined runs were read as italics}}"
 msgstr "{underline, plural, one {# unterstrichener Lauf wurde als Kursiv gelesen} other {# unterstrichene Läufe wurden als Kursiv gelesen}}"
 
@@ -3088,11 +3119,13 @@ msgstr "{unread, plural, one {Ein gespeicherter Datensatz konnte nicht gelesen w
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "{unsafeLinks, plural, one {# unsafe link kept its text only} other {# unsafe links kept their text only}}"
 msgstr "{unsafeLinks, plural, one {# unsicherer Link wurde nur als Text behalten} other {# unsichere Links wurden nur als Text behalten}}"
 
@@ -4249,6 +4282,7 @@ msgstr "etwa {size}"
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
@@ -4257,6 +4291,7 @@ msgstr "etwa {size}"
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "About {size} MB."
 msgstr "Etwa {size} MB."
@@ -4311,13 +4346,17 @@ msgstr "Alle annehmen"
 msgid "Accept edits"
 msgstr "Änderungen übernehmen"
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "Accept them"
 msgstr "Annehmen"
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "Accept, and list what was deleted"
 msgstr "Annehmen und das Gelöschte auflisten"
 
@@ -8660,8 +8699,10 @@ msgstr "Gelöscht"
 msgid "Deleted “{title}”. Ctrl+Z restores it right after."
 msgstr "„{title}“ gelöscht. Strg+Z macht das sofort rückgängig."
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "Deleted text the import keeps in the notes"
 msgstr "Gelöschter Text, den der Import in den Notizen behält"
 
@@ -11569,6 +11610,11 @@ msgstr "Inklewriter importieren"
 msgid "Import Kanka…"
 msgstr "Kanka importieren…"
 
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import OpenDocument…"
+msgstr "OpenDocument importieren…"
+
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #: apps/desktop/src/components/InspectorPictures.tsx
 msgid "Import pictures here…"
@@ -12143,6 +12189,11 @@ msgstr "Es ist kein HTML-Import."
 #: apps/desktop/src/media/prompt-pack-model.ts
 msgid "it is not an object"
 msgstr "es ist kein Objekt"
+
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/odt-source.ts
+msgid "It is not an OpenDocument import."
+msgstr "Es ist kein OpenDocument-Import."
 
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
@@ -12935,8 +12986,10 @@ msgstr "Ein Bild verknüpfen, das das Projekt enthält"
 msgid "Link a picture…"
 msgstr "Ein Bild verknüpfen…"
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "Link targets"
 msgstr "Verweisziele"
 
@@ -15411,9 +15464,11 @@ msgstr "Aus (strict: false)"
 msgid "Off in Settings"
 msgstr "In den Einstellungen ausgeschaltet"
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "Off, underlined text is kept without its underline."
 msgstr "Aus: Unterstrichener Text wird ohne Unterstreichung behalten."
@@ -15800,6 +15855,17 @@ msgstr "Offene Fäden"
 #: apps/desktop/src/components/Settings.tsx
 msgid "OpenAI-compatible endpoint"
 msgstr "OpenAI-kompatibler Endpunkt"
+
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/odt-source.ts
+msgid "OpenDocument"
+msgstr "OpenDocument"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "OpenDocument file"
+msgstr "OpenDocument-Datei"
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
@@ -17455,6 +17521,7 @@ msgstr "“{doc}” wird gelesen"
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
@@ -17468,6 +17535,7 @@ msgstr "“{doc}” wird gelesen"
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 #: apps/desktop/src/import-preview/text-source.ts
 msgid "Reading {file}…"
@@ -17841,8 +17909,10 @@ msgstr "Ablehnen"
 msgid "Reject all"
 msgstr "Alle ablehnen"
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "Reject them"
 msgstr "Ablehnen"
 
@@ -17899,12 +17969,14 @@ msgstr "Nächsten Monat erinnern"
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "Remote pictures"
 msgstr "Entfernte Bilder"
 
@@ -25270,6 +25342,11 @@ msgstr "Dies ist keine Word-.docx-Datei. Wählen Sie in Word Speichern unter und
 msgid "This is not an AO3 download. On the work's page, choose Download and then HTML or EPUB, and import that file."
 msgstr "Dies ist kein AO3-Download. Wählen Sie auf der Seite des Werks Download und dann HTML oder EPUB und importieren Sie diese Datei."
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/odt-source.ts
+msgid "This is not an OpenDocument text file. In LibreOffice, choose Save As and the .odt format."
+msgstr "Dies ist keine OpenDocument-Textdatei. Wählen Sie in LibreOffice Speichern unter und das .odt-Format."
+
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
 msgid "This is not valid JSON, so it cannot be a calendar yet: {detail}"
@@ -25320,6 +25397,11 @@ msgstr "Dieses Modell hat andere Schritte vorgeschlagen, und niemand hat solche 
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "This model takes none"
 msgstr "Dieses Modell nimmt keine"
+
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/odt-source.ts
+msgid "This OpenDocument file has no text."
+msgstr "Diese OpenDocument-Datei hat keinen Text."
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
@@ -26120,8 +26202,10 @@ msgstr "Aufgezeichnete Durchläufe"
 msgid "Traces are off"
 msgstr "Ablaufaufzeichnung ausgeschaltet"
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "Tracked changes"
 msgstr "Nachverfolgte Änderungen"
 
@@ -26379,9 +26463,11 @@ msgstr "unter {amount}"
 msgid "Under each page or chapter"
 msgstr "Unter jeder Seite oder jedem Kapitel"
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "Underline becomes italics"
 msgstr "Unterstreichung wird kursiv"
@@ -27128,8 +27214,10 @@ msgstr "Was das Buch benannt hat"
 msgid "What the campaign carried"
 msgstr "Was die Kampagne mitbrachte"
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "What the file carried"
 msgstr "Was die Datei mitbrachte"
 
@@ -27150,12 +27238,14 @@ msgstr "Was der Import tut"
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "What the import removed"
 msgstr "Was der Import entfernt hat"
 
@@ -27258,12 +27348,14 @@ msgstr "Was angenähert wurde"
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "What was not downloaded"
 msgstr "Was nicht heruntergeladen wurde"
 
