@@ -1,8 +1,8 @@
 # Installing Caotang for desktop
 
 Caotang for desktop is the studio in a window of its own. These packages are **unsigned** for now, so Windows and macOS
-show a warning the first time you open one; each download comes with a `SHA256SUMS` file so you can check you got what CI
-built. The packages are built from this repository's source in GitHub Actions (`.github/workflows/desktop-release.yml`), and
+show a warning the first time you open one; each package CI builds comes with a `SHA256SUMS` file so you can check you got
+what CI built. The packages are built from this repository's source in GitHub Actions (`.github/workflows/desktop-release.yml`), and
 nothing is sent anywhere except the AI provider and the MCP servers you configure yourself.
 
 | Platform | File | Install |
@@ -15,10 +15,10 @@ nothing is sent anywhere except the AI provider and the MCP servers you configur
 
 There is no download page yet: the app is built, but no release has been tagged. Until one is, you can have a package in either of two ways.
 
-- **Build one from this source.** From a checkout, `pnpm install`, then `pnpm build`, then the packaging script for your platform: `pnpm --filter @caotang/desktop-shell run package:win:installer` on Windows, `package:mac-arm64` or `package:mac-x64` on a Mac, `package:linux` on Linux. Each needs the platform it packages; the files land in `apps/desktop-shell/release/` with a `SHA256SUMS` file beside them. The [development shell's README](../apps/desktop-shell/README.md) has the details, including how to run the app without packaging it.
-- **Take a CI run's packages.** [`.github/workflows/desktop-release.yml`](../.github/workflows/desktop-release.yml) builds the packages on GitHub-hosted runners, both for a `desktop-v<version>` tag and for a manual run. A manual run publishes nothing: its packages and their `SHA256SUMS` files are that run's workflow artifacts, on the run's summary page under *Artifacts*. A tag publishes the same files as the release.
+- **Build one from this source.** From a checkout, `pnpm install`, then the packaging script for your platform: `pnpm --filter @caotang/desktop-shell run package:mac-arm64` or `package:mac-x64` on a Mac, `package:linux` on Linux, and on Windows `package:win:dir` followed by `package:win:installer`, because the installer is built from the unpacked app the first script leaves behind. Each script needs the platform it packages. The files land in `apps/desktop-shell/release/`. These scripts do not write a `SHA256SUMS` file: that is CI's, so make your own when you want to check a package moved intact, with `shasum -a 256 <file>` on macOS and Linux or `Get-FileHash <file> -Algorithm SHA256` on Windows. The [development shell's README](../apps/desktop-shell/README.md) has the details, including how to run the app without packaging it.
+- **Take a CI run's packages.** [`.github/workflows/desktop-release.yml`](../.github/workflows/desktop-release.yml) builds the packages on GitHub-hosted runners, both for a `desktop-v<version>` tag and for a manual run. Its packages and their `SHA256SUMS` files are workflow artifacts of that run, on the run's summary page under *Artifacts*: a manual run publishes nothing, and a tag builds the same files without a release page to download them from yet.
 
-Either way, the file you get is built by that workflow from this repository's source, and the hash in `SHA256SUMS` is what you compare a download against.
+Either way, the file you get is built from this repository's source, and when CI built it, the hash in its `SHA256SUMS` is what you compare your copy against.
 
 ## What the app needs
 
@@ -28,8 +28,8 @@ Either way, the file you get is built by that workflow from this repository's so
 
 ## Check the download first
 
-Each package ships beside a `SHA256SUMS` file. Run the line for your platform in the folder you downloaded both files into,
-and expect a line ending in `OK`:
+Each package CI builds ships beside a `SHA256SUMS` file. Run the line for your platform in the folder you downloaded both
+files into, and expect a line ending in `OK`:
 
 ```sh
 # macOS and Linux
