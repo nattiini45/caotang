@@ -321,9 +321,6 @@ importers:
       '@caotang/import-core':
         specifier: workspace:*
         version: link:../../packages/import-core
-      '@caotang/import-docx':
-        specifier: workspace:*
-        version: link:../../packages/import-docx
       '@caotang/import-epub':
         specifier: workspace:*
         version: link:../../packages/import-epub
@@ -1015,15 +1012,6 @@ importers:
         version: link:../script
 
   packages/import-core: {}
-
-  packages/import-docx:
-    dependencies:
-      '@caotang/import-core':
-        specifier: workspace:*
-        version: link:../import-core
-      '@caotang/import-read':
-        specifier: workspace:*
-        version: link:../import-read
 
   packages/import-epub:
     dependencies:

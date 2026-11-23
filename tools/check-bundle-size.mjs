@@ -190,6 +190,10 @@ export const BUDGET = {
   // picker and the models step themselves are already in lazily loaded views, and the picker's stylesheet was moved out of the
   // entry onto its own chunk, which is what keeps the entry CSS under its cap. The ceiling is the measurement plus under 1 kB.
   // [delegated 2026-11-22]
+  // The Kanka import (#293) on the merge of main 7e303a1d (which carries the AO3 import, #297): 1,119,417 bytes gzip
+  // measured, +1,796 over the ceiling that tree sat under. Named: the compiled English catalogue's Kanka messages, which must
+  // precede first paint (i18n.md §3.3); the reader, the preview source and the Worker stay on use. The ceiling is the
+  // measurement rounded up to the thousand. [delegated 2026-11-23]
   // The Word import (#279) on the merge of main 7e303a1d, which carries the AO3 import and the model picker: 1,120,296
   // bytes gzip measured. Named: the compiled English catalogue's Kanka and Word messages, which must precede first paint
   // (i18n.md §3.3); the readers, the preview sources and the Worker stay on use. The ceiling is the measurement
@@ -327,9 +331,13 @@ export const BUDGET = {
   // strings in the de catalogue. Measured again at 8,985,761 bytes after the review fixes (the shared reader and
   // picture refusal lines). Measured again on the merge of main 1ff564dd, which carries the provider-model
   // picker (#824): 8,994,369 bytes. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  // The Kanka import (#293) on the merge of main 7e303a1d: 9,018,273 bytes measured, +23,904 over that tree's ceiling.
+  // Named: the @caotang/import-kanka reader and its preview source, all on-use chunks, and the German Kanka strings in the
+  // de catalogue. Measured again at 9,019,400 bytes at the review-answers head. [delegated 2026-11-23]
   // The Word import (#279) on the merge of main 7e303a1d, which carries the merged AO3 import: 9,045,172 bytes
-  // measured. Named: the @caotang/import-docx reader and its preview source, all on-use chunks, and the German
-  // Word strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  // measured; 9,046,800 on the merge of the Kanka review answers. Named: the @caotang/import-docx reader and its preview
+  // source, all on-use chunks, and the German Word strings in the de catalogue. The ceiling is the measurement rounded up
+  // to the thousand. [delegated 2026-11-23]
   totalJs: 9_047_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
