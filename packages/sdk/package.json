@@ -12,6 +12,7 @@
     "./folder": "./src/folder-api.ts"
   },
   "dependencies": {
+    "@caotang/artifact-fs-node": "workspace:*",
     "@caotang/bus": "workspace:*",
     "@caotang/coherence": "workspace:*",
     "@caotang/exporter": "workspace:*",
@@ -22,6 +23,7 @@
     "@caotang/pdf-fonts": "workspace:*",
     "@caotang/pictures": "workspace:*",
     "@caotang/store": "workspace:*",
+    "@caotang/tasks": "workspace:*",
     "@caotang/timeline": "workspace:*"
   },
   "scripts": {

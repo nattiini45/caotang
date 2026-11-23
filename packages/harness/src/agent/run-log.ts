@@ -30,6 +30,8 @@ import type { StepRevisions } from './background.js';
 import type { CompactionActivity, TurnReport, TurnStatus } from './events.js';
 import type { LoadedSkill } from '../tools/skills.js';
 import type { SourcedRule } from '../rules.js';
+import type { HookRewriteView } from './cards.js';
+import { MODEL_HOOK_INPUT_MAX, modelHookTransformField } from '../model-hooks.js';
 
 /** The version of the event shapes below. A `turn.start` of another version is refused, not guessed at. */
 export const RUN_LOG_VERSION = 3;
@@ -83,6 +85,7 @@ export type RunEvent =
       readonly revisions: readonly (StepRevisions | null)[];
       /** The positions of the steps that have already run, so a resumed card shows them done. */
       readonly done: readonly number[];
+      readonly hookRewrites?: readonly (HookRewriteView | null)[];
     })
   | (Stamp & { readonly t: 'card.decided'; readonly turnId: string; readonly decision: 'approved' | 'auto' | 'cancelled' | 'refused' })
   | (Stamp & { readonly t: 'rule.approved'; readonly turnId: string; readonly callId: string; readonly tool: string; readonly rule: SourcedRule })
@@ -138,6 +141,7 @@ export interface RunLogPort {
 export interface RunLogOptions {
   readonly port: RunLogPort;
   readonly projectId: string;
+  readonly required?: () => boolean;
   /**
    * Resolves when everything the project holds in memory has reached the store. Awaited after each step and before its `step.applied`
    * is written, so an `applied` event means the write is on disk. A rejection means it could not be saved, and the run stops being
@@ -336,7 +340,9 @@ const isAmount = (v: unknown): v is number => typeof v === 'number' && Number.is
 function spendOk(value: unknown): value is BudgetSpend {
   if (!isRecord(value)) return false;
   // The meter counts calls and steps one at a time, so those two are whole numbers.
-  return isCount(value['modelCalls']) && isCount(value['steps']) && ['promptTokens', 'completionTokens', 'estimatedTokens', 'activeMs'].every((key) => isAmount(value[key])) && (value['costUsd'] === undefined || isAmount(value['costUsd']));
+  return isCount(value['modelCalls']) && (value['chapterCalls'] === undefined || (isCount(value['chapterCalls']) && value['chapterCalls'] <= value['modelCalls']))
+    && (value['reservedChapterCalls'] === undefined || (isCount(value['reservedChapterCalls']) && isCount(value['chapterCalls']) && value['reservedChapterCalls'] <= value['chapterCalls']))
+    && isCount(value['steps']) && ['promptTokens', 'completionTokens', 'estimatedTokens', 'activeMs'].every((key) => isAmount(value[key])) && (value['costUsd'] === undefined || isAmount(value['costUsd']));
 }
 
 function outsidePromptOk(value: unknown): value is OutsidePrompt {
@@ -356,6 +362,14 @@ function compactionsOk(value: unknown, turnId: unknown): boolean {
       (row['costUsd'] === undefined || isAmount(row['costUsd']))));
 }
 
+function hookRewriteOk(value: unknown): boolean {
+  if (value === null) return true;
+  if (!isRecord(value) || !Object.keys(value).every((key) => ['tool', 'field', 'before', 'name', 'edited'].includes(key))) return false;
+  const { tool, field, before, name, edited } = value;
+  return isString(name) && name.length <= 60 && isString(before) && before.length <= MODEL_HOOK_INPUT_MAX &&
+    isString(tool) && isString(field) && field === modelHookTransformField(tool) && (edited === undefined || edited === true);
+}
+
 const SHAPES: Readonly<Record<RunEvent['t'], (event: Record<string, unknown>) => boolean>> = {
   'turn.start': (e) => e['v'] === RUN_LOG_VERSION && isString(e['turnId']) && isString(e['intent']) && (e['wire'] === 'planner' || e['wire'] === 'plan') && typeof e['native'] === 'boolean' && (e['withheld'] === undefined || (Array.isArray(e['withheld']) && e['withheld'].every(isString))) && (e['command'] === undefined || isCommandName(e['command'])) && (e['hiddenFromPlanner'] === undefined || typeof e['hiddenFromPlanner'] === 'boolean') && (e['outsidePrompt'] === undefined || outsidePromptOk(e['outsidePrompt'])) && (e['contextOverrides'] === undefined || contextOverridesOk(e['contextOverrides'])) && (e['compaction'] === undefined || (isRecord(e['compaction']) && Object.keys(e['compaction']).every((key) => key === 'focus') && (e['compaction']['focus'] === undefined || isString(e['compaction']['focus'])))),
   messages: (e) => isString(e['turnId']) && messagesOk(e['appended']),
@@ -370,6 +384,7 @@ const SHAPES: Readonly<Record<RunEvent['t'], (event: Record<string, unknown>) =>
     Array.isArray(e['revisions']) &&
     e['revisions'].length === e['steps'].length &&
     e['revisions'].every((revisions) => revisions === null || revisionsOk(revisions)) &&
+    (e['hookRewrites'] === undefined || (Array.isArray(e['hookRewrites']) && e['hookRewrites'].length === e['steps'].length && e['hookRewrites'].every(hookRewriteOk))) &&
     Array.isArray(e['done']) &&
     e['done'].every((index) => isCount(index) && index < (e['steps'] as readonly unknown[]).length),
   'card.decided': (e) => isString(e['turnId']) && ['approved', 'auto', 'cancelled', 'refused'].includes(e['decision'] as string),
@@ -413,6 +428,7 @@ export interface ReplayCard {
   readonly revisions: readonly (StepRevisions | undefined)[];
   /** Positions of the steps that have run, the card's own and those applied since it was shown. */
   readonly completed: readonly number[];
+  readonly hookRewrites?: readonly (HookRewriteView | undefined)[];
   readonly decision?: 'approved' | 'auto' | 'cancelled' | 'refused';
 }
 
@@ -527,6 +543,7 @@ function replayOf(events: readonly RunEvent[]): Replayed {
           proposals: event.proposals.map((proposal) => (proposal === null ? undefined : proposal)),
           revisions: event.revisions.map((revisions) => revisions ?? undefined),
           completed: [...event.done],
+          ...(event.hookRewrites === undefined ? {} : { hookRewrites: event.hookRewrites.map((rewrite) => rewrite ?? undefined) }),
         };
         break;
       case 'card.decided':
@@ -735,6 +752,7 @@ export interface RunSummary {
   readonly spend?: BudgetSpend;
   /** The spend a resumed turn's meter starts from: what was spent, and the model calls the stop lost counted as spent. */
   readonly restoredSpend: BudgetSpend;
+  readonly reservedCalls: number;
   /** Whether Resume is offered. */
   readonly resumable: boolean;
   /** Why not, or what to know first, in a sentence. */
@@ -752,6 +770,7 @@ export function summarizeRun(rows: readonly unknown[], revisions: (docId: string
     total: Math.max(replay.card?.steps.length ?? 0, replay.applied.length),
     ...(replay.spend === undefined ? {} : { spend: replay.spend }),
     restoredSpend: { ...(replay.spend ?? NO_SPEND), modelCalls: (replay.spend?.modelCalls ?? 0) + replay.reservedCalls },
+    reservedCalls: replay.reservedCalls + (replay.spend?.reservedChapterCalls ?? 0),
   };
   if (!verdict.ok) return { ...base, resumable: false, note: `${verdict.detail}.` };
   const stale = replay.card === undefined ? 0 : replay.card.revisions.filter((read, index) => read !== undefined && !(replay.card?.completed ?? []).includes(index) && Object.entries(read).some(([id, revision]) => revisions(id) !== revision)).length;

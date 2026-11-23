@@ -11,18 +11,16 @@
 import { useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
 import { i18n, type MessageDescriptor } from '@lingui/core';
 import { msg, plural, t } from '@lingui/core/macro';
+import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 import { isolate } from '@caotang/i18n';
 import {
-  PRESETS,
   isLocalBase,
   presetFor,
-  presetForProfile,
-  type CachePolicy,
-  type ModelInfo,
-  type PresetDef,
+  STEP_CLASSES,
   type ProfileView,
   type RequestLogEntry,
+  type StepClass,
   type TaskRole,
   type ThinkingLevel,
 } from '@caotang/gateway';
@@ -41,6 +39,8 @@ import {
   type AgentEditMode,
   type RoleRef,
   type RoleSettings,
+  type RoleTargetRef,
+  ROLE_STEP_ROWS,
 } from '../app/settings.js';
 import { applyInterface, interfaceStatus, rememberInterface, subscribeInterface, type Interface } from '../app/interface.js';
 import { readModernPreferences, setModernPreference, type ModernPreferences } from '../app/modern-preferences.js';
@@ -49,15 +49,14 @@ import { developerLanguageExposure, languageRevision, subscribeLanguage, switchI
 import { sameLanguageSetting } from '../i18n/catalogues.js';
 import { useFormat } from '../i18n/use-format.js';
 import { readListedLanguages, recordListedLanguages } from '../i18n/listed-languages.js';
-import { activeTag } from '../i18n/runtime.js';
+import { activeTag, preloadCatalogues } from '../i18n/runtime.js';
 import { guideHref } from '../i18n/guide-links.js';
 import { languageChoices, type InterfaceLanguageStats } from '../i18n/picker.js';
 import languageStats from '../i18n/locales/stats.json';
 import { timeLabel } from '../app/activity-model.js';
-import { DEMO_PROFILE_NAME, priceClearedBy, priceFromInputs } from '../app/providers.js';
-import { BLANK_PARAMS, paramsDraftOf, paramsFromDraft, type ParamsDraft } from '../app/request-params-form.js';
-import { RequestParamsFields } from './RequestParamsFields.js';
-import { capsLine, modelDetails } from '../app/provider-details.js';
+import { DEMO_PROFILE_NAME } from '../app/providers.js';
+import { ProfileEditor } from './ProfileEditor.js';
+import { ProviderSetup } from './ProviderSetup.js';
 import { CoherenceSection } from './CoherenceSettings.js';
 import { AgentModeSettings } from './AgentModeSettings.js';
 import { AgentRulesSettings } from './AgentRulesSettings.js';
@@ -71,15 +70,6 @@ import { formatCount, useComposingEnter } from './shared.js';
 import { Modal, useModalDialog } from './modal.js';
 import { UsagePanel } from './UsagePanel.js';
 import { probeFailureMessage } from './provider-probe-message.js';
-
-/** The origin of an address, or the text itself when it does not parse (a form being typed). */
-function originOf(address: string): string {
-  try {
-    return new URL(address).origin;
-  } catch {
-    return address;
-  }
-}
 
 /** A message beside a form: inline, next to what it is about, and never a toast alone. */
 interface FormFeedback {
@@ -142,6 +132,11 @@ export function Settings({
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const narrow = useNarrow();
   useModalDialog(ref);
+  // The language picker lives here; warm the lazy catalogues while the writer reads the sections, so a
+  // choice resolves from the module cache instead of waiting on a cold download (i18n.md §3.3).
+  useEffect(() => {
+    void preloadCatalogues();
+  }, []);
 
   return (
     <Modal
@@ -192,7 +187,7 @@ export function Settings({
               />
             ) : null}
             {section === 'writing' ? <WritingSection services={services} /> : null}
-            {section === 'hooks' ? <HookSettings session={session} /> : null}
+            {section === 'hooks' ? <HookSettings session={session} services={services} /> : null}
             {section === 'coherence' ? <CoherenceSection services={services} /> : null}
             {section === 'mcp' ? narrow ? <OpenOnDesktop feature="mcp" /> : <McpSection mcp={services.mcp} /> : null}
             {section === 'appearance' ? <AppearanceSection services={services} /> : null}
@@ -208,114 +203,6 @@ export function Settings({
  * Providers
  * ------------------------------------------------------------------ */
 
-/** A custom header as the editor holds it: a name and a value, both typed. Sealed with the key on save. */
-interface HeaderDraft {
-  readonly name: string;
-  readonly value: string;
-}
-
-interface FormState {
-  readonly id: string | null;
-  /**
-   * The preset the profile runs under — provider-gateway §2 fixes it at creation (the record's `preset`), so the
-   * picker is a choice only while the profile is new. `'mock'` is the demo profile, which is never created here.
-   */
-  readonly preset: string;
-  readonly name: string;
-  /** The base URL, typed only for a generic endpoint; a named preset's URL is its own (derived from its fields). */
-  readonly baseUrl: string;
-  readonly model: string;
-  readonly apiKey: string;
-  /** The preset's extra fields (region, workspace id), keyed by their declared keys. */
-  readonly fields: Readonly<Record<string, string>>;
-  /** The generic endpoint's custom headers as typed. Sealed on save; a stored set is never shown again. */
-  readonly headers: readonly HeaderDraft[];
-  /**
-   * Whether the header list was touched on this edit. Untouched sends no patch, so the sealed set is kept; touched
-   * and emptied clears it (ProfilePatch's `null`).
-   */
-  readonly headersTouched: boolean;
-  /** The two optional price fields, as typed: dollars per 1,000 prompt tokens and per 1,000 reply tokens. Empty is no price. */
-  readonly promptPrice: string;
-  readonly completionPrice: string;
-  /** Prompt caching for this profile (provider-gateway §3): on by default. */
-  readonly cacheOn: boolean;
-  /** Anthropic only: how long the provider keeps a cached prompt. */
-  readonly cacheTtl: '5m' | '1h';
-  /** The advanced request parameters (provider-gateway §2, "Request parameters"); each follows the model row until changed. */
-  readonly params: ParamsDraft;
-}
-
-const BLANK: FormState = {
-  id: null,
-  preset: 'generic',
-  name: '',
-  baseUrl: '',
-  model: '',
-  apiKey: '',
-  fields: {},
-  headers: [],
-  headersTouched: false,
-  promptPrice: '',
-  completionPrice: '',
-  cacheOn: true,
-  cacheTtl: '5m',
-  params: BLANK_PARAMS,
-};
-
-function formFor(view: ProfileView): FormState {
-  return {
-    id: view.id,
-    preset: view.kind === 'mock' ? 'mock' : (view.preset ?? 'generic'),
-    name: view.name,
-    baseUrl: view.baseUrl,
-    model: view.defaultModel,
-    apiKey: '',
-    fields: { ...(view.fields ?? {}) },
-    headers: [],
-    headersTouched: false,
-    promptPrice: view.pricePer1k === undefined ? '' : String(view.pricePer1k.prompt),
-    completionPrice: view.pricePer1k === undefined ? '' : String(view.pricePer1k.completion),
-    cacheOn: view.promptCache?.mode !== 'off',
-    cacheTtl: view.promptCache?.ttl ?? '5m',
-    params: paramsDraftOf(view),
-  };
-}
-
-/** The presets whose lifetime setting means something: Anthropic keeps a cached prompt 5 minutes, or an hour on request. */
-const CACHE_TTL_PRESETS: ReadonlySet<string> = new Set(['anthropic']);
-
-/** The caching policy a form saves: off, or on with Anthropic's lifetime when that preset is chosen. */
-function cachePolicyOf(form: FormState): CachePolicy {
-  if (!form.cacheOn) return { mode: 'off' };
-  return CACHE_TTL_PRESETS.has(form.preset) && form.cacheTtl === '1h' ? { mode: 'auto', ttl: '1h' } : { mode: 'auto' };
-}
-
-/** The preset field values a fresh pick starts with: each declared default, nothing else. */
-function fieldDefaults(preset: PresetDef | undefined): Record<string, string> {
-  const fields: Record<string, string> = {};
-  for (const field of preset?.fields ?? []) {
-    if (field.defaultValue !== undefined) fields[field.key] = field.defaultValue;
-  }
-  return fields;
-}
-
-/** What the key field's label says, for this preset and this form. */
-function keyHint(preset: PresetDef | undefined, form: FormState, view: ProfileView | undefined, keyNeeded: boolean): string {
-  if (preset?.local !== undefined) {
-    return form.id === null
-      ? t`(optional — only if you set one on the server)`
-      : t`(optional — leave empty to keep the stored key)`;
-  }
-  if (preset?.keyOptional === true) {
-    return form.id === null ? t`(optional — this provider answers without one)` : t`(optional — leave empty to keep the stored key)`;
-  }
-  if (keyNeeded) return t`(required: the endpoint has moved to another address, so the stored key is not sent there)`;
-  // A new profile on a preset that is not key-optional needs one — say so, as the optional presets do.
-  if (form.id !== null) return view?.hasKey === true ? t`(leave empty to keep the stored key)` : t`(required)`;
-  return t`(required)`;
-}
-
 /** The task roles' display order and what each one is for (provider-gateway §6). */
 const ROLE_NAMES: readonly { readonly id: TaskRole; readonly label: MessageDescriptor; readonly hint: MessageDescriptor }[] = [
   { id: 'chat', label: msg`Chat`, hint: msg`the agent panel` },
@@ -323,12 +210,37 @@ const ROLE_NAMES: readonly { readonly id: TaskRole; readonly label: MessageDescr
   { id: 'background', label: msg`Background`, hint: msg`checks, encoding work and plans sent to the background` },
 ];
 
+/** One step's destination as the form holds it: '' fields mean that step follows the role's own choice. */
+interface StepDraft {
+  readonly profileId: string;
+  readonly model: string;
+  readonly thinking: string;
+}
+
+const EMPTY_STEP: StepDraft = { profileId: '', model: '', thinking: '' };
+
 /** A role row as the form holds it: '' fields mean the role's defaults (follow chat; the profile's own model). */
 interface RoleDraft {
   readonly profileId: string;
   readonly model: string;
   readonly thinking: string;
+  /** The role's fallbacks, in order: at most two, and none until the writer picks one. */
+  readonly fallbacks: readonly { readonly profileId: string }[];
+  /** The steps this role routes on its own (provider-gateway §6): a step absent here follows the role's choice. */
+  readonly steps: Readonly<Partial<Record<StepClass, StepDraft>>>;
 }
+
+/** What each step class is for, in the words the row uses (provider-gateway §6). */
+const STEP_NAMES: Readonly<Record<StepClass, MessageDescriptor>> = {
+  plan: msg`Planning`,
+  draft: msg`Drafts`,
+  summarize: msg`Synopses`,
+  review: msg`Reviews`,
+  utility: msg`Encoding work`,
+  read: msg`Reading`,
+};
+
+const EMPTY_FALLBACK = { profileId: '' };
 
 const ROLE_LEVEL_NAMES: Readonly<Record<ThinkingLevel, MessageDescriptor>> = {
   off: msg`Off`,
@@ -339,47 +251,119 @@ const ROLE_LEVEL_NAMES: Readonly<Record<ThinkingLevel, MessageDescriptor>> = {
   max: msg`Max`,
 };
 
+/**
+ * A destination's model and thinking-level controls, for a role's own choice and for a step's (provider-gateway §6): the model list,
+ * a field with the destination's default as its placeholder, and the level control the model's capability row allows, which the caller
+ * reads for the profile and model it resolved. One component, so a step offers exactly what its role does.
+ */
+function TargetFields({ label, profile, model, thinking, levels, listId, onChange }: {
+  readonly label: string;
+  readonly profile: ProfileView;
+  readonly model: string;
+  readonly thinking: string;
+  readonly levels: readonly ThinkingLevel[];
+  readonly listId: string;
+  readonly onChange: (next: { readonly model: string; readonly thinking: string }) => void;
+}): ReactNode {
+  const preset = presetFor(profile.kind === 'mock' ? 'mock' : profile.preset);
+  return (
+    <>
+      <input
+        aria-label={t`${{ destination: label }} model`}
+        list={listId}
+        placeholder={profile.defaultModel}
+        value={model}
+        onChange={(event) => onChange({ model: event.target.value, thinking })}
+      />
+      <datalist id={listId}>
+        {[...new Set((preset?.models ?? []).filter((row) => !row.pattern.includes('*')).map((row) => row.pattern))].map((modelOption) => (
+          <option key={modelOption} value={modelOption} />
+        ))}
+      </datalist>
+      {/* The model's capability row decides whether a thinking control exists at all: no documented levels,
+          no control (provider-gateway §3 — a level the row does not list is never sent). */}
+      {levels.length > 0 ? (
+        <select
+          aria-label={t`${{ destination: label }} thinking level`}
+          value={levels.includes(thinking as ThinkingLevel) ? thinking : ''}
+          onChange={(event) => onChange({ model, thinking: event.target.value })}
+        >
+          <option value="">{t`Provider default`}</option>
+          {levels.map((level) => (
+            <option key={level} value={level}>
+              {i18n._(ROLE_LEVEL_NAMES[level])}
+            </option>
+          ))}
+        </select>
+      ) : null}
+    </>
+  );
+}
+
 /** The stored routing as the three editable rows carry it: unpinned roles hold an empty draft. */
 function roleDraftsFor(roles: RoleSettings | undefined): Record<TaskRole, RoleDraft> {
+  const stepsOf = (ref: RoleRef): Partial<Record<StepClass, StepDraft>> => {
+    const steps: Partial<Record<StepClass, StepDraft>> = {};
+    for (const step of STEP_CLASSES) {
+      const entry = ref.steps?.[step];
+      if (entry === undefined) continue;
+      steps[step] = { profileId: entry.profileId, model: entry.model ?? '', thinking: entry.thinking ?? '' };
+    }
+    return steps;
+  };
   const draft = (ref: RoleRef | 'follow' | undefined): RoleDraft =>
     ref === undefined || ref === 'follow'
-      ? { profileId: '', model: '', thinking: '' }
-      : { profileId: ref.profileId, model: ref.model ?? '', thinking: ref.thinking ?? '' };
+      ? { profileId: '', model: '', thinking: '', fallbacks: [], steps: {} }
+      : {
+          profileId: ref.profileId,
+          model: ref.model ?? '',
+          thinking: ref.thinking ?? '',
+          fallbacks: (ref.fallbacks ?? []).map((target) => ({ profileId: target.profileId })),
+          steps: stepsOf(ref),
+        };
   return { chat: draft(roles?.chat), drafting: draft(roles?.drafting), background: draft(roles?.background) };
 }
 
+/** The steps a role routes on its own, as the form writes them: a step left on "follow" is not stored at all. */
+function stepsWritten(draft: RoleDraft): Readonly<Partial<Record<StepClass, RoleTargetRef>>> | undefined {
+  const written: Partial<Record<StepClass, RoleTargetRef>> = {};
+  for (const step of STEP_CLASSES) {
+    const entry = draft.steps[step];
+    if (entry === undefined || entry.profileId === '') continue;
+    written[step] = {
+      profileId: entry.profileId,
+      ...(entry.model.trim() === '' ? {} : { model: entry.model.trim() }),
+      ...(entry.thinking === '' ? {} : { thinking: entry.thinking as ThinkingLevel }),
+    };
+  }
+  return Object.keys(written).length === 0 ? undefined : written;
+}
+
+/** One role's fallbacks as the form writes them: the picked profiles in order, unsaved slots left out. */
+function fallbacksOf(draft: RoleDraft): readonly RoleTargetRef[] {
+  const seen = new Set<string>();
+  const kept: RoleTargetRef[] = [];
+  for (const entry of draft.fallbacks) {
+    if (entry.profileId === '' || entry.profileId === draft.profileId || seen.has(entry.profileId)) continue;
+    seen.add(entry.profileId);
+    kept.push({ profileId: entry.profileId });
+    if (kept.length === 2) break;
+  }
+  return kept;
+}
+
 function ProvidersSection({ services, onChanged }: { services: AppServices; onChanged?: () => void }): ReactNode {
+  useLingui();
   const providers = services.providers;
   const [, refresh] = useReducer((n: number) => n + 1, 0);
   useEffect(() => providers.subscribeVerification(refresh), [providers]);
-  const [form, setForm] = useState<FormState | null>(null);
+  const [adding, setAdding] = useState(() => providers.list().every((profile) => profile.kind === 'mock'));
+  const [editing, setEditing] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<FormFeedback | null>(null);
-  // The last save's model catalogue — `preset` and `baseUrl` resolve whether it is the endpoint's live answer or the
-  // registry's table (a first-party host's own preset wins over the profile's, the pin `resolveRoute` applies).
-  const [models, setModels] = useState<{ profile: string; preset?: string; baseUrl?: string; list: ModelInfo[] } | null>(null);
   const profiles = providers.list();
   const active = providers.active();
-  const preset = form === null ? undefined : presetFor(form.preset);
-  const isMock = form?.preset === 'mock';
-  const isGeneric = form?.preset === 'generic';
-  // A server on this computer: its address is typed, within loopback, like a generic endpoint's (provider-gateway §2).
-  const isLocal = preset?.local !== undefined;
-  // The base URL the save resolves for the host pin: the typed address on a generic or local endpoint, the
-  // fields-built one on a templated preset, and the stored one on any other saved profile — a named preset's
-  // URL is never typed here, but a record written another way may carry one and the pin is the wire's.
-  const formBaseUrl =
-    form === null ? '' : isGeneric === true || isLocal === true ? form.baseUrl : preset?.baseUrlFor !== undefined ? preset.baseUrlFor(form.fields) : form.id !== null ? form.baseUrl : (preset?.baseUrl ?? '');
-  const shownPreset = preset === undefined ? undefined : (presetForProfile({ preset: form?.preset, baseUrl: formBaseUrl }) ?? preset);
-  // The preset the saved profile's listModels resolved by — the same pin, so the catalogue note says whether the
-  // list was the endpoint's live answer or the registry's table.
-  const modelsPreset = models === null ? undefined : (presetForProfile({ preset: models.preset, baseUrl: models.baseUrl ?? '' }) ?? presetFor(models.preset));
-  // A saved endpoint whose origin the form moves to needs its key again: the gateway refuses to send the old one there.
-  const original = form === null || form.id === null ? undefined : providers.get(form.id);
-  const keyNeeded =
-    (isGeneric === true || isLocal) && original !== undefined && form !== null && originOf(form.baseUrl) !== originOf(original.baseUrl);
-  // The profile form saves on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving it.
-  const ime = useComposingEnter();
+  const editedProfile = editing === null ? undefined : providers.get(editing);
 
   const run = async (work: () => Promise<void>): Promise<void> => {
     setBusy(true);
@@ -393,107 +377,6 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
       refresh();
       onChanged?.();
     }
-  };
-
-  /** Picking a preset reseeds the form: its fields to their defaults, its model to the preset's, its headers cleared. */
-  const choosePreset = (presetId: string): void => {
-    if (form === null) return;
-    const next = presetFor(presetId);
-    setForm({ ...form, preset: presetId, baseUrl: next?.local === undefined ? '' : next.baseUrl, model: next?.defaultModel ?? '', fields: fieldDefaults(next), headers: [], headersTouched: false, params: BLANK_PARAMS });
-  };
-
-  const setField = (key: string, value: string): void => {
-    if (form !== null) setForm({ ...form, fields: { ...form.fields, [key]: value } });
-  };
-
-  const setHeader = (index: number, part: Partial<HeaderDraft>): void => {
-    if (form === null) return;
-    setForm({
-      ...form,
-      headersTouched: true,
-      headers: form.headers.map((header, i) => (i === index ? { ...header, ...part } : header)),
-    });
-  };
-
-  /** The headers to send in the save: untouched keeps the sealed set, emptied clears it, rows replace it. */
-  const headerPatch = (): Readonly<Record<string, string>> | null | undefined => {
-    if (form === null) return undefined;
-    if (form.id !== null && !form.headersTouched) return undefined;
-    if (form.headers.length === 0) return form.id === null ? undefined : null;
-    return Object.fromEntries(form.headers.filter((header) => header.name.trim() !== '').map((header) => [header.name, header.value]));
-  };
-
-  const save = (event: FormEvent<HTMLFormElement>): void => {
-    event.preventDefault();
-    if (ime.takesSubmit()) return;
-    if (form === null) return;
-    // A price that does not read is named before anything is saved, so the form keeps what the writer typed.
-    const price = priceFromInputs(form.promptPrice, form.completionPrice);
-    if (!price.ok) {
-      setMessage({ text: price.message, tone: 'error' });
-      return;
-    }
-    // The request parameters are named before anything is saved too: a temperature that does not read keeps the form open.
-    const request = paramsFromDraft(form.params);
-    if (!request.ok) {
-      setMessage({ text: t`Temperature must be a number from 0 to 2.`, tone: 'error' });
-      return;
-    }
-    const headers = headerPatch();
-    void run(async () => {
-      if (form.id === null) {
-        const outcome = await providers.addProfile({
-          name: form.name,
-          kind: 'endpoint',
-          preset: form.preset,
-          // A named preset's URL is its own (built from its fields); only a generic endpoint or a local server types one.
-          ...(isGeneric === true || isLocal ? { baseUrl: form.baseUrl } : {}),
-          ...(Object.keys(form.fields).length === 0 ? {} : { fields: form.fields }),
-          ...(headers === undefined || headers === null ? {} : { customHeaders: headers }),
-          defaultModel: form.model,
-          ...(form.apiKey === '' ? {} : { apiKey: form.apiKey }),
-          ...(price.price === undefined ? {} : { pricePer1k: price.price }),
-          promptCache: cachePolicyOf(form),
-          ...(request.params === undefined ? {} : { params: request.params }),
-          ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
-        });
-        setForm(null);
-        if (outcome.models !== undefined) setModels({ profile: outcome.view.name, preset: outcome.view.preset, baseUrl: outcome.view.baseUrl, list: outcome.models });
-        setMessage(
-          outcome.probeError === undefined
-            ? {
-                text: t`Saved “${{ profile: isolate(outcome.view.name) }}”. Use this profile to make it the one the agent calls.`,
-                tone: 'info',
-              }
-            : { ...probeFailureMessage(outcome.view.name, outcome.probeFailure), tone: 'error' },
-        );
-        return;
-      }
-      // Both price inputs emptied on a priced profile clears its price; the gateway keeps a price the patch leaves out.
-      const saved = providers.get(form.id);
-      const priceChange =
-        price.price ?? (priceClearedBy(form.promptPrice, form.completionPrice) && saved?.pricePer1k !== undefined ? null : undefined);
-      const outcome = await providers.editProfile(form.id, {
-        name: form.name,
-        ...(isMock === true ? {} : isGeneric === true || isLocal ? { baseUrl: form.baseUrl } : {}),
-        // A fields patch on a templated preset rebuilds the profile's base URL from the new fields.
-        ...(preset?.fields === undefined ? {} : { fields: form.fields }),
-        ...(isGeneric === true ? { customHeaders: headers } : {}),
-        defaultModel: form.model,
-        ...(form.apiKey === '' ? {} : { apiKey: form.apiKey }),
-        ...(priceChange === undefined ? {} : { pricePer1k: priceChange }),
-        ...(isMock === true ? {} : { promptCache: cachePolicyOf(form) }),
-        // Following the model or never sending clears a saved temperature, so only what the form shows is sent.
-        ...(isMock === true ? {} : { params: request.params ?? null, temperature: request.temperature ?? null }),
-      });
-      setForm(null);
-      if (outcome.models !== undefined) setModels({ profile: outcome.view.name, preset: outcome.view.preset, baseUrl: outcome.view.baseUrl, list: outcome.models });
-      setMessage(
-        outcome.probeError === undefined
-          ? { text: t`Saved “${{ profile: isolate(outcome.view.name) }}”.`, tone: 'info' }
-          : { ...probeFailureMessage(outcome.view.name, outcome.probeFailure), tone: 'error' },
-      );
-    });
   };
 
   return (
@@ -582,7 +465,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                     <Trans>Use this profile</Trans>
                   </button>
                 ) : null}
-                <button type="button" className="button is-quiet" disabled={busy} onClick={() => setForm(formFor(profile))}>
+                <button type="button" className="button is-quiet" disabled={busy} onClick={() => { setAdding(false); setEditing(profile.id); }}>
                   <Trans>Edit</Trans>
                 </button>
                 <button
@@ -593,7 +476,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                   onClick={() =>
                     void run(async () => {
                       await providers.remove(profile.id);
-                      setForm(null);
+                      if (editing === profile.id) setEditing(null);
                       setMessage({
                         text: t`Removed “${{ profile: isolate(profile.name) }}”, and its key from this browser.`,
                         tone: 'info',
@@ -611,331 +494,42 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
         })}
       </ul>
 
-      {form === null ? (
-        <button type="button" className="button" disabled={busy} onClick={() => setForm({ ...BLANK })}>
+      {adding ? (
+        <ProviderSetup
+          providers={providers}
+          onDone={(view) => {
+            void services.settings.update({ provider: { activeProfileId: view.id } });
+            refresh();
+            onChanged?.();
+          }}
+          onClose={() => setAdding(false)}
+        />
+      ) : editedProfile !== undefined ? (
+        <ProfileEditor
+          key={editedProfile.id}
+          providers={providers}
+          profile={editedProfile}
+          onClose={() => setEditing(null)}
+          onSaved={(outcome) => {
+            setEditing(null);
+            setMessage(
+              outcome.probeError === undefined
+                ? { text: t`Saved “${{ profile: isolate(outcome.view.name) }}”.`, tone: 'info' }
+                : { ...probeFailureMessage(outcome.view.name, outcome.probeFailure), tone: 'error' },
+            );
+            refresh();
+            onChanged?.();
+          }}
+        />
+      ) : (
+        <button type="button" className="button" disabled={busy} onClick={() => setAdding(true)}>
           <Trans>Add a provider</Trans>
         </button>
-      ) : (
-        <form
-          className="profile-form"
-          onKeyDown={ime.noteKey}
-          onSubmit={save}
-          aria-label={form.id === null ? t`New provider` : t`Edit provider`}
-        >
-          <label>
-            <span>
-              <Trans>Provider</Trans>
-            </span>
-            {/* The first control is the preset: it fixes the route, the fields and the model catalogue (provider-gateway §2).
-                A saved profile's preset is fixed for its life — it is the record, not a preference. A preset whose API does
-                not answer a browser stays listed, disabled, with its honest label (provider-gateway §9). */}
-            <select value={form.preset} disabled={form.id !== null} onChange={(event) => choosePreset(event.target.value)}>
-              {PRESETS.filter((entry) => entry.local === undefined && (entry.id !== 'mock' || form.preset === 'mock')).map((entry) => (
-                <option key={entry.id} value={entry.id} disabled={entry.cors === 'blocked'}>
-                  {entry.cors === 'blocked' ? t`${{ provider: entry.name }} — Desktop app or hosted only` : entry.name}
-                </option>
-              ))}
-              <optgroup label={t`On this computer`}>
-                {PRESETS.filter((entry) => entry.local !== undefined).map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.name}
-                  </option>
-                ))}
-              </optgroup>
-            </select>
-          </label>
-          {preset !== undefined && preset.cors === 'blocked' ? (
-            <p className="field-help">
-              {preset.corsNote === undefined
-                ? t`Desktop app or hosted only`
-                : t`Desktop app or hosted only — ${{ note: preset.corsNote }}`}
-            </p>
-          ) : preset?.corsNote !== undefined ? (
-            <p className="field-help">{preset.corsNote}</p>
-          ) : null}
-          <label>
-            <span>
-              <Trans>Name</Trans>
-            </span>
-            <input
-              type="text"
-              value={form.name}
-              maxLength={80}
-              placeholder={preset?.name}
-              onChange={(event) => setForm({ ...form, name: event.target.value })}
-            />
-          </label>
-          {/* The preset's extra fields — a region picker or a workspace id — build its base URL (provider-gateway §2). */}
-          {preset?.fields?.map((field) =>
-            field.options !== undefined ? (
-              <label key={field.key}>
-                <span>{field.label}</span>
-                <select value={form.fields[field.key] ?? field.defaultValue ?? ''} onChange={(event) => setField(field.key, event.target.value)}>
-                  {field.options.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <label key={field.key}>
-                <span>{field.required === true ? field.label : t`${{ field: field.label }} (optional)`}</span>
-                <input type="text" value={form.fields[field.key] ?? ''} onChange={(event) => setField(field.key, event.target.value)} />
-              </label>
-            ),
-          )}
-          {isGeneric === true ? (
-            <label>
-              <span>
-                <Trans>Endpoint (the base URL, ending in /v1)</Trans>
-              </span>
-              <input
-                type="url"
-                placeholder="https://openrouter.ai/api/v1"
-                value={form.baseUrl}
-                onChange={(event) => setForm({ ...form, baseUrl: event.target.value })}
-              />
-            </label>
-          ) : preset?.local !== undefined ? (
-            <>
-              <label>
-                <span>
-                  <Trans>Server address (on this computer, ending in /v1)</Trans>
-                </span>
-                <input
-                  type="url"
-                  placeholder={preset.baseUrl}
-                  value={form.baseUrl}
-                  onChange={(event) => setForm({ ...form, baseUrl: event.target.value })}
-                />
-              </label>
-              <p className="field-help">
-                {preset.local.setup}{' '}
-                {preset.docsUrl === undefined ? null : (
-                  <a href={preset.docsUrl} target="_blank" rel="noopener noreferrer">
-                    {t`${{ product: preset.local.product }} documentation`}
-                  </a>
-                )}
-              </p>
-              <p className="field-help">
-                {/* Said before the first request: Chrome and Edge ask for this permission themselves, in words that do not mention a model. */}
-                <Trans>
-                  The first time, Chrome and Edge ask whether this site may connect to apps on your device. Choose Allow; if you decline,
-                  requests are blocked until you allow them in the site settings. Safari is unverified.
-                </Trans>
-              </p>
-              {isLocalBase(form.baseUrl) ? (
-                <p className="field-help">
-                  <Trans>Your text stays on this computer.</Trans>
-                </p>
-              ) : null}
-            </>
-          ) : preset !== undefined && preset.id !== 'mock' && preset.baseUrl !== '' ? (
-            <p className="field-help">
-              <Trans>Endpoint:</Trans> <code>{preset.baseUrlFor?.(form.fields) ?? preset.baseUrl}</code>
-            </p>
-          ) : null}
-          <label>
-            <span>
-              <Trans>Model</Trans>
-            </span>
-            <input
-              type="text"
-              list="provider-models"
-              placeholder={preset?.defaultModel}
-              value={form.model}
-              onChange={(event) => setForm({ ...form, model: event.target.value })}
-            />
-          </label>
-          {preset !== undefined && preset.id !== 'mock' ? (
-            <>
-              {/* The models to offer: the last probe's live answer first, then the effective preset's documented ids —
-                  a glob row is a pattern, not a name, so it is never offered as one. `shownPreset` is the pinned
-                  preset `resolveRoute` routes by, so the capability line and this note name the same table the wire reads. */}
-              <datalist id="provider-models">
-                {[...new Set([...(models?.list.map((model) => model.id) ?? []), ...(shownPreset?.models ?? []).filter((row) => !row.pattern.includes('*')).map((row) => row.pattern)])]
-                  .slice(0, 40)
-                  .map((id) => (
-                    <option key={id} value={id} />
-                  ))}
-              </datalist>
-              {capsLine(shownPreset ?? preset, form.model) !== '' ? <p className="field-help">{capsLine(shownPreset ?? preset, form.model)}</p> : null}
-              {shownPreset?.noModelsRoute === true ? (
-                <p className="field-help">
-                  <Trans>This provider documents no model list — its table below is the catalogue.</Trans>
-                </p>
-              ) : null}
-            </>
-          ) : null}
-          {isMock !== true ? (
-            <label>
-              <span>
-                <Trans>API key</Trans> {keyHint(preset, form, original, keyNeeded)}
-              </span>
-              <input
-                type="password"
-                autoComplete="off"
-                value={form.apiKey}
-                onChange={(event) => setForm({ ...form, apiKey: event.target.value })}
-              />
-            </label>
-          ) : null}
-          {isGeneric === true ? (
-            <fieldset className="price-fields">
-              <legend>
-                <Trans>Extra request headers (optional)</Trans>
-              </legend>
-              <p className="field-help">
-                {form.id === null
-                  ? t`Sent with every request, and sealed with the key — they are never shown again.`
-                  : t`Sent with every request, and sealed with the key — they are never shown again. Leave this list untouched to keep the stored set; empty it again to clear it.`}
-              </p>
-              {form.headers.map((header, index) => (
-                <div className="header-row" key={index}>
-                  <input
-                    aria-label={t`Header ${{ number: index + 1 }} name`}
-                    placeholder={t`x-my-header`}
-                    value={header.name}
-                    onChange={(event) => setHeader(index, { name: event.target.value })}
-                  />
-                  <input
-                    aria-label={t`Header ${{ number: index + 1 }} value`}
-                    type="password"
-                    autoComplete="off"
-                    placeholder={t`the header’s value`}
-                    value={header.value}
-                    onChange={(event) => setHeader(index, { value: event.target.value })}
-                  />
-                  <button
-                    type="button"
-                    className="button is-quiet"
-                    aria-label={t`Remove header ${{ number: index + 1 }}`}
-                    onClick={() =>
-                      setForm({ ...form, headersTouched: true, headers: form.headers.filter((_, i) => i !== index) })
-                    }
-                  >
-                    <Trans>Remove</Trans>
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                className="button is-quiet"
-                onClick={() => setForm({ ...form, headersTouched: true, headers: [...form.headers, { name: '', value: '' }] })}
-              >
-                <Trans>Add a header</Trans>
-              </button>
-            </fieldset>
-          ) : null}
-          {isMock !== true ? (
-            <fieldset className="price-fields">
-              <legend>
-                <Trans>
-                  Price per 1,000 tokens, in dollars (optional: fill both to see the cost of a step). A saved price stays until you type a
-                  new one, so clearing these fields does not remove it.
-                </Trans>
-              </legend>
-              <label>
-                <span>
-                  <Trans>Prompt</Trans>
-                </span>
-                <input type="number" min={0} step="any" value={form.promptPrice} onChange={(event) => setForm({ ...form, promptPrice: event.target.value })} />
-              </label>
-              <label>
-                <span>
-                  <Trans>Reply</Trans>
-                </span>
-                <input type="number" min={0} step="any" value={form.completionPrice} onChange={(event) => setForm({ ...form, completionPrice: event.target.value })} />
-              </label>
-            </fieldset>
-          ) : null}
-          {isMock !== true ? (
-            <fieldset className="cache-fields" data-testid="profile-cache">
-              <legend>Prompt caching</legend>
-              <label className="settings-check">
-                <input type="checkbox" checked={form.cacheOn} onChange={(event) => setForm({ ...form, cacheOn: event.target.checked })} />
-                <span>
-                  Let the provider reuse the start of a prompt it has just seen. Where the provider supports it, repeated calls cost less
-                  and answer sooner; the provider keeps the reused part for a few minutes.
-                </span>
-              </label>
-              {form.cacheOn && CACHE_TTL_PRESETS.has(form.preset) ? (
-                <label>
-                  <span>Keep a cached prompt for</span>
-                  <select value={form.cacheTtl} onChange={(event) => setForm({ ...form, cacheTtl: event.target.value === '1h' ? '1h' : '5m' })}>
-                    <option value="5m">5 minutes (default)</option>
-                    <option value="1h">1 hour (costs more to write)</option>
-                  </select>
-                </label>
-              ) : null}
-            </fieldset>
-          ) : null}
-          {isMock !== true ? (
-            <RequestParamsFields
-              draft={form.params}
-              preset={form.preset}
-              baseUrl={form.baseUrl}
-              model={form.model}
-              providerName={preset?.name ?? ''}
-              onChange={(params) => setForm({ ...form, params })}
-            />
-          ) : null}
-          <div className="profile-form-actions">
-            <button type="submit" className="button is-primary" disabled={busy}>
-              <Trans>Save profile</Trans>
-            </button>
-            <button type="button" className="button is-quiet" onClick={() => setForm(null)}>
-              <Trans>Cancel</Trans>
-            </button>
-          </div>
-        </form>
       )}
-
-      {models !== null ? (
-        <section
-          className="models"
-          aria-label={
-            modelsPreset?.noModelsRoute === true ? t`Models documented for ${{ profile: models.profile }}` : t`Models listed by ${{ profile: models.profile }}`
-          }
-        >
-          <h4>
-            {modelsPreset?.noModelsRoute === true ? t`Models documented for ${{ profile: models.profile }}` : t`Models listed by ${{ profile: models.profile }}`}
-          </h4>
-          {modelsPreset?.noModelsRoute === true ? (
-            <p className="muted">
-              <Trans>This provider documents no model list — these are the models its table knows.</Trans>
-            </p>
-          ) : null}
-          {models.list.length === 0 ? (
-            <p className="muted">
-              <Trans>The endpoint listed no models.</Trans>
-            </p>
-          ) : null}
-          <ul>
-            {models.list.slice(0, 40).map((model) => (
-              <li key={model.id}>
-                <code>{model.id}</code>
-                {modelDetails(model) === '' ? null : <span className="muted"> · {modelDetails(model)}</span>}
-                {form !== null ? (
-                  <button
-                    type="button"
-                    className="button is-quiet"
-                    aria-label={t`Use ${{ model: model.id }} as the model`}
-                    onClick={() => setForm({ ...form, model: model.id })}
-                  >
-                    <Trans>Use</Trans>
-                  </button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
 
       <FormMessage message={message} />
 
-      <RolesPanel services={services} models={models} onSaved={(text) => setMessage({ text, tone: 'info' })} />
+      <RolesPanel services={services} onSaved={(text) => setMessage({ text, tone: 'info' })} />
       <UsagePanel services={services} />
       <RequestLogPanel services={services} />
       {active === undefined ? (
@@ -953,7 +547,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
  * pin is the active profile. The record lives in the settings; the provider service holds the live copy its resolver
  * reads, so both are written here.
  */
-function RolesPanel({ services, models, onSaved }: { services: AppServices; models: { profile: string; preset?: string; list: ModelInfo[] } | null; onSaved: (text: string) => void }): ReactNode {
+function RolesPanel({ services, onSaved }: { services: AppServices; onSaved: (text: string) => void }): ReactNode {
   const providers = services.providers;
   const profiles = providers.list();
   const [drafts, setDrafts] = useState<Record<TaskRole, RoleDraft>>(() => roleDraftsFor(providers.roleSettings));
@@ -967,10 +561,14 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
     const ref = (draft: RoleDraft): RoleRef | undefined => {
       const profile = profiles.find((entry) => entry.id === draft.profileId);
       if (profile === undefined) return undefined;
+      const fallbacks = fallbacksOf(draft);
+      const steps = stepsWritten(draft);
       return {
         profileId: profile.id,
         ...(draft.model.trim() === '' ? {} : { model: draft.model.trim() }),
         ...(draft.thinking === '' ? {} : { thinking: draft.thinking as ThinkingLevel }),
+        ...(fallbacks.length === 0 ? {} : { fallbacks }),
+        ...(steps === undefined ? {} : { steps }),
       };
     };
     const chat = ref(drafts.chat);
@@ -1000,12 +598,17 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
           they are pinned; chat with no pin is the active profile.
         </Trans>
       </p>
+      <p className="muted">
+        <Trans>
+          A role can name up to two fallbacks. One answers only when the role’s own profile is rate-limited, overloaded or unreachable,
+          and only before any of the reply has arrived; the request, context included, then goes to that profile.
+        </Trans>
+      </p>
       <form className="role-rows" onKeyDown={ime.noteKey} onSubmit={save}>
         {ROLE_NAMES.map(({ id, label, hint }) => {
           const labelText = i18n._(label);
           const draft = drafts[id];
           const pinned = profiles.find((entry) => entry.id === draft.profileId);
-          const preset = presetFor(pinned?.kind === 'mock' ? 'mock' : pinned?.preset);
           const modelId = draft.model.trim() !== '' ? draft.model.trim() : (pinned?.defaultModel ?? '');
           // The levels the profile resolves to: the row's, with the profile's own request parameters over them.
           const levels = pinned !== undefined && modelId !== '' ? (providers.gateway.modelCaps(pinned.id, modelId).effortLevels ?? []) : [];
@@ -1017,7 +620,8 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
               <select
                 aria-label={t`${{ role: labelText }} profile`}
                 value={pinned?.id ?? ''}
-                onChange={(event) => setDrafts({ ...drafts, [id]: { profileId: event.target.value, model: '', thinking: '' } })}
+                // The row keeps the fallbacks it already lists: picking a profile resets the model and level, never the order.
+                onChange={(event) => setDrafts({ ...drafts, [id]: { ...draft, profileId: event.target.value, model: '', thinking: '' } })}
               >
                 <option value="">{id === 'chat' ? t`Active profile` : t`Follow chat`}</option>
                 {profiles.map((profile) => (
@@ -1027,44 +631,96 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
                 ))}
               </select>
               {pinned !== undefined ? (
-                <>
-                  <input
-                    aria-label={t`${{ role: labelText }} model`}
-                    list={`role-models-${id}`}
-                    placeholder={pinned.defaultModel}
-                    value={draft.model}
-                    onChange={(event) => setDrafts({ ...drafts, [id]: { ...draft, model: event.target.value } })}
-                  />
-                  <datalist id={`role-models-${id}`}>
-                    {[
-                      ...new Set([
-                        ...(models !== null && (models.preset === pinned.preset || models.profile === pinned.name)
-                          ? models.list.map((model) => model.id)
-                          : []),
-                        ...(preset?.models ?? []).filter((row) => !row.pattern.includes('*')).map((row) => row.pattern),
-                      ]),
-                    ].map((modelOption) => (
-                      <option key={modelOption} value={modelOption} />
-                    ))}
-                  </datalist>
-                  {/* The model's capability row decides whether a thinking control exists at all: no documented levels,
-                      no control (provider-gateway §3 — a level the row does not list is never sent). */}
-                  {levels.length > 0 ? (
+                <TargetFields
+                  label={labelText}
+                  profile={pinned}
+                  model={draft.model}
+                  thinking={draft.thinking}
+                  levels={levels}
+                  listId={`role-models-${id}`}
+                  onChange={(next) => setDrafts({ ...drafts, [id]: { ...draft, ...next } })}
+                />
+              ) : null}
+              {/* Only a pinned role has a destination a step can differ from: an unpinned row's steps would be dropped on save. */}
+              {pinned === undefined || ROLE_STEP_ROWS[id] === undefined ? null : (
+                <details className="role-steps">
+                  <summary>{t`Per step`}</summary>
+                  <p className="muted">
+                    <Trans>
+                      Each kind of step can run on a profile of its own; one left on follow runs wherever the role runs. A step’s request,
+                      context included, goes to the profile you pick here.
+                    </Trans>
+                  </p>
+                  {ROLE_STEP_ROWS[id]?.map((step) => {
+                    const entry = draft.steps[step] ?? EMPTY_STEP;
+                    const stepProfile = profiles.find((profile) => profile.id === entry.profileId);
+                    const stepModel = entry.model.trim() !== '' ? entry.model.trim() : (stepProfile?.defaultModel ?? '');
+                    const stepLevels = stepProfile !== undefined && stepModel !== ''
+                      ? (providers.gateway.modelCaps(stepProfile.id, stepModel).effortLevels ?? [])
+                      : [];
+                    const stepLabel = i18n._(STEP_NAMES[step]);
+                    const update = (next: StepDraft): void => {
+                      setDrafts({ ...drafts, [id]: { ...draft, steps: { ...draft.steps, [step]: next } } });
+                    };
+                    return (
+                      <div className="role-step-row" key={step}>
+                        <span>{stepLabel}</span>
+                        <select
+                          aria-label={t`${{ step: stepLabel }} profile`}
+                          value={entry.profileId}
+                          // Picking a profile resets that step's model and level; leaving follow drops the step's own choice.
+                          onChange={(event) => update(event.target.value === '' ? EMPTY_STEP : { profileId: event.target.value, model: '', thinking: '' })}
+                        >
+                          <option value="">{t`Follow ${{ role: labelText }}`}</option>
+                          {profiles.map((profile) => (
+                            <option key={profile.id} value={profile.id}>
+                              {profile.name}
+                            </option>
+                          ))}
+                        </select>
+                        {stepProfile !== undefined ? (
+                          <TargetFields
+                            label={stepLabel}
+                            profile={stepProfile}
+                            model={entry.model}
+                            thinking={entry.thinking}
+                            levels={stepLevels}
+                            listId={`step-models-${id}-${step}`}
+                            onChange={(next) => update({ ...entry, ...next })}
+                          />
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </details>
+              )}
+              <div className="role-fallbacks">
+                <span className="muted">{t`Fallbacks, in order`}</span>
+                {[0, 1].map((slot) => {
+                  const value = draft.fallbacks[slot]?.profileId ?? '';
+                  // The other slot's profile and the role's own are never offered: a list names each destination once.
+                  const taken = new Set([pinned?.id ?? '', draft.fallbacks[slot === 0 ? 1 : 0]?.profileId ?? '']);
+                  return (
                     <select
-                      aria-label={t`${{ role: labelText }} thinking level`}
-                      value={levels.includes(draft.thinking as ThinkingLevel) ? draft.thinking : ''}
-                      onChange={(event) => setDrafts({ ...drafts, [id]: { ...draft, thinking: event.target.value } })}
+                      key={slot}
+                      aria-label={t`${{ role: labelText }} fallback ${{ slot: slot + 1 }}`}
+                      value={value}
+                      onChange={(event) => {
+                        const next = [draft.fallbacks[0] ?? EMPTY_FALLBACK, draft.fallbacks[1] ?? EMPTY_FALLBACK];
+                        next[slot] = { profileId: event.target.value };
+                        setDrafts({ ...drafts, [id]: { ...draft, fallbacks: next } });
+                      }}
                     >
-                      <option value="">{t`Provider default`}</option>
-                      {levels.map((level) => (
-                        <option key={level} value={level}>
-                          {i18n._(ROLE_LEVEL_NAMES[level])}
+                      <option value="">{t`No fallback`}</option>
+                      {profiles.filter((profile) => !taken.has(profile.id)).map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          {profile.name}
                         </option>
                       ))}
                     </select>
-                  ) : null}
-                </>
-              ) : null}
+                  );
+                })}
+              </div>
             </div>
           );
         })}
@@ -1085,9 +741,11 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
 
 
 function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
+  const narrow = useNarrow();
   const entries: RequestLogEntry[] = services.providers.requests.entries().slice().reverse();
   const names = new Map(services.providers.list().map((profile) => [profile.id, profile.name]));
   const entryCount = entries.length;
+  const profileName = (entry: RequestLogEntry): string => names.get(entry.profileId) ?? entry.profileId;
   return (
     <section className="request-log" aria-labelledby="settings-requests">
       <h4 id="settings-requests">
@@ -1102,6 +760,54 @@ function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
         <p className="muted">
           <Trans>No request has been sent yet.</Trans>
         </p>
+      ) : narrow ? (
+        // A phone's Settings pane is narrower than these eight columns, so each request is a labelled record instead of a row of a
+        // table that would scroll the whole pane sideways (ui-modules §0.6, the shape the usage records share).
+        <ul className="records" data-testid="request-log" aria-label={t`Requests, newest first`}>
+          {entries.map((entry, index) => (
+            <li key={`${entry.at}:${index}`} data-outcome={entry.outcome}>
+              <h5>
+                <bdi>{timeLabel(entry.at)}</bdi> · {entry.outcome}
+              </h5>
+              <dl className="record-values">
+                <div>
+                  <dt><Trans>Profile</Trans></dt>
+                  <dd><bdi>{profileName(entry)}</bdi></dd>
+                </div>
+                <div>
+                  <dt><Trans>Attempt</Trans></dt>
+                  <dd>{entry.attempt}</dd>
+                </div>
+                <div>
+                  <dt><Trans>Outcome</Trans></dt>
+                  <dd>{entry.outcome}</dd>
+                </div>
+                {entry.status === undefined ? null : (
+                  <div>
+                    <dt><Trans>Status</Trans></dt>
+                    <dd>{entry.status}</dd>
+                  </div>
+                )}
+                {entry.maxTokens === undefined ? null : (
+                  <div>
+                    <dt><Trans>Max tokens</Trans></dt>
+                    <dd>{entry.maxTokens}</dd>
+                  </div>
+                )}
+                <div>
+                  <dt><Trans>Address</Trans></dt>
+                  <dd className="request-url">{entry.url.replace(/^https?:\/\//, '')}</dd>
+                </div>
+                {entry.note === undefined && entry.errorKind === undefined ? null : (
+                  <div>
+                    <dt><Trans>Note</Trans></dt>
+                    <dd>{entry.note ?? entry.errorKind}</dd>
+                  </div>
+                )}
+              </dl>
+            </li>
+          ))}
+        </ul>
       ) : (
         <table className="request-table" data-testid="request-log">
           <caption className="visually-hidden">
@@ -1139,7 +845,7 @@ function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
             {entries.map((entry, index) => (
               <tr key={`${entry.at}:${index}`} data-outcome={entry.outcome}>
                 <td>{timeLabel(entry.at)}</td>
-                <td>{names.get(entry.profileId) ?? entry.profileId}</td>
+                <td>{profileName(entry)}</td>
                 <td>{entry.attempt}</td>
                 <td>{entry.outcome}</td>
                 <td>{entry.status ?? ''}</td>
@@ -1192,8 +898,8 @@ function AgentSection({ services, session }: { services: AppServices; session: P
       </label>
       <FormMessage message={message === null ? null : { text: message, tone: 'info' }} />
       <p className="settings-note">
-        The Trace tab shows what each turn sent to the model and got back. It holds your prompts and manuscript text, only in this tab’s memory, and a
-        reload clears it. Turn it off to gather nothing.
+        <Trans>The Trace tab shows what each turn sent to the model and got back. It holds your prompts and manuscript text, only in this tab’s memory, and a
+        reload clears it. Turn it off to gather nothing.</Trans>
       </p>
       <label className="settings-check">
         <input
@@ -1202,11 +908,11 @@ function AgentSection({ services, session }: { services: AppServices; session: P
           data-testid="agent-keep-traces"
           onChange={(event) => {
             void services.settings.update({ agent: { keepTraces: event.target.checked } }).then((error) => {
-              setTraceMessage(error === null ? { text: 'Saved. It applies to what the agent records next.', tone: 'info' } : { text: error, tone: 'error' });
+              setTraceMessage(error === null ? { text: t`Saved. It applies to what the agent records next.`, tone: 'info' } : { text: error, tone: 'error' });
             });
           }}
         />
-        <span>Keep agent traces for this tab</span>
+        <span><Trans>Keep agent traces for this tab</Trans></span>
       </label>
       <FormMessage message={traceMessage} />
       <AgentModeSettings services={services} />
@@ -1281,21 +987,21 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
           </span>
         </label>
         <label>
-          <span>When you apply an agent edit</span>
+          <span><Trans>When you apply an agent edit</Trans></span>
           <select
             value={agentEditMode}
             aria-describedby="agent-edit-help"
             onChange={(event) => setAgentEditMode(event.target.value === 'suggestions' ? 'suggestions' : 'ghost')}
           >
-            <option value="ghost">Replace the text</option>
-            <option value="suggestions">Mark the changes for review</option>
+            <option value="ghost"><Trans>Replace the text</Trans></option>
+            <option value="suggestions"><Trans>Mark the changes for review</Trans></option>
           </select>
         </label>
         <p className="muted" id="agent-edit-help">
-          Marking keeps the agent’s new text in the scene and underlines or strikes only the words that changed, so you can keep or put back
+          <Trans>Marking keeps the agent’s new text in the scene and underlines or strikes only the words that changed, so you can keep or put back
           each change. The agent’s text is already saved when the marks appear, so other tools and git see the accepted version, and rejecting
           a change is what edits the file. It covers prose scenes only, not Ink or Fountain. Closing the tab with changes still marked keeps
-          the agent’s text. A new agent edit accepts any earlier marks first. The choice applies the next time you open a document.
+          the agent’s text. A new agent edit accepts any earlier marks first. The choice applies the next time you open a document.</Trans>
         </p>
         <button type="submit" className="button is-primary">
           <Trans>Save writing settings</Trans>

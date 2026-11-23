@@ -1,3 +1,5 @@
+// i18n: package-refs
+
 /**
  * Base URL validation and normalisation — [provider-gateway.md §2](docs/architecture/provider-gateway.md).
  *
@@ -13,6 +15,8 @@
  * accepted when it is pathless or carries a version segment, and only the endpoint
  * suffixes are refused.
  */
+
+import type { MessageRef } from '@caotang/i18n';
 
 import { ProfileError } from './errors.js';
 import { isLoopbackHost, isLoopbackLiteral } from './loopback.js';
@@ -46,8 +50,8 @@ export function isLocalBase(baseUrl: string): boolean {
   }
 }
 
-function invalid(reason: string, example = 'https://api.openai.com/v1'): ProfileError {
-  return new ProfileError('invalid', `The base URL ${reason}. For example ${example}.`, 'baseUrl');
+function invalid(reason: string, example: string, messageRef: MessageRef): ProfileError {
+  return new ProfileError('invalid', `The base URL ${reason}. For example ${example}.`, { field: 'baseUrl', messageRef });
 }
 
 /** The path without its trailing slashes, by a scan: a regex over untrusted text is avoided. */
@@ -60,25 +64,25 @@ function trimSlashes(path: string): string {
 /** What both normalisers share: parse, refuse credentials, query and fragment, and check the path. The scheme and host are the caller's. */
 function parsePath(input: string, example: string): { url: URL; path: string } {
   const raw = input.trim();
-  if (raw.length === 0) throw invalid('is empty', example);
+  if (raw.length === 0) throw invalid('is empty', example, { id: 'gateway.invalid.baseUrlEmpty', message: 'The base URL is empty. For example {example}.', values: { example } });
 
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    throw invalid('is not a URL', example);
+    throw invalid('is not a URL', example, { id: 'gateway.invalid.baseUrlNotUrl', message: 'The base URL is not a URL. For example {example}.', values: { example } });
   }
   return { url, path: trimSlashes(url.pathname) };
 }
 
 function checkPath(url: URL, path: string, example: string): void {
-  if (url.username !== '' || url.password !== '') throw invalid('must not contain a username or password', example);
-  if (url.search !== '' || url.hash !== '') throw invalid('must not contain a query string or fragment', example);
+  if (url.username !== '' || url.password !== '') throw invalid('must not contain a username or password', example, { id: 'gateway.invalid.baseUrlCredentials', message: 'The base URL must not contain a username or password. For example {example}.', values: { example } });
+  if (url.search !== '' || url.hash !== '') throw invalid('must not contain a query string or fragment', example, { id: 'gateway.invalid.baseUrlQuery', message: 'The base URL must not contain a query string or fragment. For example {example}.', values: { example } });
   if (ENDPOINT_SUFFIX.test(path)) {
-    throw invalid('is a full endpoint path. Enter the base only, usually ending in /v1', example);
+    throw invalid('is a full endpoint path. Enter the base only, usually ending in /v1', example, { id: 'gateway.invalid.baseUrlFullPath', message: 'The base URL is a full endpoint path. Enter the base only, usually ending in /v1. For example {example}.', values: { example } });
   }
   if (path !== '' && !path.split('/').some((segment) => VERSION_SEGMENT.test(segment))) {
-    throw invalid('must be pathless or carry a version, such as /v1', example);
+    throw invalid('must be pathless or carry a version, such as /v1', example, { id: 'gateway.invalid.baseUrlPathless', message: 'The base URL must be pathless or carry a version, such as /v1. For example {example}.', values: { example } });
   }
 }
 
@@ -95,7 +99,7 @@ function checkPath(url: URL, path: string, example: string): void {
 export function normalizeBaseUrl(input: string): string {
   const example = 'https://api.openai.com/v1';
   const { url, path } = parsePath(input, example);
-  if (url.protocol !== 'https:') throw invalid('must start with https://, so the key is never sent in plain text', example);
+  if (url.protocol !== 'https:') throw invalid('must start with https://, so the key is never sent in plain text', example, { id: 'gateway.invalid.baseUrlHttps', message: 'The base URL must start with https://, so the key is never sent in plain text. For example {example}.', values: { example } });
   checkPath(url, path, example);
   return `${url.origin}${path}`;
 }
@@ -109,12 +113,18 @@ export function normalizeBaseUrl(input: string): string {
 export function normalizeLocalBaseUrl(input: string): string {
   const example = 'http://127.0.0.1:11434/v1';
   const { url, path } = parsePath(input, example);
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw invalid('must start with http:// or https://', example);
-  if (url.username !== '' || url.password !== '') throw invalid('must not contain a username or password', example);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw invalid('must start with http:// or https://', example, { id: 'gateway.invalid.baseUrlHttp', message: 'The base URL must start with http:// or https://. For example {example}.', values: { example } });
+  if (url.username !== '' || url.password !== '') throw invalid('must not contain a username or password', example, { id: 'gateway.invalid.baseUrlCredentials', message: 'The base URL must not contain a username or password. For example {example}.', values: { example } });
   if (!isLoopbackLiteral(url.hostname)) {
     throw invalid(
       'must point at this computer (127.0.0.1, localhost or [::1]): plain http is allowed only to this computer, so a key or manuscript is never sent unencrypted over a network. For another server, use the OpenAI-compatible endpoint with an https:// address',
       example,
+      {
+        id: 'gateway.invalid.baseUrlLocal',
+        message:
+          'The base URL must point at this computer (127.0.0.1, localhost or [::1]): plain http is allowed only to this computer, so a key or manuscript is never sent unencrypted over a network. For another server, use the OpenAI-compatible endpoint with an https:// address. For example {example}.',
+        values: { example },
+      },
     );
   }
   checkPath(url, path, example);

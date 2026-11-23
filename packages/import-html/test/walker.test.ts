@@ -70,6 +70,20 @@ describe('the XHTML walker (#299)', () => {
     expect(text).not.toContain('color:red');
   });
 
+  it('counts a linked stylesheet and one in the head, which the body walk never reaches', () => {
+    const html = [
+      '<html><head><style>p{color:red}</style><link rel="stylesheet" href="book.css"/><link rel="icon" href="f.png"/></head>',
+      '<body><p>Safe text.</p><style>span{color:blue}</style></body></html>',
+    ].join('');
+    const { blocks, dropped } = walk(html);
+    // Two <style> elements and one linked stylesheet; the icon link is not a stylesheet.
+    expect(dropped.styles).toBe(3);
+    const text = JSON.stringify(blocks);
+    expect(text).toContain('Safe text.');
+    expect(text).not.toContain('color:red');
+    expect(text).not.toContain('book.css');
+  });
+
   it('counts event attributes on kept elements', () => {
     const { dropped } = walk('<p onclick="evil()">Text.</p>');
     expect(dropped.eventAttrs).toBe(1);
@@ -120,6 +134,104 @@ describe('the XHTML walker (#299)', () => {
     expect(isSafeLinkTarget('data:text/html,x')).toBe(false);
   });
 
+  it('keeps literal prose literal: its stars and brackets are words, not markup', () => {
+    const { blocks } = walk('<p>Use *literal* syntax and [link](https://example.test).</p>');
+    const para = blocks[0];
+    expect(para?.kind === 'para' && para.md).toBe('Use \\*literal\\* syntax and \\[link\\](https://example.test).');
+    expect(para?.kind === 'para' && para.text).toBe('Use *literal* syntax and [link](https://example.test).');
+  });
+
+  it('encodes a link destination so an href cannot close the link and start another', () => {
+    const { blocks } = walk('<p><a href="x) [link](javascript:alert(1">click</a></p>');
+    const md = blocks[0]?.kind === 'para' ? blocks[0].md : '';
+    expect(md).toBe('[click](x%29%20%5Blink%5D%28javascript:alert%281)');
+    expect(md.split('](')).toHaveLength(2);
+    expect(md).not.toContain('](javascript');
+  });
+
+  it('counts a script in the head, which the body walk never reaches', () => {
+    const out = htmlToBlocks('<html><head><script>alert(1)</script></head><body><p>Safe text.</p></body></html>');
+    if (!out.ok) throw new Error(out.error.message);
+    expect(out.value.dropped.scripts).toBe(1);
+    expect(JSON.stringify(out.value.blocks)).not.toContain('alert');
+  });
+
+  it('counts an event attribute in the head and inside a dropped element once', () => {
+    const out = htmlToBlocks('<html><head><meta onload="evil()"/></head><body><div onclick="evil()"><p>Text.</p></div></body></html>');
+    if (!out.ok) throw new Error(out.error.message);
+    expect(out.value.dropped.eventAttrs).toBe(2);
+  });
+
+  it('keeps a heading’s title plain while its Markdown keeps the emphasis', () => {
+    const { blocks } = walk('<h1>Chapter <em>One</em></h1>');
+    expect(blocks[0]).toMatchObject({ kind: 'heading', text: 'Chapter One', md: '# Chapter *One*' });
+  });
+
+  it('carries a wrapper’s alignment down to the paragraphs inside it', () => {
+    const { blocks } = walk('<div style="text-align:center"><p>Centered line.</p><p>Also centred.</p></div>');
+    expect(blocks[0]?.kind === 'para' && blocks[0].src?.align).toBe('center');
+    expect(blocks[1]?.kind === 'para' && blocks[1].src?.align).toBe('center');
+  });
+
+  it('gives a wrapper’s page break to its first paragraph only', () => {
+    const { blocks } = walk('<div style="page-break-before:always"><p>One.</p><p>Two.</p></div>');
+    expect(blocks[0]?.kind === 'para' && blocks[0].src?.pageBreakBefore).toBe(true);
+    expect(blocks[1]?.kind === 'para' && blocks[1].src?.pageBreakBefore).toBeUndefined();
+  });
+
+  it('gives a list’s page break to its first item only, and an item’s own break still applies', () => {
+    const { blocks } = walk('<ul style="page-break-before:always"><li>one</li><li>two</li><li style="page-break-before:always">three</li></ul>');
+    expect(blocks[0]?.kind === 'para' && blocks[0].src?.pageBreakBefore).toBe(true);
+    expect(blocks[1]?.kind === 'para' && blocks[1].src?.pageBreakBefore).toBeUndefined();
+    expect(blocks[2]?.kind === 'para' && blocks[2].src?.pageBreakBefore).toBe(true);
+    // An empty first item does not take the break: the first item with words does.
+    const empty = walk('<ol style="page-break-before:always"><li></li><li>first words</li></ol>');
+    expect(empty.blocks[0]?.kind === 'para' && empty.blocks[0].src?.pageBreakBefore).toBe(true);
+    expect(empty.blocks[0]?.kind === 'para' && empty.blocks[0].text).toBe('first words');
+  });
+
+  it('fences a code block longer than any backtick run inside it, so the code cannot close its own fence', () => {
+    const plain = walk('<pre>let x = 1;</pre>');
+    expect(plain.blocks[0]?.kind === 'para' && plain.blocks[0].md).toBe('```\nlet x = 1;\n```');
+    const fenced = walk('<pre>let s = "```";\n````\n</pre>');
+    const md = fenced.blocks[0]?.kind === 'para' ? fenced.blocks[0].md : '';
+    expect(md).toBe('`````\nlet s = "```";\n````\n`````');
+  });
+
+  it('counts form controls over the whole document, so a page’s fields never leave silently', () => {
+    const { blocks, dropped } = walk('<form><label>Name</label><input name="n"/><button>Send</button></form><p>Safe text.</p><select><option>a</option></select>');
+    // The form, its input and button, and the stray select: four controls, counted once each over the whole tree.
+    expect(dropped.forms).toBe(4);
+    const text = JSON.stringify(blocks);
+    expect(text).toContain('Safe text.');
+    expect(text).not.toContain('Send');
+    const head = htmlToBlocks('<html><head><title>t</title></head><body><p>Text.</p><textarea>hidden words</textarea></body></html>');
+    if (!head.ok) throw new Error(head.error.message);
+    expect(head.value.dropped.forms).toBe(1);
+    expect(JSON.stringify(head.value.blocks)).not.toContain('hidden words');
+  });
+
+  it('separates table cells and rows when it flattens them to prose', () => {
+    const { blocks } = walk('<table><tr><td>Mary</td><td>Smith</td></tr><tr><td>Ann</td><td>Lee</td></tr></table>');
+    expect(blocks[0]?.kind === 'para' && blocks[0].md).toBe('Mary Smith\nAnn Lee');
+    expect(blocks[0]?.kind === 'para' && blocks[0].text).toBe('Mary Smith Ann Lee');
+  });
+
+  it('keeps a dropped element’s source out of a table and out of a code block', () => {
+    const table = walk('<table><tr><td>a<script>alert(1)</script></td></tr></table>');
+    expect(JSON.stringify(table.blocks)).not.toContain('alert');
+    expect(table.dropped.scripts).toBe(1);
+    const code = walk('<pre>let x = 1;<script>alert(2)</script></pre>');
+    expect(JSON.stringify(code.blocks)).not.toContain('alert');
+    expect(code.dropped.scripts).toBe(1);
+  });
+
+  it('lists a protocol-relative picture as remote, not as one the file carries', () => {
+    const { images, remoteImages } = walk('<img src="//cdn.example/x.png" alt="c"/><p><img src="//cdn.example/y.png" alt="d"/></p>');
+    expect(images.size).toBe(0);
+    expect(remoteImages).toEqual(['//cdn.example/x.png', '//cdn.example/y.png']);
+  });
+
   it('names the block each element id produced, a wrapper’s id included', () => {
     const { blocks, anchors } = walk('<div id="ch1"><h1 id="head">Chapter One</h1><p>The ferry.</p></div><h1 id="ch2">Chapter Two</h1><p>The letter.</p>');
     expect(anchors.get('ch1')).toBe(0);
@@ -157,6 +269,20 @@ describe('the XHTML walker (#299)', () => {
     if (!out.ok) return;
     expect([...out.value.images.keys()]).toEqual(['import:epub-image-2-0']);
     expect(out.value.blocks[0]?.kind === 'para' && out.value.blocks[0].src?.sourceUnit).toBe('OEBPS/ch1.xhtml');
+  });
+
+  it('reads the class rules of a page built to make a scanning regex quadratic, in one pass', () => {
+    // 40,000 dots with no brace inside a stylesheet: a regex that scans from every position would take minutes.
+    const started = Date.now();
+    const out = htmlToBlocks(page(`<style>${'.-'.repeat(40_000)} .c1 { text-align: center; }</style><p class="c1">A centred line.</p>`));
+    expect(Date.now() - started).toBeLessThan(1_000);
+    if (!out.ok) throw new Error(out.error.message);
+    const para = out.value.blocks.find((block) => block.kind === 'para');
+    expect(para?.kind === 'para' && para.src?.align).toBe('center');
+    // Unclosed <style> tags are not well-formed markup, but the class scan runs before the parse and must still return at once.
+    const unclosed = Date.now();
+    htmlToBlocks(page('<style>'.repeat(40_000)));
+    expect(Date.now() - unclosed).toBeLessThan(1_000);
   });
 
   it('keeps the regions the reader names out of the text and returns them where they sat', () => {

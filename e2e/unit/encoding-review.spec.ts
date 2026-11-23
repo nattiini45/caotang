@@ -588,6 +588,28 @@ test('the ask sends a capped excerpt and the candidate names, no path, and the r
   expect(service.ledger.turnRows().at(-1)).toMatchObject({ turnId: expect.stringMatching(/^encoding-review-/), role: 'background', profileId: saved.view.id });
 });
 
+test('a routed utility step moves the encoding ask to that profile, and the consent names it', async () => {
+  const captured = { bodies: [] as Record<string, unknown>[] };
+  const { service } = await ProviderService.open({ db: memoryDb(), vault: null, fetch: scriptedFetch(captured, 'Big5') });
+  const local = await service.addProfile({ name: 'Local', kind: 'endpoint', baseUrl: ENDPOINT, defaultModel: 'test-model' });
+  const encoding = await service.addProfile({ name: 'Encoding', kind: 'endpoint', baseUrl: ENDPOINT, defaultModel: 'encoding-model' });
+  await service.activate(local.view.id);
+  service.applyRoleSettings({
+    chat: { profileId: local.view.id },
+    background: { profileId: local.view.id, steps: { utility: { profileId: encoding.view.id } } },
+  });
+
+  const asker = encodingAskerFor(service);
+  // The line that asks for consent names the profile the ask actually went through.
+  expect(asker?.profileName).toBe('Encoding');
+  const pick = await asker?.ask({ excerpt: 'caf\u00e9', candidates: ['windows-1252', 'big5'] });
+
+  expect(pick).toBe('big5');
+  const chatBody = captured.bodies.find((body) => body.stream === true);
+  expect(chatBody?.model).toBe('encoding-model');
+  expect(service.ledger.turnRows().at(-1)).toMatchObject({ role: 'background', profileId: encoding.view.id });
+});
+
 test('the reply parser names a candidate by name or alias, case-insensitively', () => {
   const candidates = ['windows-1252', 'iso-8859-15', 'gb18030', 'big5', 'shift_jis', 'euc-kr'] as const;
   expect(encodingFromReply('windows-1252', candidates)).toBe('windows-1252');

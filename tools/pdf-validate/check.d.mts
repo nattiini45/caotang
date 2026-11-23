@@ -11,7 +11,7 @@ export interface FontFact {
 /** One file's entry in expected.json. */
 export interface ExpectedFile {
   readonly file: string;
-  readonly format: 'pdf' | 'contact-sheet-pdf';
+  readonly format: 'pdf' | 'contact-sheet-pdf' | 'prose-pdf';
   /** Per page, the strings it must give back as text. */
   readonly pages: readonly (readonly string[])[];
   readonly size: readonly [number, number];
@@ -24,6 +24,9 @@ export interface Row {
 }
 
 export const EXTERNAL_TOOLS: readonly string[];
+
+/** The PDF/A-1b rule ids a file that claims no conformance is not held to, each with the reason it is excused. */
+export const VERAPDF_UNCLAIMED_RULES: Readonly<Record<string, string>>;
 
 /** The text with every whitespace character removed. */
 export function squash(text: string): string;
@@ -50,6 +53,9 @@ export function checkWithPdfjs(bytes: Uint8Array, expected: ExpectedFile): Promi
 export function mutoolComplaints(output: string): string[];
 /** Poppler's pdffonts table as fonts. */
 export function parsePdffonts(output: string): FontFact[];
+
+/** The problems a veraPDF JSON report names, file by file: a file it cannot read, or a rule it broke that it is held to. */
+export function veraPdfProblems(reportText: string, files: readonly string[]): Map<string, string[]>;
 
 /** Checks every file expected.json lists in `dir`. */
 export function checkCorpus(dir: string, options?: { readonly tools?: readonly string[]; readonly logDir?: string }): Promise<Row[]>;

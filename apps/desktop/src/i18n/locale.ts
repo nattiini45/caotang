@@ -9,6 +9,8 @@
  * `toLocaleString(undefined)` calls this replaced did.
  */
 
+import { t } from '@lingui/core/macro';
+
 import {
   SHIPPED_UI_LOCALES,
   collatorFor,
@@ -121,7 +123,7 @@ export function formatUsdPrice(value: number): string {
  */
 export function formatDateTime(value: Date | number, options?: Intl.DateTimeFormatOptions): string {
   const time = typeof value === 'number' ? value : value.getTime();
-  if (Number.isNaN(time)) return 'Invalid Date';
+  if (Number.isNaN(time)) return t`Invalid Date`;
   return dateTimeFormat(appFormatLocale(), options).format(value);
 }
 

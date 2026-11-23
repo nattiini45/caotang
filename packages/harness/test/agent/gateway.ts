@@ -8,12 +8,18 @@ import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort
 import type { GatewayHooks } from '../../src/agent/eval.js';
 import { createMockProvider, type MockScript } from '@caotang/gateway/mock';
 
-export async function mockGateway(scripts: readonly MockScript[], hooks?: GatewayHooks): Promise<Gateway> {
+export async function mockGateway(scripts: readonly MockScript[], hooks?: GatewayHooks, caps: { readonly tools?: boolean } = {}): Promise<Gateway> {
   const clock = hooks?.clock ?? createManualClock(0);
   const keys = createKeyStore(createMemoryVaultPort());
   // Both traced and untraced reports name the profile, so their fixture identities must match.
   let profileId = 0;
   const profiles = createProfileStore({ keys, randomBytes: (n: number) => new Uint8Array(n).fill(profileId++) });
   await profiles.create({ name: 'Mock', kind: 'mock', isActive: true });
-  return createGateway({ profiles, keys, clock, mock: createMockProvider({ scripts: [...scripts] }), ...(hooks === undefined ? {} : { observe: hooks.observe }) });
+  return createGateway({
+    profiles,
+    keys,
+    clock,
+    mock: createMockProvider({ scripts: [...scripts], ...(caps.tools === undefined ? {} : { capsTools: caps.tools }) }),
+    ...(hooks === undefined ? {} : { observe: hooks.observe }),
+  });
 }

@@ -1,0 +1,92 @@
+# Caotang for desktop packages (#401). docs/architecture/desktop.md ("Packaging") is the spec this serves, and
+# .github/workflows/desktop-release.yml the job that runs it: Windows x64 NSIS, macOS arm64 and x64 DMG, Linux x64 AppImage
+# (best-effort, non-blocking). The builds are unsigned; each package ships beside a SHA256SUMS file, and docs/INSTALL.md gives
+# the install steps that name the SmartScreen and Gatekeeper warnings.
+appId: app.caotang.desktop
+productName: Caotang for desktop
+# The Windows executable is Caotang.exe, which is the name .signpath/artifact-configuration.xml signs and the workflow uploads;
+# without this electron-builder would name it after productName.
+executableName: Caotang
+copyright: Copyright (c) 2026 PawCommit Studio
+
+directories:
+  # scripts/icon.mjs decodes resources/icon.png.base64 here before packaging (the png travels as text: no binary sits under a
+  # guarded root), and electron-builder derives the Windows .ico and the macOS .icns from it.
+  buildResources: build-resources
+  output: release
+
+# Production dependencies are packed from node_modules, so nothing is compiled here: the folder watcher is a native module whose
+# prebuilt binary arrives per platform from its own package (@parcel/watcher's install script stays unrun through
+# pnpm-workspace.yaml), and rebuilding it would need a toolchain the packaging job does not have.
+npmRebuild: false
+
+files:
+  - dist/**
+  - package.json
+
+# The shell serves the studio from <resources>/desktop/dist: src/main.mts resolves its build directory two levels above dist/,
+# which is app.asar/dist here. Keep this beside `files` so the packaged app and the development shell read one path.
+extraResources:
+  - from: ../desktop/dist
+    to: desktop/dist
+
+asar: true
+# A native binary cannot be loaded from inside an archive, so it sits unpacked beside it (app.asar.unpacked) where Electron
+# redirects the require.
+asarUnpack:
+  - '**/*.node'
+
+# The packaged binary runs the app it was built with and nothing else: no Node mode, no NODE_OPTIONS or --inspect, and the ASAR
+# is validated against the integrity data embedded in the executable, so a modified archive refuses to start.
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+
+win:
+  target:
+    - nsis
+
+nsis:
+  # A choice of folder rather than a silent per-user install, and an uninstaller in Settings › Apps that removes the program
+  # only: the writer's projects are folders they chose (docs/INSTALL.md).
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  deleteAppDataOnUninstall: false
+  shortcutName: Caotang
+  uninstallDisplayName: Caotang for desktop
+  # The signing job submits this name to SignPath, which enforces the product name and version inside it.
+  artifactName: Caotang-Setup-${version}.${ext}
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.productivity
+  # Unsigned on purpose (#401): no certificate means no signing, so the first open is the Gatekeeper step docs/INSTALL.md
+  # describes. Signing and notarisation are later work.
+  identity: null
+  hardenedRuntime: false
+
+dmg:
+  artifactName: Caotang-${version}-${arch}.${ext}
+
+linux:
+  target:
+    - AppImage
+  executableName: caotang
+  # Without this the window is not associated with the .desktop entry, so a launcher shows a second unnamed icon.
+  syncDesktopName: true
+  category: Office
+  synopsis: A local-first writing studio for novels, scripts and story worlds
+  description: Caotang keeps a manuscript in a folder on the writer's own machine and compiles it to Word, EPUB, Markdown and more.
+  artifactName: Caotang-${version}.${ext}
+  desktop:
+    entry:
+      Name: Caotang for desktop
+      Comment: A local-first writing studio

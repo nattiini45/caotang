@@ -25,6 +25,7 @@ import {
   TABLE_COLUMNS,
   exportCsv,
   exportInkJson,
+  csvField,
   isDialogueNodeType,
   readDialogueMeta,
   toCsv,
@@ -34,6 +35,17 @@ import {
   type TableRow,
 } from '@caotang/dialogue';
 import type { ProcessPicture } from '@caotang/pictures';
+import {
+  isEpisodeDocument,
+  parseEpisode,
+  readEpisodeMeta,
+  readShowMeta,
+  showFolderOf,
+  type ParsedEpisode,
+  type ScriptLine,
+  type ScriptSegment,
+  type ShowMeta,
+} from '@caotang/script';
 import { countBody, getBody, identifierUrn, nodeById, type ProjectState, type TreeNode } from '@caotang/store';
 import {
   exportNumbers,
@@ -81,8 +93,10 @@ import {
   type CoherenceReportWords,
 } from './coherence-report.js';
 import type { RenderedContents } from './emit.js';
+import { INDIC_FONT_INFO, type IndicFontLoaders } from './indic-font.js';
 import { flatten, type FlattenResult } from './flatten.js';
-import type { ComicLetteringFontLoader, FontLoader } from '@caotang/pdf-fonts';
+import { renderPodcastRss, type PodcastEpisode } from './render-podcast.js';
+import type { ComicLetteringFontLoader, FontLoader, IndicScript } from '@caotang/pdf-fonts';
 import { selectComic } from './comic-book.js';
 import type { ComicPdfPageInput } from './render-comic-pdf.js';
 import { drawContactSheet, type PictureTranscoder } from './render-contact-sheet.js';
@@ -122,6 +136,8 @@ export interface MediaRequest {
    * null leaves the column empty, which is unconstrained. Only the dialogue table (`dialogue-csv`, `dialogue-xlsx`) reads it.
    */
   readonly charLimit?: number | null;
+  /** The teleprompter's wrap width in characters (av-script.md §5). Absent or null is the compile's default. Only `teleprompter` reads it. */
+  readonly teleprompterWidth?: number | null;
   /** Stored assets by id, with their file names (storyboard.md §2.1). The exporter reads these synchronously. */
   readonly assets: ReadonlyMap<string, AssetRecord>;
   /**
@@ -176,8 +192,8 @@ export interface MediaRequest {
   readonly loadArabicFont?: FontLoader;
   /** Reads Noto Sans Hebrew (`@caotang/font-noto-hebrew`). The screenplay PDF and the contact sheet read it, and only when the file holds Hebrew text. */
   readonly loadHebrewFont?: FontLoader;
-  /** Reads Noto Sans Devanagari (`@caotang/font-noto-devanagari`). The screenplay PDF and the contact sheet read it, and only when the file holds Devanagari text. */
-  readonly loadDevanagariFont?: FontLoader;
+  /** The Indic fonts (`@caotang/font-noto-*`), by script. The screenplay PDF, the contact sheet, the comic PDF and the timeline PDF read each, and only when the file holds its script's text. */
+  readonly loadIndicFonts?: IndicFontLoaders;
   /** Decodes a WebP picture to PNG (`@jsquash/webp` in Node, a canvas in the app). Only the contact sheet reads it. Without it, a WebP picture shows its card's caption. */
   readonly transcodePicture?: PictureTranscoder;
   /** The project's language (a BCP 47 tag), when it has one. In a right-to-left language the screenplay PDF lays out a paragraph with no strong character right to left. */
@@ -249,6 +265,22 @@ export function renderMedia(request: MediaRequest): MediaOutput {
       return timelineSvgOutput(request);
     case 'timeline-pdf':
       return timelinePdfOutput(request);
+    case 'vo-script-csv':
+      return voScriptCsvOutput(request);
+    case 'vo-script-xlsx':
+      return voScriptXlsxOutput(request);
+    case 'show-notes':
+      return showNotesOutput(request);
+    case 'transcript-md':
+      return transcriptOutput(request);
+    case 'teleprompter':
+      return teleprompterOutput(request);
+    case 'vtt':
+      return vttOutput(request);
+    case 'chapters-json':
+      return chaptersJsonOutput(request);
+    case 'podcast-rss':
+      return podcastRssOutput(request);
   }
 }
 
@@ -380,7 +412,7 @@ function fountainOutput(request: MediaRequest): MediaOutput {
 /**
  * The screenplay PDF (screenplay.md §5.3). The selection, the gate and the pagination are the plan's, so a refusal writes
  * nothing and the log row can give the page count. The file is drawn in the queue, with Courier Prime (or the recipe font, Cousine) embedded, and the CJK, emoji,
- * Arabic, Hebrew and Devanagari fonts when the script needs them. A script with any of them is laid out twice: here, before any font is
+ * Arabic, Hebrew and the Indic fonts when the script needs them. A script with any of them is laid out twice: here, before any font is
  * read, with a column for each letter of a word, which is what the gate and the page count in the log are made of; and again when the
  * file is drawn, with the words measured in their fonts (screenplay.md §5.3). When the measured layout has another page count, the
  * log says so.
@@ -429,13 +461,13 @@ function pdfOutput(request: MediaRequest): MediaOutput {
             ...(request.loadColourEmoji === undefined ? {} : { colourEmoji: request.loadColourEmoji }),
             ...(request.loadArabicFont === undefined ? {} : { arabic: request.loadArabicFont }),
             ...(request.loadHebrewFont === undefined ? {} : { hebrew: request.loadHebrewFont }),
-            ...(request.loadDevanagariFont === undefined ? {} : { devanagari: request.loadDevanagariFont }),
+            ...(request.loadIndicFonts === undefined ? {} : { indic: request.loadIndicFonts }),
           });
           const bytes = drawPdf(prepared.layout, prepared.font, prepared.cjk, prepared.emoji, prepared.rtl, prepared.colour);
           const counted = prepared.layout.scriptPageCount;
           const notes = [
             ...prepared.colourNotes,
-            ...(counted === pages ? [] : [`pdf: with the words of Arabic, Hebrew and Devanagari measured in their fonts the script is ${counted} ${counted === 1 ? 'page' : 'pages'}, not ${pages}`]),
+            ...(counted === pages ? [] : [`pdf: with the words of Arabic, Hebrew and the Indic scripts measured in their fonts the script is ${counted} ${counted === 1 ? 'page' : 'pages'}, not ${pages}`]),
           ];
           return notes.length === 0 ? bytes : { contents: bytes, notes };
         },
@@ -470,7 +502,9 @@ function unloadedFontNotes(layout: PdfLayout, request: MediaRequest): string[] {
       : []),
     ...(request.loadArabicFont === undefined && layout.shapedScripts.includes('arabic') ? ['pdf: this compile has no Arabic font, so the Arabic text is printed as "?"'] : []),
     ...(request.loadHebrewFont === undefined && layout.shapedScripts.includes('hebrew') ? ['pdf: this compile has no Hebrew font, so the Hebrew text is printed as "?"'] : []),
-    ...(request.loadDevanagariFont === undefined && layout.shapedScripts.includes('devanagari') ? ['pdf: this compile has no Devanagari font, so the Devanagari text is printed as "?"'] : []),
+    ...layout.shapedScripts
+      .filter((script) => script !== 'arabic' && script !== 'hebrew' && request.loadIndicFonts?.[script as IndicScript] === undefined)
+      .map((script) => `pdf: this compile has no ${INDIC_FONT_INFO[script as IndicScript].name} font, so the ${INDIC_FONT_INFO[script as IndicScript].name.split(' ').slice(2).join(' ')} text is printed as "?"`),
   ];
 }
 
@@ -800,6 +834,501 @@ function shotListXlsxOutput(request: MediaRequest): MediaOutput {
   };
 }
 
+/* ------------------------------------------------------------------ *
+ * The AV script's VO script (av-script.md §5)
+ * ------------------------------------------------------------------ */
+
+/** The VO script's columns, in the order the spec's table names them (av-script.md §5). */
+const VO_SCRIPT_COLUMNS = ['lineId', 'segment', 'speaker', 'text', 'durationSec', 'declared'] as const;
+
+/** One row of the VO script: one speakable line, in the order the episode reads it. */
+interface VoScriptRow {
+  readonly lineId: string;
+  readonly segment: string;
+  readonly speaker: string;
+  readonly text: string;
+  /** The line's seconds, or empty when it is untimed (av-script.md §4). */
+  readonly durationSec: number | null;
+  /** `true` when the duration was declared in the script, `false` when it is an estimate, empty when untimed. */
+  readonly declared: boolean | null;
+}
+
+/** The episode documents a selection covers, in binder order (the `av-script` kind, av-script.md §2). */
+function episodesOf(request: MediaRequest): TreeNode[] {
+  return selectedNodes(request.state, request.includeRootIds).filter((node) => isEpisodeDocument(node));
+}
+
+/**
+ * One episode's rows. A text line is not speakable and takes no row; a speech line's speaker is the codex entry's name
+ * when the parser resolved it, else the typed label; a narration line's the show's default speaker or the `narration`
+ * word, and an empty speaker cell means neither resolved.
+ * Untimed segments still write their lines: their `durationSec` and `declared` cells are empty (av-script.md §4).
+ */
+function voRowsOf(parsed: ParsedEpisode, codexNames: ReadonlyMap<string, string>): VoScriptRow[] {
+  const rows: VoScriptRow[] = [];
+  for (const segment of parsed.segments) {
+    for (const line of segment.lines) {
+      if (line.kind === 'text') continue;
+      const speaker = line.speaker === undefined ? undefined : (codexNames.get(line.speaker) ?? line.speaker);
+      rows.push({
+        lineId: line.id,
+        segment: segment.title,
+        speaker: speaker ?? (line.kind === 'narration' ? 'NARRATION' : ''),
+        text: line.text,
+        durationSec: line.durationSec ?? null,
+        declared: line.durationSec === undefined ? null : line.declared,
+      });
+    }
+  }
+  return rows;
+}
+
+/** The episodes' rows and the notices the parses kept, with the refusing for an empty table. */
+function voScriptTable(request: MediaRequest, format: 'vo-script-csv' | 'vo-script-xlsx'): { rows: readonly VoScriptRow[]; notes: readonly string[]; words: number } {
+  const episodes = episodesOf(request);
+  if (episodes.length === 0) {
+    throw new MediaRefusedError(format, ['the selection holds no episode, so there is no VO script to write']);
+  }
+  const rows: VoScriptRow[] = [];
+  const notes: string[] = [];
+  const codexNames = new Map((request.state.manifest.codex ?? []).map((entry) => [entry.id, entry.name]));
+  for (const node of episodes) {
+    const show = showFolderOf(request.state, node.id);
+    const read = show === undefined ? { meta: undefined, notices: [] } : readShowMeta(show.showMeta);
+    const parsed = parseEpisode(getBody(request.state, node.id), {
+      ...(read.meta === undefined ? {} : { show: read.meta }),
+      codex: request.state.manifest.codex ?? [],
+    });
+    rows.push(...voRowsOf(parsed, codexNames));
+    notes.push(...read.notices.map((notice) => `"${node.title}" settings: ${notice}`));
+    notes.push(...parsed.notices.map((notice) => `"${node.title}" line ${notice.line}: ${notice.message}`));
+  }
+  if (rows.length === 0) {
+    throw new MediaRefusedError(format, ['the selection holds no speakable line, so there is no VO script to write']);
+  }
+  return { rows, notes, words: rows.reduce((sum, row) => sum + countBody(row.text).words, 0) };
+}
+
+/** The VO script as RFC 4180 CSV (av-script.md §5): the spec's columns, one record per speakable line. */
+function voScriptCsv(rows: readonly VoScriptRow[]): string {
+  const record = (cells: readonly (string | number | boolean | null)[]): string =>
+    cells.map((cell) => (cell === null ? '' : csvField(guardFormula(String(cell))))).join(',') + '\r\n';
+  return record(VO_SCRIPT_COLUMNS) + rows.map((row) => record([row.lineId, row.segment, row.speaker, row.text, row.durationSec, row.declared])).join('');
+}
+
+function voScriptCsvOutput(request: MediaRequest): MediaOutput {
+  const table = voScriptTable(request, 'vo-script-csv');
+  return {
+    files: [{ name: `${request.base} (VO script).csv`, mimeType: CSV_MIME, text: voScriptCsv(table.rows) }],
+    blockCount: table.rows.length,
+    chapterCount: 0,
+    sceneCount: episodesOf(request).length,
+    wordCount: table.words,
+    skippedDocs: [],
+    notes: table.notes,
+  };
+}
+
+/** The VO script as a spreadsheet: the CSV's columns and rows, in one sheet (av-script.md §5, the spreadsheet gate). */
+function voScriptXlsxOutput(request: MediaRequest): MediaOutput {
+  const table = voScriptTable(request, 'vo-script-xlsx');
+  const rows: XlsxCell[][] = table.rows.map((row) => [
+    row.lineId,
+    row.segment,
+    row.speaker,
+    row.text,
+    row.durationSec,
+    row.declared === null ? null : row.declared ? 'true' : 'false',
+  ]);
+  const prepared = prepareSheet({ name: 'VO script', title: `${request.title} (VO script)`, columns: [...VO_SCRIPT_COLUMNS], rows });
+  return {
+    files: [xlsxFile(`${request.base} (VO script).xlsx`, prepared.sheet)],
+    blockCount: table.rows.length,
+    chapterCount: 0,
+    sceneCount: episodesOf(request).length,
+    wordCount: table.words,
+    skippedDocs: [],
+    notes: [...table.notes, ...prepared.notes],
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * The AV script's reading formats: show notes, transcript, teleprompter (av-script.md §5)
+ * ------------------------------------------------------------------ */
+
+/** The teleprompter's wrap width when the recipe says nothing (av-script.md §5: no cited standard, a recipe option by spec). */
+const TELEPROMPTER_WIDTH_DEFAULT = 60;
+
+/** One parsed episode with the node it came from and its show's settings. */
+interface EpisodeRead {
+  readonly node: TreeNode;
+  readonly parsed: ParsedEpisode;
+  readonly show: ShowMeta;
+}
+
+/**
+ * The episode documents a selection covers, each parsed with its own show's settings and the project's codex
+ * (av-script.md §2–§4). A selection with no episode is refused; each parse's notices reach the compile log
+ * named by the episode.
+ */
+function readEpisodes(request: MediaRequest, format: MediaFormat): { readonly episodes: readonly EpisodeRead[]; readonly notes: readonly string[] } {
+  const nodes = selectedNodes(request.state, request.includeRootIds).filter((node) => isEpisodeDocument(node));
+  if (nodes.length === 0) {
+    throw new MediaRefusedError(format, ['the selection holds no episode, so there is nothing to compile']);
+  }
+  const episodes: EpisodeRead[] = [];
+  const notes: string[] = [];
+  for (const node of nodes) {
+    const show = showFolderOf(request.state, node.id);
+    const read = show === undefined ? { meta: {} as ShowMeta, notices: [] as readonly string[] } : readShowMeta(show.showMeta);
+    const parsed = parseEpisode(getBody(request.state, node.id), {
+      show: read.meta,
+      codex: request.state.manifest.codex ?? [],
+    });
+    episodes.push({ node, parsed, show: read.meta });
+    notes.push(...read.notices.map((note) => `"${node.title}": ${note}`));
+    notes.push(...parsed.notices.map((notice) => `"${node.title}" line ${notice.line}: ${notice.message}`));
+  }
+  return { episodes, notes };
+}
+
+/** Seconds as `mm:ss` (`h:mm:ss` past an hour): the timestamp shape YouTube chapter lines and the show notes share. */
+function clockTime(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = s % 60;
+  const two = (n: number) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${two(m)}:${two(r)}` : `${two(m)}:${two(r)}`;
+}
+
+/** A speakable line with its segment, in episode order; text lines take no row in any of these formats. */
+function speakableLines(parsed: ParsedEpisode): { readonly segment: ScriptSegment; readonly line: ScriptLine }[] {
+  const out: { segment: ScriptSegment; line: ScriptLine }[] = [];
+  for (const segment of parsed.segments) {
+    for (const line of segment.lines) {
+      if (line.kind !== 'text') out.push({ segment, line });
+    }
+  }
+  return out;
+}
+
+/** How many speakable lines the selection's episodes hold, for the counts the compile reports. */
+function speakableCount(episodes: readonly EpisodeRead[]): number {
+  return episodes.reduce((sum, ep) => sum + speakableLines(ep.parsed).length, 0);
+}
+
+/** Words of the speakable lines, for the counts. */
+function speakableWords(episodes: readonly EpisodeRead[]): number {
+  return episodes.reduce((sum, ep) => sum + speakableLines(ep.parsed).reduce((s, { line }) => s + line.words, 0), 0);
+}
+
+/**
+ * The name a file takes: the compile's base plus what the artifact is and its extension, and the episode's title when
+ * a selection holds more than one, so two episodes never write to one name.
+ */
+function episodeFileName(base: string, what: string, ext: string, episodes: readonly EpisodeRead[], ep: EpisodeRead): string {
+  if (episodes.length === 1) return `${base} (${what}).${ext}`;
+  // Two episodes may share a title; its node id keeps each file's name its own.
+  const title =
+    episodes.filter((other) => other.node.title === ep.node.title).length > 1
+      ? `${ep.node.title} ${ep.node.id}`
+      : ep.node.title;
+  return `${base} (${fileStem(title)}, ${what}).${ext}`;
+}
+
+/**
+ * The complete name list made distinct. A real title can still equal the `title id` spelling a
+ * duplicate got, so a name that survives `episodeFileName` colliding gets a ` (2)` before its
+ * extension — the first use keeps the clean name.
+ */
+function distinctFileNames(files: MediaFile[]): MediaFile[] {
+  const seen = new Set<string>();
+  const nextSuffix = new Map<string, number>();
+  return files.map((file) => {
+    const key = file.name.toLowerCase();
+    let name = file.name;
+    if (seen.has(key)) {
+      const dot = name.lastIndexOf('.');
+      let n = nextSuffix.get(key) ?? 2;
+      do {
+        name = `${file.name.slice(0, dot)} (${n++})${file.name.slice(dot)}`;
+      } while (seen.has(name.toLowerCase()));
+      nextSuffix.set(key, n);
+    }
+    seen.add(name.toLowerCase());
+    return name === file.name ? file : { ...file, name };
+  });
+}
+
+/** The episode's display title: its `#` heading when it named one — a bare `#` parses to `''`. */
+function episodeTitle(ep: EpisodeRead): string {
+  return ep.parsed.title !== undefined && ep.parsed.title.trim() !== '' ? ep.parsed.title : ep.node.title;
+}
+
+/**
+ * YouTube's chapter gates (av-script.md §5): the first chapter at `00:00`, at least three chapters, at least 10 s
+ * between them. The chapter lines come out only when every gate holds; the failure names the gate that did not,
+ * for the compile log.
+ */
+function youtubeChapters(ep: EpisodeRead): { readonly lines: readonly string[]; readonly failure?: string } {
+  const chapters: { at: number; title: string }[] = [];
+  const skipped: string[] = [];
+  for (const segment of ep.parsed.segments) {
+    if (segment.startSec === undefined) {
+      if (segment.lines.length > 0 || segment.cues.length > 0) skipped.push(segment.title);
+      continue;
+    }
+    chapters.push({ at: segment.startSec, title: segment.title !== '' ? segment.title : episodeTitle(ep) });
+  }
+  if (skipped.length > 0) {
+    return { lines: [], failure: `untimed segments have no timestamp (${skipped.map((t) => `"${t || 'the opening'}"`).join(', ')}), so the chapter list cannot cover them` };
+  }
+  const first = chapters[0];
+  if (first === undefined || first.at !== 0) {
+    return { lines: [], failure: 'the first chapter is not at 00:00' };
+  }
+  if (chapters.length < 3) {
+    return { lines: [], failure: `fewer than three chapters (${chapters.length}); YouTube needs at least three` };
+  }
+  for (let i = 1; i < chapters.length; i += 1) {
+    const prev = chapters[i - 1];
+    const next = chapters[i];
+    if (next !== undefined && prev !== undefined && next.at - prev.at < 10) {
+      return { lines: [], failure: `"${prev.title}" and "${next.title}" are under 10 s apart; YouTube needs at least 10 s` };
+    }
+  }
+  return { lines: chapters.map((c) => `${clockTime(c.at)} ${c.title}`) };
+}
+
+/**
+ * The show notes (av-script.md §5): the show's own description, then the episode's segments as a timestamped list,
+ * then the YouTube-shaped chapter lines when that platform's gates hold — the description a listener pastes into an
+ * episode page. An untimed segment lists `(untimed)` where its time would be.
+ */
+function showNotesOutput(request: MediaRequest): MediaOutput {
+  const { episodes, notes: parseNotes } = readEpisodes(request, 'show-notes');
+  const notes = [...parseNotes];
+  const files: MediaFile[] = [];
+  for (const ep of episodes) {
+    const out: string[] = [`# ${episodeTitle(ep)}`, ''];
+    if (typeof ep.show.description === 'string' && ep.show.description.trim() !== '') {
+      out.push(ep.show.description.trim(), '');
+    }
+    for (const segment of ep.parsed.segments) {
+      const title = segment.title !== '' ? segment.title : 'Opening';
+      out.push(`- ${segment.startSec === undefined ? '(untimed)' : clockTime(segment.startSec)} ${title}`);
+    }
+    const chapters = youtubeChapters(ep);
+    if (chapters.failure !== undefined) {
+      notes.push(`"${ep.node.title}": no YouTube chapter lines — ${chapters.failure}`);
+    } else {
+      out.push('', '## Chapters', '', ...chapters.lines);
+    }
+    files.push({ name: episodeFileName(request.base, 'show notes', 'md', episodes, ep), mimeType: 'text/markdown;charset=utf-8', text: out.join('\n') + '\n' });
+  }
+  return { files: distinctFileNames(files), blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
+}
+
+/** A speaker label as a reader sees it: the codex entry's display name when the speaker resolved to one, else the name as typed. */
+function speakerName(request: MediaRequest, line: ScriptLine): string {
+  const speaker = line.speaker ?? line.label ?? '';
+  const entry = (request.state.manifest.codex ?? []).find((e) => e.id === speaker);
+  return entry?.name ?? speaker;
+}
+
+/**
+ * The transcript (av-script.md §5): the speaker's display name and the text, segment by segment, narration set apart
+ * in italics. No cues and no timings — a transcript is for reading.
+ */
+function transcriptOutput(request: MediaRequest): MediaOutput {
+  const { episodes, notes } = readEpisodes(request, 'transcript-md');
+  const files: MediaFile[] = [];
+  for (const ep of episodes) {
+    const out: string[] = [`# ${episodeTitle(ep)}`];
+    for (const segment of ep.parsed.segments) {
+      if (segment.title !== '') out.push('', `## ${segment.title}`);
+      for (const line of segment.lines) {
+        if (line.kind === 'text') continue;
+        out.push('', line.kind === 'narration' ? `_${line.text}_` : `**${speakerName(request, line)}:** ${line.text}`);
+      }
+    }
+    files.push({ name: episodeFileName(request.base, 'transcript', 'md', episodes, ep), mimeType: 'text/markdown;charset=utf-8', text: out.join('\n') + '\n' });
+  }
+  return { files: distinctFileNames(files), blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
+}
+
+/** One text line wrapped to `width` columns on word boundaries; a word longer than the width keeps its own line. */
+function wrapLine(text: string, width: number): string[] {
+  const words = text.split(/\s+/).filter((w) => w !== '');
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    if (current === '') {
+      current = word;
+    } else if (current.length + 1 + word.length <= width) {
+      current += ` ${word}`;
+    } else {
+      lines.push(current);
+      current = word;
+    }
+  }
+  if (current !== '') lines.push(current);
+  return lines;
+}
+
+/**
+ * The teleprompter (av-script.md §5): speech and narration only — cues and headings stripped, labels gone, one line
+ * per breath at the recipe's wrap width (`teleprompterWidth`, the compile's default when unset), a blank line between
+ * the script's lines.
+ */
+function teleprompterOutput(request: MediaRequest): MediaOutput {
+  const { episodes, notes } = readEpisodes(request, 'teleprompter');
+  const width = request.teleprompterWidth ?? TELEPROMPTER_WIDTH_DEFAULT;
+  const files: MediaFile[] = episodes.map((ep) => ({
+    name: episodeFileName(request.base, 'teleprompter', 'txt', episodes, ep),
+    mimeType: 'text/plain;charset=utf-8',
+    text: speakableLines(ep.parsed).map(({ line }) => wrapLine(line.text, width).join('\n')).join('\n\n') + '\n',
+  }));
+  return { files: distinctFileNames(files), blockCount: speakableCount(episodes), chapterCount: 0, sceneCount: episodes.length, wordCount: speakableWords(episodes), skippedDocs: [], notes };
+}
+
+/* ------------------------------------------------------------------ *
+ * The AV script's captions and chapters (av-script.md §5)
+ * ------------------------------------------------------------------ */
+
+/** Milliseconds as `hh:mm:ss.ttt` with the period separator WebVTT requires (av-script.md §5). */
+function vttTime(ms: number): string {
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  const t = ms % 1000;
+  const two = (n: number) => String(n).padStart(2, '0');
+  return `${two(h)}:${two(m)}:${two(s)}.${String(t).padStart(3, '0')}`;
+}
+
+/**
+ * WebVTT cue markup: `&`, `<` and `>` carry character references, so speech text and speaker names cannot close the
+ * voice span or the cue early (a literal `</v>` in a line would otherwise split the cue).
+ */
+function vttEscape(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * The WebVTT captions (av-script.md §5): one cue per speech line, timed from the durations §4 resolved, each speaker
+ * in the standardised `<v Speaker>` voice span. A line with no duration — nothing declared and nothing estimated —
+ * takes no cue and is named in the log, since a cue without times is one a player drops.
+ */
+function vttOutput(request: MediaRequest): MediaOutput {
+  const { episodes, notes: parseNotes } = readEpisodes(request, 'vtt');
+  const notes = [...parseNotes];
+  const files: MediaFile[] = [];
+  let cueCount = 0;
+  let wordCount = 0;
+  for (const ep of episodes) {
+    const cues: string[] = [];
+    // Cues must not overlap: a start rounded down to the millisecond can land inside the previous cue's
+    // rounded-up end — two consecutive sub-millisecond lines would otherwise share a timestamp.
+    let prevEndMs = 0;
+    for (const segment of ep.parsed.segments) {
+      let at = segment.startSec ?? 0;
+      for (const line of segment.lines) {
+        if (line.kind === 'text') continue;
+        if (line.durationSec === undefined) {
+          notes.push(`"${ep.node.title}" line ${line.line}: no duration, so it takes no cue`);
+          continue;
+        }
+        // Quantized to milliseconds here, not inside vttTime: a positive duration shorter than 1 ms would give
+        // a cue whose end is not after its start, which a player drops — so the interval is at least 1 ms.
+        const startMs = Math.max(prevEndMs, Math.round(at * 1000));
+        // The end is measured from the clamped start: the parser rounds a segment's start to hundredths
+        // while keeping the line's finer duration, so `at + duration` would shorten this cue at a boundary.
+        const endMs = Math.max(startMs + 1, Math.round(startMs + line.durationSec * 1000));
+        // The clock advances on the declared duration even when the cue cannot be written — a line after
+        // one whose duration overflows sits at a time a timestamp cannot name either, and takes no cue.
+        at += line.durationSec;
+        // An unbounded `[Ns]` duration reaches `Infinity`; a duration past safe millisecond precision turns
+        // `startMs + 1` back into `startMs`; either would write a timestamp that is not one.
+        if (!Number.isSafeInteger(startMs) || !Number.isSafeInteger(endMs) || endMs <= startMs) {
+          notes.push(`"${ep.node.title}" line ${line.line}: its timing overflows a WebVTT timestamp, so it takes no cue`);
+          continue;
+        }
+        prevEndMs = endMs;
+        cues.push(`${vttTime(startMs)} --> ${vttTime(endMs)}\n<v ${vttEscape(speakerName(request, line))}>${vttEscape(line.text)}</v>`);
+        cueCount += 1;
+        wordCount += line.words;
+      }
+    }
+    if (cues.length === 0) {
+      notes.push(`"${ep.node.title}": no speakable line could be written as a caption, so it writes no captions document`);
+      continue;
+    }
+    files.push({
+      name: episodeFileName(request.base, 'captions', 'vtt', episodes, ep),
+      mimeType: 'text/vtt;charset=utf-8',
+      text: `WEBVTT\n\n${cues.join('\n\n')}\n`,
+    });
+  }
+  if (files.length === 0) {
+    throw new MediaRefusedError('vtt', [
+      'no episode in the selection holds a cue whose timing writes a caption, so there is nothing to compile',
+      ...notes,
+    ]);
+  }
+  return { files: distinctFileNames(files), blockCount: cueCount, chapterCount: 0, sceneCount: episodes.length, wordCount, skippedDocs: [], notes };
+}
+
+/**
+ * The Podcasting 2.0 chapters document (av-script.md §5): `application/json+chapters`, `startTime`, `title` and
+ * `endTime` per segment, in seconds. An untimed segment takes no chapter and is named in the log.
+ */
+function chaptersJsonOutput(request: MediaRequest): MediaOutput {
+  const { episodes, notes: parseNotes } = readEpisodes(request, 'chapters-json');
+  const notes = [...parseNotes];
+  const files: MediaFile[] = [];
+  let chapterCount = 0;
+  for (const ep of episodes) {
+    const chapters: { startTime: number; title: string; endTime: number }[] = [];
+    for (const segment of ep.parsed.segments) {
+      if (segment.startSec === undefined || segment.durationSec === undefined) {
+        notes.push(`"${ep.node.title}": segment "${segment.title || 'the opening'}" is untimed, so it takes no chapter`);
+        continue;
+      }
+      // A chapter needs a real interval: a `[0.0004s]` duration rounds to zero at centisecond precision, and a
+      // non-finite start or end — a segment after one whose duration overflowed — serializes as `null`.
+      const endSec = segment.startSec + segment.durationSec;
+      if (!Number.isFinite(segment.startSec) || !Number.isFinite(endSec) || endSec <= segment.startSec) {
+        notes.push(`"${ep.node.title}": segment "${segment.title || 'the opening'}" has no positive finite duration, so it takes no chapter`);
+        continue;
+      }
+      chapters.push({
+        startTime: segment.startSec,
+        title: segment.title !== '' ? segment.title : episodeTitle(ep),
+        endTime: endSec,
+      });
+    }
+    chapterCount += chapters.length;
+    if (chapters.length === 0) {
+      notes.push(`"${ep.node.title}": no segment could be written as a chapter, so it writes no chapters document`);
+      continue;
+    }
+    files.push({
+      name: episodeFileName(request.base, 'chapters', 'json', episodes, ep),
+      mimeType: 'application/json+chapters',
+      text: JSON.stringify({ version: '1.2.0', chapters }, null, 2) + '\n',
+    });
+  }
+  if (chapterCount === 0) {
+    throw new MediaRefusedError('chapters-json', [
+      'no episode in the selection holds a segment whose timing writes a chapter, so there is nothing to compile',
+      ...notes,
+    ]);
+  }
+  const wordCount = episodes.reduce((sum, ep) => sum + speakableLines(ep.parsed).reduce((s, { line }) => s + line.words, 0), 0);
+  return { files: distinctFileNames(files), blockCount: chapterCount, chapterCount: 0, sceneCount: episodes.length, wordCount, skippedDocs: [], notes };
+}
+
 /**
  * A shot with no metadata on record lists with every column but its number blank, and the renderer writes it so. The
  * log says so, because a shot the writer filled in and the store did not keep looks the same as one nobody filled in.
@@ -892,7 +1421,7 @@ function contactSheetOutput(request: MediaRequest): MediaOutput {
             ...(colour && request.loadColourEmoji !== undefined ? { loadColourEmoji: request.loadColourEmoji } : {}),
             ...(request.loadArabicFont === undefined ? {} : { loadArabicFont: request.loadArabicFont }),
             ...(request.loadHebrewFont === undefined ? {} : { loadHebrewFont: request.loadHebrewFont }),
-            ...(request.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: request.loadDevanagariFont }),
+            ...(request.loadIndicFonts === undefined ? {} : { loadIndicFonts: request.loadIndicFonts }),
             ...(request.transcodePicture === undefined ? {} : { transcodePicture: request.transcodePicture }),
             ...(request.language === undefined ? {} : { language: request.language }),
             at,
@@ -955,7 +1484,7 @@ function comicPdfOutput(request: MediaRequest): MediaOutput {
             ...(request.loadEmojiFont === undefined ? {} : { loadEmojiFont: request.loadEmojiFont }),
             ...(request.loadArabicFont === undefined ? {} : { loadArabicFont: request.loadArabicFont }),
             ...(request.loadHebrewFont === undefined ? {} : { loadHebrewFont: request.loadHebrewFont }),
-            ...(request.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: request.loadDevanagariFont }),
+            ...(request.loadIndicFonts === undefined ? {} : { loadIndicFonts: request.loadIndicFonts }),
             ...(request.transcodePicture === undefined ? {} : { transcodePicture: request.transcodePicture }),
             ...(request.language === undefined ? {} : { language: request.language }),
           });
@@ -1271,7 +1800,7 @@ function timelinePdfOutput(request: MediaRequest): MediaOutput {
             ...(request.loadEmojiFont === undefined ? {} : { loadEmojiFont: request.loadEmojiFont }),
             ...(request.loadArabicFont === undefined ? {} : { loadArabicFont: request.loadArabicFont }),
             ...(request.loadHebrewFont === undefined ? {} : { loadHebrewFont: request.loadHebrewFont }),
-            ...(request.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: request.loadDevanagariFont }),
+            ...(request.loadIndicFonts === undefined ? {} : { loadIndicFonts: request.loadIndicFonts }),
           });
           return { contents: drawn.contents, notes: drawn.notes };
         },
@@ -1283,5 +1812,89 @@ function timelinePdfOutput(request: MediaRequest): MediaOutput {
     wordCount: table.model.items.filter((item) => item.kind === 'scene').reduce((sum, item) => sum + item.measure, 0),
     skippedDocs: [],
     notes,
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * The podcast feed (`podcast-rss`, av-script.md §5)
+ * ------------------------------------------------------------------ */
+
+/**
+ * The podcast feed: one file for the selection's episodes, RSS 2.0 with the itunes and podcastindex namespaces.
+ * The channel is the episodes' single show — a selection spanning more than one show is refused, as is one with
+ * no episode, since the other media formats refuse an empty read.
+ */
+function podcastRssOutput(request: MediaRequest): MediaOutput {
+  const nodes = selectedNodes(request.state, request.includeRootIds).filter((node) => isEpisodeDocument(node));
+  if (nodes.length === 0) {
+    throw new MediaRefusedError('podcast-rss', ['the selection holds no episode, so there is nothing to compile']);
+  }
+  const shows = new Map<string | undefined, ReturnType<typeof showFolderOf>>();
+  for (const node of nodes) {
+    const show = showFolderOf(request.state, node.id);
+    shows.set(show?.id, show);
+  }
+  if (shows.size > 1) {
+    const names = [...shows.values()].map((show) => (show === undefined ? 'no show folder' : `"${show.title}"`)).join(' and ');
+    throw new MediaRefusedError('podcast-rss', [`the selection's episodes sit in more than one show (${names}) — a feed is one show's channel, so compile one show's episodes at a time`]);
+  }
+  const notes: string[] = [];
+  const episodes: PodcastEpisode[] = [];
+  for (const node of nodes) {
+    const show = showFolderOf(request.state, node.id);
+    const showRead = show === undefined ? { meta: {} as ShowMeta, notices: [] as readonly string[] } : readShowMeta(show.showMeta);
+    const metaRead = readEpisodeMeta(node.episodeMeta);
+    const parsed = parseEpisode(getBody(request.state, node.id), {
+      show: showRead.meta,
+      codex: request.state.manifest.codex ?? [],
+    });
+    notes.push(...showRead.notices.map((note) => `"${node.title}": ${note}`));
+    notes.push(...metaRead.notices.map((note) => `"${node.title}": ${note}`));
+    notes.push(...parsed.notices.map((notice) => `"${node.title}" line ${notice.line}: ${notice.message}`));
+    episodes.push({
+      docId: node.id,
+      title: node.title,
+      ...(node.publish === undefined ? {} : { publish: node.publish }),
+      durationSec: parsed.totals.seconds,
+      meta: metaRead.meta,
+    });
+  }
+  const firstShow = shows.values().next().value;
+  const channelRead = firstShow === undefined ? { meta: {} as ShowMeta, notices: [] as readonly string[] } : readShowMeta(firstShow.showMeta);
+  notes.push(...channelRead.notices.map((note) => `"${firstShow!.title}": ${note}`));
+  const description = channelRead.meta.description ?? (firstShow !== undefined && firstShow.synopsis !== '' ? firstShow.synopsis : undefined);
+  if (channelRead.meta.link === undefined) {
+    throw new MediaRefusedError('podcast-rss', ['the show names no home link — RSS 2.0 needs the channel\'s <link>, so set one on the show (script.setShowMeta) and compile again']);
+  }
+  let language = channelRead.meta.language ?? request.language;
+  const wellFormed = (tag: string | undefined): tag is string => {
+    try { new Intl.Locale(tag as string); return true; } catch { return false; }
+  };
+  if (language !== undefined && !wellFormed(language)) {
+    notes.push(`language ${JSON.stringify(language)} is not a well-formed tag, so the channel's <language> falls back to the project's language`);
+    language = wellFormed(request.language) ? request.language : undefined;
+  }
+  const rendered = renderPodcastRss({
+    channel: {
+      ...(firstShow === undefined ? {} : { id: firstShow.id }),
+      title: channelRead.meta.feedTitle ?? firstShow?.title ?? request.title,
+      ...(description === undefined ? {} : { description }),
+      ...(language === undefined ? {} : { language }),
+      ...(channelRead.meta.link === undefined ? {} : { link: channelRead.meta.link }),
+      ...(channelRead.meta.category === undefined ? {} : { category: channelRead.meta.category }),
+      ...(channelRead.meta.explicit === undefined ? {} : { explicit: channelRead.meta.explicit }),
+      ...(channelRead.meta.fundingUrl === undefined ? {} : { fundingUrl: channelRead.meta.fundingUrl }),
+      hasArtwork: channelRead.meta.imageAssetId !== undefined,
+    },
+    episodes,
+  });
+  return {
+    files: [{ name: `${request.base}.rss.xml`, mimeType: 'application/rss+xml', text: rendered.xml }],
+    blockCount: episodes.length,
+    chapterCount: 0,
+    sceneCount: episodes.length,
+    wordCount: 0,
+    skippedDocs: [],
+    notes: [...notes, ...rendered.notes],
   };
 }

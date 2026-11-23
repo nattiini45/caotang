@@ -83,6 +83,11 @@ describe('the inventory', () => {
     expect(scan.sites).toEqual([expect.objectContaining({ kind: 'template', text: '{…} turns completed.' })]);
   });
 
+  it('recognizes an independent verifier turn id without hiding neighboring review copy', () => {
+    const scan = scanSource('agent.ts', 'const turnId = `${owner}.goal-${goal.id}.verify-${iteration}`; const label = `${count} reviews completed.`;');
+    expect(scan.sites).toEqual([expect.objectContaining({ kind: 'template', text: '{…} reviews completed.' })]);
+  });
+
   it('treats CSS feature queries and matching selectors as technical without hiding nearby copy', () => {
     const scan = scanSource('picker.tsx', `
       const supported = CSS.supports('selector(:open)');
@@ -105,6 +110,15 @@ describe('the inventory', () => {
       ]),
     );
     expect(scan.sites.some((site) => site.text === 'application/json')).toBe(false);
+  });
+
+  it('recognizes typed and optional DOM selector methods without hiding adjacent interface copy', () => {
+    const scan = scanSource('inbox.tsx', `
+      const action = row?.querySelector<HTMLElement>('button:not(:disabled)');
+      const rows = container.querySelectorAll<HTMLElement>('[data-label="Ready to review"]');
+      const label = 'Ready to review';
+    `);
+    expect(scan.sites).toEqual([expect.objectContaining({ kind: 'literal', text: 'Ready to review' })]);
   });
 
   it('counts nothing in a file where every string is already a message', () => {

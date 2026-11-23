@@ -17,3 +17,11 @@ export class RemoteIntegrityError extends Error {
     this.name = 'RemoteIntegrityError';
   }
 }
+
+/** The account's storage allowance is exhausted (HTTP 507). Nothing was written. */
+export class RemoteQuotaExceededError extends Error {
+  constructor() {
+    super('the account’s storage allowance is exhausted');
+    this.name = 'RemoteQuotaExceededError';
+  }
+}

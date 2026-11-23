@@ -55,12 +55,17 @@ import { useAssetRecords, useImageUrl } from '../media/hooks.js';
 import { pickerLabelOf } from '../media/picture-board-model.js';
 import type { ProjectSession } from '../app/session.js';
 import { attachEntry, explain, saveEntry } from './actions.js';
+import { LazyBoundary, lazyView } from './lazy-view.js';
 import { KEYWORDS_MAX, KEYWORD_CHARS_MAX } from './Inspector.js';
 import { EmptyState, formatCount, useDebouncedText, useReport, useSession } from './shared.js';
 
 
 /* lingui-set comment="The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale." */
 type Outcome = Result<ExecutionOutcome, CommandError>;
+const CodexDetails = lazyView(() => import('./CodexDetails.js').then((module) => ({ default: module.CodexDetails })));
+const CodexReferences = lazyView(() => import('./CodexReferences.js').then((module) => ({ default: module.CodexReferences })));
+const CodexRelations = lazyView(() => import('./CodexRelations.js').then((module) => ({ default: module.CodexRelations })));
+const CodexGraph = lazyView(() => import('./CodexGraph.js').then((module) => ({ default: module.CodexGraph })));
 
 export interface CodexPanelProps {
   readonly session: ProjectSession;
@@ -81,6 +86,8 @@ export interface CodexPanelProps {
 export function CodexPanel({ session, onOpenDocument, onAgentIntent, focus = null }: CodexPanelProps): ReactNode {
   useSession(session);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The list/graph switch belongs to the panel, not the list, so opening an entry and coming back keeps it.
+  const [view, setView] = useState<'list' | 'graph'>('list');
   // A new focus request opens its entry. The serial is the request, so the same entry asked for again opens again. The
   // comparison is made while rendering, so the panel never paints the entry it was not asked to show.
   const [answered, setAnswered] = useState<number | null>(null);
@@ -92,7 +99,7 @@ export function CodexPanel({ session, onOpenDocument, onAgentIntent, focus = nul
   const selected = selectedId === null ? undefined : entries.find((entry) => entry.id === selectedId);
 
   if (selected === undefined) {
-    return <CodexList session={session} entries={entries} onOpen={setSelectedId} onAgentIntent={onAgentIntent} />;
+    return <CodexList session={session} entries={entries} view={view} onView={setView} onOpen={setSelectedId} onAgentIntent={onAgentIntent} />;
   }
   return (
     <CodexEntryEditor
@@ -100,6 +107,7 @@ export function CodexPanel({ session, onOpenDocument, onAgentIntent, focus = nul
       session={session}
       entry={selected}
       onBack={() => setSelectedId(null)}
+      onOpenEntry={setSelectedId}
       onOpenDocument={onOpenDocument}
     />
   );
@@ -112,17 +120,22 @@ export function CodexPanel({ session, onOpenDocument, onAgentIntent, focus = nul
 function CodexList({
   session,
   entries,
+  view,
+  onView,
   onOpen,
   onAgentIntent,
 }: {
   session: ProjectSession;
   entries: readonly CodexEntry[];
+  view: 'list' | 'graph';
+  onView: (view: 'list' | 'graph') => void;
   onOpen: (entryId: string) => void;
   onAgentIntent: (intent: string) => void;
 }): ReactNode {
   useLingui();
   const report = useReport();
   const [filter, setFilter] = useState<CodexFilter>(NO_FILTER);
+  const graph = view === 'graph' && entries.length > 0;
   const modern = isModern();
   const totals = totalsOf(session.state, session.mentions, entries);
   const visible = entries.filter((entry) => matchesFilter(entry, filter));
@@ -186,9 +199,23 @@ function CodexList({
           <button type="button" className="button is-primary" onClick={create}>
             <Trans>New entry</Trans>
           </button>
+          <div className="codex-view-switch" role="group" aria-label={t`Codex view`}>
+            <button type="button" className="button is-quiet" aria-pressed={view === 'list'} onClick={() => onView('list')}>
+              <Trans>List</Trans>
+            </button>
+            <button type="button" className="button is-quiet" aria-pressed={view === 'graph'} onClick={() => onView('graph')}>
+              <Trans>Graph</Trans>
+            </button>
+          </div>
         </div>
       ) : null}
 
+      {graph ? (
+        <LazyBoundary label={t`the graph`}>
+          <CodexGraph entries={entries} onOpen={onOpen} />
+        </LazyBoundary>
+      ) : (
+        <>
       <input
         type="search"
         className="codex-search"
@@ -215,10 +242,10 @@ function CodexList({
           actions={
             <>
               <button type="button" className="button is-primary" onClick={create}>
-                New entry
+                <Trans>New entry</Trans>
               </button>
               <button type="button" className="button" onClick={() => onAgentIntent(EMPTY_STATE_INTENTS.codexSeed)}>
-                Let the agent draft entries from your manuscript
+                <Trans>Let the agent draft entries from your manuscript</Trans>
               </button>
             </>
           }
@@ -265,6 +292,8 @@ function CodexList({
           ))}
         </section>
       )}
+        </>
+      )}
     </div>
   );
 }
@@ -277,11 +306,14 @@ function CodexEntryEditor({
   session,
   entry,
   onBack,
+  onOpenEntry,
   onOpenDocument,
 }: {
   session: ProjectSession;
   entry: CodexEntry;
   onBack: () => void;
+  /** Opens another entry in this panel: a writer following a relation (codex.md §2.3). */
+  onOpenEntry: (entryId: string) => void;
   onOpenDocument: (docId: string, offset?: number) => void;
 }): ReactNode {
   useLingui();
@@ -310,6 +342,8 @@ function CodexEntryEditor({
     const outcome = attachEntry(session, entry.id, [], [nodeId]);
     if (!outcome.ok) report({ text: refusal(outcome.error), tone: 'error' });
   };
+  const detailFields = session.state.manifest.codexDetailFields ?? [];
+  const types = new Set<string>([...CODEX_TYPES, entry.type, ...detailFields.map((field) => field.type)]);
 
   return (
     <div className="codex codex-entry">
@@ -338,7 +372,7 @@ function CodexEntryEditor({
           value={entry.type}
           onChange={(event) => change({ type: event.target.value })}
         >
-          {CODEX_TYPES.map((type) => (
+          {[...types].map((type) => (
             <option key={type} value={type}>
               {TYPE_LABELS[type] ?? type}
             </option>
@@ -395,6 +429,27 @@ function CodexEntryEditor({
       />
 
       <DescriptionField entry={entry} onCommit={(description) => change({ description })} />
+
+      <LazyBoundary label={t`Details`}>
+        <CodexDetails entry={entry} fields={detailFields} onValue={(key, value) => change({ details: { [key]: value } })}
+          onDefine={(detailField) => {
+            const outcome = session.dispatch('codex.upsert', {
+              detailField,
+              entries: detailField.type === entry.type ? [] : [{ action: 'update', id: entry.id, type: detailField.type }],
+            });
+            if (!outcome.ok) report({ text: refusal(outcome.error), tone: 'error' });
+            return outcome.ok;
+          }}
+        />
+      </LazyBoundary>
+
+      <LazyBoundary label={t`External references`}>
+        <CodexReferences records={entry.references ?? []} onEdit={(edit) => change({ referenceEdits: [edit] })} />
+      </LazyBoundary>
+
+      <LazyBoundary label={t`Relations`}>
+        <CodexRelations entry={entry} entries={entries} onEdit={(edit) => change({ relationEdits: [edit] })} onOpen={onOpenEntry} />
+      </LazyBoundary>
 
       <ChipField
         label={t`Keywords`}

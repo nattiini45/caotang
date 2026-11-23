@@ -20,6 +20,7 @@ import {
   RuntimeStoreNewerError,
   RuntimeStoreStaleError,
   RUNTIME_DB_VERSION,
+  MAX_RUNTIME_DB_VERSION,
   addDocument,
   addFolder,
   createEmptyManifest,
@@ -128,7 +129,7 @@ describe('a runtime store another tab has upgraded', () => {
     const state = aProject();
     await writeProjectState(store, state);
 
-    const upgraded = await openDatabase(factory, store.name, RUNTIME_DB_VERSION + 1);
+    const upgraded = await openDatabase(factory, store.name, MAX_RUNTIME_DB_VERSION + 1);
     try {
       expect(() => requireLiveConnection(store)).toThrow(RuntimeStoreStaleError);
       store.close();

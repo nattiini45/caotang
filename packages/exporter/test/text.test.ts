@@ -179,6 +179,9 @@ describe('fileStem', () => {
     expect(fileStem('   \t\n ')).toBe('Untitled');
     expect(fileStem('. . . .')).toBe('Untitled');
     expect(fileStem('CON.')).toBe('_CON');
+    // Windows reserves the device name before the first dot too: `CON.txt` is still `CON`.
+    expect(fileStem('CON.txt')).toBe('_CON.txt');
+    expect(fileStem('com1.log')).toBe('_com1.log');
   });
 
   it('turns reserved, control and line-ending characters into one space, and keeps unicode', () => {
@@ -196,5 +199,34 @@ describe('fileStem', () => {
     const started = performance.now();
     expect(fileStem(pathological)).toBe(('. '.repeat(60)).trim());
     expect(performance.now() - started).toBeLessThan(500);
+  });
+});
+
+describe('renderText notes — [n] markers and a NOTES section (exporter.md §3, #271)', () => {
+  const noted = (): RenderInput => {
+    const blocks = flatten(makeProject(), { includeRootIds: ['manuscript'] }, { titlePage: true }).blocks.map((block) =>
+      block.kind === 'scene' && block.title === 'The Landing'
+        ? { ...block, body: 'The ferry was late[^1], again[^2].\n\n[^1]: The Marta.\n\n[^2]: Always.' }
+        : block,
+    );
+    return { blocks, title: PROJECT_NAME, author: '', date: DATE, template: DEFAULT_TEMPLATE, toc: true };
+  };
+
+  it('writes [1] markers in the text and the notes under NOTES at the chapter end', () => {
+    const out = renderText(noted());
+    expect(out).toContain('late[1], again[2].');
+    const landing = out.indexOf('late[1]');
+    const notesAt = out.indexOf('NOTES');
+    expect(notesAt).toBeGreaterThan(landing);
+    // The notes flush before the next chapter heading.
+    const chapterTwo = out.indexOf('CHAPTER 2');
+    expect(notesAt).toBeLessThan(chapterTwo);
+    expect(out).toContain('[1] The Marta.');
+    expect(out).toContain('[2] Always.');
+  });
+
+  it('the recipe\u2019s endnotes hold every note to the book\u2019s end, numbered through it', () => {
+    const out = renderText({ ...noted(), notes: 'endnote' });
+    expect(out.indexOf('NOTES')).toBeGreaterThan(out.indexOf('CHAPTER 3'));
   });
 });

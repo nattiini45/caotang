@@ -1,0 +1,13 @@
+.plan-hook-rewrite dt {
+  font-weight: 600;
+}
+
+.plan-hook-rewrite figcaption {
+  overflow-wrap: anywhere;
+}
+
+.plan-hook-rewrite dd {
+  margin: 0 0 var(--space-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

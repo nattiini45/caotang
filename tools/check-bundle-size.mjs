@@ -117,7 +117,73 @@ export const BUDGET = {
   // 1,030.3 kB (1,030,261 bytes) measured with #488's request-parameter enforcement in the gateway, which loads at start: the deny map that
   // takes a denied thinking field off the wire, the one output settlement the body and `modelLimits` share, and the pinned-preset rows. The
   // ceiling is that plus about 1%, rounded up to the thousand. [owner 2026-11-08]
-  initialGzip: 1_069_000,
+  // 1,072.9 kB (1,072,868 bytes) measured with queued coherence reviews and the Review Inbox (#50): the task substrate's costed approval and
+  // checkpoint accounting, the agent controller's queued path, and the compiled English catalogue's new queue/Inbox messages, which must be in
+  // the entry before the first paint (i18n.md §3.3). The Inbox UI itself is lazy. Optimisations checked: the Inbox components and their CSS load
+  // on use, pseudo-locales do not ship, and the new helpers are single-use; the growth is the feature and its required catalogue. The ceiling is
+  // that plus about 1%, rounded up to the thousand. [owner 2026-11-15]
+  // H5i measured 1,084,703 bytes gzip with the goal form and watch remaining on use; the new English catalogue must precede first paint.
+  // The ceiling is the measurement plus about 1%, rounded up to the thousand. [owner 2026-11-17]
+  // The Highland import (#284) on main at 5b605e6a, which had just taken the captions import (#287): 1,096,058 bytes gzip measured
+  // against main's own 1,095,467, so +591, which put it 58 bytes over the old ceiling. Named: the compiled English catalogue's Highland
+  // messages (+1,254 raw), which must precede first paint (i18n.md §3.3), and the entry's lazy loader for the command (+892 raw). The
+  // reader, its preview source and the Worker stay on use. The ceiling is the measurement plus about 1%, rounded up to the thousand.
+  // [delegated 2026-11-18]
+  // Codex relations and the project-wide graph (#223) on main at c62c25e1: 1,108,807 bytes gzip measured against main's own 1,107,212,
+  // so +1,595 on a ceiling with 788 bytes of room. Measured by removing each part in turn: the relationEdits validation in the codex
+  // descriptor is 535 bytes (1,108,272 without it) and the panel's List/Graph switch 55 (1,108,699); what is left is the store's read and
+  // write path for the field and the English catalogue, both of which must precede first paint. The entry's Relations section, its editor
+  // dialog, the unreadable-record row, the graph and both stylesheets already load on use. The ceiling is the measurement plus under 1 kB,
+  // not the old one plus 12, so later work gets no free room. [owner 2026-11-19]
+  // The first-load diet, measured on main at 77a1e605 which had taken codex relations (#746) and the export settings fix (#760):
+  // 1,096,587 bytes gzip against that main's own 1,108,807, so −12,220. On its own base at 9e33899b it measured 1,095,339 against main's
+  // own 1,107,274 (−11,935); #746's relations added 1,243 and #760 added 5. Named, per change, as each landed: the toolbar's four panels (project, Skills, agent
+  // instructions, vocabulary) load when their request in dialog-requests.ts opens, −6,640; the Import menu's Final Draft and Twee readers
+  // and the Ink planner move to script-import-readers.ts, fetched (and, when the fetch fails, reported on the status line) when a file is
+  // chosen, and the corkboard's picture picker loads when a card asks for one, −1,332 together; the Codex rail and the corkboard view load
+  // with the switch that shows them, as the timeline and the pictures already do, −3,953; the guarded reader load and the seven catalogue
+  // labels (the English catalogue stays in the entry, i18n.md §3.3) account for the last 10 bytes. The entry stylesheet keeps
+  // project-dialogs.css, because the toolbar's project name and other chunks' dialog rows are styled by it, so the CSS that followed the
+  // panels out of the entry is back; skills-dialog.css now reaches the agent panel, which draws its Skills note. Command validation stays
+  // synchronous at dispatch, so what the bus admits is untouched. The ceiling is the measurement plus 2 kB, so the space does not silently
+  // refill: 1,098,587. It supersedes #746's 1,109,500, which was measured on a tree without these splits, so a later PR fits under this one
+  // by optimising rather than by taking the space back. All JS is 8,804,463 on the merged tree: 8,786,664 of it this branch's own, the
+  // chunk-boundary scaffolding for the new on-use chunks with no module in two of them, against main's 8,769,385 at 9e33899b, and 17,393
+  // more from #746's relations field, the list beside its graph and their catalogue. [delegated 2026-11-19]
+  // The i18n catalogue sweep (#328): about 400 hardcoded interface strings moved into the catalogue. The compiled English
+  // catalogue (locale-en, which must precede first paint, i18n.md §3.3) grew 104.8 to 115.1 kB gzip (+10.3 kB) — more than the
+  // sweep's whole first-load delta against the pre-diet main, so the about 590 t/Trans call sites in first-load modules net
+  // slightly negative against the literals they replaced. Re-measured on the merge of main at 6e271846 (which carries the
+  // first-load diet, #746's relations, #740's delegation, #769's codex.read ids, #773's provider key events and #752's
+  // folder watch): 1,106,979 bytes. Re-measured on the merge of main at 3b1c6cdc (#782's endpoint origins and #777's
+  // role fallbacks, which raised its own pin to 1,099,972 on a tree without the sweep): 1,108,155 bytes. The ceiling is
+  // the new measurement plus under 1 kB. [delegated 2026-11-20]
+  // #85's per-step routing measured 1,109,200 gzip on the merge of main 6e271846's successors once the catalogue sweep landed, 100 bytes
+  // over that. What grew on the first load is the gateway's step resolution and the loader that reads a role's steps, plus the step rows'
+  // labels; the step rows themselves, their model list and their level select sit in the on-use Settings chunk. The ceiling is the
+  // measurement plus 1 kB, #777's smallest step. [bundle-raise rule 2026-11-20]
+  // Re-measured on this branch over main at 7ed8a64b (#596's gateway error texts): 1,112,622 bytes gzip — the
+  // catalogued fixed wording grew the compiled catalogues on the first load. Rounded up to the thousand. [bundle-raise rule 2026-11-21]
+  // Replay's dialog measured 1,111,000 gzip on the merge with main at 7ed8a64b. What grew is the English catalogue's new messages for the
+  // dialog, which i18n.md §3.3 keeps in the entry because every message must be there before first paint; the dialog itself, its model and
+  // the engine's wrapper load with the Trace tab, on use. Optimisations tried first and kept: no lazy chunk was available to move (the Trace
+  // tab is already one), the engine's draft comparison calls the store's `countBody` instead of pulling the drafting module in for one word
+  // count, and the dead exports written before measuring were deleted. [delegated 2026-11-21]
+  // Measured again on the merge of main 04f250ae, which carries both of the above: 1,114,869 bytes, and 1,114,863 on a clean rebuild, whose
+  // chunk hashes differ by a few bytes. The ceiling is that plus at most 137 bytes, so later work inherits no free room. [delegated 2026-11-21]
+  // The HTML import (#299) on the merge of main at 4b470810: 1,115,499 bytes gzip measured, +607 over main's 1,114,892. Named: the
+  // compiled English catalogue's twenty HTML messages (+1,392 raw), which must precede first paint (i18n.md §3.3), and the entry's
+  // loader for the command; the XHTML walker, the reader, its preview source and the Worker stay on use. The ceiling is the
+  // measurement rounded up to the thousand. [delegated 2026-11-22]
+  // The EPUB import (#296) on the merge of #299's branch into main: 1,116,362 bytes gzip measured, +863 over the ceiling
+  // #299's measurement set. Named: the compiled English catalogue's EPUB messages, which must precede first paint
+  // (i18n.md §3.3), and the entry's loader for the command; the reader, the preview source and the Worker stay on use. The
+  // ceiling is the measurement rounded up to the thousand. [delegated 2026-11-22]
+  // The Kanka import (#293) on the merge of #297's branch: 1,118,072 bytes gzip measured, +1,072 over the
+  // ceiling the merged tree sat under. Named: the compiled English catalogue's Kanka messages, which must
+  // precede first paint (i18n.md §3.3); the reader, the preview source and the Worker stay on use. The
+  // ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  initialGzip: 1_119_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -168,24 +234,86 @@ export const BUDGET = {
   // Effort levels per provider, DeepSeek as a full preset and the request-parameters form (#488): 7,782,495 bytes measured (entry
   // 1,206,897). PawCommit Studio raised both ceilings on 2026-11-07 to leave headroom instead of approving each small raise: all JS 8,000,000,
   // entry 1,250,000. With #489 merged in: 7,790.4 kB measured (entry 1,207.9 kB, first load 1,030.3 kB gzip), under all three.
-  // The HTML import (#299): 8,306,046 bytes measured on #597's worker host (+26,981: the own XHTML walker and its reader, the HTML
-  // preview source and the reader session's HTML branch, in lazy chunks; the first load did not move). The walker is reached from
-  // both the main thread and the reader Worker, so it is in the build twice until #649 shares that code. The ceiling is the measured
-  // size plus about 4 kB.
-  // The EPUB import (#296): 8,324,326 bytes measured on #299 (+18,280: the OPF, navigation and spine reader, the EPUB preview source
-  // and the reader session's EPUB branch, in lazy chunks; the first load did not move). The ceiling is the measured size plus about
-  // 6 kB. #649 (the walker and readers shared between the main thread and the Worker) is what brings this back down.
-  // The AO3 import (#297): 8,341,767 bytes measured on #296 (+17,441: the preface reader over the same XHTML walker, the AO3
-  // preview source and the reader session's AO3 branch, in lazy chunks; the first load did not move). The ceiling is the measured
-  // size plus about 8 kB.
-  // The Kanka import (#293): 8,366,004 bytes measured on #297 (+24,237: the campaign reader, its page builder and the Kanka preview
-  // source, in lazy chunks; the first load did not move). The ceiling is the measured size plus about 4 kB.
-  // The Word import (#279): 8,393,566 bytes measured on #293 (+27,562: the own DOCX reader, its parts and the Word preview source,
-  // in lazy chunks; the first load did not move). The ceiling is the measured size plus about 6 kB. mammoth would have been
-  // 92 kB gzip on top of this, which is why decision 1 chose an own reader.
-  // The OpenDocument import (#298): 8,411,701 bytes measured on #279 (+18,135: the ODF reader and its preview source, in lazy
-  // chunks; the first load did not move). The ceiling is the measured size plus about 8 kB.
-  totalJs: 8_420_000,
+  // With origin/main merged in (the CPU worker of #669 and the search worker of #646, which regroup the lazy chunks): 8,312,279 bytes
+  // measured, the first load 1,068.0 kB gzip. The reader Worker keeps `worker.format: 'es'`, which its dynamic imports need. The
+  // ceiling is the measured size plus about 3 kB.
+  // 8,341.3 kB (8,341,300 bytes) measured with queued coherence reviews and the Review Inbox (#50): the queue/checkpoint substrate and the agent
+  // queued path in the entry, the Inbox UI (BackgroundTasks, FindingsPanel, QueuedReviewDetails) and the German catalogue in lazy chunks.
+  // Optimisations checked as for the first load above; no duplicated modules, pseudo-locales do not ship. The ceiling is that plus about 1%,
+  // rounded up to the thousand. [owner 2026-11-15]
+  // H5i measured 8,458,975 bytes raw with no new dependency, duplicated SDK version or production pseudo-locale; form and watch code load on use.
+  // The ceiling is the measurement plus about 1%, rounded up to the thousand. [owner 2026-11-17]
+  // The import reader Worker (#283, #274, #390) on main at 907394a7: 8,553,612 bytes measured against main's own 8,524,053, so +29,559.
+  // Named: the Worker's shared reader chunk +31,505 and the new lazy `text` (+10,824), `zip` (+7,393) and `reader.worker` (+2,187) chunks,
+  // while the main-thread `rtf-source` shrinks 29,266 and `text-source` 3,380 because those readers moved into the Worker; the entry gains
+  // 1,184 for the command's lazy loader and the catalogues 980. First load 1,090,061 gzip (+517 on main), under its ceiling, which does not move.
+  // No new dependency, no duplicated SDK version, no production pseudo-locale; every reader and the Worker itself load on use. The ceiling is
+  // the measurement plus about 1%, rounded up to the thousand. [delegated 2026-11-17]
+  // The captions import (#287) on main at 0649cd2a, which had just taken the Inklewriter import (#286): 8,657,639 bytes measured
+  // against main's own 8,630,973, so +26,666. Named: the new lazy `captions-source` (+10,001) and the captions reader's `src` chunk
+  // (+17,172), the catalogues (+4,639 German, +4,173 English), the entry's lazy loader (+1,156), the reader Worker (+503) and the
+  // preview dialog (+74); rolldown also regrouped a shared `word-count` chunk (+30,066) out of `manifest` (-22,995), `exporter`
+  // (-12,763) and `state` (-6,189). First load 1,095,371 gzip (+3,333 on main: the English catalogue and the entry), under its
+  // ceiling, which does not move. No new dependency, no duplicated SDK version, no production pseudo-locale; the reader, its source
+  // and the Worker load on use. The ceiling is the measurement plus about 1%, rounded up to the thousand. [delegated 2026-11-18]
+  // Typed codex details add an atomic, lazy browser-storage upgrade. The shared format predicate and existing open/transaction
+  // handlers avoid a second storage implementation; the details editor stays lazy. Measured 8,745,967 bytes with no new dependency.
+  // The i18n catalogue sweep (#328): 8,842,182 bytes measured against 8,786,688 on main (+55,494) — the compiled English catalogue
+  // +27.6 kB raw (first load, required before first paint) and the German catalogue +31.8 kB raw (on use), the fixed cost of
+  // cataloguing the about 400 remaining literals; the call sites net negative. Re-measured on the merge of main at 6e271846
+  // (which carries #746's relations, #740's agent delegation, #769's codex.read ids, #773's provider key events and #752's
+  // folder watch): 8,879,683 bytes — the +5.3 kB over the earlier measurement is main's own landed work, not the sweep's.
+  // Re-measured on the merge of main at 3b1c6cdc (#782 and #777): 8,885,946 bytes — the +6.3 kB over the earlier
+  // measurement is again main's own landed work. Re-measured on the merge of main at 458d4418 (#784's burst judging and
+  // #787's per-device key return): 8,886,687 bytes — main's own landed work again. Re-measured on the merge of main at
+  // 558631d6 (#790's shell teardown and #791's turn-sticky fallback): 8,887,734 bytes. The ceiling is the new
+  // measurement rounded up to the thousand. [delegated 2026-11-21]
+  // #85's per-step routing measured 8,894,086 bytes on that same merge once this branch's routing, its step rows and their labels were in:
+  // 6,086 over the ceiling above. Checked first and kept: the role row and each step row share one `TargetFields` component instead of two
+  // copies of the model field, the model list and the level select; a step's route rides the gateway's existing single-target send and its
+  // window check reuses `modelLimits`; no dependency was added and no module moved to the first load. The ceiling is the measurement rounded
+  // up to the thousand, as above. [bundle-raise rule 2026-11-20]
+  // Replay (#82) measured 8,895,250 bytes on the merge with main at f96d5fe7, against that tree's own 8,895,064: +186 bytes, and 750
+  // under the ceiling this leaves in place. What grew is the trace's new `responseFormatHint`, which is what lets a call replay send the
+  // schema the recording asked for instead of a made-up one. Checked first and kept: the replay engine itself is not in the app's bundle
+  // (tree-shaken out; none of its names are in `dist`), `projectBytes` moved out of the eval runner into `agent/bytes.ts` so the engine
+  // cannot pull the runner in, and the cassette's scripted gateway was rebuilt inside the engine instead of imported from `cassette.ts`,
+  // whose `node:crypto` key was the one Node-only import the browser build saw. [bundle-raise rule 2026-11-20]
+  // The frame's folder-access answer measured 8,895,064 bytes on main at 38d83bce, which measured 8,894,928 on the same build: the change
+  // is +136 bytes, and 72 bytes were left under the old ceiling. Checked first and kept: the check is one predicate beside the existing one,
+  // it reads the parent's document once and adds no dependency, it lands in a chunk that is already on the first load, and the picker's own
+  // path is unchanged. The ceiling is the measurement rounded up to the thousand. [bundle-raise rule 2026-11-21]
+  // Re-measured on #579's merge over main at 7ed8a64b: 8,896,131 bytes — the catalogued
+  // recurring-tasks words cost 131 bytes over the shared ceiling. Rounded up to the thousand. [bundle-raise rule 2026-11-21]
+  // #596's gateway error texts measured 8,916,618 bytes all-JS over 7ed8a64b, 8,917,832 on the merge that
+  // adds #579's catalogue words — the entries spread across chunks. Rounded up. [bundle-raise rule 2026-11-21]
+  // Replay's dialog measured 8,922,600 raw on the merge with main at 7ed8a64b, against that tree's own 8,896,000 ceiling. A chunk-by-chunk
+  // comparison against the same tree without the change shows the growth is the feature and nothing else: the dialog and its stylesheet,
+  // the app model that words the refusals and the comparison, the runner that hands the engine the app's gateway and rules, the engine's
+  // `draftDiffs`, and the English catalogue text for all of it. No lazy chunk could take it (the Trace tab, where the dialog lives, is
+  // already on use), `countBody` replaced the drafting module the comparison would otherwise have pulled in, and the dead exports written
+  // before measuring were removed. Staged, rolled back and rebuilt twice: all JS is the same 8,922,600 on a clean rebuild. [delegated 2026-11-21]
+  // Measured again on the merge of main 04f250ae, which carries both of the above: 8,948,607 bytes, and 8,948,610 on a clean rebuild. That
+  // measurement left the dialog's new German entries untranslated; translating them, so the Appearance screen still shows 100% complete,
+  // put 736 more bytes in the on-use `locale-de` chunk and none in the first load. 8,949,346 on the rebuild with them, and the ceiling is
+  // that plus 654 bytes, so later work inherits no free room. [delegated 2026-11-22]
+  // The EPUB import (#296) on the merge of #299's branch into main: 8,966,997 bytes measured, +17,651 over #82's
+  // ceiling measurement. Named: the EPUB reader package, the preview source and the Worker, all on-use chunks, and the
+  // walker's anchors, notes and noterefs in the import-html chunk. The ceiling is the measurement rounded up to the
+  // thousand. [delegated 2026-11-22]
+  // The German catalogue's EPUB strings (#296): 8,967,257 bytes measured, +260 over the reader's own ceiling
+  // measurement. The compiled de catalogue stays on use too. Same round-up-to-the-thousand ceiling. [delegated
+  // 2026-11-22]
+  // The AO3 import (#297) on the merge of #296's branch: 8,984,782 bytes measured, +17,525 over the merged #296
+  // tree. Named: the @caotang/import-ao3 adapter and its preview source, all on-use chunks, and the German AO3
+  // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  // The Kanka import (#293) on the merge of #297's branch: 9,008,325 bytes measured, +23,543 over the merged #297
+  // tree. Named: the @caotang/import-kanka reader and its preview source, all on-use chunks, and the German Kanka
+  // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  // The Word import (#279) on the merge of #293's branch: 9,035,664 bytes measured, +27,339 over the merged #293
+  // tree. Named: the @caotang/import-docx reader and its preview source, all on-use chunks, and the German Word
+  // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  totalJs: 9_036_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
@@ -194,12 +322,20 @@ export const BUDGET = {
   lazy: { 'modern-shell': 70_000 },
   css: {
     /**
-     * The entry stylesheet (index.html's stylesheet links), raw, as measured: 105,500 bytes at #305, which added nothing to it (Modern's
-     * styles are in its own chunk). It may grow by `entryMargin` (1%) before the number here has to move with a reason.
+     * The entry stylesheet (index.html's stylesheet links), raw, as measured: 106,648 bytes with queued coherence reviews and the Review Inbox
+     * (#50), which added the Inbox group-title rule (the rest of the Inbox styles are in the lazy queued-review.css). Before that, 105,500 bytes
+     * at #305, which added nothing to it (Modern's styles are in its own chunk). It may grow by `entryMargin` (1%) before the number here has to
+     * move with a reason. [owner 2026-11-15]
      */
-    entry: 105_500,
+    entry: 106_648,
     entryMargin: 0.01,
-    // Current: 96,600 B raw for `modern-shell`'s stylesheet: 95,670 B measured after sharing save-recovery row/truncation/control rules, plus about 1% (owner's standing 2026-11-08 rule; #580/#578).
+    // Current: 98,300 B raw for `modern-shell`'s stylesheet: 97,280 B measured with the storage banner's own row (#735), plus about 1%
+    // (owner's standing 2026-11-08 rule; #580/#578). That rule generalises #647's narrow-only reservation to every view and every width:
+    // six `:has(.storage-banner)` rules (the stage's grid, the notices' row, the page's row inside it, the binder out of the rows, the toast
+    // fix, and where a field is the only content) plus the narrow layout's offsets. Optimisations tried first: the selector was shortened
+    // from `:has(> .modern-notices .storage-banner)` to `:has(.storage-banner)` (80 bytes), the notices' width is the one 720 px line the base
+    // rule cannot supply once the element is in flow, and moving the rules to the entry stylesheet would have left that cap (191 bytes of
+    // headroom) short by more. 96,600 B was measured at #580/#578, after sharing save-recovery row/truncation/control rules.
     /** Lazy stylesheets by chunk name, raw. Modern's (tokens/modern.css and shell-modern.css): 12.3 kB raw, 2.7 kB gzip at #305. */
     // Stageshow polish #357: the Modern control kit (controls-modern.css: buttons, fields, selects, checks, radios, switches, segmented,
     // disclosures, badges, help text, empty states) took the sheet from 47.6 kB to 60,375 bytes raw (9.6 kB gzip); the cap is 59,089 (its first cut) plus
@@ -219,7 +355,7 @@ export const BUDGET = {
     // 390 px, k-tonal and k-quiet). 93,531 bytes raw measured on the merge; the cap is that plus about 1%.
     // Navigation (#474): the + New capsule and its two-line menu, the Findings count, the views' words hidden at 960–1179 px.
     // 94,550 bytes raw measured (+1,019 on main's 93,531); the cap is that plus about 1%. Raising an owner-recorded cap: see the PR.
-    caps: { 'modern-shell': 96_600 },
+    caps: { 'modern-shell': 98_300 },
   },
   // Current: 36,500 B gzip over Classic's first load: 36,144 B measured after save-recovery CSS deduplication and Scene info reuse, plus about 1% (owner's standing 2026-11-08 rule; #580/#578).
   /**

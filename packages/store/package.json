@@ -9,6 +9,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./artifact-fs": "./src/artifact-fs.ts",
     "./encoding": "./src/encoding.ts"
   },
   "dependencies": {

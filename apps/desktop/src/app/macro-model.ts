@@ -4,6 +4,9 @@
  * and the macro a finished plan card becomes when the writer marks some of its values as params. The checks are the harness's
  * (`checkMacro`, `expandMacro`), so the panel never judges a macro by a rule of its own.
  */
+/* lingui-set comment="Macro problems. Interpolated values: label is a field's label, param is a param name, step is a step number, name is a macro name, and MACRO_SLUG_MAX, MACRO_NAME_MAX, MACRO_DESCRIPTION_MAX and MACRO_PARAMS_MAX are limits." */
+
+import { t } from '@lingui/core/macro';
 
 import {
   MACRO_DESCRIPTION_MAX,
@@ -20,11 +23,16 @@ import {
 import { checkMacro, expandMacro, macroFieldSpec, registryMacroTools, type MacroRisk, type ParamSpec, type PlanStep } from '@caotang/harness';
 
 /** What a macro does to the project, in the words the list uses. */
-export const RISK_WORDS: Readonly<Record<MacroRisk, string>> = {
-  read: 'Only reads. It runs without a card.',
-  'write-auto': 'Changes the project. A card shows every step first, and one undo takes it back.',
-  'write-confirm': 'Changes the project in ways that need your approval. A card shows every step first, and one undo takes it back.',
-};
+export function riskWord(risk: MacroRisk): string {
+  switch (risk) {
+    case 'read':
+      return t`Only reads. It runs without a card.`;
+    case 'write-auto':
+      return t`Changes the project. A card shows every step first, and one undo takes it back.`;
+    case 'write-confirm':
+      return t`Changes the project in ways that need your approval. A card shows every step first, and one undo takes it back.`;
+  }
+}
 
 export interface MacroRow {
   readonly macro: ProjectMacro;
@@ -83,12 +91,12 @@ export function valuesOf(fields: readonly MacroField[], text: Readonly<Record<st
       continue;
     }
     if (raw.trim() === '') {
-      if (field.required) return { problem: `“${field.label}” needs a value.` };
+      if (field.required) return { problem: t`“${{ label: field.label }}” needs a value.` };
       continue;
     }
     if (field.kind === 'integer') {
       const number = Number(raw);
-      if (!Number.isInteger(number)) return { problem: `“${field.label}” needs a whole number.` };
+      if (!Number.isInteger(number)) return { problem: t`“${{ label: field.label }}” needs a whole number.` };
       values[field.name] = number;
     } else {
       values[field.name] = raw;
@@ -204,7 +212,7 @@ function paramSpecFor(field: ParamSpec | undefined, leaf: Leaf, description: str
     if (option.kind === 'boolean') return typeof leaf.value === 'boolean';
     return false;
   });
-  if (fit === undefined) return fail(`“${pathLabel(leaf.path)}” in step ${leaf.step + 1} cannot be a param: the tool does not take one value there that a macro can fill.`);
+  if (fit === undefined) return fail(t`“${{ param: pathLabel(leaf.path) }}” in step ${{ step: leaf.step + 1 }} cannot be a param: the tool does not take one value there that a macro can fill.`);
   if (fit.kind === 'enum') return { kind: 'enum', description, values: [...fit.values], default: leaf.value as string };
   if (fit.kind === 'boolean') return { kind: 'boolean', description, default: leaf.value as boolean };
   if (fit.kind === 'integer') {
@@ -216,7 +224,7 @@ function paramSpecFor(field: ParamSpec | undefined, leaf: Leaf, description: str
       default: leaf.value as number,
     };
   }
-  if (fit.kind !== 'string') return fail(`“${pathLabel(leaf.path)}” in step ${leaf.step + 1} cannot be a param.`);
+  if (fit.kind !== 'string') return fail(t`“${{ param: pathLabel(leaf.path) }}” in step ${{ step: leaf.step + 1 }} cannot be a param.`);
   return {
     kind: 'string',
     description,
@@ -245,11 +253,11 @@ export function macroFromPlan(
   descriptions: Readonly<Record<string, string>> = {},
 ): { readonly draft: MacroDraft } | { readonly problem: string } {
   const name = form.name.trim();
-  if (name === '') return fail('Give the macro a name.');
-  if ([...name].length > MACRO_NAME_MAX) return fail(`A name is at most ${MACRO_NAME_MAX} characters.`);
-  if ([...form.description].length > MACRO_DESCRIPTION_MAX) return fail(`A description is at most ${MACRO_DESCRIPTION_MAX} characters.`);
+  if (name === '') return fail(t`Give the macro a name.`);
+  if ([...name].length > MACRO_NAME_MAX) return fail(t`A name is at most ${MACRO_NAME_MAX} characters.`);
+  if ([...form.description].length > MACRO_DESCRIPTION_MAX) return fail(t`A description is at most ${MACRO_DESCRIPTION_MAX} characters.`);
   const slug = form.slug.trim() === '' ? slugFromName(name) : form.slug.trim();
-  if (!isMacroSlug(slug)) return fail(`A slug is 1 to ${MACRO_SLUG_MAX} lower-case letters, digits and hyphens.`);
+  if (!isMacroSlug(slug)) return fail(t`A slug is 1 to ${MACRO_SLUG_MAX} lower-case letters, digits and hyphens.`);
 
   const tools = registryMacroTools();
   const copies = steps.map((entry) => structuredClone(entry.params) as Record<string, unknown>);
@@ -257,29 +265,29 @@ export function macroFromPlan(
   for (const leaf of leavesOf(steps)) {
     const param = marks[leafKey(leaf)];
     if (param === undefined || param.trim() === '') continue;
-    if (!isMacroParamName(param)) return fail(`“${param}” is not a param name: use letters, digits and underscores, starting with a letter.`);
+    if (!isMacroParamName(param)) return fail(t`“${param}” is not a param name: use letters, digits and underscores, starting with a letter.`);
     const tool = tools.tool((steps[leaf.step] as PlanStep).tool);
-    if (tool === undefined) return fail(`Step ${leaf.step + 1} is a tool a macro cannot call.`);
+    if (tool === undefined) return fail(t`Step ${{ step: leaf.step + 1 }} is a tool a macro cannot call.`);
     const field = macroFieldSpec(tool, (steps[leaf.step] as PlanStep).params as MacroValue, leaf.path);
     const spec = paramSpecFor(field, leaf, descriptions[param] ?? param);
     if ('problem' in spec) return spec;
     const held = params[param];
     if (held !== undefined) {
       if (JSON.stringify({ ...held, description: '' }) !== JSON.stringify({ ...spec, description: '' })) {
-        return fail(`The param “${param}” would hold two different values or kinds. Give them different names.`);
+        return fail(t`The param “${param}” would hold two different values or kinds. Give them different names.`);
       }
     } else {
       params[param] = spec;
     }
     setAt(copies[leaf.step] as Record<string, unknown>, leaf.path, { $param: param });
   }
-  if (Object.keys(params).length > MACRO_PARAMS_MAX) return fail(`A macro takes at most ${MACRO_PARAMS_MAX} params.`);
+  if (Object.keys(params).length > MACRO_PARAMS_MAX) return fail(t`A macro takes at most ${MACRO_PARAMS_MAX} params.`);
 
   const draft: MacroDraft = {
     slug,
     name,
     description: form.description,
-    params: { kind: 'object', description: `The values “${name}” takes.`, properties: params, required: [] },
+    params: { kind: 'object', description: t`The values “${name}” takes.`, properties: params, required: [] },
     steps: steps.map((entry, at): MacroStep => ({ tool: entry.tool, params: copies[at] as MacroStep['params'], expect: entry.expect })),
   };
   const probe: ProjectMacro = { id: 'm_0000000000', ...draft };
@@ -288,7 +296,7 @@ export function macroFromPlan(
   const expanded = expandMacro(probe, {});
   if (!expanded.ok) return fail(expanded.error.message);
   if (JSON.stringify(expanded.value.steps) !== JSON.stringify(steps.map((entry) => ({ tool: entry.tool, params: entry.params, expect: entry.expect })))) {
-    return fail('The macro would not reproduce this plan, so it was not saved. Mark fewer values, or keep them fixed.');
+    return fail(t`The macro would not reproduce this plan, so it was not saved. Mark fewer values, or keep them fixed.`);
   }
   return { draft };
 }

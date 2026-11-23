@@ -31,7 +31,7 @@ export interface PageParts {
   images: Map<string, string>;
 }
 
-const EMPTY_DROPPED: HtmlDropped = { scripts: 0, styles: 0, iframes: 0, eventAttrs: 0, unsafeLinks: 0, media: 0 };
+const EMPTY_DROPPED: HtmlDropped = { scripts: 0, styles: 0, iframes: 0, forms: 0, eventAttrs: 0, unsafeLinks: 0, media: 0 };
 
 const addDropped = (into: HtmlDropped, from: HtmlDropped): void => {
   into.scripts += from.scripts;

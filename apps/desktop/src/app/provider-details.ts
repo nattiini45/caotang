@@ -7,7 +7,7 @@
  */
 
 import { t } from '@lingui/core/macro';
-import { modelRowFor, type ModelInfo, type PresetDef } from '@caotang/gateway';
+import { modelRowFor, type ModelChoice, type ModelInfo, type PresetDef } from '@caotang/gateway';
 import { numberFormat } from '@caotang/i18n';
 
 import { formatterLocale } from '../i18n/format-locale.js';
@@ -26,6 +26,15 @@ export function modelDetails(model: ModelInfo, locale: string = formatterLocale(
     parts.push(t`${{ prompt: usd.format(prompt) }} in, ${{ completion: usd.format(completion) }} out per 1,000 tokens`);
   }
   return parts.join(' · ');
+}
+
+/** What the model list shows beside a model: its window, what it takes and what it costs, each only when the provider or the table says it. */
+export function choiceFacts(choice: ModelChoice, locale: string = formatterLocale()): string[] {
+  const facts: string[] = [];
+  if (choice.contextWindow !== undefined) facts.push(t`${{ count: formatCount(choice.contextWindow, locale) }} tokens`);
+  if (choice.tools === true) facts.push(t`Tools`);
+  if (choice.vision === true) facts.push(t`Images`);
+  return facts;
 }
 
 /**

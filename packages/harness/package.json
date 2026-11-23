@@ -10,6 +10,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./text-search": "./src/tools/text-search.ts",
+    "./worker": "./src/worker.ts",
     "./testing": "./src/testing.ts"
   },
   "dependencies": {

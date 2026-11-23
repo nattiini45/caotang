@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
-import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
+import { expect, type Locator, type Page, type TestInfo } from '@playwright/test';
+import { test } from './test.js';
 
 import { ZIP_ENGINE } from '../packages/store/src/index.js';
 
@@ -191,7 +192,7 @@ async function projectWithScene(page: Page, name: string): Promise<void> {
   await waitForSaved(page);
 }
 
-test('Import and More disclosures dismiss without swallowing the next action or the sidebar’s Escape', async ({ page }) => {
+test('Import and More disclosures dismiss without swallowing the next action or the sidebar’s Escape', { tag: '@modern' }, async ({ page }) => {
   await start(page);
   await projectWithScene(page, 'Disclosure Book');
   await openBinder(page);
@@ -236,7 +237,7 @@ test('Import and More disclosures dismiss without swallowing the next action or 
   await expect(importSummary).toBeFocused();
 });
 
-test('Escape from a closed filter select closes its disclosure', async ({ page }) => {
+test('Escape from a closed filter select closes its disclosure', { tag: '@modern' }, async ({ page }) => {
   await start(page);
   await projectWithScene(page, 'Closed Picker Book');
   await openBinder(page);
@@ -249,7 +250,7 @@ test('Escape from a closed filter select closes its disclosure', async ({ page }
   await expect(summary).toBeFocused();
 });
 
-test('a native filter picker gets Escape before the containing disclosure', async ({ page, browserName }) => {
+test('a native filter picker gets Escape before the containing disclosure', { tag: '@modern' }, async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'Only Chromium exposes its native picker open state in the headless backend.');
   await start(page);
   await projectWithScene(page, 'Native Picker Book');
@@ -273,7 +274,7 @@ test('a native filter picker gets Escape before the containing disclosure', asyn
   await expect(summary).toBeFocused();
 });
 
-test('the Codex Filter dismisses on Escape and an outside click', async ({ page }) => {
+test('the Codex Filter dismisses on Escape and an outside click', { tag: '@modern' }, async ({ page }) => {
   await start(page);
   await projectWithScene(page, 'Codex Disclosure Book');
   await page.getByRole('navigation', { name: 'Views and tools' }).getByRole('radio', { name: 'Codex', exact: true }).click();
@@ -303,7 +304,7 @@ test('Classic keeps its permanently expanded More controls visible after outside
   await expect(imports.getByRole('button', { name: 'Import script', exact: true })).toBeVisible();
 });
 
-test('Home is on the wallpaper with its sections on paper, and every control on it is 44 px', async ({ page }) => {
+test('Home is on the wallpaper with its sections on paper, and every control on it is 44 px', { tag: '@modern' }, async ({ page }) => {
   await start(page);
   const home = page.locator('.home');
   const look = await home.evaluate((element) => getComputedStyle(element).backgroundImage);
@@ -382,7 +383,7 @@ test('the More menu is glass with 44 px rows, and each dialog it opens is glass,
   }
 });
 
-test('a Confirm dialog is glass and grows out of the row; the status line that follows is a glass toast at the top centre', async ({ page }) => {
+test('a Confirm dialog is glass and grows out of the row; the status line that follows is a glass toast at the top centre', { tag: '@modern' }, async ({ page }) => {
   await page.clock.install();
   await start(page);
   await projectWithScene(page, 'Harbour Book');
@@ -428,7 +429,7 @@ test('a Confirm dialog is glass and grows out of the row; the status line that f
   await expect(toast).toHaveCount(0);
 });
 
-test('removing a project from Home asks in a glass Confirm dialog, and Cancel gives focus back to Remove', async ({ page }) => {
+test('removing a project from Home asks in a glass Confirm dialog, and Cancel gives focus back to Remove', { tag: '@modern' }, async ({ page }) => {
   await start(page);
   await page.getByLabel('Project name').fill('Short Story');
   await page.getByRole('button', { name: 'Create project' }).click();
@@ -497,7 +498,7 @@ test('the Recovery and Encoding dialogs a bundle import asks are glass, keep the
   await expect(encoding).toBeHidden();
 });
 
-test('a Choice dialog (the Final Draft import question) is glass, keeps the focus inside, and every control in it is 44 px', async ({ page }) => {
+test('a Choice dialog (the Final Draft import question) is glass, keeps the focus inside, and every control in it is 44 px', { tag: '@modern' }, async ({ page }) => {
   await start(page);
   await projectWithScene(page, 'Harbour Book');
   const fdx = [
@@ -524,7 +525,7 @@ test('a Choice dialog (the Final Draft import question) is glass, keeps the focu
   await expect(choice).toBeHidden();
 });
 
-test('the Vocabulary dialog, opened from Scene info’s label picker, is glass, keeps the focus inside, and every control in it is 44 px', async ({ page }) => {
+test('the Vocabulary dialog, opened from Scene info’s label picker, is glass, keeps the focus inside, and every control in it is 44 px', { tag: '@modern' }, async ({ page }) => {
   await start(page);
   await projectWithScene(page, 'Harbour Book');
   await openBinder(page);
@@ -541,7 +542,7 @@ test('the Vocabulary dialog, opened from Scene info’s label picker, is glass, 
   await expect(vocabulary).toHaveCount(0);
 });
 
-test('under reduced motion a dialog only fades in: nothing moves', async ({ page }) => {
+test('under reduced motion a dialog only fades in: nothing moves', { tag: '@modern' }, async ({ page }) => {
   await start(page, { reducedMotion: true });
   await clearAnimations(page);
   await page.getByTestId('open-settings').click();
@@ -558,7 +559,7 @@ test('under reduced motion a dialog only fades in: nothing moves', async ({ page
   await expect(page.locator('.modern-morph-ghost')).toHaveCount(0);
 });
 
-test('Reduce transparency makes every dialog and menu an opaque sheet', async ({ page }) => {
+test('Reduce transparency makes every dialog and menu an opaque sheet', { tag: '@modern' }, async ({ page }) => {
   await page.addInitScript(() => (globalThis as unknown as { localStorage: Storage }).localStorage.setItem('caotang.modern.transparency', 'reduced'));
   await start(page);
   await page.getByTestId('open-settings').click();

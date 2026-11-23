@@ -77,6 +77,8 @@ export {
 export {
   arabicFontMaps,
   devanagariFontMaps,
+  indicFontMaps,
+  type IndicScriptName,
   emojiFontHasSequence,
   emojiFontHasTonedSequence,
   emojiFontLayoutGlyph,
@@ -101,16 +103,25 @@ export {
   type RtlScript,
   type ScriptRun,
 } from './rtl-script.js';
+export { srgbIccProfile } from './icc.js';
 export {
   clustersOf,
   devanagariFontPrints,
   devanagariRuns,
   hasBrahmic,
   hasDevanagari,
+  INDIC_SCRIPTS,
+  INDIC_SCRIPT_NAMES,
+  indicFontPrints,
+  indicRuns,
+  indicScriptOf,
+  indicUnitScript,
   isBrahmic,
   isDevanagariUnit,
   joinConjuncts,
   startsWithBrahmicMark,
   type DevanagariRun,
+  type IndicRun,
+  type IndicScript,
   type ShapedScript,
 } from './brahmic.js';

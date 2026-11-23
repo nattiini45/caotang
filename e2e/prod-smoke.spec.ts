@@ -3,10 +3,13 @@ import { join, resolve } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
+import { textZip } from '../packages/import-read/test/zip-fixtures.js';
 import { NO_PIN } from './classic-pin.js';
+import { createGoalScene } from './goal-scene-flow.js';
 import { searchWhileTyping } from './text-search-flow.js';
+import { scanStartupCancellation } from './harness-worker-flow.js';
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
-import { binderTitle, createProject, firstChapter, waitForSaved, writerText } from './support.js';
+import { binderTitle, createProject, firstChapter, waitForSaved, writerText, chooseInterfaceLanguage} from './support.js';
 
 /**
  * The production build, smoke-tested. This spec runs only in the `production-preview` project (playwright.config.ts), against
@@ -23,6 +26,10 @@ const POLICY =
 
 test('cold local passage search leaves typing responsive under the production CSP', async ({ page, context }) => {
   await searchWhileTyping(page, context);
+});
+
+test('a CPU scan stays cancellable without blocking typing under the production CSP', async ({ page, context }) => {
+  await scanStartupCancellation(page, context, 'classic');
 });
 
 /** A 1×1 PNG, so the cover goes through the image paths (an object URL for the preview, the bytes into the EPUB). */
@@ -79,6 +86,58 @@ function watchChunks(page: Page): () => string[] {
 async function violations(page: Page): Promise<string[]> {
   return page.evaluate(() => window.__cspViolations ?? ['the violation listener was not installed']);
 }
+
+test('a web-page zip imports in a lazy same-origin Worker under the production CSP', async ({ page }) => {
+  const problems = await watchForProblems(page);
+  const chunks = watchChunks(page);
+  await createProject(page, 'Production HTML Import');
+  expect(chunks()).not.toContain('reader.worker');
+  const started = page.waitForEvent('worker', (worker) => /\/assets\/reader\.worker-[\w-]+\.js$/.test(new URL(worker.url()).pathname));
+  await page.locator('input[type="file"][aria-label="HTML file"]').setInputFiles({
+    name: 'production.zip',
+    mimeType: 'application/zip',
+    buffer: Buffer.from(textZip({
+      'page.html': '<html><head><title>Production</title></head><body>' +
+        '<h1>Chapter One</h1><p>The ferry came at noon.</p>' +
+        '<h1>Chapter Two</h1><p>The letter arrived on a Tuesday.</p></body></html>',
+    })),
+  });
+  const worker = await started;
+  expect(new URL(worker.url()).origin).toBe(new URL(page.url()).origin);
+  const dialog = page.getByRole('dialog', { name: 'Import “production.zip”' });
+  await expect(dialog).toHaveAttribute('data-state', 'ready');
+  await expect(dialog.getByRole('tree', { name: 'Binder (proposed)' })).toContainText('Chapter Two');
+  await dialog.getByRole('button', { name: 'Import 2 chapters' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText('Imported 2 documents in 2 folders from production.zip.', { exact: true })).toBeVisible();
+  await waitForSaved(page);
+  expect(await violations(page)).toEqual([]);
+  expect(problems).toEqual([]);
+});
+
+test('the goal form and its saved no-turn result work under the production CSP', async ({ page }) => {
+  const problems = await watchForProblems(page);
+  await createGoalScene(page, 'Goal Preview Book', 'classic', true);
+  await page.getByRole('button', { name: 'Agent', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Intent', exact: true }).fill('Keep the ordinary draft.');
+  await page.getByRole('button', { name: 'Goal', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Goal intent', exact: true }).fill('Keep every synopsis filled.');
+  await page.getByRole('checkbox', { name: 'Every synopsis is filled', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Add an independent review', exact: true }).check();
+  await page.getByRole('textbox', { name: 'Review criterion', exact: true }).fill('The synopsis names the departure.');
+  await page.getByRole('spinbutton', { name: 'Model-call limit', exact: true }).fill('0');
+  await page.getByRole('button', { name: 'Start the goal', exact: true }).click();
+  const progress = page.getByRole('region', { name: /^Goal progress:/ });
+  await expect(progress).toHaveAttribute('data-status', 'passed');
+  await expect(progress).toContainText('Completed iterations: 0 of 10');
+  await expect(page.getByTestId('goal-independent-review')).toContainText('Review unavailable');
+  await expect(page.getByTestId('goal-independent-review')).toContainText('No changed, readable passages were available');
+  await expect(page.getByTestId('goal-independent-review')).not.toContainText('Iteration 0');
+  await expect(progress.getByRole('cell', { name: /Passed/ })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Intent', exact: true })).toHaveValue('Keep the ordinary draft.');
+  expect(problems).toEqual([]);
+  expect(await violations(page)).toEqual([]);
+});
 
 /** Compiles the manuscript in the given format and returns the downloaded file's name. */
 async function compile(page: Page, format: RegExp): Promise<string> {
@@ -144,7 +203,7 @@ test('the built app lazy-loads German under its policy and restores the saved ch
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByTestId('settings');
   await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
-  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await expect(settings.locator('input[name="interface-language"][value="de"]')).toBeChecked();
   await expect(settings.locator('h2')).toHaveText('Einstellungen');
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
@@ -169,22 +228,23 @@ test('a failed production German download changes nothing and choosing Deutsch a
   // The aborted download is a console error by design, so only the policy-violation listener this installs is read here.
   await watchForProblems(page);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  const settings = page.getByTestId('settings');
-  await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
-  const german = settings.locator('input[name="interface-language"][value="de"]');
-  const system = settings.locator('input[name="interface-language"][value="system"]');
   const catalogueRequest = /\/assets\/.*messages.*\.js(?:\?.*)?$/;
   let aborted = 0;
   await page.route(catalogueRequest, (route) => {
     aborted += 1;
     return route.abort('failed');
   });
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByTestId('settings');
+  await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
+  const german = settings.locator('input[name="interface-language"][value="de"]');
+  const system = settings.locator('input[name="interface-language"][value="system"]');
   const notice =
     'The interface language could not be loaded, so nothing changed. Check your connection and choose the language again.';
+  // Opening Settings warms the German catalogue (#721): its aborted request comes before each click's own.
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     await german.click();
-    await expect.poll(() => aborted).toBe(attempt);
+    await expect.poll(() => aborted).toBe(attempt + 1);
     await expect(settings.getByRole('alert')).toHaveText(notice);
     await expect(system).toBeChecked();
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');

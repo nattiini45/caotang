@@ -1,0 +1,122 @@
+:is(.mcp-hook-settings, .model-hook-settings) {
+  margin-block-start: var(--space-5);
+}
+
+:is(.mcp-hook-settings, .model-hook-settings) .settings-form fieldset {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+:is(.mcp-hook-settings, .model-hook-settings) [data-slot='field'] {
+  display: grid;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+:is(.mcp-hook-settings, .model-hook-settings) [data-slot='select-trigger'] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-self: start;
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+  text-align: start;
+  white-space: normal;
+}
+
+:is(.mcp-hook-settings, .model-hook-settings) .settings-form [data-slot='input'],
+:is(.mcp-hook-settings, .model-hook-settings) [data-slot='select-trigger'] {
+  border-color: var(--k-edge, var(--muted));
+}
+
+.mcp-hook-options {
+  z-index: 100;
+  max-inline-size: min(24rem, 90vw);
+  max-block-size: 16rem;
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.mcp-hook-options [data-slot='select-item'] {
+  padding: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.mcp-hook-options [data-highlighted] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.mcp-hook-check {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--target-min);
+  block-size: var(--target-min);
+  color: var(--ink);
+  border: 1px solid var(--k-edge, var(--muted));
+  border-radius: var(--radius-xs);
+}
+
+.mcp-hook-check svg,
+:is(.mcp-hook-settings, .model-hook-settings) [data-slot='select-trigger'] svg {
+  flex: none;
+  inline-size: 1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.model-hook-settings [data-slot='textarea'] {
+  box-sizing: border-box;
+  inline-size: 100%;
+  resize: vertical;
+  font: inherit;
+  font-size: var(--text-lg);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--k-edge, var(--muted));
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.model-hook-settings .model-hook-checkbox {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+  gap: var(--space-3);
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: start;
+  font: inherit;
+  font-size: var(--text-lg);
+  cursor: pointer;
+}
+
+.model-hook-checkbox .mcp-hook-check {
+  flex: none;
+  inline-size: 1.2rem;
+  block-size: 1.2rem;
+  background: var(--paper);
+}
+
+.model-hook-checkbox[data-checked] .mcp-hook-check {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+:root[data-shell='modern'] .mcp-hook-options [data-slot='select-item'] {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+}
+.model-hook-settings .settings-rules > li > span:first-child {
+  overflow-wrap: anywhere;
+}

@@ -74,3 +74,45 @@ export function decodeBase32(text: string): Uint8Array {
   if (acc !== 0) throw new CryptoError('bad-format', 'the base32 text has stray trailing bits');
   return Uint8Array.from(out);
 }
+
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+/** Standard base64 with padding, for the JSON account record. */
+export function encodeBase64(bytes: Uint8Array): string {
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b0 = bytes[i]!;
+    const b1 = bytes[i + 1];
+    const b2 = bytes[i + 2];
+    out += B64[b0 >> 2];
+    out += B64[((b0 & 3) << 4) | ((b1 ?? 0) >> 4)];
+    out += b1 === undefined ? '=' : B64[((b1 & 15) << 2) | ((b2 ?? 0) >> 6)];
+    out += b2 === undefined ? '=' : B64[b2 & 63];
+  }
+  return out;
+}
+
+/** The inverse of {@link encodeBase64}; refuses a non-canonical character, length or padding. */
+export function decodeBase64(text: string): Uint8Array {
+  let end = text.length;
+  while (end > 0 && text[end - 1] === '=') end--;
+  const clean = text.slice(0, end);
+  const padding = text.length - end;
+  const rem = clean.length % 4;
+  if (padding > 2 || rem === 1 || (padding > 0 && rem + padding !== 4)) throw new CryptoError('bad-format', 'the base64 text has a malformed length or padding');
+  if (/[^A-Za-z0-9+/]/.test(clean)) throw new CryptoError('bad-format', 'the base64 text holds a non-base64 character');
+  const out: number[] = [];
+  let acc = 0;
+  let bits = 0;
+  for (const ch of clean) {
+    acc = (acc << 6) | B64.indexOf(ch);
+    bits += 6;
+    if (bits >= 8) {
+      out.push((acc >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+    acc &= (1 << bits) - 1;
+  }
+  if (acc !== 0) throw new CryptoError('bad-format', 'the base64 text has stray trailing bits');
+  return Uint8Array.from(out);
+}

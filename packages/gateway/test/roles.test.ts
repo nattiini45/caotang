@@ -215,7 +215,7 @@ describe('modelLimits() — task roles (provider-gateway §6, §3 "Effective out
   it('keeps a named profile over the role, and a role the resolver has no answer for on the active profile', async () => {
     const { h, drafted, resolve } = await routed(false);
     expect(h.gateway.modelLimits(undefined, undefined, undefined, { role: 'chat' }).thinkingTokens).toBeUndefined();
-    expect(resolve).toHaveBeenCalledWith('chat');
+    expect(resolve).toHaveBeenCalledWith('chat', undefined);
     resolve.mockClear();
     expect(h.gateway.modelLimits(drafted.id, undefined, undefined, { role: 'chat' }).thinkingTokens).toBe(12_288);
     expect(resolve).not.toHaveBeenCalled();
@@ -232,5 +232,85 @@ describe('modelLimits() — task roles (provider-gateway §6, §3 "Effective out
     // The role pins thinking off: no lift. An asked level on the same request wins over the role's.
     expect(h.gateway.modelLimits(undefined, undefined, undefined, { role: 'drafting' }).thinkingTokens).toBeUndefined();
     expect(h.gateway.modelLimits(undefined, undefined, 'high', { role: 'drafting' }).thinkingTokens).toBe(12_288);
+  });
+});
+
+describe('complete() — per-step routing inside a role (provider-gateway §6)', () => {
+  /** A resolver whose chat role has a step of its own (`drafts`), with the role's own target behind it. */
+  const stepped = (cells: { chat?: string; drafts?: string; fallbacks?: string[] }): RoleResolver => ({
+    resolve: (role: TaskRole, step) => {
+      if (role !== 'chat') return undefined;
+      if (step === 'draft' && cells.drafts !== undefined) {
+        return { profileId: cells.drafts, ...(cells.fallbacks === undefined ? {} : { fallbacks: cells.fallbacks.map((profileId) => ({ profileId })) }) };
+      }
+      return cells.chat === undefined ? undefined : { profileId: cells.chat };
+    },
+    allowed: (role: TaskRole, step) => {
+      if (role !== 'chat') return [];
+      const own = step === 'draft' && cells.drafts !== undefined ? [cells.drafts] : [];
+      return [...own, ...(cells.chat === undefined ? [] : [cells.chat]), ...(cells.fallbacks ?? [])];
+    },
+  });
+
+  it('sends a step to the profile the role names for it, and the role’s own target with no step', async () => {
+    const cells: { chat?: string; drafts?: string } = {};
+    const net = new ScriptedFetch()
+      .push(() => sseResponse([finish('stop'), '[DONE]']))
+      .push(() => sseResponse([finish('stop'), '[DONE]']));
+    const h = roleHarness(stepped(cells), net);
+    await addEndpoint(h, { name: 'planner', baseUrl: 'https://a.example/v1' });
+    const drafts = await addEndpoint(h, { name: 'drafts', baseUrl: 'https://b.example/v1', apiKey: 'sk-b-key-000000000000' });
+    cells.chat = h.profiles.active()?.id;
+    cells.drafts = drafts.id;
+
+    expect((await collect(h.gateway.complete({ ...userMessage('plan it'), role: 'chat', step: 'plan' }))).error).toBeUndefined();
+    expect((await collect(h.gateway.complete({ ...userMessage('draft it'), role: 'chat', step: 'draft' }))).error).toBeUndefined();
+
+    expect(h.net.calls.map((call) => new URL(call.url).host)).toEqual(['a.example', 'b.example']);
+    // The step's own model is what goes out, and the ledger names the destination that answered it.
+    expect(h.net.headerOf(1, 'authorization')).toBe('Bearer sk-b-key-000000000000');
+    expect(h.gateway.ledger.dayRows().map((row) => row.profileId)).toContain(drafts.id);
+  });
+
+  it('resolves the role’s own target for a step it names none for', async () => {
+    const cells: { chat?: string; drafts?: string } = {};
+    const net = new ScriptedFetch().push(() => sseResponse([finish('stop'), '[DONE]']));
+    const h = roleHarness(stepped(cells), net);
+    const chat = await addEndpoint(h, { name: 'planner', baseUrl: 'https://a.example/v1' });
+    cells.chat = chat.id;
+    cells.drafts = (await addEndpoint(h, { name: 'drafts', baseUrl: 'https://b.example/v1' })).id;
+
+    expect((await collect(h.gateway.complete({ ...userMessage('summarize it'), role: 'chat', step: 'summarize' }))).error).toBeUndefined();
+    expect(h.net.calls.map((call) => new URL(call.url).host)).toEqual(['a.example']);
+  });
+
+  it('refuses a step target the role does not allow, before any key is revealed', async () => {
+    // The allow-set is read for the step too: a resolver that names a destination its own allow-set omits is refused, not sent.
+    const net = new ScriptedFetch();
+    const h = roleHarness(
+      {
+        resolve: (role: TaskRole, step) => (role === 'chat' && step === 'draft' ? { profileId: 'prv_unknown_draft' } : undefined),
+        allowed: () => [],
+      },
+      net,
+    );
+    await addEndpoint(h);
+
+    const { error } = await collect(h.gateway.complete({ ...userMessage('draft it'), role: 'chat', step: 'draft' }));
+
+    expect(error).toBeInstanceOf(EgressDeniedError);
+    expect(net.calls).toHaveLength(0);
+  });
+
+  it('reads a call’s limits on the step’s own destination', async () => {
+    const cells: { chat?: string; drafts?: string } = {};
+    const h = roleHarness(stepped(cells));
+    const chat = await addEndpoint(h, { name: 'planner', baseUrl: 'https://a.example/v1', maxOutputTokens: 4_096 });
+    const drafts = await addEndpoint(h, { name: 'drafts', baseUrl: 'https://b.example/v1', maxOutputTokens: 1_024, defaultModel: 'big-model' });
+    cells.chat = chat.id;
+    cells.drafts = drafts.id;
+
+    expect(h.gateway.modelLimits(undefined, undefined, undefined, { role: 'chat', step: 'draft' }).maxOutputTokens).toBe(1_024);
+    expect(h.gateway.modelLimits(undefined, undefined, undefined, { role: 'chat', step: 'plan' }).maxOutputTokens).toBe(4_096);
   });
 });

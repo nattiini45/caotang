@@ -50,7 +50,7 @@ export type Ao3Error =
 
 export type Ao3Result = { ok: true; value: Ao3Import } | { ok: false; error: Ao3Error };
 
-const EMPTY_DROPPED: HtmlDropped = { scripts: 0, styles: 0, iframes: 0, eventAttrs: 0, unsafeLinks: 0, media: 0 };
+const EMPTY_DROPPED: HtmlDropped = { scripts: 0, styles: 0, iframes: 0, forms: 0, eventAttrs: 0, unsafeLinks: 0, media: 0 };
 
 /** The last heading at or before a block: the chapter a note belongs to, or none for the work's own notes. */
 function headingBefore(document: ImportDocument, blockIndex: number): string | null {
