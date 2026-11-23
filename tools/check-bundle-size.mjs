@@ -336,11 +336,12 @@ export const BUDGET = {
   // The desktop app's own provider transport (#405): 9,022.5 kB measured on CI, 2.5 kB over that ceiling, all of it the entry chunk
   // (every other chunk is the same size to the tenth of a kilobyte). What is named above applies: the transport, its refusals and
   // the wiring that reaches it from Settings. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  // The keychain (#404): 9,027.4 kB measured on this branch, 4.9 kB over that ceiling, again the entry chunk. The vault, the
-  // channels' contract and the migration are named above. The ceiling is the measurement rounded up to the thousand.
+  // The keychain (#404): 9,027.9 kB measured on this branch after main's batched save (#848) landed under it, 5.4 kB over that
+  // ceiling, again the entry chunk. The vault, the channels' contract and the migration are named above. The ceiling is the
+  // measurement rounded up to the thousand.
   // [delegated 2026-11-23]
-  // The project's own MCP server (#406): 9,036,600 bytes measured on its branch after the review fixes landed under it, 8,600 over the
-  // ceiling #404 set. Named: the new
+  // The project's own MCP server (#406): 9,036,900 bytes measured on its branch after main's batched save (#848) and #404's ceiling
+  // raise landed under it, 8,900 over the ceiling #404 set. Named: the new
   // Settings block (its component and the stylesheet beside the server cards, both in the Settings chunk, on use), the German and
   // English catalogue entries for its sentences, and the pause and lock check the save path calls from the entry. Nothing heavier was
   // found to move: the block is already in a lazy chunk, and the entry carries only the functions the save path needs before it can
