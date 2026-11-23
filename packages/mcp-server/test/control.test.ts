@@ -32,13 +32,19 @@ describe('createWriteGate', () => {
     expect(gate.paused()).toBe(false);
   });
 
-  it('keeps the first instant when asked twice, because two nested saves are one pause', () => {
+  it('keeps the first instant when asked twice, and lifts only when the second resume arrives', () => {
     let now = new Date('2026-11-23T10:00:00.000Z');
     const gate = createWriteGate(() => now);
     gate.pause();
     now = new Date('2026-11-23T10:00:05.000Z');
     expect(gate.pause().since).toBe('2026-11-23T10:00:00.000Z');
-    gate.resume();
+    // Two saves overlap: the first one finishing must not let a write start under the second.
+    expect(gate.resume()).toEqual({ paused: true, since: '2026-11-23T10:00:00.000Z' });
+    expect(gate.paused()).toBe(true);
+    expect(gate.resume()).toEqual({ paused: false });
+    expect(gate.paused()).toBe(false);
+    // A resume with nothing paused answers what the gate already says, and the next pause starts its own clock.
+    expect(gate.resume()).toEqual({ paused: false });
     expect(gate.pause().since).toBe('2026-11-23T10:00:05.000Z');
   });
 });

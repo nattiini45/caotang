@@ -22,6 +22,9 @@ import { ipcMain, utilityProcess, type UtilityProcess } from 'electron';
 import { fromStudioFrame } from './ipc-guard.mjs';
 import type { McpHostRefusal, McpHostReply, McpHostStatus } from './mcp-contract.cjs';
 
+/** What the block says when the server had to be restarted because it did not answer the resume that ends a save. */
+export const RESTARTED_AFTER_RESUME = 'The server did not answer while Caotang finished saving, so it was stopped. Start it again.';
+
 /** How long a start waits for the server to say it is ready before the app calls it failed. */
 const READY_TIMEOUT_MS = 20_000;
 
@@ -47,11 +50,12 @@ export interface McpHostOptions {
 export function registerMcpIpc(options: McpHostOptions): McpHost {
   let child: UtilityProcess | undefined;
   let status: McpHostStatus = { state: 'stopped' };
-  const listeners = new Set<(status: McpHostStatus) => void>();
+  /** Each page that is listening, with what it is told: one entry per page, however many times its component mounts. */
+  const listeners = new Map<number, (status: McpHostStatus) => void>();
 
   const publish = (next: McpHostStatus): void => {
     status = next;
-    for (const listener of listeners) listener(next);
+    for (const listener of listeners.values()) listener(next);
   };
 
   const handle = <T,>(channel: string, run: () => Promise<McpHostReply<T>>): void => {
@@ -61,17 +65,24 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
     });
   };
 
+  /** Set while a stop was asked for, so the exit it causes is reported as a stop and not as a server that died. */
+  let stopping = false;
+  /** The start in flight, so two starts cannot each fork a child and kill the other's. */
+  let starting: Promise<McpHostReply<McpHostStatus>> | null = null;
+
   const stopChild = async (): Promise<void> => {
     const running = child;
     child = undefined;
     if (running === undefined) return;
+    stopping = true;
     const ended = new Promise<void>((resolve) => running.once('exit', () => resolve()));
     running.kill();
     await ended;
+    stopping = false;
   };
 
   /** A start: the same bundle, the open folder, a token this app minted, and writes on or off as the writer chose. */
-  const start = async (folderId: unknown, allowWrites: unknown): Promise<McpHostReply<McpHostStatus>> => {
+  const begin = async (folderId: unknown, allowWrites: unknown): Promise<McpHostReply<McpHostStatus>> => {
     if (typeof folderId !== 'string') return { ok: false, refusal: 'no-folder' };
     const root = options.rootOf(folderId);
     if (root === undefined) return { ok: false, refusal: 'no-folder' };
@@ -105,9 +116,9 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
       }, READY_TIMEOUT_MS);
 
       forked.stderr?.on('data', (chunk: Buffer) => {
-        const text = chunk.toString('utf8');
-        said = `${said}${text}`.slice(-4096);
-        const endpoint = ENDPOINT.exec(text.split('\n').map((line) => line.trim()).find((line) => ENDPOINT.test(line)) ?? '');
+        said = `${said}${chunk.toString('utf8')}`.slice(-4096);
+        // Against everything it has said so far, because a line can arrive in two chunks.
+        const endpoint = ENDPOINT.exec(said.split('\n').map((line) => line.trim()).find((line) => ENDPOINT.test(line)) ?? '');
         if (endpoint === null) return;
         const running: McpHostStatus = { state: 'running', url: endpoint[1], token, allowWrites: allowWrites === true, since, folderId };
         publish(running);
@@ -118,18 +129,31 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
         publish({ state: 'failed', refusal: 'failed', folderId, detail: said.trim().split('\n').slice(-1)[0] });
         settle({ ok: false, refusal: 'failed' });
       });
-      forked.once('exit', () => {
+      forked.once('exit', (code) => {
         if (child === forked) child = undefined;
+        if (!settled && stopping) {
+          // A stop the writer asked for, while the server was still starting: they asked for it to be stopped, and it is.
+          publish({ state: 'stopped' });
+          settle({ ok: true, value: status });
+          return;
+        }
         if (status.state === 'running' || status.state === 'starting') publish({ state: 'stopped' });
         if (!settled) {
-          // The server says why it would not serve: a folder another writer holds is the one the writer can act on.
-          const locked = /holds the folder's lock|is locked by/u.test(said);
-          const refusal: McpHostRefusal = locked ? 'busy' : 'failed';
+          // The command line's own exit codes say why it would not serve: 3 is the folder another writer holds, 2 is a folder that
+          // holds no project and cannot be made one, and anything else is this app's to report (cli.ts).
+          const refusal: McpHostRefusal = code === 3 ? 'busy' : 'failed';
           publish({ state: 'failed', refusal, folderId, detail: said.trim().split('\n').slice(-1)[0] });
           settle({ ok: false, refusal });
         }
       });
     });
+  };
+
+  const start = async (folderId: unknown, allowWrites: unknown): Promise<McpHostReply<McpHostStatus>> => {
+    // One start at a time: a second one while the first is still in its handshake would kill that child mid-start and report a death
+    // the writer did not ask for.
+    if (starting === null) starting = begin(folderId, allowWrites).finally(() => { starting = null; });
+    return await starting;
   };
 
   /** One control call: the app's own token, its own server, and the pause that stands between a check and a rename. */
@@ -139,18 +163,35 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
       return { ok: true, value: status };
     }
     const base = status.url.replace(/\/mcp$/u, '');
-    try {
-      // A server that does not answer must not hold a save: the app's digest check is the guarantee, and this is the window it closes.
-      const response = await fetch(`${base}/control/${what}`, {
-        method: 'POST',
-        headers: { authorization: `Bearer ${status.token}` },
-        signal: AbortSignal.timeout(PAUSE_TIMEOUT_MS),
-      });
-      if (!response.ok) return { ok: false, refusal: 'failed' };
-      return { ok: true, value: status };
-    } catch {
-      return { ok: false, refusal: 'failed' };
+    const post = async (): Promise<boolean> => {
+      try {
+        // A server that does not answer must not hold a save: the app's digest check is the guarantee, and this is the window it closes.
+        const response = await fetch(`${base}/control/${what}`, {
+          method: 'POST',
+          headers: { authorization: `Bearer ${status.token}` },
+          signal: AbortSignal.timeout(PAUSE_TIMEOUT_MS),
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
+    };
+    // A pause that fails costs nothing (the digest check is the guarantee). A resume that fails would leave every write refused for
+    // the life of that server, so it is tried again, and then the server is restarted: a stopped server is a state the writer can see
+    // and act on, a server that silently refuses everything is not.
+    const attempts = what === 'resume' ? 3 : 1;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      if (await post()) return { ok: true, value: status };
+      if (attempt + 1 < attempts) await new Promise((resolve) => setTimeout(resolve, 150));
     }
+    if (what === 'resume' && status.state === 'running') {
+      const folderId = status.folderId;
+      const allowWrites = status.allowWrites === true;
+      await stopChild();
+      publish({ state: 'stopped', ...(folderId === undefined ? {} : { folderId }), allowWrites, detail: RESTARTED_AFTER_RESUME });
+      return { ok: true, value: status };
+    }
+    return { ok: false, refusal: 'failed' };
   };
 
   ipcMain.handle('mcp:start', async (event, folderId: unknown, allowWrites: unknown): Promise<McpHostReply<McpHostStatus>> => (
@@ -166,13 +207,19 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
   handle('resume', () => control('resume'));
 
   ipcMain.removeAllListeners('mcp:subscribe');
+  ipcMain.removeAllListeners('mcp:unsubscribe');
   ipcMain.on('mcp:subscribe', (event) => {
     if (!fromStudioFrame(event, options.entryUrl)) return;
-    const listener = (next: McpHostStatus): void => {
-      if (!event.sender.isDestroyed()) event.sender.send('mcp:status', next);
-    };
-    listeners.add(listener);
-    event.sender.once('destroyed', () => listeners.delete(listener));
+    const { sender } = event;
+    // One entry per page, not one per mount: the same window mounting the block twice replaces its own listener.
+    listeners.set(sender.id, (next) => {
+      if (!sender.isDestroyed()) sender.send('mcp:status', next);
+    });
+    sender.once('destroyed', () => listeners.delete(sender.id));
+  });
+  ipcMain.on('mcp:unsubscribe', (event) => {
+    if (!fromStudioFrame(event, options.entryUrl)) return;
+    listeners.delete(event.sender.id);
   });
 
   return { writerPid: () => child?.pid };

@@ -73,14 +73,19 @@ export function ProjectServerSection({ folderId }: { readonly folderId: string |
 
   useEffect(() => {
     let live = true;
+    // An event that arrives while the first read is in flight is fresher than the read's answer, so the answer is dropped: the
+    // difference is a start or a stop the writer just asked for, and showing the state before it would undo it on screen.
+    let heard = false;
+    const stop = subscribeProjectServer((next) => {
+      if (!live) return;
+      heard = true;
+      setStatus(next);
+    });
     void projectServerStatus()
       .then((next) => {
-        if (live && next !== undefined) setStatus(next);
+        if (live && !heard && next !== undefined) setStatus(next);
       })
       .catch(() => undefined);
-    const stop = subscribeProjectServer((next) => {
-      if (live) setStatus(next);
-    });
     return () => {
       live = false;
       stop();

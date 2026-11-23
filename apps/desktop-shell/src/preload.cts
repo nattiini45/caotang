@@ -45,7 +45,11 @@ const bridge: DesktopBridge = {
       const notify = (_event: IpcRendererEvent, status: McpHostStatus): void => listener(status);
       ipcRenderer.on('mcp:status', notify);
       ipcRenderer.send('mcp:subscribe');
-      return () => { ipcRenderer.off('mcp:status', notify); };
+      return () => {
+        ipcRenderer.off('mcp:status', notify);
+        // The main process holds one entry per page; a page that stops listening says so rather than leaving it there.
+        ipcRenderer.send('mcp:unsubscribe');
+      };
     },
   },
   net: {

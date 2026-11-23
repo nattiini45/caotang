@@ -28,21 +28,26 @@ export interface WriteGate {
 }
 
 /**
- * A gate with a clock the tests set. A pause is idempotent: asking twice keeps the first instant, because the app that asks twice is
- * two nested saves and the outer one's page has to be the one that says when the folder is free again.
+ * A gate with a clock the tests set. A pause counts: asking twice keeps the first instant and lifts only when the second resume
+ * arrives, because the app that asks twice is two saves overlapping, and the first of them finishing is not the folder being free.
+ * A resume with no pause standing is not an error — it answers what the gate already said.
  */
 export function createWriteGate(now: () => Date = () => new Date()): WriteGate {
   let since: string | undefined;
+  let depth = 0;
   return {
-    paused: () => since !== undefined,
+    paused: () => depth > 0,
     pause: () => {
       since ??= now().toISOString();
+      depth += 1;
       return { paused: true, since };
     },
     resume: () => {
+      depth = Math.max(0, depth - 1);
+      if (depth > 0) return { paused: true, since: since ?? now().toISOString() };
       since = undefined;
       return { paused: false };
     },
-    state: () => (since === undefined ? { paused: false } : { paused: true, since }),
+    state: () => (depth === 0 ? { paused: false } : { paused: true, since: since ?? now().toISOString() }),
   };
 }
