@@ -118,13 +118,6 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
       const { readKankaArchive } = await import('@caotang/import-kanka');
       return { kind: 'kanka', result: await readKankaArchive(state.archive, req.labels === undefined ? {} : { labels: req.labels }) };
     }
-    if (req.reader === 'ao3') {
-      if (state.reader !== 'ao3') throw new Error('The import reader is not an AO3 reader.');
-      const { readAo3Html, readAo3Epub } = await import('@caotang/import-ao3');
-      // An AO3 download is a page or a zip; the bytes say which, whatever the file was named.
-      const zipped = state.bytes[0] === 0x50 && state.bytes[1] === 0x4b;
-      return { kind: 'ao3', result: zipped ? await readAo3Epub(state.bytes) : readAo3Html(state.bytes, state.fileName) };
-    }
     const { readRtf, readRtfd } = await import('@caotang/import-rtf');
     const options = {
       ...(req.underlineAs === undefined ? {} : { underlineAs: req.underlineAs }),
