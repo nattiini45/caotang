@@ -14,4 +14,5 @@ Choose an empty folder when creating a project, or use **Open a folder** for an 
 
 `pnpm --filter @caotang/desktop-shell run package:linux` builds an AppImage (and `package:linux:dir` an unpacked app) from the current tree; `package:win:dir`, `package:win:installer`, `package:mac-arm64` and `package:mac-x64` are the other targets, each run on its own platform. Every package stays unsigned, and [`.github/workflows/desktop-release.yml`](../../.github/workflows/desktop-release.yml) builds them from a `desktop-v<version>` tag whose version equals this package's, writing a `SHA256SUMS` file beside each. [`docs/INSTALL.md`](../../docs/INSTALL.md) is what a writer reads first. Electron's fuses are applied to the packaged binary (no Node mode, no `NODE_OPTIONS` or `--inspect`, the ASAR validated against integrity data in the executable), and the studio travels as `resources/desktop/dist`, which is where `src/main.mts` looks once its own `dist/` is inside the archive.
 
-There is no keychain, native provider transport, stdio MCP, or external-link handoff yet.
+There is no stdio MCP server, no code signing and no update check yet. Keys, the native provider transport and the project's own
+MCP server are #404, #405 and #406, and land in this file with them.
