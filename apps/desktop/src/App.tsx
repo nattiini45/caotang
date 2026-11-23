@@ -16,6 +16,8 @@ import { droppedFieldsSentence } from './app/integrity-model.js';
 import type { DirectoryHandleLike } from './app/fs-access.js';
 import { languageRevision, subscribeLanguage } from './i18n/language.js';
 import { openDemoSample, openFolder, type Opened } from './app/lifecycle.js';
+import { stopProjectServerUnless } from './app/native-mcp.js';
+import { nativeFolderId } from './app/native-folders.js';
 import { useBootPhase } from './app/use-boot-phase.js';
 import { DemoStart } from './app/demo-start.js';
 import { openInTurn } from './app/open-queue.js';
@@ -63,6 +65,9 @@ export function App(): ReactNode {
     if (previous !== null && previous !== opened.session) {
       closeSession(previous);
     }
+    // The project's own MCP server serves one folder: opening another project, or one the writer holds in the browser, stops it rather
+    // than leaving the last manuscript reachable (desktop.md §The project's own MCP server).
+    void stopProjectServerUnless(nativeFolderId(opened.session.folderBaseline()?.folder ?? null));
     // The browser is asked once per open, and not again once it has said yes (ui-modules §5.3). The answer lands on the session.
     const host = browserStorageHost();
     void requestDurability(host).then((durability) => {

@@ -44,6 +44,17 @@ export async function stopProjectServer(): Promise<McpHostStatus | undefined> {
   return reply.ok ? reply.value : { state: 'failed', refusal: reply.refusal };
 }
 
+/**
+ * Stops the server when the project it serves is not `folderId` any more. Called where a project opens or closes, because that is the
+ * moment the answer changes: a Settings tab that happened to be closed must not be what keeps the last manuscript reachable.
+ */
+export async function stopProjectServerUnless(folderId: string | undefined): Promise<void> {
+  const status = await projectServerStatus().catch(() => undefined);
+  if (status === undefined || (status.state !== 'running' && status.state !== 'starting')) return;
+  if (status.folderId === folderId) return;
+  await stopProjectServer().catch(() => undefined);
+}
+
 /** Watches the server's state: a start, a death, a stop. */
 export function subscribeProjectServer(listener: (status: McpHostStatus) => void): () => void {
   const mcp = bridge();

@@ -69,6 +69,12 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
   let stopping = false;
   /** The start in flight, so two starts cannot each fork a child and kill the other's. */
   let starting: Promise<McpHostReply<McpHostStatus>> | null = null;
+  /**
+   * How many saves have asked for a pause and not yet finished. The host keeps it, not only the server, because a start forks a new
+   * child whose own count is zero: a save in flight must pause that child too, or a write could start in the middle of a save that
+   * began before the server did.
+   */
+  let pauses = 0;
 
   const stopChild = async (): Promise<void> => {
     const running = child;
@@ -111,6 +117,11 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
         clearTimeout(timer);
         resolve(answer);
       };
+      // A save that began before this start is still saving: the new child is paused before the answer goes out.
+      const reapply = async (running: McpHostStatus): Promise<McpHostReply<McpHostStatus>> => {
+        if (pauses > 0) await postControl(running, 'pause').catch(() => false);
+        return { ok: true, value: running };
+      };
       const timer = setTimeout(() => {
         void stopChild();
         publish({ state: 'failed', refusal: 'failed', folderId, detail: said.trim().split('\n').slice(-1)[0] });
@@ -124,7 +135,7 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
         if (endpoint === null) return;
         const running: McpHostStatus = { state: 'running', url: endpoint[1], token, allowWrites: allowWrites === true, since, folderId };
         publish(running);
-        settle({ ok: true, value: running });
+        void reapply(running).then(settle);
       });
       forked.stderr?.on('end', () => {
         if (settled) return;
@@ -164,30 +175,46 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
     return await starting;
   };
 
+  /** Posts one control call to a running server: the pause that stands between the app's check and its rename, and its end. */
+  const postControl = async (running: McpHostStatus, what: 'pause' | 'resume'): Promise<boolean> => {
+    if (running.url === undefined || running.token === undefined) return false;
+    const base = running.url.replace(/\/mcp$/u, '');
+    try {
+      // A server that does not answer must not hold a save: the app's digest check is the guarantee, and this is the window it closes.
+      const response = await fetch(`${base}/control/${what}`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${running.token}` },
+        signal: AbortSignal.timeout(PAUSE_TIMEOUT_MS),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  };
+
   /** One control call: the app's own token, its own server, and the pause that stands between a check and a rename. */
   const control = async (what: 'pause' | 'resume'): Promise<McpHostReply<McpHostStatus>> => {
-    if (status.state !== 'running' || status.url === undefined || status.token === undefined) {
+    if (status.state !== 'running') {
       // Nothing running is not a failure: a save with no server has nothing to pause.
       return { ok: true, value: status };
     }
-    const base = status.url.replace(/\/mcp$/u, '');
-    const post = async (): Promise<boolean> => {
-      try {
-        // A server that does not answer must not hold a save: the app's digest check is the guarantee, and this is the window it closes.
-        const response = await fetch(`${base}/control/${what}`, {
-          method: 'POST',
-          headers: { authorization: `Bearer ${status.token}` },
-          signal: AbortSignal.timeout(PAUSE_TIMEOUT_MS),
-        });
-        return response.ok;
-      } catch {
-        return false;
-      }
-    };
+    // The host's count is the truth for nested saves, and the server is told only at the edges: the first pause of a run of saves is
+    // sent, and the resume that ends the last one is sent. The server's own count then rises and falls once, which is what keeps a
+    // child replaced mid-save from being reachable while a save is in flight.
+    if (what === 'pause') {
+      pauses += 1;
+      if (pauses > 1) return { ok: true, value: status };
+    } else {
+      pauses = Math.max(0, pauses - 1);
+      if (pauses > 0) return { ok: true, value: status };
+    }
+    const post = async (): Promise<boolean> => await postControl(status, what);
     // One attempt each way, never a retry: a resume that timed out may have reached the server and lifted its pause, and a second one
     // would lift another save's. A failed pause costs nothing (the digest check is the guarantee). A failed resume leaves every write
     // refused for the life of that server, so the server is stopped instead — a state the writer can see and act on.
     if (await post()) return { ok: true, value: status };
+    // A pause the server never took is not owed a resume: the count goes back to what it was, so the save that asked ends cleanly.
+    if (what === 'pause') pauses = Math.max(0, pauses - 1);
     if (what === 'resume' && status.state === 'running') {
       const folderId = status.folderId;
       const allowWrites = status.allowWrites === true;
@@ -203,6 +230,8 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
   ));
   handle('stop', async () => {
     await stopChild();
+    // A stop ends whatever a save was waiting for: the next start must not begin paused by a save that has since finished.
+    pauses = 0;
     publish({ state: 'stopped' });
     return { ok: true, value: status };
   });
