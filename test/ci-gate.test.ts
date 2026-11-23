@@ -20,11 +20,11 @@ function jobBlock(workflow: string, id: string): string {
 }
 
 /**
- * The suites `CAOTANG_SKIP_WORKER_SUITES` leaves out, each of which boots its own Miniflare Worker runtime per case: too slow for
+ * The suites `CAOTANG_SKIP_WORKER_SUITES` leaves out, each of which runs its cases through a Miniflare Worker runtime: too slow for
  * GitHub's Windows runner to finish inside the case deadline (#815, and #820 for the later ones). The list lives here so the two
  * Windows legs' step names and the exclusion itself are checked against one another rather than each being trusted alone.
  */
-const WORKER_SUITE_FILES = ['account-mode', 'storage', 'server', 'quota'];
+const WORKER_SUITE_FILES = ['account-mode', 'storage', 'server', 'quota', 'accounts'];
 
 const ci = read('.github/workflows/ci.yml');
 const browsers = read('.github/workflows/e2e-browsers.yml');
@@ -344,7 +344,7 @@ describe('the packaging legs run the gate', () => {
     const name = names.at(-1)?.[1];
     if (name === undefined) throw new Error('the Windows leg has no named step before the exclusion');
     for (const file of WORKER_SUITE_FILES) expect(name, file).toContain(file);
-    expect(name).toContain('boots a Worker runtime per case');
+    expect(name).toContain('each case runs through a Miniflare Worker runtime');
   });
 
   it('quotes any step name carrying what an unquoted YAML value cannot hold', () => {
