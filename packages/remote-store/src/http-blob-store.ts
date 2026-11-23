@@ -6,6 +6,7 @@
  */
 import {
   BlobPreconditionFailedError,
+  RemoteLeaseHeldError,
   RemoteUnavailableError,
   type Precondition,
   type RemoteBlob,
@@ -20,6 +21,11 @@ export interface HttpBlobStoreOptions {
   readonly fetch?: typeof fetch;
   /** Total attempts per call, including the first. Defaults to 3. */
   readonly attempts?: number;
+  /**
+   * The device label the project's lease was taken with. A write carries it, so the server can tell this device's own
+   * lease from another device's; without it a write is refused while any lease is live.
+   */
+  readonly device?: string;
 }
 
 const NAME = /^[a-z0-9-]{1,64}$/;
@@ -39,6 +45,8 @@ export function createHttpBlobStore(options: HttpBlobStoreOptions): RemoteBlobSt
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(options.projectId)) throw new RangeError('Use a project id of at most 64 letters, digits, - and _.');
   const attempts = options.attempts ?? 3;
   if (!Number.isSafeInteger(attempts) || attempts < 1) throw new RangeError('Use at least one attempt.');
+  const device = options.device;
+  if (device !== undefined && !/^[A-Za-z0-9_-]{1,64}$/.test(device)) throw new RangeError('Use a device label of at most 64 letters, digits, - and _.');
   const call = options.fetch ?? fetch;
   const base = `${options.origin}/v1/projects/${options.projectId}/blobs`;
 
@@ -87,16 +95,18 @@ export function createHttpBlobStore(options: HttpBlobStoreOptions): RemoteBlobSt
       const headers: Record<string, string> = {
         'Content-Type': 'application/octet-stream',
         ...('ifMatch' in precondition ? { 'If-Match': precondition.ifMatch } : { 'If-None-Match': '*' }),
+        ...(device === undefined ? {} : { 'X-Caotang-Device': device }),
       };
       const response = await request('PUT', `${base}/${name}`, { headers, body: bytes.slice() }, crypto.randomUUID());
       if (response.status === 412) throw new BlobPreconditionFailedError(name);
+      if (response.status === 423) throw new RemoteLeaseHeldError();
       if (response.status === 507) throw new RemoteQuotaExceededError();
       if (response.status !== 200 && response.status !== 201) throw new Error(`the server refused the upload of ${name} (HTTP ${response.status})`);
       return { etag: etagOf(response, name) };
     },
     delete: async (name): Promise<void> => {
       assertName(name);
-      const response = await request('DELETE', `${base}/${name}`, {});
+      const response = await request('DELETE', `${base}/${name}`, device === undefined ? {} : { headers: { 'X-Caotang-Device': device } });
       if (response.status !== 204 && response.status !== 404) throw new Error(`the server refused the delete of ${name} (HTTP ${response.status})`);
     },
     list: async (): Promise<{ name: string; etag: string }[]> => {
