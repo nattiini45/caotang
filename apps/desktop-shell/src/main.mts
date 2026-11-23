@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 import { app, BrowserWindow, net, protocol, screen, session } from 'electron';
 
+import { registerEgressIpc } from './egress.mjs';
 import { registerFolderIpc } from './folders.mjs';
 import { registerOsIpc, type OsIntegration } from './os.mjs';
 
@@ -153,6 +154,8 @@ function deliverAll(evidence: readonly string[]): void {
 
 async function start(): Promise<void> {
   await serveBuild();
+  await registerFolderIpc(app.getPath('userData'), ENTRY);
+  registerEgressIpc(ENTRY);
   const folders = await registerFolderIpc(app.getPath('userData'), ENTRY);
   os = registerOsIpc({
     entryUrl: ENTRY,

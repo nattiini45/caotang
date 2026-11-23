@@ -9,7 +9,9 @@ import type { WireFactory } from '@caotang/mcp-client';
 
 /* lingui-set comment="Interpolated values: error" */
 
+import { originOf } from '@caotang/gateway';
 import { sweepHistory } from './history-store.js';
+import { desktopEgress } from './native-egress.js';
 import { APP_KEYS, openAppDb, setActiveAppDb, type AppDb } from './app-db.js';
 import { McpApp } from './mcp.js';
 import { SaveChannel } from './save-channel.js';
@@ -134,7 +136,16 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
   void sweepHistory(db);
 
   const host = studioHost();
-  const { service, notices: providerNotices } = await ProviderService.open({ db, vault: factory, ...(host === null ? {} : { host }) });
+  // In the desktop shell, provider calls are made by the main process: a provider that sends no CORS headers answers the app
+  // where a browser could not read it (desktop.md). Published addresses come from the profiles themselves, read before each
+  // call, so a profile saved a moment ago is reachable on its first request.
+  const egress = desktopEgress();
+  const { service, notices: providerNotices } = await ProviderService.open({
+    db,
+    vault: factory,
+    ...(host === null ? {} : { host }),
+    ...(egress === undefined ? {} : { fetch: egress.fetch }),
+  });
   notices.push(...providerNotices);
   const settings = new SettingsStore(db, initial);
   // The agent trace follows its setting (agent-harness §5.2): on, the gateway is observed; off, nothing is gathered and what was is cleared.
@@ -146,12 +157,30 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
   if (active !== undefined && settings.current().provider.activeProfileId !== active.id) {
     await settings.update({ provider: { activeProfileId: active.id } });
   }
+  egress?.points(() => reachableOrigins(service.profiles.list().map((profile) => profile.baseUrl)));
   const mcp = new McpApp({
     settings: { current: () => settings.current().mcp, update: (patch, options) => settings.update(patch, options) },
     keys: service.keys,
     ...(options.mcpWire === undefined ? {} : { wire: options.mcpWire }),
   });
   return { db, settingsKept: settingsKeptAtStart === true, settings, providers: service, mcp, notices };
+}
+
+/**
+ * The addresses the desktop port may reach: a provider profile's origin. An entry that does not parse is left out rather than
+ * guessed at, and one that is not https, or is this computer, is dropped by the port itself, so a local model server keeps
+ * the browser's path.
+ */
+function reachableOrigins(providerUrls: readonly string[]): string[] {
+  const origins: string[] = [];
+  for (const url of providerUrls) {
+    try {
+      origins.push(originOf(url));
+    } catch {
+      // A record whose address does not parse cannot be reached anyway; the profile's own save reported it.
+    }
+  }
+  return origins;
 }
 
 function errorText(error: unknown): string {

@@ -1,12 +1,12 @@
 # Caotang for desktop
 
-The [development shell](../../apps/desktop-shell/README.md) in [epic #16](https://github.com/nattiini45/caotang/issues/16) hosts the existing root-base Vite build from `apps/desktop/dist/`. The browser site, project format, storage schema and Vite output stay unchanged. This spec records the feasibility spike (#398), the shell (#400) and the unsigned packages (#401).
+The [development shell](../../apps/desktop-shell/README.md) in [epic #16](https://github.com/nattiini45/caotang/issues/16) hosts the existing root-base Vite build from `apps/desktop/dist/`. The browser site, project format, storage schema and Vite output stay unchanged. This spec records the feasibility spike (#398), the shell (#400), the unsigned packages (#401), native project folders (#402), the watcher (#403) and native provider calls (#405).
 
 ## Runtime and trust boundary
 
 - Serve the build from the fixed origin `app://caotang/`; keep that origin stable because Chromium keys storage to it. Register the scheme before Electron is ready as standard, secure and Fetch/CORS-capable. Do not bypass CSP. Serve only built assets from a fixed directory, reject other hosts and paths outside that directory, and do not start a loopback server.
-- The renderer is sandboxed and context-isolated, with Node integration off and Chromium web security on. It never navigates to remote pages or creates arbitrary windows. Serve a CSP header alongside the unchanged HTML meta policy: scripts, styles and Workers are same-origin; no inline script, eval, embedded frames, objects or form submission. Deny framing with `frame-ancestors 'none'` in the header, where Chromium enforces it. Renderer data requests remain subject to Chromium's network rules; a native network proxy, filesystem and keychain are not part of the shell.
-- The typed preload bridge exposes `window.caotangDesktop.version` and two namespaces under it: `folders` (the folder calls below) and `os` (the menu commands, the deep link's answer, the Save dialog, the system timezone and the window's tray state). The version is 3, and a page reads it before it reads a namespace, so a page and a shell from different builds each see only what both have. There is no generic Electron or IPC API. Only the studio URL can receive Electron permission for sanitized clipboard writes. Other permission requests, including browser file handles, are denied. Packaged-binary fuses and ASAR integrity belong to #401, not the unpacked smoke launcher.
+- The renderer is sandboxed and context-isolated, with Node integration off and Chromium web security on. It never navigates to remote pages or creates arbitrary windows. Serve a CSP header alongside the unchanged HTML meta policy: scripts, styles and Workers are same-origin; no inline script, eval, embedded frames, objects or form submission. Deny framing with `frame-ancestors 'none'` in the header, where Chromium enforces it. Renderer data requests remain subject to Chromium's network rules, except the provider calls the main process makes for it (below); the keychain is still to come (#404).
+- The typed preload bridge exposes `window.caotangDesktop.version` and three namespaces under it: `folders` (the folder calls below), `net` (the provider port below) and `os` (the menu commands, the deep link's answer, the Save dialog, the system timezone and the window's tray state). The version is 3, and a page reads it before it reads a namespace, so a page and a shell from different builds each see only what both have. There is no generic Electron or IPC API. Only the studio URL can receive Electron permission for sanitized clipboard writes. Other permission requests, including browser file handles, are denied. Packaged-binary fuses and ASAR integrity belong to #401, not the unpacked smoke launcher.
 - Each Electron profile allows one instance. It restores the last normal window dimensions and maximized state, not the screen position, so changing monitors does not reopen the window off-screen.
 - There is no shipped service worker in the web build. The custom scheme can support one, but the shell does not register one or enable that privilege until there is a worker to ship and its update/cache policy is specified.
 
@@ -43,6 +43,47 @@ The main process watches the open native project folder and no other: one watche
 The preload delivers the folder id and project-relative paths, never bytes or absolute paths. The renderer waits 150 ms for a burst to settle, then compares the reported paths the open copy can judge — the manifest, whose text it keeps, and the project files whose digests it holds — against that copy. Every reported path is judged: the known ones are read in passes of forty, so a bulk edit of hundreds of files is read rather than cut off at the first pass, and the offer counts what changed. A first read that finds a difference waits for this session's own write into the folder to end and reads again against the copy that write left behind, so a save of this tab's own is never mistaken for another program's edit however long the project takes to write and re-digest. A file the folder no longer holds counts as changed. Files the copy does not hold — `coherence.json`, `tasks.json` and the pictures — are not judged here, so a change to one raises no offer.
 
 A confirmed change raises an offer in the status line that names the changed files, and nothing is reloaded or merged by itself. **Reopen the folder's version** settles and closes the session, then opens the folder as it now stands; it is offered only when this tab has nothing unsaved, and otherwise the offer asks for **Export a backup** first, so a reload cannot drop the writer's words. An opening that needs an answer (a manifest that will not load, a copy that differs) is not decided here: the offer sends the writer to the projects list, where that question lives. This reopen and an opening asked for from the projects list take their turn from one queue, so an open already in flight finishes first and neither replaces the session the other put in front of the writer. The existing save guard stays in force — a save into a folder that changed is still refused and questioned. The browser build has neither a watcher nor native folders.
+
+## Native provider calls (#405)
+
+A provider request from the desktop app is made by the main process, so no CORS preflight applies: a preset that sends no
+`Access-Control-Allow-Origin` answers the app where a browser could not read its answer, and Settings no longer carries a
+browser's verdict for a preset the app can use. Nothing above the transport changed — the gateway already took an injectable
+`FetchLike` (`createGateway({ fetch })`, provider-gateway §4), and the desktop app hands it a port instead of the page's
+`fetch`.
+
+**The port is not a general fetcher.** [`native-egress.ts`](../../packages/gateway/src/native-egress.ts) is the rule, with no
+Electron and no network in it: https to an origin the app configured, never this computer, no credentials in the address, a
+method a model call or a listing uses, at most 32 headers and 32 KiB of them, a 24 MiB request body, and a response counted
+as it streams with a 64 MiB cap. A header that names the connection rather than the request (`host`, `content-length`,
+`transfer-encoding` and the like) is refused, and a header value carrying a line break with it. A redirect is never followed:
+the status goes back to the page, which already refuses a 3xx with what it means, because following one would make the
+allowlist a starting point rather than a rule.
+
+**The origins come from the app, read before each call.** The page publishes the origin of every provider profile from the
+profile store at the moment of a request — not at start-up — so a profile saved a second ago is reachable on its first call.
+A profile that does not parse, is not https, or is this computer contributes nothing. The local model presets therefore keep
+the browser's path exactly as they are today: decisions.md keeps loopback out of the native port, so Ollama, LM Studio and
+`llama-server` are called from the page, with the Local Network Access prompt and the product's own CORS advice. A connected
+MCP server's URL joins the list when MCP calls move onto the port with the keychain (#404), not before.
+
+**Streaming.** The reply to a call is its status, its reason and its headers; the body follows as chunks on one channel
+keyed by the request's own id, so a model's server-sent events reach the page as they are written rather than after the
+answer ends. The page rebuilds a `Response` from the head and the chunks, which is why the gateway's SSE parser, its retry
+and its deadline code needed no change. A body that passes the cap, or breaks part-way, ends the call with that reason: the
+page has the status already, so the end of the body is the only place a failure can still be said. A call the page stops is
+stopped in the main process too, and a window that goes stops every call it started.
+
+**What the page sees.** The preload bridge is version 3 and exposes `net` beside `folders`: `configure`, `start`, `abort`,
+`onChunk`, `onEnd`. Every call is checked for the studio's own top frame at `app://caotang/`, so a child frame or another
+origin cannot use the port. A refusal names its reason (`invalid`, `denied`, `too-large`, `unavailable`, `aborted`), and the
+page turns it into the failure the gateway already knows how to explain, so a refused address reads as an address the app
+does not connect to rather than as a dead network.
+
+The rule is tested by the repository's gate
+([`native-egress.test.ts`](../../packages/gateway/test/native-egress.test.ts)) and the port by a launched app
+([`egress.spec.ts`](../../apps/desktop-shell/test/egress.spec.ts)), which configures one origin and proves every other
+address is refused after it.
 
 ## Native menus (#407)
 

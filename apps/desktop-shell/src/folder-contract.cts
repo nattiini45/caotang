@@ -1,3 +1,4 @@
+import type { EgressChunk, EgressEnd, NativeEgressBridge } from './egress-contract.cjs';
 import type { NativeOsBridge } from './os-contract.cjs';
 
 export interface NativeFolder {
@@ -44,6 +45,8 @@ export interface DesktopBridge {
   readonly version: 3;
   readonly folders: NativeFolderBridge;
   readonly os: NativeOsBridge;
+  /** Provider and MCP calls made by the main process, where no CORS preflight applies. */
+  readonly net: NativeEgressBridge;
 }
 
 declare global {
