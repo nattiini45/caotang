@@ -33,7 +33,12 @@ export interface McpHostStatus {
   readonly detail?: string;
 }
 
-export type McpHostReply<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly refusal: McpHostRefusal };
+export type McpHostReply<T> = { readonly ok: true; readonly value: T } | {
+  readonly ok: false;
+  readonly refusal: McpHostRefusal;
+  /** The server's own sentence, when it has one the page should show instead of its default wording. */
+  readonly detail?: string;
+};
 
 /** The `mcp` namespace the preload exposes. */
 export interface DesktopMcpBridge {

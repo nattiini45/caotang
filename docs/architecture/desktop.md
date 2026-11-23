@@ -167,8 +167,8 @@ read-only with a copy button beside the address and a **Copy the configuration**
 
 **Two writers, one pause.** The app and the server write the same folder, and the server's lock alone cannot make the app wait: it
 holds the lock for its whole run, and the app saves many times while it does. So the app pauses the server for the length of a save.
-`withProjectServerPaused` posts `POST /control/pause` with the same bearer token before the first file the save writes and
-`POST /control/resume` after the last, and the guard refuses a write tool while the pause stands, with a refusal that says the app is
+`pauseProjectServer` posts `POST /control/pause` with the same bearer token before the first file the save writes and
+`resumeProjectServer` posts `POST /control/resume` after the last, and the guard refuses a write tool while the pause stands, with a refusal that says the app is
 saving and that a read is never refused. The endpoints exist on every HTTP server this package starts, including one a terminal
 started, where nobody uses them; a server started without a gate answers `404` and says nothing coordinates a save with it.
 
@@ -177,6 +177,11 @@ the save; a write that is already running when the pause arrives finishes, and t
 for each file before it replaces it, and `changedDuringSave` after — refuses that file and names it to the writer instead of replacing
 it. That is "reported, not lost", the same guarantee the folder guard gives without a server. The pause is taken only for a save that
 writes: a save the verdict refuses never reaches it.
+
+**A pause that cannot be confirmed stops the save.** With a server holding this folder, a save whose pause did not answer takes the
+folder's own lock refusal, so the writer is asked before anything is written and can save anyway. Without that, the save would run
+while a server that may still accept writes holds the same folder, which is the one thing this pause exists to prevent; the digest
+check would still catch a file it changed, but the promise is about what the server cannot start, not only about what it already did.
 
 **The app's own server's lock is not another writer's.** The server holds `.caotang-mcp.lock` for its whole run, so the checks that
 refuse a locked folder would otherwise refuse every save. Two places tell the app's own server from another program's by the process

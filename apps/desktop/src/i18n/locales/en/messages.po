@@ -3697,8 +3697,8 @@ msgstr "A lock file appeared in this folder while Caotang was saving, so another
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
-msgid "A lock file in this folder says that another program, such as the Caotang MCP server, may be using it. Saving now can overwrite what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?"
-msgstr "A lock file in this folder says that another program, such as the Caotang MCP server, may be using it. Saving now can overwrite what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?"
+msgid "A lock file in this folder says that another program, such as the Caotang MCP server, may be using it, or that server could not be paused for this save. Saving now can overwrite what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?"
+msgstr "A lock file in this folder says that another program, such as the Caotang MCP server, may be using it, or that server could not be paused for this save. Saving now can overwrite what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx

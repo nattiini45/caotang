@@ -184,7 +184,7 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
     if (pauses > 0 && !(await postControl(running, 'pause'))) {
       await stopChild();
       publish({ state: 'failed', refusal: 'failed', folderId, detail: STARTED_UNPAUSED });
-      return { ok: false, refusal: 'failed' };
+      return { ok: false, refusal: 'failed', detail: STARTED_UNPAUSED };
     }
     publish(running);
     // A child that goes after it was ready, with no stop asked for, failed: reporting it as stopped would say the writer stopped

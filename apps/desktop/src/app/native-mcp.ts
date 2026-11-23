@@ -73,19 +73,25 @@ export async function projectServerHoldsFolder(folderId: string | undefined): Pr
 }
 
 /**
- * Runs a save with the server paused, so no write tool starts while the app's own files are being checked and renamed. A server
- * that is not running, or a pause that fails, does not fail the save: the app's digest check is the guarantee, and this is the
- * window it closes.
+ * Pauses the server for a save, and answers whether the folder is now free of it. A page outside the shell, and a shell with no
+ * server running, answer true: nothing is serving the folder, so nothing has to step aside.
+ *
+ * **A pause that cannot be confirmed is not a pause.** The caller stops the save rather than writing while a server that may still
+ * accept writes holds the same folder: the digest check below would catch a file that server changed, but not the promise that
+ * nothing of its own can start between the app's files being checked and renamed.
  */
-export async function withProjectServerPaused<T>(save: () => Promise<T>): Promise<T> {
+export async function pauseProjectServer(): Promise<boolean> {
   const mcp = bridge();
-  if (mcp === undefined) return await save();
-  await mcp.pause().catch(() => undefined);
-  try {
-    return await save();
-  } finally {
-    await mcp.resume().catch(() => undefined);
-  }
+  if (mcp === undefined) return true;
+  const paused = await mcp.pause().catch(() => undefined);
+  return paused?.ok === true;
+}
+
+/** Lifts the pause a save took. A resume that fails is the server's own report to make: the page shows what `status` says next. */
+export async function resumeProjectServer(): Promise<void> {
+  const mcp = bridge();
+  if (mcp === undefined) return;
+  await mcp.resume().catch(() => undefined);
 }
 
 /**

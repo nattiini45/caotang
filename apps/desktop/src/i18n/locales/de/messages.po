@@ -3697,8 +3697,8 @@ msgstr "In diesem Ordner ist während des Speicherns durch Caotang eine Sperrdat
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
-msgid "A lock file in this folder says that another program, such as the Caotang MCP server, may be using it. Saving now can overwrite what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?"
-msgstr "Eine Sperrdatei in diesem Ordner besagt, dass ein anderes Programm, etwa der Caotang-MCP-Server, ihn möglicherweise verwendet. Wenn Sie jetzt speichern, kann das überschreiben, was dieses Programm geschrieben hat. Wenn kein solches Programm läuft, wurde die Sperre hinterlassen, als eines geschlossen wurde. Trotzdem speichern?"
+msgid "A lock file in this folder says that another program, such as the Caotang MCP server, may be using it, or that server could not be paused for this save. Saving now can overwrite what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?"
+msgstr "Eine Sperrdatei in diesem Ordner sagt, dass ein anderes Programm – etwa der Caotang-MCP-Server – ihn womöglich nutzt, oder dieser Server ließ sich für dieses Speichern nicht anhalten. Wenn du jetzt speicherst, kannst du überschreiben, was dieses Programm geschrieben hat. Läuft kein solches Programm, blieb die Sperre von einem beendeten zurück. Trotzdem speichern?"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx

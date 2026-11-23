@@ -144,7 +144,7 @@ import { acquireProjectLease, ProjectOpenElsewhereError, type ProjectLease } fro
 import { ProjectSession, type FolderBaseline, type SessionCoherence } from './session.js';
 import { ProjectAssets, coverFileHeld, folderPictures, forgetBrowserAssets } from './project-assets.js';
 import { nativeFolderId, rememberNativeFolder } from './native-folders.js';
-import { projectServerHoldsFolder, withProjectServerPaused } from './native-mcp.js';
+import { pauseProjectServer, projectServerHoldsFolder, resumeProjectServer } from './native-mcp.js';
 import { nativeRuntimeStore } from './runtime.js';
 
 /* lingui-set comment="Interpolated values: count, path, reason" */
@@ -1958,7 +1958,13 @@ async function writeFolder(
   // a write tool is refused rather than starting between the digest check above and a rename below. A save the verdict refused never
   // reached this point, so a save that writes nothing never pauses. A write already running when the pause arrives finishes, and the
   // digest check then refuses the file it was about to replace (gate.ts, native-mcp.ts).
-  const refused = await withProjectServerPaused(async (): Promise<FolderSaveOutcome | null> => {
+  // A pause that cannot be confirmed stops the save here, in the words the folder's own lock gets: a server that may still accept
+  // writes is holding this folder, and writing anyway would break the promise below that nothing of its can start mid-save. The
+  // writer can save anyway through the same confirmation a stray lock file asks for.
+  if (!(await pauseProjectServer())) {
+    return withFolderOverwriteSnapshot({ kind: 'refused', reason: 'locked', files: [] }, { manifestText: onDisk, digests: before });
+  }
+  const refused = await (async (): Promise<FolderSaveOutcome | null> => {
     // The session log is written first, so a log the folder cannot take refuses the save before any project file is written (writeFolderLog).
     if (!nativeAutosave) await writeFolderLog(session, fs);
     // The pictures are copied before the manifest names them, so the folder never holds a manifest without the files it names. A folder
@@ -2002,7 +2008,7 @@ async function writeFolder(
         }),
       }, overwriteSnapshot);
     }
-  });
+  })().finally(resumeProjectServer);
   if (refused !== null) return refused;
   const copied = toWrite;
   // The skill files the folder no longer holds are no longer owed a removal.
