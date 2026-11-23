@@ -8,7 +8,7 @@ import { app, BrowserWindow, net, protocol, screen, session } from 'electron';
 import { registerEgressIpc } from './egress.mjs';
 import { registerFolderIpc } from './folders.mjs';
 import { registerOsIpc, type OsIntegration } from './os.mjs';
-
+import { openKeyVault, registerVaultIpc } from './vault.mjs';
 const ORIGIN = 'app://caotang';
 const ENTRY = `${ORIGIN}/`;
 const BUILD = resolve(import.meta.dirname, '../../desktop/dist');
@@ -155,7 +155,9 @@ function deliverAll(evidence: readonly string[]): void {
 async function start(): Promise<void> {
   await serveBuild();
   const folders = await registerFolderIpc(app.getPath('userData'), ENTRY);
-  registerEgressIpc(ENTRY);
+  const vault = await openKeyVault(app.getPath('userData'));
+  registerVaultIpc(ENTRY, vault);
+  registerEgressIpc(ENTRY, vault);
   os = registerOsIpc({
     entryUrl: ENTRY,
     own: [process.execPath, app.getAppPath()],

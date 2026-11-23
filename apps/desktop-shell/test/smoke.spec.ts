@@ -43,7 +43,7 @@ test('the sandboxed desktop window opens the built studio and its lazy Settings'
       bridge: window.caotangDesktop === undefined ? null : Object.keys(window.caotangDesktop).sort(),
       version: window.caotangDesktop?.version,
       node: ['require', 'process', 'Buffer'].filter((key) => key in window),
-    }))).toEqual({ secure: true, bridge: ['folders', 'net', 'os', 'version'], version: 3, node: [] });
+    }))).toEqual({ secure: true, bridge: ['folders', 'net', 'os', 'vault', 'version'], version: 4, node: [] });
 
     const response = await page.reload();
     const policy = await response?.headerValue('content-security-policy');

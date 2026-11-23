@@ -11,7 +11,8 @@
     ".": "./src/index.ts",
     "./loopback": "./src/loopback.ts",
     "./mock": "./src/mock/index.ts",
-    "./native-egress": "./src/native-egress.ts"
+    "./native-egress": "./src/native-egress.ts",
+    "./keys/os-vault": "./src/keys/os-vault.ts"
   },
   "dependencies": {
     "@caotang/machine": "workspace:*",

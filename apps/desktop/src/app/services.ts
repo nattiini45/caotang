@@ -5,13 +5,16 @@
  */
 
 import { t } from '@lingui/core/macro';
-import type { WireFactory } from '@caotang/mcp-client';
+import type { McpSettings, WireFactory } from '@caotang/mcp-client';
 
 /* lingui-set comment="Interpolated values: error" */
 
-import { originOf } from '@caotang/gateway';
+import { isLoopbackHost, originOf } from '@caotang/gateway';
+import type { NativeEgressTarget, ProfileView } from '@caotang/gateway';
+
 import { sweepHistory } from './history-store.js';
 import { desktopEgress } from './native-egress.js';
+import { openDesktopKeys } from './native-vault.js';
 import { APP_KEYS, openAppDb, setActiveAppDb, type AppDb } from './app-db.js';
 import { McpApp } from './mcp.js';
 import { SaveChannel } from './save-channel.js';
@@ -92,6 +95,8 @@ export interface AppServices {
   readonly mcp: McpApp;
   /** What the start-up could not do, phrased for the writer. Empty when everything opened. */
   readonly notices: readonly string[];
+  /** Whether this computer's keychain holds the provider keys, rather than this browser's storage. */
+  readonly keychain: boolean;
 }
 
 export interface OpenServicesOptions {
@@ -140,12 +145,20 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
   // where a browser could not read it (desktop.md). Published addresses come from the profiles themselves, read before each
   // call, so a profile saved a moment ago is reachable on its first request.
   const egress = desktopEgress();
+  const keys = await openDesktopKeys(factory);
   const { service, notices: providerNotices } = await ProviderService.open({
     db,
     vault: factory,
     ...(host === null ? {} : { host }),
+    ...(keys.kind === 'keychain' ? { keys: keys.store } : {}),
     ...(egress === undefined ? {} : { fetch: egress.fetch }),
   });
+  if (keys.kind === 'unavailable') {
+    notices.push(t`The operating system's keychain could not be used on this computer, so keys stay encrypted in this browser. Add them again from Settings if you expect one there.`);
+  } else if (keys.kind === 'keychain') {
+    if (keys.moved > 0) notices.push(t`Your provider keys are now kept by this computer's keychain instead of this browser.`);
+    if (keys.failed) notices.push(t`Some keys could not be moved into this computer's keychain. Settings names each profile without one, and entering the key again keeps it there.`);
+  }
   notices.push(...providerNotices);
   const settings = new SettingsStore(db, initial);
   // The agent trace follows its setting (agent-harness §5.2): on, the gateway is observed; off, nothing is gathered and what was is cleared.
@@ -157,30 +170,52 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
   if (active !== undefined && settings.current().provider.activeProfileId !== active.id) {
     await settings.update({ provider: { activeProfileId: active.id } });
   }
-  egress?.points(() => reachableOrigins(service.profiles.list().map((profile) => profile.baseUrl)));
+  egress?.points(() => egressTargets(service.profiles.list(), settings.current().mcp));
   const mcp = new McpApp({
     settings: { current: () => settings.current().mcp, update: (patch, options) => settings.update(patch, options) },
     keys: service.keys,
     ...(options.mcpWire === undefined ? {} : { wire: options.mcpWire }),
+    // A server's token lives in the keychain with the provider keys, so a call to it is made by the process that holds it. Where
+    // the fetch is the page's own there is nothing to hand over and no CORS refusal to explain away.
+    ...(egress === undefined ? {} : {
+      fetch: (url: string | URL, init?: RequestInit) => egress.fetch(typeof url === 'string' ? url : url.href, init ?? {}),
+      probe: () => Promise.resolve(true),
+    }),
   });
-  return { db, settingsKept: settingsKeptAtStart === true, settings, providers: service, mcp, notices };
+  return { db, settingsKept: settingsKeptAtStart === true, settings, providers: service, mcp, keychain: keys.kind === 'keychain', notices };
 }
 
 /**
- * The addresses the desktop port may reach: a provider profile's origin. An entry that does not parse is left out rather than
- * guessed at, and one that is not https, or is this computer, is dropped by the port itself, so a local model server keeps
- * the browser's path.
+ * The addresses the desktop port may reach, and the key each may carry: a provider profile's origin with that profile's key,
+ * and a connected MCP server's origin with its bearer token.
+ *
+ * A provider profile is never local, so a model server on this computer keeps the browser's path and its own prompts. An MCP
+ * server may be local, because a server on this computer is where a bearer token most often lives, and the main process is
+ * where the token is.
  */
-function reachableOrigins(providerUrls: readonly string[]): string[] {
-  const origins: string[] = [];
-  for (const url of providerUrls) {
+function egressTargets(profiles: readonly ProfileView[], mcp: McpSettings): NativeEgressTarget[] {
+  const targets: NativeEgressTarget[] = [];
+  /** A record whose address does not parse cannot be reached anyway; the form that saved it reported the address. */
+  const add = (url: string, keys: readonly string[], local = false): void => {
     try {
-      origins.push(originOf(url));
+      targets.push({ origin: originOf(url), keys, ...(local ? { local } : {}) });
     } catch {
-      // A record whose address does not parse cannot be reached anyway; the profile's own save reported it.
+      // A record whose address does not parse is not an address, so it adds nothing to the list.
     }
+  };
+  for (const profile of profiles) {
+    if (profile.kind !== 'mock') add(profile.baseUrl, [profile.id]);
   }
-  return origins;
+  for (const server of mcp.servers) {
+    let local = false;
+    try {
+      local = isLoopbackHost(new URL(server.url).hostname);
+    } catch {
+      continue;
+    }
+    add(server.url, server.auth.kind === 'bearer' ? [server.auth.tokenRef] : [], local);
+  }
+  return targets;
 }
 
 function errorText(error: unknown): string {

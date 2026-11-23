@@ -133,7 +133,8 @@ These are the project's own rules (see `CONTRIBUTING.md` and `docs/decisions.md`
 
 **Do**
 
-- Run `pnpm verify`, `pnpm build` and `pnpm test:e2e` before opening a PR. CI runs the whole gate (`pnpm verify`, bundle-size check, landing page, MCP pack) once on Node 24, and on both Node 22.19.0 and 24 the engine-strict install, typecheck, production build, CLI bundle and `pnpm test:node-floor`; Chromium E2E runs on Node 24 in parallel, and a separate workflow gates PRs in Firefox and WebKit.
+- Run `pnpm verify`, `pnpm build` and `pnpm test:e2e` before opening a PR. CI runs the whole gate (`pnpm verify`, bundle-size check, landing page, MCP pack) once on Node 24, and on both Node 22.19.0 and 24 the engine-strict install, typecheck, production build, CLI bundle and `pnpm test:node-floor`; Chromium E2E runs on Node 24 in parallel, and a separate workflow gates PRs in Firefox and WebKit. The Windows leg (`verify (Windows)`)
+  runs on a push to main, on the nightly schedule and on demand, not on every pull request; the desktop release runs it before packaging.
 - Use `pnpm` — the workspace uses `workspace:*` dependencies, which npm and yarn do not resolve the same way.
 - Regenerate `THIRD-PARTY-NOTICES.md` when you add or upgrade a dependency.
 - Add a line to `docs/decisions.md` when you change a standing rule, and update the matching spec.
