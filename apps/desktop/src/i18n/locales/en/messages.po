@@ -709,6 +709,11 @@ msgstr "{already, plural, one {# is already a working copy.} other {# are alread
 msgid "{already, plural, one {# picture was already there.} other {# pictures were already there.}}"
 msgstr "{already, plural, one {# picture was already there.} other {# pictures were already there.}}"
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "{applied, plural, one {# tag became a keyword} other {# tags became keywords}}"
+msgstr "{applied, plural, one {# tag became a keyword} other {# tags became keywords}}"
+
 #. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
 #: apps/desktop/src/components/InterruptedRuns.tsx
 msgid "{applied} of {total} {total, plural, one {step} other {steps}} applied"
@@ -798,6 +803,11 @@ msgstr "{chapters, plural, one {Import # chapter} other {Import # chapters}}"
 #: apps/desktop/src/components/export-preview-model.ts
 msgid "{chapters} {chapterCount, plural, one {chapter} other {chapters}}, {scenes} {sceneCount, plural, one {scene} other {scenes}}, {words} {wordCount, plural, one {word} other {words}}"
 msgstr "{chapters} {chapterCount, plural, one {chapter} other {chapters}}, {scenes} {sceneCount, plural, one {scene} other {scenes}}, {words} {wordCount, plural, one {word} other {words}}"
+
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "{characters, plural, one {# character is offered as a codex entry} other {# characters are offered as codex entries}}"
+msgstr "{characters, plural, one {# character is offered as a codex entry} other {# characters are offered as codex entries}}"
 
 #. Dialogue coverage on a shot. Interpolated values: text is a passage of the writer's script; the count is a number.
 #: apps/desktop/src/media/ShotCoverage.tsx
@@ -1095,10 +1105,12 @@ msgstr "{count, plural, one {Add # line id} other {Add # line ids}}"
 msgid "{count, plural, one {An image was dropped when the project opened, because its file is not in the project.} other {# images were dropped when the project opened, because their files are not in the project.}}"
 msgstr "{count, plural, one {An image was dropped when the project opened, because its file is not in the project.} other {# images were dropped when the project opened, because their files are not in the project.}}"
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
@@ -1648,6 +1660,11 @@ msgstr "{file} has no passage to import. A Twee story makes one knot for each pa
 msgid "{file} holds no timed cue, so there is nothing to import. A captions file needs lines like \"00:00:01,000 --> 00:00:04,000\"."
 msgstr "{file} holds no timed cue, so there is nothing to import. A captions file needs lines like \"00:00:01,000 --> 00:00:04,000\"."
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "{file} is too large to import as an AO3 download ({limit} MB max)."
+msgstr "{file} is too large to import as an AO3 download ({limit} MB max)."
+
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #: apps/desktop/src/import-preview/epub-source.ts
 msgid "{file} is too large to import as an EPUB ({limit} MB max)."
@@ -1883,7 +1900,9 @@ msgstr "{matches, plural, one {# scene matches. Clear the filter to see the whol
 msgid "{matter, plural, one {# section the book marks as matter is offered as Research} other {# sections the book marks as matter are offered as Research}}"
 msgstr "{matter, plural, one {# section the book marks as matter is offered as Research} other {# sections the book marks as matter are offered as Research}}"
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 msgid "{media, plural, one {# audio or video player was removed} other {# audio or video players were removed}}"
 msgstr "{media, plural, one {# audio or video player was removed} other {# audio or video players were removed}}"
@@ -2094,6 +2113,11 @@ msgstr "{named, plural, one {# chapter title came from the book’s contents} ot
 msgid "{names} are cued as one character. Use one spelling."
 msgstr "{names} are cued as one character. Use one spelling."
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "{notes, plural, one {# note from the work is kept} other {# notes from the work are kept}}"
+msgstr "{notes, plural, one {# note from the work is kept} other {# notes from the work are kept}}"
+
 #. Review-bar sentences. Interpolated values: count and noun are the suggestion count and its plural phrase.
 #: apps/desktop/src/app/review-text.ts
 msgid "{noun} from the last agent turn was kept as written on reload — ‘Restore to before this turn’ is on that turn’s card in the agent panel."
@@ -2164,6 +2188,11 @@ msgstr "{others, plural, one {The compile will write {fileName}, and # more file
 #: apps/desktop/src/app/agent-model.ts
 msgid "{outcome, select, running {Working} done {Finished} partial {Stopped before it finished} other {Failed}}"
 msgstr "{outcome, select, running {Working} done {Finished} partial {Stopped before it finished} other {Failed}}"
+
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "{overflow, plural, one {# tag is past the limit of the keywords field} other {# tags are past the limit of the keywords field}}"
+msgstr "{overflow, plural, one {# tag is past the limit of the keywords field} other {# tags are past the limit of the keywords field}}"
 
 #. A transcription request schedule. batchSizes is a list such as 6 + 1; maxRequests includes second reads and fallback.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -2381,7 +2410,9 @@ msgstr "{records, plural, one {# record} other {# records}}"
 msgid "{refusal} Select a chapter first, or make one with New folder."
 msgstr "{refusal} Select a chapter first, or make one with New folder."
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 msgid "{remote, plural, one {# picture on the internet was not downloaded} other {# pictures on the internet were not downloaded}}"
 msgstr "{remote, plural, one {# picture on the internet was not downloaded} other {# pictures on the internet were not downloaded}}"
@@ -2493,7 +2524,9 @@ msgstr "{scenes} {sceneCount, plural, one {container} other {containers}}"
 msgid "{scenes} {sceneCount, plural, one {scene} other {scenes}} in {sections} {sectionCount, plural, one {section} other {sections}}, {words} {wordCount, plural, one {word} other {words}}"
 msgstr "{scenes} {sceneCount, plural, one {scene} other {scenes}} in {sections} {sectionCount, plural, one {section} other {sections}}, {words} {wordCount, plural, one {word} other {words}}"
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 msgid "{scripts, plural, one {# script was removed} other {# scripts were removed}}"
 msgstr "{scripts, plural, one {# script was removed} other {# scripts were removed}}"
@@ -2713,7 +2746,9 @@ msgstr "{steps}, {spend}."
 msgid "{style} (unknown, exported as Normal)"
 msgstr "{style} (unknown, exported as Normal)"
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 msgid "{styles, plural, one {# stylesheet was removed} other {# stylesheets were removed}}"
 msgstr "{styles, plural, one {# stylesheet was removed} other {# stylesheets were removed}}"
@@ -2920,7 +2955,9 @@ msgstr "{unpriced, plural, one {Partial cost total: # request has no recorded co
 msgid "{unread, plural, one {One stored record could not be read, so it is not in the file.} other {# stored records could not be read, so they are not in the file.}}"
 msgstr "{unread, plural, one {One stored record could not be read, so it is not in the file.} other {# stored records could not be read, so they are not in the file.}}"
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 msgid "{unsafeLinks, plural, one {# unsafe link kept its text only} other {# unsafe links kept their text only}}"
 msgstr "{unsafeLinks, plural, one {# unsafe link kept its text only} other {# unsafe links kept their text only}}"
@@ -4074,10 +4111,12 @@ msgstr "About {extractCalls, plural, one {# model call} other {# model calls}} t
 msgid "about {size}"
 msgstr "about {size}"
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
@@ -5052,6 +5091,21 @@ msgstr "any tool"
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "Anywhere"
 msgstr "Anywhere"
+
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "AO3"
+msgstr "AO3"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "AO3 download"
+msgstr "AO3 download"
+
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "AO3 safety"
+msgstr "AO3 safety"
 
 #. Interpolated values: model, name, provider, total
 #: apps/desktop/src/components/ProviderSetup.tsx
@@ -6663,8 +6717,10 @@ msgstr "character"
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
 #. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
 #. Screenplay element chords. Interpolated values: label is a modifier key combination; last is the number of the last element.
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #: apps/desktop/src/components/CommandComposer.tsx
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/media/element-menu.ts
 msgid "Character"
 msgstr "Character"
@@ -11284,6 +11340,11 @@ msgstr "Import a script, an Ink story, a Twee story or a Highland script"
 msgid "Import a zip…"
 msgstr "Import a zip…"
 
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import AO3…"
+msgstr "Import AO3…"
+
 #. Interpolated values: file is the imported file name; reason is the import failure message
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 msgid "Import as page only"
@@ -11842,6 +11903,11 @@ msgstr "It is a binary file that Caotang cannot draw here, and a look-alike draw
 msgid "It is also in the project folder."
 msgstr "It is also in the project folder."
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "It is larger than an AO3 import reads."
+msgstr "It is larger than an AO3 import reads."
+
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #: apps/desktop/src/import-preview/epub-source.ts
 msgid "It is larger than an EPUB import reads."
@@ -11862,12 +11928,19 @@ msgstr "It is larger than an RTF import reads."
 msgid "it is not a PNG, JPEG or WebP picture"
 msgstr "it is not a PNG, JPEG or WebP picture"
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "It is not an AO3 import."
+msgstr "It is not an AO3 import."
+
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #: apps/desktop/src/import-preview/epub-source.ts
 msgid "It is not an EPUB import."
 msgstr "It is not an EPUB import."
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 msgid "It is not an EPUB: it has no package document."
 msgstr "It is not an EPUB: it has no package document."
@@ -11978,7 +12051,9 @@ msgstr "Its groups are nested deeper than an RTF import reads."
 msgid "Its markup is not well-formed XML; it cannot be read."
 msgstr "Its markup is not well-formed XML; it cannot be read."
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 msgid "Its markup is not well-formed, so the import cannot read it."
 msgstr "Its markup is not well-formed, so the import cannot read it."
@@ -11993,7 +12068,9 @@ msgstr "its name does not start with a shot number (name a photograph like 007.j
 msgid "Its placements go with it:"
 msgstr "Its placements go with it:"
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 msgid "Its reading order holds no text."
 msgstr "Its reading order holds no text."
@@ -12003,7 +12080,9 @@ msgstr "Its reading order holds no text."
 msgid "Its shots are in “{title}”."
 msgstr "Its shots are in “{title}”."
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 msgid "Its text encoding could not be recognised. Save it as UTF-8 and import it again."
 msgstr "Its text encoding could not be recognised. Save it as UTF-8 and import it again."
@@ -12189,11 +12268,13 @@ msgstr "Key rejected by {host}. Check the profile in Settings."
 msgid "Keyword criteria"
 msgstr "Keyword criteria"
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 #: apps/desktop/src/components/Inspector.tsx
+#: apps/desktop/src/import-preview/ao3-source.ts
 msgid "Keywords"
 msgstr "Keywords"
 
@@ -14904,6 +14985,7 @@ msgstr "Note: <0/>"
 
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
@@ -14917,6 +14999,7 @@ msgstr "Note: <0/>"
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
 #: apps/desktop/src/components/Inspector.tsx
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 msgid "Notes"
@@ -17141,6 +17224,7 @@ msgid "harness.progress.docRead.active"
 msgstr "Reading “{doc}”"
 
 #. Interpolated values: file is the imported file name; reason is the import failure message
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
@@ -17148,6 +17232,7 @@ msgstr "Reading “{doc}”"
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/captions-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/highland-source.ts
@@ -17576,8 +17661,10 @@ msgstr "Reloading this tab loses the latest words in it. They are on screen only
 msgid "Remind me next month"
 msgstr "Remind me next month"
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 msgid "Remote pictures"
@@ -19813,6 +19900,11 @@ msgstr "Sent: {messagesSent}{tools}"
 msgid "Separated by blank lines"
 msgstr "Separated by blank lines"
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "Series and stats"
+msgstr "Series and stats"
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Server address (https://…, or http://localhost…)"
@@ -21124,7 +21216,9 @@ msgid "Summarising earlier conversation with Background…"
 msgstr "Summarising earlier conversation with Background…"
 
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #: apps/desktop/src/app/coherence-report-words.ts
+#: apps/desktop/src/import-preview/ao3-source.ts
 msgid "Summary"
 msgstr "Summary"
 
@@ -21209,7 +21303,9 @@ msgid "Tag selected"
 msgstr "Tag selected"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #: apps/desktop/src/components/InspectorSections.tsx
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Tags"
 msgstr "Tags"
@@ -22646,6 +22742,11 @@ msgstr "The findings file is read-only. Reopen the project with a readable findi
 #: apps/desktop/src/app/findings-model.ts
 msgid "The Findings tab’s quick scan checks for: {checks}. It does not read the story for plot or character problems; the model review does that."
 msgstr "The Findings tab’s quick scan checks for: {checks}. It does not read the story for plot or character problems; the model review does that."
+
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "The first {limit} are kept; the rest are listed here: {rest}"
+msgstr "The first {limit} are kept; the rest are listed here: {rest}"
 
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #: apps/desktop/src/media/DialogueView.tsx
@@ -24152,6 +24253,11 @@ msgstr "The stream stopped before it finished ({reason}). The text above is part
 msgid "The summary a feed item shows"
 msgstr "The summary a feed item shows"
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "The summary became the synopsis."
+msgstr "The summary became the synopsis."
+
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The summary changed while you were editing it. Read the current summary before replacing it."
@@ -24632,6 +24738,11 @@ msgstr "This allowance stays in this browser. Drafts wait in the Inbox for your 
 msgid "This approval is already saving your typing. Wait for it to finish."
 msgstr "This approval is already saving your typing. Wait for it to finish."
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "This book is protected by DRM ({file}), so Caotang cannot read it."
+msgstr "This book is protected by DRM ({file}), so Caotang cannot read it."
+
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #: apps/desktop/src/import-preview/epub-source.ts
 msgid "This book is protected by DRM ({file}), so Caotang cannot read it. Remove the protection with the tool you bought it from, then import it again."
@@ -24890,6 +25001,11 @@ msgstr "This is everything in the skill, exactly as it is, as plain text. The ag
 #: apps/desktop/src/app/picture-transcoder.ts
 msgid "This is not a HEIC photo."
 msgstr "This is not a HEIC photo."
+
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "This is not an AO3 download. On the work's page, choose Download and then HTML or EPUB, and import that file."
+msgstr "This is not an AO3 download. On the work's page, choose Download and then HTML or EPUB, and import that file."
 
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
@@ -26671,6 +26787,11 @@ msgstr "Week starts on"
 msgid "Weekly"
 msgstr "Weekly"
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "What a scene cannot hold"
+msgstr "What a scene cannot hold"
+
 #. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx
 msgid "What changed since the last scan"
@@ -26741,8 +26862,10 @@ msgstr "What the import cannot keep"
 msgid "What the import does"
 msgstr "What the import does"
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 msgid "What the import removed"
@@ -26783,6 +26906,11 @@ msgstr "What the splitter noticed"
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
 msgid "What the timeline shows"
 msgstr "What the timeline shows"
+
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "What the work carried"
+msgstr "What the work carried"
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -26833,8 +26961,10 @@ msgstr "What to replay"
 msgid "What to scan"
 msgstr "What to scan"
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 msgid "What was not downloaded"

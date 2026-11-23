@@ -20,7 +20,8 @@ type State =
   | { readonly reader: 'rtfd'; readonly archive: ImportArchive }
   | { readonly reader: 'html'; readonly bytes: Uint8Array; readonly fileName: string }
   | { readonly reader: 'html-archive'; readonly archive: ImportArchive }
-  | { readonly reader: 'epub'; readonly archive: ImportArchive };
+  | { readonly reader: 'epub'; readonly archive: ImportArchive }
+  | { readonly reader: 'ao3'; readonly bytes: Uint8Array; readonly fileName: string };
 
 /** Flattens an RTF or archive refusal to a code and a message, so it survives the structured clone (an Error's own `code` does not). */
 function serialiseRtf(result: RtfReadResult | RtfdReadResult): SerializableRtfResult {
@@ -38,6 +39,10 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
     }
     if (req.reader === 'html') {
       state = { reader: 'html', bytes: req.bytes, fileName: req.fileName };
+      return;
+    }
+    if (req.reader === 'ao3') {
+      state = { reader: 'ao3', bytes: req.bytes, fileName: req.fileName };
       return;
     }
     const { openFolder, openZip } = await import('@caotang/import-read/zip');
@@ -98,6 +103,13 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
       if (state.reader !== 'epub') throw new Error('The import reader is not an EPUB reader.');
       const { readEpubArchive } = await import('@caotang/import-epub');
       return { kind: 'epub', result: await readEpubArchive(state.archive) };
+    }
+    if (req.reader === 'ao3') {
+      if (state.reader !== 'ao3') throw new Error('The import reader is not an AO3 reader.');
+      const { readAo3Html, readAo3Epub } = await import('@caotang/import-ao3');
+      // An AO3 download is a page or a zip; the bytes say which, whatever the file was named.
+      const zipped = state.bytes[0] === 0x50 && state.bytes[1] === 0x4b;
+      return { kind: 'ao3', result: zipped ? await readAo3Epub(state.bytes) : readAo3Html(state.bytes, state.fileName) };
     }
     const { readRtf, readRtfd } = await import('@caotang/import-rtf');
     const options = {

@@ -302,7 +302,13 @@ export const BUDGET = {
   // first: the picker sits in the already lazy Agent panel and its stylesheet on its own chunk, its model and level names were
   // measured out of the entry, and no dependency was added. The ceiling is the measurement plus under 1 kB. [delegated
   // 2026-11-22]
-  totalJs: 8_976_800,
+  // The AO3 import (#297) on the merge of #296's branch: 8,984,782 bytes measured, +17,525 over the merged #296
+  // tree. Measured again on the merge of main aec90b9b, which carries the merged EPUB import: 8,984,862 bytes.
+  // Named: the @caotang/import-ao3 adapter and its preview source, all on-use chunks, and the German AO3
+  // strings in the de catalogue. Measured again at 8,985,761 bytes after the review fixes (the shared reader and
+  // picture refusal lines). Measured again on the merge of main 1ff564dd, which carries the provider-model
+  // picker (#824): 8,994,369 bytes. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  totalJs: 8_995_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

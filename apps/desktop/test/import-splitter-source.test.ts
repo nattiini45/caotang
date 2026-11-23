@@ -17,6 +17,7 @@ import { PREVIEW_HELPERS } from '../src/import-preview/helpers.js';
 import { NO_EDITS, NO_OVERRIDES, buildCommit, initialSettings, scanTree, type CommitInput, type ImportPreviewSource, type PreviewPlan } from '../src/import-preview/model.js';
 import { RTF_OPTIONS, rtfErrorText, rtfPreviewSource, rtfSizeRefusal } from '../src/import-preview/rtf-source.js';
 import { epubPreviewSource } from '../src/import-preview/epub-source.js';
+import { ao3PreviewSource } from '../src/import-preview/ao3-source.js';
 import { rawZip } from '../../../packages/import-read/test/zip-fixtures.js';
 import {
   SPLIT_CHIPS,
@@ -427,6 +428,41 @@ describe('the sources', () => {
     const commit = commitOf(plan, source, settings);
     expect(COMMAND_REGISTRY['binder.importTree'].descriptor.validate({ ...commit.params, pictures: [] }, project() as never).ok).toBe(true);
     expect(commit.params.nodes[0]).toMatchObject({ title: 'Before chapter 1', place: 'research' });
+  });
+
+  it('an AO3 download keeps its tags as keywords, its characters as codex rows and its notes where they sat', async () => {
+    const ao3 =
+      '<html xmlns="http://www.w3.org/1999/xhtml"><body><div id="main">' +
+      '<dl class="work meta group"><dd class="character tags"><ul class="commas"><li><a class="tag" href="#">Elena</a></li><li><a class="tag" href="#">Mara</a></li></ul></dd>' +
+      '<dd class="freeform tags"><ul class="commas"><li><a class="tag" href="#">Slow Burn</a></li></ul></dd></dl>' +
+      '<div id="workskin"><div class="preface group"><h2 class="title heading">The Ninth Wave</h2><h3 class="byline heading"><a href="#">keeper</a></h3>' +
+      '<div class="summary module"><blockquote class="userstuff"><p>Elena returns to the pier.</p></blockquote></div>' +
+      '<div class="notes module"><blockquote class="userstuff"><p>Written for the exchange.</p></blockquote></div></div>' +
+      '<div id="chapters"><div class="chapter preface group"><h3 class="title"><a href="#">Chapter 1: The Landing</a></h3>' +
+      '<div class="chapter notes module"><blockquote class="userstuff"><p>Thanks to the beta.</p></blockquote></div></div>' +
+      '<div class="userstuff module"><p>The ferry came at noon.</p></div>' +
+      '<div class="chapter preface group"><h3 class="title"><a href="#">Chapter 2: Salt</a></h3></div>' +
+      '<div class="userstuff module"><p>The letter arrived on a Tuesday.</p></div></div>' +
+      '<div id="work_endnotes" class="end notes module"><blockquote class="userstuff"><p>Sequel soon.</p></blockquote></div>' +
+      '</div></div></body></html>';
+    const source = ao3PreviewSource('work.html', enc(ao3));
+    await source.load?.(() => {}, new AbortController().signal);
+    const settings = initialSettings(source.chips(), source.options());
+    const plan = source.plan(settings, NO_OVERRIDES);
+    expect(plan.tree.map((node) => node.title)).toEqual(['Chapter 1: The Landing', 'Chapter 2: Salt']);
+    expect(plan.tree[0]?.synopsis).toBe('Elena returns to the pier.');
+    expect(plan.tree[0]?.keywords).toEqual(['Elena', 'Mara', 'Slow Burn']);
+    expect(plan.tree[0]?.notes).toContain('Written for the exchange.');
+    expect(plan.tree[0]?.notes).toContain('Thanks to the beta.');
+    expect(plan.tree[1]?.notes).toContain('Sequel soon.');
+    expect(source.codexRows?.().map((row) => [row.name, row.type])).toEqual([
+      ['Elena', 'character'],
+      ['Mara', 'character'],
+    ]);
+    expect(source.metadata?.()).toMatchObject({ title: 'The Ninth Wave', author: 'keeper' });
+    expect(source.report?.(plan)[0]?.lines[0]).toBe('3 tags became keywords');
+    const scan = scanTree(plan.tree, PREVIEW_HELPERS, source.scanExtra?.() ?? []);
+    expect(scan.total).toBe(0);
   });
 
   it('a source keeps the document while only rule chips change', () => {

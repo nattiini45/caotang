@@ -15,6 +15,7 @@ export {
   type HtmlDropped,
   type HtmlNoteRef,
   type HtmlNote,
+  type HtmlSkipped,
 } from './walker.js';
 export { readHtmlFile, readHtmlZip, readHtmlArchive, type HtmlImport, type HtmlError, type HtmlResult } from './reader.js';
 export { pictureRefusal, dropUnresolvedPictures, relativeCandidates, type PictureRefusal } from './pictures.js';
