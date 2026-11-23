@@ -36,6 +36,8 @@ export function commandOf(item: { readonly id?: string }): MenuCommand | null {
 export interface MenuFacts {
   readonly platform: NodeJS.Platform;
   readonly labels: NativeLabels;
+  /** The application's own name, for the macOS application menu, which is titled with it. */
+  readonly appName: string;
   /** Whether a project is open: the project's own actions are offered only then, and the projects' only when none is. */
   readonly project: boolean;
 }
@@ -54,7 +56,7 @@ function shownChord(platform: NodeJS.Platform, accelerator: string): Partial<Men
   return platform === 'darwin' ? {} : { accelerator, registerAccelerator: false };
 }
 
-export function menuTemplate({ platform, labels, project }: MenuFacts): MenuItemConstructorOptions[] {
+export function menuTemplate({ platform, labels, appName, project }: MenuFacts): MenuItemConstructorOptions[] {
   const mac = platform === 'darwin';
   const file: MenuItemConstructorOptions = {
     label: labels.file,
@@ -87,8 +89,28 @@ export function menuTemplate({ platform, labels, project }: MenuFacts): MenuItem
         ],
       }]
     : [];
+  // macOS's application menu, written out rather than taken from the `appMenu` role: the role carries Electron's English items and no
+  // Settings, while Cmd+, is exactly where a Mac user looks for it.
+  const app: MenuItemConstructorOptions[] = mac
+    ? [{
+        label: appName,
+        submenu: [
+          { role: 'about', label: labels.about },
+          { type: 'separator' },
+          command('settings', labels.settings, { accelerator: 'CmdOrCtrl+,' }),
+          { type: 'separator' },
+          { role: 'services' },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit', label: labels.quit },
+        ],
+      }]
+    : [];
   return [
-    ...(mac ? [{ role: 'appMenu' as const }] : []),
+    ...app,
     file,
     ...edit,
     {

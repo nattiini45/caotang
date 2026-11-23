@@ -49,7 +49,9 @@ export function App(): ReactNode {
   const serial = useRef(0);
   // A switch activates in place; re-rendering the tree keeps the editor, its journal and every open
   // card exactly where they are (i18n.md §3.3: no reload).
-  useSyncExternalStore(subscribeLanguage, languageRevision);
+  // The menu and the tray are worded by this render, so a language switched in place has to reach them: the value is read here and
+  // named in the publish effect below, which is what republishes when it changes.
+  const language = useSyncExternalStore(subscribeLanguage, languageRevision);
 
   useEffect(() => {
     installTestHook(() => current.current);
@@ -67,7 +69,7 @@ export function App(): ReactNode {
   const openProject = session === null ? null : session.state.manifest.project.name;
   useEffect(() => {
     publishNativeState({ project: openProject });
-  }, [openProject, trayHidden]);
+  }, [openProject, trayHidden, language]);
 
   const show = (opened: Opened): void => {
     const previous = current.current;

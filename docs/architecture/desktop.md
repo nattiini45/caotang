@@ -105,8 +105,9 @@ The exporter makes the bytes and the name; the shell shows the operating system'
 a name and bytes, refuses a name that is a path or holds a control character, an empty file and one over 256 MiB, and answers
 `saved: false` when the writer cancels — nothing is written and that is not an error. The default place is the writer's Documents
 folder and the dialog filters by the file's own extension. The write goes through a temporary name in the same folder and a rename,
-so the file appears whole or not at all; Windows, which will not rename over an existing file, removes the target first, the dialog
-having already asked about replacing it.
+so the file appears whole or not at all; Windows, which will not rename over an existing file, first moves the file already there
+aside to its own name and puts it back if the replacement fails, so a save that cannot finish costs neither copy — the dialog having
+already asked about replacing it.
 
 Compile… offers it for what a compile writes: the one file the format makes, or the zip of several. The bytes are the exporter's own,
 read through `ExportStore.read`, whose `isBinaryPath` list decides text from bytes — a Markdown or plain-text export is its text

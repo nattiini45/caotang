@@ -46,23 +46,38 @@ function filterFor(name: string): { readonly name: string; readonly extensions: 
 
 /**
  * One write of the bytes the writer chose a place for: a temporary name in the same folder and a rename over the target, so the
- * file appears whole or not at all. Windows will not rename over an existing file, so there the target is removed first — the
- * dialog has already asked about replacing it.
+ * file appears whole or not at all.
+ *
+ * Windows will not rename over an existing file, so there the file already at the target is first moved aside to its own name — the
+ * dialog has already asked about replacing it — and only then replaced: if that second rename fails, the file the writer had is put
+ * back where it was, so a failed save cannot cost the copy that was there before it.
  */
 async function writeOnce(target: string, bytes: Uint8Array): Promise<void> {
-  const temporary = join(dirname(target), `.${basename(target)}.${randomUUID().slice(0, 8)}.tmp`);
+  const stem = `${basename(target)}.${randomUUID().slice(0, 8)}`;
+  const temporary = join(dirname(target), `.${stem}.tmp`);
   await writeFile(temporary, bytes);
   try {
     await rename(temporary, target);
+    return;
   } catch (error) {
     const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
     if (process.platform !== 'win32' || !['EEXIST', 'EPERM', 'EACCES'].includes(String(code))) {
       await rm(temporary, { force: true });
       throw error;
     }
-    await rm(target, { force: true });
-    await rename(temporary, target);
   }
+  const replaced = join(dirname(target), `.${stem}.replaced`);
+  let aside = false;
+  try {
+    await rename(target, replaced);
+    aside = true;
+    await rename(temporary, target);
+  } catch (error) {
+    await rm(temporary, { force: true });
+    if (aside) await rename(replaced, target).catch(() => undefined);
+    throw error;
+  }
+  await rm(replaced, { force: true });
 }
 
 /** The Save dialog, once: the writer's choice, then one whole write. Cancelling writes nothing and is not a failure. */
@@ -164,7 +179,7 @@ export function registerOsIpc(options: OsOptions): OsIntegration {
     const redraw = first || published?.project !== next.project || JSON.stringify(published?.labels) !== JSON.stringify(next.labels);
     published = next;
     if (redraw) {
-      const template = menuTemplate({ platform: process.platform, labels: next.labels, project: next.project });
+      const template = menuTemplate({ platform: process.platform, labels: next.labels, appName: app.name, project: next.project });
       hang(template);
       Menu.setApplicationMenu(Menu.buildFromTemplate(template));
     }

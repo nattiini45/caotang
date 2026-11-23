@@ -36,6 +36,8 @@ let mainWindow: BrowserWindow | null = null;
 /** Set while the app is ending, so the close that ends it is not turned into a hide. */
 let quitting = false;
 let os: OsIntegration | null = null;
+/** What the system handed this launch before the integration existed, in order: macOS delivers a link or a folder that opened the app before it is ready. */
+const early: string[] = [];
 
 async function serveBuild(): Promise<void> {
   const root = await realpath(BUILD);
@@ -140,7 +142,13 @@ function showWindow(): void {
  * where the second instance's are handed on too.
  */
 function deliverAll(evidence: readonly string[]): void {
-  for (const argument of evidence) void os?.deliver(argument);
+  // Before `start` has registered the integration, a delivery is held rather than dropped: on macOS `open-url` and `open-file` arrive
+  // while the app is still starting, and a link that quit the app by doing nothing is the one failure a writer cannot diagnose.
+  if (os === null) {
+    early.push(...evidence);
+    return;
+  }
+  for (const argument of evidence) void os.deliver(argument);
 }
 
 async function start(): Promise<void> {
@@ -160,8 +168,10 @@ async function start(): Promise<void> {
   // The packages register the scheme for an installed app (`electron-builder.yml`'s `protocols`); this asks the running system to
   // point the scheme at this build as well, and only a packaged build asks: a development shell must not take the scheme over.
   if (app.isPackaged) app.setAsDefaultProtocolClient('caotang');
-  // A link that launched the app is in this process's own arguments; they are queued until the page asks for them.
+  // A link that launched the app is in this process's own arguments, and one that arrived while it was starting is in `early`: both
+  // are queued inside the integration until the page asks for them.
   deliverAll(process.argv.slice(1));
+  deliverAll(early.splice(0));
   const allowed = (permission: string): boolean => permission === 'clipboard-sanitized-write';
   session.defaultSession.setPermissionCheckHandler((contents, permission, origin) => (
     contents?.getURL() === ENTRY && origin === ORIGIN && allowed(permission)
