@@ -265,6 +265,43 @@ describe('the offline queue', () => {
     expect(await one.read('docs/a.md')).toBe('from the other device');
   });
 
+  it('keeps an edit staged while the replay is in flight, and sends it on the next one', async () => {
+    const server = new FakeBlobServer();
+    const key = generateProjectKey();
+    const fs = await device(server, key);
+    const edits = new PendingEdits();
+    const client = server.client();
+    let release = (): void => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const slow = {
+      ...client,
+      // Hold the commit at the index swap, which is after the queue was read and before it is settled.
+      put: async (name: string, bytes: Uint8Array, precondition: Parameters<typeof client.put>[2]) => {
+        if (name === 'manifest') await gate;
+        return client.put(name, bytes, precondition);
+      },
+    };
+    const slowFs = await EncryptedRemoteArtifactFs.open({ store: slow, projectId: PROJECT_ID, projectKey: key });
+    edits.stage('docs/a.md', 'before the flush');
+
+    const replay = replayPending(slowFs, edits);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    edits.stage('docs/b.md', 'staged during the flush');
+    release();
+    expect(await replay).toBe(1);
+
+    // The sent path is settled; the one staged mid-flight is still queued, so the writer's next edit is not lost.
+    expect(edits.paths).toEqual(['docs/b.md']);
+    await fs.refresh();
+    expect(await fs.read('docs/a.md')).toBe('before the flush');
+    expect(await fs.exists('docs/b.md')).toBe(false);
+
+    expect(await replayPending(fs, edits)).toBe(1);
+    expect(edits.isEmpty).toBe(true);
+    await fs.refresh();
+    expect(await fs.read('docs/b.md')).toBe('staged during the flush');
+  });
+
   it('writes the queued words over the other device when the writer keeps their own', async () => {
     const server = new FakeBlobServer();
     const key = generateProjectKey();

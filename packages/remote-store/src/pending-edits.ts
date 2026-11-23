@@ -75,6 +75,15 @@ export class PendingEdits {
     else for (const path of paths) this.#edits.delete(path);
   }
 
+  /**
+   * Forgets what a sent batch carried, and only where the path still holds exactly that: an edit staged while the
+   * commit was in flight is newer than what the server took and stays queued for the next replay. `clear()` cannot be
+   * used for this — it would drop that edit without a word, and the writer would have been told the save landed.
+   */
+  settle(sent: readonly RemoteChange[]): void {
+    for (const change of sent) if (this.#edits.get(change.path) === change.bytes) this.#edits.delete(change.path);
+  }
+
   /** The queue as text, for the device store. Bytes travel as canonical base64; a removal travels as `null`. */
   serialize(): string {
     const edits = [...this.#edits].map(([path, bytes]) => [path, bytes === null ? null : encodeBase64(bytes)]);
@@ -114,7 +123,7 @@ export async function replayPending(fs: EncryptedRemoteArtifactFs, edits: Pendin
   if (edits.isEmpty) return 0;
   const changes = edits.changes();
   await fs.commitChanges(changes);
-  edits.clear();
+  edits.settle(changes);
   return changes.length;
 }
 
