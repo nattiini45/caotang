@@ -104,7 +104,7 @@ function tagsOf(row: XmlElement): string[] {
 
 /** Whether this page is an AO3 work download: its work block and tag list, or the workskin the site writes. */
 export function looksLikeAo3(html: string): boolean {
-  return /id="workskin"/.test(html) || /class="[^"]*\bwork meta\b[^"]*"/.test(html) || html.includes('://archiveofourown.org') || html.includes('://www.archiveofourown.org');
+  return /id="workskin"/.test(html) || /class="[^"]*\bwork meta\b[^"]*"/.test(html) || html.includes('Archive of Our Own');
 }
 
 const EMPTY_STATS: Ao3Stats = { published: '', updated: '', words: '', chapters: '' };
