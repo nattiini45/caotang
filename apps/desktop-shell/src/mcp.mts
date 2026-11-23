@@ -25,7 +25,16 @@ import type { McpHostRefusal, McpHostReply, McpHostStatus } from './mcp-contract
 /** How long a start waits for the server to say it is ready before the app calls it failed. */
 const READY_TIMEOUT_MS = 20_000;
 
+/** How long a pause or a resume may take before the save goes ahead without it. */
+const PAUSE_TIMEOUT_MS = 2_000;
+
 const ENDPOINT = /^caotang-mcp: MCP endpoint (http:\/\/127\.0\.0\.1:\d+\/mcp)$/u;
+
+/** What the rest of the main process may ask of this host: the process serving the folder, so the folder channels can tell its lock from another writer's. */
+export interface McpHost {
+  /** The pid of the running server, or `undefined` when none is running. */
+  writerPid(): number | undefined;
+}
 
 export interface McpHostOptions {
   readonly entryUrl: string;
@@ -35,7 +44,7 @@ export interface McpHostOptions {
   readonly rootOf: (id: string) => string | undefined;
 }
 
-export function registerMcpIpc(options: McpHostOptions): void {
+export function registerMcpIpc(options: McpHostOptions): McpHost {
   let child: UtilityProcess | undefined;
   let status: McpHostStatus = { state: 'stopped' };
   const listeners = new Set<(status: McpHostStatus) => void>();
@@ -131,7 +140,12 @@ export function registerMcpIpc(options: McpHostOptions): void {
     }
     const base = status.url.replace(/\/mcp$/u, '');
     try {
-      const response = await fetch(`${base}/control/${what}`, { method: 'POST', headers: { authorization: `Bearer ${status.token}` } });
+      // A server that does not answer must not hold a save: the app's digest check is the guarantee, and this is the window it closes.
+      const response = await fetch(`${base}/control/${what}`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${status.token}` },
+        signal: AbortSignal.timeout(PAUSE_TIMEOUT_MS),
+      });
       if (!response.ok) return { ok: false, refusal: 'failed' };
       return { ok: true, value: status };
     } catch {
@@ -160,4 +174,6 @@ export function registerMcpIpc(options: McpHostOptions): void {
     listeners.add(listener);
     event.sender.once('destroyed', () => listeners.delete(listener));
   });
+
+  return { writerPid: () => child?.pid };
 }

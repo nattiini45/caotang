@@ -8,8 +8,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { createWriteGate, type Fixture } from '../src/index.js';
-import { connectClient, LANDING, resultJson, startFixture } from './support.js';
+import { createWriteGate } from '../src/index.js';
+import { connectClient, LANDING, resultJson, startFixture, type Fixture } from './support.js';
 
 /** One control call, as the app makes it: a POST with the token, and the answer read as JSON. */
 async function control(url: string, path: string, token: string | undefined, method = 'POST'): Promise<{ status: number; body: Record<string, unknown> }> {

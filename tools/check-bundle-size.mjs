@@ -196,7 +196,12 @@ export const BUDGET = {
   // the write-verify-delete migration the app runs as it opens, and the Settings sentence that says which store holds the keys. All
   // of it is read by `openAppServices` before the first paint, so there was no chunk to move it to; the pages that only a form needs
   // were already on use. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  initialGzip: 1_123_000,
+  // The project's own MCP server (#406), built and measured on its branch: 1,122,972 bytes gzip, 28 bytes under the ceiling #404 set.
+  // Named: the compiled English catalogue's messages for the Settings block and the guard's own wording, which must precede first paint
+  // (i18n.md §3.3), and the two functions the save path calls — the pause and the question whether a lock is this app's own server's.
+  // Two duplicate strings were merged rather than added twice; the Settings block itself is in the Settings chunk, on use, not here.
+  // The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  initialGzip: 1_124_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -333,7 +338,12 @@ export const BUDGET = {
   // The keychain (#404): 9,027.4 kB measured on this branch, 4.9 kB over that ceiling, again the entry chunk. The vault, the
   // channels' contract and the migration are named above. The ceiling is the measurement rounded up to the thousand.
   // [delegated 2026-11-23]
-  totalJs: 9_028_000,
+  // The project's own MCP server (#406): 9,036,102 bytes measured on its branch, 8,102 over the ceiling #404 set. Named: the new
+  // Settings block (its component and the stylesheet beside the server cards, both in the Settings chunk, on use), the German and
+  // English catalogue entries for its sentences, and the pause and lock check the save path calls from the entry. Nothing heavier was
+  // found to move: the block is already in a lazy chunk, and the entry carries only the functions the save path needs before it can
+  // write. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  totalJs: 9_037_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

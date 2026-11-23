@@ -9,7 +9,7 @@
 
 import type { McpHostStatus } from '../../../desktop-shell/src/mcp-contract.cjs';
 
-export type { McpHostStatus } from '../../../desktop-shell/src/mcp-contract.cjs';
+export type { McpHostRefusal, McpHostState, McpHostStatus } from '../../../desktop-shell/src/mcp-contract.cjs';
 
 function bridge(): NonNullable<Window['caotangDesktop']>['mcp'] | undefined {
   if (typeof window === 'undefined') return undefined;
@@ -48,6 +48,17 @@ export async function stopProjectServer(): Promise<McpHostStatus | undefined> {
 export function subscribeProjectServer(listener: (status: McpHostStatus) => void): () => void {
   const mcp = bridge();
   return mcp === undefined ? () => undefined : mcp.onStatus(listener);
+}
+
+/**
+ * Whether the folder's `.caotang-mcp.lock` is this app's own server's: the server that holds a folder is the one serving that folder,
+ * and this app pauses it around its saves, so its lock is not another writer's (lifecycle `writeFolder`). A lock any other server left
+ * — one a terminal started — still counts as another writer. False without a bridge, so the browser build asks nothing.
+ */
+export async function projectServerHoldsFolder(folderId: string | undefined): Promise<boolean> {
+  if (folderId === undefined || bridge() === undefined) return false;
+  const status = await projectServerStatus().catch(() => undefined);
+  return status?.state === 'running' && status.folderId === folderId;
 }
 
 /**

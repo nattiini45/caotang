@@ -144,6 +144,7 @@ import { acquireProjectLease, ProjectOpenElsewhereError, type ProjectLease } fro
 import { ProjectSession, type FolderBaseline, type SessionCoherence } from './session.js';
 import { ProjectAssets, coverFileHeld, folderPictures, forgetBrowserAssets } from './project-assets.js';
 import { nativeFolderId, rememberNativeFolder } from './native-folders.js';
+import { projectServerHoldsFolder, withProjectServerPaused } from './native-mcp.js';
 import { nativeRuntimeStore } from './runtime.js';
 
 /* lingui-set comment="Interpolated values: count, path, reason" */
@@ -1915,7 +1916,10 @@ async function writeFolder(
   const previewHeldTitles = held?.titles ?? new Map<string, string>();
   const files = drift === null ? [] : folderChanges(drift, session.state, previewHeldTitles);
   const previewTargets = drift === null ? { targets: [], omitted: 0 } : folderFilePreviewTargets(drift, session.state, previewHeldTitles);
-  const lockedBefore = await fs.exists(MCP_LOCK_FILE);
+  // The lock a folder holds is another writer's, except the one this app's own MCP server took: that server serves this folder and the
+  // pause below stops it while the save writes, so it waits for no one (native-mcp.ts, desktop.md §The project's own MCP server).
+  const ownServer = await projectServerHoldsFolder(nativeFolderId(root));
+  const lockedBefore = !ownServer && (await fs.exists(MCP_LOCK_FILE));
   const overwriteConfirmed = answers.overwriteConfirmed === true
     && answers.overwriteSnapshot !== undefined
     && folderOverwriteSnapshotMatches(answers.overwriteSnapshot, onDisk, before);
@@ -1940,11 +1944,6 @@ async function writeFolder(
       }),
     }, { manifestText: onDisk, digests: before });
   }
-  // The session log is written first, so a log the folder cannot take refuses the save before any project file is written (writeFolderLog).
-  if (!nativeAutosave) await writeFolderLog(session, fs);
-  // The pictures are copied before the manifest names them, so the folder never holds a manifest without the files it names. A folder
-  // holding a different file under one of those names is refused here, before anything is written (project-assets.ts).
-  await session.assets.copyTo(root);
   const report = emptyReport();
   const now = new Date();
   // A file the write replaces or removes that this session did not last write is copied to .caotang-backup first, and checked once more
@@ -1957,35 +1956,48 @@ async function writeFolder(
     toWrite.removedSkillFiles.clear();
     toWrite.removedAgentFiles.clear();
   }
-  try {
-    await writeProject(watch.fs, toWrite, {
-      now,
-      // Only the copy's own folder can hold documents this session deleted. Any other folder keeps every file it has.
-      pruneDocumentIds: held === null ? [] : deletedSince(held, session.state),
-      // Each file is checked against the digest the folder held just before this save, as it is written or removed.
-      expectedDigests: before,
-      report,
-    });
-  } catch (error) {
-    if (!(error instanceof FolderDriftError)) throw error;
-    // Another program changed a file after the check above, and the write stopped before that file. The copy keeps the digests of what this
-    // save did write and of no other, so the next save still sees that other change. Nothing it changed is overwritten.
-    if (held !== null) session.setFolderBaseline(root, held.manifestText, held.documentIds, await digestsAfterWrite(fs, before, error.partial), held.titles);
-    const overwriteSnapshot = { manifestText: await readManifestText(fs), digests: await projectFileDigests(fs) };
-    const changed = { changed: [...error.paths], removed: [], added: [] };
-    const heldTitles = held?.titles ?? new Map<string, string>();
-    const previewTargets = folderFilePreviewTargets(changed, session.state, heldTitles);
-    return withFolderOverwriteSnapshot({
-      kind: 'refused',
-      reason: 'files',
-      files: folderChanges(changed, session.state, heldTitles),
-      partial: true,
-      ...(previewTargets.targets.length === 0 ? {} : {
-        previewFiles: previewTargets.targets,
-        ...(previewTargets.omitted === 0 ? {} : { omittedPreviewFiles: previewTargets.omitted }),
-      }),
-    }, overwriteSnapshot);
-  }
+  // **The pause.** The server this app runs serves the same folder, so it is paused from the first file this save writes to the last:
+  // a write tool is refused rather than starting between the digest check above and a rename below. A save the verdict refused never
+  // reached this point, so a save that writes nothing never pauses. A write already running when the pause arrives finishes, and the
+  // digest check then refuses the file it was about to replace (gate.ts, native-mcp.ts).
+  const refused = await withProjectServerPaused(async (): Promise<FolderSaveOutcome | null> => {
+    // The session log is written first, so a log the folder cannot take refuses the save before any project file is written (writeFolderLog).
+    if (!nativeAutosave) await writeFolderLog(session, fs);
+    // The pictures are copied before the manifest names them, so the folder never holds a manifest without the files it names. A folder
+    // holding a different file under one of those names is refused here, before anything is written (project-assets.ts).
+    await session.assets.copyTo(root);
+    try {
+      await writeProject(watch.fs, toWrite, {
+        now,
+        // Only the copy's own folder can hold documents this session deleted. Any other folder keeps every file it has.
+        pruneDocumentIds: held === null ? [] : deletedSince(held, session.state),
+        // Each file is checked against the digest the folder held just before this save, as it is written or removed.
+        expectedDigests: before,
+        report,
+      });
+      return null;
+    } catch (error) {
+      if (!(error instanceof FolderDriftError)) throw error;
+      // Another program changed a file after the check above, and the write stopped before that file. The copy keeps the digests of what this
+      // save did write and of no other, so the next save still sees that other change. Nothing it changed is overwritten.
+      if (held !== null) session.setFolderBaseline(root, held.manifestText, held.documentIds, await digestsAfterWrite(fs, before, error.partial), held.titles);
+      const overwriteSnapshot = { manifestText: await readManifestText(fs), digests: await projectFileDigests(fs) };
+      const changed = { changed: [...error.paths], removed: [], added: [] };
+      const heldTitles = held?.titles ?? new Map<string, string>();
+      const previewTargets = folderFilePreviewTargets(changed, session.state, heldTitles);
+      return withFolderOverwriteSnapshot({
+        kind: 'refused',
+        reason: 'files',
+        files: folderChanges(changed, session.state, heldTitles),
+        partial: true,
+        ...(previewTargets.targets.length === 0 ? {} : {
+          previewFiles: previewTargets.targets,
+          ...(previewTargets.omitted === 0 ? {} : { omittedPreviewFiles: previewTargets.omitted }),
+        }),
+      }, overwriteSnapshot);
+    }
+  });
+  if (refused !== null) return refused;
   // The skill files the folder no longer holds are no longer owed a removal.
   if (held !== null) for (const path of [...session.state.removedSkillFiles]) if (!toWrite.removedSkillFiles.has(path)) session.state.removedSkillFiles.delete(path);
   // Likewise the forgotten memory notes: a file the folder no longer holds is no longer owed a removal.
@@ -2010,8 +2022,9 @@ async function writeFolder(
   }
   const backup = watch.backup();
   if (backup !== undefined) await pruneFolderBackups(fs);
-  // The lock is read again: a server that took the folder while the save wrote may have read half of it.
-  const lockAppeared = !lockedBefore && (await fs.exists(MCP_LOCK_FILE));
+  // The lock is read again: a server that took the folder while the save wrote may have read half of it. The app's own server holds it
+  // all along, so only another server's lock appearing is that.
+  const lockAppeared = !ownServer && !lockedBefore && (await fs.exists(MCP_LOCK_FILE));
   const heldTitles = session.folderBaseline()?.titles ?? new Map<string, string>();
   const changes = (): FolderFileChange[] => folderChanges(settled.drift, session.state, heldTitles);
   const afterWritePreviewTargets = folderFilePreviewTargets(settled.drift, session.state, heldTitles);
