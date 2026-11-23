@@ -145,7 +145,7 @@ describe('a request the host refuses', () => {
   it('denies an IPv4-mapped spelling of this computer, which reaches the same address', () => {
     // A parsed URL writes every one of these as `[::ffff:7f00:1]`, the mapped form of 127.0.0.1: judged by its text alone it
     // would look like a public host, and the allowlist would be the only thing left between a page and this machine.
-    const mapped = nativeEgressOrigins(['https://[::ffff:127.0.0.1]:11434', 'https://[::ffff:127.9.9.9]:11434']);
+    const mapped = nativeEgressTargets([{ origin: 'https://[::ffff:127.0.0.1]:11434' }, { origin: 'https://[::ffff:127.9.9.9]:11434' }]);
     expect(mapped.size).toBe(0);
     for (const url of ['https://[::ffff:127.0.0.1]:11434/v1', 'https://[0:0:0:0:0:ffff:127.0.0.1]:11434/v1', 'https://[::ffff:127.255.0.1]/v1']) {
       expect(refusal(request({ url }), mapped)).toBe('denied');
@@ -259,7 +259,8 @@ describe('a key the request names', () => {
   });
 
   it('is read out of the URL too, because a provider may put it there', () => {
-    const checked = checkNativeEgress(KEYED, request({ url: `https://api.example.com/v1/chat?key=${keyHandle(KEY)}`, method: 'GET', headers: {} }));
+    // A GET listing carries no body, so the URL is the only thing that can name the key here.
+    const checked = checkNativeEgress(KEYED, request({ url: `https://api.example.com/v1/chat?key=${keyHandle(KEY)}`, method: 'GET', headers: {}, body: undefined }));
     expect(checked.ok && checked.request.keys).toEqual([KEY]);
   });
 
