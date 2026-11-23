@@ -17,6 +17,7 @@ interface Call {
   readonly url: string;
   readonly body: string | null;
   readonly account: string | null;
+  readonly ifNoneMatch: string | null;
   readonly credentials: RequestCredentials | undefined;
 }
 
@@ -29,6 +30,7 @@ function server(answer?: (call: Call) => Response | null): { registry: RemotePro
       url: String(input),
       body: typeof init?.body === 'string' ? init.body : null,
       account: (init?.headers as Record<string, string> | undefined)?.['X-Caotang-Account'] ?? null,
+      ifNoneMatch: (init?.headers as Record<string, string> | undefined)?.['If-None-Match'] ?? null,
       credentials: init?.credentials,
     };
     calls.push(call);
@@ -63,8 +65,12 @@ describe('the project registry client', () => {
 
     await expect(registry.put(PROJECT, { wrappedKey: new Uint8Array(61).fill(3), record: new Uint8Array(4).fill(4) }, { create: true })).rejects.toBeInstanceOf(RemoteProjectExistsError);
     expect(JSON.parse(calls[0]!.body!)).toEqual({ wrappedKey: encodeBase64(new Uint8Array(61).fill(3)), record: encodeBase64(new Uint8Array(4).fill(4)) });
-    // Replacing a record (a rename) is allowed over an existing one.
-    await expect(server().registry.put(PROJECT, { wrappedKey: new Uint8Array(61).fill(3), record: new Uint8Array(4).fill(4) })).resolves.toBeUndefined();
+    // A create must refuse an existing row on the server, which is the `If-None-Match: *` precondition and nothing else.
+    expect(calls[0]).toMatchObject({ method: 'PUT', ifNoneMatch: '*' });
+    // Replacing a record (a rename) is allowed over an existing one, and carries no precondition.
+    const replace = server();
+    await expect(replace.registry.put(PROJECT, { wrappedKey: new Uint8Array(61).fill(3), record: new Uint8Array(4).fill(4) })).resolves.toBeUndefined();
+    expect(replace.calls[0]).toMatchObject({ method: 'PUT', ifNoneMatch: null });
   });
 
   it('reports a session that is not the account it thinks, and a server it cannot reach', async () => {
