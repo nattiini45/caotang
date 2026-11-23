@@ -1,4 +1,5 @@
-# Firefox and WebKit E2E, called by ci.yml as part of the required PR gate; also runs nightly and on demand.
+# Firefox and WebKit E2E, called by ci.yml as part of the required PR gate; the nightly run comes from ci.yml's own schedule, so
+# this workflow carries no schedule of its own and a night is run once, and it also runs on demand.
 #
 # What runs:
 #   - The `firefox` and `webkit` projects of playwright.config.ts (they exist only with CAOTANG_E2E_BROWSERS=all), in three shards
@@ -20,8 +21,6 @@ name: e2e-browsers
 
 on:
   workflow_call:
-  schedule:
-    - cron: '30 3 * * *'
   workflow_dispatch:
 
 permissions:

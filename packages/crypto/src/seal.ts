@@ -1,7 +1,7 @@
 import { aeadOpen, aeadSeal, assertVersion, associatedData, NONCE_BYTES, TAG_BYTES } from './aead.js';
 import { type RandomBytes } from './bytes.js';
 import { CryptoError } from './errors.js';
-import { deriveSubkey, type SecretKey } from './keys.js';
+import { deriveSubkey, type ProjectKeySource } from './keys.js';
 
 const FRAME_BYTES = 4;
 export const PAD_MIN = 256;
@@ -66,19 +66,19 @@ function manifestAd(ctx: ManifestContext): Uint8Array {
 }
 
 /** AES-256-GCM under the file's own key, with `{projectId, pathHash, version}` as associated data. */
-export async function sealFile(project: SecretKey, ctx: FileContext, plaintext: Uint8Array, random?: RandomBytes): Promise<Uint8Array> {
+export async function sealFile(project: ProjectKeySource, ctx: FileContext, plaintext: Uint8Array, random?: RandomBytes): Promise<Uint8Array> {
   return aeadSeal(await deriveSubkey(project, 'file', ctx.pathHash), fileAd(ctx), pad(plaintext), random);
 }
 
 /** Refuses a file sealed under another key, project, path or version, and any altered byte. */
-export async function openFile(project: SecretKey, ctx: FileContext, sealed: Uint8Array): Promise<Uint8Array> {
+export async function openFile(project: ProjectKeySource, ctx: FileContext, sealed: Uint8Array): Promise<Uint8Array> {
   return unpad(await aeadOpen(await deriveSubkey(project, 'file', ctx.pathHash), fileAd(ctx), sealed));
 }
 
-export async function sealManifest(project: SecretKey, ctx: ManifestContext, plaintext: Uint8Array, random?: RandomBytes): Promise<Uint8Array> {
+export async function sealManifest(project: ProjectKeySource, ctx: ManifestContext, plaintext: Uint8Array, random?: RandomBytes): Promise<Uint8Array> {
   return aeadSeal(await deriveSubkey(project, 'manifest'), manifestAd(ctx), pad(plaintext), random);
 }
 
-export async function openManifest(project: SecretKey, ctx: ManifestContext, sealed: Uint8Array): Promise<Uint8Array> {
+export async function openManifest(project: ProjectKeySource, ctx: ManifestContext, sealed: Uint8Array): Promise<Uint8Array> {
   return unpad(await aeadOpen(await deriveSubkey(project, 'manifest'), manifestAd(ctx), sealed));
 }
