@@ -194,20 +194,24 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
 
   const stop = (): Promise<McpHostReply<McpHostStatus>> => serial(async () => {
     await stopChild();
-    // A stop ends whatever a save was waiting for: the next start must not begin paused by a save that has since finished.
-    pauses = 0;
+    // The pause count is not cleared: it belongs to the saves in flight, not to the child. A save still running while the server
+    // stops holds its lease, and a start that comes before it ends must pause the new child (begin does, from this same count).
     publish({ state: 'stopped' });
     return { ok: true, value: status };
   });
 
-  /** The pause a save takes. The first of a run of saves posts it; the rest wait for that call, so none of them writes before it lands. */
+  /**
+   * The pause a save takes. A lease is taken whether or not a child exists: a save that begins while the server is stopped or still
+   * starting is a save the server must not write during if it appears before that save ends, so the count rises first and only then
+   * decides whether there is anyone to tell. Every new child applies the leases outstanding at the moment it is ready.
+   */
   const pause = (): Promise<McpHostReply<McpHostStatus>> => serial(async () => {
-    if (status.state !== 'running') return { ok: true, value: status };
     pauses += 1;
-    if (pauses > 1) return { ok: true, value: status };
+    if (pauses > 1 || status.state !== 'running') return { ok: true, value: status };
     if (await postControl(status, 'pause')) return { ok: true, value: status };
-    // A pause the server never took is not owed a resume: the count goes back, and the digest check is the guarantee anyway.
-    pauses = 0;
+    // A pause the server never took is not owed a resume: this save's own lease goes back, and no other save's does. The digest check
+    // is the guarantee either way.
+    pauses = Math.max(0, pauses - 1);
     return { ok: false, refusal: 'failed' };
   });
 
