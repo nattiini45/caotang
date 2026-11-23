@@ -329,7 +329,9 @@ export const BUDGET = {
   // merged #279 tree; 9,064,300 on the merge of main 627aafbd, which carries the Kanka review answers. Named:
   // the @caotang/import-odt reader and its preview source, all on-use chunks, and the German OpenDocument
   // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  totalJs: 9_065_000,
+  // 9,065,200 measured at the review-answers head on the merge of main d51c0735 — the numbered-list styles,
+  // multi-picture paragraphs and rejected-insertion skips in the two readers. [delegated 2026-11-23]
+  totalJs: 9_066_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
