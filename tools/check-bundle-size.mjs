@@ -314,8 +314,9 @@ export const BUDGET = {
   // picker (#824): 8,994,369 bytes. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   // The Kanka import (#293) on the merge of main 7e303a1d: 9,018,273 bytes measured, +23,904 over that tree's ceiling.
   // Named: the @caotang/import-kanka reader and its preview source, all on-use chunks, and the German Kanka strings in the
-  // de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  totalJs: 9_019_000,
+  // de catalogue. Measured again at 9,019,400 bytes at the review-answers head. The ceiling is the measurement rounded up
+  // to the thousand. [delegated 2026-11-23]
+  totalJs: 9_020_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
