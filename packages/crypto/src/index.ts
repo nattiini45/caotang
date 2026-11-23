@@ -25,6 +25,7 @@ export {
   deriveVaultKey,
   generateMasterKey,
   generateProjectKey,
+  importProjectKey,
   generateSalt,
   matchesAccountVerifier,
   unwrapMasterKey,
@@ -32,6 +33,7 @@ export {
   wrapMasterKey,
   wrapProjectKey,
   type KeyRole,
+  type ProjectKeySource,
   type SubkeyPurpose,
 } from './keys.js';
 export {
