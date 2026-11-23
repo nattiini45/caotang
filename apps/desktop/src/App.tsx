@@ -14,6 +14,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 
 import { droppedFieldsSentence } from './app/integrity-model.js';
 import type { DirectoryHandleLike } from './app/fs-access.js';
+import { nativeTrayHidden, publishNativeState, readNativeTimeZone, subscribeNativeWindow, watchNativeWindow } from './app/native-os.js';
 import { languageRevision, subscribeLanguage } from './i18n/language.js';
 import { openDemoSample, openFolder, type Opened } from './app/lifecycle.js';
 import { useBootPhase } from './app/use-boot-phase.js';
@@ -53,6 +54,20 @@ export function App(): ReactNode {
   useEffect(() => {
     installTestHook(() => current.current);
   }, []);
+
+  // What only the desktop shell has (desktop.md §The system timezone, §The tray and scheduled task runs): the operating system's
+  // zone, read once, and the window state the tray keeps. Both are no-ops in a browser, which has neither.
+  useEffect(() => {
+    void readNativeTimeZone();
+    watchNativeWindow();
+  }, []);
+  const trayHidden = useSyncExternalStore(subscribeNativeWindow, nativeTrayHidden);
+  // The native menu and the tray are the page's words, so the page keeps them current: which project is open decides which items
+  // mean anything, and the tray's line says whether task runs are carrying on.
+  const openProject = session === null ? null : session.state.manifest.project.name;
+  useEffect(() => {
+    publishNativeState({ project: openProject });
+  }, [openProject, trayHidden]);
 
   const show = (opened: Opened): void => {
     const previous = current.current;

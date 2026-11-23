@@ -2344,6 +2344,16 @@ msgstr "{product} documentation"
 msgid "{progress} of {total}"
 msgstr "{progress} of {total}"
 
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "{project} is open. Scheduled tasks keep running while Caotang is in the tray."
+msgstr "{project} is open. Scheduled tasks keep running while Caotang is in the tray."
+
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "{project} is open. Scheduled tasks run while this window is open."
+msgstr "{project} is open. Scheduled tasks run while this window is open."
+
 #. Interpolated values: completion, count, levels, prompt, window
 #: apps/desktop/src/app/provider-details.ts
 msgid "{prompt} in, {completion} out per 1,000 tokens"
@@ -4224,6 +4234,11 @@ msgstr "About {total} (prompt {prompt}, reply {reply} including thinking)."
 #: packages/harness/src/agent/cards.ts
 msgid "harness.plan.cost"
 msgstr "About {total} (prompt {prompt}, reply {reply})."
+
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "About Caotang"
+msgstr "About Caotang"
 
 #. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx
@@ -6429,10 +6444,20 @@ msgstr "Caotang could not prepare this comparison."
 msgid "Caotang could not reach the folder it remembers. Choose Open a folder… to find it."
 msgstr "Caotang could not reach the folder it remembers. Choose Open a folder… to find it."
 
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "Caotang could not read that folder, so nothing was opened. Check that the folder still exists and that you can open it."
+msgstr "Caotang could not read that folder, so nothing was opened. Check that the folder still exists and that you can open it."
+
 #. Encoding conversion results. Interpolated values: name is a document title, codex entry name or file path of the writer's project; from and named are text encoding names; why and reason are failure messages; backup is a file path.
 #: apps/desktop/src/app/encoding-review.ts
 msgid "Caotang could not tell which encoding to read it with"
 msgstr "Caotang could not tell which encoding to read it with"
+
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Caotang could not write the file you chose. Compile again and choose another place."
+msgstr "Caotang could not write the file you chose. Compile again and choose another place."
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
@@ -7421,6 +7446,16 @@ msgstr "Close panels"
 msgid "Close the agent ({shortcut}). A running turn keeps working."
 msgstr "Close the agent ({shortcut}). A running turn keeps working."
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Close this project before opening another one from a link."
+msgstr "Close this project before opening another one from a link."
+
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "Close window"
+msgstr "Close window"
+
 #. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
 #. Interpolated values: file is the imported file name; reason is the import failure message
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
@@ -7761,7 +7796,9 @@ msgstr "Compile anyway"
 msgid "Compile errors"
 msgstr "Compile errors"
 
+#. The desktop app's native menu and tray. {project} is the open project's own name.
 #. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/native-os.ts
 #: apps/desktop/src/app/shell-actions.ts
 msgid "Compile…"
 msgstr "Compile…"
@@ -9453,6 +9490,8 @@ msgstr "Earlier requests are summarised automatically after more than six unsumm
 #. Private Background model hook settings.
 #. Read-only MCP hooks in project Settings.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
 #: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/AgentInstructionsPanel.tsx
 #: apps/desktop/src/components/AgentQueue.tsx
@@ -10116,6 +10155,11 @@ msgstr "Export as Markdown"
 msgid "Export bundle"
 msgstr "Export bundle"
 
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "Export bundle…"
+msgstr "Export bundle…"
+
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
 #: apps/desktop/src/media/PromptPackPanel.tsx
 msgid "Export is held while a row is an error, so no file is written from a prompt the vendor would refuse."
@@ -10355,6 +10399,11 @@ msgstr "Fields"
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "Fields of shot {number}"
 msgstr "Fields of shot {number}"
+
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "File"
+msgstr "File"
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
@@ -10655,7 +10704,9 @@ msgid "Focus document text"
 msgstr "Focus document text"
 
 #. Modern interface: the stage and the page.
+#. The desktop app's native menu and tray. {project} is the open project's own name.
 #. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/native-os.ts
 #: apps/desktop/src/app/shell-actions.ts
 #: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "Focus mode"
@@ -11201,6 +11252,11 @@ msgstr "Healthy"
 #: apps/desktop/src/app/mcp-model.ts
 msgid "Healthy. {count} {tools, plural, one {tool} other {tools}} listed and verified."
 msgstr "Healthy. {count} {tools, plural, one {tool} other {tools}} listed and verified."
+
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "Help"
+msgstr "Help"
 
 #. Interpolated values: model, name, provider, total
 #. Interpolated values: model, profile
@@ -13444,6 +13500,11 @@ msgstr "Midwinter"
 msgid "Min words"
 msgstr "Min words"
 
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "Minimize"
+msgstr "Minimize"
+
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
@@ -14131,6 +14192,11 @@ msgstr "New page here"
 msgid "New project"
 msgstr "New project"
 
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "New project…"
+msgstr "New project…"
+
 #. Binder row labels. Interpolated values: access is an access level's name, from is the node the rule was set on, title is a row's title.
 #: apps/desktop/src/components/Binder.tsx
 msgid "New research note"
@@ -14592,6 +14658,11 @@ msgstr "No project folder is attached. Save or open this project in its folder f
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "No project goals yet. Select the manuscript or a folder, then add one in the inspector."
 msgstr "No project goals yet. Select the manuscript or a folder, then add one in the inspector."
+
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "No project is open, so scheduled tasks are paused."
+msgstr "No project is open, so scheduled tasks are paused."
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
@@ -15311,6 +15382,11 @@ msgstr "Nothing was left out."
 msgid "Nothing was opened or changed."
 msgstr "Nothing was opened or changed."
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Nothing was saved."
+msgstr "Nothing was saved."
+
 #. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "Nothing was scanned: no document was open to this scan.{why}"
@@ -15607,6 +15683,11 @@ msgstr "Open an older copy of this project?"
 msgid "Open as a separate copy"
 msgstr "Open as a separate copy"
 
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "Open Caotang"
+msgstr "Open Caotang"
+
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
 msgid "Open findings"
@@ -15616,6 +15697,11 @@ msgstr "Open findings"
 #: apps/desktop/src/components/shell/modern/scene-findings.tsx
 msgid "Open findings in this scene"
 msgstr "Open findings in this scene"
+
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "Open folder…"
+msgstr "Open folder…"
 
 #. Binder row labels. Interpolated values: access is an access level's name, from is the node the rule was set on, title is a row's title.
 #: apps/desktop/src/components/Binder.tsx
@@ -17195,6 +17281,12 @@ msgstr "Quick checks the Findings tab’s scan runs"
 #: apps/desktop/src/app/findings-model.ts
 msgid "Quick scan"
 msgstr "Quick scan"
+
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "Quit Caotang"
+msgstr "Quit Caotang"
 
 #. Interpolated values: title is the writer's reference title.
 #: apps/desktop/src/components/CodexReferences.tsx
@@ -20254,6 +20346,11 @@ msgstr "Settings sections"
 msgid "Settings, one key: value per line"
 msgstr "Settings, one key: value per line"
 
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "Settings…"
+msgstr "Settings…"
+
 #. Agent instructions copy. Interpolated values: title and name are note titles, path is a file path, used, sent, allowed and count are token counts.
 #: apps/desktop/src/components/AgentInstructionsPanel.tsx
 msgid "Share of the instructions budget in use"
@@ -21832,6 +21929,11 @@ msgstr "That finding is about a scene that is not on the timeline, so there is n
 msgid "That finding is no longer in the findings file, so there is nothing to fix. Open the Findings tab again."
 msgstr "That finding is no longer in the findings file, so there is nothing to fix. Open the Findings tab again."
 
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "That folder does not hold a Caotang project, so nothing was opened."
+msgstr "That folder does not hold a Caotang project, so nothing was opened."
+
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "That folder is not empty"
@@ -21857,6 +21959,16 @@ msgstr "That is already where it is."
 #: apps/desktop/src/components/timeline/SceneChanges.tsx
 msgid "That is not a whole number of days the timeline can hold."
 msgstr "That is not a whole number of days the timeline can hold."
+
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "That link is not a Caotang project link, so nothing was opened. A Caotang link names a project you have opened before."
+msgstr "That link is not a Caotang project link, so nothing was opened. A Caotang link names a project you have opened before."
+
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "That link names a project this copy of Caotang does not have. Open the folder once, and the link will work."
+msgstr "That link names a project this copy of Caotang does not have. Open the folder once, and the link will work."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -25962,6 +26074,11 @@ msgstr "Today"
 msgid "Today’s target is met."
 msgstr "Today’s target is met."
 
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "Toggle full screen"
+msgstr "Toggle full screen"
+
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "Token breakdown"
@@ -26332,7 +26449,9 @@ msgid "Underline becomes italics"
 msgstr "Underline becomes italics"
 
 #. Interpolated values: source, summary
+#. The desktop app's native menu and tray. {project} is the open project's own name.
 #. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/native-os.ts
 #: apps/desktop/src/app/shell-actions.ts
 #: apps/desktop/src/components/ActivityPanel.tsx
 msgid "Undo"
@@ -26831,6 +26950,8 @@ msgstr "Verified"
 #. Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search.
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
 #: apps/desktop/src/components/shell/modern/top-ornament.tsx
@@ -27354,6 +27475,11 @@ msgstr "will become screenplay scenes. Read what the import keeps first."
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "will re-resolve at execution"
 msgstr "will re-resolve at execution"
+
+#. The desktop app's native menu and tray. {project} is the open project's own name.
+#: apps/desktop/src/app/native-os.ts
+msgid "Window"
+msgstr "Window"
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx

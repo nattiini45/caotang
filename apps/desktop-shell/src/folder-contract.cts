@@ -1,3 +1,5 @@
+import type { NativeOsBridge } from './os-contract.cjs';
+
 export interface NativeFolder {
   readonly id: string;
   readonly name: string;
@@ -34,9 +36,14 @@ export interface NativeFolderBridge {
   onChanged(listener: (change: NativeFolderChange) => void): () => void;
 }
 
+/**
+ * Everything the desktop shell exposes to the studio. `folders` arrived with version 2 and `os` with version 3: a page reads the
+ * version before it reads a member, so an older shell and a newer studio each see only what both have.
+ */
 export interface DesktopBridge {
-  readonly version: 2;
+  readonly version: 3;
   readonly folders: NativeFolderBridge;
+  readonly os: NativeOsBridge;
 }
 
 declare global {

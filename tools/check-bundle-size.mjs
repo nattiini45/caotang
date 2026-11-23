@@ -185,7 +185,14 @@ export const BUDGET = {
   // measured, +1,796 over the ceiling that tree sat under. Named: the compiled English catalogue's Kanka messages, which must
   // precede first paint (i18n.md §3.3); the reader, the preview source and the Worker stay on use. The ceiling is the
   // measurement rounded up to the thousand. [delegated 2026-11-23]
-  initialGzip: 1_120_000,
+  // The desktop shell's own words (#407) on main 31b75e6d: 1,120,900 bytes gzip measured, +1,483 over the ceiling that tree sat
+  // under. Named: the compiled English catalogue's twenty-six messages for the native menu, the tray and the sentences a refused
+  // link starts with, which must precede first paint (i18n.md §3.3), and the entry's `native-os.ts` and `native-save.ts`, which the
+  // app shell imports to publish the menu's words and to save an export. Optimisations tried first: nothing here can be a lazy
+  // chunk — the menu is drawn before the first screen settles and the shell's words are the page's, so the module that publishes
+  // them is the entry's; no stylesheet, no dependency and no screen were added. The ceiling is the measurement rounded up to the
+  // thousand. [delegated 2026-11-23]
+  initialGzip: 1_122_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -316,7 +323,11 @@ export const BUDGET = {
   // Named: the @caotang/import-kanka reader and its preview source, all on-use chunks, and the German Kanka strings in the
   // de catalogue. Measured again at 9,019,400 bytes at the review-answers head. The ceiling is the measurement rounded up
   // to the thousand. [delegated 2026-11-23]
-  totalJs: 9_020_000,
+  // The desktop shell's own words (#407): 9,026,300 bytes measured on main 31b75e6d, +6,300 over that tree's ceiling. Named: the
+  // same entry modules and catalogue messages as `initialGzip`, plus the German catalogue's entries for them. Nothing moved onto
+  // the first load and no module was added to a lazy chunk. The ceiling is the measurement rounded up to the thousand.
+  // [delegated 2026-11-23]
+  totalJs: 9_028_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
