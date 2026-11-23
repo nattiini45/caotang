@@ -98,7 +98,8 @@ export function ChatModelPicker({
           ))}
           {known ? null : (
             <SelectGroup>
-              <SelectGroupLabel>{held === undefined ? t`Not in this provider’s list` : isolate(held.name)}</SelectGroupLabel>
+              {/* The connection's own group is right above this one, so it says why the model is here rather than repeating the name. */}
+              <SelectGroupLabel>{t`No longer listed by this provider`}</SelectGroupLabel>
               <SelectItem value={current}>{value.model}</SelectItem>
             </SelectGroup>
           )}

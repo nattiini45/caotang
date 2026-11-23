@@ -67,13 +67,18 @@ export function withChatModel(
   const carries = pin !== undefined && pin.profileId === choice.profileId && pin.thinking !== undefined && (options.levels === undefined || options.levels.includes(pin.thinking));
   const stated = options.level ?? (carries ? pin?.thinking : undefined);
   const thinking = stated === undefined || stated === '' ? undefined : stated;
-  // The active connection's own default with no level is exactly "follow the active connection", so no pin is written.
-  if (thinking === undefined && active !== null && choice.profileId === active.profileId && choice.model === active.defaultModel) return others;
+  // What the writer set on the chat role itself rides every pick, whatever the connection: it is their standing choice about chat, and
+  // "no pin" is the only state that could hold it.
+  const kept = {
+    ...(pin?.fallbacks === undefined ? {} : { fallbacks: pin.fallbacks }),
+    ...(pin?.steps === undefined ? {} : { steps: pin.steps }),
+  };
+  // The active connection's own default, with no level and nothing kept, is exactly "follow the active connection", so no pin is written.
+  if (thinking === undefined && Object.keys(kept).length === 0 && active !== null && choice.profileId === active.profileId && choice.model === active.defaultModel) return others;
   return {
     ...others,
     chat: {
-      ...(pin?.fallbacks === undefined ? {} : { fallbacks: pin.fallbacks }),
-      ...(pin?.steps === undefined ? {} : { steps: pin.steps }),
+      ...kept,
       ...(thinking === undefined ? {} : { thinking: thinking as ThinkingLevel }),
       profileId: choice.profileId,
       model: choice.model,
@@ -105,11 +110,14 @@ export function chatModelView(
   const rawChat: unknown = roles?.chat;
   const pin = rawChat === undefined || rawChat === 'follow' ? undefined : roles?.chat;
   const groups = chatModelGroups(profiles);
+  // The level in force: the pin's, but only while the pin is what runs — a pin naming a connection that is gone reads as the active
+  // profile, and its level would name a ladder nobody is using.
+  const inForce = pin !== undefined && value !== null && pin.profileId === value.profileId;
   return {
     groups,
     value,
     connection: value === null ? null : (groups.find((group) => group.profileId === value.profileId)?.name ?? null),
     levels: value === null ? [] : levelsFor(value.profileId, value.model),
-    thinking: pin === undefined || (pin as unknown) === 'follow' ? '' : (pin.thinking ?? ''),
+    thinking: inForce ? (pin.thinking ?? '') : '',
   };
 }

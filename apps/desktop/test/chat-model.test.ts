@@ -100,6 +100,27 @@ describe('what a pick writes', () => {
     expect(shorter.chat).toEqual({ profileId: 'prv_anthropic', model: 'claude-haiku-5-5' });
   });
 
+  it('keeps the fallbacks and the step choices even when the active connection’s own default is picked', () => {
+    // The blocking case: "follow the active connection" is only reachable with no pin, so a pin carrying the writer's fallbacks and
+    // steps has to be written rather than dropped.
+    const roles: RoleSettings = {
+      chat: {
+        profileId: 'prv_anthropic',
+        fallbacks: [{ profileId: 'prv_other' }],
+        steps: { plan: { profileId: 'prv_anthropic', model: 'claude-sonnet-5-5' } },
+      },
+    };
+    const next = withChatModel(roles, { profileId: 'prv_local', model: 'qwen3' }, active);
+    expect(next.chat).toEqual({
+      fallbacks: [{ profileId: 'prv_other' }],
+      steps: { plan: { profileId: 'prv_anthropic', model: 'claude-sonnet-5-5' } },
+      profileId: 'prv_local',
+      model: 'qwen3',
+    });
+    // With nothing kept, the same pick still only unpins.
+    expect(withChatModel({ chat: { profileId: 'prv_anthropic', model: 'claude-opus-5-5' } }, { profileId: 'prv_local', model: 'qwen3' }, active)).toEqual({});
+  });
+
   it('keeps a fallback list and the step choices a writer set on chat', () => {
     const roles: RoleSettings = {
       chat: {
@@ -134,6 +155,15 @@ describe('the picker’s view', () => {
     expect(view.value).toEqual({ profileId: 'prv_local', model: 'qwen3' });
     expect(view.levels).toEqual([]);
     expect(view.thinking).toBe('');
+  });
+
+  it('shows the level in force, which a pin naming a connection that is gone does not set', () => {
+    // The pin is not what runs (currentChatModel reads the active profile), so its level is not shown as if it were in force.
+    const gone = chatModelView(PROFILES, { chat: { profileId: 'prv_gone', model: 'x', thinking: 'high' } }, 'prv_local', () => ['low', 'high']);
+    expect(gone.value).toEqual({ profileId: 'prv_local', model: 'qwen3' });
+    expect(gone.thinking).toBe('');
+    const live = chatModelView(PROFILES, { chat: { profileId: 'prv_anthropic', model: 'claude-opus-5-5', thinking: 'high' } }, 'prv_local', () => ['low', 'high']);
+    expect(live.thinking).toBe('high');
   });
 
   it('names the connection the picked model runs through, so the header can say where the turn goes', () => {

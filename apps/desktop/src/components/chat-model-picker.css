@@ -125,10 +125,10 @@
 }
 
 @media (max-width: 959px) {
-  /* A narrow header holds the picker in the provider line's place: the models it offers are grouped under that provider's name, so the
-     header shows the thing the writer can change instead of a label repeating it, and neither control has to shrink into illegibility.
-     Every row the picker would otherwise add is a row of the conversation pushed out of view. */
-  .workspace .agent-head:has(.agent-model) .agent-provider {
+  /* A narrow header holds the picker in the provider line's place: the trigger already names the connection under the model, so the
+     line would repeat it, and every row the header would otherwise add is a row of the conversation pushed out of view. Scoped to the
+     header itself, not to a shell's frame, so Classic's drawer and Modern's companion both follow it. */
+  .agent-head:has(.agent-model) .agent-provider {
     display: none;
   }
 
