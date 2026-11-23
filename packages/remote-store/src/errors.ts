@@ -1,8 +1,17 @@
-/** Another device changed this file (or the project) since this device last looked. Nothing was written. */
+/** Another device changed one or more of these files (or the project's index) since this device last looked. Nothing was written. */
 export class RemoteConflictError extends Error {
-  constructor(readonly path: string) {
-    super(`${path} changed on another device since you last opened it. Nothing was overwritten.`);
+  /** Every path of the refused batch that changed elsewhere; `path` is the first, for a caller that names one. */
+  readonly paths: readonly string[];
+
+  constructor(
+    readonly path: string,
+    paths?: readonly string[],
+  ) {
+    const changed = paths !== undefined && paths.length > 0 ? [...paths] : [path];
+    const named = changed.length <= 3 ? changed.join(', ') : `${changed.slice(0, 3).join(', ')} and ${changed.length - 3} more`;
+    super(`${named} changed on another device since you last opened ${changed.length === 1 ? 'it' : 'them'}. Nothing was overwritten.`);
     this.name = 'RemoteConflictError';
+    this.paths = changed;
   }
 }
 
