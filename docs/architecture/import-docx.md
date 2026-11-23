@@ -3,7 +3,7 @@
 Status: **built**. Own reader `@caotang/import-docx` on the shared zip reader ([import-read.md](import-read.md)) and XML reader; the
 blocks go to the splitter ([import-core.md](import-core.md)) and the preview ([import-preview.md](import-preview.md)).
 
-Decision 1 (2026-10-31, Caspar): **an own reader on the shared XML layer**, not mammoth. No new dependency, no second zip library,
+Decision 1 (2026-10-31, owner): **an own reader on the shared XML layer**, not mammoth. No new dependency, no second zip library,
 and a reject mode for tracked changes that mammoth does not have. pandoc and mammoth are behavioural references only; no code is
 copied. There is no `eval`, `new Function` or WebAssembly in the chain, and the reader is a lazy chunk.
 
