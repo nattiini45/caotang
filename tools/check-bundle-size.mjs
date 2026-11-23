@@ -330,10 +330,11 @@ export const BUDGET = {
   // The desktop app's own provider transport (#405): 9,022.5 kB measured on CI, 2.5 kB over that ceiling, all of it the entry chunk
   // (every other chunk is the same size to the tenth of a kilobyte). What is named above applies: the transport, its refusals and
   // the wiring that reaches it from Settings. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  // The keychain (#404): 9,027.4 kB measured on this branch, 4.9 kB over that ceiling, again the entry chunk. The vault, the
-  // channels' contract and the migration are named above. The ceiling is the measurement rounded up to the thousand.
+  // The keychain (#404): 9,027.9 kB measured on this branch after main's batched save (#848) landed under it, 5.4 kB over that
+  // ceiling, again the entry chunk. The vault, the channels' contract and the migration are named above. The ceiling is the
+  // measurement rounded up to the thousand.
   // [delegated 2026-11-23]
-  totalJs: 9_028_000,
+  totalJs: 9_029_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
