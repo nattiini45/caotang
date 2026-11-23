@@ -18,3 +18,4 @@ export {
 export { createHttpBlobStore, type HttpBlobStoreOptions } from './http-blob-store.js';
 export { RemoteConflictError, RemoteIntegrityError, RemoteQuotaExceededError } from './errors.js';
 export { PendingEdits, replayPending, saveOrQueue, type SaveOutcome } from './pending-edits.js';
+export { BatchedSave } from './batched-save.js';

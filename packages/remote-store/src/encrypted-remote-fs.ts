@@ -194,19 +194,32 @@ export class EncryptedRemoteArtifactFs implements ArtifactFs {
    * other device's state and retried, so both edits survive. When one did move, {@link RemoteConflictError} names
    * every path of the batch that changed elsewhere and nothing is overwritten — that is the question the writer is
    * asked, and {@link refresh} then shows what the other device wrote.
+   *
+   * `options.dirs` records directories in the same swap, so a save that creates `assets/` or `exports/` costs one
+   * commit rather than one more.
    */
-  async commitChanges(changes: readonly RemoteChange[]): Promise<void> {
-    if (changes.length === 0) return;
-    return this.#exclusive(() => this.#apply(changes));
+  async commitChanges(changes: readonly RemoteChange[], options: { readonly dirs?: readonly string[] } = {}): Promise<void> {
+    const dirs = options.dirs ?? [];
+    if (changes.length === 0 && dirs.length === 0) return;
+    return this.#exclusive(() => this.#apply(changes, dirs));
   }
 
-  async #apply(changes: readonly RemoteChange[]): Promise<void> {
+  async #apply(changes: readonly RemoteChange[], wanted: readonly string[] = []): Promise<void> {
     const seen = new Set<string>();
     for (const change of changes) {
       assertContained(change.path);
       if (seen.has(change.path)) throw new Error(`a save stages one path once, and ${change.path} arrives twice`);
       seen.add(change.path);
       if (change.bytes === null && this.#manifest.dirs.has(change.path)) throw new Error(`refusing to remove a directory through a save: ${change.path}`);
+    }
+    const dirs = new Set<string>();
+    for (const dir of wanted) {
+      assertContained(dir);
+      let cursor = '';
+      for (const segment of dir.split('/').filter(Boolean)) {
+        cursor = joinPath(cursor, segment);
+        dirs.add(cursor);
+      }
     }
     const base = this.#manifest;
     const prepared: PreparedChange[] = [];
@@ -224,8 +237,8 @@ export class EncryptedRemoteArtifactFs implements ArtifactFs {
       await this.#put(blob, sealed, { ifNoneMatch: '*' }, change.path);
       prepared.push({ path: change.path, previous, next: { hash, version, blob, deleted: false } });
     }
-    if (prepared.length === 0) return;
-    await this.#commitBatch(prepared, base);
+    if (prepared.length === 0 && dirs.size === 0) return;
+    await this.#commitBatch(prepared, base, [...dirs]);
     // A replaced or removed version stays on the server for its soft-delete window and is not read again.
     for (const change of prepared) {
       if (change.previous !== undefined && !change.previous.deleted) await this.#discard(change.previous.blob);
@@ -233,12 +246,14 @@ export class EncryptedRemoteArtifactFs implements ArtifactFs {
   }
 
   /** The index swap, merged onto an unrelated concurrent commit rather than refused by it. */
-  async #commitBatch(prepared: readonly PreparedChange[], base: Manifest): Promise<void> {
+  async #commitBatch(prepared: readonly PreparedChange[], base: Manifest, dirs: readonly string[]): Promise<void> {
     for (let attempt = 1; ; attempt += 1) {
       const files = new Map(this.#manifest.files);
       for (const change of prepared) files.set(change.path, change.next);
+      const listing = new Set(this.#manifest.dirs);
+      for (const dir of dirs) listing.add(dir);
       try {
-        await this.#commit(files, new Set(this.#manifest.dirs), prepared[0]?.path ?? '');
+        await this.#commit(files, listing, prepared[0]?.path ?? dirs[0] ?? '');
         return;
       } catch (cause) {
         if (!(cause instanceof RemoteConflictError)) throw cause;
