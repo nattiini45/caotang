@@ -3110,7 +3110,19 @@ label.settings-check {
   font-size: var(--text-md);
 }
 
+/* A row that reads from its start, with the model id ellipsizing and the caret held at the end: a centered value would cut the id at
+   both ends ("et-5-5") and tell the writer nothing about which model runs. */
+.agent-model [data-slot='select-trigger'] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  text-align: start;
+}
+
 .agent-model [data-slot='select-value'] {
+  flex: 1 1 auto;
+  min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3170,12 +3182,30 @@ label.settings-check {
 }
 
 @media (max-width: 959px) {
-  .agent-model {
-    flex: 1 1 100%;
+  /* A narrow header holds the picker in the provider line's place: the models it offers are grouped under that provider's name, so the
+     header shows the thing the writer can change instead of a label repeating it, and neither control has to shrink into illegibility.
+     Every row the picker would otherwise add is a row of the conversation pushed out of view. */
+  .workspace .agent-head:has(.agent-model) .agent-provider {
+    display: none;
   }
 
+  /* A 0 basis, so the picker's content width cannot claim a row of its own: it shares the toggle's row and shrinks into it. */
+  .agent-model {
+    flex: 1 1 0;
+    min-inline-size: 0;
+  }
+
+  /* Both triggers shrink by their content's worth of space (a 0 basis), so the pair stays on the toggle's row and the model id
+     ellipsizes rather than pushing the level control, and the header, onto a row of its own. */
   .agent-model [data-slot='select-trigger'].agent-model-trigger {
+    flex: 1 1 0;
     max-inline-size: none;
+    min-inline-size: 0;
+  }
+
+  .agent-model [data-slot='select-trigger'].agent-model-level {
+    flex: 0 1 auto;
+    max-inline-size: 8.5rem;
   }
 }
 
