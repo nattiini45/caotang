@@ -345,6 +345,9 @@ importers:
       '@caotang/import-odt':
         specifier: workspace:*
         version: link:../../packages/import-odt
+      '@caotang/import-plottr':
+        specifier: workspace:*
+        version: link:../../packages/import-plottr
       '@caotang/import-read':
         specifier: workspace:*
         version: link:../../packages/import-read
@@ -1092,6 +1095,15 @@ importers:
         version: link:../import-read
 
   packages/import-odt:
+    dependencies:
+      '@caotang/import-core':
+        specifier: workspace:*
+        version: link:../import-core
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../import-read
+
+  packages/import-plottr:
     dependencies:
       '@caotang/import-core':
         specifier: workspace:*

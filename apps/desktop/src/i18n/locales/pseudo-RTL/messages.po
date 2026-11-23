@@ -709,6 +709,11 @@ msgstr ""
 msgid "{already, plural, one {# picture was already there.} other {# pictures were already there.}}"
 msgstr ""
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "{applied, plural, one {# tag became a keyword} other {# tags became keywords}}"
+msgstr ""
+
 #. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
 #: apps/desktop/src/components/InterruptedRuns.tsx
 msgid "{applied} of {total} {total, plural, one {step} other {steps}} applied"
@@ -847,6 +852,11 @@ msgstr ""
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "{clock} left"
+msgstr ""
+
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "{codexCount, plural, one {# character or place is offered as a codex entry with its own Details page} other {# characters and places are offered as codex entries with their own Details pages}}"
 msgstr ""
 
 #. The import preview's notices and sentences. Interpolated values: words, partCount, chapters, scenes, images, comments, footnotes and codexRows are counts; megabytes and kilobytes are sizes; label and host name a download option; title, rowName and name are node or row names; documents and folders are the import's own counts; fileName is the file's name.
@@ -1146,6 +1156,7 @@ msgstr ""
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
@@ -1155,6 +1166,7 @@ msgstr ""
 #: apps/desktop/src/import-preview/html-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
 #: apps/desktop/src/import-preview/odt-source.ts
+#: apps/desktop/src/import-preview/plottr-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "{count, plural, one {Import # picture} other {Import # pictures}}"
 msgstr ""
@@ -1722,6 +1734,11 @@ msgstr ""
 msgid "{file} holds no timed cue, so there is nothing to import. A captions file needs lines like \"00:00:01,000 --> 00:00:04,000\"."
 msgstr ""
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "{file} is too large to import as an AO3 download ({limit} MB max)."
+msgstr ""
+
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #: apps/desktop/src/import-preview/epub-source.ts
 msgid "{file} is too large to import as an EPUB ({limit} MB max)."
@@ -1775,6 +1792,11 @@ msgstr ""
 #. Sentences about Ink line ids. Interpolated values: title and titles are container titles the writer wrote; line, minted and the other counts are numbers; lines, where, first and shown are lists of line positions or ids; room is the reason a line could not take an id; rest counts the ids not shown.
 #: apps/desktop/src/media/ink-model.ts
 msgid "{first} and {rest} more"
+msgstr ""
+
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "{folders, plural, one {# beat became a folder} other {# beats became folders}}"
 msgstr ""
 
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
@@ -2221,6 +2243,11 @@ msgstr ""
 msgid "{notes, plural, one {# note became a footnote of its scene} other {# notes became footnotes of their scenes}}"
 msgstr ""
 
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "{notes, plural, one {# note became a Research document} other {# notes became Research documents}}"
+msgstr ""
+
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #: apps/desktop/src/import-preview/ao3-source.ts
 msgid "{notes, plural, one {# note from the work is kept} other {# notes from the work are kept}}"
@@ -2280,6 +2307,11 @@ msgstr ""
 #. Words on the story timeline's axis and in a scene's accessible name. Interpolated values: days, count, n, text, span, anchor, lower, rest, dayLabel, endLabel, durationDays, openFindings, title, part, name, names, folder.
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "{openFindings, plural, one {# open finding} other {# open findings}}"
+msgstr ""
+
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "{orphans, plural, one {# card sat on no beat and lands in “Unsorted”} other {# cards sat on no beat and land in “Unsorted”}}"
 msgstr ""
 
 #. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
@@ -2665,9 +2697,19 @@ msgstr ""
 msgid "{scanReads} like instructions to an AI. The text is imported as it is; read it before you ask the agent to work from it."
 msgstr ""
 
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "{scenes, plural, one {# card became a scene under its beat folder} other {# cards became scenes under their beat folders}}"
+msgstr ""
+
 #. The import preview's notices and sentences. Interpolated values: words, partCount, chapters, scenes, images, comments, footnotes and codexRows are counts; megabytes and kilobytes are sizes; label and host name a download option; title, rowName and name are node or row names; documents and folders are the import's own counts; fileName is the file's name.
 #: apps/desktop/src/import-preview/model.ts
 msgid "{scenes, plural, one {# scene} other {# scenes}}"
+msgstr ""
+
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "{scenes, plural, one {Import # document} other {Import # documents}}"
 msgstr ""
 
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
@@ -2962,11 +3004,6 @@ msgstr ""
 msgid "{synopsisCount, plural, one {# synopsis, shown before approval} other {# synopses, shown before approval}}"
 msgstr ""
 
-#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
-#: apps/desktop/src/import-preview/ao3-source.ts
-msgid "{tags, plural, one {# tag became a keyword} other {# tags became keywords}}"
-msgstr ""
-
 #. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
@@ -2977,6 +3014,11 @@ msgstr ""
 #. Background review approval. Counts are documents, findings, calls or estimated tokens; titles and model labels are supplied text; money uses the interface locale.
 #: apps/desktop/src/components/QueuedReviewDetails.tsx
 msgid "{thinking, select, off {Off} low {Low} medium {Medium} high {High} xhigh {Extra high} max {Maximum} other {Provider default}}"
+msgstr ""
+
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "{threadCount, plural, one {The plotline is a keyword on each of its scenes, not a typed thread} other {The # plotlines are keywords on their scenes, not typed threads}}"
 msgstr ""
 
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
@@ -4370,6 +4412,7 @@ msgstr ""
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
@@ -4379,6 +4422,7 @@ msgstr ""
 #: apps/desktop/src/import-preview/html-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
 #: apps/desktop/src/import-preview/odt-source.ts
+#: apps/desktop/src/import-preview/plottr-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "About {size} MB."
 msgstr ""
@@ -5816,6 +5860,11 @@ msgstr ""
 msgid "attitude"
 msgstr ""
 
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Attributes"
+msgstr ""
+
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
 #: apps/desktop/src/media/PromptPackPanel.tsx
 msgid "Audio cues"
@@ -6221,6 +6270,11 @@ msgstr ""
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Bold"
+msgstr ""
+
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Book"
 msgstr ""
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
@@ -7024,10 +7078,12 @@ msgstr ""
 #. Screenplay element chords. Interpolated values: label is a modifier key combination; last is the number of the last element.
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
 #: apps/desktop/src/components/CommandComposer.tsx
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/plottr-source.ts
 #: apps/desktop/src/media/element-menu.ts
 msgid "Character"
 msgstr ""
@@ -8979,11 +9035,13 @@ msgid "Detail field"
 msgstr ""
 
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/components/CodexDetails.tsx
 #: apps/desktop/src/components/CodexPanel.tsx
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/plottr-source.ts
 #: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Details"
 msgstr ""
@@ -10187,6 +10245,11 @@ msgstr ""
 #. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
 msgid "Every check this scan would run is turned off in Settings › Coherence, so nothing ran."
+msgstr ""
+
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Every custom attribute is written as text on the codex page, not as a field"
 msgstr ""
 
 #. Interpolated values: calls
@@ -11650,12 +11713,14 @@ msgstr ""
 #. Interpolated values: file is the imported file name; reason is the import failure message
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
 #. The Twine/Twee import. Interpolated values: knot is a passage name.
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/components/FdxImportDialog.tsx
 #: apps/desktop/src/components/McpSection.tsx
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/plottr-source.ts
 #: apps/desktop/src/import-preview/spreadsheet-source.ts
 #: apps/desktop/src/import-preview/twee-source.ts
 msgid "Import"
@@ -11664,11 +11729,13 @@ msgstr ""
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/plottr-source.ts
 #: apps/desktop/src/import-preview/splitter-source.ts
 #: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Import “{file}”"
@@ -11808,6 +11875,11 @@ msgstr ""
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
 msgid "Import plain text…"
+msgstr ""
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import Plottr…"
 msgstr ""
 
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
@@ -12358,6 +12430,11 @@ msgstr ""
 msgid "It is not a Kanka import."
 msgstr ""
 
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "It is not a Plottr import."
+msgstr ""
+
 #. Picture drops on a storyboard. Interpolated values: name and title are a file name and a shot title; number is a shot number; reason is a sentence ending or a failure message; where is a shot position; shotId is an id; counts are numbers.
 #: apps/desktop/src/media/shot-image-model.ts
 msgid "it is not a PNG, JPEG or WebP picture"
@@ -12738,11 +12815,13 @@ msgstr ""
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 #: apps/desktop/src/components/Inspector.tsx
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/plottr-source.ts
 msgid "Keywords"
 msgstr ""
 
@@ -15494,6 +15573,7 @@ msgstr ""
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #: apps/desktop/src/app/coherence-report-words.ts
 #: apps/desktop/src/app/findings-model.ts
@@ -15503,6 +15583,7 @@ msgstr ""
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/inklewriter-source.ts
+#: apps/desktop/src/import-preview/plottr-source.ts
 msgid "Notes"
 msgstr ""
 
@@ -16751,6 +16832,8 @@ msgstr ""
 msgid "place"
 msgstr ""
 
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Place"
 msgstr ""
@@ -16910,6 +16993,17 @@ msgstr ""
 #: apps/desktop/src/app/agent-model.ts
 #: apps/desktop/src/components/Settings.tsx
 msgid "Planning"
+msgstr ""
+
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Plottr"
+msgstr ""
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Plottr file"
 msgstr ""
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
@@ -17770,6 +17864,7 @@ msgstr ""
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
@@ -17785,6 +17880,7 @@ msgstr ""
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
 #: apps/desktop/src/import-preview/odt-source.ts
+#: apps/desktop/src/import-preview/plottr-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 #: apps/desktop/src/import-preview/spreadsheet-source.ts
 #: apps/desktop/src/import-preview/text-source.ts
@@ -25625,6 +25721,11 @@ msgstr ""
 msgid "This is not a Kanka export. In Kanka, open Settings, choose Export, and download the JSON zip."
 msgstr ""
 
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "This is not a Plottr outline. In Plottr, open your project and keep it as a .pltr file."
+msgstr ""
+
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
 msgid "This is not a Word .docx file. In Word, choose Save As and the .docx format; a .doc file cannot be read."
@@ -25762,6 +25863,18 @@ msgstr ""
 #: apps/desktop/src/app/agent.ts
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "This plan used skill instructions or outside text. Switch to Ask and start the original command or request again so its restrictions and warnings are kept."
+msgstr ""
+
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "This Plottr file carries no book."
+msgstr ""
+
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "This Plottr file is too large to import."
 msgstr ""
 
 #. Agent rules settings. Interpolated values: text is the rule's own words.
@@ -26966,6 +27079,11 @@ msgstr ""
 msgid "Unreliable narrator"
 msgstr ""
 
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "Unsorted"
+msgstr ""
+
 #. Interpolated values: completion, count, levels, prompt, window
 #: apps/desktop/src/app/provider-details.ts
 msgid "Until the server says more: {window}-token window, no native tools, no image input."
@@ -27603,6 +27721,11 @@ msgstr ""
 msgid "What the macro asks for"
 msgstr ""
 
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#: apps/desktop/src/import-preview/plottr-source.ts
+msgid "What the outline carried"
+msgstr ""
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -27689,8 +27812,10 @@ msgid "What to scan"
 msgstr ""
 
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/plottr-source.ts
 #: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "What was approximated"
 msgstr ""

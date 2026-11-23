@@ -30,6 +30,7 @@ export function ManuscriptImportActions(): ReactNode {
   const docxFile = useRef<HTMLInputElement>(null);
   const odtFile = useRef<HTMLInputElement>(null);
   const csvFile = useRef<HTMLInputElement>(null);
+  const plottrFile = useRef<HTMLInputElement>(null);
 
   const failed = (file: File, failure: unknown): void => {
     const problem = failure instanceof Error ? failure.message : String(failure);
@@ -204,6 +205,21 @@ export function ManuscriptImportActions(): ReactNode {
     }
   };
 
+  const openPlottr = async (file: File): Promise<void> => {
+    try {
+      const { MAX_TEXT_BYTES } = await import('@caotang/import-read/text');
+      if (file.size > MAX_TEXT_BYTES) {
+        report({ text: t`This Plottr file is too large to import.`, tone: 'error' });
+        return;
+      }
+      const { plottrPreviewSource } = await import('../import-preview/plottr-source.js');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      openImportPreview({ source: plottrPreviewSource(file.name, bytes) });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
   const openCsv = async (file: File): Promise<void> => {
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
@@ -252,6 +268,9 @@ export function ManuscriptImportActions(): ReactNode {
       </button>
       <button type="button" className="button is-quiet" onClick={() => kankaFile.current?.click()}>
         <Trans>Import Kanka…</Trans>
+      </button>
+      <button type="button" className="button is-quiet" onClick={() => plottrFile.current?.click()}>
+        <Trans>Import Plottr…</Trans>
       </button>
       <input
         ref={textFile}
@@ -375,6 +394,18 @@ export function ManuscriptImportActions(): ReactNode {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
           if (file !== undefined) void openOdt(file);
+        }}
+      />
+      <input
+        ref={plottrFile}
+        type="file"
+        hidden
+        accept=".pltr,application/json"
+        aria-label={t`Plottr file`}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file !== undefined) void openPlottr(file);
         }}
       />
       <input

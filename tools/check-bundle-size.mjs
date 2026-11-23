@@ -191,7 +191,9 @@ export const BUDGET = {
   // §3.3), and the entry's codex-only import guard and sentence. The reader stays on use. The ceiling is the
   // measurement rounded up to the thousand. [delegated 2026-11-23]
   // Measured again on the merge of main aec90b9b, which carries the merged EPUB import: 1,120,944 bytes gzip.
-  initialGzip: 1_121_000,
+  // The Plottr import (#290) adds its preview source, the Slate walker and the button to the first load:
+  // 1,121,740 bytes gzip on this tree. The ceiling is the measurement rounded up to the thousand.
+  initialGzip: 1_122_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -333,8 +335,9 @@ export const BUDGET = {
   // XML and grid code; the first load stayed at 1,120,940 gzip under its ceiling). The ceiling is the
   // measurement rounded up to the thousand.
   // Measured again on the merge of main aec90b9b, which carries the merged EPUB import: 9,085,400 bytes,
-  // first load 1,120,944 gzip. Same ceilings.
-  totalJs: 9_086_000,
+  // first load 1,120,944 gzip. The Plottr import (#290) adds its reader package and preview source:
+  // 9,105,720 bytes, first load 1,121,740 gzip. The ceiling is the measurement rounded up to the thousand.
+  totalJs: 9_106_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

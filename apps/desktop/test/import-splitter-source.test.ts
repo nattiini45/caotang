@@ -514,6 +514,63 @@ describe('the sources', () => {
     source.dispose?.();
   });
 
+  it('a Plottr file offers beats as folders of scenes and characters as codex rows, and a series file offers the book chip', async () => {
+    const { plottrPreviewSource } = await import('../src/import-preview/plottr-source.js');
+    const outline = enc(JSON.stringify({
+      file: {},
+      series: { name: 'The Saga' },
+      books: { 1: { id: 1, title: 'Book One' }, 2: { id: 2, title: 'Book Two' }, allIds: [1, 2] },
+      beats: {
+        1: { children: { 'null': [10], 10: [11], 11: [] }, heap: {}, index: { 10: { id: 10, bookId: 1, title: 'Act One' }, 11: { id: 11, bookId: 1, title: 'Chapter One' } } },
+        2: { children: { 'null': [20], 20: [] }, heap: {}, index: { 20: { id: 20, bookId: 2, title: 'Other Part' } } },
+      },
+      cards: [
+        { id: 1, beatId: 11, lineId: 5, position: 0, title: 'The Landing', description: [{ type: 'paragraph', children: [{ text: 'The ferry came at noon.' }] }], tags: [9], characters: [1], places: [2] },
+        { id: 2, beatId: null, lineId: 5, position: 0, title: 'Loose', description: [], tags: [], characters: [], places: [] },
+      ],
+      lines: [{ id: 5, bookId: 1, title: 'Main Plot' }, { id: 6, bookId: 'series', title: 'Arc' }],
+      characters: [{ id: 1, name: 'Ada', description: 'The captain', notes: [], tags: [], imageId: null, bookIds: [1], Rank: 'Captain' }],
+      places: [{ id: 2, name: 'The Harbour', description: '', notes: [], tags: [], imageId: null, bookIds: [1] }],
+      notes: [{ id: 1, title: 'Ideas', content: [{ type: 'paragraph', children: [{ text: 'A storm chapter.' }] }], tags: [], bookIds: [] }],
+      tags: [{ id: 9, title: 'STAGE: Setup' }],
+      images: {},
+    }));
+    const source = plottrPreviewSource('saga.pltr', outline);
+    await source.load?.(() => {}, new AbortController().signal);
+    const settings = initialSettings(source.chips(), source.options());
+    // The series file offers the book picker; the first book is read by default.
+    expect(source.chips().map((chip) => [chip.id, chip.value, chip.options.length])).toEqual([['plottr-book', '1', 2]]);
+    const plan = source.plan(settings, NO_OVERRIDES);
+    const act = plan.tree[0];
+    expect(act?.title).toBe('Act One');
+    const chapter = act?.children?.[0];
+    expect(chapter?.title).toBe('Chapter One');
+    const scene = chapter?.children?.[0];
+    expect(scene?.role).toBe('scene');
+    expect(scene?.title).toBe('The Landing');
+    expect(scene?.synopsis).toBe('The ferry came at noon.');
+    expect(scene?.keywords).toEqual(['STAGE: Setup', 'Plotline: Main Plot']);
+    expect(scene?.notes).toBe('Characters: Ada\nPlaces: The Harbour');
+    expect(plan.tree[1]?.title).toBe('Unsorted');
+    expect(plan.tree[1]?.children?.[0]?.title).toBe('Loose');
+    expect(plan.tree[2]?.title).toBe('Ideas');
+    expect(plan.tree[2]?.place).toBe('research');
+    expect(source.codexRows?.().map((row) => [row.name, row.type])).toEqual([
+      ['Ada', 'character'],
+      ['The Harbour', 'location'],
+    ]);
+    expect(source.codexRows?.()[0]?.page?.body).toContain('**Rank**: Captain');
+    expect(source.metadata?.()).toEqual({ title: 'The Saga' });
+    expect(plan.losses.map((loss) => loss.message)).toContain('1 series-level plotline(s) sit above the books: Arc. They are named here, not imported.');
+
+    // The second book reads on the chip, without reading the file again on the main thread.
+    const second = { ...settings, chips: { ...settings.chips, 'plottr-book': '2' } };
+    await source.prepare?.(second, new AbortController().signal);
+    const other = source.plan(second, NO_OVERRIDES);
+    expect(other.tree[0]?.title).toBe('Other Part');
+    source.dispose?.();
+  });
+
   it('a Word file offers its tracked changes as a chip, and rejecting them re-reads the text', async () => {
     const W_NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
     const styles = `<?xml version="1.0"?><w:styles ${W_NS}><w:style w:styleId="Heading1"><w:name w:val="heading 1"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style></w:styles>`;

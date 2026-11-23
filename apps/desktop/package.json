@@ -50,6 +50,7 @@
     "@caotang/import-inklewriter": "workspace:*",
     "@caotang/import-kanka": "workspace:*",
     "@caotang/import-odt": "workspace:*",
+    "@caotang/import-plottr": "workspace:*",
     "@caotang/import-highland": "workspace:*",
     "@caotang/import-read": "workspace:*",
     "@caotang/import-captions": "workspace:*",
