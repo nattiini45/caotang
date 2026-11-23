@@ -714,8 +714,8 @@ msgstr "{already, plural, one {# picture was already there.} other {# pictures w
 msgid "{applied} of {total} {total, plural, one {step} other {steps}} applied"
 msgstr "{applied} of {total} {total, plural, one {step} other {steps}} applied"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "{arcs, plural, one {# arc became a keyword, not a plotline} other {# arcs became keywords, not plotlines}}"
 msgstr "{arcs, plural, one {# arc became a keyword, not a plotline} other {# arcs became keywords, not plotlines}}"
 
@@ -1408,8 +1408,8 @@ msgstr "{current} of {target} {unit} · {state}"
 msgid "{cutChars} characters of this message were cut to keep the record small."
 msgstr "{cutChars} characters of this message were cut to keep the record small."
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "{dated, plural, one {# row’s days are kept as a note on its scene, not as a timeline date} other {# rows’ days are kept as notes on their scenes, not as timeline dates}}"
 msgstr "{dated, plural, one {# row’s days are kept as a note on its scene, not as a timeline date} other {# rows’ days are kept as notes on their scenes, not as timeline dates}}"
 
@@ -1594,6 +1594,11 @@ msgstr "{entries} entries with {links} links."
 #: apps/desktop/src/app/coherence-io.ts
 msgid "{error} Findings are kept in this browser."
 msgstr "{error} Findings are kept in this browser."
+
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
+msgid "{errors, plural, one {# cell holds an error value, kept as its text} other {# cells hold error values, kept as their text}}"
+msgstr "{errors, plural, one {# cell holds an error value, kept as its text} other {# cells hold error values, kept as their text}}"
 
 #. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
 #: apps/desktop/src/components/UsageBreakdown.tsx
@@ -1787,6 +1792,11 @@ msgstr "{footnotes, plural, one {# footnote} other {# footnotes}}"
 msgid "{forms, plural, one {# form control} other {# form controls}} removed."
 msgstr "{forms, plural, one {# form control} other {# form controls}} removed."
 
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
+msgid "{formulas, plural, one {# formula was read as the value the workbook saved, not calculated again} other {# formulas were read as the values the workbook saved, not calculated again}}"
+msgstr "{formulas, plural, one {# formula was read as the value the workbook saved, not calculated again} other {# formulas were read as the values the workbook saved, not calculated again}}"
+
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "{from} → {to}"
@@ -1954,8 +1964,8 @@ msgstr "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {scene
 msgid "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {episode} other {episodes}}, {words} {wordCount, plural, one {word} other {words}}"
 msgstr "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {episode} other {episodes}}, {words} {wordCount, plural, one {word} other {words}}"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "{mapped, plural, one {# column was mapped} other {# columns were mapped}}"
 msgstr "{mapped, plural, one {# column was mapped} other {# columns were mapped}}"
 
@@ -2618,25 +2628,25 @@ msgstr "{root}: {reason}"
 msgid "{rowCount} of {total, plural, one {# shot} other {# shots}} have a prompt for {vendor}."
 msgstr "{rowCount} of {total, plural, one {# shot} other {# shots}} have a prompt for {vendor}."
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "{rows, plural, one {# row became a scene} other {# rows became scenes}}"
 msgstr "{rows, plural, one {# row became a scene} other {# rows became scenes}}"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "{rows, plural, one {# row is offered as a codex entry with its own Research page} other {# rows are offered as codex entries with their own Research pages}}"
 msgstr "{rows, plural, one {# row is offered as a codex entry with its own Research page} other {# rows are offered as codex entries with their own Research pages}}"
 
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "{rows, plural, one {Import # entry} other {Import # entries}}"
 msgstr "{rows, plural, one {Import # entry} other {Import # entries}}"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "{rows, plural, one {Import # scene} other {Import # scenes}}"
 msgstr "{rows, plural, one {Import # scene} other {Import # scenes}}"
 
@@ -2739,6 +2749,11 @@ msgstr "{sessionCount, plural, one {# session} other {# sessions}}"
 #: apps/desktop/src/components/InterruptedRuns.tsx
 msgid "{sessionCount, plural, one {This also removes the turn from # saved session or fork.} other {This also removes the turn from # saved sessions or forks.}}"
 msgstr "{sessionCount, plural, one {This also removes the turn from # saved session or fork.} other {This also removes the turn from # saved sessions or forks.}}"
+
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
+msgid "{sheets, plural, one {# worksheet in this workbook; the others are left out} other {# worksheets in this workbook; the others are left out}}"
+msgstr "{sheets, plural, one {# worksheet in this workbook; the others are left out} other {# worksheets in this workbook; the others are left out}}"
 
 #. Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number.
 #: apps/desktop/src/media/prompt-pack-model.ts
@@ -2963,6 +2978,11 @@ msgstr "{textBoxes, plural, one {# text box was read as a paragraph} other {# te
 #: apps/desktop/src/components/QueuedReviewDetails.tsx
 msgid "{thinking, select, off {Off} low {Low} medium {Medium} high {High} xhigh {Extra high} max {Maximum} other {Provider default}}"
 msgstr "{thinking, select, off {Off} low {Low} medium {Medium} high {High} xhigh {Extra high} max {Maximum} other {Provider default}}"
+
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
+msgid "{times, plural, one {# date cell’s time of day is not kept; the day is} other {# date cells’ times of day are not kept; the days are}}"
+msgstr "{times, plural, one {# date cell’s time of day is not kept; the day is} other {# date cells’ times of day are not kept; the days are}}"
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -3240,18 +3260,18 @@ msgstr "{who}: {what}"
 msgid "{width} × {height} px ({megapixels} MP)"
 msgstr "{width} × {height} px ({megapixels} MP)"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "{withDetail, plural, one {# detail field is written as text on its page, not as a field} other {# detail fields are written as text on their pages, not as fields}}"
 msgstr "{withDetail, plural, one {# detail field is written as text on its page, not as a field} other {# detail fields are written as text on their pages, not as fields}}"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "{withImage, plural, one {# image file name is kept as text; the picture itself is not in a spreadsheet} other {# image file names are kept as text; the pictures themselves are not in a spreadsheet}}"
 msgstr "{withImage, plural, one {# image file name is kept as text; the picture itself is not in a spreadsheet} other {# image file names are kept as text; the pictures themselves are not in a spreadsheet}}"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "{withRelation, plural, one {# relation is written as text on its page, not as a typed relation} other {# relations are written as text on their pages, not as typed relations}}"
 msgstr "{withRelation, plural, one {# relation is written as text on its page, not as a typed relation} other {# relations are written as text on their pages, not as typed relations}}"
 
@@ -3433,8 +3453,8 @@ msgstr "≈ {pace}/day to finish this month"
 msgid "≈ {pace}/day to finish this week"
 msgstr "≈ {pace}/day to finish this week"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "01/31/2026 (month first)"
 msgstr "01/31/2026 (month first)"
 
@@ -3448,8 +3468,8 @@ msgstr "1 item"
 msgid "1 model call"
 msgstr "1 model call"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "2026-01-31"
 msgstr "2026-01-31"
 
@@ -3458,13 +3478,13 @@ msgstr "2026-01-31"
 msgid "2026-11-15T12:00:00Z"
 msgstr "2026-11-15T12:00:00Z"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "2026/01/31 (year first)"
 msgstr "2026/01/31 (year first)"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "31.01.2026 (day first)"
 msgstr "31.01.2026 (day first)"
 
@@ -5032,9 +5052,9 @@ msgid "Aim the tail"
 msgstr "Aim the tail"
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/components/CodexPanel.tsx
-#: apps/desktop/src/import-preview/csv-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Aliases"
 msgstr "Aliases"
 
@@ -5108,8 +5128,8 @@ msgstr "Allowed statuses (comma-separated)"
 msgid "Allowed tools:"
 msgstr "Allowed tools:"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Already data"
 msgstr "Already data"
 
@@ -5541,8 +5561,8 @@ msgstr "Approved. The tools are searchable now, and the pins are updated to this
 msgid "AR"
 msgstr "AR"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Arc"
 msgstr "Arc"
 
@@ -6193,8 +6213,8 @@ msgstr "Blocked"
 msgid "Board"
 msgstr "Board"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Body"
 msgstr "Body"
 
@@ -7618,10 +7638,10 @@ msgstr "Codex attachment changed"
 #. Interpolated values: limit (document count), layer (stable context layer ID), budget and total (token budgets), rank (pruning rank), file (instruction file name), sent and tokens (token counts), need (required tokens)
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/components/CodexPanel.tsx
 #: apps/desktop/src/components/context-labels.ts
-#: apps/desktop/src/import-preview/csv-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "Codex entries"
 msgstr "Codex entries"
@@ -7655,9 +7675,9 @@ msgid "Codex included"
 msgstr "Codex included"
 
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Codex pages"
 msgstr "Codex pages"
 
@@ -7738,13 +7758,13 @@ msgstr "Colour"
 msgid "Colour of {name}"
 msgstr "Colour of {name}"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Column names"
 msgstr "Column names"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Columns separated by"
 msgstr "Columns separated by"
 
@@ -7847,8 +7867,8 @@ msgstr "Comic script written from the pages"
 msgid "Comic settings changed"
 msgstr "Comic settings changed"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Comma"
 msgstr "Comma"
 
@@ -8070,9 +8090,9 @@ msgid "Connection guidance:"
 msgstr "Connection guidance:"
 
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Connections"
 msgstr "Connections"
 
@@ -8546,16 +8566,16 @@ msgstr "Dated {date}."
 msgid "dated inside the main story"
 msgstr "dated inside the main story"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Dates are"
 msgstr "Dates are"
 
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "day"
 msgstr "day"
 
@@ -8601,10 +8621,10 @@ msgstr "Day for {title}"
 msgid "Day for this scene"
 msgstr "Day for this scene"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
-#: apps/desktop/src/import-preview/csv-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Day numbers"
 msgstr "Day numbers"
 
@@ -8615,9 +8635,9 @@ msgstr "Day offset"
 
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/components/BinderFilters.tsx
-#: apps/desktop/src/import-preview/csv-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "days"
 msgstr "days"
 
@@ -8636,8 +8656,8 @@ msgstr "Days after the other scene ends"
 msgid "Days an agent session is kept"
 msgstr "Days an agent session is kept"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Days are counted from {anchor}, the first date in the file."
 msgstr "Days are counted from {anchor}, the first date in the file."
 
@@ -8912,12 +8932,12 @@ msgstr "Describe what the changed passages should satisfy. Use at most 4,000 cha
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/CodexPanel.tsx
 #: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/components/MacrosPanel.tsx
-#: apps/desktop/src/import-preview/csv-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Description"
 msgstr "Description"
 
@@ -8953,18 +8973,18 @@ msgstr "Detach from {title}"
 msgid "Detach from a removed item"
 msgstr "Detach from a removed item"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Detail field"
 msgstr "Detail field"
 
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/components/CodexDetails.tsx
 #: apps/desktop/src/components/CodexPanel.tsx
-#: apps/desktop/src/import-preview/csv-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Details"
 msgstr "Details"
 
@@ -8984,8 +9004,8 @@ msgstr "Details: {check}"
 msgid "Details: {fieldKey}"
 msgstr "Details: {fieldKey}"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Detect it"
 msgstr "Detect it"
 
@@ -9539,10 +9559,10 @@ msgid "Drop to add these pictures to the project."
 msgstr "Drop to add these pictures to the project."
 
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/components/PlanCard.tsx
-#: apps/desktop/src/import-preview/csv-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Duration"
 msgstr "Duration"
 
@@ -9945,9 +9965,9 @@ msgstr "Encoding"
 msgid "Encoding work"
 msgstr "Encoding work"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "End"
 msgstr "End"
 
@@ -10805,8 +10825,8 @@ msgstr "First prompt for this background review"
 msgid "First read:"
 msgstr "First read:"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "First row"
 msgstr "First row"
 
@@ -11573,9 +11593,9 @@ msgstr "Image"
 msgid "Image added to shot"
 msgstr "Image added to shot"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Image file"
 msgstr "Image file"
 
@@ -11631,12 +11651,12 @@ msgstr "Images, listed by address; the import does not download them"
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The Twine/Twee import. Interpolated values: knot is a passage name.
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/components/FdxImportDialog.tsx
 #: apps/desktop/src/components/McpSection.tsx
-#: apps/desktop/src/import-preview/csv-source.ts
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 #: apps/desktop/src/import-preview/twee-source.ts
 msgid "Import"
 msgstr "Import"
@@ -11645,12 +11665,12 @@ msgstr "Import"
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
 #: apps/desktop/src/import-preview/splitter-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Import “{file}”"
 msgstr "Import “{file}”"
 
@@ -11715,8 +11735,8 @@ msgstr "Import a zip…"
 msgid "Import AO3…"
 msgstr "Import AO3…"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Import as"
 msgstr "Import as"
 
@@ -12033,8 +12053,8 @@ msgstr "Include"
 msgid "Include change {n}: {plain}"
 msgstr "Include change {n}: {plain}"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Include policy"
 msgstr "Include policy"
 
@@ -12343,8 +12363,8 @@ msgstr "It is not a Kanka import."
 msgid "it is not a PNG, JPEG or WebP picture"
 msgstr "it is not a PNG, JPEG or WebP picture"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "It is not a spreadsheet import."
 msgstr "It is not a spreadsheet import."
 
@@ -12944,8 +12964,8 @@ msgstr "Leave it as it is — the file is not changed."
 msgid "Leave it out"
 msgstr "Leave it out"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Leave out"
 msgstr "Leave out"
 
@@ -13310,15 +13330,15 @@ msgstr "Locale"
 
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
 #. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/components/CommandComposer.tsx
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
-#: apps/desktop/src/import-preview/csv-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Location"
 msgstr "Location"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Long text (its own page)"
 msgstr "Long text (its own page)"
 
@@ -13568,9 +13588,9 @@ msgstr "Marked fixed"
 msgid "marked, the arrow keys propose a new day"
 msgstr "marked, the arrow keys propose a new day"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Marker"
 msgstr "Marker"
 
@@ -14170,7 +14190,7 @@ msgstr "Mythic"
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/CodexPanel.tsx
 #: apps/desktop/src/components/HookSettings.tsx
@@ -14181,7 +14201,7 @@ msgstr "Mythic"
 #: apps/desktop/src/components/ProfileEditor.tsx
 #: apps/desktop/src/components/SaveAsMacro.tsx
 #: apps/desktop/src/components/SkillsPanel.tsx
-#: apps/desktop/src/import-preview/csv-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Name"
 msgstr "Name"
 
@@ -16161,9 +16181,9 @@ msgstr "Or use an image already in the project"
 msgid "Or use an image already in the project for shot {number}"
 msgstr "Or use an image already in the project for shot {number}"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Order"
 msgstr "Order"
 
@@ -16447,8 +16467,8 @@ msgstr "partial"
 msgid "Partial review: {findingCount, plural, one {# finding recorded.} other {# findings recorded.}}"
 msgstr "Partial review: {findingCount, plural, one {# finding recorded.} other {# findings recorded.}}"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Participants"
 msgstr "Participants"
 
@@ -16907,12 +16927,12 @@ msgstr "Point at a bar to read its day and words."
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/components/PlanCard.tsx
 #: apps/desktop/src/components/timeline/Agenda.tsx
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
-#: apps/desktop/src/import-preview/csv-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Point of view"
 msgstr "Point of view"
 
@@ -17632,6 +17652,11 @@ msgstr "Read and approve this skill in Skills, then send the command again."
 msgid "Read and approve…"
 msgstr "Read and approve…"
 
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
+msgid "Read from the worksheet “{sheet}”."
+msgstr "Read from the worksheet “{sheet}”."
+
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
 msgid "Read it as"
@@ -17749,10 +17774,9 @@ msgstr "Reading “{doc}”"
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/captions-source.ts
-#: apps/desktop/src/import-preview/csv-source.ts
 #: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/highland-source.ts
@@ -17762,6 +17786,7 @@ msgstr "Reading “{doc}”"
 #: apps/desktop/src/import-preview/kanka-source.ts
 #: apps/desktop/src/import-preview/odt-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 #: apps/desktop/src/import-preview/text-source.ts
 msgid "Reading {file}…"
 msgstr "Reading {file}…"
@@ -18141,9 +18166,9 @@ msgstr "Reject all"
 msgid "Reject them"
 msgstr "Reject them"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/components/CodexRelations.tsx
-#: apps/desktop/src/import-preview/csv-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Relation"
 msgstr "Relation"
 
@@ -20345,8 +20370,8 @@ msgstr "Selected pictures"
 msgid "Selection changed"
 msgstr "Selection changed"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Semicolon"
 msgstr "Semicolon"
 
@@ -21218,9 +21243,9 @@ msgstr "Splash"
 msgid "Split: {kind}, because {reason}"
 msgstr "Split: {kind}, because {reason}"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Spreadsheet"
 msgstr "Spreadsheet"
 
@@ -21249,9 +21274,9 @@ msgstr "Sprint timer"
 msgid "SRT cue coordinates left out: a script has no screen position. First: {sample}"
 msgstr "SRT cue coordinates left out: a script has no screen position. First: {sample}"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Start"
 msgstr "Start"
 
@@ -21776,10 +21801,10 @@ msgstr "Summarising earlier conversation with Background…"
 
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/app/coherence-report-words.ts
 #: apps/desktop/src/import-preview/ao3-source.ts
-#: apps/desktop/src/import-preview/csv-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Summary"
 msgstr "Summary"
 
@@ -21848,8 +21873,8 @@ msgstr "Synopsis changed"
 msgid "System"
 msgstr "System"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Tab"
 msgstr "Tab"
 
@@ -21870,10 +21895,10 @@ msgstr "Tag selected"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/import-preview/ao3-source.ts
-#: apps/desktop/src/import-preview/csv-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Tags"
 msgstr "Tags"
@@ -25518,13 +25543,18 @@ msgstr "this file has no folder version to back up."
 msgid "This file has no front matter the app can read, so it is kept as it is and the agent does not see it. Fix it in a text editor, or forget it here. Opening the project never deletes it."
 msgstr "This file has no front matter the app can read, so it is kept as it is and the agent does not see it. Fix it in a text editor, or forget it here. Opening the project never deletes it."
 
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
+msgid "This file is not an Excel workbook. Save it as .xlsx, or export it as CSV and import that."
+msgstr "This file is not an Excel workbook. Save it as .xlsx, or export it as CSV and import that."
+
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "This file is not text. It is kept with the skill and is part of what you approve."
 msgstr "This file is not text. It is kept with the skill and is part of what you approve."
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "This file's encoding could not be read. Save it as UTF-8 and import it again."
 msgstr "This file's encoding could not be read. Save it as UTF-8 and import it again."
 
@@ -26032,13 +26062,13 @@ msgstr "This skill includes scripts. Caotang reads the instructions and does not
 msgid "This skill is not in the project any more."
 msgstr "This skill is not in the project any more."
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "This spreadsheet has no columns."
 msgstr "This spreadsheet has no columns."
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "This spreadsheet has no rows."
 msgstr "This spreadsheet has no rows."
 
@@ -26152,6 +26182,36 @@ msgstr "This window is narrower than {width} px. Open Caotang on a desktop, or i
 #: apps/desktop/src/import-preview/docx-source.ts
 msgid "This Word file has no text."
 msgstr "This Word file has no text."
+
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
+msgid "This workbook could not be opened: {reason}"
+msgstr "This workbook could not be opened: {reason}"
+
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
+msgid "This workbook has no worksheet of that name. Choose one of its sheets."
+msgstr "This workbook has no worksheet of that name. Choose one of its sheets."
+
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
+msgid "This workbook has no worksheets."
+msgstr "This workbook has no worksheets."
+
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
+msgid "This worksheet has more cells than the import reads. Split it and import the parts."
+msgstr "This worksheet has more cells than the import reads. Split it and import the parts."
+
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
+msgid "This worksheet has more rows than the import reads. Split it and import the parts."
+msgstr "This worksheet has more rows than the import reads. Split it and import the parts."
+
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
+msgid "This worksheet names a column beyond the last one Excel has (XFD). Save it again from Excel, or export it as CSV and import that."
+msgstr "This worksheet names a column beyond the last one Excel has (XFD). Save it again from Excel, or export it as CSV and import that."
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
@@ -26307,8 +26367,8 @@ msgstr "Timeline or Agenda"
 msgid "Timeline PDF (.pdf)"
 msgstr "Timeline PDF (.pdf)"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Timeline scenes"
 msgstr "Timeline scenes"
 
@@ -26334,10 +26394,10 @@ msgstr "timestamps inside the words (karaoke timing) left out; the cue's own sta
 
 #. Agent instructions copy. Interpolated values: title and name are note titles, path is a file path, used, sent, allowed and count are token counts.
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/components/AgentInstructionsPanel.tsx
 #: apps/desktop/src/components/ProjectPanel.tsx
-#: apps/desktop/src/import-preview/csv-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Title"
 msgstr "Title"
 
@@ -26693,10 +26753,10 @@ msgstr "two-way"
 
 #. Interpolated values: parent, title, amount
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/CodexPanel.tsx
-#: apps/desktop/src/import-preview/csv-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Type"
 msgstr "Type"
 
@@ -27245,8 +27305,8 @@ msgstr "Vendor template"
 msgid "Verified"
 msgstr "Verified"
 
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "Vertical bar"
 msgstr "Vertical bar"
 
@@ -27503,10 +27563,10 @@ msgstr "What the campaign carried"
 
 #. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/odt-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "What the file carried"
 msgstr "What the file carried"
 
@@ -27629,9 +27689,9 @@ msgid "What to scan"
 msgstr "What to scan"
 
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/import-preview/kanka-source.ts
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "What was approximated"
 msgstr "What was approximated"
 
@@ -27900,6 +27960,11 @@ msgstr "Working copy"
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Working…"
 msgstr "Working…"
+
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#: apps/desktop/src/import-preview/spreadsheet-source.ts
+msgid "Worksheet"
+msgstr "Worksheet"
 
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #: apps/desktop/src/import-preview/kanka-source.ts

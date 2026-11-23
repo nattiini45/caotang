@@ -327,9 +327,11 @@ export const BUDGET = {
   // The spreadsheet import (#288) on the merge of #298's branch: 9,075,608 bytes measured, +21,795 over the
   // merged #298 tree. Named: the @caotang/import-csv reader, its role tables and the spreadsheet preview
   // source, all on-use chunks. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  // The Excel workbook import (#289): 8,443,492 bytes measured on #288 (+9,874: the workbook reader and its sheet parser, in lazy
-  // chunks, reusing the shared zip, XML and grid code). The ceiling is the measured size plus about 6 kB.
-  totalJs: 9_076_000,
+  // The Excel workbook import (#289): 9,085,933 bytes measured on the merge of #288's branch
+  // (+10,325: the workbook reader and its sheet parser, all in lazy chunks, reusing the shared zip,
+  // XML and grid code; the first load stayed at 1,120,940 gzip under its ceiling). The ceiling is the
+  // measurement rounded up to the thousand.
+  totalJs: 9_086_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

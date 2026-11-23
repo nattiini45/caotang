@@ -3,6 +3,7 @@
 # Decisions
 
 
+- [delegated 2026-11-23] The all-JS ceiling rises to 9,086,000 bytes for the Excel import (#289): 9,085,933 measured on the merge of #288's branch, all of the growth in lazy chunks and the German Excel strings, the first load unchanged under the 1,121,000 budget (1,120,940 measured). Why: the workbook reader and its sheet parser reuse the shared zip, XML and grid code and are reached from both the main thread and the reader Worker until #649 shares that code; the ceiling is the measurement rounded up to the thousand.
 - [delegated 2026-11-15] The Excel import (#289) is an own reader `@caotang/import-xlsx` on the shared zip and XML layer, and it hands its worksheet to the CSV reader's `readGrid`, so a workbook and its CSV twin give the same rows. A formula is read as the value the workbook cached, never calculated; a date cell becomes `YYYY-MM-DD` in the workbook's own 1900 or 1904 system, with Lotus's serial-60 leap bug honoured, and a time of day is reported as dropped. Why: the issue rules SheetJS out on licence and size, and a workbook is a zip of XML this project already reads.
 - [delegated 2026-11-15] #289 ships in two pull requests: the workbook reader and its worksheet picker first, the mapping presets (Aeon, Notion, Miro, Caotang's timeline, and a writer's saved preset) next. Why: each is a change a writer can be told about in a sentence, and the presets need real exports the research could not obtain, so they must be labelled as built from the documented column names.
 
