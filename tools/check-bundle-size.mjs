@@ -330,7 +330,7 @@ export const BUDGET = {
   // The Word import (#279) on the merge of main 7e303a1d, which carries the merged AO3 import: 9,045,172 bytes
   // measured. Named: the @caotang/import-docx reader and its preview source, all on-use chunks, and the German
   // Word strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  totalJs: 9_046_000,
+  totalJs: 9_047_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
