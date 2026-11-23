@@ -24,7 +24,7 @@ function jobBlock(workflow: string, id: string): string {
  * GitHub's Windows runner to finish inside the case deadline (#815, and #820 for the later ones). The list lives here so the two
  * Windows legs' step names and the exclusion itself are checked against one another rather than each being trusted alone.
  */
-const WORKER_SUITE_FILES = ['account-mode', 'storage', 'server', 'quota', 'accounts'];
+const WORKER_SUITE_FILES = ['account-mode', 'storage', 'server', 'quota', 'accounts', 'project-lease', 'project-records'];
 
 const ci = read('.github/workflows/ci.yml');
 const browsers = read('.github/workflows/e2e-browsers.yml');
