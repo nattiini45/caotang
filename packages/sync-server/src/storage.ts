@@ -9,6 +9,7 @@ import { DurableObject } from 'cloudflare:workers';
 import type { DurableAccount } from './accounts.js';
 import { payloadFingerprint } from './fingerprint.js';
 import type { SyncServerBindings } from './index.js';
+import { checkLease, deviceOf } from './project-lease.js';
 import { QuotaStore, reconcileQuota, type QuotaResult, type QuotaSettlementAdapter } from './quota.js';
 
 export const MAX_OBJECT_BYTES = 64 * 1024 * 1024;
@@ -143,6 +144,9 @@ async function putBlob(request: Request, env: SyncServerBindings, account: Durab
 
   const db = env.ACCOUNT_DB!;
   const bucket = env.PROJECT_STORE!;
+  const leased = await checkLease(db.withSession('first-primary'), account, projectId, deviceOf(request));
+  if (leased.kind === 'other') return reply(423, 'Another device is editing this project. Open it read-only here, or take the lease over.');
+  if (leased.kind === 'unnamed') return reply(428, 'Send X-Caotang-Device with the device label you took the lease with.');
   const quota = new QuotaStore(db, { accountId: account.id, revision: account.revision }, { leaseMs: WRITE_LEASE_MS });
   const charged = Math.max(declared, MIN_CHARGED_BYTES);
   const reserved = await quota.reserve(operationId, operationId, charged);
@@ -198,6 +202,9 @@ export async function storageRoute(request: Request, url: URL, account: DurableA
     if (request.method === 'GET') return await getBlob(env.PROJECT_STORE!, account.id, projectId, name);
     if (request.method === 'PUT') return await putBlob(request, env, account, projectId, name);
     if (request.method === 'DELETE') {
+      const leased = await checkLease(env.ACCOUNT_DB!.withSession('first-primary'), account, projectId, deviceOf(request));
+      if (leased.kind === 'other') return reply(423, 'Another device is editing this project. Open it read-only here, or take the lease over.');
+      if (leased.kind === 'unnamed') return reply(428, 'Send X-Caotang-Device with the device label you took the lease with.');
       const response = await env.STORAGE_COORDINATOR!.getByName(account.id).fetch('https://storage-coordinator/delete', {
         method: 'POST',
         headers: { 'X-Delete-Meta': JSON.stringify({ accountId: account.id, projectId, name }) },
