@@ -172,9 +172,10 @@ written into the executable, so a modified archive refuses to start. Electron's 
 
 Each build leg runs the repository's gate (`pnpm verify`) for the commit it packages, the same gate
 [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on every pull request, so a released commit is never gated by
-less than a merged one. The Windows leg leaves out the five `packages/sync-server/test` suites whose cases run through a Worker
-runtime — `account-mode`, `storage`, `server`, `quota` and `accounts` — with `CAOTANG_SKIP_WORKER_SUITES=1`, exactly as ci.yml's
-`verify (Windows)` job does while #815 moves those files onto one shared runtime and #820 tracks the later ones.
+less than a merged one. The Windows leg leaves out the seven `packages/sync-server/test` suites whose cases run through a Worker
+runtime — `account-mode`, `storage`, `server`, `quota`, `accounts`, `project-lease` and `project-records` — with
+`CAOTANG_SKIP_WORKER_SUITES=1`, exactly as ci.yml's `verify (Windows)` job does while #815 moves those files onto one shared
+runtime and #820 tracks the later ones.
 
 The job that builds packages also runs on `workflow_dispatch`, so the packaging can be proved without releasing anything: a
 dispatch publishes nothing and only leaves the packages and their checksums as workflow artifacts.
