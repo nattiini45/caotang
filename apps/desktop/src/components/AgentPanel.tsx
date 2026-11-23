@@ -191,7 +191,7 @@ export function AgentPanel({
   const open = inWindow || drawerOpen;
   const { i18n } = useLingui();
   const sessionVersion = useSession(session);
-  // A narrow header hides the provider line, so there the picker carries the connection's name itself.
+  // A narrow header does not draw the provider line, so there the picker carries the connection's name itself.
   const narrow = useNarrow();
   const snapshot = useSyncExternalStore(agent.subscribe, agent.snapshot);
   const goalInConversation = (goal: GoalRecoveryView): boolean => open && (goal.goalId === snapshot.activeGoalId || (goal.status === 'settled' && !goal.unreadable));
@@ -444,6 +444,9 @@ export function AgentPanel({
   };
 
   const provider = snapshot.providerName;
+  // A pick pins chat to its own connection, so this line names the connection the next turn goes through rather than the active
+  // profile, and a narrow header can show the picker without hiding the only place the connection is named.
+  const connection = model?.connection === null || model?.connection === undefined ? null : isolate(model.connection);
   const runActionPending = snapshot.runHistory.some((run) => run.pending !== null && run.pending !== undefined);
   const running = snapshot.turns[snapshot.turns.length - 1];
   const stepRef = running === undefined || isSettled(running) ? null : headerRefOf(running.tasks, (ref) => renderRef(ref, { userValues: WRITER_VALUE_KEYS }));
@@ -560,7 +563,9 @@ export function AgentPanel({
           </button>
         )}
         <span className="agent-provider" data-testid="agent-provider">
-          {provider === null ? t`No provider` : t`Provider: ${{ provider: isolate(providerLabel(provider, snapshot.providerIsDemo)) }}`}
+          {connection === null
+            ? (provider === null ? t`No provider` : t`Provider: ${{ provider: isolate(providerLabel(provider, snapshot.providerIsDemo)) }}`)
+            : t`Provider: ${{ provider: connection }}`}
         </span>
         {model === undefined || onPickModel === undefined || snapshot.providerIsDemo ? null : (
           <ChatModelPicker

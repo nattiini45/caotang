@@ -46,8 +46,8 @@ export function ChatModelPicker({
   readonly levels: readonly { readonly id: string; readonly label: string }[];
   readonly thinking: string;
   /**
-   * Draw the connection's name beside the model. The wide header names it in its own provider line; a narrow one hides that line, so
-   * there the trigger carries the name — otherwise a model id would be the only thing saying where the turn goes.
+   * Name the connection under the model inside the trigger. The wide header names it in its provider line; on a narrow one that line
+   * is not drawn, and a model id alone would not say where the turn goes.
    */
   readonly showConnection: boolean;
   readonly disabled: boolean;
@@ -61,22 +61,15 @@ export function ChatModelPicker({
   // A model that left the list (its connection was edited mid-session) still shows, so the trigger never reads blank.
   const known = groups.some((group) => group.profileId === value.profileId && group.models.includes(value.model));
   const held = groups.find((group) => group.profileId === value.profileId);
-  // A pick pins chat to its connection, so the header names that connection and not only the active profile the provider line reads.
-  const label = showConnection && held !== undefined ? `${value.model} · ${held.name}` : value.model;
+  // A pick pins chat to its connection, so the trigger carries that connection's name where the header has no room for a line of its own.
+  const connection = showConnection && held !== undefined ? held.name : null;
   return (
     <div className="agent-model" data-testid="agent-model">
       <Select
         required
         value={current}
         items={[
-          ...groups.flatMap((group) =>
-            group.models.map((model) => ({
-              // The trigger's own label carries the connection on a narrow header; the rows keep the bare model id, under a group
-              // heading that already names that connection.
-              value: modelValue(group.profileId, model),
-              label: modelValue(group.profileId, model) === current ? label : model,
-            })),
-          ),
+          ...groups.flatMap((group) => group.models.map((model) => ({ value: modelValue(group.profileId, model), label: model }))),
           ...(known ? [] : [{ value: current, label: value.model }]),
         ]}
         onValueChange={(next) => {
@@ -86,7 +79,12 @@ export function ChatModelPicker({
         }}
       >
         <SelectTrigger className="button agent-model-trigger" aria-labelledby={modelId} disabled={disabled}>
-          <SelectValue />
+          {connection === null ? <SelectValue /> : (
+            <span className="agent-model-value" data-slot="select-value">
+              <span className="agent-model-value-model">{value.model}</span>
+              <span className="agent-model-value-connection">{isolate(connection)}</span>
+            </span>
+          )}
           <SelectCaret />
         </SelectTrigger>
         <SelectContent className="agent-model-options">

@@ -36,6 +36,27 @@
   white-space: nowrap;
 }
 
+/* A narrow header draws no provider line, so the trigger stacks the model over the connection it runs through; both shrink with an
+   ellipsis rather than widening the header, and the connection's line is the quieter of the two. */
+.agent-model-value {
+  display: grid;
+  min-inline-size: 0;
+  line-height: 1.25;
+  text-align: start;
+}
+
+.agent-model-value-model,
+.agent-model-value-connection {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-model-value-connection {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
 /* The caret is this file's own drawing, not the component library's, so it carries its size here. */
 .agent-model [data-slot='select-trigger'] svg {
   flex: none;
