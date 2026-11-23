@@ -137,6 +137,43 @@ describe('tracked changes (#298)', () => {
 describe('pictures, metadata and the flat form (#298)', () => {
   const frame = (href: string, alt: string): string => `<text:p><draw:frame><draw:image xlink:href="${href}"><svg:desc>${alt}</svg:desc></draw:image></draw:frame></text:p>`;
 
+  it('reads a numbered list style as 1. and keeps two pictures in one paragraph', async () => {
+    const styles = STYLES +
+      '<text:list-style style:name="Num"><text:list-level-style-number text:level="1" style:num-format="1"/></text:list-style>' +
+      '<text:list-style style:name="Bul"><text:list-level-style-bullet text:level="1" text:bullet-char="-"/></text:list-style>';
+    const twoFrames = '<text:p><draw:frame><draw:image xlink:href="Pictures/a.png"><svg:desc>Alpha</svg:desc></draw:image></draw:frame><draw:frame><draw:image xlink:href="Pictures/b.png"><svg:desc>Beta</svg:desc></draw:image></draw:frame></text:p>';
+    const body =
+      '<text:list text:style-name="Num"><text:list-item>' + p('One') + '</text:list-item><text:list-item>' + p('Two') + '</text:list-item></text:list>' +
+      '<text:list text:style-name="Bul"><text:list-item>' + p('Dot') + '</text:list-item></text:list>' +
+      twoFrames;
+    const read = await readOdt(odt(body, { styles, pictures: { 'Pictures/a.png': PNG, 'Pictures/b.png': PNG } }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const md = read.value.document.blocks.map((block) => (block.kind === 'para' ? block.md : block.kind));
+    expect(md).toContain('1. One');
+    expect(md).toContain('1. Two');
+    expect(md).toContain('- Dot');
+    const images = read.value.document.blocks.filter((block) => block.kind === 'image');
+    expect(images).toHaveLength(2);
+    const alts = images.map((block) => (block.kind === 'image' ? block.alt : ''));
+    expect(alts).toEqual(['Alpha', 'Beta']);
+    expect(read.value.assetData.size).toBe(2);
+  });
+
+  it('reject mode drops notes and pictures inside a rejected insertion', async () => {
+    const regions = '<text:tracked-changes><text:changed-region text:id="i1"><text:insertion/></text:changed-region></text:tracked-changes>';
+    const body = regions +
+      '<text:p>The ferry <text:change-start text:change-id="i1"/>came<text:note><text:note-body><text:p>hidden note</text:p></text:note-body></text:note><draw:frame><draw:image xlink:href="Pictures/x.png"><svg:desc>hidden pic</svg:desc></draw:image></draw:frame> at noon<text:change-end text:change-id="i1"/>.</text:p>';
+    const read = await readOdt(odt(body, { pictures: { 'Pictures/x.png': PNG } }), { tracked: 'reject' });
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const para = read.value.document.blocks.find((block) => block.kind === 'para');
+    expect(para !== undefined && para.kind === 'para' ? para.md : '').toBe('The ferry .');
+    expect(read.value.document.blocks.filter((block) => block.kind === 'image')).toHaveLength(0);
+    expect(read.value.document.footnotes ?? []).toHaveLength(0);
+    expect(read.value.assetData.size).toBe(0);
+  });
+
   it('brings a PNG in, refuses an SVG and lists a remote picture', async () => {
     const read = await readOdt(odt(frame('Pictures/100.png', 'The harbour') + frame('Pictures/vector.svg', 'Vector') + frame('https://example.com/x.png', 'Remote'), { pictures: { 'Pictures/100.png': PNG } }));
     expect(read.ok).toBe(true);

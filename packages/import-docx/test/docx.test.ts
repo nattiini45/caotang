@@ -202,6 +202,21 @@ describe('notes, comments and pictures (#279)', () => {
     expect(last?.kind === 'para' ? last.md : '').toBe('bad[good](https://example.com/)');
   });
 
+  it('keeps every picture in a paragraph that holds several', async () => {
+    const drawing = (id: string, alt: string): string => `<w:r><w:drawing><wp:inline><wp:docPr id="1" descr="${alt}"/><a:graphic><a:graphicData><a:blip r:embed="${id}"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+    const rels =
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/a.png"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/b.png"/>';
+    const body = `<w:p>${drawing('rId1', 'Alpha')}${drawing('rId2', 'Beta')}</w:p>`;
+    const read = await readDocx(docx({ body, rels, media: { 'a.png': PNG, 'b.png': PNG } }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const images = read.value.document.blocks.filter((block) => block.kind === 'image');
+    const alts = images.map((block) => (block.kind === 'image' ? block.alt : ''));
+    expect(alts).toEqual(['Alpha', 'Beta']);
+    expect(read.value.assetData.size).toBe(2);
+  });
+
   it('reads the core properties, a page break and underline as italics', async () => {
     const body = '<w:p><w:r><w:rPr><w:u w:val="single"/></w:rPr><w:t>underlined</w:t></w:r></w:p>' + p('After the break', undefined, '<w:pageBreakBefore/>');
     const read = await readDocx(docx({ body, core: '<dc:title>The Ninth Wave</dc:title><dc:creator>Mara Vale</dc:creator><dc:language>en</dc:language>' }));

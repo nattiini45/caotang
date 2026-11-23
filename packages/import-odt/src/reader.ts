@@ -131,6 +131,14 @@ function collectStyles(root: XmlElement, into: Map<string, OdtStyle>): void {
   }
 }
 
+/** The names of `text:list-style` styles whose first level numbers its items. */
+function collectListStyles(root: XmlElement, into: Set<string>): void {
+  for (const element of descendants(root, 'list-style')) {
+    const name = attr(element, 'name');
+    if (name !== undefined && kid(element, 'list-level-style-number') !== undefined) into.add(name);
+  }
+}
+
 /** A style with its parents resolved; a cycle stops at the name already seen. */
 function resolve(styles: ReadonlyMap<string, OdtStyle>, name: string | undefined): OdtStyle | null {
   if (name === undefined) return null;
@@ -191,6 +199,7 @@ interface State {
   comments: ImportComment[];
   assets: ImportAsset[];
   imageTargets: Map<string, string>;
+  orderedLists: Set<string>;
   /** A flat document's pictures, decoded from the frame's own base64. */
   inlineImages: Map<string, Uint8Array>;
   remoteImages: string[];
@@ -209,6 +218,7 @@ interface State {
 function inline(node: XmlNode, state: State, inherited: { bold: boolean; italic: boolean; strike: boolean; underline: boolean }): string {
   if (node.type === 'text') return state.suppressed > 0 ? '' : node.text;
   const local = node.local;
+  if (state.suppressed > 0 && local !== 'change-start' && local !== 'change-end') return '';
   if (local === 'span') {
     const style = resolve(state.styles, attr(node, 'style-name'));
     if (style?.underline === true) state.dropped.underline += 1;
@@ -353,6 +363,7 @@ function base64Bytes(text: string): Uint8Array | null {
 /** Read the content part of an ODF document. */
 function readContent(root: XmlElement, state: State): void {
   collectStyles(root, state.styles);
+  collectListStyles(root, state.orderedLists);
   for (const region of descendants(root, 'changed-region')) {
     const id = attr(region, 'id');
     if (id === undefined) continue;
@@ -410,10 +421,9 @@ function readContent(root: XmlElement, state: State): void {
     };
     if (pageBreak && state.blocks.length > 0) push({ kind: 'pagebreak' });
     if (md.replace(/!\[[^\]]*\]\([^)]*\)/g, '').trim() === '' && state.assets.length > 0) {
-      const ref = state.assets[state.assets.length - 1]?.ref;
-      const alt = /!\[([^\]]*)\]/.exec(md)?.[1] ?? '';
-      if (ref !== undefined) {
-        push({ kind: 'image', assetRef: ref, alt });
+      const images = [...md.matchAll(/!\[([^\]]*)\]\(([^)]*)\)/g)];
+      if (images.length > 0) {
+        for (const m of images) push({ kind: 'image', assetRef: m[2] ?? '', alt: m[1] ?? '' });
         return;
       }
     }
@@ -433,7 +443,8 @@ function readContent(root: XmlElement, state: State): void {
         continue;
       }
       if (child.local === 'list') {
-        walk(child, depth + 1, kids(child, 'list-style').length > 0 || ordered);
+        const named = attr(child, 'style-name');
+        walk(child, depth + 1, named === undefined ? ordered : state.orderedLists.has(named));
         continue;
       }
       if (child.local === 'list-item') {
@@ -484,7 +495,10 @@ export async function readOdtArchive(archive: ImportArchive, options: OdtOptions
   const stylesXml = await partText('styles.xml');
   if (stylesXml !== '') {
     const styles = readXml(stylesXml);
-    if (styles.ok) collectStyles(styles.document.root, state.styles);
+    if (styles.ok) {
+      collectStyles(styles.document.root, state.styles);
+      collectListStyles(styles.document.root, state.orderedLists);
+    }
   }
   readContent(parsed.document.root, state);
 
@@ -523,6 +537,7 @@ function newState(options: OdtOptions): State {
     comments: [],
     assets: [],
     imageTargets: new Map(),
+    orderedLists: new Set(),
     inlineImages: new Map(),
     remoteImages: [],
     changes: { insertions: 0, deletions: 0 },

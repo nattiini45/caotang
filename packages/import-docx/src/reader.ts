@@ -452,10 +452,9 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
     if ((pageBreak || state.pageBreakInRuns) && state.blocks.length > 0) push({ kind: 'pagebreak' });
     const images = descendants(element, 'blip').length + descendants(element, 'imagedata').length;
     if (images > 0 && md.replace(/!\[[^\]]*\]\([^)]*\)/g, '').trim() === '') {
-      const ref = state.assets[state.assets.length - 1]?.ref;
-      const alt = /!\[([^\]]*)\]/.exec(md)?.[1] ?? '';
-      if (ref !== undefined) {
-        push({ kind: 'image', assetRef: ref, alt });
+      const refs = [...md.matchAll(/!\[([^\]]*)\]\(([^)]*)\)/g)];
+      if (refs.length > 0) {
+        for (const m of refs) push({ kind: 'image', assetRef: m[2] ?? '', alt: m[1] ?? '' });
         return;
       }
     }
