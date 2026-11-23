@@ -95,30 +95,40 @@ describe('a conflicting edit (HTTP 412)', () => {
     expect(await one.read('docs/a.md')).toBe('merged by two');
   });
 
-  it('refuses a stale write to a different file, because the index moved', async () => {
+  it('merges a stale write to a file nobody else touched, and refuses one to a file that moved', async () => {
     const server = new FakeBlobServer();
     const key = generateProjectKey();
     const one = await device(server, key);
     const two = await device(server, key);
     await one.writeAtomic('docs/a.md', 'a');
 
-    await expect(two.writeAtomic('docs/b.md', 'b')).rejects.toMatchObject({ name: 'RemoteConflictError', path: 'docs/b.md' });
-    await two.refresh();
-    expect(await two.listFiles('docs')).toEqual(['a.md']);
+    // b.md is this device's own file, so the index moving for a.md is not a conflict: both edits survive.
     await two.writeAtomic('docs/b.md', 'b');
+    await one.refresh();
+    expect(await one.listFiles('docs')).toEqual(['a.md', 'b.md']);
+
+    await one.writeAtomic('docs/a.md', 'edited on one');
+    await expect(two.writeAtomic('docs/a.md', 'edited on two')).rejects.toMatchObject({ name: 'RemoteConflictError', path: 'docs/a.md' });
   });
 
-  it('refuses a stale remove and a stale ensureDir the same way', async () => {
+  it('refuses a stale remove of a file that moved elsewhere, and merges a directory creation', async () => {
     const server = new FakeBlobServer();
     const key = generateProjectKey();
     const one = await device(server, key);
     await one.writeAtomic('a.md', 'a');
     const two = await device(server, key);
-    await one.writeAtomic('b.md', 'b');
 
+    await one.writeAtomic('a.md', 'edited on one');
     await expect(two.remove('a.md')).rejects.toMatchObject({ name: 'RemoteConflictError', path: 'a.md' });
-    await expect(two.ensureDir('exports')).rejects.toMatchObject({ name: 'RemoteConflictError', path: 'exports' });
-    expect(await one.read('a.md')).toBe('a');
+    await two.refresh();
+    await two.remove('a.md');
+    await one.refresh();
+    expect(await one.exists('a.md')).toBe(false);
+
+    await one.ensureDir('assets');
+    await two.ensureDir('exports');
+    await one.refresh();
+    expect(await one.listDirs('')).toEqual(['assets', 'exports']);
   });
 
   it('lets two first writes to an empty project race, and one loses', async () => {
@@ -140,13 +150,14 @@ describe('a conflicting edit (HTTP 412)', () => {
     const server = new FakeBlobServer();
     const key = generateProjectKey();
     const one = await device(server, key);
-    const two = await device(server, key);
     await one.writeAtomic('a.md', 'one');
+    const two = await device(server, key);
     const before = (await server.client().list()).length;
-    await expect(two.writeAtomic('b.md', 'two')).rejects.toBeInstanceOf(RemoteConflictError);
+    await one.writeAtomic('a.md', 'one again');
+    await expect(two.writeAtomic('a.md', 'two')).rejects.toBeInstanceOf(RemoteConflictError);
     expect((await server.client().list()).length).toBe(before + 1);
     await two.refresh();
-    expect(await two.listFiles('')).toEqual(['a.md']);
+    expect(await two.read('a.md')).toBe('one again');
   });
 });
 
