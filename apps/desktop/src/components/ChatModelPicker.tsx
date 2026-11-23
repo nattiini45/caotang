@@ -11,6 +11,8 @@ import { Trans } from '@lingui/react/macro';
 import { Select, SelectContent, SelectGroup, SelectGroupLabel, SelectItem, SelectTrigger, SelectValue } from '@ui-sdk/react/select';
 import { isolate } from '@caotang/i18n';
 
+import './chat-model-picker.css';
+
 import type { ChatModelGroup } from '../app/chat-model.js';
 
 /** A pick's value: the connection and the model, joined so one string carries both through the list. */

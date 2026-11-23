@@ -1,0 +1,118 @@
+/*
+ * The chat window's model picker (components/ChatModelPicker.tsx; provider-gateway §2, "One connection, many models"): the model a
+ * request runs on, beside the provider it runs through, and the thinking level that model documents. It loads with the agent panel,
+ * which is its own chunk, so these rules cost the first paint nothing.
+ */
+
+.agent-model {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.agent-model [data-slot='select-trigger'].agent-model-trigger {
+  min-block-size: var(--target-min);
+  max-inline-size: 18rem;
+  padding-inline: var(--space-3);
+  font-size: var(--text-md);
+}
+
+/* A row that reads from its start, with the model id ellipsizing and the caret held at the end: a centered value would cut the id at
+   both ends ("et-5-5") and tell the writer nothing about which model runs. */
+.agent-model [data-slot='select-trigger'] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  text-align: start;
+}
+
+.agent-model [data-slot='select-value'] {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The caret is this file's own drawing, not the component library's, so it carries its size here. */
+.agent-model [data-slot='select-trigger'] svg {
+  flex: none;
+  inline-size: 1em;
+  block-size: 1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Both controls are one pair: the same trigger, the same height and surface, so the header reads as one choice of model and one of
+   how hard it thinks. Only the width differs — a level name is short. */
+.agent-model [data-slot='select-trigger'].agent-model-level {
+  max-inline-size: 11rem;
+}
+
+/* The menu itself is a portal at the page's edge, so it carries its own surface rather than inheriting the panel's. */
+.agent-model-options {
+  z-index: 30;
+  min-inline-size: 14rem;
+  max-inline-size: min(24rem, 90vw);
+  max-block-size: 60vh;
+  overflow-y: auto;
+  padding: var(--space-1);
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--elev-2);
+}
+
+.agent-model-options [data-slot='select-group-label'] {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.agent-model-options [data-slot='select-item'] {
+  padding: var(--space-2) var(--space-3);
+  overflow-wrap: anywhere;
+  border-radius: var(--radius-xs);
+}
+
+.agent-model-options [data-highlighted] {
+  background: var(--accent-soft);
+}
+
+.agent-model-options [data-slot='select-item'][aria-selected='true'] {
+  font-weight: 600;
+}
+
+@media (max-width: 959px) {
+  /* A narrow header holds the picker in the provider line's place: the models it offers are grouped under that provider's name, so the
+     header shows the thing the writer can change instead of a label repeating it, and neither control has to shrink into illegibility.
+     Every row the picker would otherwise add is a row of the conversation pushed out of view. */
+  .workspace .agent-head:has(.agent-model) .agent-provider {
+    display: none;
+  }
+
+  /* A 0 basis, so the picker's content width cannot claim a row of its own: it shares the toggle's row and shrinks into it. */
+  .agent-model {
+    flex: 1 1 0;
+    min-inline-size: 0;
+  }
+
+  /* Both triggers shrink by their content's worth of space (a 0 basis), so the pair stays on the toggle's row and the model id
+     ellipsizes rather than pushing the level control, and the header, onto a row of its own. */
+  .agent-model [data-slot='select-trigger'].agent-model-trigger {
+    flex: 1 1 0;
+    max-inline-size: none;
+    min-inline-size: 0;
+  }
+
+  .agent-model [data-slot='select-trigger'].agent-model-level {
+    flex: 0 1 auto;
+    max-inline-size: 8.5rem;
+  }
+}
