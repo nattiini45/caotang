@@ -799,6 +799,11 @@ msgstr ""
 msgid "{chapter} · {number}"
 msgstr ""
 
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
+#: apps/desktop/src/import-preview/yw7-source.ts
+msgid "{chapterCount, plural, one {# chapter} other {# chapters}}"
+msgstr ""
+
 #. The import preview's notices and sentences. Interpolated values: words, partCount, chapters, scenes, images, comments, footnotes and codexRows are counts; megabytes and kilobytes are sizes; label and host name a download option; title, rowName and name are node or row names; documents and folders are the import's own counts; fileName is the file's name.
 #: apps/desktop/src/import-preview/model.ts
 msgid "{chapters, plural, one {# chapter} other {# chapters}}"
@@ -854,9 +859,19 @@ msgstr ""
 msgid "{clock} left"
 msgstr ""
 
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
+#: apps/desktop/src/import-preview/yw7-source.ts
+msgid "{clocks, plural, one {One clock time, date or sub-day length sits in the scene’s notes: the timeline counts whole days only} other {# clock times, dates or sub-day lengths sit in the scenes’ notes: the timeline counts whole days only}}"
+msgstr ""
+
 #. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
 #: apps/desktop/src/import-preview/plottr-source.ts
 msgid "{codexCount, plural, one {# character or place is offered as a codex entry with its own Details page} other {# characters and places are offered as codex entries with their own Details pages}}"
+msgstr ""
+
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
+#: apps/desktop/src/import-preview/yw7-source.ts
+msgid "{codexCount, plural, one {# character, place or item is offered as a codex entry with its own page} other {# characters, places and items are offered as codex entries with their own pages}}"
 msgstr ""
 
 #. The import preview's notices and sentences. Interpolated values: words, partCount, chapters, scenes, images, comments, footnotes and codexRows are counts; megabytes and kilobytes are sizes; label and host name a download option; title, rowName and name are node or row names; documents and folders are the import's own counts; fileName is the file's name.
@@ -2253,6 +2268,11 @@ msgstr ""
 msgid "{notes, plural, one {# note from the work is kept} other {# notes from the work are kept}}"
 msgstr ""
 
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
+#: apps/desktop/src/import-preview/yw7-source.ts
+msgid "{notes, plural, one {# note or non-manuscript chapter became a Research document} other {# notes and non-manuscript chapters became Research documents}}"
+msgstr ""
+
 #. Review-bar sentences. Interpolated values: count and noun are the suggestion count and its plural phrase.
 #: apps/desktop/src/app/review-text.ts
 msgid "{noun} from the last agent turn was kept as written on reload — ‘Restore to before this turn’ is on that turn’s card in the agent panel."
@@ -2697,6 +2717,11 @@ msgstr ""
 msgid "{scanReads} like instructions to an AI. The text is imported as it is; read it before you ask the agent to work from it."
 msgstr ""
 
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
+#: apps/desktop/src/import-preview/yw7-source.ts
+msgid "{sceneCount, plural, one {# scene} other {# scenes}}"
+msgstr ""
+
 #. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
 #: apps/desktop/src/import-preview/plottr-source.ts
 msgid "{scenes, plural, one {# card became a scene under its beat folder} other {# cards became scenes under their beat folders}}"
@@ -2708,7 +2733,9 @@ msgid "{scenes, plural, one {# scene} other {# scenes}}"
 msgstr ""
 
 #. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
 #: apps/desktop/src/import-preview/plottr-source.ts
+#: apps/desktop/src/import-preview/yw7-source.ts
 msgid "{scenes, plural, one {Import # document} other {Import # documents}}"
 msgstr ""
 
@@ -10139,6 +10166,11 @@ msgstr ""
 msgid "Entries of this type share the field. Enter a new type name to use it for this entry."
 msgstr ""
 
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
+#: apps/desktop/src/import-preview/yw7-source.ts
+msgid "Entry"
+msgstr ""
+
 #: apps/desktop/src/components/CodexDetails.tsx
 msgid "Entry type"
 msgstr ""
@@ -11716,6 +11748,7 @@ msgstr ""
 #. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
 #. The Twine/Twee import. Interpolated values: knot is a passage name.
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
 #: apps/desktop/src/components/FdxImportDialog.tsx
 #: apps/desktop/src/components/McpSection.tsx
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
@@ -11723,6 +11756,7 @@ msgstr ""
 #: apps/desktop/src/import-preview/plottr-source.ts
 #: apps/desktop/src/import-preview/spreadsheet-source.ts
 #: apps/desktop/src/import-preview/twee-source.ts
+#: apps/desktop/src/import-preview/yw7-source.ts
 msgid "Import"
 msgstr ""
 
@@ -11732,12 +11766,14 @@ msgstr ""
 #. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
 #: apps/desktop/src/import-preview/plottr-source.ts
 #: apps/desktop/src/import-preview/splitter-source.ts
 #: apps/desktop/src/import-preview/spreadsheet-source.ts
+#: apps/desktop/src/import-preview/yw7-source.ts
 msgid "Import “{file}”"
 msgstr ""
 
@@ -11929,6 +11965,11 @@ msgstr ""
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
 msgid "Import Word…"
+msgstr ""
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import yWriter…"
 msgstr ""
 
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
@@ -12448,6 +12489,11 @@ msgstr ""
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
 msgid "It is not a Word import."
+msgstr ""
+
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
+#: apps/desktop/src/import-preview/yw7-source.ts
+msgid "It is not a yWriter import."
 msgstr ""
 
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
@@ -15575,6 +15621,7 @@ msgstr ""
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
 #: apps/desktop/src/app/coherence-report-words.ts
 #: apps/desktop/src/app/findings-model.ts
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -15584,6 +15631,7 @@ msgstr ""
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/inklewriter-source.ts
 #: apps/desktop/src/import-preview/plottr-source.ts
+#: apps/desktop/src/import-preview/yw7-source.ts
 msgid "Notes"
 msgstr ""
 
@@ -17870,6 +17918,7 @@ msgstr ""
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/captions-source.ts
 #: apps/desktop/src/import-preview/docx-source.ts
@@ -17884,6 +17933,7 @@ msgstr ""
 #: apps/desktop/src/import-preview/rtf-source.ts
 #: apps/desktop/src/import-preview/spreadsheet-source.ts
 #: apps/desktop/src/import-preview/text-source.ts
+#: apps/desktop/src/import-preview/yw7-source.ts
 msgid "Reading {file}…"
 msgstr ""
 
@@ -25731,6 +25781,11 @@ msgstr ""
 msgid "This is not a Word .docx file. In Word, choose Save As and the .docx format; a .doc file cannot be read."
 msgstr ""
 
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
+#: apps/desktop/src/import-preview/yw7-source.ts
+msgid "This is not a yWriter project. In yWriter, keep the project as a .yw7 file."
+msgstr ""
+
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #: apps/desktop/src/import-preview/ao3-source.ts
 msgid "This is not an AO3 download. On the work's page, choose Download and then HTML or EPUB, and import that file."
@@ -26324,6 +26379,23 @@ msgstr ""
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
 #: apps/desktop/src/import-preview/spreadsheet-source.ts
 msgid "This worksheet names a column beyond the last one Excel has (XFD). Save it again from Excel, or export it as CSV and import that."
+msgstr ""
+
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
+#: apps/desktop/src/import-preview/yw7-source.ts
+msgid "This yWriter file carries no chapters, scenes or entries."
+msgstr ""
+
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
+#: apps/desktop/src/import-preview/yw7-source.ts
+msgid "This yWriter file could not be read: {message}"
+msgstr ""
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+#: apps/desktop/src/import-preview/yw7-source.ts
+msgid "This yWriter file is too large to import."
 msgstr ""
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
@@ -27732,6 +27804,11 @@ msgstr ""
 msgid "What the payoff is for"
 msgstr ""
 
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
+#: apps/desktop/src/import-preview/yw7-source.ts
+msgid "What the project carried"
+msgstr ""
+
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "What the prompt left out"
@@ -27814,9 +27891,11 @@ msgstr ""
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The Plottr import. Interpolated values: file (the file's name), book (a book's title), count (scenes, characters, places, pictures), size (megabytes)
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), sheet (a worksheet's name), limit (the description limit)
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
 #: apps/desktop/src/import-preview/kanka-source.ts
 #: apps/desktop/src/import-preview/plottr-source.ts
 #: apps/desktop/src/import-preview/spreadsheet-source.ts
+#: apps/desktop/src/import-preview/yw7-source.ts
 msgid "What was approximated"
 msgstr ""
 
@@ -28453,6 +28532,17 @@ msgstr ""
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you can open anywhere."
+msgstr ""
+
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
+#. The yWriter import. Interpolated values: file (the file's name), count (scenes, chapters, codex entries)
+#: apps/desktop/src/import-preview/yw7-source.ts
+msgid "yWriter"
+msgstr ""
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "yWriter file"
 msgstr ""
 
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.

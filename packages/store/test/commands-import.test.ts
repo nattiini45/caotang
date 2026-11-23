@@ -22,6 +22,7 @@ import {
 import {
   addDocument,
   addFolder,
+  emptyCoherenceState,
   createAssetStaging,
   createEmptyManifest,
   createProjectCommandRegistry,
@@ -296,6 +297,55 @@ describe('binder.importTree — the apply', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.risk).toBe('never');
     expect(snapshotOf(h.state)).toEqual(before);
+  });
+
+  it('writes a document\u2019s scene declarations into the open coherence file, resolved by codex name', async () => {
+    const h = harness();
+    h.state.coherence = emptyCoherenceState();
+    const result = await executeAsync(
+      command({
+        nodes: [
+          { type: 'folder', title: 'Part One' },
+          { type: 'folder', title: 'Chapter one', parent: 0 },
+          { type: 'document', title: 'Ashore at last', parent: 1, body: 'She stepped ashore.', pov: 'Mara', dayOffset: 4, durationDays: 2, expectedPresent: ['Mara', 'The Harbour', 'Nobody'] },
+        ],
+        codex: { entries: [
+          { name: 'Mara', type: 'character', node: 2, cite: { from: 0, to: 3, quote: 'She' } },
+          { name: 'The Harbour', type: 'location', node: 2, cite: { from: 4, to: 11, quote: 'stepped' } },
+        ] },
+      }),
+      h.bus,
+      h.registry,
+    );
+    expect(result.ok, result.ok ? '' : JSON.stringify(result.error)).toBe(true);
+    const ids = (result.ok ? result.value.result : { nodeIds: [] }) as { nodeIds: string[] };
+    const docId = ids.nodeIds[2] ?? '';
+    expect(h.state.manifest.tree.find((node) => node.id === docId)?.title).toBe('Ashore at last');
+    const meta = h.state.coherence.sceneMeta[docId];
+    const byName = new Map((h.state.manifest.codex ?? []).map((entry) => [entry.name, entry.id]));
+    expect(meta).toEqual({ pov: byName.get('Mara'), dayOffset: 4, durationDays: 2, expectedPresent: [byName.get('Mara'), byName.get('The Harbour')] });
+    undoLast(h);
+    expect(h.state.coherence.sceneMeta[docId]).toBeUndefined();
+  });
+
+  it('leaves the declarations in the notes alone when no coherence file is open', async () => {
+    const h = harness();
+    const result = await executeAsync(
+      command({
+        nodes: [
+          { type: 'folder', title: 'Chapter two' },
+          { type: 'document', title: 'Ashore at last', parent: 0, body: 'She stepped ashore.', dayOffset: 4, notes: 'Day: 4' },
+        ],
+      }),
+      h.bus,
+      h.registry,
+    );
+    expect(result.ok).toBe(true);
+    expect(h.state.coherence).toBeUndefined();
+    const ids = (result.ok ? result.value.result : { nodeIds: [] }) as { nodeIds: string[] };
+    const doc = h.state.manifest.tree.find((node) => node.id === ids.nodeIds[1]);
+    expect(doc?.title).toBe('Ashore at last');
+    expect(doc?.notes).toBe('Day: 4');
   });
 
   it('is descriptor-only without the asset port, as the picture imports are', () => {

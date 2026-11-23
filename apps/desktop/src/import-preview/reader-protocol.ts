@@ -24,6 +24,7 @@ import type { OdtOptions, OdtResult } from '@caotang/import-odt';
 import type { CsvOptions, CsvResult } from '@caotang/import-csv';
 import type { XlsxOptions, XlsxResult } from '@caotang/import-xlsx';
 import type { PlottrLabels, PlottrResult } from '@caotang/import-plottr';
+import type { Yw7Result } from '@caotang/import-yw7';
 import type { DecodableEncoding } from '@caotang/store/encoding';
 
 /** Opens a reader with its input. The bytes (or folder files) are transferred to the Worker and cached there. */
@@ -44,7 +45,8 @@ export type ReaderOpen =
   | { readonly kind: 'open'; readonly reader: 'odt'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'csv'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'xlsx'; readonly bytes: Uint8Array }
-  | { readonly kind: 'open'; readonly reader: 'plottr'; readonly bytes: Uint8Array };
+  | { readonly kind: 'open'; readonly reader: 'plottr'; readonly bytes: Uint8Array }
+  | { readonly kind: 'open'; readonly reader: 'yw7'; readonly bytes: Uint8Array };
 
 /** Reads the cached input again with these options. A text read decodes and builds blocks; an RTF read parses. */
 export type ReaderRead =
@@ -61,7 +63,8 @@ export type ReaderRead =
   | { readonly kind: 'read'; readonly reader: 'odt'; readonly options?: OdtOptions }
   | { readonly kind: 'read'; readonly reader: 'csv'; readonly options?: CsvOptions }
   | { readonly kind: 'read'; readonly reader: 'xlsx'; readonly options?: XlsxOptions }
-  | { readonly kind: 'read'; readonly reader: 'plottr'; readonly bookId?: string; readonly labels?: PlottrLabels };
+  | { readonly kind: 'read'; readonly reader: 'plottr'; readonly bookId?: string; readonly labels?: PlottrLabels }
+  | { readonly kind: 'read'; readonly reader: 'yw7' };
 
 /** An RTF or `.rtfd` read's result, with its error flattened to a code and a message so it survives the clone. */
 export type SerializableRtfResult =
@@ -83,7 +86,8 @@ export type ReaderResult =
   | { readonly kind: 'odt'; readonly result: OdtResult }
   | { readonly kind: 'csv'; readonly result: CsvResult }
   | { readonly kind: 'xlsx'; readonly result: XlsxResult }
-  | { readonly kind: 'plottr'; readonly result: PlottrResult };
+  | { readonly kind: 'plottr'; readonly result: PlottrResult }
+  | { readonly kind: 'yw7'; readonly result: Yw7Result };
 
 /**
  * A captions read: the decode's own answer and the parse of its text, or the decode's refusal unchanged (the encoding ask, the size

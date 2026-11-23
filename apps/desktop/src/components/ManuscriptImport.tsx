@@ -31,6 +31,7 @@ export function ManuscriptImportActions(): ReactNode {
   const odtFile = useRef<HTMLInputElement>(null);
   const csvFile = useRef<HTMLInputElement>(null);
   const plottrFile = useRef<HTMLInputElement>(null);
+  const yw7File = useRef<HTMLInputElement>(null);
 
   const failed = (file: File, failure: unknown): void => {
     const problem = failure instanceof Error ? failure.message : String(failure);
@@ -220,6 +221,21 @@ export function ManuscriptImportActions(): ReactNode {
     }
   };
 
+  const openYw7 = async (file: File): Promise<void> => {
+    try {
+      const { MAX_TEXT_BYTES } = await import('@caotang/import-read/text');
+      if (file.size > MAX_TEXT_BYTES) {
+        report({ text: t`This yWriter file is too large to import.`, tone: 'error' });
+        return;
+      }
+      const { yw7PreviewSource } = await import('../import-preview/yw7-source.js');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      openImportPreview({ source: yw7PreviewSource(file.name, bytes) });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
   const openCsv = async (file: File): Promise<void> => {
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
@@ -271,6 +287,9 @@ export function ManuscriptImportActions(): ReactNode {
       </button>
       <button type="button" className="button is-quiet" onClick={() => plottrFile.current?.click()}>
         <Trans>Import Plottr…</Trans>
+      </button>
+      <button type="button" className="button is-quiet" onClick={() => yw7File.current?.click()}>
+        <Trans>Import yWriter…</Trans>
       </button>
       <input
         ref={textFile}
@@ -406,6 +425,18 @@ export function ManuscriptImportActions(): ReactNode {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
           if (file !== undefined) void openPlottr(file);
+        }}
+      />
+      <input
+        ref={yw7File}
+        type="file"
+        hidden
+        accept=".yw7,text/xml"
+        aria-label={t`yWriter file`}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file !== undefined) void openYw7(file);
         }}
       />
       <input

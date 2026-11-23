@@ -63,6 +63,15 @@ export type ImportTreeNode = {
    * show or a storyboard. Absent: a prose document, or a plain folder.
    */
   kind?: 'screenplay' | 'av-script' | 'comic-script' | 'show' | 'storyboard';
+  /**
+   * Scene declarations (timeline.md §2, only on a document). `pov` and `expectedPresent` name codex entries; the apply
+   * writes them into the project's coherence file when one is open, dropping a name that resolves to no entry. A project
+   * without a coherence file keeps only the copy in the node's notes, which the reader fills the same way.
+   */
+  pov?: string;
+  dayOffset?: number;
+  durationDays?: number;
+  expectedPresent?: string[];
 };
 
 /** The kinds a tree document may carry, paired with `binder.create`'s document kinds (descriptors.ts `pairCreateKind`). */
@@ -84,7 +93,7 @@ export type ImportTreeParams = {
   pictures?: ImportTreePicture[];
 };
 
-const NODE_KEYS = ['type', 'title', 'parent', 'place', 'body', 'synopsis', 'keywords', 'status', 'label', 'notes', 'kind'] as const;
+const NODE_KEYS = ['type', 'title', 'parent', 'place', 'body', 'synopsis', 'keywords', 'status', 'label', 'notes', 'kind', 'pov', 'dayOffset', 'durationDays', 'expectedPresent'] as const;
 const PICTURE_KEYS = ['ref', 'stagingId', 'alt', 'caption'] as const;
 const CODEX_KEYS = ['entries', 'pages'] as const;
 const VOCABULARY_KEYS = ['statuses', 'labels'] as const;
@@ -243,6 +252,22 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
         }
       }
 
+      // The scene declarations a reader can carry (timeline.md §2): documents only.
+      const pov = raw['pov'];
+      if (pov !== undefined && (type !== 'document' || typeof pov !== 'string' || pov.trim() === '')) fail('pov must be a non-blank codex name on a document', 'pov');
+      const dayOffset = raw['dayOffset'];
+      if (dayOffset !== undefined && (type !== 'document' || typeof dayOffset !== 'number' || !Number.isInteger(dayOffset) || Math.abs(dayOffset) > 10_000_000)) {
+        fail('dayOffset must be a whole number of days on a document, at most 10,000,000 either way', 'dayOffset');
+      }
+      const durationDays = raw['durationDays'];
+      if (durationDays !== undefined && (type !== 'document' || typeof durationDays !== 'number' || !Number.isInteger(durationDays) || durationDays < 0)) {
+        fail('durationDays must be a whole number of days at least 0 on a document', 'durationDays');
+      }
+      const expectedPresent = raw['expectedPresent'];
+      if (expectedPresent !== undefined && (type !== 'document' || !Array.isArray(expectedPresent) || expectedPresent.some((name) => typeof name !== 'string' || name.trim() === ''))) {
+        fail('expectedPresent must be an array of non-blank codex names on a document', 'expectedPresent');
+      }
+
       nodes.push({
         type: type === 'document' ? 'document' : 'folder',
         title: typeof title === 'string' ? title : '',
@@ -255,6 +280,10 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
         ...(typeof label === 'string' ? { label } : {}),
         ...(typeof notes === 'string' ? { notes } : {}),
         ...(kind === 'screenplay' || kind === 'av-script' || kind === 'comic-script' || kind === 'show' || kind === 'storyboard' ? { kind } : {}),
+        ...(typeof pov === 'string' && type === 'document' ? { pov } : {}),
+        ...(typeof dayOffset === 'number' && type === 'document' ? { dayOffset } : {}),
+        ...(typeof durationDays === 'number' && type === 'document' ? { durationDays } : {}),
+        ...(Array.isArray(expectedPresent) && type === 'document' ? { expectedPresent: expectedPresent as string[] } : {}),
       });
     }
     if (text > IMPORT_TREE_TEXT_MAX) {

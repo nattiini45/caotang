@@ -57,6 +57,11 @@ export interface PreviewNode {
   readonly place?: 'manuscript' | 'research' | 'skip';
   /** The source's own fields (front-matter keys, CSV columns), mapped by the writer in the Fields section. */
   readonly fields?: Readonly<Record<string, string | readonly string[]>>;
+  /** Scene declarations (timeline.md §2, scenes only): the apply writes them into the project's coherence file when one is open. */
+  readonly pov?: string;
+  readonly dayOffset?: number;
+  readonly durationDays?: number;
+  readonly expectedPresent?: readonly string[];
 }
 
 /** Why a split is where it is, shown on its ✂ marker ("Heading 1", "scene break \"* * *\"", "Page break + \"CHAPTER TWO\""). */
@@ -660,6 +665,10 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
       ...(status === undefined ? {} : { status }),
       ...(label === undefined ? {} : { label }),
       ...(notes.length === 0 ? {} : { notes: [...notes.join('\n\n')].slice(0, 50_000).join('') }),
+      ...(node.pov === undefined ? {} : { pov: node.pov }),
+      ...(node.dayOffset === undefined ? {} : { dayOffset: node.dayOffset }),
+      ...(node.durationDays === undefined ? {} : { durationDays: node.durationDays }),
+      ...(node.expectedPresent === undefined ? {} : { expectedPresent: [...node.expectedPresent] }),
     };
   };
 

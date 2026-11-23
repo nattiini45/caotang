@@ -27,7 +27,8 @@ type State =
   | { readonly reader: 'odt'; readonly bytes: Uint8Array }
   | { readonly reader: 'csv'; readonly bytes: Uint8Array }
   | { readonly reader: 'xlsx'; readonly bytes: Uint8Array }
-  | { readonly reader: 'plottr'; readonly bytes: Uint8Array };
+  | { readonly reader: 'plottr'; readonly bytes: Uint8Array }
+  | { readonly reader: 'yw7'; readonly bytes: Uint8Array };
 
 /** Flattens an RTF or archive refusal to a code and a message, so it survives the structured clone (an Error's own `code` does not). */
 function serialiseRtf(result: RtfReadResult | RtfdReadResult): SerializableRtfResult {
@@ -55,7 +56,7 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
       state = { reader: 'odt', bytes: req.bytes };
       return;
     }
-    if (req.reader === 'csv' || req.reader === 'xlsx' || req.reader === 'plottr') {
+    if (req.reader === 'csv' || req.reader === 'xlsx' || req.reader === 'plottr' || req.reader === 'yw7') {
       state = { reader: req.reader, bytes: req.bytes };
       return;
     }
@@ -152,6 +153,11 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
       const { readPlottr } = await import('@caotang/import-plottr');
       const options = { ...(req.bookId === undefined ? {} : { bookId: req.bookId }), ...(req.labels === undefined ? {} : { labels: req.labels }) };
       return { kind: 'plottr', result: readPlottr(state.bytes, options) };
+    }
+    if (req.reader === 'yw7') {
+      if (state.reader !== 'yw7') throw new Error('The import reader is not a yWriter reader.');
+      const { readYw7 } = await import('@caotang/import-yw7');
+      return { kind: 'yw7', result: readYw7(state.bytes) };
     }
     if (req.reader === 'docx') {
       if (state.reader !== 'docx') throw new Error('The import reader is not a Word reader.');

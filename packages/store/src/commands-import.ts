@@ -24,7 +24,9 @@ import {
   type ApplyContext,
   type CommandApply,
   type CommandRegistry,
+  type ImportTreeNode,
   type ImportTreeParams,
+  type SceneMetaRecord,
 } from '@caotang/bus';
 
 import type { ApplyClock, ProjectAssetPort } from './commands-project.js';
@@ -149,6 +151,7 @@ function importTreeApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectAp
     const created: string[] = [];
     const ids: string[] = [];
     const maps = new Map<number, (offset: number) => number>();
+    const declared = new Map<string, ImportTreeNode>();
     const destination = params.parentId ?? 'manuscript';
     let documents = 0;
     let folders = 0;
@@ -186,6 +189,9 @@ function importTreeApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectAp
       ids.push(doc.id);
       created.push(doc.id);
       documents += 1;
+      if (node.pov !== undefined || node.dayOffset !== undefined || node.durationDays !== undefined || node.expectedPresent !== undefined) {
+        declared.set(doc.id, { ...node });
+      }
     }
 
     // 5. The codex pages and entries (codex.importBatch's shape), attached to the document each cites.
@@ -228,6 +234,26 @@ function importTreeApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectAp
       if (madeEntries.length === 0 && !hadCodex && codex.length === 0) delete state.manifest.codex;
     }
 
+    // 6. The scene declarations a reader carried (import-preview.md: pov, day, duration, expected-present names). They live
+    // in the coherence file, so a project without one keeps only the copy in the scene's notes.
+    const declaredIds = new Set<string>();
+    if (declared.size > 0 && state.coherence !== undefined) {
+      const nameOf = new Map((state.manifest.codex ?? []).map((entry) => [entry.name, entry.id]));
+      for (const [docId, node] of declared) {
+        const meta: SceneMetaRecord = {};
+        const pov = node.pov !== undefined ? nameOf.get(node.pov) : undefined;
+        if (pov !== undefined) meta.pov = pov;
+        if (node.dayOffset !== undefined) meta.dayOffset = node.dayOffset;
+        if (node.durationDays !== undefined) meta.durationDays = node.durationDays;
+        const expected = (node.expectedPresent ?? []).map((name) => nameOf.get(name)).filter((id): id is string => id !== undefined);
+        if (expected.length > 0) meta.expectedPresent = expected;
+        if (Object.keys(meta).length > 0) {
+          state.coherence.sceneMeta[docId] = meta;
+          declaredIds.add(docId);
+        }
+      }
+    }
+
     context.undo.compensate(`undo the import of ${documents} documents and ${folders} folders`, () => {
       const gone = new Set(madeEntries.map((entry) => entry.id));
       if (gone.size > 0 && state.manifest.codex !== undefined) {
@@ -242,6 +268,9 @@ function importTreeApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectAp
         const terms = state.manifest.vocabulary[kind];
         const at = terms.findIndex((candidate) => candidate.id === term.id);
         if (at >= 0) terms.splice(at, 1);
+      }
+      if (declaredIds.size > 0 && state.coherence !== undefined) {
+        for (const docId of declaredIds) delete state.coherence.sceneMeta[docId];
       }
       takePicturesBack?.();
     });

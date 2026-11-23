@@ -56,6 +56,7 @@
     "@caotang/import-captions": "workspace:*",
     "@caotang/import-rtf": "workspace:*",
     "@caotang/import-xlsx": "workspace:*",
+    "@caotang/import-yw7": "workspace:*",
     "@caotang/machine": "workspace:*",
     "@caotang/mcp-client": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",

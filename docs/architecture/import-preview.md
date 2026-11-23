@@ -91,6 +91,11 @@ nothing at all — no node, no entry, no page — is refused before the command,
 - **A document's kind.** A document node may carry `kind` — `screenplay`, `av-script` or `comic-script`, the kinds `binder.create`
   takes for a document — and the apply makes that kind of document; absent, the document is prose. A folder takes no kind. The
   Highland import (screenplay.md §2.2) marks its scenes `screenplay` this way, so a script keeps its kind through the shared preview.
+- **A document's scene declarations.** A document node may carry `pov`, `dayOffset`, `durationDays` and `expectedPresent`
+  (timeline.md §2); `pov` and `expectedPresent` name codex entries the import also brings or the project holds. The apply writes
+  them into the project's coherence file as scene meta when one is open — a name that resolves to no entry is dropped — and the
+  undo removes them with the nodes. A project without a coherence file keeps only the copies in the scenes' notes, which the
+  reader fills the same way. A folder carries none of them. The yWriter import (#291) declares its scenes this way.
 - **What the preview decides before the command.** A node left out is not sent, nor anything under it, nor a picture only its text
   used (the status line says so). A scene or front matter at the top of an import into the manuscript gets a folder of its own name,
   because a document goes inside a chapter. Keywords, synopsis and notes are fitted to the binder's limits. Every body is checked

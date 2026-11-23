@@ -31,6 +31,8 @@
 
 - [delegated 2026-11-15] The Plottr import (#290) is an own JSON reader: the beat tree becomes folders of scenes, plotlines become keywords (the model has no typed threads), and custom attributes become text on the codex page.
 - [delegated 2026-11-15] A Plottr series file offers the book as a preview chip; series-level lines and beats are named in the report, not imported.
+- [delegated 2026-11-15] `binder.importTree` carries the scene declarations `pov`, `dayOffset`, `durationDays` and `expectedPresent` on a document node; the apply writes them into the project's coherence file as scene meta when one is open, names resolving to codex entries, and a project without one keeps the copies in the scene's notes. Why: the timeline is a separate file, and a file-less project must still keep what the reader found.
+- [delegated 2026-11-15] The yWriter import (#291) is an own XML reader written from the `.yw7` file format alone (the upstream is GPL): `SectionStart` chapters open parts, `Type`-non-zero chapters and project notes go to Research, and clock times, dates and sub-day lengths sit in the notes.
 
 - `main` takes pull requests without requiring the branch to be up to date with it, so nobody syncs a branch by hand before merging; `verify` and `pawcommit-review` stay required, and `ci.yml` still runs on `merge_group` so a merge queue can be switched on without a workflow change. Why: GitHub offers merge queues only in organization-owned repositories, and this repository belongs to a personal account, so the queue this trigger was written for cannot be enabled here. A merge group is not a pull request, so `pawcommit-review` passes its grouped pull requests' own verdicts through rather than reporting nothing. [delegated 2026-11-21]
 

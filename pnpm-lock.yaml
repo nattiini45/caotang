@@ -357,6 +357,9 @@ importers:
       '@caotang/import-xlsx':
         specifier: workspace:*
         version: link:../../packages/import-xlsx
+      '@caotang/import-yw7':
+        specifier: workspace:*
+        version: link:../../packages/import-yw7
       '@caotang/machine':
         specifier: workspace:*
         version: link:../../packages/machine
@@ -1141,6 +1144,12 @@ importers:
       '@caotang/import-csv':
         specifier: workspace:*
         version: link:../import-csv
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../import-read
+
+  packages/import-yw7:
+    dependencies:
       '@caotang/import-read':
         specifier: workspace:*
         version: link:../import-read
