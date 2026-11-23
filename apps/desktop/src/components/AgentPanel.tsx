@@ -46,6 +46,7 @@ import { providerLabel } from '../app/provider-label.js';
 import { unresolvedNotice } from '../app/review-text.js';
 import type { AgentController, AgentSnapshot, GoalRecoveryView } from '../app/agent.js';
 import { ChatModelPicker } from './ChatModelPicker.js';
+import { useNarrow } from './narrow.js';
 import { THINKING_LEVEL_NAMES } from './thinking-levels.js';
 import type { CommandNote } from '../app/slash-model.js';
 import type { RecurringTasks } from '../app/recurring-tasks.js';
@@ -190,6 +191,8 @@ export function AgentPanel({
   const open = inWindow || drawerOpen;
   const { i18n } = useLingui();
   const sessionVersion = useSession(session);
+  // A narrow header hides the provider line, so there the picker carries the connection's name itself.
+  const narrow = useNarrow();
   const snapshot = useSyncExternalStore(agent.subscribe, agent.snapshot);
   const goalInConversation = (goal: GoalRecoveryView): boolean => open && (goal.goalId === snapshot.activeGoalId || (goal.status === 'settled' && !goal.unreadable));
   const chatMemory = snapshot.sessionMemory.find((memory) => memory.role === 'chat');
@@ -565,6 +568,7 @@ export function AgentPanel({
             value={model.value}
             levels={model.levels.map((level) => ({ id: level, label: i18n._(THINKING_LEVEL_NAMES[level]) }))}
             thinking={model.thinking}
+            showConnection={narrow}
             disabled={snapshot.busy}
             onPick={(profileId, chosen) => onPickModel(profileId, chosen)}
             onPickThinking={(level) => {

@@ -100,6 +100,15 @@ test('one picked model is a provider like any other, and the chat window offers 
   await expect(listbox.getByRole('option', { name: 'claude-opus-5-5' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(trigger).toHaveText(/claude-opus-5-5/);
+
+  // The level picked here is a choice of its own, not the connection's default, so it is kept and sent with the next turn.
+  const level = picker.getByRole('combobox', { name: 'Chat thinking level' });
+  await level.click();
+  await page.getByRole('listbox').getByRole('option', { name: 'High', exact: true }).click();
+  await expect(level).toHaveText(/High/);
+  await page.reload();
+  await page.getByRole('listitem').filter({ hasText: 'The Lighthouse Keeper' }).getByRole('button', { name: 'Open', exact: true }).click();
+  await expect(page.getByTestId('agent-model').getByRole('combobox', { name: 'Chat thinking level' })).toHaveText(/High/);
 });
 
 test('a key shape several providers share asks which provider, and More providers lists the rest with the desktop-only ones marked', async ({ page }) => {

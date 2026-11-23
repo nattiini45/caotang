@@ -80,6 +80,26 @@ describe('what a pick writes', () => {
     expect(withChatModel(undefined, { profileId: 'prv_local', model: 'qwen3' }, active)).toEqual({});
   });
 
+  it('writes a level the writer states even where chat would otherwise follow the active connection', () => {
+    // The blocking case: chat follows the active connection, and a level picked there is not that connection's default, so it needs
+    // a pin of its own; dropping it silently would send the model's own mapping instead.
+    const next = withChatModel(undefined, { profileId: 'prv_local', model: 'qwen3' }, active, { level: 'high', levels: ['low', 'high'] });
+    expect(next.chat).toEqual({ profileId: 'prv_local', model: 'qwen3', thinking: 'high' });
+    // The provider default clears a level and writes no pin at all when the pick is the active connection's own default.
+    expect(withChatModel({ chat: { profileId: 'prv_local', model: 'qwen3', thinking: 'high' } }, { profileId: 'prv_local', model: 'qwen3' }, active, { level: '' })).toEqual({});
+    // A level stated on another connection pins that connection.
+    expect(withChatModel(undefined, { profileId: 'prv_anthropic', model: 'claude-opus-5-5' }, active, { level: 'max', levels: ['max'] }).chat)
+      .toEqual({ profileId: 'prv_anthropic', model: 'claude-opus-5-5', thinking: 'max' });
+  });
+
+  it('carries a stored level onto another model of the same connection only where that model documents it', () => {
+    const roles: RoleSettings = { chat: { profileId: 'prv_anthropic', model: 'claude-sonnet-5-5', thinking: 'max' } };
+    const documented = withChatModel(roles, { profileId: 'prv_anthropic', model: 'claude-opus-5-5' }, active, { levels: ['low', 'medium', 'high', 'max'] });
+    expect(documented.chat).toEqual({ profileId: 'prv_anthropic', model: 'claude-opus-5-5', thinking: 'max' });
+    const shorter = withChatModel(roles, { profileId: 'prv_anthropic', model: 'claude-haiku-5-5' }, active, { levels: ['low', 'medium'] });
+    expect(shorter.chat).toEqual({ profileId: 'prv_anthropic', model: 'claude-haiku-5-5' });
+  });
+
   it('keeps a fallback list and the step choices a writer set on chat', () => {
     const roles: RoleSettings = {
       chat: {
@@ -114,5 +134,14 @@ describe('the picker’s view', () => {
     expect(view.value).toEqual({ profileId: 'prv_local', model: 'qwen3' });
     expect(view.levels).toEqual([]);
     expect(view.thinking).toBe('');
+  });
+
+  it('names the connection the picked model runs through, so the header can say where the turn goes', () => {
+    const view = chatModelView(PROFILES, { chat: { profileId: 'prv_anthropic', model: 'claude-opus-5-5' } }, 'prv_local', () => []);
+    expect(view.connection).toBe('Anthropic (Claude)');
+    expect(chatModelView(PROFILES, undefined, 'prv_local', () => []).connection).toBe('LM Studio');
+    // A pin naming a connection that is gone reads as the active profile, so the name follows the value.
+    expect(chatModelView(PROFILES, { chat: { profileId: 'prv_gone' } }, 'prv_local', () => []).connection).toBe('LM Studio');
+    expect(chatModelView([], undefined, null, () => []).connection).toBeNull();
   });
 });

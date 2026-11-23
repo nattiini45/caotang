@@ -76,9 +76,23 @@
 }
 
 .agent-model-options [data-slot='select-item'] {
+  display: flex;
+  align-items: center;
   padding: var(--space-2) var(--space-3);
   overflow-wrap: anywhere;
   border-radius: var(--radius-xs);
+}
+
+/* Modern's kit: every control a thumb or a pointer lands on is at least 44 px (modern-controls.md §Rules, modern-interface.md §9),
+   and the picker opens inside the companion window, which the shell's own touch-target rule does not reach for a listbox row. */
+:root[data-shell='modern'] .agent-model-options [data-slot='select-item'] {
+  min-block-size: var(--target-min);
+}
+
+@media (pointer: coarse) {
+  .agent-model-options [data-slot='select-item'] {
+    min-block-size: var(--target-min);
+  }
 }
 
 .agent-model-options [data-highlighted] {

@@ -47,7 +47,6 @@ import {
 } from '../app/lifecycle.js';
 import type { ZoomLevel } from '../app/corkboard-model.js';
 import type { AppServices } from '../app/services.js';
-import type { ThinkingLevel } from '@caotang/gateway';
 import { chatModelView, withChatModel } from '../app/chat-model.js';
 import { normalizeRoleSettings } from '../app/settings.js';
 import { contextConfigOf } from '../app/settings.js';
@@ -344,12 +343,15 @@ export function Workspace({
       services.providers.roleSettings,
       { profileId, model: modelId },
       active === undefined ? null : { profileId: active.id, defaultModel: active.defaultModel },
+      // A level the writer picks is theirs to state: `''` clears it back to the provider default, and either way it is written even
+      // where chat otherwise follows the active connection, because a level is not that connection's default.
+      {
+        ...(thinking === undefined ? {} : { level: thinking }),
+        levels: services.providers.gateway.modelCaps(profileId, modelId).effortLevels ?? [],
+      },
     );
-    // A level the writer picks rides the chat pin; the provider default clears it, so the model's own mapping applies.
-    const chat = chosen.chat === undefined ? undefined : { ...chosen.chat, ...(thinking === undefined ? {} : thinking === '' ? { thinking: undefined } : { thinking: thinking as ThinkingLevel }) };
-    const roles = chat === undefined ? chosen : { ...chosen, chat };
-    services.providers.applyRoleSettings(normalizeRoleSettings(roles));
-    void services.settings.update({ provider: { roles } });
+    services.providers.applyRoleSettings(normalizeRoleSettings(chosen));
+    void services.settings.update({ provider: { roles: chosen } });
     agent?.refresh();
   };
 

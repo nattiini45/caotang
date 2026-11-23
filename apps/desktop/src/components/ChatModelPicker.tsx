@@ -35,6 +35,7 @@ export function ChatModelPicker({
   value,
   levels,
   thinking,
+  showConnection,
   disabled,
   onPick,
   onPickThinking,
@@ -44,6 +45,11 @@ export function ChatModelPicker({
   /** The levels the picked model documents; empty leaves the thinking control out, as the roles panel does. */
   readonly levels: readonly { readonly id: string; readonly label: string }[];
   readonly thinking: string;
+  /**
+   * Draw the connection's name beside the model. The wide header names it in its own provider line; a narrow one hides that line, so
+   * there the trigger carries the name — otherwise a model id would be the only thing saying where the turn goes.
+   */
+  readonly showConnection: boolean;
   readonly disabled: boolean;
   readonly onPick: (profileId: string, model: string) => void;
   readonly onPickThinking: (level: string) => void;
@@ -55,13 +61,22 @@ export function ChatModelPicker({
   // A model that left the list (its connection was edited mid-session) still shows, so the trigger never reads blank.
   const known = groups.some((group) => group.profileId === value.profileId && group.models.includes(value.model));
   const held = groups.find((group) => group.profileId === value.profileId);
+  // A pick pins chat to its connection, so the header names that connection and not only the active profile the provider line reads.
+  const label = showConnection && held !== undefined ? `${value.model} · ${held.name}` : value.model;
   return (
     <div className="agent-model" data-testid="agent-model">
       <Select
         required
         value={current}
         items={[
-          ...groups.flatMap((group) => group.models.map((model) => ({ value: modelValue(group.profileId, model), label: model }))),
+          ...groups.flatMap((group) =>
+            group.models.map((model) => ({
+              // The trigger's own label carries the connection on a narrow header; the rows keep the bare model id, under a group
+              // heading that already names that connection.
+              value: modelValue(group.profileId, model),
+              label: modelValue(group.profileId, model) === current ? label : model,
+            })),
+          ),
           ...(known ? [] : [{ value: current, label: value.model }]),
         ]}
         onValueChange={(next) => {

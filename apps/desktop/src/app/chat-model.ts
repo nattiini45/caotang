@@ -52,24 +52,29 @@ export function currentChatModel(profiles: readonly ProfileView[], roles: RoleSe
  * leaves chat following the active connection, which is the state it is in before any pick: that way activating another provider in
  * Settings still moves chat, until the writer asks for a particular model.
  *
- * A level the writer set stays while the pick stays on the same connection and goes when the connection changes, where it named
- * another model's ladder.
+ * The thinking level is a stated choice when `level` says so (`''` is the provider default) and is written even where chat follows the
+ * active connection, because it is not the connection's default: it needs a pin to live in. Without a stated level it carries over only
+ * on the same connection and only where the newly picked model documents it, since a level names one model's ladder.
  */
 export function withChatModel(
   roles: RoleSettings | undefined,
   choice: ChatModelChoice,
   active: { readonly profileId: string; readonly defaultModel: string } | null,
+  options: { readonly level?: string; readonly levels?: readonly ThinkingLevel[] } = {},
 ): RoleSettings {
   const { chat, ...others } = roles ?? {};
   const pin = chat === undefined || (chat as unknown) === 'follow' ? undefined : chat;
-  if (active !== null && choice.profileId === active.profileId && choice.model === active.defaultModel) return others;
+  const carries = pin !== undefined && pin.profileId === choice.profileId && pin.thinking !== undefined && (options.levels === undefined || options.levels.includes(pin.thinking));
+  const stated = options.level ?? (carries ? pin?.thinking : undefined);
+  const thinking = stated === undefined || stated === '' ? undefined : stated;
+  // The active connection's own default with no level is exactly "follow the active connection", so no pin is written.
+  if (thinking === undefined && active !== null && choice.profileId === active.profileId && choice.model === active.defaultModel) return others;
   return {
     ...others,
     chat: {
       ...(pin?.fallbacks === undefined ? {} : { fallbacks: pin.fallbacks }),
       ...(pin?.steps === undefined ? {} : { steps: pin.steps }),
-      // The level names a ladder the previous model documented; it only survives a pick on the same connection.
-      ...(pin !== undefined && pin.profileId === choice.profileId && pin.thinking !== undefined ? { thinking: pin.thinking } : {}),
+      ...(thinking === undefined ? {} : { thinking: thinking as ThinkingLevel }),
       profileId: choice.profileId,
       model: choice.model,
     },
@@ -84,6 +89,8 @@ export function withChatModel(
 export interface ChatModelView {
   readonly groups: readonly ChatModelGroup[];
   readonly value: ChatModelChoice | null;
+  /** The connection the picked model runs through, so the header can name it rather than only the active one. */
+  readonly connection: string | null;
   readonly levels: readonly ThinkingLevel[];
   readonly thinking: string;
 }
@@ -97,9 +104,11 @@ export function chatModelView(
   const value = currentChatModel(profiles, roles, activeId);
   const rawChat: unknown = roles?.chat;
   const pin = rawChat === undefined || rawChat === 'follow' ? undefined : roles?.chat;
+  const groups = chatModelGroups(profiles);
   return {
-    groups: chatModelGroups(profiles),
+    groups,
     value,
+    connection: value === null ? null : (groups.find((group) => group.profileId === value.profileId)?.name ?? null),
     levels: value === null ? [] : levelsFor(value.profileId, value.model),
     thinking: pin === undefined || (pin as unknown) === 'follow' ? '' : (pin.thinking ?? ''),
   };
