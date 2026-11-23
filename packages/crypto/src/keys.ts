@@ -120,10 +120,33 @@ export const INFO_LABELS = {
 
 export type SubkeyPurpose = keyof typeof INFO_LABELS;
 
-/** HKDF-SHA-256 over the project key. `context` (the path hash, for a file) makes each file's key its own. */
-export async function deriveSubkey(project: SecretKey, purpose: SubkeyPurpose, context = ''): Promise<Uint8Array> {
+/**
+ * A project key as the code that opens the project's files uses it: the key itself, or the imported form below. A host
+ * that unwraps the project key can hand the code it runs — the studio frame — the imported form, so that code derives
+ * every file, path, manifest and name key it needs and still cannot export the project key.
+ */
+export type ProjectKeySource = SecretKey | CryptoKey;
+
+/**
+ * The project key as a non-extractable HKDF key. `crypto.subtle.exportKey` on the result throws, so a frame handed this
+ * can derive the project's subkeys and cannot pass the key on; the bytes never leave the host that unwrapped it.
+ */
+export async function importProjectKey(project: SecretKey): Promise<CryptoKey> {
   requireRole(project, 'project');
-  const base = await globalThis.crypto.subtle.importKey('raw', buf(project.export()), 'HKDF', false, ['deriveBits']);
+  return globalThis.crypto.subtle.importKey('raw', buf(project.export()), 'HKDF', false, ['deriveBits']);
+}
+
+async function hkdfBase(project: ProjectKeySource): Promise<CryptoKey> {
+  if (project instanceof SecretKey) {
+    requireRole(project, 'project');
+    return globalThis.crypto.subtle.importKey('raw', buf(project.export()), 'HKDF', false, ['deriveBits']);
+  }
+  return project;
+}
+
+/** HKDF-SHA-256 over the project key. `context` (the path hash, for a file) makes each file's key its own. */
+export async function deriveSubkey(project: ProjectKeySource, purpose: SubkeyPurpose, context = ''): Promise<Uint8Array> {
+  const base = await hkdfBase(project);
   const info = context === '' ? utf8(INFO_LABELS[purpose]) : concat(utf8(INFO_LABELS[purpose]), Uint8Array.of(0), utf8(context));
   const bits = await globalThis.crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: buf(info) }, base, KEY_BYTES * 8);
   return new Uint8Array(bits);

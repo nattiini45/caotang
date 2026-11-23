@@ -1,4 +1,5 @@
 import type { NativeEgressBridge } from './egress-contract.cjs';
+import type { KeyVaultBridge } from './vault-contract.cjs';
 
 export interface NativeFolder {
   readonly id: string;
@@ -37,10 +38,12 @@ export interface NativeFolderBridge {
 }
 
 export interface DesktopBridge {
-  readonly version: 3;
+  readonly version: 4;
   readonly folders: NativeFolderBridge;
   /** Provider and MCP calls made by the main process, where no CORS preflight applies. */
   readonly net: NativeEgressBridge;
+  /** The operating system's keychain: a page may store, remove and ask, never read. */
+  readonly vault: KeyVaultBridge;
 }
 
 declare global {
