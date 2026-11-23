@@ -267,7 +267,7 @@ describe('SplitResult → plan', () => {
     expect(noticeText({ code: 'front-matter', destination: 'research', words: 1200 }, result, nodes)).toBe('The text before chapter 1 (1,200 words) goes to Research.');
     expect(noticeText({ code: 'back-matter', destination: 'skip', words: 4, title: 'Acknowledgements' }, result, nodes)).toBe('“Acknowledgements” (4 words) is back matter and is left out.');
     expect(noticeText({ code: 'no-chapters' }, result, nodes)).toContain('No chapters were found');
-    expect(noticeText({ code: 'unreferenced-notes', footnotes: [{ blockIndex: 1, label: '1' }], comments: [] }, result, nodes)).toBe('1 footnote or comment has no place in the text and cannot be kept.');
+    expect(noticeText({ code: 'unreferenced-notes', footnotes: [{ blockIndex: 1, label: '1' }], comments: [] }, result, nodes)).toBe('1 footnote, comment or deletion has no place in the text and cannot be kept.');
   });
 
   it('speaks German when the interface does', async () => {
