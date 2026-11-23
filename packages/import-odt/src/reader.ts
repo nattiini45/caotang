@@ -5,6 +5,7 @@
  */
 
 import type { ImportAsset, ImportBlock, ImportComment, ImportDocument, ImportFootnote, LossWarning, Signals } from '@caotang/import-core';
+import { escapeInline, escapeLineStarts } from '@caotang/import-core';
 import { attr, readXml, textOf, type XmlElement, type XmlNode } from '@caotang/import-read/xml';
 import { openZip, type ImportArchive } from '@caotang/import-read/zip';
 
@@ -94,13 +95,17 @@ interface OdtStyle {
   name: string;
   parent: string | null;
   align: 'left' | 'center' | 'right' | 'justify' | null;
-  bold: boolean;
-  italic: boolean;
-  strike: boolean;
-  underline: boolean;
-  caps: boolean;
-  pageBreak: boolean;
+  bold: boolean | null;
+  italic: boolean | null;
+  strike: boolean | null;
+  underline: boolean | null;
+  caps: boolean | null;
+  pageBreak: boolean | null;
   quote: boolean;
+  /** The style names a font, a colour or an indent, none of which the reader keeps. */
+  font: boolean;
+  colour: boolean;
+  indent: boolean;
 }
 
 const ALIGN: Readonly<Record<string, OdtStyle['align']>> = { start: 'left', end: 'right', left: 'left', center: 'center', right: 'right', justify: 'justify' };
@@ -116,17 +121,24 @@ function collectStyles(root: XmlElement, into: Map<string, OdtStyle>): void {
     const align = paragraph === undefined ? undefined : attr(paragraph, 'text-align');
     const weight = text === undefined ? undefined : attr(text, 'font-weight');
     const underline = text === undefined ? undefined : attr(text, 'text-underline-style');
+    const fontStyle = text === undefined ? undefined : attr(text, 'font-style');
+    const lineThrough = text === undefined ? undefined : attr(text, 'text-line-through-style');
+    const transform = text === undefined ? undefined : attr(text, 'text-transform');
+    const breakBefore = paragraph === undefined ? undefined : attr(paragraph, 'break-before');
     into.set(name, {
       name,
       parent: attr(element, 'parent-style-name') ?? null,
       align: align === undefined ? null : (ALIGN[align] ?? null),
-      bold: weight === 'bold' || (weight !== undefined && Number(weight) >= 600),
-      italic: (text === undefined ? undefined : attr(text, 'font-style')) === 'italic',
-      strike: (text === undefined ? undefined : attr(text, 'text-line-through-style')) !== undefined && (attr(text ?? element, 'text-line-through-style') ?? 'none') !== 'none',
-      underline: underline !== undefined && underline !== 'none',
-      caps: (text === undefined ? undefined : attr(text, 'text-transform')) === 'uppercase',
-      pageBreak: (paragraph === undefined ? undefined : attr(paragraph, 'break-before')) === 'page',
+      bold: weight === undefined ? null : weight === 'bold' || Number(weight) >= 600,
+      italic: fontStyle === undefined ? null : fontStyle === 'italic',
+      strike: lineThrough === undefined ? null : lineThrough !== 'none',
+      underline: underline === undefined ? null : underline !== 'none',
+      caps: transform === undefined ? null : transform === 'uppercase',
+      pageBreak: breakBefore === undefined ? null : breakBefore === 'page',
       quote: QUOTE.test(name),
+      font: text !== undefined && (attr(text, 'font-name') !== undefined || attr(text, 'font-family') !== undefined),
+      colour: text !== undefined && (attr(text, 'color') !== undefined || attr(text, 'background-color') !== undefined),
+      indent: paragraph !== undefined && (attr(paragraph, 'margin-left') !== undefined || attr(paragraph, 'margin-right') !== undefined || attr(paragraph, 'text-indent') !== undefined),
     });
   }
 }
@@ -156,13 +168,16 @@ function resolve(styles: ReadonlyMap<string, OdtStyle>, name: string | undefined
     name: first.name,
     parent: first.parent,
     align: chain.find((style) => style.align !== null)?.align ?? null,
-    bold: chain.some((style) => style.bold),
-    italic: chain.some((style) => style.italic),
-    strike: chain.some((style) => style.strike),
-    underline: chain.some((style) => style.underline),
-    caps: chain.some((style) => style.caps),
-    pageBreak: chain.some((style) => style.pageBreak),
+    bold: chain.find((style) => style.bold !== null)?.bold ?? null,
+    italic: chain.find((style) => style.italic !== null)?.italic ?? null,
+    strike: chain.find((style) => style.strike !== null)?.strike ?? null,
+    underline: chain.find((style) => style.underline !== null)?.underline ?? null,
+    caps: chain.find((style) => style.caps !== null)?.caps ?? null,
+    pageBreak: chain.find((style) => style.pageBreak !== null)?.pageBreak ?? null,
     quote: chain.some((style) => style.quote),
+    font: chain.some((style) => style.font),
+    colour: chain.some((style) => style.colour),
+    indent: chain.some((style) => style.indent),
   };
 }
 
@@ -220,18 +235,23 @@ interface State {
 function inline(node: XmlNode, state: State, inherited: { bold: boolean; italic: boolean; strike: boolean; underline: boolean }): string {
   if (node.type === 'text') {
     if (state.suppressed === 0 && state.inBody === 0 && state.annotation !== null) state.annotation.text += node.text;
-    return state.suppressed > 0 ? '' : node.text;
+    return state.suppressed > 0 ? '' : escapeInline(node.text);
   }
   const local = node.local;
   if (state.suppressed > 0 && local !== 'change-start' && local !== 'change-end') return '';
   if (local === 'span') {
     const style = resolve(state.styles, attr(node, 'style-name'));
-    if (style?.underline === true) state.dropped.underline += 1;
+    if (style !== null) {
+      if (style.underline === true) state.dropped.underline += 1;
+      if (style.font) state.dropped.fonts += 1;
+      if (style.colour) state.dropped.colours += 1;
+      if (style.indent) state.dropped.indents += 1;
+    }
     const merged = {
-      bold: inherited.bold || style?.bold === true,
-      italic: inherited.italic || style?.italic === true,
-      strike: inherited.strike || style?.strike === true,
-      underline: inherited.underline || style?.underline === true,
+      bold: style?.bold ?? inherited.bold,
+      italic: style?.italic ?? inherited.italic,
+      strike: style?.strike ?? inherited.strike,
+      underline: style?.underline ?? inherited.underline,
     };
     const text = children(node, state, merged);
     return state.suppressed > 0 ? '' : emphasise(text, merged, state.options.underlineAs);
@@ -285,6 +305,10 @@ function inline(node: XmlNode, state: State, inherited: { bold: boolean; italic:
     if (region?.kind === 'insertion') {
       state.changes.insertions += 1;
       if (state.options.tracked === 'reject') state.suppressed += 1;
+    } else if (region?.kind === 'deletion') {
+      state.changes.deletions += 1;
+      if (state.options.tracked === 'keep' && region.text.trim() !== '') state.deletions.push({ blockIndex: state.blocks.length, text: region.text });
+      if (state.options.tracked !== 'reject') state.suppressed += 1;
     }
     return '';
   }
@@ -292,12 +316,11 @@ function inline(node: XmlNode, state: State, inherited: { bold: boolean; italic:
     if (state.suppressed > 0) state.suppressed -= 1;
     return '';
   }
-  if (local === 'frame' || local === 'image') return image(node, state);
-  if (local === 'text-box') {
-    state.dropped.textBoxes += 1;
-    state.losses.push({ code: 'text-box', message: 'A text box was read as a paragraph.', blockIndex: state.blocks.length });
-    return kids(node, 'p').map((p) => plain(p, state)).join(' ');
+  if (local === 'frame' || local === 'image') {
+    const box = firstDescendant(node, 'text-box');
+    return box === undefined ? image(node, state) : textBox(box, state);
   }
+  if (local === 'text-box') return textBox(node, state);
   if (local === 'tracked-changes' || local === 'sequence-decls' || local === 'bookmark' || local === 'bookmark-start' || local === 'bookmark-end') return '';
   return children(node, state, inherited);
 }
@@ -316,6 +339,13 @@ function plain(paragraph: XmlElement, state: State): string {
   const text = children(paragraph, state, PLAIN).replace(/[ \t]+/g, ' ').trim();
   state.inBody -= 1;
   return text;
+}
+
+/** A text box's paragraphs as flat text, counted and reported. */
+function textBox(element: XmlElement, state: State): string {
+  state.dropped.textBoxes += 1;
+  state.losses.push({ code: 'text-box', message: 'A text box was read as a paragraph.', blockIndex: state.blocks.length });
+  return kids(element, 'p').map((p) => plain(p, state)).filter((text) => text !== '').join(' ');
 }
 
 /** A frame's picture: its ref, or nothing when it cannot come in. */
@@ -395,6 +425,11 @@ function readContent(root: XmlElement, state: State): void {
 
   const paragraph = (element: XmlElement, listPrefix: string | null): void => {
     const style = resolve(state.styles, attr(element, 'style-name'));
+    if (style !== null) {
+      if (style.font) state.dropped.fonts += 1;
+      if (style.colour) state.dropped.colours += 1;
+      if (style.indent) state.dropped.indents += 1;
+    }
     const before = state.blocks.length;
     state.annotation = { text: '' };
     const md = children(element, state, { bold: style?.bold === true, italic: style?.italic === true, strike: style?.strike === true, underline: style?.underline === true }).replace(/[ \t]+/g, ' ').trim();
@@ -439,7 +474,8 @@ function readContent(root: XmlElement, state: State): void {
       push({ kind: 'heading', level: heading, text: md.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1'), md: `${'#'.repeat(heading)} ${md}`, src: signals });
       return;
     }
-    const text = listPrefix !== null ? `${listPrefix}${md}` : style?.quote === true ? `> ${md}` : md;
+    const safe = escapeLineStarts(md);
+    const text = listPrefix !== null ? `${listPrefix}${safe}` : style?.quote === true ? `> ${safe}` : safe;
     push({ kind: 'para', md: text, text: md, src: signals });
   };
 
@@ -476,6 +512,17 @@ function readContent(root: XmlElement, state: State): void {
       }
       if (child.local === 'soft-page-break') {
         push({ kind: 'pagebreak' });
+        continue;
+      }
+      if (child.local === 'frame' || child.local === 'image') {
+        const box = firstDescendant(child, 'text-box');
+        if (box !== undefined) {
+          const md = textBox(box, state);
+          if (md !== '') push({ kind: 'para', md, text: md, src: state.options.unit === undefined ? {} : { sourceUnit: state.options.unit } });
+        } else {
+          const md = image(child, state);
+          if (md !== '') push({ kind: 'para', md, text: '', src: state.options.unit === undefined ? {} : { sourceUnit: state.options.unit } });
+        }
         continue;
       }
       if (child.local === 'tracked-changes' || child.local === 'sequence-decls') continue;
@@ -576,6 +623,7 @@ function finish(state: State, assetData: Map<string, Uint8Array>, meta: { title:
     blocks: state.blocks,
     footnotes: state.notes,
     comments: state.comments,
+    deletions: state.deletions,
     assets: state.assets.filter((asset) => assetData.has(asset.ref)),
     losses: state.losses,
     metadata: {

@@ -192,7 +192,8 @@ export const BUDGET = {
   // the merge of main 627aafbd, which carries the Kanka review answers. Named: the compiled English catalogue's
   // ODT button and error copy beside the Word import's. The ceiling is the measurement rounded up to the
   // thousand. [delegated 2026-11-23]
-  initialGzip: 1_121_000,
+  // 1,121,100 at the second review round — the size-refusal copy on the first-load dialog. [delegated 2026-11-23]
+  initialGzip: 1_122_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -331,7 +332,9 @@ export const BUDGET = {
   // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   // 9,065,200 measured at the review-answers head on the merge of main d51c0735 — the numbered-list styles,
   // multi-picture paragraphs and rejected-insertion skips in the two readers. [delegated 2026-11-23]
-  totalJs: 9_066_000,
+  // 9,071,600 at the second review round — the shared Markdown escapers, the deletions channel, the text-box
+  // reaches and the report lines, all on-use chunks. [delegated 2026-11-23]
+  totalJs: 9_072_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

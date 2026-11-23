@@ -5,6 +5,7 @@
  */
 
 import type { ImportAsset, ImportBlock, ImportComment, ImportDocument, ImportFootnote, LossWarning, Signals } from '@caotang/import-core';
+import { escapeInline, escapeLineStarts } from '@caotang/import-core';
 import { attr, readXml, textOf, type XmlElement } from '@caotang/import-read/xml';
 import { openZip, type ImportArchive } from '@caotang/import-read/zip';
 
@@ -65,6 +66,8 @@ export interface DocxDropped {
   emf: number;
   /** SVG pictures, refused by the registry's rule. */
   svg: number;
+  /** Pictures in a format the registry does not keep. */
+  otherPictures: number;
   /** Paragraphs of a generated table of contents, kept out of the chapters. */
   toc: number;
 }
@@ -90,7 +93,7 @@ export type DocxError =
 
 export type DocxResult = { ok: true; value: DocxImport } | { ok: false; error: DocxError };
 
-const EMPTY_DROPPED: DocxDropped = { underline: 0, smallCaps: 0, fonts: 0, colours: 0, highlighting: 0, indents: 0, unsafeLinks: 0, textBoxes: 0, emf: 0, svg: 0, toc: 0 };
+const EMPTY_DROPPED: DocxDropped = { underline: 0, smallCaps: 0, fonts: 0, colours: 0, highlighting: 0, indents: 0, unsafeLinks: 0, textBoxes: 0, emf: 0, svg: 0, otherPictures: 0, toc: 0 };
 const EMPTY_CHANGES: DocxChanges = { insertions: 0, deletions: 0, moves: 0, paragraphMarks: 0 };
 
 const PICTURE = /\.(png|jpe?g|gif|webp)$/i;
@@ -214,7 +217,7 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
         }
         if (part.type !== 'element') continue;
         const name = part.ns === W ? part.local : '';
-        if (name === 't' || name === 'delText') text += textOf(part);
+        if (name === 't' || name === 'delText') text += escapeInline(textOf(part));
         else if (name === 'tab') text += '\t';
         else if (name === 'br') {
           if (attr(part, 'type', W) === 'page') state.pageBreakInRuns = true;
@@ -243,12 +246,15 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
             state.commentList.push({ blockIndex: state.blocks.length, md: `${quote}${note.md}${who === '' ? '' : `\n\n— ${who}`}` });
           }
           state.openComments.delete(id);
-        } else if (name === 'drawing' || name === 'pict' || name === 'object') {
-          text += imageOf(part, state);
-        } else if (name === 'txbxContent') {
-          state.dropped.textBoxes += 1;
-          state.losses.push({ code: 'text-box', message: 'A text box was read as a paragraph.', blockIndex: state.blocks.length });
-          for (const paragraph of kids(part, 'p')) text += renderRuns(paragraph, state, inherited, deleting);
+        } else {
+          const box = name === 'txbxContent' ? part : descendants(part, 'txbxContent')[0];
+          if (box !== undefined) {
+            state.dropped.textBoxes += 1;
+            state.losses.push({ code: 'text-box', message: 'A text box was read as a paragraph.', blockIndex: state.blocks.length });
+            for (const paragraph of kids(box, 'p')) text += renderRuns(paragraph, state, inherited, deleting);
+          } else if (name === 'drawing' || name === 'pict' || name === 'object') {
+            text += imageOf(part, state);
+          }
         }
       }
       out += deleting ? '' : emphasise(text, { ...style, bold: style.bold || inherited.bold, italic: style.italic || inherited.italic, caps: style.caps || inherited.caps }, state.options.underlineAs);
@@ -321,7 +327,11 @@ function imageOf(element: XmlElement, state: WalkState): string {
     state.losses.push({ code: 'image-unreadable', message: 'A Windows metafile picture (EMF or WMF) was left out.', blockIndex: state.blocks.length });
     return '';
   }
-  if (!PICTURE.test(rel.target)) return '';
+  if (!PICTURE.test(rel.target)) {
+    state.dropped.otherPictures += 1;
+    state.losses.push({ code: 'image-unreadable', message: 'A picture in a format Caotang does not keep was left out.', blockIndex: state.blocks.length });
+    return '';
+  }
   const ref = `${state.options.refPrefix}${(state.imageIndex += 1)}`;
   state.assets.push({ ref, name: rel.target.slice(rel.target.lastIndexOf('/') + 1) });
   state.imageTargets.set(ref, rel.target);
@@ -462,7 +472,8 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
       push({ kind: 'heading', level: heading, text: md.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1'), md: `${'#'.repeat(heading)} ${md}`, src: withEmpty });
       return;
     }
-    const body = list !== null ? `${list}${md}` : quote ? `> ${md}` : md;
+    const safe = escapeLineStarts(md);
+    const body = list !== null ? `${list}${safe}` : quote ? `> ${safe}` : safe;
     push({ kind: 'para', md: body, text: md, src: withEmpty });
   };
 
@@ -533,6 +544,7 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
     blocks: state.blocks,
     footnotes: state.notes,
     comments: state.commentList,
+    deletions: state.deletions,
     assets: state.assets.filter((asset) => assetData.has(asset.ref)),
     losses: state.losses,
     metadata: {

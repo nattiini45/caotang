@@ -53,7 +53,10 @@ ODF keeps changes in `text:tracked-changes` and marks their place in the text wi
 `draw:frame` / `draw:image` name a file inside the package (`Pictures/…`) or a remote address. PNG, JPEG, GIF and WebP come in as
 `import:odt-image-<n>` with the alt text from `svg:desc` or `svg:title`; **SVG is refused**, other formats are listed and skipped,
 and a remote picture is listed, not downloaded (decision 10). Tables become one paragraph per row with a `table` loss; text boxes
-are read as paragraphs and counted. Fonts, colours, highlights and indents are dropped and counted.
+(`draw:text-box`, inside `draw:frame` or bare) are read as paragraphs and counted. Fonts, colours, highlights and indents are
+dropped and counted. Text that would read as Markdown is escaped, so prose stays prose. A style value set to "normal" turns an
+inherited emphasis off; a deletion in `text:tracked-changes` marked by `text:change-start`/`text:change-end` is counted and, in
+keep mode, listed like any other deletion.
 
 ## 6. Safety and limits
 

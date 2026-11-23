@@ -859,6 +859,11 @@ msgstr "{codexRows, plural, one {# codex row} other {# codex rows}}"
 msgid "{colours, plural, one {# colour or highlight was not kept} other {# colours or highlights were not kept}}"
 msgstr "{colours, plural, one {# colour or highlight was not kept} other {# colours or highlights were not kept}}"
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/odt-source.ts
+msgid "{coloursIndents, plural, one {# colour, highlight or indent was not kept} other {# colours, highlights or indents were not kept}}"
+msgstr "{coloursIndents, plural, one {# colour, highlight or indent was not kept} other {# colours, highlights or indents were not kept}}"
+
 #. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
 #: apps/desktop/src/components/CommandComposer.tsx
 msgid "{commandCount, plural, one {# command} other {# commands}}"
@@ -1718,6 +1723,11 @@ msgstr "{file} has no passage to import. A Twee story makes one knot for each pa
 msgid "{file} holds no timed cue, so there is nothing to import. A captions file needs lines like \"00:00:01,000 --> 00:00:04,000\"."
 msgstr "{file} holds no timed cue, so there is nothing to import. A captions file needs lines like \"00:00:01,000 --> 00:00:04,000\"."
 
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{file} is too large to import as a Word file ({limit} MB max)."
+msgstr "{file} is too large to import as a Word file ({limit} MB max)."
+
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #: apps/desktop/src/import-preview/ao3-source.ts
 msgid "{file} is too large to import as an AO3 download ({limit} MB max)."
@@ -1727,6 +1737,11 @@ msgstr "{file} is too large to import as an AO3 download ({limit} MB max)."
 #: apps/desktop/src/import-preview/epub-source.ts
 msgid "{file} is too large to import as an EPUB ({limit} MB max)."
 msgstr "{file} is too large to import as an EPUB ({limit} MB max)."
+
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/odt-source.ts
+msgid "{file} is too large to import as an OpenDocument file ({limit} MB max)."
+msgstr "{file} is too large to import as an OpenDocument file ({limit} MB max)."
 
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #: apps/desktop/src/import-preview/captions-source.ts
@@ -1778,8 +1793,10 @@ msgstr "{findings, plural, one {# open finding} other {# open findings}}"
 msgid "{first} and {rest} more"
 msgstr "{first} and {rest} more"
 
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "{fonts, plural, one {# font choice was not kept} other {# font choices were not kept}}"
 msgstr "{fonts, plural, one {# font choice was not kept} other {# font choices were not kept}}"
 
@@ -2282,6 +2299,11 @@ msgstr "{other, plural, one {# picture in a format Caotang does not keep was lef
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "{otherFiles, plural, one {# other file.} other {# other files.}}"
 msgstr "{otherFiles, plural, one {# other file.} other {# other files.}}"
+
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{otherPictures, plural, one {# picture in a format Caotang does not keep was left out} other {# pictures in formats Caotang does not keep were left out}}"
+msgstr "{otherPictures, plural, one {# picture in a format Caotang does not keep was left out} other {# pictures in formats Caotang does not keep were left out}}"
 
 #. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportProofView.tsx
@@ -3094,6 +3116,13 @@ msgstr "{turns, plural, one {Summary requested for # earlier turn.} other {Summa
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/odt-source.ts
+msgid "{underline, plural, one {# underlined run was kept without its underline} other {# underlined runs were kept without their underline}}"
+msgstr "{underline, plural, one {# underlined run was kept without its underline} other {# underlined runs were kept without their underline}}"
+
+#. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+#: apps/desktop/src/import-preview/odt-source.ts
 msgid "{underline, plural, one {# underlined run was read as italics} other {# underlined runs were read as italics}}"
 msgstr "{underline, plural, one {# underlined run was read as italics} other {# underlined runs were read as italics}}"
 
@@ -3257,6 +3286,11 @@ msgstr "{worked} worked"
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "{wpm} wpm"
 msgstr "{wpm} wpm"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "**Deleted:** {text}"
+msgstr "**Deleted:** {text}"
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts

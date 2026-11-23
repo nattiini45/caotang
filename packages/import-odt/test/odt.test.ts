@@ -174,6 +174,28 @@ describe('pictures, metadata and the flat form (#298)', () => {
     expect(read.value.assetData.size).toBe(0);
   });
 
+  it('reads a frame\'s text box as a paragraph and reports it', async () => {
+    const body = '<text:p>Before.</text:p><text:p>After <draw:frame><draw:text-box><text:p>In the box</text:p></draw:text-box></draw:frame>.</text:p>';
+    const read = await readOdt(odt(body));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.document.blocks[1]?.kind === 'para' ? read.value.document.blocks[1].md : '').toBe('After In the box.');
+    expect(read.value.dropped.textBoxes).toBe(1);
+    expect(read.value.document.losses?.some((loss) => loss.code === 'text-box')).toBe(true);
+  });
+
+  it('counts a change-start deletion: dropped on accept, restored on reject, listed on keep', async () => {
+    const regions = '<text:tracked-changes><text:changed-region text:id="d1"><text:deletion><text:p>gone</text:p></text:deletion></text:changed-region></text:tracked-changes>';
+    const body = regions + '<text:p>It is <text:change-start text:change-id="d1"/>gone<text:change-end text:change-id="d1"/> here.</text:p>';
+    const accept = await readOdt(odt(body));
+    expect(accept.ok && accept.value.document.blocks[0]?.kind === 'para' ? accept.value.document.blocks[0].md : '').toBe('It is here.');
+    expect(accept.ok ? accept.value.changes.deletions : -1).toBe(1);
+    const reject = await readOdt(odt(body), { tracked: 'reject' });
+    expect(reject.ok && reject.value.document.blocks[0]?.kind === 'para' ? reject.value.document.blocks[0].md : '').toBe('It is gone here.');
+    const keep = await readOdt(odt(body), { tracked: 'keep' });
+    expect(keep.ok ? keep.value.document.deletions?.map((entry) => entry.text) : []).toEqual(['gone']);
+  });
+
   it('brings a PNG in, refuses an SVG and lists a remote picture', async () => {
     const read = await readOdt(odt(frame('Pictures/100.png', 'The harbour') + frame('Pictures/vector.svg', 'Vector') + frame('https://example.com/x.png', 'Remote'), { pictures: { 'Pictures/100.png': PNG } }));
     expect(read.ok).toBe(true);

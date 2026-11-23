@@ -18,6 +18,12 @@ import { splitterPreviewSource } from './splitter-source.js';
 export const ODT_CHIPS = { tracked: 'odt-tracked' } as const;
 export const ODT_OPTIONS = { underline: 'underline-italic', comments: 'comments', pictures: 'pictures' } as const;
 
+/** Why a file of this size is not read at all, before its bytes are loaded; undefined when the reader takes it. */
+export function odtSizeRefusal(fileName: string, size: number, maxBytes: number): string | undefined {
+  if (size <= maxBytes) return undefined;
+  return t`${{ file: fileName }} is too large to import as an OpenDocument file (${{ limit: formatCount(Math.round(maxBytes / (1024 * 1024))) }} MB max).`;
+}
+
 /** Why the reader stopped, in words. */
 export function odtErrorText(error: OdtError): string {
   switch (error.kind) {
@@ -52,10 +58,12 @@ export function odtPreviewSource(fileName: string, bytes: Uint8Array): ImportPre
   const openReq: ReaderOpen = { kind: 'open', reader: 'odt', bytes };
   const reads = new Map<string, OdtImport>();
   let current: OdtImport | null = null;
+  let lastSettings: PreviewSettings | null = null;
 
   const readAs = async (settings: PreviewSettings, signal: AbortSignal): Promise<OdtImport> => {
     const key = keyOf(settings);
     const held = reads.get(key);
+    lastSettings = settings;
     if (held !== undefined) {
       current = held;
       return held;
@@ -132,7 +140,15 @@ export function odtPreviewSource(fileName: string, bytes: Uint8Array): ImportPre
     const textBoxes = read.dropped.textBoxes;
     const svg = read.dropped.svg;
     const other = read.dropped.otherPictures;
-    if (underline > 0) removed.push(plural(underline, { one: '# underlined run was read as italics', other: '# underlined runs were read as italics' }));
+    if (underline > 0) {
+      removed.push(lastSettings?.options[ODT_OPTIONS.underline] === false
+        ? plural(underline, { one: '# underlined run was kept without its underline', other: '# underlined runs were kept without their underline' })
+        : plural(underline, { one: '# underlined run was read as italics', other: '# underlined runs were read as italics' }));
+    }
+    const fonts = read.dropped.fonts;
+    const coloursIndents = read.dropped.colours + read.dropped.indents;
+    if (fonts > 0) removed.push(plural(fonts, { one: '# font choice was not kept', other: '# font choices were not kept' }));
+    if (coloursIndents > 0) removed.push(plural(coloursIndents, { one: '# colour, highlight or indent was not kept', other: '# colours, highlights or indents were not kept' }));
     if (unsafeLinks > 0) removed.push(plural(unsafeLinks, { one: '# unsafe link kept its text only', other: '# unsafe links kept their text only' }));
     if (textBoxes > 0) removed.push(plural(textBoxes, { one: '# text box was read as a paragraph', other: '# text boxes were read as paragraphs' }));
     if (svg > 0) removed.push(plural(svg, { one: '# SVG picture was refused, because it can carry script', other: '# SVG pictures were refused, because they can carry script' }));

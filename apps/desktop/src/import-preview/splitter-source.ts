@@ -108,6 +108,7 @@ export function splitLabels(): SplitLabels {
     scene: (chapter: string, n: number) => t`${{ chapter }} · ${{ number: n }}`,
     unreferencedNotes: t`Unreferenced notes`,
     footnote: (label: string) => t`Footnote ${{ label }}`,
+    deletion: (text: string) => t`**Deleted:** ${{ text }}`,
   };
 }
 
@@ -539,7 +540,7 @@ export function noticeText(notice: SplitNotice, result: SplitResult, nodes: Read
       return plural(parts, { one: '# part has no folder: each of its chapters keeps it in its keywords.', other: '# parts have no folder: each chapter keeps its part in its keywords.' });
     }
     case 'unreferenced-notes': {
-      const count = notice.footnotes.length + notice.comments.length;
+      const count = notice.footnotes.length + notice.comments.length + (notice.deletions?.length ?? 0);
       const where = notice.nodeId === undefined ? undefined : (nodes.get(notice.nodeId)?.title ?? notice.nodeId);
       return where === undefined
         ? plural(count, { one: '# footnote or comment has no place in the text and cannot be kept.', other: '# footnotes and comments have no place in the text and cannot be kept.' })
@@ -572,7 +573,7 @@ export function planOfSplit(result: SplitResult, blocks: readonly PreviewBlock[]
       chapters: s.chapters,
       scenes: s.scenes,
       images: s.images,
-      comments: s.comments + s.unreferencedComments,
+      comments: s.comments + s.unreferencedComments + s.deletions + s.unreferencedDeletions,
       footnotes: s.footnotes + s.unreferencedFootnotes,
     },
     losses,

@@ -93,7 +93,7 @@ describe('the body (#279)', () => {
     const blocks = read.value.document.blocks;
     expect(blocks[0]?.kind === 'heading' ? blocks[0].level : 0).toBe(2);
     expect(srcOf(blocks[1])?.['align']).toBe('center');
-    expect(blocks[2]?.kind === 'para' && blocks[2].md).toBe('#');
+    expect(blocks[2]?.kind === 'para' && blocks[2].md).toBe('\\#');
     const split = splitImport(read.value.document);
     expect(split.tree.length).toBeGreaterThan(0);
   });
@@ -114,7 +114,7 @@ describe('the body (#279)', () => {
     const list = p('First', undefined, '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>');
     const nested = p('Second', undefined, '<w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr>');
     const table = '<w:tbl><w:tr><w:tc>' + p('Elena') + '</w:tc><w:tc>' + p('Mara') + '</w:tc></w:tr></w:tbl>';
-    const textBox = '<w:p><w:r><w:txbxContent>' + p('A note in a box') + '</w:txbxContent></w:r></w:p>';
+    const textBox = '<w:p><w:r><w:pict><v:shape><v:textbox><w:txbxContent>' + p('A note in a box') + '</w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>';
     const read = await readDocx(docx({ styles: STYLES, numbering, body: list + nested + p('Something said', 'Quote') + table + textBox }));
     expect(read.ok).toBe(true);
     if (!read.ok) return;
