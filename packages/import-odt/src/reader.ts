@@ -431,6 +431,8 @@ function readContent(root: XmlElement, state: State): void {
       if (style.indent) state.dropped.indents += 1;
     }
     const before = state.blocks.length;
+    const commentsBefore = state.comments.length;
+    const deletionsBefore = state.deletions.length;
     state.annotation = { text: '' };
     const md = children(element, state, { bold: style?.bold === true, italic: style?.italic === true, strike: style?.strike === true, underline: style?.underline === true }).replace(/[ \t]+/g, ' ').trim();
     const anchored = state.annotation.text;
@@ -462,7 +464,18 @@ function readContent(root: XmlElement, state: State): void {
       ...(state.options.unit === undefined ? {} : { sourceUnit: state.options.unit }),
       ...(emptyRun === 0 ? {} : { emptyBefore: emptyRun }),
     };
-    if (pageBreak && state.blocks.length > 0) push({ kind: 'pagebreak' });
+    if (pageBreak && state.blocks.length > 0) {
+      push({ kind: 'pagebreak' });
+      const here = state.blocks.length;
+      for (let i = commentsBefore; i < state.comments.length; i++) {
+        const note = state.comments[i];
+        if (note !== undefined && note.blockIndex === here - 1) state.comments[i] = { ...note, blockIndex: here };
+      }
+      for (let i = deletionsBefore; i < state.deletions.length; i++) {
+        const deletion = state.deletions[i];
+        if (deletion !== undefined && deletion.blockIndex === here - 1) state.deletions[i] = { ...deletion, blockIndex: here };
+      }
+    }
     if (md.replace(/!\[[^\]]*\]\([^)]*\)/g, '').trim() === '' && state.assets.length > 0) {
       const images = [...md.matchAll(/!\[([^\]]*)\]\(([^)]*)\)/g)];
       if (images.length > 0) {
@@ -475,7 +488,7 @@ function readContent(root: XmlElement, state: State): void {
       return;
     }
     const safe = escapeLineStarts(md);
-    const text = listPrefix !== null ? `${listPrefix}${safe}` : style?.quote === true ? `> ${safe}` : safe;
+    const text = listPrefix !== null ? `${listPrefix}${safe}` : style?.quote === true ? `> ${safe.replace(/\n/g, '\n> ')}` : safe;
     push({ kind: 'para', md: text, text: md, src: signals });
   };
 

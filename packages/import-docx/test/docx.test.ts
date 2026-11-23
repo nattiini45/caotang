@@ -256,4 +256,27 @@ describe('refusals and batches (#279)', () => {
     const split = splitImport(batch.value.document);
     expect(split.tree.map((node) => node.title)).toEqual(['One', 'Two']);
   });
+
+  it('a zip of Word files carries each file\'s kept deletions into the merged document, offset by its blocks', async () => {
+    const tracked = '<w:p><w:r><w:t xml:space="preserve">The ferry </w:t></w:r><w:del w:id="2" w:author="A"><w:r><w:delText xml:space="preserve">left at dawn</w:delText></w:r></w:del></w:p>';
+    const one = docx({ styles: STYLES, body: p('One', 'Heading1') + tracked });
+    const two = docx({ styles: STYLES, body: p('Two', 'Heading1') + tracked });
+    const batch = await readDocxZip(rawZip([{ name: 'a.docx', data: one }, { name: 'b.docx', data: two }]), { tracked: 'keep' });
+    expect(batch.ok).toBe(true);
+    if (!batch.ok) return;
+    expect(batch.value.document.deletions).toEqual([
+      { blockIndex: 1, text: 'left at dawn' },
+      { blockIndex: 3, text: 'left at dawn' },
+    ]);
+    const split = splitImport(batch.value.document);
+    const scenes: string[] = [];
+    const notes = (nodes: typeof split.tree): void => {
+      for (const node of nodes) {
+        if (node.kind === 'doc' && node.notes !== undefined) scenes.push(node.notes);
+        if (node.kind === 'folder') notes(node.children);
+      }
+    };
+    notes(split.tree);
+    expect(scenes).toEqual(['**Deleted:** left at dawn', '**Deleted:** left at dawn']);
+  });
 });

@@ -975,8 +975,8 @@ msgstr "{count, plural, one {# finding} other {# findings}}"
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
-msgid "{count, plural, one {# footnote or comment has no place in the text and cannot be kept.} other {# footnotes and comments have no place in the text and cannot be kept.}}"
-msgstr "{count, plural, one {# footnote or comment has no place in the text and cannot be kept.} other {# footnotes and comments have no place in the text and cannot be kept.}}"
+msgid "{count, plural, one {# footnote, comment or deletion has no place in the text and cannot be kept.} other {# footnotes, comments and deletions have no place in the text and cannot be kept.}}"
+msgstr "{count, plural, one {# footnote, comment or deletion has no place in the text and cannot be kept.} other {# footnotes, comments and deletions have no place in the text and cannot be kept.}}"
 
 #. Binder row labels. Interpolated values: access is an access level's name, from is the node the rule was set on, title is a row's title.
 #: apps/desktop/src/components/Binder.tsx
@@ -10921,8 +10921,8 @@ msgstr "Footnotes"
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
-msgid "Footnotes and comments with no place in the text ({count}) are kept under “Unreferenced notes” in the notes of “{title}”."
-msgstr "Footnotes and comments with no place in the text ({count}) are kept under “Unreferenced notes” in the notes of “{title}”."
+msgid "Footnotes, comments and deletions with no place in the text ({count}) are kept under “Unreferenced notes” in the notes of “{title}”."
+msgstr "Footnotes, comments and deletions with no place in the text ({count}) are kept under “Unreferenced notes” in the notes of “{title}”."
 
 #: apps/desktop/src/components/InspectorDialogue.tsx
 msgid "For example en or en-GB"

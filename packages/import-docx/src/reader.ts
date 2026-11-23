@@ -336,7 +336,7 @@ function imageOf(element: XmlElement, state: WalkState): string {
   state.assets.push({ ref, name: rel.target.slice(rel.target.lastIndexOf('/') + 1) });
   state.imageTargets.set(ref, rel.target);
   if (!state.options.images) return '';
-  return `![${alt}](${ref})`;
+  return `![${escapeInline(alt)}](${ref})`;
 }
 
 /** A paragraph's own properties: its style, its numbering, its breaks. */
@@ -443,6 +443,8 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
 
   const paragraph = (element: XmlElement): void => {
     const sizeStart = state.sizes.length;
+    const commentsBefore = state.commentList.length;
+    const deletionsBefore = state.deletions.length;
     state.pageBreakInRuns = false;
     const md = renderRuns(element, state, PLAIN, false).replace(/[ \t]+/g, ' ').trim();
     const own = state.sizes.slice(sizeStart).sort((a, b) => a - b);
@@ -459,7 +461,18 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
       return;
     }
     const withEmpty: Signals = emptyRun === 0 ? signals : { ...signals, emptyBefore: emptyRun };
-    if ((pageBreak || state.pageBreakInRuns) && state.blocks.length > 0) push({ kind: 'pagebreak' });
+    if ((pageBreak || state.pageBreakInRuns) && state.blocks.length > 0) {
+      push({ kind: 'pagebreak' });
+      const here = state.blocks.length;
+      for (let i = commentsBefore; i < state.commentList.length; i++) {
+        const note = state.commentList[i];
+        if (note !== undefined && note.blockIndex === here - 1) state.commentList[i] = { ...note, blockIndex: here };
+      }
+      for (let i = deletionsBefore; i < state.deletions.length; i++) {
+        const deletion = state.deletions[i];
+        if (deletion !== undefined && deletion.blockIndex === here - 1) state.deletions[i] = { ...deletion, blockIndex: here };
+      }
+    }
     const images = descendants(element, 'blip').length + descendants(element, 'imagedata').length;
     if (images > 0 && md.replace(/!\[[^\]]*\]\([^)]*\)/g, '').trim() === '') {
       const refs = [...md.matchAll(/!\[([^\]]*)\]\(([^)]*)\)/g)];
@@ -473,7 +486,7 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
       return;
     }
     const safe = escapeLineStarts(md);
-    const body = list !== null ? `${list}${safe}` : quote ? `> ${safe}` : safe;
+    const body = list !== null ? `${list}${safe}` : quote ? `> ${safe.replace(/\n/g, '\n> ')}` : safe;
     push({ kind: 'para', md: body, text: md, src: withEmpty });
   };
 
@@ -483,7 +496,8 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
     for (const row of rows) {
       const cells = kids(row, 'tc').map((cell) => kids(cell, 'p').map((p) => renderRuns(p, state, PLAIN, false).trim()).filter((text) => text !== '').join(' '));
       const md = cells.filter((cell) => cell !== '').join(' — ');
-      if (md !== '') push({ kind: 'para', md, text: md, src: { ...(state.options.unit === undefined ? {} : { sourceUnit: state.options.unit }) } });
+      const safe = escapeLineStarts(md);
+      if (md !== '') push({ kind: 'para', md: safe, text: md, src: { ...(state.options.unit === undefined ? {} : { sourceUnit: state.options.unit }) } });
     }
   };
 
@@ -589,7 +603,7 @@ export async function readDocxZip(bytes: Uint8Array, options: DocxOptions = {}):
   if (files.length === 0) return { ok: false, error: { kind: 'not-docx' } };
 
   const merged: DocxImport = {
-    document: { blocks: [], footnotes: [], comments: [], assets: [], losses: [], metadata: {} },
+    document: { blocks: [], footnotes: [], comments: [], deletions: [], assets: [], losses: [], metadata: {} },
     title: '',
     author: '',
     language: '',
@@ -610,6 +624,7 @@ export async function readDocxZip(bytes: Uint8Array, options: DocxOptions = {}):
     merged.document.blocks.push(...read.value.document.blocks);
     merged.document.footnotes?.push(...(read.value.document.footnotes ?? []).map((note) => ({ ...note, blockIndex: note.blockIndex + offset })));
     merged.document.comments?.push(...(read.value.document.comments ?? []).map((note) => ({ ...note, blockIndex: note.blockIndex + offset })));
+    merged.document.deletions?.push(...(read.value.document.deletions ?? []).map((deletion) => ({ ...deletion, blockIndex: deletion.blockIndex + offset })));
     merged.document.assets?.push(...(read.value.document.assets ?? []));
     merged.document.losses?.push(...(read.value.document.losses ?? []).map((loss) => ({ ...loss, ...(loss.blockIndex === undefined ? {} : { blockIndex: loss.blockIndex + offset }) })));
     for (const [ref, data] of read.value.assetData) merged.assetData.set(ref, data);

@@ -334,7 +334,8 @@ export const BUDGET = {
   // multi-picture paragraphs and rejected-insertion skips in the two readers. [delegated 2026-11-23]
   // 9,071,600 at the second review round — the shared Markdown escapers, the deletions channel, the text-box
   // reaches and the report lines, all on-use chunks. [delegated 2026-11-23]
-  totalJs: 9_072_000,
+  // 9,072,400 at the third — the zip merge's deletions and the anchor shifts. [delegated 2026-11-23]
+  totalJs: 9_073_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
