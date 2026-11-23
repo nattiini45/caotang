@@ -17,12 +17,12 @@ import { PasswordInput, PasswordInputControl, PasswordInputToggle } from '@ui-sd
 import { Radio, RadioGroup, RadioIndicator } from '@ui-sdk/react/radio';
 import { SegmentedControl, SegmentedControlIndicator, SegmentedControlItem } from '@ui-sdk/react/segmented-control';
 import { isolate } from '@caotang/i18n';
-import { detectProvider, isLocalBase, presetFor, PRESETS, type PresetDef, type ProfileView } from '@caotang/gateway';
+import { detectProvider, isLocalBase, modelsOf, presetFor, PRESETS, type PresetDef, type ProfileView } from '@caotang/gateway';
 
 import { priceFromInputs, type ProviderService } from '../app/providers.js';
 import { paramsFromDraft } from '../app/request-params-form.js';
 import { SetupError, type SetupDiscovery, type SetupFailure } from '../app/provider-setup.js';
-import { setupFailureText, type SetupFailureText } from '../app/provider-setup-model.js';
+import { defaultPick, setupFailureText, type SetupFailureText } from '../app/provider-setup-model.js';
 import { AdvancedOverrides, BLANK_ADVANCED, ModelList, type AdvancedDraft } from './ProviderFormParts.js';
 import { useComposingEnter } from './shared.js';
 import './provider-setup.css';
@@ -64,7 +64,8 @@ export function ProviderSetup({
   const [error, setError] = useState<SetupFailureText | null>(null);
   const [typedModel, setTypedModel] = useState('');
   const [discovery, setDiscovery] = useState<SetupDiscovery | null>(null);
-  const [done, setDone] = useState<{ readonly name: string; readonly model: string; readonly note?: string } | null>(null);
+  const [picked, setPicked] = useState<readonly string[]>([]);
+  const [done, setDone] = useState<{ readonly name: string; readonly models: readonly string[]; readonly note?: string } | null>(null);
 
   const ime = useComposingEnter();
   const run = useRef(0);
@@ -73,6 +74,8 @@ export function ProviderSetup({
   const heading = useRef<HTMLHeadingElement>(null);
   const keyField = useRef<HTMLInputElement>(null);
 
+  // Read before the steps below return their own markup: the models step names the count of picked models.
+  const pickedCount = picked.length;
   const detection = useMemo(() => detectProvider(apiKey), [apiKey]);
   const presetId = custom ? customKind : (chosen ?? detection.preset);
   const preset = presetId === undefined ? undefined : presetFor(presetId);
@@ -124,6 +127,7 @@ export function ProviderSetup({
         return;
       }
       setDiscovery(found);
+      setPicked(defaultPick(found.models));
       setStep('models');
     } catch (failure) {
       if (token !== run.current) return;
@@ -142,8 +146,8 @@ export function ProviderSetup({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey, presetId, custom, step, keyReady, needsFields]);
 
-  const finish = async (model: string): Promise<void> => {
-    if (discovery === null) return;
+  const finish = async (): Promise<void> => {
+    if (discovery === null || picked.length === 0) return;
     const price = custom ? priceFromInputs(advanced.promptPrice, advanced.completionPrice) : ({ ok: true } as const);
     const request = custom ? paramsFromDraft(advanced.params) : ({ ok: true } as const);
     if (!price.ok) return setError({ text: price.message, canTypeModel: false, aboutKey: false });
@@ -151,13 +155,13 @@ export function ProviderSetup({
     setStep('saving');
     setError(null);
     try {
-      const { view, note } = await providers.finishSetup(discovery.draftId, model, {
+      const { view, note } = await providers.finishSetup(discovery.draftId, picked, {
         ...(price.price === undefined ? {} : { pricePer1k: price.price }),
         ...(request.params === undefined ? {} : { params: request.params }),
         ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
       });
       setDiscovery(null);
-      setDone({ name: view.name, model: view.defaultModel, ...(note === undefined ? {} : { note }) });
+      setDone({ name: view.name, models: modelsOf(view), ...(note === undefined ? {} : { note }) });
       setStep('done');
       onDone(view, note);
     } catch (failure) {
@@ -187,7 +191,7 @@ export function ProviderSetup({
         ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
       });
       const { note } = await providers.activate(outcome.view.id);
-      setDone({ name: outcome.view.name, model: outcome.view.defaultModel, ...(note === undefined ? {} : { note }) });
+      setDone({ name: outcome.view.name, models: [outcome.view.defaultModel], ...(note === undefined ? {} : { note }) });
       setStep('done');
       onDone(providers.get(outcome.view.id) ?? outcome.view, note);
     } catch (failure) {
@@ -228,14 +232,21 @@ export function ProviderSetup({
 
   if (step === 'done' && done !== null) {
     const doneName = isolate(done.name);
-    const doneModel = done.model;
+    const doneModels = done.models;
+    const doneModel = doneModels[0] ?? '';
+    const doneModelList = doneModels.join(', ');
+    const doneCount = doneModels.length;
     return (
-      <section className="provider-setup profile-form" aria-labelledby="provider-setup-title">
+      <section className="provider-setup profile-form is-wide" aria-labelledby="provider-setup-title">
         <h4 id="provider-setup-title" ref={heading} tabIndex={-1}>
           <Trans>{doneName} is ready</Trans>
         </h4>
         <p role="status">
-          <Trans>The agent now uses <bdi>{doneModel}</bdi>.</Trans>
+          {doneModels.length === 1 ? (
+            <Trans>The agent now uses <bdi>{doneModel}</bdi>.</Trans>
+          ) : (
+            <Trans>Every one of these {doneCount} models is ready to pick from in the chat window: <bdi>{doneModelList}</bdi>.</Trans>
+          )}
         </p>
         {done.note === undefined ? null : <p className="field-help">{done.note}</p>}
         <div className="profile-form-actions">
@@ -249,9 +260,9 @@ export function ProviderSetup({
   if ((step === 'models' || step === 'saving') && discovery !== null) {
     const acceptedBy = isolate(discovery.preset.name);
     return (
-      <section className="provider-setup profile-form" aria-labelledby="provider-setup-title">
+      <section className="provider-setup profile-form is-wide" aria-labelledby="provider-setup-title">
         <h4 id="provider-setup-title" ref={heading} tabIndex={-1}>
-          <Trans>Choose a model</Trans>
+          <Trans>Choose the models</Trans>
         </h4>
         <p className="provider-accepted" role="status">
           {step === 'saving' ? <Trans>Setting up…</Trans> : <Trans>{acceptedBy} accepted the key.</Trans>}
@@ -259,9 +270,17 @@ export function ProviderSetup({
         {discovery.source === 'table' ? (
           <p className="field-help"><Trans>This provider documents no model list, so these are the models Caotang knows for it.</Trans></p>
         ) : null}
-        <ModelList models={discovery.models} disabled={step === 'saving'} label={t`Models you can use with ${{ provider: discovery.preset.name }}`} onPick={(id) => void finish(id)} />
+        <p className="field-help">
+          <Trans>Pick every model you want to use with this key. They all share it, and each one appears in the chat window’s picker. The first one you pick is where a new conversation starts.</Trans>
+        </p>
+        <ModelList models={discovery.models} value={picked} disabled={step === 'saving'} label={t`Models you can use with ${{ provider: discovery.preset.name }}`} onChange={setPicked} />
         {error === null ? null : <p className="form-message is-error" role="alert">{error.text}</p>}
         <div className="profile-form-actions">
+          <Button className="button is-primary" disabled={step === 'saving' || picked.length === 0} onClick={() => void finish()}>
+            {picked.length <= 1
+              ? <Trans>Use this model</Trans>
+              : <Trans>Use these {pickedCount} models</Trans>}
+          </Button>
           <Button className="button is-quiet" disabled={step === 'saving'} onClick={back}><Trans>Use a different key</Trans></Button>
           <Button className="button is-quiet" disabled={step === 'saving'} onClick={onClose}><Trans>Cancel</Trans></Button>
         </div>

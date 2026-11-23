@@ -9,6 +9,16 @@
   overflow-wrap: anywhere;
 }
 
+/* The models step and the ready summary are a list and a sentence, not a row of short fields, so they take the pane's whole width
+   (the key step keeps a form's measure). A list of model ids in a half-width column wastes the pane and truncates the ids. */
+.provider-setup.is-wide {
+  max-inline-size: none;
+}
+
+.provider-setup.is-wide > .field-help {
+  max-inline-size: 68ch;
+}
+
 .provider-setup > h4 {
   margin: 0;
 }

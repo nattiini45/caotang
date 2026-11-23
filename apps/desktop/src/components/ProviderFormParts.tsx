@@ -39,21 +39,23 @@ export interface AdvancedDraft {
 export const BLANK_ADVANCED: AdvancedDraft = { headers: [], headersTouched: false, params: BLANK_PARAMS, promptPrice: '', completionPrice: '' };
 
 /**
- * The models a key can write with, one press to choose. The list keeps the focus on the option and chooses on Enter, Space or a
- * press, never on an arrow key (activation="manual"), so moving through a long list does not set anything up by accident.
+ * The models a key can write with, any number of them picked (provider-gateway §2, "One connection, many models"). The list keeps
+ * the focus on the option and toggles on Enter, Space or a press, never on an arrow key (`activation="manual"`), so moving through a
+ * long list does not change what the connection holds by accident. `value` is the picked list in the order it was picked, and its
+ * first entry is the model a new conversation starts on.
  */
 export function ModelList({
   models,
   value,
   disabled,
   label,
-  onPick,
+  onChange,
 }: {
   readonly models: readonly ModelChoice[];
-  readonly value?: string;
+  readonly value: readonly string[];
   readonly disabled?: boolean;
   readonly label: string;
-  readonly onPick: (id: string) => void;
+  readonly onChange: (next: readonly string[]) => void;
 }): ReactNode {
   const [query, setQuery] = useState('');
   const [showAll, setShowAll] = useState(false);
@@ -73,17 +75,17 @@ export function ModelList({
         <Listbox
           aria-label={label}
           activation="manual"
+          multiple
           disabled={disabled}
-          value={value ?? null}
-          onValueChange={(next) => {
-            if (typeof next === 'string') onPick(next);
-          }}
+          value={[...value]}
+          onValueChange={(next) => onChange((Array.isArray(next) ? next : next === null ? [] : [next]) as readonly string[])}
         >
           {shown.map((model) => (
             <ListboxItem key={model.id} value={model.id} className="model-option">
               <span className="model-option-main">
                 <code className="model-option-id">{model.id}</code>
                 {model.recommended ? <span className="badge is-active"><Trans>Recommended</Trans></span> : null}
+                {value[0] === model.id ? <span className="badge"><Trans>Default</Trans></span> : null}
               </span>
               {choiceFacts(model).length === 0 ? null : <span className="model-option-facts muted">{choiceFacts(model).join(' · ')}</span>}
             </ListboxItem>
