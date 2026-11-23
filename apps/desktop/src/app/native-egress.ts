@@ -110,6 +110,9 @@ export function desktopEgress(): DesktopEgress | undefined {
 
 /** One call through the main process: its head from the reply, its body from the chunks that follow it. */
 async function throughPort(api: NativeEgressBridge, sinks: Map<string, Sink>, target: URL, init: RequestInit): Promise<Response> {
+  // A call whose signal is already aborted was stopped before it started: nothing goes to the main process, because a request
+  // that arrives is a request that was made, and one the writer cancelled must not reach a provider at all.
+  if (init.signal?.aborted === true) throw unreachable('aborted');
   const id = crypto.randomUUID();
   const body = typeof init.body === 'string' ? init.body : undefined;
   // The gateway sends JSON text and the MCP client sends JSON text or nothing: a stream or a buffer is not a shape the
@@ -154,6 +157,15 @@ async function throughPort(api: NativeEgressBridge, sinks: Map<string, Sink>, ta
     const failure = unreachable(reply.error);
     control?.error(failure);
     throw failure;
+  }
+
+  // A head with no body — 204, 205 and 304 — refuses a stream, and handing one over would turn a complete answer into a failed
+  // call. The call is closed instead, and the answer is what the status and headers say it is.
+  if (reply.value.status === 204 || reply.value.status === 205 || reply.value.status === 304) {
+    sinks.delete(id);
+    init.signal?.removeEventListener('abort', onAbort);
+    void stream.cancel().catch(() => undefined);
+    return new Response(null, { status: reply.value.status, statusText: reply.value.statusText, headers: reply.value.headers });
   }
 
   return new Response(stream, { status: reply.value.status, statusText: reply.value.statusText, headers: reply.value.headers });

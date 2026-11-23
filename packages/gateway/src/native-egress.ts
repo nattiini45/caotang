@@ -156,6 +156,9 @@ export function checkNativeEgress(
   let body: string | undefined;
   if (spec.body !== undefined && spec.body !== null) {
     if (typeof spec.body !== 'string') return { ok: false, refusal: 'invalid' };
+    // A GET carries no body: the network stack refuses one outright, and a request that fails inside it would reach the page
+    // as a dead network rather than as the malformed request it is.
+    if (method === 'GET') return { ok: false, refusal: 'invalid' };
     if (byteLength(spec.body) > limits.maxBodyBytes) return { ok: false, refusal: 'too-large' };
     body = spec.body;
   }
