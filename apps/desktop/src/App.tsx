@@ -15,7 +15,8 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { droppedFieldsSentence } from './app/integrity-model.js';
 import type { DirectoryHandleLike } from './app/fs-access.js';
 import { languageRevision, subscribeLanguage } from './i18n/language.js';
-import { openDemoSample, openFolder, type Opened } from './app/lifecycle.js';
+import { openDemoSample, openFolder, openHostedProject, type Opened } from './app/lifecycle.js';
+import { hostedProject, hostedProjectRevision, subscribeHostedProject } from './app/studio-host.js';
 import { useBootPhase } from './app/use-boot-phase.js';
 import { DemoStart } from './app/demo-start.js';
 import { openInTurn } from './app/open-queue.js';
@@ -39,6 +40,10 @@ export function App(): ReactNode {
   const [demo] = useState(() => new DemoStart());
   const demoState = useSyncExternalStore(demo.subscribe, demo.getSnapshot);
   const [session, setSession] = useState<ProjectSession | null>(null);
+  // The project a host handed this frame, followed rather than read once: a lock clears it, and an open still in flight has to
+  // notice that it did rather than put a session from the account in front of a writer who signed out.
+  const handed = useSyncExternalStore(subscribeHostedProject, hostedProjectRevision);
+  const hostedOpen = useRef<string | null>(null);
   const [notice, setNotice] = useState<string | null>();
   const [startIntent, setStartIntent] = useState<StartIntent | null>(null);
   // The folder the writer chose to save this browser's version into, as the project opens (lifecycle `answerFolderDiffers`).
@@ -145,6 +150,37 @@ export function App(): ReactNode {
       },
     ).finally(() => demo.settled());
   };
+
+  /**
+   * A frame a host handed a project to opens that project, and nothing else: the studio's own projects screen is not what the
+   * writer asked for when the shell said "open this one". The turn queue is the one a folder open takes, and the handed project
+   * is followed rather than read once, so a lock mid-open cancels it instead of showing a session from an account that signed
+   * out.
+   */
+  useEffect(() => {
+    if (boot.kind !== 'ready') return;
+    const source = hostedProject();
+    if (source === null) {
+      // The host took the project away: the serial cancels an open still on its way, and a session opened from one is closed.
+      if (hostedOpen.current === null) return;
+      hostedOpen.current = null;
+      serial.current += 1;
+      goHome();
+      return;
+    }
+    const token = (serial.current += 1);
+    void openInTurn(async () => {
+      const opened = await openHostedProject(boot.store, source);
+      if (token !== serial.current) return;
+      hostedOpen.current = opened.session.projectId;
+      show(opened);
+    }).catch((error: unknown) => {
+      if (token !== serial.current) return;
+      setNotice(t`The project could not be opened: ${{ error: error instanceof Error ? error.message : String(error) }}`);
+    });
+    // The store is ready once, and the handed project is followed: `handed` is the revision this effect answers to.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boot, handed]);
 
   if (boot.kind === 'failed') {
     return (
