@@ -854,6 +854,11 @@ msgstr ""
 msgid "{codexRows, plural, one {# codex row} other {# codex rows}}"
 msgstr ""
 
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{colours, plural, one {# colour or highlight was not kept} other {# colours or highlights were not kept}}"
+msgstr ""
+
 #. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
 #: apps/desktop/src/components/CommandComposer.tsx
 msgid "{commandCount, plural, one {# command} other {# commands}}"
@@ -864,6 +869,11 @@ msgstr ""
 msgid "{commandCount, plural, one {# context item} other {# context items}}"
 msgstr ""
 
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{comments, plural, one {# comment became a scene note} other {# comments became scene notes}}"
+msgstr ""
+
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "{comments, plural, one {# comment.} other {# comments.}}"
@@ -872,6 +882,11 @@ msgstr ""
 #. The import preview's notices and sentences. Interpolated values: words, partCount, chapters, scenes, images, comments, footnotes and codexRows are counts; megabytes and kilobytes are sizes; label and host name a download option; title, rowName and name are node or row names; documents and folders are the import's own counts; fileName is the file's name.
 #: apps/desktop/src/import-preview/model.ts
 msgid "{comments, plural, one {# comment} other {# comments}}"
+msgstr ""
+
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{comments, plural, one {Comments become scene notes (#)} other {Comments become scene notes (#)}}"
 msgstr ""
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
@@ -1121,7 +1136,9 @@ msgstr ""
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
+#: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
@@ -1459,6 +1476,11 @@ msgstr ""
 msgid "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {word} other {words}} this week"
 msgstr ""
 
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{deletions, plural, one {# deletion was read} other {# deletions were read}}"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -1533,6 +1555,11 @@ msgstr ""
 #. Agent rules in the writer's words. Interpolated values: action, effect, doing and tools complete the rule sentence; path, tool and title name what the rule covers.
 #: apps/desktop/src/app/agent-rules-model.ts
 msgid "{effect} a folder or document this project no longer has ({tool})"
+msgstr ""
+
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{emf, plural, one {# Windows metafile picture (EMF or WMF) was left out} other {# Windows metafile pictures (EMF or WMF) were left out}}"
 msgstr ""
 
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
@@ -1737,6 +1764,11 @@ msgstr ""
 msgid "{first} and {rest} more"
 msgstr ""
 
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{fonts, plural, one {# font choice was not kept} other {# font choices were not kept}}"
+msgstr ""
+
 #. The import preview's notices and sentences. Interpolated values: words, partCount, chapters, scenes, images, comments, footnotes and codexRows are counts; megabytes and kilobytes are sizes; label and host name a download option; title, rowName and name are node or row names; documents and folders are the import's own counts; fileName is the file's name.
 #: apps/desktop/src/import-preview/model.ts
 msgid "{footnotes, plural, one {# footnote} other {# footnotes}}"
@@ -1799,6 +1831,16 @@ msgstr ""
 #. The import preview's notices and sentences. Interpolated values: words, partCount, chapters, scenes, images, comments, footnotes and codexRows are counts; megabytes and kilobytes are sizes; label and host name a download option; title, rowName and name are node or row names; documents and folders are the import's own counts; fileName is the file's name.
 #: apps/desktop/src/import-preview/model.ts
 msgid "{images, plural, one {# image} other {# images}}"
+msgstr ""
+
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{indents, plural, one {# indent was not kept} other {# indents were not kept}}"
+msgstr ""
+
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{insertions, plural, one {# insertion was read} other {# insertions were read}}"
 msgstr ""
 
 #. The trace panel's rows. Interpolated values: millis, startMs and durationMs are times; chars, cutChars, replyCut, paramsCut and resultCut are character counts; inTokens, outTokens, estimated, calls and tokenCount are token and call counts; messagesSent, toolsDeclared, tools, sent and attempts describe what was sent; records is a record count; statusNote is a run's status; callId is a tool call id.
@@ -1900,6 +1942,11 @@ msgstr ""
 #. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
 #: apps/desktop/src/components/export-preview-model.ts
 msgid "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {episode} other {episodes}}, {words} {wordCount, plural, one {word} other {words}}"
+msgstr ""
+
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{marks, plural, one {# changed paragraph mark was counted; the paragraphs were not merged} other {# changed paragraph marks were counted; the paragraphs were not merged}}"
 msgstr ""
 
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
@@ -2140,6 +2187,11 @@ msgstr ""
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
 #: apps/desktop/src/media/ScreenplayView.tsx
 msgid "{names} are cued as one character. Use one spelling."
+msgstr ""
+
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{notes, plural, one {# note became a footnote of its scene} other {# notes became footnotes of their scenes}}"
 msgstr ""
 
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
@@ -2467,7 +2519,9 @@ msgstr ""
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
+#: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
 msgid "{remote, plural, one {# picture on the internet was not downloaded} other {# pictures on the internet were not downloaded}}"
@@ -2753,6 +2807,11 @@ msgstr ""
 msgid "{skippedCount, plural, one {# page skipped} other {# pages skipped}}."
 msgstr ""
 
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{smallCaps, plural, one {# small-caps run lost its capitals} other {# small-caps runs lost their capitals}}"
+msgstr ""
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "{sources, plural, one {# source photo} other {# source photos}}"
@@ -2839,6 +2898,8 @@ msgid "{summary} {catalog}"
 msgstr ""
 
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
 msgid "{svg, plural, one {# SVG picture was refused, because it can carry script} other {# SVG pictures were refused, because they can carry script}}"
 msgstr ""
@@ -2846,6 +2907,11 @@ msgstr ""
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "{synopsisCount, plural, one {# synopsis, shown before approval} other {# synopses, shown before approval}}"
+msgstr ""
+
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{textBoxes, plural, one {# text box was read as a paragraph} other {# text boxes were read as paragraphs}}"
 msgstr ""
 
 #. Background review approval. Counts are documents, findings, calls or estimated tokens; titles and model labels are supplied text; money uses the interface locale.
@@ -2928,6 +2994,11 @@ msgstr ""
 msgid "{titles} would not come back unchanged from a save, so nothing was imported. Leave {leaveOut} out and import again."
 msgstr ""
 
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{toc, plural, one {# line of the generated contents was kept out of the chapters} other {# lines of the generated contents were kept out of the chapters}}"
+msgstr ""
+
 #. The trace panel's rows. Interpolated values: millis, startMs and durationMs are times; chars, cutChars, replyCut, paramsCut and resultCut are character counts; inTokens, outTokens, estimated, calls and tokenCount are token and call counts; messagesSent, toolsDeclared, tools, sent and attempts describe what was sent; records is a record count; statusNote is a run's status; callId is a tool call id.
 #: apps/desktop/src/components/TracePanel.tsx
 msgid "{tokens, plural, one {# token} other {# tokens}}"
@@ -2990,6 +3061,11 @@ msgstr ""
 msgid "{turns, plural, one {Summary requested for # earlier turn.} other {Summary requested for # earlier turns.}}"
 msgstr ""
 
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{underline, plural, one {# underlined run was read as italics} other {# underlined runs were read as italics}}"
+msgstr ""
+
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "{unlisted, plural, one {# more finding is not listed here.} other {# more findings are not listed here.}}"
@@ -3028,7 +3104,9 @@ msgstr ""
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
+#: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
 msgid "{unsafeLinks, plural, one {# unsafe link kept its text only} other {# unsafe links kept their text only}}"
@@ -4194,7 +4272,9 @@ msgstr ""
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
+#: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
@@ -4251,6 +4331,16 @@ msgstr ""
 #: apps/desktop/src/components/AgentModeSettings.tsx
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Accept edits"
+msgstr ""
+
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "Accept them"
+msgstr ""
+
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "Accept, and list what was deleted"
 msgstr ""
 
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
@@ -8615,6 +8705,11 @@ msgstr ""
 msgid "Deleted “{title}”. Ctrl+Z restores it right after."
 msgstr ""
 
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "Deleted text the import keeps in the notes"
+msgstr ""
+
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Deleted the hook. Undo brings it back."
@@ -11576,6 +11671,11 @@ msgstr ""
 msgid "Import Twee"
 msgstr ""
 
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import Word…"
+msgstr ""
+
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Import…"
@@ -12063,6 +12163,11 @@ msgstr ""
 #. Picture drops on a storyboard. Interpolated values: name and title are a file name and a shot title; number is a shot number; reason is a sentence ending or a failure message; where is a shot position; shotId is an id; counts are numbers.
 #: apps/desktop/src/media/shot-image-model.ts
 msgid "it is not a PNG, JPEG or WebP picture"
+msgstr ""
+
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "It is not a Word import."
 msgstr ""
 
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
@@ -12882,6 +12987,11 @@ msgstr ""
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #: apps/desktop/src/components/InspectorPictures.tsx
 msgid "Link a picture…"
+msgstr ""
+
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "Link targets"
 msgstr ""
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
@@ -15359,6 +15469,8 @@ msgid "Off in Settings"
 msgstr ""
 
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "Off, underlined text is kept without its underline."
 msgstr ""
@@ -17407,10 +17519,12 @@ msgstr ""
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/captions-source.ts
+#: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
@@ -17790,6 +17904,11 @@ msgstr ""
 msgid "Reject all"
 msgstr ""
 
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "Reject them"
+msgstr ""
+
 #: apps/desktop/src/components/CodexRelations.tsx
 msgid "Relation"
 msgstr ""
@@ -17843,7 +17962,9 @@ msgstr ""
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
+#: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
@@ -25222,6 +25343,11 @@ msgstr ""
 msgid "This is not a Kanka export. In Kanka, open Settings, choose Export, and download the JSON zip."
 msgstr ""
 
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "This is not a Word .docx file. In Word, choose Save As and the .docx format; a .doc file cannot be read."
+msgstr ""
+
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #: apps/desktop/src/import-preview/ao3-source.ts
 msgid "This is not an AO3 download. On the work's page, choose Download and then HTML or EPUB, and import that file."
@@ -25750,6 +25876,11 @@ msgstr ""
 msgid "This window is narrower than {width} px. Open Caotang on a desktop, or in a wider window, to use it."
 msgstr ""
 
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "This Word file has no text."
+msgstr ""
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Thought"
@@ -26072,6 +26203,11 @@ msgstr ""
 msgid "Traces are off"
 msgstr ""
 
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "Tracked changes"
+msgstr ""
+
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.picturesTranscribe.content"
@@ -26327,6 +26463,8 @@ msgid "Under each page or chapter"
 msgstr ""
 
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "Underline becomes italics"
 msgstr ""
@@ -27084,6 +27222,11 @@ msgstr ""
 msgid "What the campaign carried"
 msgstr ""
 
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "What the file carried"
+msgstr ""
+
 #. Interpolated values: file is the imported file name; reason is the import failure message
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 msgid "What the import cannot keep"
@@ -27101,7 +27244,9 @@ msgstr ""
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
+#: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
@@ -27207,7 +27352,9 @@ msgstr ""
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/ao3-source.ts
+#: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
@@ -27380,6 +27527,12 @@ msgstr ""
 msgid "Within capacity"
 msgstr ""
 
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "Word"
+msgstr ""
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Word (.docx)"
@@ -27388,6 +27541,11 @@ msgstr ""
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Word count"
+msgstr ""
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Word file"
 msgstr ""
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
