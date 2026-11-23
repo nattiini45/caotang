@@ -73,11 +73,15 @@ written into the executable, so a modified archive refuses to start. Electron's 
 `resources/desktop/dist`, which the app serves at `app://caotang/THIRD-PARTY-NOTICES.md`.
 
 Each build leg runs the repository's gate (`pnpm verify`) for the commit it packages, the same gate
-[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on every pull request, so a released commit is never gated by
-less than a merged one. The Windows leg leaves out the seven `packages/sync-server/test` suites whose cases run through a Worker
-runtime — `account-mode`, `storage`, `server`, `quota`, `accounts`, `project-lease` and `project-records` — with
-`CAOTANG_SKIP_WORKER_SUITES=1`, exactly as ci.yml's `verify (Windows)` job does while #815 moves those files onto one shared
-runtime and #820 tracks the later ones.
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs, so a released commit is never gated by less than a merged one. The
+Windows leg leaves out the seven `packages/sync-server/test` suites whose cases run through a Worker runtime — `account-mode`,
+`storage`, `server`, `quota`, `accounts`, `project-lease` and `project-records` — with `CAOTANG_SKIP_WORKER_SUITES=1`, exactly as
+ci.yml's `verify (Windows)` job does while #815 moves those files onto one shared runtime and #820 tracks the later ones.
+
+That ci.yml job and this Windows leg gate different moments: `verify (Windows)` runs on a push to main, on the nightly schedule and on
+demand, and on no pull request, so a red Windows run reports on main without blocking a contributor whose change has nothing to do
+with that runner; here it runs again for the commit being packaged, so a red suite stops a release. A red run away from a pull request
+opens or updates one tracker issue named for the state, because nobody is watching a schedule.
 
 The job that builds packages also runs on `workflow_dispatch`, so the packaging can be proved without releasing anything: a
 dispatch publishes nothing and only leaves the packages and their checksums as workflow artifacts.
