@@ -23,6 +23,11 @@ export interface KeyVaultPort {
    */
   putWrappingKeyIfAbsent(candidate: CryptoKey): Promise<CryptoKey>;
   getEntry(profileId: string): Promise<SealedEntry | undefined>;
+  /**
+   * Every id the vault holds an entry for. Optional because a port does not have to enumerate itself: a host that migrates
+   * away from this vault needs the list once, and a port without it reports that it cannot say.
+   */
+  listEntryIds?(): Promise<readonly string[]>;
   putEntry(profileId: string, entry: SealedEntry): Promise<void>;
   deleteEntry(profileId: string): Promise<void>;
 }

@@ -34,7 +34,7 @@ describe('the required pull-request CI gate', () => {
   it('keeps the stable verify status behind both Node versions and all browser jobs', () => {
     const verify = jobBlock(ci, 'verify');
     expect(ci).toContain("node: ['22.19.0', '24']");
-    expect(verify).toContain('needs: [verify_matrix, e2e, e2e_modern, e2e_browsers, visual]');
+    expect(verify).toContain('needs: [verify_matrix, e2e, e2e_modern, e2e_browsers, visual, verify_windows]');
     expect(verify).toContain('if: always()');
     for (const result of ['MATRIX_RESULT', 'CHROMIUM_RESULT', 'MODERN_RESULT', 'CROSS_BROWSER_RESULT', 'VISUAL_RESULT']) {
       expect(verify).toContain(`test "$${result}" = success`);
@@ -129,7 +129,9 @@ describe('the required pull-request CI gate', () => {
     expect(browsers).toContain('browser: [firefox, webkit]');
     expect(browsers).toContain('merge-reports:');
     expect(browsers).toContain('workflow_dispatch:');
-    expect(browsers).toContain('schedule:');
+    // One nightly gate, not two: ci.yml's schedule runs this workflow through the call above, so it carries no schedule of its own.
+    expect(browsers).not.toContain('schedule:');
+    expect(ci.slice(ci.indexOf('\non:\n'), ci.indexOf('\npermissions:'))).toContain('schedule:');
     expect(browsers).toContain('group: e2e-browsers-${{ github.event_name }}-${{ github.ref }}');
   });
 
@@ -315,6 +317,45 @@ describe('the Node floor and the whole gate', () => {
     for (const host of ['packages/cli/test', 'packages/sdk/test', 'packages/mcp-server/test', 'packages/sync-server/test']) {
       expect(filters, `the floor leg must keep ${host}`).toContain(host);
     }
+  });
+});
+
+/**
+ * The Windows gate runs away from pull requests (owner, 2026-11-23). It reports on main, nightly and on demand; on a pull request
+ * or a merge group it is skipped, and the required `verify` status owes it nothing there. Both halves are asserted here, because a
+ * condition that quietly covered pull requests again, or a status that quietly stopped requiring Windows on main, would each pass
+ * CI unnoticed.
+ */
+describe('the Windows gate away from pull requests', () => {
+  const trigger = "if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'";
+
+  it('runs on a push to main, on the nightly schedule and on demand', () => {
+    const on = ci.slice(ci.indexOf('\non:\n'), ci.indexOf('\npermissions:'));
+    expect(on).toContain('push:');
+    expect(on).toContain('schedule:');
+    expect(on).toContain('workflow_dispatch:');
+    expect(jobBlock(ci, 'verify_windows')).toContain(trigger);
+  });
+
+  it('holds the required verify status to Windows where it ran, and to nothing where it did not', () => {
+    const verify = jobBlock(ci, 'verify');
+    expect(verify).toContain('if: always()');
+    expect(verify).toContain('WINDOWS_RESULT: ${{ needs.verify_windows.result }}');
+    expect(verify).toContain('case "$WINDOWS_RESULT" in');
+    expect(verify).toContain('success|skipped)');
+  });
+
+  it('gives the one write scope to the Windows job alone, which no pull request reaches', () => {
+    expect(ci.match(/^ {6}issues: write$/gm)?.length).toBe(1);
+    const windows = jobBlock(ci, 'verify_windows');
+    expect(windows).toContain('issues: write');
+    expect(windows).toContain('if: failure()');
+    expect(ci.slice(0, ci.indexOf('\njobs:\n'))).toContain('`issues: write`, sits on `verify_windows` alone');
+  });
+
+  it('still packages only after the whole Windows gate', () => {
+    const release = read('.github/workflows/desktop-release.yml');
+    expect(jobBlock(release, 'build-windows')).toContain('run: pnpm verify');
   });
 });
 

@@ -12,8 +12,8 @@
  * not configured for, takes the same path, so a call that would have worked in the browser still works.
  */
 
-import { nativeEgressOrigins } from '@caotang/gateway';
-import type { FetchLike } from '@caotang/gateway';
+import { nativeEgressTargets } from '@caotang/gateway';
+import type { FetchLike, NativeEgressTarget } from '@caotang/gateway';
 
 import type { EgressError, EgressReply, NativeEgressBridge } from '../../../desktop-shell/src/egress-contract.cjs';
 
@@ -21,7 +21,7 @@ import type { EgressError, EgressReply, NativeEgressBridge } from '../../../desk
 function bridge(): NativeEgressBridge | undefined {
   if (typeof window === 'undefined') return undefined;
   const desktop = window.caotangDesktop;
-  return desktop !== undefined && desktop.version >= 3 ? desktop.net : undefined;
+  return desktop !== undefined && desktop.version >= 4 ? desktop.net : undefined;
 }
 
 /** Whether provider and MCP calls are made by the main process here. The interface says so where it matters. */
@@ -33,10 +33,10 @@ export interface DesktopEgress {
   /** Hand to the gateway and to the MCP client in place of the page's own `fetch`. */
   readonly fetch: FetchLike;
   /**
-   * Where the addresses the app is configured for come from. Read before every call, so a profile or server added a
-   * moment ago is reachable on its first request instead of being reported as refused.
+   * Where the addresses the app is configured for come from, and which key may go to each. Read before every call, so a
+   * profile or server added a moment ago is reachable on its first request instead of being reported as refused.
    */
-  points(source: () => readonly string[]): void;
+  points(source: () => readonly NativeEgressTarget[]): void;
 }
 
 interface Sink {
@@ -60,12 +60,6 @@ function unreachable(error: EgressError): Error {
   }
 }
 
-function same(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
-  if (a.size !== b.size) return false;
-  for (const entry of a) if (!b.has(entry)) return false;
-  return true;
-}
-
 /** The port as this page sees it, or undefined when the page is running in a browser. */
 export function desktopEgress(): DesktopEgress | undefined {
   const api = bridge();
@@ -79,29 +73,35 @@ export function desktopEgress(): DesktopEgress | undefined {
     sink?.end(error);
   });
 
-  let source: (() => readonly string[]) | undefined;
-  let published: ReadonlySet<string> = new Set();
+  let source: (() => readonly NativeEgressTarget[]) | undefined;
+  let published: readonly NativeEgressTarget[] = [];
+  let publishedOrigins: ReadonlySet<string> = new Set();
   let publishing: Promise<ReadonlySet<string>> | undefined;
 
   /** Publishes the addresses the app is configured for, and answers the set the call is judged against. */
-  const origins = (): Promise<ReadonlySet<string>> => {
+  const publish = (): Promise<ReadonlySet<string>> => {
     publishing ??= (async () => {
-      const next = nativeEgressOrigins(source === undefined ? [] : [...source()]);
-      if (!same(next, published)) {
-        const reply = await api.configure([...next]);
+      const next = source === undefined ? [] : [...source()];
+      if (JSON.stringify(next) !== JSON.stringify(published)) {
+        const reply = await api.configure(next);
         // A refused configuration leaves the previous set in force, which is narrower or equal: a page then reaches what
         // it reached before rather than everything.
-        if (reply.ok) published = next;
+        if (reply.ok) {
+          published = next;
+          publishedOrigins = new Set(nativeEgressTargets(next).keys());
+        }
       }
-      return published;
+      return publishedOrigins;
     })().finally(() => { publishing = undefined; });
     return publishing;
   };
 
   const fetch: FetchLike = async (url, init) => {
-    const reachable = await origins();
+    const reachable = await publish();
     const target = new URL(url);
-    if (target.protocol !== 'https:' || !reachable.has(target.origin)) return globalThis.fetch(url, init);
+    // An address the app is not configured for — a local model server, say — keeps the browser's path, with its prompt and
+    // its own advice, exactly as it is in a page.
+    if (!reachable.has(target.origin)) return globalThis.fetch(url, init);
     return throughPort(api, sinks, target, init);
   };
 

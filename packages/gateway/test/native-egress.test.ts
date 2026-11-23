@@ -6,14 +6,24 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  attachKeys,
   checkNativeEgress,
+  createSecretScrubber,
+  handleIds,
+  keyHandle,
   NATIVE_EGRESS_LIMITS,
-  nativeEgressOrigins,
+  nativeEgressTargets,
   normalizeOrigin,
   pumpResponse,
+  redactSecrets,
 } from '../src/index.js';
 
-const ORIGINS = nativeEgressOrigins(['https://api.example.com', 'https://models.example.org:8443']);
+const ORIGINS = nativeEgressTargets([
+  { origin: 'https://api.example.com' },
+  { origin: 'https://models.example.org:8443' },
+]);
+const KEY = 'prv_ABCDEFGHJK';
+const KEYED = nativeEgressTargets([{ origin: 'https://api.example.com', keys: [KEY] }]);
 
 const request = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
   url: 'https://api.example.com/v1/chat/completions',
@@ -30,7 +40,7 @@ const refusal = (candidate: unknown, origins = ORIGINS): string | undefined => {
 
 describe('the origins a host may reach', () => {
   it('keeps bare https origins and a port that is part of one', () => {
-    expect([...ORIGINS].sort()).toEqual(['https://api.example.com', 'https://models.example.org:8443']);
+    expect([...ORIGINS.keys()].sort()).toEqual(['https://api.example.com', 'https://models.example.org:8443']);
   });
 
   it('drops a base URL, a credential, another scheme and this computer', () => {
@@ -44,9 +54,33 @@ describe('the origins a host may reach', () => {
     expect(normalizeOrigin('https://model.localhost')).toBeUndefined();
   });
 
-  it('ignores entries that are not strings', () => {
-    expect([...nativeEgressOrigins(['https://api.example.com', 42, null, { origin: 'https://evil.example' }])])
-      .toEqual(['https://api.example.com']);
+  it('ignores entries that are not a bare origin', () => {
+    const targets = nativeEgressTargets([
+      { origin: 'https://api.example.com' },
+      { origin: 'https://api.example.com/v1' },
+      { origin: 'http://api.example.com' },
+      { origin: 'https://user:secret@api.example.com' },
+      42,
+      null,
+      'https://evil.example',
+    ]);
+    expect([...targets.keys()]).toEqual(['https://api.example.com']);
+  });
+
+  it('takes a local server on plain http and refuses one that is not this computer', () => {
+    const targets = nativeEgressTargets([
+      { origin: 'http://127.0.0.1:8787', local: true },
+      { origin: 'http://localhost:8787', local: true },
+      { origin: 'http://api.example.com', local: true },
+      { origin: 'https://127.0.0.1:8787' },
+    ]);
+    expect([...targets.keys()].sort()).toEqual(['http://127.0.0.1:8787', 'http://localhost:8787']);
+    for (const target of targets.values()) expect(target.local).toBe(true);
+  });
+
+  it('takes the key ids an entry names, and drops the ones that are not ids', () => {
+    const targets = nativeEgressTargets([{ origin: 'https://api.example.com', keys: [KEY, 'mcp:abc-1', '', 7, 'bad id'] }]);
+    expect([...targets.get('https://api.example.com')!.keys]).toEqual([KEY, 'mcp:abc-1']);
   });
 });
 
@@ -92,10 +126,20 @@ describe('a request the host refuses', () => {
     expect(refusal(request({ url: 'https://api.example.com:8443/v1' }))).toBe('denied');
   });
 
-  it('denies this computer, whatever the allowlist says', () => {
-    const local = nativeEgressOrigins(['https://127.0.0.1:11434', 'https://localhost:1234']);
-    expect(local.size).toBe(0);
-    expect(refusal(request({ url: 'https://127.0.0.1:11434/v1/models' }), local)).toBe('denied');
+  it('denies this computer unless the entry is a local server', () => {
+    // A provider entry never names this computer: `nativeEgressTargets` drops it, so no allowlist can let a model call in.
+    const dropped = nativeEgressTargets([{ origin: 'https://127.0.0.1:11434' }, { origin: 'https://localhost:1234' }]);
+    expect(dropped.size).toBe(0);
+    expect(refusal(request({ url: 'https://127.0.0.1:11434/v1/models' }), dropped)).toBe('denied');
+
+    // A local entry may be, and then plain http to that literal is the only thing it adds.
+    const local = nativeEgressTargets([{ origin: 'http://127.0.0.1:8787', local: true, keys: ['mcp:one'] }]);
+    const allowed = checkNativeEgress(local, request({ url: 'http://127.0.0.1:8787/mcp', headers: { accept: 'application/json' }, body: undefined }));
+    expect(allowed.ok).toBe(true);
+    expect(refusal(request({ url: 'http://127.0.0.1:8790/mcp' }), local)).toBe('invalid');
+    // A local entry is not a licence to reach another machine's port on this one's behalf.
+    const elsewhere = checkNativeEgress(local, { url: 'http://127.0.0.1:8787/mcp', method: 'GET', headers: {} });
+    expect(elsewhere.ok).toBe(true);
   });
 
   it('denies an IPv4-mapped spelling of this computer, which reaches the same address', () => {
@@ -198,5 +242,127 @@ describe('a streamed answer', () => {
     const outcome = await pumpResponse(broken, (bytes) => seen.push(new TextDecoder().decode(bytes)));
     expect(outcome).toBe('unavailable');
     expect(seen).toEqual(['data: one\n\n']);
+  });
+});
+
+describe('a key the request names', () => {
+  const keyed = (overrides: Record<string, unknown> = {}): Record<string, unknown> => request({
+    headers: { authorization: `Bearer ${keyHandle(KEY)}` },
+    ...overrides,
+  });
+
+  it('is a handle in the request and an id the check reads, once', () => {
+    expect(handleIds(`Bearer ${keyHandle(KEY)} and ${keyHandle(KEY)}`)).toEqual([KEY]);
+    expect(handleIds('nothing here')).toEqual([]);
+    const checked = checkNativeEgress(KEYED, keyed());
+    expect(checked.ok && checked.request.keys).toEqual([KEY]);
+  });
+
+  it('is read out of the URL too, because a provider may put it there', () => {
+    const checked = checkNativeEgress(KEYED, request({ url: `https://api.example.com/v1/chat?key=${keyHandle(KEY)}`, method: 'GET', headers: {} }));
+    expect(checked.ok && checked.request.keys).toEqual([KEY]);
+  });
+
+  it('refuses a key at an address that key was not configured for', () => {
+    const other = nativeEgressTargets([{ origin: 'https://api.example.com', keys: ['mcp:somewhere-else'] }]);
+    expect(refusal(keyed(), other)).toBe('denied');
+    // The same handle at a second address is that address's key or no key at all.
+    const twoHosts = nativeEgressTargets([{ origin: 'https://api.example.com', keys: [KEY] }, { origin: 'https://models.example.org:8443' }]);
+    expect(refusal(keyed({ url: 'https://models.example.org:8443/v1/chat' }), twoHosts)).toBe('denied');
+  });
+});
+
+describe('redactSecrets', () => {
+  it('takes every secret out of a header value or a reason phrase, and leaves the rest as it came', () => {
+    expect(redactSecrets('Bearer sk-live-1', ['sk-live-1'])).toBe('Bearer [redacted]');
+    expect(redactSecrets('sk-a and sk-b', ['sk-a', 'sk-b'])).toBe('[redacted] and [redacted]');
+    expect(redactSecrets('nothing here', [])).toBe('nothing here');
+    // A provider that percent-encodes a key in a header echoes it encoded, and that is a secret of the call too.
+    expect(redactSecrets('key=a%2Bb', ['a+b', 'a%2Bb'])).toBe('key=[redacted]');
+  });
+});
+
+describe('a secret in an answer', () => {
+  const SECRET = 'sk-live-0123456789abcdef';
+  const collected = (): { seen: string[]; scrubber: ReturnType<typeof createSecretScrubber> } => {
+    const seen: string[] = [];
+    const scrubber = createSecretScrubber([SECRET], (bytes) => seen.push(new TextDecoder().decode(bytes)));
+    return { seen, scrubber };
+  };
+
+  it('never leaves in a chunk, even when the provider’s answer is split through it', () => {
+    const { seen, scrubber } = collected();
+    for (const part of ['{"error":"bad key sk-live-0', '123456789abcdef"}']) {
+      scrubber.write(new TextEncoder().encode(part));
+    }
+    scrubber.end();
+    expect(seen.join('')).toBe('{"error":"bad key [redacted]"}');
+  });
+
+  it('passes an answer with no secret through as it came', () => {
+    const { seen, scrubber } = collected();
+    for (const part of ['data: one\n\n', 'data: two\n\n']) scrubber.write(new TextEncoder().encode(part));
+    scrubber.end();
+    expect(seen.join('')).toBe('data: one\n\ndata: two\n\n');
+  });
+
+  it('is not the answer when nothing was attached: the sink is the one it was given', () => {
+    const seen: string[] = [];
+    const sink = (bytes: Uint8Array): void => { seen.push(new TextDecoder().decode(bytes)); };
+    const scrubber = createSecretScrubber([], sink);
+    expect(scrubber).toEqual({ write: sink, end: expect.any(Function) });
+    scrubber.write(new TextEncoder().encode('anything'));
+    expect(seen).toEqual(['anything']);
+  });
+
+  it('holds back only what could still begin a secret, so a stream still arrives as it is written', () => {
+    const { seen, scrubber } = collected();
+    scrubber.write(new TextEncoder().encode('0123456789'.repeat(4)));
+    // The first write releases everything but the last secret-length-minus-one bytes.
+    expect(seen.join('').length).toBe(40 - (SECRET.length - 1));
+    scrubber.end();
+    expect(seen.join('').length).toBe(40);
+  });
+});
+
+describe('attaching a key to the request that named it', () => {
+  const SECRET = 'sk-live-0123456789abcdef';
+  const named = (overrides: Record<string, unknown> = {}) => ({
+    url: 'https://api.example.com/v1/chat/completions',
+    headers: { authorization: `Bearer ${keyHandle(KEY)}`, 'x-other': 'kept' },
+    keys: [KEY],
+    ...overrides,
+  });
+
+  it('puts the secret where the handle stood in a header, and leaves every other header alone', () => {
+    const attached = attachKeys(named(), new Map([[KEY, SECRET]]));
+    expect(attached.headers).toEqual({ authorization: `Bearer ${SECRET}`, 'x-other': 'kept' });
+    expect(attached.url).toBe('https://api.example.com/v1/chat/completions');
+    expect(attached.values).toEqual([SECRET]);
+  });
+
+  it('percent-encodes a secret that stood in a URL, and leaves the rest of the address as it was', () => {
+    const handle = keyHandle(KEY);
+    const attached = attachKeys(named({ url: `https://api.example.com/v1/models?key=${handle}&page=2`, keys: [KEY] }), new Map([[KEY, 'a+b/c=']]));
+    expect(attached.url).toBe('https://api.example.com/v1/models?key=a%2Bb%2Fc%3D&page=2');
+    // A header is not a URL: the same secret goes in it as it is.
+    expect(attached.headers.authorization).toBe('Bearer a+b/c=');
+    // Both forms are secrets of this call, because a provider echoes back the encoded one it read from the query.
+    expect(attached.values).toEqual(['a+b/c=', 'a%2Bb%2Fc%3D']);
+  });
+
+  it('scrubs the encoded form a provider echoes from the URL, and the raw form it may put anywhere else', () => {
+    const attached = attachKeys(named({ url: `https://api.example.com/v1/models?key=${keyHandle(KEY)}`, keys: [KEY] }), new Map([[KEY, 'a+b/c=']]));
+    const seen: string[] = [];
+    const scrubber = createSecretScrubber(attached.values, (bytes) => seen.push(new TextDecoder().decode(bytes)));
+    scrubber.write(new TextEncoder().encode('{"url":"?key=a%2Bb%2Fc%3D","hint":"a+b/c="}'));
+    scrubber.end();
+    expect(seen.join('')).toBe('{"url":"?key=[redacted]","hint":"[redacted]"}');
+  });
+
+  it('attaches nothing for a key the caller does not hold, and names only what it did attach', () => {
+    const attached = attachKeys(named({ keys: [KEY, 'mcp:missing'] }), new Map([[KEY, SECRET]]));
+    expect(attached.values).toEqual([SECRET]);
+    expect(attached.headers.authorization).toBe(`Bearer ${SECRET}`);
   });
 });
