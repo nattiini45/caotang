@@ -3,7 +3,7 @@
  * never seen. The server stores the wrapped project key and the sealed name as opaque bytes, per account, and refuses
  * anything but canonical base64 of the sizes the protocol names.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createHmac } from 'node:crypto';
 import { Miniflare, Response } from 'miniflare';
 import type { Request as RuntimeRequest } from 'miniflare';
@@ -15,6 +15,11 @@ const ORIGIN = 'https://studio.example.invalid';
 const SECRET = 'test-only-account-secret-not-a-real-credential';
 const IDS: Record<string, number> = { 'reader-one': 101, 'reader-two': 202 };
 const open: Miniflare[] = [];
+let h: Awaited<ReturnType<typeof runtime>>;
+
+// The runtime boots in the hook, not inside the case: it starts a workerd instance, which on GitHub's Windows
+// runner can take seconds, and the case's own deadline is five.
+beforeEach(async () => { h = await runtime(); }, 30_000);
 
 /** 61 sealed bytes: format byte, 12-byte nonce, 32-byte key, 16-byte tag. */
 const wrappedKey = (fill: number): string => Buffer.concat([Buffer.of(1), Buffer.alloc(60, fill)]).toString('base64');
@@ -70,7 +75,6 @@ const PROJECT = 'a1b2c3d4-0000-4000-8000-000000000001';
 
 describe('project records', () => {
   it('records a project for one account, lists it for that account only, and stores exactly the bytes it was given', async () => {
-    const h = await runtime();
     await h.invite('reader-one');
     await h.invite('reader-two');
     const one = await h.signIn('reader-one');
@@ -103,7 +107,6 @@ describe('project records', () => {
   });
 
   it('replaces a record without a precondition, and a second device of the same account sees the rename', async () => {
-    const h = await runtime();
     await h.invite('reader-one');
     const first = await h.signIn('reader-one');
     const second = await h.signIn('reader-one');
@@ -120,7 +123,6 @@ describe('project records', () => {
   });
 
   it('refuses a body that is not canonical base64 of the sizes the protocol names', async () => {
-    const h = await runtime();
     await h.invite('reader-one');
     const one = await h.signIn('reader-one');
     const put = (body: string, contentType = 'application/json') => h.dispatch(`/v1/projects/${PROJECT}`, {
@@ -145,7 +147,6 @@ describe('project records', () => {
   });
 
   it('refuses a project id it cannot address and a method it does not serve', async () => {
-    const h = await runtime();
     await h.invite('reader-one');
     const one = await h.signIn('reader-one');
     const headers = { Cookie: one.session, 'X-Caotang-Account': one.accountId };
@@ -155,7 +156,6 @@ describe('project records', () => {
   });
 
   it('needs the account precondition and a signed-in session, and does not exist outside account mode', async () => {
-    const h = await runtime();
     await h.invite('reader-one');
     await h.invite('reader-two');
     const one = await h.signIn('reader-one');
