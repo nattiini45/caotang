@@ -169,11 +169,15 @@ export function entityPage(entity: KankaEntity, options: PageOptions): PageParts
   const assetData = new Map<string, Uint8Array>();
   let unresolvedMentions = 0;
 
+  // Every walk gets its own ref namespace: the walker's index restarts at zero each call, so the entry's and each
+  // post's pictures would otherwise share one ref and overwrite each other in `images`.
+  let walkIndex = 0;
   const walk = (html: string): { md: string; plain: string } => {
     if (html.trim() === '') return { md: '', plain: '' };
     const mentioned = rewriteMentions(html, options.names);
     unresolvedMentions += mentioned.unresolved;
-    const walked = htmlToBlocks(asPage(mentioned.text), { unit: `kanka:${entity.id}`, refPrefix: options.refPrefix });
+    const walked = htmlToBlocks(asPage(mentioned.text), { unit: `kanka:${entity.id}`, refPrefix: `${options.refPrefix}${walkIndex}-` });
+    walkIndex += 1;
     if (!walked.ok) {
       losses.push({ code: 'unsupported', message: `The text of “${entity.name}” is not readable HTML.` });
       const plain = textOnly(mentioned.text);

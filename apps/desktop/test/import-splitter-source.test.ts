@@ -511,6 +511,27 @@ describe('the sources', () => {
     source.dispose?.();
   });
 
+  it('a Kanka campaign with no events or gallery still offers a Campaign index, so the tree is never empty', async () => {
+    const kankaEntity = (id: number, name: string): string =>
+      JSON.stringify({ id, name, entity: { id, name, type: 'Cartographer', entry: '<p>A note.</p>', is_private: false, image_path: '', entityTags: [], relationships: [], posts: [], entityAttributes: [], reminders: [] } });
+    const zip = rawZip([
+      { name: 'info.json', data: enc(JSON.stringify({ kanka_version: '2.1.4' })) },
+      { name: 'campaign.json', data: enc(JSON.stringify({ name: 'Quiet Quarter' })) },
+      { name: 'characters/elena_11.json', data: enc(kankaEntity(11, 'Elena')) },
+    ]);
+    const source = kankaPreviewSource('campaign.zip', zip);
+    await source.load?.(() => {}, new AbortController().signal);
+    const plan = source.plan(initialSettings(source.chips(), source.options()), NO_OVERRIDES);
+    expect(plan.tree.map((node) => [node.title, node.place])).toEqual([['Campaign index', 'research']]);
+    const commit = buildCommit(
+      { plan, edits: NO_EDITS, destination: 'manuscript', mapping: {}, statuses: [], labels: [], statusAnswers: {}, labelAnswers: {}, codexRows: source.codexRows?.() ?? [], codexAnswers: {}, codexHeld: [], pictures: [] },
+      PREVIEW_HELPERS,
+    );
+    expect(commit.params.nodes).toHaveLength(1);
+    expect(commit.params.codex?.entries.map((entry) => entry.name)).toEqual(['Elena']);
+    source.dispose?.();
+  });
+
   it('a source keeps the document while only rule chips change', () => {
     let reads = 0;
     const source = splitterPreviewSource({

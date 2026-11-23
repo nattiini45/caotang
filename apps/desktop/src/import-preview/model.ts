@@ -715,15 +715,6 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
 
   for (const node of tree) push(node, undefined, undefined);
 
-  // The pictures the kept bodies use, and only those.
-  const bodies = nodes.map((node) => node.body ?? '').join('\n');
-  const pictures = input.pictures.filter((picture) => bodies.includes(`](${picture.ref}`));
-  const dropped = input.pictures.length - pictures.length;
-  if (dropped > 0) {
-    const count = plural(dropped, { one: '# picture', other: '# pictures' });
-    notices.push(dropped === 1 ? t`${count} in left-out text was not imported.` : t`${count} in left-out text were not imported.`);
-  }
-
   // The codex rows, by the writer's answers.
   const entries: ImportTreeCodexEntry[] = [];
   const pages: { title: string; body: string }[] = [];
@@ -758,6 +749,16 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
     }
     const rowName = row.name;
     notices.push(t`“${rowName}” is not named in the imported text, so its codex entry was not made.`);
+  }
+
+  // The pictures the kept bodies use, and only those — codex pages' bodies count too, since an entity page carries
+  // its picture.
+  const bodies = [...nodes.map((node) => node.body ?? ''), ...pages.map((page) => page.body)].join('\n');
+  const pictures = input.pictures.filter((picture) => bodies.includes(`](${picture.ref}`));
+  const dropped = input.pictures.length - pictures.length;
+  if (dropped > 0) {
+    const count = plural(dropped, { one: '# picture', other: '# pictures' });
+    notices.push(dropped === 1 ? t`${count} in left-out text was not imported.` : t`${count} in left-out text were not imported.`);
   }
 
   const vocabulary = {

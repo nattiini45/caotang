@@ -2218,6 +2218,11 @@ msgstr ""
 msgid "{outcome, select, running {Working} done {Finished} partial {Stopped before it finished} other {Failed}}"
 msgstr ""
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "{overflow, plural, one {# keyword is past the limit of the keywords field} other {# keywords are past the limit of the keywords field}}"
+msgstr ""
+
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #: apps/desktop/src/import-preview/ao3-source.ts
 msgid "{overflow, plural, one {# tag is past the limit of the keywords field} other {# tags are past the limit of the keywords field}}"
@@ -6221,6 +6226,11 @@ msgstr ""
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #: apps/desktop/src/import-preview/kanka-source.ts
 msgid "Campaign gallery"
+msgstr ""
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "Campaign index"
 msgstr ""
 
 #. Agent instructions copy. Interpolated values: title and name are note titles, path is a file path, used, sent, allowed and count are token counts.
@@ -12414,6 +12424,7 @@ msgstr ""
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -23552,6 +23563,11 @@ msgstr ""
 msgid "The pictures could not be imported."
 msgstr ""
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "The pictures were left out, as chosen."
+msgstr ""
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "The Podcasting 2.0 chapters document — start, title and end per segment — the file a feed’s podcast:chapters points at."
@@ -23864,6 +23880,11 @@ msgstr ""
 #. Shot prompt record refusals. Interpolated values: shotId is a shot's id; number is a line number; first and last bound a whole number.
 #: apps/desktop/src/media/prompt-edit-model.ts
 msgid "the resolution is 720p or 1080p"
+msgstr ""
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "The rest are listed here: {rest}"
 msgstr ""
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
@@ -26994,6 +27015,11 @@ msgstr ""
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #: apps/desktop/src/import-preview/ao3-source.ts
 msgid "What a scene cannot hold"
+msgstr ""
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "What an entry cannot hold"
 msgstr ""
 
 #. Interpolated values: calls

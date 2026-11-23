@@ -20,8 +20,10 @@ export interface KankaImport {
   entities: KankaEntity[];
   /** One page per entity, in the same order. */
   pages: KankaPage[];
-  /** The keywords each entity offers: the campaign's word for its module, its own type and its tags. */
+  /** The keywords each entity offers: the campaign's word for its module, its own type and its tags. Capped at the keywords field's 32, each trimmed to 64 characters; the rest are in `keywordOverflow`. */
   keywords: Map<number, string[]>;
+  /** The keywords past the field's limit, named so the report can list them instead of dropping them silently. */
+  keywordOverflow: string[];
   /** The world-history index: events and the calendar reminders that are not a birth or a death. `body` is the list; the caller writes the heading in the writer's language. */
   history: { title: string; body: string } | null;
   /** The gallery pictures no entity uses, as a list of pictures and names. */
@@ -154,6 +156,7 @@ export async function readKankaArchive(archive: ImportArchive, options: KankaRea
   let missingPictures = 0;
   let unresolvedMentions = 0;
   let pictureIndex = 0;
+  const keywordOverflow: string[] = [];
 
   /** A picture from the zip, or null when it is not there or is an SVG. */
   const zipPicture = async (path: string): Promise<Uint8Array | null> => {
@@ -210,7 +213,10 @@ export async function readKankaArchive(archive: ImportArchive, options: KankaRea
 
     pages.push({ ...parts.page, body });
     const words = [labels.get(entity.module) ?? entity.module, entity.type, ...entity.tagIds.map((id) => tagNames.get(id) ?? '')].filter((word) => word !== '');
-    keywords.set(entity.id, [...new Set(words)]);
+    // The keywords field holds 32 of 64 characters each: more tags or a longer one would refuse the whole import.
+    const all = [...new Set(words.map((word) => word.slice(0, 64)).filter((word) => word !== ''))];
+    keywords.set(entity.id, all.slice(0, 32));
+    keywordOverflow.push(...all.slice(32));
   }
 
   // The world-history index: the events, and the calendar reminders that are not a birth or a death.
@@ -254,6 +260,7 @@ export async function readKankaArchive(archive: ImportArchive, options: KankaRea
       entities: kept,
       pages,
       keywords,
+      keywordOverflow,
       history,
       gallery,
       assets,
