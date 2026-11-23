@@ -709,6 +709,11 @@ msgstr ""
 msgid "{already, plural, one {# picture was already there.} other {# pictures were already there.}}"
 msgstr ""
 
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "{applied, plural, one {# tag became a keyword} other {# tags became keywords}}"
+msgstr ""
+
 #. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
 #: apps/desktop/src/components/InterruptedRuns.tsx
 msgid "{applied} of {total} {total, plural, one {step} other {steps}} applied"
@@ -1647,6 +1652,11 @@ msgstr ""
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #: apps/desktop/src/import-preview/captions-source.ts
 msgid "{file} holds no timed cue, so there is nothing to import. A captions file needs lines like \"00:00:01,000 --> 00:00:04,000\"."
+msgstr ""
+
+#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
+#: apps/desktop/src/import-preview/ao3-source.ts
+msgid "{file} is too large to import as an AO3 download ({limit} MB max)."
 msgstr ""
 
 #. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
@@ -2760,11 +2770,6 @@ msgstr ""
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "{synopsisCount, plural, one {# synopsis, shown before approval} other {# synopses, shown before approval}}"
-msgstr ""
-
-#. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
-#: apps/desktop/src/import-preview/ao3-source.ts
-msgid "{tags, plural, one {# tag became a keyword} other {# tags became keywords}}"
 msgstr ""
 
 #. Background review approval. Counts are documents, findings, calls or estimated tokens; titles and model labels are supplied text; money uses the interface locale.
