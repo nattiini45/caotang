@@ -47,12 +47,12 @@ describe('effectiveWhenDue', () => {
   });
 
   it('a model task is offered whatever the file says, unless a consent names exactly this task and it has a cap', () => {
-    const model = intent({ whenDue: 'run', maxModelCalls: 4 });
+    const model = task(1, { whenDue: 'run', maxModelCalls: 4, body: { kind: 'plan', steps: [{ tool: 'synopsis.fill', params: { docs: ['The lamp'] }, expect: 'A synopsis' }] } });
     expect(effectiveWhenDue(model)).toBe('offer');
     expect(effectiveWhenDue(model, { hash: 'not-this-task' })).toBe('offer');
     expect(effectiveWhenDue(model, { hash: bodyHash(model) })).toBe('run');
     // No cap, no self-start, consent or not.
-    const uncapped = intent({ whenDue: 'run' });
+    const uncapped = { ...model, maxModelCalls: undefined };
     expect(effectiveWhenDue(uncapped, { hash: bodyHash(uncapped) })).toBe('offer');
   });
 
@@ -72,6 +72,11 @@ describe('effectiveWhenDue', () => {
 
   it('a task with a problem is offered nothing by itself', () => {
     expect(effectiveWhenDue(task(1, { whenDue: 'run', problem: 'broken' }))).toBe('offer');
+  });
+
+  it('an instruction remains offered even when a matching consent was stored', () => {
+    const model = intent({ whenDue: 'run', maxModelCalls: 4 });
+    expect(effectiveWhenDue(model, { hash: bodyHash(model) })).toBe('offer');
   });
 });
 

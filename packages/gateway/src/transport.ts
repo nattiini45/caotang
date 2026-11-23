@@ -21,7 +21,7 @@
 
 import { tokensForChars } from '@caotang/codex';
 import type { Clock } from './clock.js';
-import { abortError, EgressDeniedError, ProviderError, providerMessages } from './errors.js';
+import { abortError, EgressDeniedError, ProviderError, providerMessages, providerRefs } from './errors.js';
 import { backoffMs, isRetryable, parseRetryAfter, type RetryPolicy, type TransportTimeouts } from './retry.js';
 import type { RequestLog, RequestLogEntry, RequestOutcome } from './request-log.js';
 import { redact } from './redact.js';
@@ -73,6 +73,7 @@ export interface CallSpec {
   readonly headers: Record<string, string>;
   /** Every secret value in `headers` (key, custom header values). Scrubbed from excerpts; never stored on an error or a log entry. */
   readonly secrets: readonly string[];
+  readonly privatePayload?: true;
   /**
    * A factory for the stream dialect, for calls that read SSE (`streamChat`). A parser holds
    * the route's per-stream state — an open tool call and its arguments — so every attempt
@@ -82,7 +83,9 @@ export interface CallSpec {
   /** the prompt's estimated size, the fallback when a provider sends no usage */
   readonly promptTokens: number;
   readonly signal?: AbortSignal;
+  readonly beforeAttempt?: () => Promise<void>;
   readonly beforeSend?: () => void;
+  readonly onRateLimit?: (delayMs: number) => void;
   /** overrides the policy's retry count. The §5 probe makes exactly one attempt. */
   readonly maxRetries?: number;
   /** Declares the target a local-network-aware browser should expect (Chrome's Local Network Access). Sent only where fetch supports it. */
@@ -166,6 +169,7 @@ function describe(err: unknown): string {
 
 /** Redacts, collapses whitespace, and bounds. Every excerpt that leaves this file passes through here. */
 function clean(text: string, spec: CallSpec): string {
+  if (spec.privatePayload === true) return '';
   return redact(text, spec.secrets).replace(/\s+/g, ' ').trim().slice(0, EXCERPT_LIMIT);
 }
 
@@ -181,12 +185,12 @@ function scoped(deps: TransportDeps, spec: CallSpec): TransportDeps {
 
 function networkError(spec: CallSpec, reason: string, rejected = false, timedOut = false): ProviderError {
   const detail = clean(reason, spec);
-  return new ProviderError('network', providerMessages.network(spec.host, detail), { detail, ...(rejected ? { rejected } : {}), ...(timedOut ? { reason: 'timeout' } : {}) });
+  return new ProviderError('network', providerMessages.network(spec.host, detail), { detail, messageRef: providerRefs.network(spec.host, detail), ...(rejected ? { rejected } : {}), ...(timedOut ? { reason: 'timeout' } : {}) });
 }
 
 function protocolError(spec: CallSpec, raw: string, fromProvider = false): ProviderError {
   const excerpt = clean(raw, spec);
-  return new ProviderError('protocol', providerMessages.protocol(spec.host, excerpt), { detail: excerpt, ...(fromProvider ? { providerReply: excerpt } : {}) });
+  return new ProviderError('protocol', providerMessages.protocol(spec.host, excerpt), { detail: excerpt, messageRef: providerRefs.protocol(spec.host, excerpt), ...(fromProvider ? { providerReply: excerpt } : {}) });
 }
 
 /**
@@ -228,13 +232,13 @@ async function localFailure(deps: TransportDeps, spec: CallSpec, err: unknown): 
   else if (await serverAnswers(deps, spec)) kind = 'cors';
   else kind = (await (deps.loopbackPermission ?? loopbackPermission)()) === 'denied' ? 'denied' : 'refused';
   const { product, corsFix } = spec.local;
-  const message =
+  const { message, messageRef } =
     kind === 'cors'
-      ? providerMessages.localCors(product, corsFix)
+      ? { message: providerMessages.localCors(product, corsFix), messageRef: providerRefs.localCors(product, corsFix) }
       : kind === 'denied'
-        ? providerMessages.localDenied(product)
-        : providerMessages.localRefused(product, spec.host);
-  return new ProviderError('network', message, { detail: clean(describe(err), spec), permanent: true });
+        ? { message: providerMessages.localDenied(product), messageRef: providerRefs.localDenied(product) }
+        : { message: providerMessages.localRefused(product, spec.host), messageRef: providerRefs.localRefused(product, spec.host) };
+  return new ProviderError('network', message, { detail: clean(describe(err), spec), permanent: true, messageRef });
 }
 
 /**
@@ -290,7 +294,7 @@ function logAttempt(
     outcome,
     ...(status !== undefined ? { status } : {}),
     ...(error !== undefined ? { errorKind: error.kind } : {}),
-    ...(error?.detail !== undefined ? { note: error.detail } : {}),
+    ...(error?.detail !== undefined && spec.privatePayload !== true ? { note: error.detail } : {}),
   };
   deps.log.append(entry);
   spec.onAttempt?.(entry);
@@ -360,18 +364,18 @@ async function statusError(deps: TransportDeps, spec: CallSpec, response: Respon
   const providerReply = replyExcerpt === '' ? {} : { providerReply: replyExcerpt };
 
   if (status === 401 || status === 403) {
-    return new ProviderError('auth', providerMessages.auth(spec.host), { status, ...providerReply });
+    return new ProviderError('auth', providerMessages.auth(spec.host), { status, messageRef: providerRefs.auth(spec.host), ...providerReply });
   }
   if (status === 404) {
     // A local server answers 404 for a model it has not pulled; "no endpoint at ..." would send the writer to the wrong setting.
     if (spec.local !== undefined && excerpt.toLowerCase().includes('model')) {
-      return new ProviderError('provider', providerMessages.provider(spec.host, status, excerpt), { status, detail: excerpt, ...providerReply });
+      return new ProviderError('provider', providerMessages.provider(spec.host, status, excerpt), { status, detail: excerpt, messageRef: providerRefs.provider(spec.host, status, excerpt), ...providerReply });
     }
-    return new ProviderError('endpoint', providerMessages.endpoint(spec.path, spec.baseUrl), { status, detail: excerpt, ...providerReply });
+    return new ProviderError('endpoint', providerMessages.endpoint(spec.path, spec.baseUrl), { status, detail: excerpt, messageRef: providerRefs.endpoint(spec.path, spec.baseUrl), ...providerReply });
   }
   if (status === 429) {
     const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'), deps.clock.now());
-    return new ProviderError('rate_limit', providerMessages.rateLimit(spec.host), { status, detail: excerpt, retryAfterMs, ...providerReply });
+    return new ProviderError('rate_limit', providerMessages.rateLimit(spec.host), { status, detail: excerpt, retryAfterMs, messageRef: providerRefs.rateLimit(spec.host), ...providerReply });
   }
   if (status === 400) {
     const overflow = contextOverflow(raw, spec.promptTokens);
@@ -379,18 +383,18 @@ async function statusError(deps: TransportDeps, spec: CallSpec, response: Respon
       return new ProviderError(
         'context_length',
         providerMessages.contextLength(overflow.prompt, overflow.window ?? 'unknown'),
-        { status, detail: excerpt, ...providerReply },
+        { status, detail: excerpt, messageRef: providerRefs.contextLength(overflow.prompt, overflow.window ?? 'unknown'), ...providerReply },
       );
     }
   }
-  return new ProviderError('provider', providerMessages.provider(spec.host, status, excerpt), { status, detail: excerpt, ...providerReply });
+  return new ProviderError('provider', providerMessages.provider(spec.host, status, excerpt), { status, detail: excerpt, messageRef: providerRefs.provider(spec.host, status, excerpt), ...providerReply });
 }
 
 /**
  * One connection attempt: egress check, fetch, the connect deadline, and the status
  * mapping. Returns the response only for a 2xx. Everything else throws.
  */
-async function connect(deps: TransportDeps, spec: CallSpec, deadline: Deadline, controller: AbortController): Promise<Response> {
+async function connect(deps: TransportDeps, spec: CallSpec, deadline: Deadline, controller: AbortController, onRateLimit?: (response: Response) => void): Promise<Response> {
   assertEgress(deps, spec.url, spec.profileId);
 
   const headers: Record<string, string> = { accept: spec.accept, ...spec.headers };
@@ -441,14 +445,15 @@ async function connect(deps: TransportDeps, spec: CallSpec, deadline: Deadline, 
       `${spec.host} redirected the request. Caotang does not follow redirects, so set the base URL to the final address in Settings.`,
     );
   }
+  if (response.status === 429) onRateLimit?.(response);
   if (!response.ok) throw await statusError(deps, spec, response);
   return response;
 }
 
 /** The wait before the next attempt: the provider's `Retry-After` if it sent one, else the backoff. */
-function retryWait(deps: TransportDeps, err: ProviderError, retries: number, maxRetries: number, totalAt: number): number | undefined {
+function retryWait(deps: TransportDeps, err: ProviderError, retries: number, maxRetries: number, totalAt: number, selectedBackoff?: number): number | undefined {
   if (!isRetryable(err) || retries >= maxRetries) return undefined;
-  const wait = err.retryAfterMs ?? backoffMs(retries, deps.random, deps.retry);
+  const wait = err.retryAfterMs ?? selectedBackoff ?? backoffMs(retries, deps.random, deps.retry);
   return deps.clock.now() + wait < totalAt ? wait : undefined;
 }
 
@@ -466,7 +471,7 @@ function* chunksOf(
       if (piece.malformed !== undefined) throw protocolError(spec, piece.malformed);
       if (piece.error !== undefined) {
         const detail = clean(piece.error, spec);
-        throw new ProviderError('provider', providerMessages.providerStream(spec.host, detail), { detail });
+        throw new ProviderError('provider', providerMessages.providerStream(spec.host, detail), { detail, messageRef: providerRefs.providerStream(spec.host, detail) });
       }
       if (piece.usage !== undefined) acc.usage = piece.usage;
       if (piece.finish !== undefined) acc.finish = piece.finish;
@@ -590,6 +595,8 @@ export async function* streamChat(
   base: TransportDeps,
   spec: CallSpec,
   stats: StreamStats,
+  /** Receives the fault the last attempt ended on: an exhausted stream ends with `finishReason: 'error'` and throws nothing. */
+  gaveUp?: (fault: ProviderError | undefined) => void,
 ): AsyncGenerator<ChatChunk, void, undefined> {
   const deps = scoped(base, spec);
   const { clock } = deps;
@@ -608,15 +615,27 @@ export async function* streamChat(
   let controller: AbortController | undefined;
   try {
     for (;;) {
+      if (spec.beforeAttempt !== undefined) {
+        await spec.beforeAttempt();
+        if (spec.signal?.aborted === true) {
+          yield { finishReason: 'error', usage: stats.usage ?? { promptTokens: 0, completionTokens: 0 } };
+          return;
+        }
+      }
       spec.beforeSend?.();
       const attempt = stats.attempts;
       stats.attempts += 1;
       const deadline: Deadline = { attemptStart: clock.now(), totalAt };
       let status: number | undefined;
+      let rateLimitDelay: number | undefined;
       controller = new AbortController();
 
       try {
-        const response = await connect(deps, spec, deadline, controller);
+        const response = await connect(deps, spec, deadline, controller, (response) => {
+          status = response.status;
+          rateLimitDelay = parseRetryAfter(response.headers.get('retry-after'), clock.now()) ?? backoffMs(retries, deps.random, deps.retry);
+          spec.onRateLimit?.(rateLimitDelay);
+        });
         status = response.status;
         const outcome = yield* readStream(deps, spec, response, deadline, state);
         const usage = outcome.usage ?? estimated();
@@ -637,7 +656,11 @@ export async function* streamChat(
         stats.usage = estimated();
         stats.usageSource = 'estimate';
         const wait =
-          err instanceof ProviderError && !state.sawDelta ? retryWait(deps, err, retries, maxRetries, totalAt) : undefined;
+          err instanceof ProviderError && !state.sawDelta ? retryWait(deps, err, retries, maxRetries, totalAt, rateLimitDelay) : undefined;
+
+        if (err instanceof ProviderError && err.kind === 'rate_limit' && rateLimitDelay === undefined) {
+          spec.onRateLimit?.(err.retryAfterMs ?? wait ?? backoffMs(retries, deps.random, deps.retry));
+        }
 
         if (wait !== undefined && err instanceof ProviderError) {
           logAttempt(deps, spec, attempt, 'retrying', { status, error: err });
@@ -657,6 +680,7 @@ export async function* streamChat(
         }
 
         logAttempt(deps, spec, attempt, outcomeOf(err), { status, error: err });
+        gaveUp?.(err instanceof ProviderError ? err : undefined);
         throw err;
       }
     }

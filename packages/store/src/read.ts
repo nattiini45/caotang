@@ -164,6 +164,7 @@ const KNOWN_TOP_LEVEL = new Set([
   'tree',
   'derived',
   'codex',
+  'codexDetailFields',
   'filters',
   'goals',
   'recipes',
@@ -212,6 +213,7 @@ export const KNOWN_NODE_KEYS = new Set([
   'comicPage',
   'showMeta',
   'episodeMeta',
+  'publish',
   'style',
 ]);
 
@@ -394,8 +396,7 @@ export async function readProject(fs: ArtifactFs, options: ReadOptions = {}): Pr
   // input only when no migration ran. The two diverge the moment §6's branch is
   // live, and this line is the whole reason they must not: a state assembled
   // from the raw parse is a project that was never checked. Guarded in
-  // `test/migration-path.test.ts`, where a substituted registry makes the halves
-  // differ — at `FORMAT_VERSION === 1` no test could tell them apart.
+  // `test/migration-path.test.ts`, where a substituted registry makes the halves differ.
   const manifest = report.manifest ?? (parsed as unknown as Manifest);
   // epub-metadata.md: a project that predates the identifier and the language gets them here, once. The save that
   // follows writes them, and the notice says so, because a value the writer did not type is worth a line.
@@ -952,6 +953,9 @@ export async function importOrphanCodex(
       attachments: frontMatter.attachments.filter((id) => nodeIds.has(id)),
       keywords: frontMatter.keywords,
       ...(frontMatter.visualRefs === undefined ? {} : { visualRefs: frontMatter.visualRefs }),
+      ...(frontMatter.details === undefined ? {} : { details: frontMatter.details }),
+      ...(frontMatter.references === undefined ? {} : { references: frontMatter.references }),
+      ...(frontMatter.relations === undefined ? {} : { relations: frontMatter.relations }),
       // Provenance comes from the file (codex.md §10 K4). The codec has already read a
       // key that is absent as 'manual' (pre-K4 files) and coerced an unknown origin to
       // 'agent', so an agent-inferred entry is recovered as one, not as canon.

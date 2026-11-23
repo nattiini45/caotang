@@ -13,6 +13,7 @@ import { sweepHistory } from './history-store.js';
 import { APP_KEYS, openAppDb, setActiveAppDb, type AppDb } from './app-db.js';
 import { McpApp } from './mcp.js';
 import { SaveChannel } from './save-channel.js';
+import { studioHost } from './studio-host.js';
 import { ProviderService } from './providers.js';
 import { DEFAULT_SETTINGS, applyPatch, mcpLoadWarnings, normalizeSettings, type AppSettings, type SettingsPatch } from './settings.js';
 
@@ -132,7 +133,8 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
   // The undo journals not written for 30 days go (history-store.ts). Not awaited: the app opens without them.
   void sweepHistory(db);
 
-  const { service, notices: providerNotices } = await ProviderService.open({ db, vault: factory });
+  const host = studioHost();
+  const { service, notices: providerNotices } = await ProviderService.open({ db, vault: factory, ...(host === null ? {} : { host }) });
   notices.push(...providerNotices);
   const settings = new SettingsStore(db, initial);
   // The agent trace follows its setting (agent-harness §5.2): on, the gateway is observed; off, nothing is gathered and what was is cleared.

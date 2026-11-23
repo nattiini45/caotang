@@ -1,0 +1,113 @@
+.goal-watch {
+  margin-block: var(--space-4);
+  min-inline-size: 0;
+}
+
+.goal-watch-iteration {
+  font-weight: 500;
+}
+
+.goal-watch > p {
+  margin-block: var(--space-1);
+}
+
+.goal-watch-spend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  margin-block: var(--space-4);
+  font-variant-numeric: tabular-nums;
+}
+
+.goal-watch-spend dt {
+  color: var(--muted);
+  font-size: var(--text-lg);
+}
+
+.goal-watch-spend dd {
+  margin: 0;
+}
+
+.goal-watch-table {
+  max-inline-size: 100%;
+  padding: var(--space-1);
+  overflow: auto;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.agent .agent-head .agent-busy.is-goal-waiting {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+}
+
+.goal-watch table {
+  inline-size: 100%;
+  border-spacing: 0;
+  border-collapse: separate;
+  font-size: var(--text-lg);
+  text-align: start;
+}
+
+.goal-watch caption {
+  padding-block: var(--space-3);
+  text-align: start;
+  color: var(--muted);
+}
+
+.goal-watch th,
+.goal-watch td {
+  padding: var(--space-3);
+  border-block-end: 1px solid var(--line);
+  text-align: start;
+  vertical-align: top;
+}
+
+.goal-watch th[scope="row"] {
+  min-inline-size: 7rem;
+  font-weight: 500;
+}
+
+.goal-watch th small {
+  display: block;
+  font-weight: 400;
+}
+
+.goal-watch td {
+  font-variant-numeric: tabular-nums;
+}
+
+.goal-watch-details {
+  margin-block-start: var(--space-3);
+}
+
+.goal-recovery .button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.goal-independent-review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-block: var(--space-4);
+  padding-block: var(--space-3);
+  border-block: 1px solid var(--line-strong);
+  overflow-wrap: anywhere;
+}
+
+.goal-independent-review h4,
+.goal-independent-review p {
+  margin: 0;
+}
+
+.goal-independent-review h4 {
+  font-size: var(--text-sm);
+}
+
+.goal-independent-review ul {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}

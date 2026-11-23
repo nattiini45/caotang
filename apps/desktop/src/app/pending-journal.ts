@@ -19,6 +19,7 @@ import { plural, t } from '@lingui/core/macro';
 import { getRevision, type ProjectState } from '@caotang/store';
 
 import type { ProjectSession } from './session.js';
+import { scopedStoreName } from './storage-scope.js';
 import { stepPendingEntry, type PendingEntryState, type PendingEntryEvent } from './pending-entry.js';
 
 /* lingui-set comment="Interpolated values: count" */
@@ -31,7 +32,10 @@ import {
   type UnsentStorage,
 } from './unsent-copy.js';
 
-/** The storage key prefix. The key is the prefix and the project id. */
+/**
+ * The storage key prefix. The key is the prefix, the project id and — where a studio is named by its account — that name, so two
+ * accounts that imported the same bundle (and so hold the same project id) never read each other's journal.
+ */
 export const PENDING_KEY_PREFIX = 'caotang.pending.';
 
 /**
@@ -50,7 +54,7 @@ export interface PendingEntry {
 }
 
 export function pendingKey(projectId: string): string {
-  return `${PENDING_KEY_PREFIX}${projectId}`;
+  return scopedStoreName(`${PENDING_KEY_PREFIX}${projectId}`);
 }
 
 /** The entries kept for a project. `[]` when there are none, the browser keeps no storage, or the value is not one this build wrote. */

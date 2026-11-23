@@ -41,6 +41,7 @@
 import { t } from '@lingui/core/macro';
 import { parseAssetFileName } from '@caotang/storyboard';
 import {
+  ASSET_DB_NAME,
   ArtifactNotFoundError,
   deleteAssetBytes,
   deleteProjectAssets,
@@ -55,6 +56,7 @@ import {
 } from '@caotang/store';
 
 import { folderArtifactFs, folderBytes, type DirectoryHandleLike } from './fs-access.js';
+import { scopedStoreName } from './storage-scope.js';
 
 /** The folder the images live in, beside the documents (storyboard.md §2.2). */
 export const ASSETS_DIR = 'assets';
@@ -77,8 +79,11 @@ export interface DurableAssets {
   putThumb?(path: string, size: number, bytes: Uint8Array): Promise<void>;
 }
 
-/** One database connection per IndexedDB factory: the page's own in the browser, and each test's in-memory one. */
-const openStores = new WeakMap<IDBFactory, Promise<AssetStore>>();
+/**
+ * One database connection per IndexedDB factory and store name: the page's own factory in the browser, and each test's in-memory
+ * one. The name is part of the key, so a second account's images open their own database instead of the first account's connection.
+ */
+const openStores = new WeakMap<IDBFactory, Map<string, Promise<AssetStore>>>();
 
 /**
  * The browser's asset store for a project, or `undefined` when this browser has no IndexedDB (a headless run). A refused open
@@ -100,16 +105,22 @@ export async function browserDurableAssets(projectId: string, factory: IDBFactor
 /** The page's one connection to the asset store for `factory`, or `undefined` when there is no IndexedDB or the open is refused. */
 async function sharedAssetStore(factory: IDBFactory | undefined): Promise<AssetStore | undefined> {
   if (factory === undefined) return undefined;
-  let opened = openStores.get(factory);
+  const name = scopedStoreName(ASSET_DB_NAME);
+  let byName = openStores.get(factory);
+  if (byName === undefined) {
+    byName = new Map();
+    openStores.set(factory, byName);
+  }
+  let opened = byName.get(name);
   if (opened === undefined) {
-    opened = openAssetStore(factory);
-    openStores.set(factory, opened);
+    opened = openAssetStore(factory, name);
+    byName.set(name, opened);
   }
   try {
     return await opened;
   } catch {
     // A refused open is not kept, so the next project to ask tries again.
-    openStores.delete(factory);
+    byName.delete(name);
     return undefined;
   }
 }

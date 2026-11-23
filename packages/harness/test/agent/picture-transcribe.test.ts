@@ -118,6 +118,7 @@ interface Rig {
   readonly mock: MockProvider;
   readonly primaryId: string;
   readonly secondId: string;
+  readonly gateway: Gateway;
   readonly seen: ChatRequest[];
   readonly atDecision: { runnerCalls: number; modelRequests: number };
   readonly before: string;
@@ -141,6 +142,11 @@ async function transcribeTurn(args: {
   readonly failure?: CommandError;
   /** Whether the resolver reports vision for the second profile's route. Default true. */
   readonly secondRouteVision?: boolean;
+  /**
+   * Route the chat role's plan step to a profile of its own and pin the session there, as the app does. The read is the `read` step,
+   * which the writer never routed, so it stays on the chat role's own destination — and the card has to name that one.
+   */
+  readonly planRoute?: boolean;
 }): Promise<Rig> {
   const state = makeState();
   // Pin the project language so the card's language does not depend on the machine's locale.
@@ -174,6 +180,7 @@ async function transcribeTurn(args: {
   const second = await profiles.create({ name: 'Second', kind: 'mock', pricePer1k: { prompt: 1, completion: 2 } });
   const primaryId = primary.id;
   const secondId = second.id;
+  const plan = args.planRoute === true ? await profiles.create({ name: 'Plan', kind: 'mock', pricePer1k: { prompt: 5, completion: 10 } }) : undefined;
   const params = args.params({ primaryId, secondId });
 
   const seen: ChatRequest[] = [];
@@ -182,7 +189,21 @@ async function transcribeTurn(args: {
     { match: () => true, respond: () => ({ content: 'read' }) },
   ];
   const mock = createMockProvider({ scripts: [...scripts], capsVision: true });
-  const gateway: Gateway = createGateway({ profiles, keys, clock: createManualClock(0), mock });
+  // The app's own step-aware resolver: `plans` goes to the plan profile, every other chat call — the read included — to the role's.
+  const routeFor = (role: 'chat' | 'drafting' | 'background', step?: string) : { profileId: string; model: string } | undefined => {
+    if (plan === undefined || role !== 'chat') return undefined;
+    return step === 'plan' ? { profileId: plan.id, model: 'mock/plan' } : { profileId: primaryId, model: 'mock/primary' };
+  };
+  const built: Gateway = createGateway({
+    profiles,
+    keys,
+    clock: createManualClock(0),
+    mock,
+    ...(plan === undefined ? {} : {
+      roles: { resolve: routeFor, allowed: () => [primaryId, secondId, plan.id] },
+    }),
+  });
+  const gateway: Gateway = { ...built, ...(plan === undefined ? {} : { resolveRoleRoute: routeFor }) };
 
   const pending: PendingCard[] = [];
   const events: AgentEvent[] = [];
@@ -192,8 +213,10 @@ async function transcribeTurn(args: {
     harness,
     gateway,
     context: createContextPort({ state }),
-    profileId: primaryId,
-    model: 'mock/primary',
+    profileId: plan?.id ?? primaryId,
+    model: plan === undefined ? 'mock/primary' : 'mock/plan',
+    // The app runs the panel's turns under the chat role; the routed case is the one that needs it said.
+    ...(plan === undefined ? {} : { role: 'chat' as const }),
     transcribe: generationRunner(runner, args.failure),
     ...(args.secondRouteVision === undefined
       ? {}
@@ -215,7 +238,7 @@ async function transcribeTurn(args: {
   });
   const before = snapshotOf(state);
   const report = await session.submit(INTENT);
-  return { state, harness, session, report, pending, runner, reviews, mock, primaryId, secondId, seen, atDecision, before };
+  return { state, harness, session, report, pending, runner, reviews, mock, primaryId, secondId, gateway, seen, atDecision, before };
 }
 
 /** The card's preview, as the shape `previewFor` builds for a staged transcription plan. */
@@ -344,6 +367,26 @@ describe('pictures.transcribe in the agent loop', () => {
     const restored = rig.session.restore(rig.report.turnId);
     expect(restored.ok).toBe(true);
     expect(snapshotOf(state)).toBe(rig.before);
+  });
+
+  it('shows the destination the read is actually sent to, not the profile the session is pinned to', async () => {
+    // The app pins a session to the plan step's destination, so with Planning routed the pin names that profile while the read — the
+    // `read` step, which nobody routed — goes to the chat role's own. The card is the writer's consent, so it must name the latter.
+    const rig = await transcribeTurn({
+      params: () => ({ assetIds: [...IDS] }),
+      decision: { action: 'approve' },
+      planRoute: true,
+    });
+    const preview = rig.pending[0]?.card?.steps[0]?.preview as unknown as PreviewShape;
+
+    // The card names the profile the pages reach, and the read really reaches it — the plan, the routed step, went to the other one.
+    expect(preview.routes?.primary).toEqual({ label: 'mock/primary', model: 'mock/primary' });
+    // The read is the role's own call, so it names no destination of its own, and the day's usage shows it reached the chat profile
+    // while the plan, the routed step, reached the other one.
+    expect(rig.runner.inputs[0]?.model.profileId).toBeUndefined();
+    const reached = rig.gateway.ledger.dayRows().map((row) => row.profileId);
+    expect(reached).toContain(rig.primaryId);
+    expect(reached.some((id) => id !== rig.primaryId)).toBe(true);
   });
 
   it('refuses a second read on the same route as the primary before any generation call or write', async () => {

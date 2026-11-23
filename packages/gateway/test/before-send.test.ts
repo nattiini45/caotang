@@ -56,3 +56,24 @@ describe('caller admission at actual dispatch', () => {
     if (request?.type === 'request') expect(request.req).not.toHaveProperty('beforeSend');
   });
 });
+
+describe('completeOnce carries the late send hook', () => {
+  it('refuses a one-shot request at actual send without fetch or ledger spend', async () => {
+    const h = harness();
+    await addEndpoint(h);
+    const refusal = new Error('The caller read boundary changed.');
+    await expect(h.gateway.completeOnce(userMessage('Read the opening.'), undefined, () => { throw refusal; })).rejects.toBe(refusal);
+    expect(h.net.calls).toEqual([]);
+    expect(h.gateway.ledger.turnRows()).toEqual([]);
+  });
+
+  it('fires the hook at the actual send of a one-shot request', async () => {
+    const h = harness({ net: new ScriptedFetch().push(() => sseResponse([finish('stop'), '[DONE]'])) });
+    await addEndpoint(h);
+    let checks = 0;
+    const message = await h.gateway.completeOnce(userMessage('Read the opening.'), undefined, () => { checks += 1; });
+    expect(message.role).toBe('assistant');
+    expect(checks).toBe(1);
+    expect(h.net.calls).toHaveLength(1);
+  });
+});

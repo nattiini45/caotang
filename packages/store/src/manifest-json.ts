@@ -13,23 +13,14 @@
  * dropped here — §6: "unknown fields on load are preserved in memory and
  * dropped on next save, with a one-time notice."
  *
- * **The `formatVersion` written here is a transcription, not an assertion.**
- * §6 says "writers always save at the current version (no rolling forward on
- * unrelated edits)", and the parenthetical is the clause that does the work: a
- * caller holding a v1-shaped object has not been migrated, so stamping v2 over
- * it *is* rolling the version forward on an unrelated edit — and the file it
- * produces claims a shape it does not have, which the next open then validates
- * against the wrong schema because the version gate now believes it is current.
- * That only the §6 registry knows the migration steps proves the writer cannot
- * *fix* such a manifest, not that it may mislabel it. The writer does not
- * migrate, and it does not lie about what it wrote.
- * So a manifest whose own `formatVersion` is not this build's is refused, in
- * both directions, and the load path is where a version changes.
+ * The writer does not migrate. Production can write either supported version,
+ * marking a v1 artifact v2 only if it emits codex data a v1-only build would lose.
  */
 
 import { CHAR_LIMIT_MAX, EPUB_IMAGE_MAX_PX_MAX, EPUB_IMAGE_MAX_PX_MIN, PICTURE_MODES, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type HookCheck, type ProjectHook, type ProjectMacro } from '@caotang/bus';
 import type { PermissionRule } from './agent-rules.js';
 import { jsonValueProblem } from './json-value.js';
+import { requiredManifestVersion } from './manifest.js';
 import type {
   CodexEntry,
   Derived,
@@ -44,6 +35,7 @@ import type {
 import {
   PRODUCTION_FORMAT,
   MigrationError,
+  migrationTarget,
   readFormatVersion,
   type FormatContext,
 } from './migrations.js';
@@ -179,6 +171,7 @@ export const OPTIONAL_NODE_FIELDS: readonly OptionalNodeField[] = [
   { key: 'comicPage', value: (node: TreeNode) => node.comicPage, write: (value) => criterion(value, 'node.comicPage') },
   { key: 'showMeta', value: (node: TreeNode) => node.showMeta, write: (value) => criterion(value, 'node.showMeta') },
   { key: 'episodeMeta', value: (node: TreeNode) => node.episodeMeta, write: (value) => criterion(value, 'node.episodeMeta') },
+  { key: 'publish', value: (node: TreeNode) => node.publish, write: (value) => criterion(value, 'node.publish') },
   { key: 'style', value: (node: TreeNode) => node.style, write: (value) => str(value as string, 'node.style') },
   { key: 'createdAt', value: (node: TreeNode) => node.createdAt, write: (value) => str(value as string, 'node.createdAt') },
   { key: 'updatedAt', value: (node: TreeNode) => node.updatedAt, write: (value) => str(value as string, 'node.updatedAt') },
@@ -187,7 +180,18 @@ export const OPTIONAL_NODE_FIELDS: readonly OptionalNodeField[] = [
 /** One optional node field: where its value is, and how it is written. */
 interface OptionalNodeField {
   /** The manifest key it is written under. */
-  readonly key: 'kind' | 'shot' | 'dialogue' | 'comic' | 'comicPage' | 'showMeta' | 'episodeMeta' | 'style' | 'createdAt' | 'updatedAt';
+  readonly key:
+    | 'kind'
+    | 'shot'
+    | 'dialogue'
+    | 'comic'
+    | 'comicPage'
+    | 'showMeta'
+    | 'episodeMeta'
+    | 'publish'
+    | 'style'
+    | 'createdAt'
+    | 'updatedAt';
   /** The node's value for it, or `undefined` when the node does not carry it. */
   readonly value: (node: TreeNode) => unknown;
   /** The text the serializer writes for it. */
@@ -265,6 +269,9 @@ function codexEntry(c: CodexEntry): string {
   // invented — same rule as the additive tree-node timestamps above.
   if (c.createdAt !== undefined) pairs.push(['createdAt', str(c.createdAt, 'codex.createdAt')]);
   if (c.updatedAt !== undefined) pairs.push(['updatedAt', str(c.updatedAt, 'codex.updatedAt')]);
+  if (c.details !== undefined) pairs.push(['details', criterion(c.details, 'codex.details')]);
+  if (c.references !== undefined && c.references.length > 0) pairs.push(['references', criterion(c.references, 'codex.references')]);
+  if (c.relations !== undefined && c.relations.length > 0) pairs.push(['relations', criterion(c.relations, 'codex.relations')]);
   return oneLine(pairs);
 }
 
@@ -546,6 +553,14 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
   if (typeof o.keepPictureMetadata === 'boolean') pairs.push(['keepPictureMetadata', String(o.keepPictureMetadata)]);
   if (typeof o.timelinePictures === 'boolean') pairs.push(['timelinePictures', String(o.timelinePictures)]);
   if (typeof o.colourEmoji === 'boolean') pairs.push(['colourEmoji', String(o.colourEmoji)]);
+  if (o.notes === 'footnote' || o.notes === 'endnote') pairs.push(['notes', str(o.notes, 'recipe.options.notes')]);
+  const width = o.teleprompterWidth;
+  if (typeof width === 'number' && Number.isSafeInteger(width) && width >= 1) pairs.push(['teleprompterWidth', String(width)]);
+  if (typeof o.frontMatter === 'boolean') pairs.push(['frontMatter', String(o.frontMatter)]);
+  if (o.htmlMode === 'standalone' || o.htmlMode === 'fragment') pairs.push(['htmlMode', str(o.htmlMode, 'recipe.options.htmlMode')]);
+  if (typeof o.css === 'string') pairs.push(['css', str(o.css, 'recipe.options.css')]);
+  if (typeof o.siteUrl === 'string') pairs.push(['siteUrl', str(o.siteUrl, 'recipe.options.siteUrl')]);
+  if (o.pdfProfile === 'pdfa-2u') pairs.push(['pdfProfile', str(o.pdfProfile, 'recipe.options.pdfProfile')]);
   return pairs.length === 0 ? '{}' : oneLine(pairs);
 }
 
@@ -613,33 +628,28 @@ function derived(d: Derived): string {
  * count — produces a byte-identical manifest, keeping the §8 acceptance test's
  * "diff is empty" honest.
  *
- * Throws `MigrationError` when the manifest's own `formatVersion` is not this
- * build's current one — see the module note. A writer has no registry, so it can
- * neither migrate nor vouch for a version it did not receive already correct;
- * the honest answer is to refuse and let the caller route through the load path,
- * which is where §6 puts the upgrade and the notice.
+ * Throws `MigrationError` if the manifest is too new or still needs a migration.
  */
 export function serializeManifest(
   manifest: Manifest,
   format: FormatContext = PRODUCTION_FORMAT,
 ): string {
   const from = readFormatVersion(manifest);
-  if (from !== format.current) {
+  const target = migrationTarget(format);
+  if (from < target || from > format.current) {
     throw new MigrationError(
-      from < format.current
-        ? `refusing to stamp a v${format.current} formatVersion on a v${from} manifest: it has not ` +
-          `been migrated, and §6's parenthetical — "no rolling forward on unrelated edits" — is ` +
-          `what forbids it. Load it first; the §6 registry is the only thing that can upgrade it.`
-        : `refusing to stamp a v${format.current} formatVersion on a v${from} manifest: it is ` +
-          `newer than this build, and writing it at v${format.current} would drop fields this ` +
-          `serializer does not know it has.`,
+      from < target
+        ? `Cannot write the v${from} manifest: it has not been migrated to v${target}. Load it first.`
+        : `Cannot write the v${from} manifest: it is newer than this build (v${format.current}). Use a newer Caotang.`,
       from,
       format.current,
     );
   }
 
+  const hasDetailFields = (manifest.codexDetailFields?.length ?? 0) > 0;
+  const version = format === PRODUCTION_FORMAT ? requiredManifestVersion(manifest) : from;
   const parts: string[] = ['{', `${INDENT}"app": ${str(manifest.app, 'manifest.app')},`];
-  parts.push(`${INDENT}"formatVersion": ${String(format.current)},`);
+  parts.push(`${INDENT}"formatVersion": ${String(version)},`);
   parts.push(projectIdentity(manifest.project));
   parts.push(
     [
@@ -656,6 +666,15 @@ export function serializeManifest(
   // and a load→write cycle must not invent entries the author never made.
   if (manifest.codex !== undefined) {
     parts.push(`${INDENT}"codex": ${objectArray(manifest.codex.map(codexEntry), 1)},`);
+  }
+  if (manifest.codexDetailFields !== undefined && hasDetailFields) {
+    const fields = manifest.codexDetailFields.map(({ type, key: fieldKey, label, kind }) => oneLine([
+      ['type', str(type, 'codexDetailFields.type')],
+      ['key', str(fieldKey, 'codexDetailFields.key')],
+      ['label', str(label, 'codexDetailFields.label')],
+      ['kind', str(kind, 'codexDetailFields.kind')],
+    ]));
+    parts.push(`${INDENT}"codexDetailFields": ${objectArray(fields, 1)},`);
   }
   if (manifest.filters !== undefined) {
     parts.push(`${INDENT}"filters": ${objectArray(manifest.filters.map(savedFilter), 1)},`);

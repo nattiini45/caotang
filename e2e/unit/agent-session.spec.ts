@@ -288,10 +288,15 @@ test('a turn starts with the dialogue tools loaded when a dialogue container is 
   const session = await sessionOver(state, store);
   const preloaded: (readonly string[])[] = [];
   await session.harnessReady();
-  const preload = session.harness.preload;
-  session.harness.preload = (turnId, names) => {
-    preloaded.push(names);
-    preload(turnId, names);
+  const withRules = session.harness.withRules;
+  session.harness.withRules = (rules) => {
+    const view = withRules(rules);
+    const preload = view.preload;
+    view.preload = (turnId, names) => {
+      preloaded.push(names);
+      preload(turnId, names);
+    };
+    return view;
   };
   const controller = new AgentController(session, await demoProviders());
 

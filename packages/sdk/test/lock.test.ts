@@ -45,9 +45,18 @@ async function withFs(overrides: Partial<typeof realFs>, run: (lock: typeof lock
   }
 }
 
+/**
+ * The environment a spawned child gets: ours, without `NODE_OPTIONS`. The test runner fills that variable with its own preload
+ * script, which a child started elsewhere cannot resolve, so the child would die before running anything (#812).
+ */
+function childEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  const { NODE_OPTIONS: _runnerPreload, ...rest } = process.env;
+  return { ...rest, ...extra };
+}
+
 /** A pid that belonged to a process which has exited. */
 async function deadPid(): Promise<number> {
-  const child = spawn(process.execPath, ['-e', '']);
+  const child = spawn(process.execPath, ['-e', ''], { env: childEnv() });
   const pid = child.pid;
   await new Promise<void>((done) => child.once('exit', () => done()));
   if (pid === undefined) throw new Error('could not start a child process');

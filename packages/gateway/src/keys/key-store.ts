@@ -22,6 +22,7 @@
  */
 
 import type { KeyVaultPort } from './vault.js';
+import { EgressDeniedError } from '../errors.js';
 
 /** What is sealed for one profile: the API key, plus the generic profile's custom headers. */
 export interface KeyPayload {
@@ -43,7 +44,8 @@ export interface KeyStore {
    */
   reveal(profileId: string): Promise<string | undefined>;
   /** Opens the stored payload — key and custom headers. Same rules as {@link KeyStore.reveal}. */
-  revealPayload(profileId: string): Promise<KeyPayload | undefined>;
+  revealPayload(profileId: string, expectedRevision?: string): Promise<KeyPayload | undefined>;
+  credentialRevision(profileId: string): Promise<string>;
   has(profileId: string): Promise<boolean>;
   remove(profileId: string): Promise<void>;
 }
@@ -132,26 +134,42 @@ export function createKeyStore(port: KeyVaultPort, options: KeyStoreOptions = {}
     await port.putEntry(profileId, { iv, ciphertext: new Uint8Array(sealed) });
   };
 
-  const open = async (profileId: string): Promise<KeyPayload | undefined> => {
+  const revisionOf = async (entry: Awaited<ReturnType<KeyVaultPort['getEntry']>>): Promise<string> => {
+    if (entry === undefined) return 'empty';
+    const sealed = new Uint8Array(entry.iv.length + entry.ciphertext.length);
+    sealed.set(entry.iv);
+    sealed.set(entry.ciphertext, entry.iv.length);
+    const digest = await subtle.digest('SHA-256', sealed);
+    return btoa(String.fromCharCode(...new Uint8Array(digest)));
+  };
+
+  const open = async (profileId: string, expectedRevision?: string): Promise<KeyPayload | undefined> => {
     const entry = await port.getEntry(profileId);
+    if (expectedRevision !== undefined && await revisionOf(entry) !== expectedRevision) {
+      throw new EgressDeniedError('The approved provider credentials changed. This attempt was not sent.');
+    }
     if (entry === undefined) return undefined;
     const key = await port.getWrappingKey();
-    if (key === undefined) return undefined;
-    let plain: string;
-    try {
-      const opened = await subtle.decrypt(
-        { name: 'AES-GCM', iv: entry.iv, additionalData: additionalData(profileId) },
-        key,
-        entry.ciphertext,
-      );
-      plain = decoder.decode(opened);
-    } catch {
-      // A failed tag check means the entry is corrupt or was moved between profiles.
-      // Either way the honest answer is "no usable key", not a partial one.
+    let plain: string | undefined;
+    if (key !== undefined) {
+      try {
+        const opened = await subtle.decrypt(
+          { name: 'AES-GCM', iv: entry.iv, additionalData: additionalData(profileId) },
+          key,
+          entry.ciphertext,
+        );
+        plain = decoder.decode(opened);
+      } catch {
+        // A failed tag check means the entry is corrupt or was moved between profiles.
+        // Either way the honest answer is "no usable key", not a partial one.
+      }
+    }
+    if (plain === undefined) {
+      if (expectedRevision !== undefined) throw new EgressDeniedError('The approved provider credentials cannot be read. No request was sent.');
       return undefined;
     }
     const { payload, legacy } = decodePayload(plain);
-    if (legacy) {
+    if (legacy && expectedRevision === undefined) {
       // v1 → v2 lazy migration: re-seal under a fresh IV. A failed rewrite leaves the
       // readable v1 entry where it was, which is safe to try again next time.
       try {
@@ -176,8 +194,12 @@ export function createKeyStore(port: KeyVaultPort, options: KeyStoreOptions = {}
       return (await open(profileId))?.apiKey;
     },
 
-    async revealPayload(profileId) {
-      return open(profileId);
+    async revealPayload(profileId, expectedRevision) {
+      return open(profileId, expectedRevision);
+    },
+
+    async credentialRevision(profileId) {
+      return revisionOf(await port.getEntry(profileId));
     },
 
     async has(profileId) {

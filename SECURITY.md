@@ -5,7 +5,7 @@
 Please report security problems privately. Do not open a public issue.
 
 - **GitHub:** use private vulnerability reporting on this repository. Open the **Security** tab of [nattiini45/caotang](https://github.com/nattiini45/caotang/security) and choose **Report a vulnerability**.
-- **Email:** caspar@pawcommit.com.
+- **Contact:** PawCommit Studio.
 
 Include what you found, the version or commit, the steps to reproduce it, and what an attacker could do with it. A proof of concept helps. If the problem involves a provider key or a project, please use a throwaway key and a sample project.
 

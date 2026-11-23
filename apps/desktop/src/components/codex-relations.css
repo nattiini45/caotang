@@ -1,0 +1,74 @@
+.codex-relations,
+.codex-relation-form {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.codex-relation-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.codex-relation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.codex-relation-target {
+  padding-inline: 0;
+  color: var(--accent);
+  font-weight: 600;
+  text-align: start;
+}
+
+.codex-relation-label {
+  color: var(--muted);
+}
+
+.codex-relation-label::before {
+  content: '· ';
+}
+
+.codex-relation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+.codex-relation-add {
+  align-self: flex-start;
+}
+
+.codex-relations-subheading {
+  margin-block-start: var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.codex-relation-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.codex-relation.is-unreadable {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.codex-relation.is-unreadable .codex-relation-target {
+  color: var(--ink);
+}
+
+.codex-relation.is-unreadable .codex-relation-actions {
+  margin-inline-start: 0;
+}

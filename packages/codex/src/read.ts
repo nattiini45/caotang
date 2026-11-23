@@ -10,6 +10,9 @@
  * - Results list a preview: the text around the first description hit, or the first
  *   200 characters when there is no hit. An id fetch returns the full description when
  *   the result fits the cap, and a marked prefix when it does not.
+ * - An entry's saved references and relations come back with their ids (`ref_`, `rel_`),
+ *   because those ids are what `codex.write` takes to update or remove one. Automatic
+ *   context carries neither; only this explicit read does.
  * - Empty is a result, not an error. The note tells the model to create the entry.
  * - The serialised result is capped at 8k estimated tokens. A list drops whole entries
  *   from the end. An id fetch cuts its description to the longest prefix that fits.
@@ -60,6 +63,32 @@ export interface CodexReadSource {
    * and 0 means the entry is not in the cached documents.
    */
   readonly mentions?: ReadonlyMap<string, number>;
+  /**
+   * The entry's stored references and relations, read by the caller, when it has the
+   * readers for them (the bus validates and reads those records, and this package is
+   * below it). When supplied, each item carries the ids `codex.write` takes.
+   */
+  readonly links?: ReadonlyMap<string, CodexEntryLinks>;
+}
+
+/** One stored reference, as `codex.read` reports it: the id `codex.write` takes, and its title. */
+export interface CodexReadReference {
+  readonly id: string;
+  readonly title: string;
+}
+
+/** One stored relation, as `codex.read` reports it: its id, where it points, and the target's name. */
+export interface CodexReadRelation {
+  readonly id: string;
+  readonly targetId: string;
+  /** The target entry's name, or its id when that entry is gone. */
+  readonly target: string;
+  readonly label?: string;
+}
+
+export interface CodexEntryLinks {
+  readonly references?: readonly CodexReadReference[];
+  readonly relations?: readonly CodexReadRelation[];
 }
 
 export type CodexMatchField = 'name' | 'alias' | 'description';
@@ -83,6 +112,10 @@ export interface CodexReadItem {
   readonly visualRefs?: readonly string[];
   /** Present only when the source supplied mention counts. */
   readonly mentions?: number;
+  /** The entry's saved references, each with the `ref_` id `codex.write` takes. Present only when it has some. */
+  readonly references?: readonly CodexReadReference[];
+  /** The links this entry states, each with the `rel_` id `codex.write` takes. Present only when it has some. */
+  readonly relations?: readonly CodexReadRelation[];
   /** Present only with a query: which fields matched. */
   readonly matchedOn?: readonly CodexMatchField[];
 }
@@ -311,6 +344,7 @@ function itemOf(
     attachments: [...attachmentsOf(entry)],
     ...(entry.visualRefs === undefined || entry.visualRefs.length === 0 ? {} : { visualRefs: [...entry.visualRefs] }),
     ...(source.mentions === undefined ? {} : { mentions: source.mentions.get(entry.id) ?? 0 }),
+    ...(source.links?.get(entry.id) ?? {}),
     ...(matchedOn === undefined ? {} : { matchedOn }),
   };
 }

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { binderTitle, createProject, firstChapter, waitForSaved } from './support.js';
+import { binderTitle, createProject, firstChapter, waitForSaved, chooseInterfaceLanguage} from './support.js';
 
 async function modern(page: Page): Promise<void> {
   await page.locator('.toolbar').getByRole('button', { name: 'Settings', exact: true }).click();
@@ -152,7 +152,7 @@ test('German document modes fit the narrow ornament and translate dialogue contr
   const settings = page.getByTestId('settings');
   await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
   await settings.getByRole('group', { name: 'Interface', exact: true }).getByRole('radio', { name: 'Modern', exact: true }).check();
-  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
   await settings.getByRole('button', { name: 'Schließen', exact: true }).click();
   const banner = page.getByTestId('storage-banner');

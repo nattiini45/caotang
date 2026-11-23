@@ -1,0 +1,18 @@
+{
+  "name": "@caotang/font-noto-malayalam",
+  "version": "2.104",
+  "license": "OFL-1.1",
+  "private": true,
+  "description": "NotoSansMalayalam Regular 2.104 as a static TrueType file: the font both PDFs embed, subset, for Malayalam text",
+  "repository": "https://github.com/notofonts/malayalam",
+  "exports": {
+    "./NotoSansMalayalam-Regular.ttf": "./NotoSansMalayalam-Regular.ttf",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "NotoSansMalayalam-Regular.ttf",
+    "LICENSE",
+    "README.md",
+    "SHA256SUMS"
+  ]
+}

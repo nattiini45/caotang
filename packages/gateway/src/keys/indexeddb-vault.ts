@@ -35,6 +35,9 @@ interface EntryRecord extends SealedEntry {
   profileId: string;
 }
 
+/** The database the sealed provider keys live in. The app names it through its storage scope (storage-scope.ts). */
+export const PROVIDER_KEY_DB_NAME = 'caotang-provider-keys';
+
 export interface IndexedDbVaultOptions {
   /** defaults to `globalThis.indexedDB`; tests pass an in-memory factory */
   factory?: IDBFactory;
@@ -45,7 +48,7 @@ export interface IndexedDbVaultOptions {
 export function createIndexedDbVaultPort(options: IndexedDbVaultOptions = {}): KeyVaultPort {
   const factory = options.factory ?? globalThis.indexedDB;
   if (factory === undefined) throw new Error('IndexedDB is not available in this host, so the provider key vault cannot open.');
-  const name = options.name ?? 'caotang-provider-keys';
+  const name = options.name ?? PROVIDER_KEY_DB_NAME;
   let opened: Promise<IDBDatabase> | undefined;
 
   const open = (): Promise<IDBDatabase> => {

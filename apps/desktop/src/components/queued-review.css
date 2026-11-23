@@ -1,0 +1,25 @@
+.queued-review-details {
+  min-inline-size: 0;
+  margin-block: var(--space-4);
+  overflow-wrap: anywhere;
+}
+
+.queued-review-details h4 {
+  margin-block: var(--space-3) var(--space-2);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.queued-review-exclusions ul {
+  margin-block: var(--space-1) var(--space-3);
+  padding-inline-start: var(--space-5);
+  font-size: var(--text-md);
+}
+
+.queued-review-prompt pre {
+  max-block-size: 16rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--text-md);
+}

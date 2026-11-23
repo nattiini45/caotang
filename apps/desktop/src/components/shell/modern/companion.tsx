@@ -22,7 +22,7 @@ import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 
 import './companion.css';
 
-import { isImeEnter, keyFacts, resolveKey } from '../../../app/keymap.js';
+import { isImeEnter, keyFacts, MODAL_DIALOG_SELECTOR, resolveKey } from '../../../app/keymap.js';
 import { LazyBoundary } from '../../lazy-view.js';
 import type { ShellView } from '../regions.js';
 import { ASK_ID, COMPANION_ID, noteCompanionOpener, takeCompanionOpener, toggleCompanion } from './companion-actions.js';
@@ -52,7 +52,7 @@ export function CompanionWindow({ regions, pageId }: ModernSlotProps): ReactNode
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       const target = event.target;
-      if (target instanceof Element && target.closest('dialog') !== null) return;
+      if (target instanceof Element && target.closest(MODAL_DIALOG_SELECTOR) !== null) return;
       const inTextField =
         target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement || (target instanceof HTMLElement && target.isContentEditable);
       const action = resolveKey({ ...keyFacts(event), composing: isImeEnter(event) }, { inTextField, inBinder: false, shell: 'modern' });

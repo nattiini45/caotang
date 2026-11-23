@@ -201,45 +201,34 @@ describe('the gateway: policy, rows that do not cache, and the forecast terms', 
     expect(first).not.toMatch(/cache/);
   });
 
-  it('places breakpoints on an Anthropic profile, and none when its caching is off', async () => {
+  it('places breakpoints on an Anthropic profile with no setting, and none when a request turns caching off', async () => {
     const anthropic = () =>
       sseResponse([{ type: 'message_start', message: { usage: { input_tokens: 1, output_tokens: 1 } } }, { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 1 } }, { type: 'message_stop' }]);
     const h = harness();
-    const on = await addEndpoint(h, { preset: 'anthropic', baseUrl: undefined, defaultModel: 'claude-sonnet-5-5' });
-    const off = await addEndpoint(h, { preset: 'anthropic', baseUrl: undefined, defaultModel: 'claude-sonnet-5-5', name: 'Off', promptCache: { mode: 'off' } });
+    const profile = await addEndpoint(h, { preset: 'anthropic', baseUrl: undefined, defaultModel: 'claude-sonnet-5-5' });
     h.net.push(anthropic, anthropic);
-    await collect(h.gateway.complete({ ...plannerRequest(), profileId: on.id }));
-    await collect(h.gateway.complete({ ...plannerRequest(), profileId: off.id }));
+    await collect(h.gateway.complete({ ...plannerRequest(), profileId: profile.id }));
+    await collect(h.gateway.complete({ ...plannerRequest(), profileId: profile.id, cache: { mode: 'off' } }));
     const [cached, plain] = [h.net.bodyOf(0), h.net.bodyOf(1)];
     expect(controls(cached)).toHaveLength(4);
+    expect(controls(cached).every((control) => JSON.stringify(control) === '{"type":"ephemeral"}')).toBe(true);
     expect(controls(plain)).toEqual([]);
-    expect(h.gateway.modelLimits(on.id).cache).toEqual({ readMultiplier: 0.05, writeMultiplier: 1.25, minTokens: 512 });
-    expect(h.gateway.modelLimits(off.id).cache).toBeUndefined();
+    expect(h.gateway.modelLimits(profile.id).cache).toEqual({ readMultiplier: 0.05, writeMultiplier: 1.25, minTokens: 512 });
+    expect(h.gateway.modelLimits(profile.id, undefined, undefined, { cache: { mode: 'off' } }).cache).toBeUndefined();
   });
 
-  it('a request may turn caching off for itself, and the hour-long lifetime is priced at twice the prompt', async () => {
+  it('a request may turn caching off for itself, and an hour-long lifetime a request asks for is priced at twice the prompt', async () => {
     const h = harness();
-    const profile = await addEndpoint(h, { preset: 'anthropic', baseUrl: undefined, defaultModel: 'claude-sonnet-5-5', promptCache: { mode: 'auto', ttl: '1h' } });
-    expect(h.gateway.modelLimits(profile.id).cache?.writeMultiplier).toBe(2);
+    const profile = await addEndpoint(h, { preset: 'anthropic', baseUrl: undefined, defaultModel: 'claude-sonnet-5-5' });
+    expect(h.gateway.modelLimits(profile.id).cache?.writeMultiplier).toBe(1.25);
+    expect(h.gateway.modelLimits(profile.id, undefined, undefined, { cache: { mode: 'auto', ttl: '1h' } }).cache?.writeMultiplier).toBe(2);
     h.net.push(() => sseResponse([{ type: 'message_stop' }]));
     await collect(h.gateway.complete({ ...plannerRequest(), cache: { mode: 'off' } }));
     expect(String(h.net.calls[0]?.init.body)).not.toContain('cache_control');
   });
 });
 
-describe('profiles keep their caching policy', () => {
-  it('stores, updates and refuses a policy', async () => {
-    const h = harness();
-    const made = await addEndpoint(h, { promptCache: { mode: 'auto', ttl: '1h' } });
-    expect(made.promptCache).toEqual({ mode: 'auto', ttl: '1h' });
-    const changed = await h.profiles.update(made.id, { promptCache: { mode: 'off' } });
-    expect(changed.promptCache).toEqual({ mode: 'off' });
-    const kept = await h.profiles.update(made.id, { name: 'Renamed' });
-    expect(kept.promptCache).toEqual({ mode: 'off' });
-    await expect(addEndpoint(h, { promptCache: { mode: 'auto', ttl: '2h' as '1h' } })).rejects.toThrow(/5 minutes or 1 hour/);
-    await expect(addEndpoint(h, { promptCache: null as unknown as { mode: 'off' } })).rejects.toThrow(/either on or off/);
-  });
-
+describe('prompt caching has no profile setting', () => {
   it('hashes with FNV-1a 64', () => {
     expect(fnv1a64('')).toBe('cbf29ce484222325');
     expect(fnv1a64('a')).toBe('af63dc4c8601ec8c');

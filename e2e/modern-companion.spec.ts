@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
+import { test } from './test.js';
 
 import { NO_PIN } from './classic-pin.js';
 import { fakeEndpoint, useFakeEndpoint, type FakeReply } from './endpoint.js';
@@ -95,7 +96,7 @@ async function sceneInModern(page: Page, name: string): Promise<Locator> {
   return editor;
 }
 
-test('Ctrl+J opens the window from the editor while typing, with Agent, Mode and Close in its header, and closes it again', async ({ page }) => {
+test('Ctrl+J opens the window from the editor while typing, with Agent, Mode and Close in its header, and closes it again', { tag: '@modern' }, async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await modern(page);
   const editor = await sceneInModern(page, 'Chord Book');
@@ -133,7 +134,7 @@ test('Ctrl+J opens the window from the editor while typing, with Agent, Mode and
   await expect(companion(page)).toBeHidden();
 });
 
-test('an empty state’s agent request opens the window out of its button, and the page moves over and recedes', async ({ page }) => {
+test('an empty state’s agent request opens the window out of its button, and the page moves over and recedes', { tag: '@modern' }, async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await modern(page);
   await createProject(page, 'Empty Book');
@@ -170,7 +171,7 @@ test('an empty state’s agent request opens the window out of its button, and t
   await expect.poll(() => area.evaluate((element) => getComputedStyle(element).transform)).toBe('none');
 });
 
-test('from 1,280 px down the window is a sheet over the page with a scrim, and a click on the scrim closes it', async ({ page }) => {
+test('from 1,280 px down the window is a sheet over the page with a scrim, and a click on the scrim closes it', { tag: '@modern' }, async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await modern(page);
   const editor = await sceneInModern(page, 'Sheet Book');
@@ -197,7 +198,7 @@ test('from 1,280 px down the window is a sheet over the page with a scrim, and a
   await expect(scrim).toHaveCount(0);
 });
 
-test('under reduced motion the window fades in place and the page does not recede', async ({ page }) => {
+test('under reduced motion the window fades in place and the page does not recede', { tag: '@modern' }, async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await modern(page);
@@ -250,7 +251,7 @@ async function hold(page: Page, marker: string): Promise<() => void> {
   return release;
 }
 
-test('Escape stops a running turn while the Intent box is empty; with words in it, or nothing to stop, it closes the window', async ({ page }) => {
+test('Escape stops a running turn while the Intent box is empty; with words in it, or nothing to stop, it closes the window', { tag: '@modern' }, async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await modern(page);
   await fakeEndpoint(page, echo);

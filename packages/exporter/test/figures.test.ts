@@ -106,6 +106,12 @@ describe('shared bytes and payload dedup', () => {
     const blocks: FlatBlock[] = [{ kind: 'scene', docId: 'n_SCENE00001', title: 'S', body, number: 1 }];
     expect(usedAssetFilesOf(blocks)).toEqual([pngFile(ID_B), pngFile(ID_A)]);
   });
+
+  it('collects a picture placed inside a note too', () => {
+    const body = [`Text[^1].`, `[^1]: ![n](${urlOf(pngFile(ID_A))})`].join('\n\n');
+    const blocks: FlatBlock[] = [{ kind: 'scene', docId: 'n_SCENE00001', title: 'S', body, number: 1 }];
+    expect(usedAssetFilesOf(blocks)).toEqual([pngFile(ID_A)]);
+  });
 });
 
 describe('what cannot be embedded degrades to its caption, with a note', () => {

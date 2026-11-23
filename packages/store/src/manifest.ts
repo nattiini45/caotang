@@ -6,7 +6,7 @@
  * unknown-tolerant rules that make them safe.
  */
 
-import type { ProjectHook, ProjectMacro, RecipeScriptFont, SceneNumbersOption } from '@caotang/bus';
+import type { CodexDetailField, ProjectHook, ProjectMacro, RecipeScriptFont, SceneNumbersOption } from '@caotang/bus';
 
 import type { AssetRecord, ReadAssetLink, ReadAssetRecord } from '@caotang/pictures';
 
@@ -15,7 +15,22 @@ import type { PermissionRule } from './agent-rules.js';
 export type { AssetRecord, ProjectHook, ProjectMacro };
 
 export const APP_ID = 'caotang';
-export const FORMAT_VERSION = 1;
+export const CODEX_DETAILS_FORMAT_VERSION = 2;
+export const CODEX_REFERENCES_FORMAT_VERSION = 3;
+export const CODEX_RELATIONS_FORMAT_VERSION = 4;
+export const FORMAT_VERSION = CODEX_RELATIONS_FORMAT_VERSION;
+
+export function requiredManifestVersion(manifest: Manifest): number {
+  if (manifest.codex?.some((entry) => (entry.relations?.length ?? 0) > 0)) {
+    return Math.max(manifest.formatVersion, CODEX_RELATIONS_FORMAT_VERSION);
+  }
+  if (manifest.codex?.some((entry) => (entry.references?.length ?? 0) > 0)) {
+    return Math.max(manifest.formatVersion, CODEX_REFERENCES_FORMAT_VERSION);
+  }
+  const hasDetails = (manifest.codexDetailFields?.length ?? 0) > 0
+    || manifest.codex?.some((entry) => entry.details !== undefined);
+  return hasDetails ? Math.max(manifest.formatVersion, CODEX_DETAILS_FORMAT_VERSION) : manifest.formatVersion;
+}
 
 /** Fixed roots, reserved and not deletable. */
 export const FIXED_ROOT_IDS = ['root', 'manuscript', 'research'] as const;
@@ -86,6 +101,24 @@ export interface ExportRecipeOptions {
   keepPictureMetadata?: boolean;
   /** The timeline PDF draws each scene's pictures as thumbnails (timeline.md §9.1). Absent = off. Only `timeline-pdf` reads it. */
   timelinePictures?: boolean;
+  /**
+   * Where the prose formats put a footnote's text (exporter.md §3, the footnote engine): `footnote` (absent = this) at the
+   * page's foot in DOCX and at the chapter's end in EPUB and plain text; `endnote` at the document's end in DOCX and the
+   * book's end in EPUB and plain text. Markdown always keeps `[^n]` as written and never reads it.
+   */
+  notes?: 'footnote' | 'endnote';
+  /** The teleprompter's wrap width in characters per line (av-script.md §5). Absent = the compile's default. Only `teleprompter` reads it. */
+  teleprompterWidth?: number;
+  /** The HTML article emits the YAML block a static-site generator reads (web-publishing.md §3). Absent = off. Only `html` reads it. */
+  frontMatter?: boolean;
+  /** The HTML article as a full document or as a fragment for a site template (web-publishing.md §3). Absent = standalone. Only `html` reads it. */
+  htmlMode?: 'standalone' | 'fragment';
+  /** The stylesheet the writer's site serves, emitted as the article's `<link rel="stylesheet">` (web-publishing.md §3). Only `html` reads it. */
+  css?: string;
+  /** The site's absolute https address: RSS's channel link and Atom's feed id (web-publishing.md §3). A feed compile refuses without it. Only `rss` and `atom` read it. */
+  siteUrl?: string;
+  /** `pdfa-2u` writes the prose PDF as PDF/A-2u (exporter.md §3): XMP metadata, an sRGB output intent, Unicode maps and a structure tree. Absent = a plain PDF. Only `prose-pdf` reads it. */
+  pdfProfile?: 'pdfa-2u';
 }
 
 /**
@@ -156,6 +189,12 @@ export interface TreeNode {
   showMeta?: Record<string, unknown>;
   /** An episode document's settings (av-script.md §2): the enclosure, episode and season numbers, and two feed URLs. */
   episodeMeta?: Record<string, unknown>;
+  /**
+   * A document's publish metadata (web-publishing.md §2): slug, `publishedAt`, tags, `canonical`, `description` and
+   * `layout`, tolerant of unknown keys. A document with no `publishedAt` is a draft; there is no separate flag. The
+   * store carries it as an object and does not read its fields: the web-publishing exports do.
+   */
+  publish?: Record<string, unknown>;
 }
 
 export interface VocabularyTerm {
@@ -205,6 +244,10 @@ export interface CodexEntry {
    * mentions this entry. Additive in format v1; absent reads as none, and the serializer omits the key when there are none.
    */
   visualRefs?: string[];
+  details?: Record<string, unknown>;
+  references?: unknown[];
+  /** codex.md §2.3: outgoing relations to other entries, each `{ id, targetId, label? }`. */
+  relations?: unknown[];
   /** additive (codex.md §10 K4) — missing on load = 'manual' */
   origin: 'manual' | 'agent' | 'import';
   sources: CodexSource[];
@@ -282,6 +325,7 @@ export interface Manifest {
   derived: Derived;
   /** additive in v1; absent = empty codex */
   codex?: CodexEntry[];
+  codexDetailFields?: CodexDetailField[];
   /** additive in v1 (binder-filters.md); absent = no saved queries */
   filters?: SavedFilter[];
   /** additive in v1 (goals-progress.md); absent = no goals */

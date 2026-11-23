@@ -4,13 +4,14 @@
  */
 
 import { useEffect, type ReactNode } from 'react';
+import { useLingui } from '@lingui/react';
 import type { AgentEditOutcome } from '@caotang/editor';
 import type { TiptapEditorInstance } from '@caotang/editor/tiptap';
 
 import type { AgentController } from '../app/agent.js';
 import { activeAppDb } from '../app/app-db.js';
 import { recordPending } from '../app/review-notice.js';
-import { UNRESOLVED_NOTICE, landingNotice } from '../app/review-text.js';
+import { unresolvedNotice, landingNotice } from '../app/review-text.js';
 import { ReviewBar } from './ReviewBar.js';
 import type { Report } from './shared.js';
 
@@ -59,8 +60,9 @@ export function ReviewSide({
   editor: TiptapEditorInstance;
   report: Report;
 }): ReactNode {
+  useLingui();
   useEffect(() => startReview(projectId, docId, agent, editor), [projectId, docId, agent, editor]);
-  return <ReviewBar review={editor.review} onUnsettled={() => report({ text: UNRESOLVED_NOTICE, tone: 'info' })} />;
+  return <ReviewBar review={editor.review} onUnsettled={() => report({ text: unresolvedNotice(), tone: 'info' })} />;
 }
 
 /** Says why an agent edit replaced the text instead of being marked, when it did for a reason the writer should hear. */

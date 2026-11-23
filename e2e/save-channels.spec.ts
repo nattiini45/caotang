@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from './test.js';
 
 import { createProject, waitForSaved } from './support.js';
 import { installSaveRefusals, makeFailingDocument, makeFailingSettings, makeFailingTask, openSaveSettings, refuseSave } from './save-channel-fixture.js';
@@ -6,7 +7,7 @@ import { installSaveRefusals, makeFailingDocument, makeFailingSettings, makeFail
 test.beforeEach(async ({ page }) => installSaveRefusals(page));
 
 for (const shell of ['classic', 'modern'] as const) {
-  test(`${shell}: a failed save capsule survives modal ownership`, async ({ page }) => {
+  test(`${shell}: a failed save capsule survives modal ownership`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
     await page.addInitScript((chosen) => localStorage.setItem('caotang.interface', chosen), shell);
     await createProject(page, 'A save under a modal');
     await makeFailingSettings(page);
@@ -27,7 +28,7 @@ for (const shell of ['classic', 'modern'] as const) {
     if (shell === 'modern') await expect(page.getByTestId('modern-notices')).toHaveAttribute('data-state', 'visible');
   });
 
-  test(`${shell}: a document conflict stays named after an unchanged flush and clears after recovery`, async ({ page }) => {
+  test(`${shell}: a document conflict stays named after an unchanged flush and clears after recovery`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
     await page.addInitScript((chosen) => localStorage.setItem('caotang.interface', chosen), shell);
     await createProject(page, 'Documents waiting to save');
     await makeFailingDocument(page);

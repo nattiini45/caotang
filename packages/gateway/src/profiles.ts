@@ -1,3 +1,5 @@
+// i18n: package-refs
+
 /**
  * Provider profiles — [provider-gateway.md §2](docs/architecture/provider-gateway.md).
  *
@@ -26,11 +28,11 @@
 export const DEFAULT_MAX_OUTPUT_TOKENS = 4_096;
 
 import { MOCK_BASE_URL, normalizeBaseUrl, normalizeLocalBaseUrl, originOf } from './base-url.js';
-import { ProfileError } from './errors.js';
-import type { KeyStore } from './keys/key-store.js';
+import { ProfileError, providerRefs } from './errors.js';
+import type { KeyPayload, KeyStore } from './keys/key-store.js';
 import { presetFor, type PresetDef } from './presets/index.js';
 import { providerVerificationMachine } from './verification.js';
-import type { CachePolicy, NewProfile, ProfileKind, ProfilePatch, ProfileVerification, ProfileView, RequestParams, ResponseFormatProbe, ThinkingLevel } from './types.js';
+import type { NewProfile, ProfileKind, ProfilePatch, ProfileVerification, ProfileView, RequestParams, ResponseFormatProbe, ThinkingLevel } from './types.js';
 
 export interface ProfileStore {
   create(input: NewProfile): Promise<ProfileView>;
@@ -50,10 +52,28 @@ export interface ProfileStore {
   recordVerification(id: string, verification: ProfileVerification): void;
 }
 
+/** What changed for one profile's key: where that key may be sent, and the payload now sealed for it. */
+export interface KeyChange {
+  readonly origin: string;
+  readonly payload: KeyPayload;
+}
+
+/**
+ * Told after a profile's key payload is written or removed, so a host that keeps a copy of the writer's keys somewhere
+ * else — the account vault of a hosted instance — can follow what changed here. It is a notification, not a transaction:
+ * the key is already stored when it runs, so it must not throw, and its own work cannot undo the save. It carries the
+ * endpoint origin because the copy elsewhere is sealed against it, and only this store knows where a profile points.
+ */
+export interface KeyMirror {
+  changed(profileId: string, change: KeyChange | null): void;
+}
+
 export interface ProfileStoreOptions {
   keys: KeyStore;
   /** injected so tests can pin ids; defaults to `crypto.getRandomValues` */
   randomBytes?: (n: number) => Uint8Array<ArrayBuffer>;
+  /** A host following this device's provider keys elsewhere. */
+  mirror?: KeyMirror;
 }
 
 /** The mock's model id, and the one a mock profile reports when no model is given. */
@@ -91,7 +111,6 @@ interface StoredProfile {
   maxOutputTokens?: number;
   params?: RequestParams;
   pricePer1k?: { prompt: number; completion: number };
-  promptCache?: CachePolicy;
   isActive: boolean;
   hasKey: boolean;
   responseFormat?: ResponseFormatProbe;
@@ -109,7 +128,6 @@ interface CheckedFields {
   maxOutputTokens?: number;
   params?: RequestParams;
   pricePer1k?: { prompt: number; completion: number };
-  promptCache?: CachePolicy;
 }
 
 interface RawFields {
@@ -123,7 +141,6 @@ interface RawFields {
   maxOutputTokens?: number;
   params?: RequestParams;
   pricePer1k?: { prompt: number; completion: number };
-  promptCache?: CachePolicy;
 }
 
 /** RFC 9110 token — what a request header name may be. */
@@ -136,7 +153,7 @@ function isRecord(raw: unknown): raw is Record<string, unknown> {
 }
 
 function trimString(raw: string, field: string): string {
-  if (typeof raw !== 'string') throw new ProfileError('invalid', 'Enter a text value for this field.', field);
+  if (typeof raw !== 'string') throw new ProfileError('invalid', 'Enter a text value for this field.', { field, messageRef: { id: 'gateway.invalid.textValue', message: 'Enter a text value for this field.' } });
   return raw.trim();
 }
 
@@ -148,26 +165,26 @@ function trimString(raw: string, field: string): string {
  */
 function checkHeaders(kind: ProfileKind, preset: PresetDef | undefined, raw: Readonly<Record<string, string>> | null | undefined): Record<string, string> | undefined {
   if (raw === undefined || raw === null) return undefined;
-  if (!isRecord(raw)) throw new ProfileError('invalid', 'Enter custom headers as a name-to-value object.', 'customHeaders');
+  if (!isRecord(raw)) throw new ProfileError('invalid', 'Enter custom headers as a name-to-value object.', { field: 'customHeaders', messageRef: { id: 'gateway.invalid.customHeadersObject', message: 'Enter custom headers as a name-to-value object.' } });
   if (kind === 'mock' || (preset !== undefined && preset.id !== 'generic')) {
-    throw new ProfileError('invalid', 'Custom headers are only available on a generic OpenAI-compatible endpoint.', 'customHeaders');
+    throw new ProfileError('invalid', 'Custom headers are only available on a generic OpenAI-compatible endpoint.', { field: 'customHeaders', messageRef: { id: 'gateway.invalid.customHeadersGeneric', message: 'Custom headers are only available on a generic OpenAI-compatible endpoint.' } });
   }
   const entries = Object.entries(raw);
   if (entries.length > MAX_CUSTOM_HEADERS) {
-    throw new ProfileError('invalid', `At most ${MAX_CUSTOM_HEADERS} custom headers can be set.`, 'customHeaders');
+    throw new ProfileError('invalid', `At most ${MAX_CUSTOM_HEADERS} custom headers can be set.`, { field: 'customHeaders', messageRef: { id: 'gateway.invalid.customHeadersMax', message: 'At most {max} custom headers can be set.', values: { max: MAX_CUSTOM_HEADERS } } });
   }
   const headers: Record<string, string> = {};
   for (const [rawName, rawValue] of entries) {
     const name = rawName.trim().toLowerCase();
-    if (!HEADER_NAME.test(name)) throw new ProfileError('invalid', `"${rawName}" is not a valid header name.`, 'customHeaders');
+    if (!HEADER_NAME.test(name)) throw new ProfileError('invalid', `"${rawName}" is not a valid header name.`, { field: 'customHeaders', messageRef: { id: 'gateway.invalid.headerName', message: '"{name}" is not a valid header name.', values: { name: rawName } } });
     const value = trimString(rawValue, 'customHeaders');
-    if (value === '') throw new ProfileError('invalid', `The ${name} header is empty.`, 'customHeaders');
+    if (value === '') throw new ProfileError('invalid', `The ${name} header is empty.`, { field: 'customHeaders', messageRef: { id: 'gateway.invalid.headerEmpty', message: 'The {name} header is empty.', values: { name } } });
     const hasControl = [...value].some((ch) => {
       const code = ch.charCodeAt(0);
       return code < 0x20 || code === 0x7f;
     });
     if (value.length > MAX_HEADER_VALUE || hasControl) {
-      throw new ProfileError('invalid', `The ${name} header contains characters a request header cannot carry.`, 'customHeaders');
+      throw new ProfileError('invalid', `The ${name} header contains characters a request header cannot carry.`, { field: 'customHeaders', messageRef: { id: 'gateway.invalid.headerChars', message: 'The {name} header contains characters a request header cannot carry.', values: { name } } });
     }
     headers[name] = value;
   }
@@ -176,8 +193,8 @@ function checkHeaders(kind: ProfileKind, preset: PresetDef | undefined, raw: Rea
 
 function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
   const name = trimString(raw.name ?? '', 'name');
-  if (name === '') throw new ProfileError('invalid', 'Give the profile a name.', 'name');
-  if (name.length > 80) throw new ProfileError('invalid', 'The profile name is longer than 80 characters.', 'name');
+  if (name === '') throw new ProfileError('invalid', 'Give the profile a name.', { field: 'name', messageRef: { id: 'gateway.invalid.nameRequired', message: 'Give the profile a name.' } });
+  if (name.length > 80) throw new ProfileError('invalid', 'The profile name is longer than 80 characters.', { field: 'name', messageRef: { id: 'gateway.invalid.nameTooLong', message: 'The profile name is longer than 80 characters.' } });
 
   let baseUrl: string;
   let defaultModel: string;
@@ -186,28 +203,28 @@ function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
   if (kind === 'mock') {
     const given = trimString(raw.baseUrl ?? '', 'baseUrl');
     if (given !== '' && given !== MOCK_BASE_URL) {
-      throw new ProfileError('invalid', `A mock profile uses ${MOCK_BASE_URL} as its base URL.`, 'baseUrl');
+      throw new ProfileError('invalid', `A mock profile uses ${MOCK_BASE_URL} as its base URL.`, { field: 'baseUrl', messageRef: { id: 'gateway.invalid.mockBaseUrl', message: 'A mock profile uses {baseUrl} as its base URL.', values: { baseUrl: MOCK_BASE_URL } } });
     }
     baseUrl = MOCK_BASE_URL;
     defaultModel = trimString(raw.defaultModel ?? '', 'defaultModel') || MOCK_DEFAULT_MODEL;
   } else {
     if (raw.preset !== undefined && raw.preset !== null && typeof raw.preset !== 'string') {
-      throw new ProfileError('invalid', 'Choose one of the provider presets.', 'preset');
+      throw new ProfileError('invalid', 'Choose one of the provider presets.', { field: 'preset', messageRef: { id: 'gateway.invalid.presetRequired', message: 'Choose one of the provider presets.' } });
     }
     preset = presetFor(raw.preset ?? 'generic');
     if (preset === undefined) {
-      throw new ProfileError('invalid', `"${raw.preset ?? ''}" is not one of the provider presets.`, 'preset');
+      throw new ProfileError('invalid', `"${raw.preset ?? ''}" is not one of the provider presets.`, { field: 'preset', messageRef: { id: 'gateway.invalid.presetUnknown', message: '"{preset}" is not one of the provider presets.', values: { preset: raw.preset ?? '' } } });
     }
     // The extra fields a preset declares; unknown keys in `fields` are ignored.
     if (raw.fields !== undefined && raw.fields !== null && !isRecord(raw.fields)) {
-      throw new ProfileError('invalid', 'Enter provider fields as a name-to-value object.', 'fields');
+      throw new ProfileError('invalid', 'Enter provider fields as a name-to-value object.', { field: 'fields', messageRef: { id: 'gateway.invalid.fieldsObject', message: 'Enter provider fields as a name-to-value object.' } });
     }
     if (preset.fields !== undefined || raw.fields !== undefined) {
       fields = {};
       for (const field of preset.fields ?? []) {
         const value = trimString(raw.fields?.[field.key] ?? field.defaultValue ?? '', `fields.${field.key}`);
         if (field.required && value === '') {
-          throw new ProfileError('invalid', `Enter the ${field.label.toLowerCase()} for this provider.`, `fields.${field.key}`);
+          throw new ProfileError('invalid', `Enter the ${field.label.toLowerCase()} for this provider.`, { field: `fields.${field.key}`, messageRef: { id: 'gateway.invalid.fieldRequired', message: 'Enter the {label} for this provider.', values: { label: field.label.toLowerCase() } } });
         }
         if (value !== '') fields[field.key] = value;
       }
@@ -219,7 +236,7 @@ function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
     baseUrl = preset.local === undefined ? normalizeBaseUrl(candidate ?? '') : normalizeLocalBaseUrl(candidate ?? '');
     defaultModel = trimString(raw.defaultModel ?? '', 'defaultModel') || preset.defaultModel;
     if (defaultModel === '') {
-      throw new ProfileError('invalid', 'Enter the model name, for example openai/gpt-4.1-mini.', 'defaultModel');
+      throw new ProfileError('invalid', 'Enter the model name, for example openai/gpt-4.1-mini.', { field: 'defaultModel', messageRef: { id: 'gateway.invalid.modelName', message: 'Enter the model name, for example openai/gpt-4.1-mini.' } });
     }
   }
 
@@ -230,25 +247,24 @@ function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
 
   if (raw.temperature !== undefined) {
     if (!Number.isFinite(raw.temperature) || raw.temperature < 0 || raw.temperature > 2) {
-      throw new ProfileError('invalid', 'Temperature must be a number from 0 to 2.', 'temperature');
+      throw new ProfileError('invalid', 'Temperature must be a number from 0 to 2.', { field: 'temperature', messageRef: { id: 'gateway.invalid.temperature', message: 'Temperature must be a number from 0 to 2.' } });
     }
     checked.temperature = raw.temperature;
   }
   if (raw.maxOutputTokens !== undefined) {
     if (!Number.isInteger(raw.maxOutputTokens) || raw.maxOutputTokens < 1) {
-      throw new ProfileError('invalid', 'The output limit must be a whole number of tokens, at least 1.', 'maxOutputTokens');
+      throw new ProfileError('invalid', 'The output limit must be a whole number of tokens, at least 1.', { field: 'maxOutputTokens', messageRef: { id: 'gateway.invalid.maxOutputTokens', message: 'The output limit must be a whole number of tokens, at least 1.' } });
     }
     checked.maxOutputTokens = raw.maxOutputTokens;
   }
   if (raw.pricePer1k !== undefined) {
-    if (!isRecord(raw.pricePer1k)) throw new ProfileError('invalid', 'Prices must be zero or more.', 'pricePer1k');
+    if (!isRecord(raw.pricePer1k)) throw new ProfileError('invalid', 'Prices must be zero or more.', { field: 'pricePer1k', messageRef: { id: 'gateway.invalid.pricesZero', message: 'Prices must be zero or more.' } });
     const { prompt, completion } = raw.pricePer1k;
     if (![prompt, completion].every((n) => Number.isFinite(n) && n >= 0)) {
-      throw new ProfileError('invalid', 'Prices must be zero or more.', 'pricePer1k');
+      throw new ProfileError('invalid', 'Prices must be zero or more.', { field: 'pricePer1k', messageRef: { id: 'gateway.invalid.pricesZero', message: 'Prices must be zero or more.' } });
     }
     checked.pricePer1k = { prompt, completion };
   }
-  if (raw.promptCache !== undefined) checked.promptCache = checkCachePolicy(raw.promptCache);
   if (raw.params !== undefined) {
     const params = checkParams(raw.params);
     if (params !== undefined) checked.params = params;
@@ -268,30 +284,30 @@ const MAX_DENIED = 24;
  * no override.
  */
 function checkParams(raw: RequestParams): RequestParams | undefined {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new ProfileError('invalid', 'The request parameters could not be read.', 'params');
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new ProfileError('invalid', 'The request parameters could not be read.', { field: 'params', messageRef: { id: 'gateway.invalid.paramsRead', message: 'The request parameters could not be read.' } });
   const out: { -readonly [K in keyof RequestParams]: RequestParams[K] } = {};
   if (raw.temperature !== undefined) {
-    if (typeof raw.temperature !== 'boolean') throw new ProfileError('invalid', 'Sending a temperature is either on or off.', 'params');
+    if (typeof raw.temperature !== 'boolean') throw new ProfileError('invalid', 'Sending a temperature is either on or off.', { field: 'params', messageRef: { id: 'gateway.invalid.temperatureToggle', message: 'Sending a temperature is either on or off.' } });
     out.temperature = raw.temperature;
   }
   if (raw.toolStrict !== undefined) {
-    if (typeof raw.toolStrict !== 'boolean') throw new ProfileError('invalid', 'Strict tool schemas are either on or off.', 'params');
+    if (typeof raw.toolStrict !== 'boolean') throw new ProfileError('invalid', 'Strict tool schemas are either on or off.', { field: 'params', messageRef: { id: 'gateway.invalid.toolStrictToggle', message: 'Strict tool schemas are either on or off.' } });
     out.toolStrict = raw.toolStrict;
   }
   if (raw.effort !== undefined) {
     // SDK input the types cannot see: anything that is not a level-to-value object is refused, never thrown on.
     if (typeof raw.effort !== 'object' || raw.effort === null || Array.isArray(raw.effort)) {
-      throw new ProfileError('invalid', 'The request parameters could not be read.', 'params');
+      throw new ProfileError('invalid', 'The request parameters could not be read.', { field: 'params', messageRef: { id: 'gateway.invalid.paramsRead', message: 'The request parameters could not be read.' } });
     }
     const effort: Partial<Record<ThinkingLevel, string>> = {};
     for (const [level, value] of Object.entries(raw.effort)) {
       if (value === undefined) continue;
       if (typeof value !== 'string') {
-        throw new ProfileError('invalid', 'The request parameters could not be read.', 'params');
+        throw new ProfileError('invalid', 'The request parameters could not be read.', { field: 'params', messageRef: { id: 'gateway.invalid.paramsRead', message: 'The request parameters could not be read.' } });
       }
       if (value.trim() === '') continue;
       if (!THINKING_LEVELS.has(level) || !WIRE_WORD.test(value.trim())) {
-        throw new ProfileError('invalid', `"${value}" is not a thinking value a request can carry.`, 'params');
+        throw new ProfileError('invalid', `"${value}" is not a thinking value a request can carry.`, { field: 'params', messageRef: { id: 'gateway.invalid.thinkingValue', message: '"{value}" is not a thinking value a request can carry.', values: { value } } });
       }
       effort[level as ThinkingLevel] = value.trim();
     }
@@ -299,25 +315,15 @@ function checkParams(raw: RequestParams): RequestParams | undefined {
   }
   if (raw.deny !== undefined) {
     if (!Array.isArray(raw.deny) || raw.deny.some((field) => typeof field !== 'string')) {
-      throw new ProfileError('invalid', 'The request parameters could not be read.', 'params');
+      throw new ProfileError('invalid', 'The request parameters could not be read.', { field: 'params', messageRef: { id: 'gateway.invalid.paramsRead', message: 'The request parameters could not be read.' } });
     }
     const deny = [...new Set(raw.deny.map((field) => field.trim()).filter((field) => field !== ''))];
-    if (deny.length > MAX_DENIED) throw new ProfileError('invalid', `At most ${MAX_DENIED} fields can be left out.`, 'params');
+    if (deny.length > MAX_DENIED) throw new ProfileError('invalid', `At most ${MAX_DENIED} fields can be left out.`, { field: 'params', messageRef: { id: 'gateway.invalid.denyMax', message: 'At most {max} fields can be left out.', values: { max: MAX_DENIED } } });
     const bad = deny.find((field) => !WIRE_WORD.test(field));
-    if (bad !== undefined) throw new ProfileError('invalid', `"${bad}" is not a request field name.`, 'params');
+    if (bad !== undefined) throw new ProfileError('invalid', `"${bad}" is not a request field name.`, { field: 'params', messageRef: { id: 'gateway.invalid.denyField', message: '"{name}" is not a request field name.', values: { name: bad } } });
     if (deny.length > 0) out.deny = deny;
   }
   return Object.keys(out).length === 0 ? undefined : out;
-}
-
-/** A profile's caching policy, checked: `off` or `auto`, and Anthropic's lifetime `5m` or `1h`. Anything else is refused. */
-function checkCachePolicy(raw: CachePolicy | null): CachePolicy {
-  if (!isRecord(raw)) throw new ProfileError('invalid', 'Prompt caching is either on or off.', 'promptCache');
-  if (raw.mode !== 'off' && raw.mode !== 'auto') throw new ProfileError('invalid', 'Prompt caching is either on or off.', 'promptCache');
-  if (raw.ttl !== undefined && raw.ttl !== '5m' && raw.ttl !== '1h') {
-    throw new ProfileError('invalid', 'A cached prompt is kept for 5 minutes or 1 hour.', 'promptCache');
-  }
-  return { mode: raw.mode, ...(raw.ttl === undefined ? {} : { ttl: raw.ttl }) };
 }
 
 /**
@@ -326,7 +332,7 @@ function checkCachePolicy(raw: CachePolicy | null): CachePolicy {
  */
 function checkKey(raw: string, keyOptional: boolean): string {
   const key = trimString(raw, 'apiKey');
-  if (/\s/.test(key)) throw new ProfileError('invalid', 'The API key contains a space or a line break. Paste it again.', 'apiKey');
+  if (/\s/.test(key)) throw new ProfileError('invalid', 'The API key contains a space or a line break. Paste it again.', { field: 'apiKey', messageRef: { id: 'gateway.invalid.apiKeySpace', message: 'The API key contains a space or a line break. Paste it again.' } });
   requireKeyFor(key !== '', keyOptional);
   return key;
 }
@@ -337,7 +343,7 @@ function checkKey(raw: string, keyOptional: boolean): string {
  * computer). There is no other exemption.
  */
 function requireKeyFor(hasKey: boolean, keyOptional: boolean): void {
-  if (!hasKey && !keyOptional) throw new ProfileError('invalid', 'Enter the API key for this endpoint.', 'apiKey');
+  if (!hasKey && !keyOptional) throw new ProfileError('invalid', 'Enter the API key for this endpoint.', { field: 'apiKey', messageRef: { id: 'gateway.invalid.apiKeyRequired', message: 'Enter the API key for this endpoint.' } });
 }
 
 /** A copy a caller cannot mutate the record through. */
@@ -365,7 +371,6 @@ function toView(rec: StoredProfile): ProfileView {
   if (rec.maxOutputTokens !== undefined) view.maxOutputTokens = rec.maxOutputTokens;
   if (rec.params !== undefined) view.params = copyParams(rec.params);
   if (rec.pricePer1k !== undefined) view.pricePer1k = { ...rec.pricePer1k };
-  if (rec.promptCache !== undefined) view.promptCache = { ...rec.promptCache };
   if (rec.responseFormat !== undefined) view.responseFormat = { ...rec.responseFormat };
   if (rec.verification !== undefined) view.verification = { ...rec.verification };
   return view;
@@ -375,10 +380,16 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
   const { keys } = options;
   const randomBytes = options.randomBytes ?? defaultRandomBytes;
   const records = new Map<string, StoredProfile>();
+  const mirror = options.mirror;
+  // `null` says the key went away, so a host can drop its copy. The origin is read off the record the write just made,
+  // which is why every report below runs after that write rather than beside it.
+  const report = (record: StoredProfile, payload: KeyPayload | null): void => {
+    mirror?.changed(record.id, payload === null ? null : { origin: originOf(record.baseUrl), payload });
+  };
 
   const requireRecord = (id: string): StoredProfile => {
     const rec = records.get(id);
-    if (rec === undefined) throw new ProfileError('not-found', `No provider profile has the id ${id}.`);
+    if (rec === undefined) throw new ProfileError('not-found', `No provider profile has the id ${id}.`, { messageRef: providerRefs.notFound(id) });
     return rec;
   };
 
@@ -399,9 +410,11 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
       // The key is sealed before the record exists, so a failed seal leaves no profile
       // that claims a key it does not have. Custom headers ride inside the same payload —
       // they are secrets, and the vault is where secrets live.
-      if (key !== '' || fields.customHeaders !== undefined) {
-        await keys.putPayload(id, { apiKey: key, ...(fields.customHeaders === undefined ? {} : { customHeaders: fields.customHeaders }) });
-      }
+      const payload: KeyPayload | null =
+        key !== '' || fields.customHeaders !== undefined
+          ? { apiKey: key, ...(fields.customHeaders === undefined ? {} : { customHeaders: fields.customHeaders }) }
+          : null;
+      if (payload !== null) await keys.putPayload(id, payload);
 
       // Re-read the active state after the await: another create may have landed meanwhile.
       const anyActive = [...records.values()].some((r) => r.isActive);
@@ -419,11 +432,12 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         ...(fields.maxOutputTokens === undefined ? {} : { maxOutputTokens: fields.maxOutputTokens }),
         ...(fields.params === undefined ? {} : { params: fields.params }),
         ...(fields.pricePer1k === undefined ? {} : { pricePer1k: fields.pricePer1k }),
-        ...(fields.promptCache === undefined ? {} : { promptCache: fields.promptCache }),
         isActive: activate,
         hasKey: key !== '',
       });
-      return toView(requireRecord(id));
+      const created = requireRecord(id);
+      if (payload !== null) report(created, payload);
+      return toView(created);
     },
 
     async update(id, patch) {
@@ -432,7 +446,7 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
       // `null` clears the saved price; an absent price keeps it (ProfilePatch).
       const price = patch.pricePer1k === null ? undefined : (patch.pricePer1k ?? rec.pricePer1k);
       if (rec.kind === 'endpoint' && patch.fields !== undefined && patch.fields !== null && !isRecord(patch.fields)) {
-        throw new ProfileError('invalid', 'Enter provider fields as a name-to-value object.', 'fields');
+        throw new ProfileError('invalid', 'Enter provider fields as a name-to-value object.', { field: 'fields', messageRef: { id: 'gateway.invalid.fieldsObject', message: 'Enter provider fields as a name-to-value object.' } });
       }
       const mergedFields = patch.fields === undefined ? rec.fields : { ...(rec.fields ?? {}), ...patch.fields };
       const fields = checkFields(rec.kind, {
@@ -449,11 +463,12 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         maxOutputTokens: patch.maxOutputTokens ?? rec.maxOutputTokens,
         params: patch.params === null ? undefined : (patch.params ?? rec.params),
         pricePer1k: price,
-        promptCache: patch.promptCache ?? rec.promptCache,
       });
 
       let hasKey = rec.hasKey;
       let keyChanged = false;
+      let written: KeyPayload | null = null;
+      let keyRemoved = false;
       if (rec.kind === 'endpoint') {
         const keyOptional = preset?.keyOptional === true;
         // A secret belongs to the origin it was entered for. Keeping it across an origin change would
@@ -475,24 +490,29 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
                 : existing?.customHeaders;
           if (originMoved) {
             if (patch.apiKey === undefined && (existing?.apiKey ?? '') !== '') {
-              throw new ProfileError('invalid', 'Enter the API key again for the new endpoint.', 'apiKey');
+              throw new ProfileError('invalid', 'Enter the API key again for the new endpoint.', { field: 'apiKey', messageRef: { id: 'gateway.invalid.apiKeyReenter', message: 'Enter the API key again for the new endpoint.' } });
             }
             if (patch.customHeaders === undefined && existing?.customHeaders !== undefined && Object.keys(existing.customHeaders).length > 0) {
-              throw new ProfileError('invalid', 'Enter the extra headers again for the new endpoint.', 'customHeaders');
+              throw new ProfileError('invalid', 'Enter the extra headers again for the new endpoint.', { field: 'customHeaders', messageRef: { id: 'gateway.invalid.headersReenter', message: 'Enter the extra headers again for the new endpoint.' } });
             }
           }
-          if (key === '' && (headers === undefined || Object.keys(headers).length === 0)) await keys.remove(id);
-          else await keys.putPayload(id, { apiKey: key, ...(headers === undefined ? {} : { customHeaders: headers }) });
+          if (key === '' && (headers === undefined || Object.keys(headers).length === 0)) {
+            await keys.remove(id);
+            keyRemoved = true;
+          } else {
+            written = { apiKey: key, ...(headers === undefined ? {} : { customHeaders: headers }) };
+            await keys.putPayload(id, written);
+          }
           hasKey = key !== '';
           keyChanged = true;
         } else {
           if (originMoved && rec.hasKey) {
-            throw new ProfileError('invalid', 'Enter the API key again for the new endpoint.', 'apiKey');
+            throw new ProfileError('invalid', 'Enter the API key again for the new endpoint.', { field: 'apiKey', messageRef: { id: 'gateway.invalid.apiKeyReenter', message: 'Enter the API key again for the new endpoint.' } });
           }
           if (originMoved) {
             const existing = await keys.revealPayload(id);
             if (existing?.customHeaders !== undefined && Object.keys(existing.customHeaders).length > 0) {
-              throw new ProfileError('invalid', 'Enter the extra headers again for the new endpoint.', 'customHeaders');
+              throw new ProfileError('invalid', 'Enter the extra headers again for the new endpoint.', { field: 'customHeaders', messageRef: { id: 'gateway.invalid.headersReenter', message: 'Enter the extra headers again for the new endpoint.' } });
             }
           }
           requireKeyFor(rec.hasKey, keyOptional);
@@ -500,7 +520,7 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
       }
 
       // A profile removed during the seal is not resurrected by the update.
-      if (records.get(id) !== rec) throw new ProfileError('not-found', `No provider profile has the id ${id}.`);
+      if (records.get(id) !== rec) throw new ProfileError('not-found', `No provider profile has the id ${id}.`, { messageRef: providerRefs.notFound(id) });
 
       const endpointChanged = fields.baseUrl !== rec.baseUrl || fields.defaultModel !== rec.defaultModel;
       const { customHeaders: _sealed, ...stored } = fields;
@@ -516,6 +536,9 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         rec.responseFormat = undefined;
         rec.verification = providerVerificationMachine.step(rec.verification ?? { kind: 'unknown' }, { type: 'invalidate' });
       }
+      // After the record holds the new fields, so a host sealing against the origin is told the address that save chose.
+      if (written !== null) report(rec, written);
+      else if (keyRemoved) report(rec, null);
       return toView(rec);
     },
 
@@ -530,6 +553,7 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         const next = records.values().next().value;
         if (next !== undefined) next.isActive = true;
       }
+      if (rec.kind === 'endpoint') report(rec, null);
     },
 
     get(id) {

@@ -30,6 +30,7 @@ export const UNTRUSTED_RULE =
 
 /** Where enveloped text came from. */
 export type UntrustedSource =
+  | { readonly kind: 'goal-verifier' }
   | { readonly kind: 'session-history' }
   | { readonly kind: 'session-summary'; readonly external: boolean }
   | { readonly kind: 'mcp-result'; readonly serverName: string; readonly toolName: string }
@@ -57,6 +58,8 @@ function labelOf(text: string): string {
 /** The `source="…"` text of an envelope. */
 export function sourceLabel(source: UntrustedSource): string {
   switch (source.kind) {
+    case 'goal-verifier':
+      return 'goal-verifier';
     case 'session-history':
       return 'mcp-history:session-history';
     case 'session-summary':

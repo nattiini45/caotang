@@ -1,17 +1,13 @@
-import { readFileSync } from 'node:fs';
 import { createHmac } from 'node:crypto';
 import { once } from 'node:events';
-import { fileURLToPath } from 'node:url';
 import { Miniflare, Response } from 'miniflare';
 import type { Request as RuntimeRequest, RequestInit as RuntimeRequestInit } from 'miniflare';
-import ts from 'typescript';
 import WebSocketClient from 'ws';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { workerModules } from './worker-modules.js';
 
 const ORIGIN = 'https://studio.example.invalid';
 const TEST_SECRET = 'test-only-session-secret-not-a-real-credential';
-const source = readFileSync(fileURLToPath(new URL('../src/index.ts', import.meta.url).href), 'utf8');
-const script = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
 let runtime: Miniflare;
 const challenges = new Map<string, string>();
 const exchanges: URLSearchParams[] = [];
@@ -52,7 +48,7 @@ async function login(code = 'reader-one'): Promise<string> {
 function createRuntime(bindings: Record<string, string> = {}, upstream?: string) {
   return new Miniflare({
     ...(upstream ? { upstream } : {}),
-    modules: [{ type: 'ESModule', path: 'server.mjs', contents: script }],
+    modules: workerModules(),
     compatibilityDate: '2026-07-30',
     bindings: { PUBLIC_ORIGIN: ORIGIN, ALLOWED_GITHUB_LOGINS: 'reader-one,reader-two', GITHUB_CLIENT_ID: 'mock-client', GITHUB_CLIENT_SECRET: 'mock-secret', SESSION_SECRET: TEST_SECRET, ...bindings },
     durableObjects: { ACCOUNT_HUBS: { className: 'AccountHub', useSQLite: true } },

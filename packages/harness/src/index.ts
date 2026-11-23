@@ -29,6 +29,8 @@ export {
   type ToolRisk,
 } from './metadata.js';
 export { createHarness, type ExternalHarness, type Harness, type HarnessOptions, type RuleCheck, type ToolListing } from './runtime.js';
+export { validateMcpReadHook, type McpReadHook } from './mcp-hooks.js';
+export { estimateModelHookRequest, modelHookMessages, modelHookTransformField, MODEL_HOOK_LIMIT, MODEL_HOOK_PROMPT_MAX, MODEL_HOOK_TOOLS, type ModelHook } from './model-hooks.js';
 export {
   NO_RULES,
   evaluateRules,
@@ -55,9 +57,10 @@ export { createProductHarness, type ProductHarnessOptions } from './product.js';
 export { textSearchPort } from './tools/text-search.js';
 // The coherence module's two ports the agent's scan and review read through, and the gateway as the review's model.
 export { DIALOGUE_CONTAINER_TYPE, containersOf, dialogueFactsOf } from './coherence-facts.js';
+export { computeScanWorker, projectScanInput, type ScanWorkerInput } from './scan-worker.js';
 // The Ink compiler loads on demand (dialogue ink-loader.ts); a Node host awaits this before it opens a project, so every dialogue tool and check can compile.
 export { loadInkCompiler } from '@caotang/dialogue';
-export { gatewayCoherenceModel, reviewContextOf, withReviewLanguages } from './coherence-review-context.js';
+export { backgroundCoherenceModel, gatewayCoherenceModel, reviewContextOf, withReviewLanguages } from './coherence-review-context.js';
 export {
   askBackFor,
   parsePlan,
@@ -126,6 +129,7 @@ export {
   type RequestContextPreview,
   type OfferAnswer,
   type PlanOffer,
+  type PlanOfferReview,
   type StageOnlyResult,
   type SteerReceipt,
   type SubmitOptions,
@@ -225,8 +229,10 @@ export {
   writableNodes,
   writeScopeRules,
   type Goal,
+  type GoalCheckSpec,
   type GoalOptions,
   type GoalRun,
+  type GoalCheckpoint,
   type GoalRunner,
   type GoalStatus,
   type IterationRecord,
@@ -235,6 +241,8 @@ export {
   type RestoredTurn,
   type WriteScope,
 } from './agent/goal.js';
+export { recoverGoalVerifierCheckpoint, type GoalVerificationResult, type GoalVerifierCheck, type GoalVerifierPort, type GoalVerifierSource, type GoalVerifierUnavailableCode, type PendingGoalVerification } from './agent/goal-verification.js';
+export { createGoalVerifierPort, GoalVerifierPersistenceError } from './agent/goal-verifier-call.js';
 // Background runs (agent-harness §2): the offer's threshold, what a plan costs in model calls, and which staged steps have gone stale.
 export {
   BACKGROUND_OFFER_MIN_CALLS,
@@ -242,9 +250,11 @@ export {
   estimatedModelCalls,
   estimatedStepCalls,
   proposalShapeOk,
+  reviewCallBoundOk,
   revisionsOf,
   staleSteps,
   type BackgroundEligibility,
+  type ReviewCallBound,
   type StepRevisions,
 } from './agent/background.js';
 export { PRELOAD_BY_CONTEXT, preloadContextOf, preloadFor, type PreloadContext } from './agent/preload.js';
@@ -253,6 +263,7 @@ export {
   evaluate,
   matchCards,
   matchTrace,
+  projectBytes,
   runScenario,
   taskListFailures,
   type CallExpect,
@@ -363,6 +374,8 @@ export {
 } from './tools/transcription-model.js';
 export {
   appendLanguageLine,
+  assembleProjected,
+  contextOverridesOk,
   createContextPort,
   dropLinesOf,
   languageDirective,
@@ -371,11 +384,13 @@ export {
   withLanguages,
   withRole,
   type AssembledCall,
+  type ContextComputeAsync,
   type ContextPort,
   type ContextPortOptions,
   type ContextRequest,
   type LanguagePolicy,
 } from './agent/context.js';
+export type { ProjectedContextInput, SerializedContextConfig } from '@caotang/context';
 // What a turn read from the provider's prompt cache, and the planner calls that missed it (agent-harness §5, "Prompt cache").
 export { CACHE_MISS_CAUSES, CacheWatch, missCause, stableToolOrder, type CacheMiss, type TurnCacheUse } from './agent/cache-watch.js';
 // The Context section's preview: the prompt a scene draft would send, assembled as the loop assembles it (context-assembly §5).
@@ -383,7 +398,7 @@ export { instructionsReport, scenePromptPreview, type InstructionsReport, type S
 // The plan card renders a step's prompt preview; the app reads its shape from here, not from @caotang/context.
 export { summaryPrefix, withheldState } from '@caotang/context';
 export type { ContextConfig, ContextMeter, ContextOverrides, ContextRef, PreviewLayer, PromptPreview } from '@caotang/context';
-export { DEFAULT_INSTRUCTIONS_BUDGET, REQUEST_PIN_REASON } from '@caotang/context';
+export { DEFAULT_INSTRUCTIONS_BUDGET, LAYER_IDS, REQUEST_PIN_REASON } from '@caotang/context';
 export {
   MODEL_BACKED_TOOLS,
   RESOLVE_BADGE,
@@ -514,6 +529,32 @@ export {
   type TurnEndRecord,
   type TurnStartRecord,
 } from './agent/trace.js';
+
+// Replay (agent-harness §8.1): a recorded call, a recorded turn, or a recorded turn answered by its cassette, on a scratch copy.
+export {
+  ReplayRefusal,
+  cassetteScripts,
+  estimateReplay,
+  indexTrace,
+  recordedCalls,
+  recordedDecisions,
+  replay,
+  draftDiffs,
+  stepDiffs,
+  type DraftDiff,
+  type RecordedCall,
+  type ReplayEstimate,
+  type ReplayEstimateRequest,
+  type ReplayMode,
+  type ReplayRefusalCode,
+  type ReplayRequest,
+  type ReplayResult,
+  type ReplaySource,
+  type ReplayStop,
+  type ReplayTarget,
+  type StepDiff,
+  type UsageSummary,
+} from './agent/replay.js';
 export {
   DRAFT_SYSTEM_PREFIX,
   COMPACTION_SYSTEM_PREFIX,
@@ -573,7 +614,7 @@ export {
 } from './types.js';
 export { CHARS_PER_TOKEN, estimateTokens, fitsCap } from './tokens.js';
 export { refusal, notWired } from './errors.js';
-export { coherenceAsyncPorts, coherencePorts, excludedBy, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
+export { coherenceAsyncPorts, coherencePorts, countIn, excludedBy, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
 export { codexImportParams, prepareCodexImport } from './tools/codex-import.js';
 // The writer's codex import from the app (codex.md §7.1): the pure plan of rows into one `codex.importBatch`, never an agent tool.
 export {

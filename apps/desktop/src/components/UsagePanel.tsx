@@ -44,10 +44,10 @@ export function UsagePanel({ services }: { services: AppServices }): ReactNode {
       </div>
       {error ? <p role="alert"><Trans>The usage file could not be downloaded. Try exporting it again.</Trans></p> : null}
       <p className="muted"><Trans>Cache and reasoning counts are already included in the input and output totals.</Trans></p>
-      {narrow ? <ul className="usage-records" aria-label={t`Usage by day, profile, model and role`}>
+      {narrow ? <ul className="records" aria-label={t`Usage by day, profile, model and role`}>
         {rows.map((row) => <li key={JSON.stringify([row.date, row.profileId, row.model, row.role])}>
           <h5><bdi>{row.model}</bdi> · {i18n._(USAGE_ROLES[row.role])}</h5>
-          <dl className="usage-record-values">
+          <dl className="record-values">
             <div><dt><Trans>Day</Trans></dt><dd>{row.date}</dd></div>
             <div><dt><Trans>Profile</Trans></dt><dd><bdi>{names.get(row.profileId) ?? t`Removed profile`}</bdi></dd></div>
             <div><dt><Trans>Requests</Trans></dt><dd>{format.number(row.requests)}</dd></div>
