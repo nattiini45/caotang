@@ -765,9 +765,11 @@ export function createGateway(options: GatewayOptions): Gateway {
       promptTokens: 0,
       ...localCall(profile),
     }).catch((error: unknown) => {
-      // A preset the sweep found reachable from a browser can still have one route the page may not read (provider-gateway §9).
-      // "Could not reach the host, check your connection" would be false for that route and send the writer to the wrong setting.
-      if (error instanceof ProviderError && error.rejected && preset?.cors === 'ok') {
+      // A preset whose chat route a page reaches can still have a model list it may not read (provider-gateway §9). "Could not
+      // reach the host, check your connection" would be false for that route and send the writer to the wrong setting — but only
+      // where the row records the list as one a page cannot read, because for every other preset a rejected list really is a
+      // network failure and must keep saying so.
+      if (error instanceof ProviderError && error.rejected && preset?.corsModelsRoute === 'unreadable') {
         throw new ProviderError('network', providerMessages.modelListUnreadable(hostOf(profile.baseUrl)), {
           reason: 'model-list-unreadable',
           messageRef: providerRefs.modelListUnreadable(hostOf(profile.baseUrl)),

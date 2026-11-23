@@ -193,7 +193,7 @@ describe('listModels (§3)', () => {
     throw new TypeError('Failed to fetch');
   };
 
-  it('says the browser would not let the page read the list, not that the host is unreachable, for a preset the sweep found reachable', async () => {
+  it('says the browser would not let the page read the list, not that the host is unreachable, for a preset whose list a page cannot read', async () => {
     const net = new ScriptedFetch().push(rejects, rejects, rejects);
     const h = harness({ net });
     const profile = await addEndpoint(h, { preset: 'anthropic', baseUrl: 'https://api.anthropic.com/v1' });
@@ -211,7 +211,7 @@ describe('listModels (§3)', () => {
     expect(net.calls.every((call) => call.url === 'https://api.anthropic.com/v1/models')).toBe(true);
   });
 
-  it('keeps the plain network message for an endpoint the sweep has not vouched for, and for a failure that is not a browser rejection', async () => {
+  it('keeps the plain network message for every other preset, and for a failure that is not a browser rejection', async () => {
     const generic = harness({ net: new ScriptedFetch().push(rejects, rejects, rejects) });
     const endpoint = await addEndpoint(generic);
     const rejected = await listWhenRejected(generic, endpoint.id);

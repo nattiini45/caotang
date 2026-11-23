@@ -10,7 +10,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./loopback": "./src/loopback.ts",
-    "./mock": "./src/mock/index.ts"
+    "./mock": "./src/mock/index.ts",
+    "./native-egress": "./src/native-egress.ts"
   },
   "dependencies": {
     "@caotang/machine": "workspace:*",
