@@ -69,10 +69,11 @@ for (const scheme of ['light', 'dark'] as const) {
     await expect(page.getByTestId('modern-title-dot')).toBeVisible();
     await page.mouse.move(118, 400);
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-    // #644: the title's glyph raster is baked inside the ornament's composited glass layer, and a raster committed at a different
-    // subpixel phase sticks. Wait until no animation under the stage is running, the fonts are settled and two more frames are
-    // committed before reading the pixels. A forced repaint is deliberately avoided — repainting the glass ornament bakes a
-    // different glyph phase.
+    // #644: the title's glyph raster is baked inside the ornament's composited glass layer. The findings
+    // dot's mount and the panel's fade still animate after the scan's reply lands; a raster committed
+    // mid-animation sticks at a different subpixel phase. Wait until no animation under the stage is
+    // running, the fonts are settled and two more frames are committed before reading the pixels. A forced
+    // repaint is deliberately avoided — repainting the glass ornament bakes a different glyph phase.
     await expect
       .poll(() =>
         page.evaluate(
@@ -86,10 +87,6 @@ for (const scheme of ['light', 'dark'] as const) {
       .toBe(0);
     await page.evaluate(() => document.fonts.ready.then(() => undefined));
     await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
-    // The settled phase still follows the display server, not the test: the same tree renders this title at one phase on a
-    // development machine and at another in CI, and each phase fails against the other's baseline. So this shot alone compares
-    // with a small tolerance — enough for a one-subpixel glyph run inside the glass (836 pixels, 0.08% of 1280×800), far too
-    // little to hide a moved control, a different label or a shifted layout, which the geometry probes above already refuse.
-    await expect(page).toHaveScreenshot(`modern-${scheme}-german-sidebar-count.png`, { animations: 'disabled', caret: 'hide', mask: [page.getByTestId('save-state'), page.locator('time')], maxDiffPixels: 1_400 });
+    await expect(page).toHaveScreenshot(`modern-${scheme}-german-sidebar-count.png`, { animations: 'disabled', caret: 'hide', mask: [page.getByTestId('save-state'), page.locator('time')], maxDiffPixels: 0 });
   });
 }
