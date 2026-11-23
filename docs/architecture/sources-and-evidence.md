@@ -511,7 +511,7 @@ The handoffs are not slices: the **quote and pinpoint checks** are [#437](https:
 
 - The projection: `joined()` and `dehyphenated()` on fixtures with a hyphenated break, a soft hyphen, a non-breaking space, an `ß`, and a two-column page whose extraction order is the column order; both forms are derived from lines alone.
 - The ladder: exact, moved by ±1,900 characters, de-hyphenated match that rewrites the anchor, two occurrences → `ambiguous` with both candidates, three candidates on exhaustion, `missing` for a deleted source, and a changed `sourceSha` that never verifies.
-- Import: dedup by identical bytes; each cap refused at the number and passing at it; a no-text PDF refused with nothing written; a cancelled write publishing no record; an undone import left adoptable.
+- Import: dedup by identical bytes; each cap refused at the number and passing at it; a no-text PDF kept with its pages, its `limitation` and no projection; a cancelled write publishing no record; an undone import left adoptable.
 - The observation table: a citation of an unread passage refused, one of a read passage accepted, `quote` replaced by the stored text, the table dropped at turn end and carried across a resume.
 - The record state machine: gap open → resolved / dropped, `supersededBy` both ways, a refusal to delete a cited source, and a delete with the citations that names them.
 - The pin and attachment bounds: a fourth pinned source refused, a 4,001-character attachment refused, `source.read` refusing an unpinned source.
@@ -530,7 +530,7 @@ No test needs a provider key; everything model-facing runs against the mock prov
 Recorded in `docs/decisions.md` with this PR:
 
 1. **`sources.json` and `research.json` are project files beside `coherence.json`**, not manifest fields, because the shelf is read only when its view is open while the manifest is rewritten on every command; the picture registry's opposite choice stands for its own reason.
-2. **`pdfjs-dist`, already pinned as the exporter's development dependency, becomes the app's PDF reader**, lazily and in its own Worker, with the ceiling decision left to the slice that measures the build (§10.2). No own extractor, no AGPL alternative.
+2. **`pdfjs-dist`, already pinned as the exporter's development dependency, becomes the app's PDF reader**, lazily and in its own Worker, with the ceiling decision left to the slice that measures the build (§10.2). No own extractor, and no licence gamble on a reader nobody has read.
 3. **A citation exists only as a record a read-class tool wrote**, validated against a passage the turn actually read; prose is never parsed into citations. Why: a citation that cannot be checked is worse than no citation, and the tool boundary is where "checked" can be enforced.
 4. **A source is readable only when pinned to the turn.** No `includePolicy`, no project-wide source context, no new read-rule target. Why: the read boundary is the writer's, and one more target kind is one more thing to get wrong.
 5. **The evidence bundle's `verify.mjs` runs on Node's standard library alone** and states what it does not prove. Why: evidence a reader cannot check without installing the app is not evidence.
