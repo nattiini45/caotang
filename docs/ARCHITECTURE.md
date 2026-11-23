@@ -156,6 +156,11 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 - **Spec:** [architecture/import-core.md](architecture/import-core.md) for the block model and the splitter; [architecture/import-preview.md](architecture/import-preview.md) for the preview and the commit; the Imports epic, issue #263; decisions under *Imports* in [decisions.md](decisions.md).
 - **RTF:** `packages/import-rtf` (built, #274): RTF and `.rtfd` bytes → the import block list (`@caotang/import-core`), its footnotes, comments, pictures and every loss; no DOM and no dependency at run time, so it runs in a Worker and in Node. Shared by the standalone RTF import (**Import RTF…**, built: `apps/desktop/src/import-preview/rtf-source.ts`) and the Scrivener import (not built). Spec: [architecture/import-rtf.md](architecture/import-rtf.md).
 
+### 2.25 `sources` (sources and evidence) 🧭
+- **Responsibility:** a project's shelf of outside documents — a PDF, an HTML page, an EPUB, an RTF, a Word file — with the original bytes kept, a reader that shows the page, highlights and notes stored as project data, passage-anchored citations in agent answers that click back to the exact page, and a research record of saved answers, findings and open gaps with a follow-up prepared from a record. Importing, reading, highlighting, finding and verifying need no model and no network.
+- **Owns:** `sources.json` and `research.json` at the project root (domain files beside `coherence.json`, each versioned and unknown-tolerant, with the rolling `.bak.N` snapshots) and `sources/` (flat opaque-id original bytes and their reading projections); the `Source`, `SourceAnchor`, `SourceAnnotation`, `Citation` and `ResearchRecord` shapes; `packages/sources` (the pure record, projection, anchor ladder and citation rules) when slice 1 lands; the `source.*` and `research.*` commands and the harness rows; the Sources centre view and the reader as lazy chunks. Specified, not built ([architecture/sources-and-evidence.md](architecture/sources-and-evidence.md)).
+- **Spec:** [architecture/sources-and-evidence.md](architecture/sources-and-evidence.md). The evidence folder inside a submission snapshot is #448's; the quote and pinpoint checks are #437's; `[@key]` and the bibliography are #426's.
+
 ## 3. Data model (sketch)
 
 ```
@@ -181,6 +186,14 @@ ComicBook      { readingDirection, letteringFace, capsTransform, esszett, pageSi
 ComicPage      { size, layout?, panels: Panel[] }                                                                       // comics.md §2
 Panel          { id, rect, assetId?, crop?, border?, balloons: Balloon[] }                                              // comics.md §2
 TimelineOp     { op: meta|move|shift|picture-when, …, expect }                                                         // timeline.md §4.3
+Source         { id, kind: pdf|html|epub|rtf|text|docx|odt|reference, title, authors[]?, year?, origin, file?, sha256?, bytes?,
+                 text?: {extractor, sha256, pages?, blocks?, extractedAt}, limitation?, bibliographyKey?, tags?, addedAt, updatedAt }  // sources-and-evidence.md §2.1
+SourceAnchor   { address: {page}|{block}, from, to, exact, prefix, suffix, rects?[] (page fractions), sourceSha, textSha }  // sources-and-evidence.md §2.8
+SourceAnnotation { id, sourceId, kind: highlight|citation, anchor, note?, tags?, origin, createdAt, updatedAt }          // sources-and-evidence.md §5.5
+Citation       { id, sourceId, annotationId?, address, start, end, quote, status: verified|moved|ambiguous|drifted|missing,
+                 candidates[]?, stance?: support|counter, verifiedAt }                                                   // sources-and-evidence.md §6.1
+ResearchRecord { id, kind: answer|finding|gap, title, body (md), citations[], origin, sessionId?, turnId?,
+                 status?: open|resolved|dropped, supersededBy?, createdAt, updatedAt }                                  // sources-and-evidence.md §6.1
 MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (I7)
 ScriptLine     { id, kind: speech|narration|text, speaker?, text, durationSec?, declared }                        // av-script.md §2
 ScriptCue      { id, kind, text, atSec?, forSec?, under? }                                                       // av-script.md §2, segment-owned
@@ -200,6 +213,8 @@ Additive manifest arrays (`codex[]`, `recipes[]`, `filters[]`, `goals[]`, `macro
 ## 4. Explicit non-goals
 
 Collaboration and sync in the local version, a plugin system that **runs third-party code in the app**, a theme marketplace, version history beyond git, **embedding context retrieval** (lexical search is an explicit tool; keyed assembly stays the default and embeddings need usage evidence), a **codex relations graph**. Screen and media formats were once on this list and are now built (§6).
+
+A **notebook, a compute environment or a results lab** is a non-goal even for Study and Professional Halls: Caotang keeps and cites other people's sources ([sources-and-evidence.md](architecture/sources-and-evidence.md)), and it does not run a dataset, a model of a cell or a language kernel. A writer who needs that uses the tool for it and cites the result here.
 
 Macros (writer-authored plan templates over the app's own tools, [extensibility.md](architecture/extensibility.md) §10) are not a plugin system: a macro is JSON data with no code and no install path, and only the writer runs one. Nor are the planned declarative extension bundles ([extensions.md](architecture/extensions.md), specified, not built): Markdown and JSON that carry skills and suggested MCP servers, with no code, installed only by the writer from a local file. Sandboxed JS plugins are deferred, not rejected (decisions.md, MCP server and client).
 
