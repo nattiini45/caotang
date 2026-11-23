@@ -22,6 +22,9 @@ import { ipcMain, utilityProcess, type UtilityProcess } from 'electron';
 import { fromStudioFrame } from './ipc-guard.mjs';
 import type { McpHostRefusal, McpHostReply, McpHostStatus } from './mcp-contract.cjs';
 
+/** What the block says when a server that came up during a save could not be paused, and was stopped rather than left reachable. */
+export const STARTED_UNPAUSED = 'The server started while Caotang was saving and could not be paused, so it was stopped. Start it again.';
+
 /** What the block says when the server had to be restarted because it did not answer the resume that ends a save. */
 export const RESTARTED_AFTER_RESUME = 'The server did not answer while Caotang finished saving, so it was stopped. Start it again.';
 
@@ -175,8 +178,14 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
       return { ok: false, refusal: ready.refusal };
     }
     const running: McpHostStatus = { state: 'running', url: ready.url, token, allowWrites: allowWrites === true, since, folderId };
-    // A save that began before this start is still saving, so the child is paused before the page hears about it.
-    if (pauses > 0) await postControl(running, 'pause');
+    // A save that began before this start is still saving, so the child is paused before the page hears about it — and if it cannot be
+    // paused, it is stopped rather than published: a server reachable in the middle of a save is the one thing this pause exists to
+    // prevent, and there is no state for "running, but writes land during a save".
+    if (pauses > 0 && !(await postControl(running, 'pause'))) {
+      await stopChild();
+      publish({ state: 'failed', refusal: 'failed', folderId, detail: STARTED_UNPAUSED });
+      return { ok: false, refusal: 'failed' };
+    }
     publish(running);
     // A child that goes after it was ready, with no stop asked for, failed: reporting it as stopped would say the writer stopped
     // something they did not.
