@@ -3,10 +3,11 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { DesktopBridge } from './folder-contract.cjs';
 import type { NativeFolderChange } from './folder-contract.cjs';
 import type { EgressChunk, EgressEnd } from './egress-contract.cjs';
+import type { McpHostStatus } from './mcp-contract.cjs';
 import type { IpcRendererEvent } from 'electron';
 
 const bridge: DesktopBridge = {
-  version: 4,
+  version: 5,
   folders: {
     pickFolder: (mode) => ipcRenderer.invoke('folders:pick', mode),
     recentFolders: () => ipcRenderer.invoke('folders:recent'),
@@ -33,6 +34,19 @@ const bridge: DesktopBridge = {
     revision: (id) => ipcRenderer.invoke('vault:revision', id),
     restore: (id) => ipcRenderer.invoke('vault:restore', id),
     headers: (id) => ipcRenderer.invoke('vault:headers', id),
+  },
+  mcp: {
+    start: (folderId, allowWrites) => ipcRenderer.invoke('mcp:start', folderId, allowWrites),
+    stop: () => ipcRenderer.invoke('mcp:stop'),
+    status: () => ipcRenderer.invoke('mcp:status'),
+    pause: () => ipcRenderer.invoke('mcp:pause'),
+    resume: () => ipcRenderer.invoke('mcp:resume'),
+    onStatus: (listener) => {
+      const notify = (_event: IpcRendererEvent, status: McpHostStatus): void => listener(status);
+      ipcRenderer.on('mcp:status', notify);
+      ipcRenderer.send('mcp:subscribe');
+      return () => { ipcRenderer.off('mcp:status', notify); };
+    },
   },
   net: {
     configure: (origins) => ipcRenderer.invoke('net:configure', origins),

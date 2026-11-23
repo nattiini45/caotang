@@ -7,6 +7,7 @@ import { app, BrowserWindow, net, protocol, screen, session } from 'electron';
 
 import { registerEgressIpc } from './egress.mjs';
 import { registerFolderIpc } from './folders.mjs';
+import { registerMcpIpc } from './mcp.mjs';
 import { openKeyVault, registerVaultIpc } from './vault.mjs';
 const ORIGIN = 'app://caotang';
 const ENTRY = `${ORIGIN}/`;
@@ -98,10 +99,12 @@ async function openWindow(): Promise<void> {
 
 async function start(): Promise<void> {
   await serveBuild();
-  await registerFolderIpc(app.getPath('userData'), ENTRY);
+  const folders = await registerFolderIpc(app.getPath('userData'), ENTRY);
   const vault = await openKeyVault(app.getPath('userData'));
   registerVaultIpc(ENTRY, vault);
   registerEgressIpc(ENTRY, vault);
+  // The project's own MCP server: the bundle beside this one, the folder grant the writer already gave, and the pause a save takes.
+  registerMcpIpc({ entryUrl: ENTRY, bundle: resolve(import.meta.dirname, 'mcp/caotang-mcp.mjs'), rootOf: (id) => folders.rootOf(id) });
   const allowed = (permission: string): boolean => permission === 'clipboard-sanitized-write';
   session.defaultSession.setPermissionCheckHandler((contents, permission, origin) => (
     contents?.getURL() === ENTRY && origin === ORIGIN && allowed(permission)

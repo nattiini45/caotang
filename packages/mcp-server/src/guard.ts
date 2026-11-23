@@ -28,6 +28,11 @@ export interface GuardPolicy {
    * reaches a handler. It reads the recovery's live phase, so it answers differently once the recovery is written.
    */
   readonly degraded?: (name: string) => CommandError | undefined;
+  /**
+   * Set on a server a desktop app started: whether that app is saving to the folder right now (gate.ts). A write tool is refused
+   * rather than queued, because the app is about to write the same files and a write that waits would land after its save.
+   */
+  readonly paused?: () => boolean;
 }
 
 /**
@@ -87,6 +92,16 @@ function readOnlyError(name: string, risk: string): CommandError {
   };
 }
 
+/** The refusal for a write tool the app's save has paused the server in the middle of. */
+function pausedError(name: string): CommandError {
+  return {
+    code: 'permission-denied',
+    message: `"${name}" was not run: Caotang for desktop is saving to this folder, and this server is paused while it does so, so nothing was written. Ask again once the save has finished.`,
+    target: name,
+    correctiveHint: 'wait a moment and call it again: the pause ends when the app finishes its save, and a read is never refused',
+  };
+}
+
 /**
  * The refusal this request earns, or `undefined` when the request may proceed. Only a
  * `tools/call` can earn one; every other message passes through untouched.
@@ -106,6 +121,9 @@ export function guardMessage(message: unknown, policy: GuardPolicy): RefusalResp
   const meta = metadataFor(name);
   if (meta !== undefined && meta.risk !== 'read' && meta.risk !== 'meta' && !policy.allowWrites) {
     return refusalResponse(id, readOnlyError(name, meta.risk));
+  }
+  if (meta !== undefined && meta.risk !== 'read' && meta.risk !== 'meta' && policy.paused?.() === true) {
+    return refusalResponse(id, pausedError(name));
   }
   return undefined;
 }

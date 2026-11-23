@@ -18,12 +18,14 @@ import { addDocument, addFolder, createEmptyManifest, createProjectState, readPr
 import {
   NodeArtifactFs,
   createToolRuntime,
+  createWriteGate,
   openProject,
   openProjectOrOffer,
   startHttpServer,
   type DegradedSession,
   type ProjectSession,
   type RunningHttpServer,
+  type WriteGate,
 } from '../src/index.js';
 
 export const OPENED = new Date('2026-10-08T09:00:00.000Z');
@@ -113,6 +115,8 @@ function addShot(state: ProjectState, action = 'The harbour, empty.', image?: st
 
 export interface Fixture {
   readonly root: string;
+  /** The pause an app would ask for, on a fixture started with `gate`. */
+  readonly gate?: WriteGate;
   readonly session: ProjectSession;
   readonly server: RunningHttpServer;
   readonly token: string;
@@ -141,6 +145,8 @@ export async function startFixture(options: {
   readonly shotImage?: string;
   /** With `seed`: export recipes saved in the project before it is opened. */
   readonly recipes?: readonly ExportRecipe[];
+  /** Give the server the gate a desktop app pauses it with (gate.ts), so the control endpoints answer. */
+  readonly gate?: boolean;
 }): Promise<Fixture> {
   const root = tempDir(options.label);
   if (options.seed === true && options.writing === true) {
@@ -164,13 +170,15 @@ export async function startFixture(options: {
     allowWrites: options.allowWrites,
   });
   const token = testToken();
-  const server = await startHttpServer(createToolRuntime(session), { port: 0, token });
+  const gate = options.gate === true ? createWriteGate() : undefined;
+  const server = await startHttpServer(createToolRuntime(session), { port: 0, token, ...(gate === undefined ? {} : { gate }) });
   return {
     root,
     session,
     server,
     token,
     url: server.url,
+    ...(gate === undefined ? {} : { gate }),
     async stop() {
       await server.close();
       await session.close();

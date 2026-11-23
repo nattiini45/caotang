@@ -102,7 +102,15 @@ function changedPaths(root: string, events: readonly Event[]): readonly string[]
   return [...new Set(paths)];
 }
 
-export async function registerFolderIpc(profile: string, entryUrl: string): Promise<void> {
+/**
+ * What the rest of the main process may ask of the grant list: the directory a folder id names. Only a folder the writer opened or
+ * picked is in it, so another channel can be handed an id and never a path.
+ */
+export interface FolderRegistry {
+  rootOf(id: string): string | undefined;
+}
+
+export async function registerFolderIpc(profile: string, entryUrl: string): Promise<FolderRegistry> {
   const registryFs = new NodeArtifactFs(profile);
   const registry = 'native-project-folders.json';
   const recent = new Map<string, Grant>();
@@ -269,4 +277,7 @@ export async function registerFolderIpc(profile: string, entryUrl: string): Prom
     void dropWatch(typeof subscription === 'string' ? subscription : '');
     return Promise.resolve(null);
   });
+  return {
+    rootOf: (id) => selected.get(id)?.root ?? recent.get(id)?.root,
+  };
 }
