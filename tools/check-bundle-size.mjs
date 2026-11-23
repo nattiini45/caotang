@@ -190,6 +190,7 @@ export const BUDGET = {
   // English catalogue's column roles, the two modes and the report's words, which must precede first paint (i18n.md
   // §3.3), and the entry's codex-only import guard and sentence. The reader stays on use. The ceiling is the
   // measurement rounded up to the thousand. [delegated 2026-11-23]
+  // Measured again on the merge of main aec90b9b, which carries the merged EPUB import: 1,120,944 bytes gzip.
   initialGzip: 1_121_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
@@ -331,6 +332,8 @@ export const BUDGET = {
   // (+10,325: the workbook reader and its sheet parser, all in lazy chunks, reusing the shared zip,
   // XML and grid code; the first load stayed at 1,120,940 gzip under its ceiling). The ceiling is the
   // measurement rounded up to the thousand.
+  // Measured again on the merge of main aec90b9b, which carries the merged EPUB import: 9,085,400 bytes,
+  // first load 1,120,944 gzip. Same ceilings.
   totalJs: 9_086_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`

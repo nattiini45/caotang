@@ -10245,6 +10245,7 @@ msgstr "Jede Synopsis ist ausgefüllt"
 msgid "Every week"
 msgstr "Jede Woche"
 
+
 #. Interpolated values: file is the imported file name; reason is the import failure message
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 msgid "Everything is left out, so there is nothing to import. Tick at least one chapter, scene or codex entry."
