@@ -1095,9 +1095,11 @@ msgstr "{count, plural, one {# Zeilen-ID hinzufügen} other {# Zeilen-IDs hinzuf
 msgid "{count, plural, one {An image was dropped when the project opened, because its file is not in the project.} other {# images were dropped when the project opened, because their files are not in the project.}}"
 msgstr "{count, plural, one {Ein Bild wurde beim Öffnen des Projekts verworfen, weil seine Datei nicht im Projekt ist.} other {# Bilder wurden beim Öffnen des Projekts verworfen, weil ihre Dateien nicht im Projekt sind.}}"
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
@@ -1523,6 +1525,11 @@ msgstr "{error} Die Feststellungen bleiben in diesem Browser."
 msgid "{estimated, plural, one {# request used estimated token counts.} other {# requests used estimated token counts.}}"
 msgstr "{estimated, plural, one {Bei # Anfrage wurden die Tokenzahlen geschätzt.} other {Bei # Anfragen wurden die Tokenzahlen geschätzt.}}"
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "{eventAttrs, plural, one {# event handler was removed} other {# event handlers were removed}}"
+msgstr "{eventAttrs, plural, one {# Event-Handler wurde entfernt} other {# Event-Handler wurden entfernt}}"
+
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/html-source.ts
 msgid "{eventAttrs, plural, one {# event handler} other {# event handlers}} removed."
@@ -1635,6 +1642,11 @@ msgstr "{file} hat keine Passage zu importieren. Eine Twee-Geschichte legt für 
 msgid "{file} holds no timed cue, so there is nothing to import. A captions file needs lines like \"00:00:01,000 --> 00:00:04,000\"."
 msgstr "{file} enthält keinen Cue mit einer Zeit, also gibt es nichts zu importieren. Eine Untertiteldatei braucht Zeilen wie „00:00:01,000 --> 00:00:04,000“."
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "{file} is too large to import as an EPUB ({limit} MB max)."
+msgstr "{file} ist zu groß für den EPUB-Import (max. {limit} MB)."
+
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #: apps/desktop/src/import-preview/captions-source.ts
 msgid "{file} is too large to import as captions: the import reads files up to {limit} MB."
@@ -1733,6 +1745,11 @@ msgstr "{host} hat eine Antwort gesendet, die Caotang nicht lesen konnte: {excer
 #: apps/desktop/src/app/slash-model.ts
 msgid "{id} {name}: {tokens} tokens{budgetNote}"
 msgstr "{id} {name}: {tokens} Token{budgetNote}"
+
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "{iframes, plural, one {# iframe was removed} other {# iframes were removed}}"
+msgstr "{iframes, plural, one {# Iframe wurde entfernt} other {# Iframes wurden entfernt}}"
 
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/html-source.ts
@@ -1854,6 +1871,16 @@ msgstr "{matches, plural, one {# Szene passt zu „{filterName}“. Löschen Sie
 #: apps/desktop/src/components/BinderFilters.tsx
 msgid "{matches, plural, one {# scene matches. Clear the filter to see the whole binder.} other {# scenes match. Clear the filter to see the whole binder.}}"
 msgstr "{matches, plural, one {# Szene passt. Löschen Sie den Filter, um den ganzen Binder zu sehen.} other {# Szenen passen. Löschen Sie den Filter, um den ganzen Binder zu sehen.}}"
+
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "{matter, plural, one {# section the book marks as matter is offered as Research} other {# sections the book marks as matter are offered as Research}}"
+msgstr "{matter, plural, one {# Abschnitt, den das Buch als Vorspann oder Anhang kennzeichnet, wird als Recherche angeboten} other {# Abschnitte, die das Buch als Vorspann oder Anhang kennzeichnen, werden als Recherche angeboten}}"
+
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "{media, plural, one {# audio or video player was removed} other {# audio or video players were removed}}"
+msgstr "{media, plural, one {# Audio- oder Videoplayer wurde entfernt} other {# Audio- oder Videoplayer wurden entfernt}}"
 
 #. The import preview's notices and sentences. Interpolated values: words, partCount, chapters, scenes, images, comments, footnotes and codexRows are counts; megabytes and kilobytes are sizes; label and host name a download option; title, rowName and name are node or row names; documents and folders are the import's own counts; fileName is the file's name.
 #: apps/desktop/src/import-preview/model.ts
@@ -2050,6 +2077,11 @@ msgstr "{name}: nicht importiert, {reason}"
 #: apps/desktop/src/media/prompt-pack-model.ts
 msgid "{name}: not sent, because {reason}"
 msgstr "{name}: nicht gesendet, weil {reason}"
+
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "{named, plural, one {# chapter title came from the book’s contents} other {# chapter titles came from the book’s contents}}"
+msgstr "{named, plural, one {# Kapiteltitel kam aus dem Inhaltsverzeichnis des Buchs} other {# Kapiteltitel kamen aus dem Inhaltsverzeichnis des Buchs}}"
 
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
 #: apps/desktop/src/media/ScreenplayView.tsx
@@ -2343,6 +2375,11 @@ msgstr "{records, plural, one {# Eintrag} other {# Einträge}}"
 msgid "{refusal} Select a chapter first, or make one with New folder."
 msgstr "{refusal} Wählen Sie zuerst ein Kapitel aus oder legen Sie mit „Neuer Ordner“ eines an."
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "{remote, plural, one {# picture on the internet was not downloaded} other {# pictures on the internet were not downloaded}}"
+msgstr "{remote, plural, one {# Bild aus dem Internet wurde nicht heruntergeladen} other {# Bilder aus dem Internet wurden nicht heruntergeladen}}"
+
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/html-source.ts
 msgid "{remote, plural, one {# picture} other {# pictures}} on the internet not downloaded."
@@ -2449,6 +2486,11 @@ msgstr "{scenes} {sceneCount, plural, one {Container} other {Container}}"
 #: apps/desktop/src/components/export-preview-model.ts
 msgid "{scenes} {sceneCount, plural, one {scene} other {scenes}} in {sections} {sectionCount, plural, one {section} other {sections}}, {words} {wordCount, plural, one {word} other {words}}"
 msgstr "{scenes} {sceneCount, plural, one {Szene} other {Szenen}} in {sections} {sectionCount, plural, one {Abschnitt} other {Abschnitten}}, {words} {wordCount, plural, one {Wort} other {Wörter}}"
+
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "{scripts, plural, one {# script was removed} other {# scripts were removed}}"
+msgstr "{scripts, plural, one {# Skript wurde entfernt} other {# Skripte wurden entfernt}}"
 
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/html-source.ts
@@ -2665,6 +2707,11 @@ msgstr "{steps}, {spend}."
 msgid "{style} (unknown, exported as Normal)"
 msgstr "{style} (unbekannt, wird als Normal exportiert)"
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "{styles, plural, one {# stylesheet was removed} other {# stylesheets were removed}}"
+msgstr "{styles, plural, one {# Stylesheet wurde entfernt} other {# Stylesheets wurden entfernt}}"
+
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/html-source.ts
 msgid "{styles, plural, one {# stylesheet} other {# stylesheets}} dropped; only alignment, bold and page breaks are kept."
@@ -2866,6 +2913,11 @@ msgstr "{unpriced, plural, one {Unvollständige Kostensumme: Für # Anfrage sind
 #: apps/desktop/src/media/PromptPackPanel.tsx
 msgid "{unread, plural, one {One stored record could not be read, so it is not in the file.} other {# stored records could not be read, so they are not in the file.}}"
 msgstr "{unread, plural, one {Ein gespeicherter Datensatz konnte nicht gelesen werden und ist daher nicht in der Datei.} other {# gespeicherte Datensätze konnten nicht gelesen werden und sind daher nicht in der Datei.}}"
+
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "{unsafeLinks, plural, one {# unsafe link kept its text only} other {# unsafe links kept their text only}}"
+msgstr "{unsafeLinks, plural, one {# unsicherer Link wurde nur als Text behalten} other {# unsichere Links wurden nur als Text behalten}}"
 
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/html-source.ts
@@ -4010,9 +4062,11 @@ msgstr "Etwa {extractCalls, plural, one {# Modellaufruf} other {# Modellaufrufe}
 msgid "about {size}"
 msgstr "etwa {size}"
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
@@ -7660,6 +7714,11 @@ msgstr "Inhaltsüberschrift"
 msgid "Contents list"
 msgstr "Inhaltsverzeichnis"
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "Contents: {title}"
+msgstr "Inhalt: {title}"
+
 #. Context budget copy. Interpolated values: answer, thinking, kept, window, sent, allowed, whole, l2, l4, l5, min, max and count are token counts; parts, capWords, windowNote and name complete the sentence; layerId is a layer key.
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
@@ -9575,10 +9634,25 @@ msgstr "Epilog"
 msgid "Episode settings changed"
 msgstr "Episodeneinstellungen geändert"
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "EPUB"
+msgstr "EPUB"
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "EPUB (.epub)"
 msgstr "EPUB (.epub)"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "EPUB file"
+msgstr "EPUB-Datei"
+
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "EPUB safety"
+msgstr "EPUB-Sicherheit"
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: subject
@@ -11197,6 +11271,11 @@ msgstr "Untertitel importieren…"
 msgid "harness.progress.codexImport.none.content"
 msgstr "Kodex-Einträge importieren"
 
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import EPUB…"
+msgstr "EPUB importieren…"
+
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Import Highland"
@@ -11725,6 +11804,11 @@ msgstr "Es ist eine Binärdatei, die Caotang hier nicht darstellen kann, und ein
 msgid "It is also in the project folder."
 msgstr "Es ist auch im Projektordner."
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "It is larger than an EPUB import reads."
+msgstr "Es ist größer, als ein EPUB-Import liest."
+
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/html-source.ts
 msgid "It is larger than an HTML import reads."
@@ -11739,6 +11823,16 @@ msgstr "Sie ist größer, als ein RTF-Import liest."
 #: apps/desktop/src/media/shot-image-model.ts
 msgid "it is not a PNG, JPEG or WebP picture"
 msgstr "es ist kein Bild im Format PNG, JPEG oder WebP"
+
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "It is not an EPUB import."
+msgstr "Es ist kein EPUB-Import."
+
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "It is not an EPUB: it has no package document."
+msgstr "Es ist kein EPUB: Es hat kein Paketdokument."
 
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/html-source.ts
@@ -11846,6 +11940,11 @@ msgstr "Ihre Gruppen sind tiefer verschachtelt, als ein RTF-Import liest."
 msgid "Its markup is not well-formed XML; it cannot be read."
 msgstr "Sein Markup ist kein wohlgeformtes XML; es kann nicht gelesen werden."
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "Its markup is not well-formed, so the import cannot read it."
+msgstr "Sein Markup ist nicht wohlgeformt, daher kann der Import es nicht lesen."
+
 #. Picture drops on a storyboard. Interpolated values: name and title are a file name and a shot title; number is a shot number; reason is a sentence ending or a failure message; where is a shot position; shotId is an id; counts are numbers.
 #: apps/desktop/src/media/shot-image-model.ts
 msgid "its name does not start with a shot number (name a photograph like 007.jpg)"
@@ -11856,10 +11955,20 @@ msgstr "ihr Name beginnt nicht mit einer Einstellungsnummer (benennen Sie ein Fo
 msgid "Its placements go with it:"
 msgstr "Ihre Platzierungen gehen damit einher:"
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "Its reading order holds no text."
+msgstr "Seine Lesereihenfolge enthält keinen Text."
+
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
 #: apps/desktop/src/media/ScreenplayView.tsx
 msgid "Its shots are in “{title}”."
 msgstr "Ihre Einstellungen sind in „{title}“."
+
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "Its text encoding could not be recognised. Save it as UTF-8 and import it again."
+msgstr "Seine Textkodierung konnte nicht erkannt werden. Speichern Sie es als UTF-8 und importieren Sie es erneut."
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
@@ -16985,6 +17094,7 @@ msgid "harness.progress.docRead.active"
 msgstr "“{doc}” wird gelesen"
 
 #. Interpolated values: file is the imported file name; reason is the import failure message
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
@@ -16992,6 +17102,7 @@ msgstr "“{doc}” wird gelesen"
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #: apps/desktop/src/import-preview/captions-source.ts
+#: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
@@ -17418,7 +17529,9 @@ msgstr "Das Neuladen dieses Tabs verliert die neuesten Wörter darin. Sie sind n
 msgid "Remind me next month"
 msgstr "Nächsten Monat erinnern"
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 msgid "Remote pictures"
 msgstr "Entfernte Bilder"
@@ -22180,6 +22293,11 @@ msgstr "Das Gespräch konnte nicht gespeichert werden: {reason}. Das Laufprotoko
 msgid "the corkboard"
 msgstr "die Pinnwand"
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "The cover came in as a picture; setting it as the project’s cover is not part of this import."
+msgstr "Das Cover kam als Bild an; es als Projektcover zu setzen ist nicht Teil dieses Imports."
+
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
 msgid "The cover could not be read: {reason}"
@@ -24457,6 +24575,11 @@ msgstr "Diese Erlaubnis bleibt in diesem Browser. Entwürfe warten im Posteingan
 msgid "This approval is already saving your typing. Wait for it to finish."
 msgstr "Diese Freigabe speichert gerade deinen Text. Warte, bis sie abgeschlossen ist."
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "This book is protected by DRM ({file}), so Caotang cannot read it. Remove the protection with the tool you bought it from, then import it again."
+msgstr "Dieses Buch ist durch DRM geschützt ({file}), daher kann Caotang es nicht lesen. Entfernen Sie den Schutz mit dem Werkzeug, von dem Sie es gekauft haben, und importieren Sie es dann erneut."
+
 #: apps/desktop/src/app/picture-transcoder.ts
 msgid "This browser cannot open HEIC photos."
 msgstr "Dieser Browser kann keine HEIC-Fotos öffnen."
@@ -26537,6 +26660,11 @@ msgstr "Was der Agent dem Modell in einer Anfrage senden darf, in Tokens. Ein le
 msgid "What the agent reads with every request: your instructions, and a short index of the notes it has kept. Both are plain files in your project, <0>CAOTANG.md</0> and a <1>memory</1> folder, so you can edit them anywhere."
 msgstr "Was der Agent bei jeder Anfrage liest: Ihre Anweisungen und ein kurzer Index der Notizen, die er behalten hat. Beides sind einfache Dateien in Ihrem Projekt, <0>CAOTANG.md</0> und ein Ordner <1>memory</1>, sodass Sie sie überall bearbeiten können."
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
+msgid "What the book named"
+msgstr "Was das Buch benannt hat"
+
 #. Interpolated values: file is the imported file name; reason is the import failure message
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 msgid "What the import cannot keep"
@@ -26550,7 +26678,9 @@ msgstr "Was der Import nicht behalten kann"
 msgid "What the import does"
 msgstr "Was der Import tut"
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 msgid "What the import removed"
 msgstr "Was der Import entfernt hat"
@@ -26640,7 +26770,9 @@ msgstr "Was wiederholt wird"
 msgid "What to scan"
 msgstr "Was scannen"
 
+#. The EPUB import. Interpolated values: file (the file's name), count (pictures, chapters), size (megabytes)
 #. The HTML import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/html-source.ts
 msgid "What was not downloaded"
 msgstr "Was nicht heruntergeladen wurde"

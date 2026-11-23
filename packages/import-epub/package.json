@@ -1,0 +1,21 @@
+{
+  "name": "@caotang/import-epub",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "The EPUB reader for the EPUB import (#296): container.xml to the OPF, its metadata, manifest and spine, the EPUB 3 nav or the EPUB 2 NCX for chapter titles and fragments, and the shared XHTML walker for the text. Landmarks become front or back matter, footnotes become [^n], the cover and pictures are kept, and a DRM file is refused. No DOM, no third-party dependency; runs on the main thread, in a 'self' Worker and in Node.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@caotang/import-core": "workspace:*",
+    "@caotang/import-html": "workspace:*",
+    "@caotang/import-read": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

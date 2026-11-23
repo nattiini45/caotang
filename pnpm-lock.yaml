@@ -318,6 +318,9 @@ importers:
       '@caotang/import-core':
         specifier: workspace:*
         version: link:../../packages/import-core
+      '@caotang/import-epub':
+        specifier: workspace:*
+        version: link:../../packages/import-epub
       '@caotang/import-highland':
         specifier: workspace:*
         version: link:../../packages/import-highland
@@ -988,6 +991,18 @@ importers:
         version: link:../script
 
   packages/import-core: {}
+
+  packages/import-epub:
+    dependencies:
+      '@caotang/import-core':
+        specifier: workspace:*
+        version: link:../import-core
+      '@caotang/import-html':
+        specifier: workspace:*
+        version: link:../import-html
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../import-read
 
   packages/import-highland:
     dependencies:

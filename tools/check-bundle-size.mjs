@@ -175,7 +175,11 @@ export const BUDGET = {
   // compiled English catalogue's twenty HTML messages (+1,392 raw), which must precede first paint (i18n.md §3.3), and the entry's
   // loader for the command; the XHTML walker, the reader, its preview source and the Worker stay on use. The ceiling is the
   // measurement rounded up to the thousand. [delegated 2026-11-22]
-  initialGzip: 1_116_000,
+  // The EPUB import (#296) on the merge of #299's branch into main: 1,116,362 bytes gzip measured, +863 over the ceiling
+  // #299's measurement set. Named: the compiled English catalogue's EPUB messages, which must precede first paint
+  // (i18n.md §3.3), and the entry's loader for the command; the reader, the preview source and the Worker stay on use. The
+  // ceiling is the measurement rounded up to the thousand. [delegated 2026-11-22]
+  initialGzip: 1_117_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -289,7 +293,14 @@ export const BUDGET = {
   // measurement left the dialog's new German entries untranslated; translating them, so the Appearance screen still shows 100% complete,
   // put 736 more bytes in the on-use `locale-de` chunk and none in the first load. 8,949,346 on the rebuild with them, and the ceiling is
   // that plus 654 bytes, so later work inherits no free room. [delegated 2026-11-22]
-  totalJs: 8_950_000,
+  // The EPUB import (#296) on the merge of #299's branch into main: 8,966,997 bytes measured, +17,651 over #82's
+  // ceiling measurement. Named: the EPUB reader package, the preview source and the Worker, all on-use chunks, and the
+  // walker's anchors, notes and noterefs in the import-html chunk. The ceiling is the measurement rounded up to the
+  // thousand. [delegated 2026-11-22]
+  // The German catalogue's EPUB strings (#296): 8,967,257 bytes measured, +260 over the reader's own ceiling
+  // measurement. The compiled de catalogue stays on use too. Same round-up-to-the-thousand ceiling. [delegated
+  // 2026-11-22]
+  totalJs: 8_968_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

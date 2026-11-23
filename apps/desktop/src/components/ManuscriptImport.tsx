@@ -24,6 +24,7 @@ export function ManuscriptImportActions(): ReactNode {
   const rtfdFolder = useRef<HTMLInputElement>(null);
   const captionsFile = useRef<HTMLInputElement>(null);
   const htmlFile = useRef<HTMLInputElement>(null);
+  const epubFile = useRef<HTMLInputElement>(null);
 
   const failed = (file: File, failure: unknown): void => {
     const problem = failure instanceof Error ? failure.message : String(failure);
@@ -134,6 +135,22 @@ export function ManuscriptImportActions(): ReactNode {
     }
   };
 
+  const openEpub = async (file: File): Promise<void> => {
+    try {
+      const { epubPreviewSource, epubSizeRefusal } = await import('../import-preview/epub-source.js');
+      const { ARCHIVE_LIMITS } = await import('@caotang/import-read/zip');
+      const refusal = epubSizeRefusal(file.name, file.size, ARCHIVE_LIMITS.maxArchiveBytes);
+      if (refusal !== undefined) {
+        report({ text: refusal, tone: 'error' });
+        return;
+      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      openImportPreview({ source: epubPreviewSource(file.name, bytes) });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
   return (
     <div className="script-import" role="group" aria-label={t`Import a manuscript`}>
       <button type="button" className="button is-quiet" onClick={() => textFile.current?.click()}>
@@ -150,6 +167,9 @@ export function ManuscriptImportActions(): ReactNode {
       </button>
       <button type="button" className="button is-quiet" onClick={() => htmlFile.current?.click()}>
         <Trans>Import HTML…</Trans>
+      </button>
+      <button type="button" className="button is-quiet" onClick={() => epubFile.current?.click()}>
+        <Trans>Import EPUB…</Trans>
       </button>
       <input
         ref={textFile}
@@ -213,6 +233,18 @@ export function ManuscriptImportActions(): ReactNode {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
           if (file !== undefined) void openHtml(file);
+        }}
+      />
+      <input
+        ref={epubFile}
+        type="file"
+        hidden
+        accept=".epub,application/epub+zip"
+        aria-label={t`EPUB file`}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file !== undefined) void openEpub(file);
         }}
       />
     </div>
