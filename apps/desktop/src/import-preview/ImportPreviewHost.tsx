@@ -4,6 +4,8 @@
  */
 
 import type { ReactNode } from 'react';
+import { t } from '@lingui/core/macro';
+import { useLingui } from '@lingui/react';
 
 import type { ProjectSession } from '../app/session.js';
 import { LazyBoundary, lazyView } from '../components/lazy-view.js';
@@ -13,10 +15,11 @@ import { closeImportPreview, useImportPreviewRequest } from './requests.js';
 const ImportPreviewDialog = lazyView(() => import('./ImportPreviewDialog.js'));
 
 export function ImportPreviewHost({ session }: { session: ProjectSession }): ReactNode {
+  useLingui();
   const request = useImportPreviewRequest();
   if (request === null) return null;
   return (
-    <LazyBoundary label="the import preview" variant="toast" onDismiss={() => closeImportPreview(false)}>
+    <LazyBoundary label={t`the import preview`} variant="toast" onDismiss={() => closeImportPreview(false)}>
       {/* A new request is a new dialog: its edits and answers start fresh. */}
       <ImportPreviewDialog key={request.id} session={session} request={request} helpers={PREVIEW_HELPERS} />
     </LazyBoundary>

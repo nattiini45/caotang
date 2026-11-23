@@ -293,7 +293,7 @@ class OpenRequest extends OpenRequestBase {
   }
 
   private upgrade(): FakeTransaction {
-    return this.result.transaction([], 'versionchange') as FakeTransaction;
+    return this.result.transaction(Array.from(this.result.objectStoreNames), 'versionchange') as FakeTransaction;
   }
 
   private run(connectionsClosed = false): void {
@@ -332,6 +332,15 @@ class OpenRequest extends OpenRequestBase {
     data.version = target;
     this.result = new FakeDatabase(this.factory, this.name, data);
 
+    const success = () => {
+      this.setDone();
+      try {
+        this.onsuccess?.call(this, this.fire('success'));
+      } finally {
+        this.factory.finishOpen(this.name);
+      }
+    };
+
     if (target > current) {
       // The upgrade transaction runs to completion before `success` is
       // delivered, so an `onupgradeneeded` handler can create object stores.
@@ -340,16 +349,8 @@ class OpenRequest extends OpenRequestBase {
       const event = versionChangeEvent('upgradeneeded', current, target);
       const stores = new Map(data.stores);
       const indexes = new Map([...stores.values()].map((store) => [store, new Map(store.indexes)]));
-      try {
-        tx.runActive(() => {
-          this.dispatchEvent(event);
-          this.onupgradeneeded?.call(this, event);
-        });
-      } catch (error) {
-        tx.recordHandlerError(error);
-        tx.abortWith(domError('AbortError', 'the upgrade handler failed'));
-      }
-      if (tx.finished) {
+      tx.addEventListener('complete', () => queueMicrotask(success));
+      tx.addEventListener('abort', () => {
         data.version = current;
         data.stores = stores;
         for (const [store, previous] of indexes) {
@@ -367,19 +368,20 @@ class OpenRequest extends OpenRequestBase {
             this.factory.finishOpen(this.name);
           }
         });
-        return;
+      });
+      try {
+        tx.runActive(() => {
+          this.dispatchEvent(event);
+          this.onupgradeneeded?.call(this, event);
+        });
+      } catch (error) {
+        tx.recordHandlerError(error);
+        tx.abortWith(domError('AbortError', 'the upgrade handler failed'));
       }
-      tx.finishVersionChange();
+      return;
     }
 
-    queueMicrotask(() => {
-      this.setDone();
-      try {
-        this.onsuccess?.call(this, this.fire('success'));
-      } finally {
-        this.factory.finishOpen(this.name);
-      }
-    });
+    queueMicrotask(success);
   }
 }
 
@@ -637,7 +639,7 @@ class FakeTransaction extends EventTarget implements IDBTransaction {
     // third store, and the suite would still be green. Found by the mutation
     // check — remove `sessions` from `deleteProject`'s store list and nothing
     // failed, because nothing could fail.
-    if (!this.storeNames.includes(name)) {
+    if (!this.isVersionChange && !this.storeNames.includes(name)) {
       throw domError(
         'NotFoundError',
         `no object store "${name}" in this transaction (opened with [${this.storeNames.join(', ')}])`,
@@ -725,7 +727,7 @@ class FakeTransaction extends EventTarget implements IDBTransaction {
       setTimeout(() => this.drain(), 0);
       return;
     }
-    if (this.mode !== 'readwrite') {
+    if (this.mode === 'readonly') {
       this.finishCommitted();
       return;
     }
@@ -800,13 +802,6 @@ class FakeTransaction extends EventTarget implements IDBTransaction {
       throw domError('DataError', `value is missing the key path "${segments.join('.')}"`);
     }
     return (segments.length === 1 ? parts[0] : parts) as IDBValidKey;
-  }
-
-  /** Versionchange transactions commit when the upgrade callback returns. */
-  finishVersionChange(): void {
-    this.active = false;
-    this.finished = true;
-    this.db.detachUpgradeTransaction(this);
   }
 
   abortWith(error: Error | null): void {

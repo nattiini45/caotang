@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import { addDocument, getRevision, setBody, type ProjectState } from '@caotang/store';
 import type { MockScript } from '@caotang/gateway/mock';
+import { createMcpClient, createMockWireFactory, qualifiedNameOf, type McpServerConfig, type MockMcpScript, type WireTool } from '@caotang/mcp-client';
 
 import {
   BACKGROUND_OFFER_MIN_CALLS,
@@ -26,7 +27,7 @@ import {
   type PlanOffer,
   type PlanStep,
 } from '../../src/index.js';
-import { CHAPTER_TWO, LANDING, OPENED, STORM, FRIEND, makeState } from '../fixtures.js';
+import { CHAPTER_TWO, LANDING, OPENED, STORM, FRIEND, makeState, run } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
 import { prose, steps, transcript } from './scripts.js';
 
@@ -55,6 +56,7 @@ async function sessionOver(
     readonly offer?: (offer: PlanOffer) => OfferAnswer | Promise<OfferAnswer>;
     readonly decision?: Decision;
     readonly sessionId?: string;
+    readonly mode?: 'plan-only';
   } = {},
 ) {
   const harness = createHarness({ state, ports: createAgentPorts() });
@@ -79,6 +81,7 @@ async function sessionOver(
         }),
     ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }),
     maxModelCalls: 12,
+    ...(options.mode === undefined ? {} : { mode: options.mode }),
   });
   return { session, harness, gateway, cards, offers };
 }
@@ -105,6 +108,18 @@ describe('what a plan costs and whether it may run unattended', () => {
 
   it.each(['skill.load', 'skill.read'])('keeps %s in the foreground instead of losing its turn-local context', (tool) => {
     expect(backgroundEligibility([{ tool, params: { name: 'style' }, expect: 'Read the skill.' }, synopses()])).toMatchObject({ eligible: false, reason: expect.stringContaining('Skills belong to this turn') });
+  });
+
+  it('allowNoModelStep skips only the model-step requirement, keeping every other refusal', () => {
+    const nativeRead: PlanStep = { tool: 'project.overview', params: {}, expect: 'an overview' };
+    const nativeWrite: PlanStep = { tool: 'meta.set', params: { targets: [FRIEND], label: 'act-2' }, expect: 'a label' };
+    expect(backgroundEligibility([nativeRead]).eligible).toBe(false);
+    expect(backgroundEligibility([nativeRead], undefined, { allowNoModelStep: true })).toEqual({ eligible: true });
+    expect(backgroundEligibility([nativeWrite], undefined, { allowNoModelStep: true })).toEqual({ eligible: true });
+    expect(backgroundEligibility([{ tool: 'skill.read', params: { name: 'style' }, expect: 'x' }], undefined, { allowNoModelStep: true }).eligible).toBe(false);
+    expect(backgroundEligibility([{ tool: 'mcp__srv__read', params: {}, expect: 'x' }], undefined, { allowNoModelStep: true }).eligible).toBe(false);
+    expect(backgroundEligibility([{ tool: 'coherence.review', params: {}, expect: 'x' }], undefined, { allowNoModelStep: true }).eligible).toBe(false);
+    expect(backgroundEligibility([{ tool: 'timeline.edit', params: {}, expect: 'x' }], undefined, { allowNoModelStep: true }).eligible).toBe(false);
   });
 });
 
@@ -245,6 +260,24 @@ describe('staging with no card (stageOnly)', () => {
 describe('the review of a plan staged earlier (submitStaged)', () => {
   const plan = { steps: [synopses(['The Storm', 'The Friend'])] };
 
+  it.each([
+    { kind: 'model-backed', step: synopses(['The Storm', 'The Friend']) },
+    { kind: 'native', step: { tool: 'meta.set', params: { targets: [FRIEND], label: 'act-2' }, expect: 'a label' } },
+  ])('refuses a staged $kind write in Plan-only mode without a card or another model call', async ({ step }) => {
+    const state = withScenes(2);
+    const stager = await sessionOver(state);
+    const result = await stager.session.stageOnly([step]);
+    const before = JSON.stringify(state);
+    const reviewer = await sessionOver(state, { scripts: [], mode: 'plan-only' });
+    const report = await reviewer.session.submitStaged(INTENT, { steps: [step] }, result.proposals, result.revisions);
+    expect(report.status).toBe('failed');
+    expect(report.mode).toBe('plan-only');
+    expect(report.heldSteps).toEqual([step]);
+    expect(report.modelCalls).toBe(0);
+    expect(reviewer.cards).toHaveLength(0);
+    expect(JSON.stringify(state)).toBe(before);
+  });
+
   /** Stages the plan in one session and returns what a task would hold, plus a second session over the same project for the review. */
   async function staged(state: ProjectState, scripts?: readonly MockScript[]) {
     const stager = await sessionOver(state, { ...(scripts === undefined ? {} : { scripts }), sessionId: 'task_a' });
@@ -347,6 +380,67 @@ describe('the review of a plan staged earlier (submitStaged)', () => {
     const report = await reviewer.session.submitStaged(INTENT, readPlan, [found], [{ [LANDING]: getRevision(state, LANDING) }]);
     expect(report.status).toBe('replied');
     expect(reviewer.cards).toHaveLength(0);
+  });
+
+  it('runs a deferred plan of native reads without a card, so a review of it can be consumed', async () => {
+    const state = withScenes(2);
+    const readPlan = { steps: [{ tool: 'project.overview', params: {}, expect: 'an overview' }] };
+    const reviewer = await sessionOver(state, { scripts: [] });
+    const report = await reviewer.session.submitStaged(INTENT, readPlan, [undefined], [{}]);
+    expect(report.status).toBe('replied');
+    expect(reviewer.cards).toHaveLength(0);
+    expect(report.modelCalls).toBe(0);
+  });
+
+  it('reviews a deferred native-write plan on the foreground card and applies it on approval, with no model call', async () => {
+    const state = withScenes(2);
+    const writePlan = { steps: [{ tool: 'codex.write', params: { entries: [{ action: 'create', name: 'Hanne', description: 'A traveler.' }] }, expect: 'a codex entry' }] };
+    const reviewer = await sessionOver(state, { scripts: [] });
+    const report = await reviewer.session.submitStaged(INTENT, writePlan, [undefined], [{}]);
+    expect(report.status).toBe('applied');
+    expect(reviewer.cards).toHaveLength(1);
+    expect(report.modelCalls).toBe(0);
+    expect((state.manifest.codex ?? []).some((entry) => entry.name === 'Hanne')).toBe(true);
+  });
+
+  it('still refuses a stored plan of read skills, which a deferred review must not admit', async () => {
+    const state = withScenes(2);
+    const reviewer = await sessionOver(state, { scripts: [] });
+    for (const tool of ['skill.read', 'skill.load']) {
+      const report = await reviewer.session.submitStaged(INTENT, { steps: [{ tool, params: { name: 'style' }, expect: 'a skill' }] }, [undefined], [{}]);
+      expect(report.status).toBe('failed');
+      expect(report.modelCalls).toBe(0);
+    }
+    expect(reviewer.cards).toHaveLength(0);
+  });
+});
+
+describe('a deferred review keeps the stored-plan external barrier', () => {
+  const KEY = 's_LORE00001';
+  const SEARCH = qualifiedNameOf(KEY, 'search_lore');
+  const ADDED = '2026-10-08T09:00:00.000Z';
+  const server: McpServerConfig = { key: KEY, name: 'Story Bible', transport: 'http', url: 'https://s-lore00001.fixture.test/mcp', auth: { kind: 'none' }, enabled: true, trustReads: false, pinnedTools: {}, addedAt: ADDED };
+  const TOOLS: WireTool[] = [
+    { name: 'search_lore', description: 'Search the story bible for an entry.', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false }, annotations: { readOnlyHint: true } },
+  ];
+
+  it('still refuses a stored read-classified external tool, which a deferred review must not admit', async () => {
+    const calls: string[] = [];
+    const script: MockMcpScript = { listTools: TOOLS, respond: (tool) => { calls.push(tool); return { content: [{ type: 'text', text: `answer from ${tool}` }], isError: false }; } };
+    const client = createMcpClient({ settings: { enabled: true, servers: [server] }, wire: createMockWireFactory({ [KEY]: script }), probe: async () => false, now: () => ADDED, listTimeoutMs: 2_000, callTimeoutMs: 2_000 });
+    await client.connect(KEY);
+    const card = client.review(KEY);
+    if (card !== undefined) await client.approveReview(KEY, card.fingerprint);
+    const state = withScenes(2);
+    const harness = createHarness({ state, ports: createAgentPorts(), mcp: { client } });
+    run(harness, 'tool.search', { query: 'lore' }, { turnId: 'turn-load-external' });
+    expect(harness.loadedExternalTools().map((tool) => tool.qualifiedName)).toEqual([SEARCH]);
+    const gateway = await mockGateway([]);
+    const session = createAgentSession({ harness, gateway, context: createContextPort({ state: harness.state }), decide: async () => ({ action: 'approve' }) });
+    const report = await session.submitStaged(INTENT, { steps: [{ tool: SEARCH, params: { query: 'x' }, expect: 'a lookup' }] }, [undefined], [{}]);
+    expect(report.status).toBe('failed');
+    expect(report.modelCalls).toBe(0);
+    expect(calls).toEqual([]);
   });
 });
 

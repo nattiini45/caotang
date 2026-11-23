@@ -3,10 +3,12 @@
  * remove it. A project's rules live in its file and are made from the binder menu; the writer's own rules live in the app's settings, hold
  * in every project, and name a tool.
  */
+/* lingui-set comment="Agent rules settings. Interpolated values: text is the rule's own words." */
 
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 
 import { TOOL_NAMES, ruleWarnings, type PermissionRule, type RuleEffect } from '@caotang/harness';
 
@@ -28,6 +30,7 @@ function RuleList({
   readonly empty: string;
   readonly onRemove: (index: number) => void;
 }): ReactNode {
+  useLingui();
   if (rules.length === 0) return <p className="settings-note">{empty}</p>;
   return (
     <ul className="settings-rules" aria-label={label}>
@@ -38,10 +41,10 @@ function RuleList({
             <span>
               {text}
               {rule.note === undefined ? '' : ` — ${rule.note}`}
-              {inert ? ' (no effect)' : ''}
+              {inert ? t` (no effect)` : ''}
             </span>
-            <button type="button" className="button is-quiet" aria-label={`Remove rule: ${text}`} onClick={() => onRemove(index)}>
-              Remove
+            <button type="button" className="button is-quiet" aria-label={t`Remove rule: ${text}`} onClick={() => onRemove(index)}>
+              <Trans>Remove</Trans>
             </button>
           </li>
         );
@@ -52,20 +55,21 @@ function RuleList({
 
 /** The project's rules, re-read whenever the session changes. */
 function ProjectRules({ session }: { readonly session: ProjectSession }): ReactNode {
+  useLingui();
   useSession(session);
   const warnings = ruleWarnings({ rules: session.rulesNow().filter((rule) => rule.source === 'project') }, session.state, TOOL_NAMES);
   return (
     <>
-      <h5>This project</h5>
+      <h5><Trans>This project</Trans></h5>
       <RuleList
-        label="Rules in this project"
+        label={t`Rules in this project`}
         rules={session.agentRules()}
         state={session.state}
-        empty="This project has no rules. Right-click a folder or document in the binder and choose “Agent: may read only” or “Agent: may not read”."
+        empty={t`This project has no rules. Right-click a folder or document in the binder and choose “Agent: may read only” or “Agent: may not read”.`}
         onRemove={(index) => session.removeAgentRule(index)}
       />
       {warnings.length > 0 ? (
-        <ul className="settings-note" aria-label="Rules that need a look">
+        <ul className="settings-note" aria-label={t`Rules that need a look`}>
           {warnings.map((warning) => (
             <li key={warning}>{warning}.</li>
           ))}
@@ -76,6 +80,7 @@ function ProjectRules({ session }: { readonly session: ProjectSession }): ReactN
 }
 
 export function AgentRulesSettings({ services, session }: { readonly services: AppServices; readonly session: ProjectSession | null }): ReactNode {
+  useLingui();
   const [rules, setRules] = useState<readonly PermissionRule[]>(services.settings.current().agent.rules);
   const [tool, setTool] = useState('');
   const [effect, setEffect] = useState<RuleEffect>('deny');
@@ -93,16 +98,16 @@ export function AgentRulesSettings({ services, session }: { readonly services: A
     event.preventDefault();
     const named = tool.trim();
     if (named === '') {
-      setMessage({ text: 'Name a tool, such as scene.draft, or * for every tool.', tone: 'error' });
+      setMessage({ text: t`Name a tool, such as scene.draft, or * for every tool.`, tone: 'error' });
       return;
     }
-    save([...rules, { effect, tool: named }], 'Saved. It applies from the agent’s next call.');
+    save([...rules, { effect, tool: named }], t`Saved. It applies from the agent’s next call.`);
     setTool('');
   };
 
   return (
     <div className="settings-agent-rules" data-testid="agent-rules-settings">
-      <h4 id="settings-agent-rules">Rules</h4>
+      <h4 id="settings-agent-rules"><Trans>Rules</Trans></h4>
       <p className="settings-note">
         <Trans>A “never” rule wins over an “ask first” rule, and an “ask first” rule wins over an “allow” rule. Asking first keeps approval cards even in Auto. Allow can skip a native tool’s approval card in Ask mode only when you create the rule here in Settings. Each automatic approval is logged with its rule.</Trans>
       </p>
@@ -113,13 +118,13 @@ export function AgentRulesSettings({ services, session }: { readonly services: A
         <Trans>Make folder rules from the binder menu; they stay in the project’s file and travel with it. Your Settings rules below apply to every project.</Trans>
       </p>
       {session === null ? null : <ProjectRules session={session} />}
-      <h5>In every project</h5>
+      <h5><Trans>In every project</Trans></h5>
       <RuleList
-        label="Rules in every project"
+        label={t`Rules in every project`}
         rules={rules}
         state={session?.state ?? null}
-        empty="You have no rules of your own."
-        onRemove={(index) => save(rules.filter((_, at) => at !== index), 'Removed. It applies from the agent’s next call.')}
+        empty={t`You have no rules of your own.`}
+        onRemove={(index) => save(rules.filter((_, at) => at !== index), t`Removed. It applies from the agent’s next call.`)}
       />
       {warnings.length > 0 ? (
         <ul className="settings-note" aria-label={t`Settings rules that need a look`}>
@@ -128,7 +133,7 @@ export function AgentRulesSettings({ services, session }: { readonly services: A
       ) : null}
       <form className="settings-form" noValidate onSubmit={add}>
         <label>
-          <span>Tool</span>
+          <span><Trans>Tool</Trans></span>
           <input list="agent-rule-tools" value={tool} placeholder="scene.draft" onChange={(event) => setTool(event.target.value)} />
           <datalist id="agent-rule-tools">
             <option value="*" />
@@ -138,15 +143,15 @@ export function AgentRulesSettings({ services, session }: { readonly services: A
           </datalist>
         </label>
         <label>
-          <span>Rule</span>
+          <span><Trans>Rule</Trans></span>
           <select value={effect} onChange={(event) => setEffect(event.target.value as RuleEffect)}>
-            <option value="deny">The agent may never use it</option>
-            <option value="ask">The agent must ask me first</option>
+            <option value="deny"><Trans>The agent may never use it</Trans></option>
+            <option value="ask"><Trans>The agent must ask me first</Trans></option>
             <option value="allow"><Trans>The agent may skip approval in Ask mode</Trans></option>
           </select>
         </label>
         <button type="submit" className="button">
-          Add rule
+          <Trans>Add rule</Trans>
         </button>
       </form>
       {message === null ? null : (

@@ -76,6 +76,7 @@ export function isStaleWrite(error: unknown): boolean {
 }
 
 export class Persistence {
+  private saveArtifact: (() => Promise<void>) | undefined;
   private atomicRestore: { readonly expected: ProjectState; readonly expectedCoherence: string | null; readonly onSaved: (coherence: string) => Promise<void> } | null = null;
   private shadow: Shadow | null;
   /**
@@ -118,6 +119,10 @@ export class Persistence {
   }
 
   atomicRestorePending(): boolean { return this.atomicRestore !== null; }
+
+  setArtifactSaver(save: () => Promise<void>): void {
+    this.saveArtifact = save;
+  }
 
   /** Ask for the store to be brought up to date. Coalesces: at most one pass is ever queued behind a running one. */
   schedule(): void {
@@ -177,6 +182,7 @@ export class Persistence {
     }
     this.setStatus({ type: 'write' });
     try {
+      if (this.saveArtifact) await this.saveArtifact();
       if (this.atomicRestore !== null) {
         const next = structuredClone(this.read());
         const coherence = serializeCoherenceFile((next.coherence ?? emptyCoherenceState()) as CoherenceFile);

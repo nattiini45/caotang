@@ -9,7 +9,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ProjectRefusedError } from '@caotang/store';
+import { FORMAT_VERSION, ProjectRefusedError } from '@caotang/store';
 
 import {
   ProjectLockedError,
@@ -208,7 +208,7 @@ describe('an unrecoverable folder gets the honest bound and no write tool', () =
 
 describe('a manifest this build refuses is refused outright', () => {
   it.each([
-    ['a newer format', { formatVersion: 2 }],
+    ['a newer format', { formatVersion: FORMAT_VERSION + 1 }],
     ['another app', { app: 'other' }],
   ])('%s: no ladder, no offer, no write, and the lock is released', async (_label, change) => {
     const root = tempDir('rec-refused');

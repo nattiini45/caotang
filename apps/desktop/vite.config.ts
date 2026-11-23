@@ -121,6 +121,9 @@ export default defineConfig(({ command }) => ({
     lingui({ macroTransform: true, failOnCompileError: true }), react(), thirdPartyNotices(),
     retryChunkUrl('src/i18n/de-catalogue-url.ts', 'src/i18n/locales/de/messages.po', 'deCatalogueUrl', 'messages'),
     retryChunkUrl('src/app/run-recovery-url.ts', 'src/app/run-recovery.ts', 'runRecoveryUrl', 'run-recovery'),
+    retryChunkUrl('src/workers/harness-worker-url.ts', 'src/workers/harness-worker.ts', 'harnessWorkerUrl', 'harness-worker'),
+    retryChunkUrl('src/app/text-search-worker-url.ts', 'src/app/text-search.worker.ts', 'textSearchWorkerUrl', 'text-search.worker'),
+    retryChunkUrl('src/import-preview/reader-worker-url.ts', 'src/import-preview/reader.worker.ts', 'readerWorkerUrl', 'reader.worker'),
     devCsp(),
   ],
   ...(command === 'serve' ? { html: { cspNonce: DEV_NONCE } } : {}),
@@ -160,8 +163,13 @@ export default defineConfig(({ command }) => ({
     // module they need is already loaded by then: preloading that list again would only write it into `modern-shell` and spend Modern's
     // first-load budget.
     modulePreload: {
-      resolveDependencies: (filename, deps, { hostId }) =>
-        /(^|\/)narrow-panels-[\w-]+\.js$/.test(filename) && /(^|\/)modern-shell-[\w-]+\.js$/.test(hostId) ? deps.filter((dep) => dep === filename || /(^|\/)narrow-panels-[\w-]+\.css$/.test(dep)) : deps,
+      resolveDependencies: (filename, deps, { hostId }) => {
+        // The reader runs in a Worker, where Vite's DOM-based module preloader cannot insert links.
+        if (/(^|\/)reader\.worker-[\w-]+\.js$/.test(hostId)) return [];
+        return /(^|\/)narrow-panels-[\w-]+\.js$/.test(filename) && /(^|\/)modern-shell-[\w-]+\.js$/.test(hostId)
+          ? deps.filter((dep) => dep === filename || /(^|\/)narrow-panels-[\w-]+\.css$/.test(dep))
+          : deps;
+      },
     },
     rolldownOptions: {
       // The workspace packages are libraries of declarations: nothing in their src/ runs on import. Without this, one constant imported

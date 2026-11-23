@@ -69,7 +69,9 @@ async function copiedWords(source: string, language?: string): Promise<string[]>
   return [...(fonts?.lines.values() ?? [])].flatMap((items) =>
     [...items]
       .sort((a, b) => a.order - b.order)
-      .flatMap((item) => (item.kind === 'shaped' && item.font !== 'devanagari' ? [copiedRtl(item, fonts?.[item.font])] : [])),
+      .flatMap((item) =>
+        item.kind === 'shaped' && (item.font === 'arabic' || item.font === 'hebrew') ? [copiedRtl(item, fonts?.[item.font])] : [],
+      ),
   );
 }
 

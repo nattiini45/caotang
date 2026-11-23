@@ -10,7 +10,7 @@
 
 import { expect, type Page, type Route } from '@playwright/test';
 
-import { writerText } from './support.js';
+import { addCustomEndpoint } from './provider-setup-support.js';
 
 export const FAKE_ENDPOINT = 'https://127.0.0.1:5999/v1';
 
@@ -183,24 +183,14 @@ export function planThenAnswer(plan: unknown, answer = 'Done.', draft = 'A draft
 }
 
 /**
- * Adds the fake endpoint as a profile and makes it the active one, through Settings on the projects screen. The endpoint must be
- * routed (`fakeEndpoint`) before this, since saving it lists its models.
+ * Adds the fake endpoint as a profile named Fake endpoint and leaves it the active one, through Settings on the projects screen. The
+ * endpoint must be routed (`fakeEndpoint`) before this, since setting it up lists its models.
  */
 export async function useFakeEndpoint(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByTestId('settings');
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  // Labels are scoped to the profile form: 'Name' and 'Model' also name the role picker's fields below it.
-  const form = settings.getByRole('form', { name: 'New provider' });
-  // The fake speaks the OpenAI-Chat dialect, so the profile is a hand-rolled (generic) endpoint.
-  await form.getByRole('combobox', { name: 'Provider' }).selectOption('generic');
-  await form.getByLabel('Name').fill('Fake endpoint');
-  await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
-  await form.getByLabel('Model', { exact: true }).fill('test-model');
-  await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(settings.getByText(new RegExp(`Saved “${writerText('Fake endpoint')}”\\.`))).toBeVisible();
-  await settings.locator('[data-profile="Fake endpoint"]').getByRole('button', { name: 'Use this profile' }).click();
-  await expect(settings.getByText('is now the active profile')).toBeVisible();
+  await addCustomEndpoint(settings, { name: 'Fake endpoint' });
+  await expect(settings.locator('[data-profile="Fake endpoint"]')).toContainText('Active');
   await settings.getByRole('button', { name: 'Close' }).click();
 }

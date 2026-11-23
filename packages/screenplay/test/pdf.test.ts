@@ -33,14 +33,16 @@ function blocksOf(source: string): FlatBlock[] {
 const decode = (bytes: Uint8Array): string => new TextDecoder().decode(bytes);
 
 /** Walks the cross-reference table strictly: every entry's offset must point at that object's header, so no hole and no collision passes. */
-function expectXrefWalk(pdf: string): number {
-  const xref = Number(/startxref\n(\d+)\n/.exec(pdf)?.[1]);
-  expect(pdf.slice(xref, xref + 5)).toBe('xref\n');
-  const lines = pdf.slice(xref).split('\n');
-  const objects = Number(/^0 (\d+)$/m.exec(pdf.slice(xref, xref + 40))?.[1]) - 1;
+function expectXrefWalk(bytes: Uint8Array): number {
+  // The table's offsets count bytes: the header's binary comment is eight bytes for four characters, so a UTF-8-decoded
+  // string's indices are four short of them. Slice the bytes, then decode (the table itself is all ASCII).
+  const xref = Number(/startxref\n(\d+)\n/.exec(decode(bytes))?.[1]);
+  expect(decode(bytes.slice(xref, xref + 5))).toBe('xref\n');
+  const lines = decode(bytes.slice(xref)).split('\n');
+  const objects = Number(/^0 (\d+)$/m.exec(decode(bytes.slice(xref, xref + 40)))?.[1]) - 1;
   for (let object = 1; object <= objects; object++) {
     const offset = Number(lines[2 + object]?.slice(0, 10));
-    expect(pdf.slice(offset).startsWith(`${object} 0 obj\n`), `object ${object}`).toBe(true);
+    expect(decode(bytes.slice(offset)).startsWith(`${object} 0 obj\n`), `object ${object}`).toBe(true);
   }
   return objects;
 }
@@ -56,10 +58,10 @@ describe('renderPdf — the file structure', () => {
   it('writes a PDF whose cross-reference table points at every object', () => {
     const { bytes, pageCount } = renderPdf(blocksOf(SCRIPT_ONE_ACT), { title: 'The Lighthouse Keeper', author: 'N. Attini' });
     const pdf = decode(bytes);
-    expect(pdf.startsWith('%PDF-1.4\n')).toBe(true);
+    expect(pdf.startsWith('%PDF-1.4\n%âãÏÓ\n')).toBe(true);
     expect(pdf.endsWith('%%EOF\n')).toBe(true);
     expect(pdf).toContain(`/Count ${pageCount} `);
-    expect(expectXrefWalk(pdf)).toBe(4 + 2 * pageCount);
+    expect(expectXrefWalk(bytes)).toBe(4 + 2 * pageCount);
   });
 
   it('writes the scene heading, the cue and the dialogue into the page content as text operators', () => {
@@ -79,13 +81,14 @@ describe('renderPdf — the file structure', () => {
   });
 
   it('writes an empty document with an embedded font whose xref points at every object', async () => {
-    const pdf = decode(writePdf([], { title: 'Empty' }, await loadCourierPrime()));
+    const bytes = writePdf([], { title: 'Empty' }, await loadCourierPrime());
+    const pdf = decode(bytes);
     expect(pdf).toContain('/Count 1 ');
     expect(pdf).toContain('/Type /Page ');
     expect(pdf.endsWith('%%EOF\n')).toBe(true);
     // The catalogue, the page tree, the font, the info dictionary, the blank page and its content stream, then the
     // font descriptor and the font program the embedded font adds after the pages.
-    expect(expectXrefWalk(pdf)).toBe(8);
+    expect(expectXrefWalk(bytes)).toBe(8);
   });
 
   it('reports one page for a script that prints nothing, the page the file itself carries', () => {

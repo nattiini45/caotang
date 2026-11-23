@@ -50,8 +50,6 @@ export interface ProviderProfile {
   params?: RequestParams;
   /** optional, USD; powers context-assembly cost estimates (display-only) */
   pricePer1k?: { prompt: number; completion: number };
-  /** prompt caching for this profile's requests; absent means on, with the provider's default lifetime */
-  promptCache?: CachePolicy;
   /** exactly one profile is active whenever any profile exists */
   isActive: boolean;
 }
@@ -123,8 +121,6 @@ export interface NewProfile {
   /** the profile's own request parameters over the model row's; absent follows the row */
   params?: RequestParams;
   pricePer1k?: { prompt: number; completion: number };
-  /** prompt caching for the profile's requests; absent means on, with the provider's default lifetime */
-  promptCache?: CachePolicy;
   /** activates the new profile; without it, the first profile ever created is active */
   isActive?: boolean;
 }
@@ -147,8 +143,6 @@ export interface ProfilePatch {
   params?: RequestParams | null;
   /** A new price replaces the saved one. `null` clears it, so the profile is unpriced again; an absent field keeps the saved price. */
   pricePer1k?: { prompt: number; completion: number } | null;
-  /** A new caching policy replaces the saved one; an absent field keeps it. */
-  promptCache?: CachePolicy;
 }
 
 export type ChatRole = 'system' | 'user' | 'assistant' | 'tool';
@@ -161,6 +155,17 @@ export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 /** The task roles requests are attributed to — provider-gateway §6 records usage per role. */
 export type TaskRole = 'chat' | 'drafting' | 'background';
+
+/**
+ * The kind of step a request is (§6): what the call is for, inside its role. A role may name its own target per step, so a
+ * writer can plan on one model and draft on another without leaving the three roles. `plan` is the agent panel's own planning,
+ * `draft` is prose the agent writes, `summarize` is synopses and other distilling work, `review` is a check or a continuity
+ * review, `utility` is mechanical work such as the encoding review, and `read` is reserved for read-only turns.
+ */
+export type StepClass = 'plan' | 'draft' | 'summarize' | 'review' | 'utility' | 'read';
+
+/** Every step class, in the order the settings screen offers them. */
+export const STEP_CLASSES: readonly StepClass[] = ['plan', 'draft', 'summarize', 'review', 'utility', 'read'];
 
 /** A tool the model may call, declared in each route's own wire shape by the adapter. */
 export interface ToolDef {
@@ -321,6 +326,10 @@ export interface ModelInfo {
   maxOutputTokens?: number;
   /** The provider's price, in USD per 1,000 tokens (the profile's unit, §2). Read from a per-token price list. */
   pricePer1k?: { prompt: number; completion: number };
+  /** When the provider says the model produces text: `false` for an image, speech, embedding or moderation model. Absent means the listing does not say. */
+  writes?: boolean;
+  /** When the provider published the model, in epoch milliseconds, when its listing says. */
+  created?: number;
 }
 
 /**
@@ -364,7 +373,7 @@ export interface ModelLimits {
  * reserving a real request passes the same fields the request will send, so `thinkingTokens` is the excess that
  * request's transmitted cap carries on the route it is sent through.
  */
-export type ModelLimitsRequest = Pick<ChatRequest, 'maxOutputTokens' | 'reasoningBudget' | 'role' | 'cache'>;
+export type ModelLimitsRequest = Pick<ChatRequest, 'maxOutputTokens' | 'reasoningBudget' | 'role' | 'step' | 'cache'>;
 
 export interface ChatRequest {
   messages: ChatMessage[];
@@ -391,7 +400,7 @@ export interface ChatRequest {
   reasoningBudget?: number;
   /** default: the profile that resolved for the request's role, else the active profile */
   profileId?: string;
-  /** Prompt caching for this call. Default: the profile's policy, else `auto`. */
+  /** Prompt caching for this call. Default: `auto`, on with the provider's default lifetime where the row caches. */
   cache?: CachePolicy;
   /** the agent turn this request belongs to; keys the per-turn ledger row (§6) */
   turnId?: string;
@@ -399,6 +408,11 @@ export interface ChatRequest {
   sessionId?: string;
   /** the task role this request runs under; recorded on the ledger row (§6) */
   role?: TaskRole;
+  /**
+   * The kind of step this request is, inside its role (§6). A role may resolve a different target for a step than for the role
+   * itself; a request that names no step resolves the role's own target, exactly as before step routing existed.
+   */
+  step?: StepClass;
   /**
    * Finer attribution inside a turn: which delegated agent made the call (`turn-3/reader#1`). Display and ledger only, it
    * carries no semantics, and `turnId` stays the parent turn's, so the turn's totals sum its children.
@@ -409,6 +423,10 @@ export interface ChatRequest {
    * gateway trace event to the harness records of the same call (agent-harness §5.2) and changes nothing on the wire.
    */
   callIndex?: number;
+  /** Keep this request and its response out of the trace and omit provider excerpts from its request log. */
+  privatePayload?: true;
+  /** Refuse unless the resolved destination still matches the one the caller reviewed. */
+  expectedRoute?: { readonly profileId: string; readonly model: string; readonly stamp?: string; readonly credentialRevision?: string };
 }
 
 /**
@@ -475,6 +493,8 @@ export interface UsageAttribution {
   agentPath?: string;
   /** the task role the usage ran under, for per-role accounting (§6) */
   role?: TaskRole;
+  /** the kind of step the call was, when the caller classified it (§6): the turn rows split by step, day rows stay by role */
+  step?: StepClass;
   at?: number;
 }
 
@@ -486,13 +506,70 @@ export interface UsageAttribution {
  * rule unchanged.
  */
 export interface RoleResolver {
-  resolve(role: TaskRole): { profileId: string; model?: string; thinking?: ThinkingLevel } | undefined;
-  allowed(role: TaskRole): readonly string[];
+  /**
+   * What a request under `role` resolves to now, for one step: a step the role names its own target for resolves that target as
+   * its primary, with the role's own fallbacks behind it; any other step resolves the role's primary. A resolver that ignores
+   * `step` keeps the role's single destination, so a caller with no per-step choices changes nothing.
+   */
+  resolve(role: TaskRole, step?: StepClass): RoleResolution | undefined;
+  /**
+   * The egress allow-set for a routed request: every profile the role names for that step — its own target, the profiles its
+   * steps name, and its fallbacks — and nothing else.
+   */
+  allowed(role: TaskRole, step?: StepClass): readonly string[];
+}
+
+/** One ordered place a role's calls can go (provider-gateway §6): a profile, and the model and level it defaults to. */
+export interface RoleTarget {
+  readonly profileId: string;
+  readonly model?: string;
+  readonly thinking?: ThinkingLevel;
+}
+
+/**
+ * What a role resolves to now: its primary target, then the fallbacks the writer listed for that role, in order. A role with
+ * no fallbacks sends through its primary alone, exactly as before the list existed.
+ */
+export interface RoleResolution extends RoleTarget {
+  /** Up to two targets tried in order after the primary, and only the ones the writer authorised for this role. */
+  readonly fallbacks?: readonly RoleTarget[];
+}
+
+/** Why a request moved to its next target. Only these faults are worth another provider (§4, §6). */
+/**
+ * Why a route moved on from a destination (§6). `context_length` is the one reason that needs a destination which can hold the
+ * request: the route only moves to a later target whose known window is larger than the request needs.
+ */
+export type FallbackReason = 'rate_limit' | 'overloaded' | 'network' | 'model_gone' | 'context_length';
+
+/** A route's destination, as it will be sent (§6): what a caller sizes its admission of the attempt to, and what it remembers. */
+export interface AttemptTarget {
+  readonly profileId: string;
+  readonly model: string;
+  readonly thinking?: ThinkingLevel;
+}
+
+/** What a caller that owns a turn tells the route (§6): where to start, whether a destination may be tried, and who answered. */
+export interface RouteHooks {
+  /**
+   * The profile this request starts at, when the caller remembers one for the turn. It is put first in the route and every other
+   * rule still applies: a profile the role no longer allows, or that is gone, is not a destination, and the route starts at the
+   * role's own primary instead.
+   */
+  readonly startAt?: string;
+  /**
+   * Asked once per fallback destination, before that destination's request opens, so a caller can hold the attempt to its own
+   * limits and price; throwing there refuses the fallback and ends the call at its primary's fault (§6).
+   */
+  readonly admitAttempt?: (target: AttemptTarget) => void;
+  /** The destination that answered, told once, so a caller that owns a turn can start that turn's next request there. */
+  readonly answered?: (target: AttemptTarget) => void;
 }
 
 export interface ProviderGateway {
-  complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncIterable<ChatChunk>;
-  completeOnce(req: ChatRequest, signal?: AbortSignal): Promise<ChatMessage>;
+  /** `route` carries §6's caller hooks: where to start, whether a destination may be tried, and who answered. */
+  complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void, route?: RouteHooks): AsyncIterable<ChatChunk>;
+  completeOnce(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): Promise<ChatMessage>;
   listModels(profileId: string): Promise<ModelInfo[]>;
   /**
    * §3's internal accounting hook. Gateway-originated requests are accounted by the

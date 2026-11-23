@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './test.js';
 
 import { DEMO_INTENTS } from '../packages/gateway/src/mock/index.js';
 import { parseTrace } from '../packages/harness/src/agent/trace.js';
@@ -135,7 +136,7 @@ test('an export without manuscript text keeps the named turn and tool-card trans
 });
 
 for (const shell of ['classic', 'modern'] as const) {
-  test(`Clear trace in ${shell}: the named switch stops recording and Space turns it back on`, async ({ page }) => {
+  test(`Clear trace in ${shell}: the named switch stops recording and Space turns it back on`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openSample(page);
     if (shell === 'modern') {

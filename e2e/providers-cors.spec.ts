@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { PRESETS, presetFor, resolveRoute } from '../packages/gateway/src/index.js';
 import { adapterFor } from '../packages/gateway/src/adapters/index.js';
 import { startLocalStub, type LocalStub, type StubConfig } from './local-stub.js';
-import { savedMessage, writerText } from './support.js';
+import { openProviderSetup } from './provider-setup-support.js';
 
 /**
  * The CORS support sweep (provider-gateway §9, providers-browser-cors.md §2). For every shipped preset this asks the
@@ -209,29 +209,31 @@ const LOCAL_PRODUCTS: readonly LocalProduct[] = [
   { preset: 'llamacpp', name: 'llama.cpp (llama-server)', refusing: { product: 'llamacpp', origins: ['https://caotang.app'] }, configured: () => ({ product: 'llamacpp' }) },
 ];
 
-async function saveLocal(page: Page, product: LocalProduct, address: string): Promise<ReturnType<Page['getByTestId']>> {
+/** Opens Custom endpoint, picks the product, types its address and presses Connect and list models. */
+async function connectLocal(page: Page, product: LocalProduct, address: string): Promise<ReturnType<Page['getByTestId']>> {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByTestId('settings');
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  const form = settings.getByRole('form', { name: 'New provider' });
-  await form.getByRole('combobox', { name: 'Provider' }).selectOption(product.preset);
-  await form.getByLabel('Name').fill('Stub');
-  await form.getByLabel('Server address (on this computer, ending in /v1)').fill(address);
-  await form.getByRole('button', { name: 'Save profile' }).click();
+  const form = await openProviderSetup(settings);
+  await form.getByRole('button', { name: 'Custom endpoint' }).click();
+  const custom = settings.getByRole('form', { name: 'Custom endpoint' });
+  await custom.getByRole('radio', { name: product.name }).click();
+  await custom.getByLabel('Server address (on this computer, ending in /v1)').fill(address);
+  await custom.getByRole('button', { name: 'Connect and list models' }).click();
   return settings;
 }
 
 for (const product of LOCAL_PRODUCTS) {
-  test(`${product.name}: a stub that refuses the page makes the save name the preset's own fix, and the configured stub saves`, async ({ page }) => {
+  test(`${product.name}: a stub that refuses the page makes the check name the preset's own fix, and the configured stub lists its models`, async ({ page }) => {
     const fix = presetFor(product.preset)!.local!.corsFix;
     let stub: LocalStub = await startLocalStub(product.refusing);
     try {
-      const settings = await saveLocal(page, product, stub.baseUrl);
-      // The profile is saved, the probe is not verified, and the message is the product's setting and nobody else's.
-      await expect(settings.getByText(new RegExp(`“${writerText('Stub')}” is saved but not verified: The provider could not be reached from this page\\.`))).toBeVisible();
+      const settings = await connectLocal(page, product, stub.baseUrl);
+      // Nothing is saved, the check names the server it could not reach, and the message is the product's setting and nobody else's.
+      await expect(settings.locator('.form-message')).toContainText(new RegExp('Could not reach .*' + product.name.replace(/[\\().]/g, '\\$&')));
       await expect(settings.locator('.form-message')).toContainText(fix);
       await expect(settings.locator('.form-message')).toContainText(product.name === 'llama.cpp (llama-server)' ? 'llama-server' : product.name);
+      await expect(settings.locator('[data-profile]')).toHaveCount(1);
       // The model list reached the server (a simple GET needs no preflight) and the browser withheld the answer; no key header was
       // ever on a request, since none was set.
       expect(stub.requests.some((request) => request.method === 'GET' && request.path === '/v1/models')).toBe(true);
@@ -239,9 +241,10 @@ for (const product of LOCAL_PRODUCTS) {
       await stub.close();
 
       stub = await startLocalStub(product.configured(new URL(page.url()).origin));
-      const configured = await saveLocal(page, product, stub.baseUrl);
-      await expect(configured.getByText(savedMessage('Stub'))).toBeVisible();
-      await expect(configured.getByRole('region', { name: 'Models listed by Stub' })).toContainText('stub-model');
+      const configured = await connectLocal(page, product, stub.baseUrl);
+      await expect(configured.getByRole('listbox')).toContainText('stub-model');
+      await configured.getByRole('listbox').getByRole('option', { name: 'stub-model' }).click();
+      await expect(configured.getByRole('heading', { name: /is ready$/ })).toBeVisible();
       // The format probe's POST crossed the preflight too (a JSON body is not a simple request), and still carried no key.
       expect(stub.requests.some((request) => request.method === 'OPTIONS')).toBe(true);
       expect(stub.requests.some((request) => request.method === 'POST' && request.path === '/v1/chat/completions')).toBe(true);
@@ -256,8 +259,8 @@ test('a local server that is not running is named as not running, with its addre
   const stub = await startLocalStub({ product: 'ollama' });
   const address = stub.baseUrl;
   await stub.close();
-  const settings = await saveLocal(page, LOCAL_PRODUCTS[0]!, address);
-  await expect(settings.getByText(new RegExp(`“${writerText('Stub')}” is saved but not verified: The provider could not be reached from this page\\.`))).toBeVisible();
+  const settings = await connectLocal(page, LOCAL_PRODUCTS[0]!, address);
+  await expect(settings.locator('.form-message')).toContainText(/Could not reach .*Ollama/);
   await expect(settings.locator('.form-message')).toContainText(`Nothing is listening on ${new URL(address).host}`);
   await expect(settings.locator('.form-message')).toContainText('Is Ollama running?');
 });

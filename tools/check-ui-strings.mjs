@@ -78,6 +78,7 @@ const DEVELOPER_CALLEES = [
   /^sessionStorage\./,
   /^CSS\.supports$/,
   /\.matches$/,
+  /(?:^|\.)(?:querySelector|querySelectorAll|getElementById|getElementsByClassName)$/,
   /^(fetch|require|RegExp|JSON\.parse|JSON\.stringify|Symbol|querySelector|querySelectorAll|getElementById|getElementsByClassName|addEventListener|removeEventListener|dispatchEvent)$/,
 ];
 
@@ -112,6 +113,7 @@ function isClearlyTechnical(text) {
   if (/^\([a-z-]+:\s*[^)]+\)$/i.test(value)) return true;
   if (/^[a-z-]+\/[a-z0-9.+-]+(?:;charset=[a-z0-9-]+)?(?:,[a-z-]+\/[a-z0-9.+-]+)*$/i.test(value)) return true;
   if (/^(?:[a-z][a-z0-9-]*|\{…\})(?:\.(?:[a-z0-9-]+|\{…\}))+\.?$/i.test(value)) return true;
+  if (/^\{…\}\.goal-\{…\}\.verify-\{…\}$/.test(value)) return true;
   if (/^(?:\{…\}|[a-z0-9_-])+\.[a-z0-9]+$/i.test(value)) return true;
   if (/^\\[bBdDsSwW].*\\[bBdDsSwW]$/.test(value)) return true;
   if (/(?:^|\s)(?:sans-serif|serif|monospace)(?:$|\s)/.test(value) && /^(?:italic\s+)?\d+\s+\{…\}\s/.test(value)) return true;

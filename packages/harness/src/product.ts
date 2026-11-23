@@ -40,6 +40,8 @@ export interface ProductHarnessOptions {
   readonly rules?: HarnessOptions['rules'];
   /** The hooks, read at each call (hooks.md). Absent, the project's own `agent.hooks`; `[]` runs none. */
   readonly hooks?: HarnessOptions['hooks'];
+  readonly mcpHooks?: HarnessOptions['mcpHooks'];
+  readonly modelHooks?: HarnessOptions['modelHooks'];
   /**
    * Ports an external host adds to the model-free set of `ports: 'external'`: the MCP server's host-model brief/apply pairs
    * (`createBriefPorts`, tools/briefs.ts). Passed in, not built here, so the app, which has none, does not carry their code.
@@ -65,6 +67,8 @@ export function createProductHarness(options: ProductHarnessOptions): Harness {
     ...(options.rules === undefined ? {} : { rules: options.rules }),
     // Every host holds an agent to the hooks its project carries, so the desktop, the SDK and the MCP server cannot drift on which.
     hooks: options.hooks ?? (() => options.state.manifest.agent?.hooks),
+    ...(!agent || options.mcpHooks === undefined ? {} : { mcpHooks: options.mcpHooks }),
+    ...(!agent || options.modelHooks === undefined ? {} : { modelHooks: options.modelHooks }),
     ...(agent
       ? { coherence: { dialogue: dialogueFactsOf, review: reviewContextOf, ...options.coherence } }
       : options.coherence === undefined

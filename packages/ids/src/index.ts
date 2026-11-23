@@ -41,7 +41,7 @@ export const CROCKFORD_ALPHABET_ESCAPED = CROCKFORD_ALPHABET.replace(/[\\^\]-]/g
  * this generator, not by a caller that borrows another family's prefix and swaps it.
  * `prv` is the provider profile's (the gateway's `prv_` ids, PROFILE_ID_PATTERN).
  */
-export type IdPrefix = 'p' | 'n' | 'c' | 'cmd' | 'f' | 'r' | 'w' | 'k' | 'prv' | 'task' | 't';
+export type IdPrefix = 'p' | 'n' | 'c' | 'cmd' | 'f' | 'r' | 'w' | 'k' | 'prv' | 'task' | 't' | 'ref' | 'rel';
 
 /**
  * The number of characters an id's body carries, after its prefix.

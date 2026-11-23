@@ -46,7 +46,7 @@
 
 import { plural, t } from '@lingui/core/macro';
 import { isolate } from '@caotang/i18n';
-import { scanTool, type CoherenceFile, type DeterministicCheckId, type ScanData, type ScopeSpec, type ToolResult } from '@caotang/coherence';
+import { publishScan, scanTool, type CoherenceFile, type DeterministicCheckId, type ScanComputeOutcome, type ScanData, type ScopeSpec, type ToolResult } from '@caotang/coherence';
 import { compileCodex, countMentions, type DocumentTerm } from '@caotang/codex';
 import {
   ApplyRefusal,
@@ -127,7 +127,7 @@ import { assetRecordsOf } from '@caotang/exporter/export-metadata';
 import type { EmitFailure, ExportJob, ExportPreview, ExportPreviewRequest, ExportProof, ExporterService } from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
 import { InkCompilerNotLoaded } from '@caotang/dialogue';
-import { blockOf, checkMacro, createHookRunner, dialogueFactsOf, excludedBy, exportHookNodes, hookMessages, withheldState, type Harness, type HookRun, type PictureOutbox, type SourcedRule, type TranscriptionGenerationInput } from '@caotang/harness';
+import { blockOf, checkMacro, createHookRunner, dialogueFactsOf, excludedBy, exportHookNodes, hookMessages, projectScanInput, type GoalOptions, type Harness, type HookRun, type McpReadHook, type ModelHook, type PictureOutbox, type SourcedRule, type TranscriptionGenerationInput } from '@caotang/harness';
 import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
@@ -143,6 +143,7 @@ import { CoherenceReviewSession } from './coherence-review-state.js';
 import { SessionHandle } from './session-handle.js';
 import { forgetTray } from './timeline-tray.js';
 import type { HarnessRuntime } from './lazy-harness.js';
+import { createHarnessWorker, type HarnessWorkerHandle } from '../workers/harness-worker-port.js';
 import { TranscriptionReviewBroker } from './transcription-review.js';
 import { CodexMentions } from './codex-model.js';
 import { ExportStore } from './exports.js';
@@ -166,7 +167,7 @@ export type { SaveState } from './save-channel.js';
 
 export type SessionUndoOutcome = { readonly kind: 'done' } | { readonly kind: 'empty' } | { readonly kind: 'failed'; readonly message: string };
 
-/* lingui-set comment="Interpolated values: error, reason, title" */
+/* lingui-set comment="Session restore messages. Interpolated values: reason is why a restore stopped." */
 
 /** A dispatch that returned an error: the command, who issued it, and the error's code. */
 export interface RejectedDispatch {
@@ -257,6 +258,10 @@ export interface CoherenceStatus {
 }
 
 export interface SessionOptions {
+  readonly sessionLog?: {
+    read(): Promise<SessionRecord[]>;
+    append(record: SessionRecord): Promise<void>;
+  };
   readonly saveChannels?: readonly SaveChannel[];
   readonly store: RuntimeStore;
   readonly projectId: string;
@@ -273,6 +278,8 @@ export interface SessionOptions {
   readonly assets?: ProjectAssets;
   /** The app's MCP client (extensibility §3). With it, `tool.search` searches its servers and `mcp.invoke` reaches a loaded tool. */
   readonly mcp?: { readonly client: McpClient };
+  readonly mcpHooks?: (projectId: string) => readonly McpReadHook[];
+  readonly modelHooks?: (projectId: string) => readonly ModelHook[];
   /** The asset ids under the project's `assets/` folder, read at each call for the image check (storyboard.md §4). Absent, none are present. */
   readonly presentAssets?: () => ReadonlySet<string>;
   /** What the agent's coherence tools read from the app (`SessionCoherence`). Absent, every check runs and no review is wired. */
@@ -345,6 +352,7 @@ function refusalOf(plan: Extract<RestorePlan, { kind: 'with-later' }>, id: strin
 let recoveryFailures = 0;
 
 export class ProjectSession {
+  private readonly artifactSessions: SessionOptions['sessionLog'];
   private recovery: Promise<RecoveryModule.RunRecovery> | undefined;
   readonly projectId: string;
   readonly state: ProjectState;
@@ -400,7 +408,7 @@ export class ProjectSession {
   readonly mentions = new CodexMentions();
   private readonly registry: CommandRegistry;
   /** What the harness reads of the app, kept until it is made (`harnessReady`). */
-  private readonly harnessOptions: Pick<SessionOptions, 'mcp' | 'presentAssets' | 'coherence'>;
+  private readonly harnessOptions: Pick<SessionOptions, 'mcp' | 'mcpHooks' | 'modelHooks' | 'presentAssets' | 'coherence'>;
   /** The exporter (lazy-exporter.ts), or `null` until the first compile or a folder's attach has loaded it. */
   private exporterService: ExporterService | null = null;
   private exporterModule: Promise<typeof LazyExporter> | null = null;
@@ -431,6 +439,8 @@ export class ProjectSession {
   private readonly rejections: RejectedDispatch[] = [];
   /** The coherence file's write port and what its load said, once the file is attached (coherence.md §3). */
   private coherencePort: CoherencePort | null = null;
+  private cpuWorker: HarnessWorkerHandle | null = null;
+  private scanController: AbortController | null = null;
   readonly coherenceReview = new CoherenceReviewSession(() => this.bump(), (result) => this.applyCoherenceFile(result.file));
   /** The project's recurring tasks and where they are saved (tasks-io.ts). Null until the lifecycle has loaded them. */
   private tasksHome_: TasksHome | null = null;
@@ -462,6 +472,9 @@ export class ProjectSession {
   private exportBaseline: string | null = null;
   /** What the open folder's copy said when this session last loaded it or saved to it, and the folder it was in (`setFolderBaseline`). */
   private folderCopy: FolderBaseline | null = null;
+  /** How many writes this session has outstanding into its folder copy, and what to resolve when the last of them ends. */
+  private folderWrites = 0;
+  private readonly folderWriteEnds = new Set<() => void>();
   /** The project this one is a separate copy of, when an import or folder open made it with a fresh id (`setCopiedFrom`). */
   private copiedFromId: string | null = null;
 
@@ -486,7 +499,7 @@ export class ProjectSession {
     // The browser's copy of the project's images, so a reopened project's images read back after a reload. Every read and
     // write of the assets waits for this binding (project-assets.ts), so nothing is written to a store that is not yet bound.
     void this.assets.persistFor(options.projectId);
-    this.harnessOptions = { mcp: options.mcp, presentAssets: options.presentAssets, coherence: options.coherence };
+    this.harnessOptions = { mcp: options.mcp, mcpHooks: options.mcpHooks, modelHooks: options.modelHooks, presentAssets: options.presentAssets, coherence: options.coherence };
     void this.refreshAssetRecords();
     // The registry's exporter port is this one function, which always asks the current exporter. Attaching a folder
     // swaps the exporter behind it, so the registry the harness holds never goes stale. The exporter is a separate download
@@ -573,9 +586,10 @@ export class ProjectSession {
     // minted again on the next open, and a retailer would see two books.
     if (this.backfilled.length > 0) this.persistence.schedule();
 
+    this.artifactSessions = options.sessionLog;
     this.sitting = createSessionTracker({
       projectId: options.projectId,
-      append: (request) => appendSession(options.store, request),
+      append: (request) => this.artifactSessions?.append(request.record) ?? appendSession(options.store, request),
     });
     const flushSignals = domFlushSignals({ visibility: document, page: window });
     this.autosave = createAutosave({
@@ -632,6 +646,8 @@ export class ProjectSession {
         notify: () => this.afterCommand(),
         rules: () => ({ rules: this.rulesNow() }),
         ...(this.harnessOptions.mcp === undefined ? {} : { mcp: this.harnessOptions.mcp }),
+        ...(this.harnessOptions.mcpHooks === undefined ? {} : { mcpHooks: () => this.harnessOptions.mcpHooks?.(this.projectId) ?? [] }),
+        ...(this.harnessOptions.modelHooks === undefined ? {} : { modelHooks: () => this.harnessOptions.modelHooks?.(this.projectId) ?? [] }),
         ...(this.harnessOptions.presentAssets === undefined ? {} : { presentAssets: this.harnessOptions.presentAssets }),
         ...(this.harnessOptions.coherence === undefined ? {} : { coherence: this.harnessOptions.coherence }),
       });
@@ -940,6 +956,14 @@ export class ProjectSession {
 
   commandClient(): McpClient | undefined {
     return this.harnessOptions.mcp?.client;
+  }
+
+  goalChecks(): GoalOptions['checks'] {
+    const coherence = this.harnessOptions.coherence;
+    return {
+      ...(coherence === undefined ? {} : { get enabled() { return coherence.checks(); } }),
+      dialogue: dialogueFactsOf,
+    };
   }
 
   /** Takes one skill folder into the project (`skill.import`): the files are staged, and the command names them. */
@@ -1620,7 +1644,7 @@ export class ProjectSession {
       return {
         ok: false,
         message: unsaved
-          ? 'Some of your typing could not be saved yet, so nothing was restored and your edits are as they were. Try again once it is saved.'
+          ? t`Some of your typing could not be saved yet, so nothing was restored and your edits are as they were. Try again once it is saved.`
           : refusalOf(plan, id),
         undone: [],
         kept: 0,
@@ -1630,8 +1654,8 @@ export class ProjectSession {
     const kept = this.laterChangesAfter(id).length;
     const taken = fromCallId === undefined ? this.undoNow(id) : this.settleUndo(this.undo.undoFrom(id, fromCallId));
     if (taken.kind !== 'done') {
-      const reason = taken.kind === 'failed' ? taken.message : 'a change could not be taken back';
-      return { ok: false, message: `The restore stopped part way, because the change could not be taken back: ${reason}. Your later edits were not touched.`, undone: [], kept: 0 };
+      const reason = taken.kind === 'failed' ? taken.message : t`a change could not be taken back`;
+      return { ok: false, message: t`The restore stopped part way, because the change could not be taken back: ${reason}. Your later edits were not touched.`, undone: [], kept: 0 };
     }
     return { ok: true, later: 0, undone: fromCallId === undefined ? [id] : [], kept };
   }
@@ -1818,18 +1842,20 @@ export class ProjectSession {
     if (options.checks !== undefined) params['checks'] = [...options.checks];
     // The branch checks compile Ink, which needs the compiler loaded. A scan that cannot compile says so and runs nothing, rather than
     // reporting a project with no branch findings.
+    const projected = options.withheld === undefined ? undefined : projectScanInput(this.state, file, options.withheld, options.scope);
+    const view = projected?.state ?? this.state;
     let dialogue: ReturnType<typeof dialogueFactsOf>;
     try {
-      const hidden = options.withheld;
-      dialogue = dialogueFactsOf(hidden === undefined ? this.state : withheldState(this.state, hidden));
+      dialogue = dialogueFactsOf(view);
     } catch (error) {
       if (!(error instanceof InkCompilerNotLoaded)) throw error;
       void requestInkCompiler();
       return { ok: false, code: 'ink-loading', message: t`The Ink compiler is still loading, so the dialogue checks cannot run yet. Run the scan again in a moment.` };
     }
     const result = scanTool(params, {
-      state: this.state,
+      state: view,
       file,
+      excludedDocIds: projected?.excludedDocIds,
       now: new Date(),
       detector: countInEntries,
       approvedLargeScope: options.approvedLargeScope,
@@ -1841,6 +1867,84 @@ export class ProjectSession {
       this.afterCommand();
     }
     return result;
+  }
+
+  scanInFlight(): boolean {
+    return this.scanController !== null;
+  }
+
+  cancelScan(): void {
+    this.scanController?.abort();
+  }
+
+  harnessWorker(): HarnessWorkerHandle {
+    if (this.persistence.isStopped()) throw new Error(t`The background preparation was cancelled.`);
+    this.cpuWorker ??= createHarnessWorker();
+    return this.cpuWorker;
+  }
+
+  async scanCoherenceAsync(options: ScanOptions, signal?: AbortSignal): Promise<ToolResult<ScanData>> {
+    if (this.persistence.isStopped()) return { ok: false, code: 'closed', message: t`The project closed before the scan finished. Your findings are unchanged.` };
+    const file = this.coherenceFile();
+    if (file === undefined) return { ok: false, code: 'no-file', message: t`No findings file is open for this project.` };
+    if (this.scanController !== null) return { ok: false, code: 'busy', message: t`A scan is already running. Wait for it to finish, or cancel it.` };
+    if (this.coherenceReview.snapshot().kind === 'running') return { ok: false, code: 'busy', message: t`A review is running. Wait for it to finish before scanning.` };
+
+    const controller = new AbortController();
+    this.scanController = controller;
+    this.bump();
+    const onExternalAbort = (): void => controller.abort();
+    signal?.addEventListener('abort', onExternalAbort, { once: true });
+    if (signal?.aborted === true) controller.abort();
+
+    const scope = options.scope;
+    const params: Record<string, unknown> = { scope: scope?.mode === 'doc' ? { mode: 'doc', docIds: [...scope.docIds] } : { mode: scope?.mode ?? 'full' } };
+    if (options.checks !== undefined) params['checks'] = [...options.checks];
+    const withheld = options.withheld === undefined ? undefined : new Set(options.withheld);
+    const readPolicy = withheld === undefined ? undefined : this.harnessRuntime?.harness.readPolicy();
+    try {
+      if (controller.signal.aborted) return { ok: false, code: 'cancelled', message: t`The scan was cancelled. Your findings are unchanged.` };
+      const signature = JSON.stringify(file);
+      const capturedScope = params['scope'] as ScopeSpec;
+      const projected = projectScanInput(this.state, file, withheld, capturedScope);
+      const inputVersion = (input: typeof projected): string => JSON.stringify({
+        manifest: input.state.manifest,
+        documents: [...input.state.documents].map(([id, document]) => [id, document.revision]),
+        excludedDocIds: input.excludedDocIds,
+      });
+      const version = inputVersion(projected);
+      let outcome: ScanComputeOutcome;
+      try {
+        outcome = await this.harnessWorker().scan(
+          { ...projected, params, ...(options.approvedLargeScope ? { approvedLargeScope: true } : {}) },
+          controller.signal,
+        );
+      } catch {
+        if (controller.signal.aborted) return { ok: false, code: 'cancelled', message: t`The scan was cancelled. Your findings are unchanged.` };
+        return { ok: false, code: 'worker-unavailable', message: t`The scan could not run in the background. Nothing was written. Try again, or reopen the project in a browser with worker support.` };
+      }
+      if (controller.signal.aborted) return { ok: false, code: 'cancelled', message: t`The scan was cancelled. Your findings are unchanged.` };
+      if (this.persistence.isStopped()) return { ok: false, code: 'closed', message: t`The project closed before the scan finished. Your findings are unchanged.` };
+      if (JSON.stringify(this.coherenceFile()) !== signature) return { ok: false, code: 'stale', message: t`The findings changed while this scan ran. Run the scan again to see the current result.` };
+      if (withheld !== undefined) {
+        const live = this.harnessRuntime?.harness.withheld('coherence.scan');
+        if (this.harnessRuntime?.harness.readPolicy() !== readPolicy || live === undefined || live.size !== withheld.size || [...withheld].some((id) => !live.has(id))) {
+          return { ok: false, code: 'stale', message: t`The read rules changed while this scan ran. Run the scan again to see the current result.` };
+        }
+      }
+      if (inputVersion(projectScanInput(this.state, file, withheld, capturedScope)) !== version) return { ok: false, code: 'stale', message: t`The project changed while this scan ran. Run the scan again to see the current result.` };
+      if (!outcome.ok) return outcome;
+      const result = publishScan(outcome, { state: this.state, file, now: new Date() });
+      if (result.ok && result.file !== undefined) {
+        this.state.coherence = result.file;
+        this.afterCommand();
+      }
+      return result;
+    } finally {
+      signal?.removeEventListener('abort', onExternalAbort);
+      this.scanController = null;
+      this.bump();
+    }
   }
 
   /**
@@ -2066,6 +2170,32 @@ export class ProjectSession {
   }
 
   /**
+   * Records that this session has started writing into its folder copy, until `endFolderWrite`: the copy the session holds is out of
+   * date from here until that write has re-digested what it wrote (`folderWritesSettled`).
+   */
+  beginFolderWrite(): void {
+    this.folderWrites += 1;
+  }
+
+  /** Records that one write into the folder copy has ended, and lets `folderWritesSettled` go when it was the last. */
+  endFolderWrite(): void {
+    this.folderWrites -= 1;
+    if (this.folderWrites > 0) return;
+    for (const done of this.folderWriteEnds) done();
+    this.folderWriteEnds.clear();
+  }
+
+  /**
+   * Resolves once this session has no write of its own into its folder copy outstanding, so a reader can judge the folder against a copy
+   * that is not halfway through a save: a save of this tab's own advances `folderBaseline()` only as it ends, however long that takes.
+   */
+  async folderWritesSettled(): Promise<void> {
+    while (this.folderWrites > 0) {
+      await new Promise<void>((done) => this.folderWriteEnds.add(done));
+    }
+  }
+
+  /**
    * Replaces the digests of the folder copy this session holds, after a save into its folder changed some of those files: the text and the
    * documents named stay as they were. A session with no folder copy has nothing to replace, so the call changes nothing.
    */
@@ -2074,9 +2204,9 @@ export class ProjectSession {
     this.folderCopy = { ...this.folderCopy, digests: new Map(digests) };
   }
 
-  /** The session log the runtime store holds for this project, as the folder's `sessions.jsonl` is written from and read into (project-format §4). */
+  /** The session log this session reads: the native project folder's `sessions.jsonl` when the session was given a `sessionLog`, and the runtime store's otherwise (project-format §4). */
   sessionLog(): Promise<SessionRecord[]> {
-    return readSessions(this.runtime, this.projectId);
+    return this.artifactSessions?.read() ?? readSessions(this.runtime, this.projectId);
   }
 
   /**
@@ -2126,6 +2256,9 @@ export class ProjectSession {
       };
       try {
         this.detachCoherenceFlush();
+        this.scanController?.abort();
+        this.cpuWorker?.dispose();
+        this.cpuWorker = null;
         this.harnessRuntime?.dispose();
         this.detachPendingKeep();
         if (this.pendingTimer !== null) clearTimeout(this.pendingTimer);

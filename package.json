@@ -15,6 +15,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:node-floor": "vitest run packages/artifact-fs-node/test packages/cli/test packages/sdk/test packages/mcp-server/test packages/sync-server/test packages/store/test/folder-digests.test.ts packages/store/test/folder-transient.test.ts packages/store/test/agent-files.test.ts packages/store/test/artifact-bytes.test.ts packages/store/test/zip.test.ts packages/store/test/zip-assets.test.ts",
     "test:e2e": "playwright test",
     "verify": "pnpm run lint && pnpm run typecheck && pnpm run test"
   },

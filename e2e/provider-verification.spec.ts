@@ -1,9 +1,10 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from './test.js';
 import { openVerification } from './provider-verification-support.js';
 
 for (const shell of ['classic', 'modern'] as const) {
   for (const locale of ['en', 'de'] as const) {
-    test(`${shell}: provider verification survives reload and an unchanged save retries in ${locale}`, async ({ page }) => {
+    test(`${shell}: provider verification survives reload and an unchanged save retries in ${locale}`, { tag: shell === 'modern' ? '@modern' : [] }, async ({ page }) => {
       const { settings, row, release, reopen, retry, pass } = await openVerification(page, locale, shell);
       const demo = settings.locator('[data-profile="Demo (no key)"]');
       await expect(demo).toHaveAttribute('data-state', 'demo');
@@ -12,11 +13,13 @@ for (const shell of ['classic', 'modern'] as const) {
       await expect(row.getByRole('status')).toHaveText(locale === 'de' ? 'Dieses Profil wird geprüft…' : 'Checking this profile…');
       release();
       await expect(row).toHaveAttribute('data-state', 'failed');
+      await expect(row.getByText(locale === 'de' ? 'Bearbeiten und speichern Sie dieses Profil, um es erneut zu prüfen.' : 'Edit and save this profile to check it again.')).toBeVisible();
+      await retry();
       const notice = settings.locator('[aria-labelledby="settings-providers"] .form-message');
       await expect(notice).toContainText(locale === 'de' ? 'ist gespeichert, aber nicht verifiziert: Der Anbieter hat den Schlüssel abgelehnt.' : 'is saved but not verified: The provider rejected the key.');
       await expect(notice).toContainText(locale === 'de' ? 'Antwort des Anbieters:' : 'Provider reply:');
       await expect(notice.locator('bdi')).toHaveText('The API key was rejected.');
-      await expect(row.getByText(locale === 'de' ? 'Bearbeiten und speichern Sie dieses Profil, um es erneut zu prüfen.' : 'Edit and save this profile to check it again.')).toBeVisible();
+      await expect(row).toHaveAttribute('data-state', 'failed');
       await reopen();
       await expect(row).toHaveAttribute('data-state', 'failed');
       await expect(demo.locator('.badge.is-active')).toBeVisible();

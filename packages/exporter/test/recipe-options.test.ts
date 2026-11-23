@@ -267,7 +267,7 @@ describe('colourEmoji', () => {
   it('is on by default for the contact sheet only, and its words say what the default is for', () => {
     expect(colourEmojiDefault('contact-sheet-pdf')).toBe(true);
     expect(colourEmojiDefault('pdf')).toBe(false);
-    expect(COLOUR_EMOJI_FORMATS).toEqual(['pdf', 'contact-sheet-pdf']);
+    expect(COLOUR_EMOJI_FORMATS).toEqual(['pdf', 'contact-sheet-pdf', 'prose-pdf']);
     // The words are pinned: the Export dialog shows them, and the guide quotes them.
     expect(COLOUR_EMOJI_LABEL).toBe('Colour emoji: print emoji in colour, with their skin tones');
     expect(COLOUR_EMOJI_HINT.pdf).toBe(

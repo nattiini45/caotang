@@ -1,0 +1,18 @@
+{
+  "name": "@caotang/font-noto-sinhala",
+  "version": "3.000",
+  "license": "OFL-1.1",
+  "private": true,
+  "description": "NotoSansSinhala Regular 3.000 as a static TrueType file: the font both PDFs embed, subset, for Sinhala text",
+  "repository": "https://github.com/notofonts/sinhala",
+  "exports": {
+    "./NotoSansSinhala-Regular.ttf": "./NotoSansSinhala-Regular.ttf",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "NotoSansSinhala-Regular.ttf",
+    "LICENSE",
+    "README.md",
+    "SHA256SUMS"
+  ]
+}

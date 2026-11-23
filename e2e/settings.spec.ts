@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { fakeEndpoint, FAKE_ENDPOINT, planThenAnswer } from './endpoint.js';
+import { addCustomEndpoint, CUSTOM_PROFILE_NAME } from './provider-setup-support.js';
 import { createProject, savedMessage } from './support.js';
 
 /**
@@ -14,19 +15,6 @@ async function openSettings(page: Page): Promise<ReturnType<Page['getByTestId']>
   return page.getByTestId('settings');
 }
 
-/** Adds the fake endpoint as a generic profile; the save itself sends the models-list probe the log records. */
-async function addGenericProfile(settings: ReturnType<Page['getByTestId']>, name: string): Promise<void> {
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  // The fake endpoint speaks the OpenAI-Chat dialect, so its profile is a generic one. Labels are scoped to the
-  // provider form: the role picker's fields below it carry names too.
-  const form = settings.getByRole('form', { name: 'New provider' });
-  await form.getByRole('combobox', { name: 'Provider' }).selectOption('generic');
-  await form.getByLabel('Name').fill(name);
-  await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
-  await form.getByLabel('Model', { exact: true }).fill('test-model');
-  await form.getByRole('button', { name: 'Save profile' }).click();
-}
-
 test('the demo profile can be renamed and saved, with no key', async ({ page }) => {
   await page.goto('/');
   const settings = await openSettings(page);
@@ -37,34 +25,30 @@ test('the demo profile can be renamed and saved, with no key', async ({ page }) 
   await demo.getByRole('button', { name: 'Edit' }).click();
   const form = settings.getByRole('form', { name: 'Edit provider' });
   await form.getByLabel('Name').fill('Demo, renamed');
-  await form.getByRole('button', { name: 'Save profile' }).click();
+  await form.getByRole('button', { name: 'Save changes' }).click();
 
   await expect(settings.getByText(savedMessage('Demo, renamed'))).toBeVisible();
   await expect(settings.locator('[data-profile="Demo, renamed"]')).toContainText('Active');
   await expect(settings.locator('[data-profile="Demo (no key)"]')).toHaveCount(0);
 });
 
-test('saving an endpoint lists its models and probes its response format at save time, and activating it reuses that answer; the requests show in the log', async ({
+test('adding an endpoint lists its models and probes its response format once, saves it as the active profile, and the requests show in the log', async ({
   page,
 }) => {
   await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
   await page.goto('/');
   const settings = await openSettings(page);
 
-  await addGenericProfile(settings, 'Local test');
-  // The save-time probe: the models the endpoint lists are shown beside the profile.
-  await expect(settings.getByText(savedMessage('Local test'))).toBeVisible();
-  await expect(settings.getByRole('region', { name: 'Models listed by Local test' })).toContainText('test-model');
-  // The probe did not make the profile active: the demo profile still is.
-  await expect(settings.locator('[data-profile="Demo (no key)"]')).toContainText('Active');
+  await addCustomEndpoint(settings);
+  // The setup listed the models and sent the one format probe; the profile is saved, verified and the one the agent calls.
+  const row = settings.locator('[data-profile="' + CUSTOM_PROFILE_NAME + '"]');
+  await expect(row).toContainText('Active');
+  await expect(row).not.toContainText('Not verified');
+  await expect(row).toContainText('test-model');
+  await expect(settings.locator('[data-profile="Demo (no key)"]')).not.toContainText('Active');
 
-  await settings.locator('[data-profile="Local test"]').getByRole('button', { name: 'Use this profile' }).click();
-  await expect(settings.getByText('is now the active profile')).toBeVisible();
-  await expect(settings.getByText('This endpoint accepts structured output.')).toBeVisible();
-  await expect(settings.locator('[data-profile="Local test"]')).toContainText('Structured output accepted');
-
-  // The request log holds the models list and one format probe: the save sent the probe (provider-gateway §5, one-shot at save
-  // time), and the activation read its cached answer, so it sent nothing.
+  // The request log holds the models list and one format probe: the setup sent the probe (provider-gateway §5, one-shot), and the
+  // activation read its cached answer, so it sent nothing more.
   const log = settings.getByTestId('request-log');
   await expect(log).toContainText('/v1/models');
   await expect(log.locator('tr[data-outcome="ok"]').filter({ hasText: '/v1/chat/completions' })).toHaveCount(1);
@@ -77,16 +61,9 @@ test('the endpoint profile and its activation survive a reload, and the restored
   await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
   await page.goto('/');
   let settings = await openSettings(page);
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  const form = settings.getByRole('form', { name: 'New provider' });
-  await form.getByRole('combobox', { name: 'Provider' }).selectOption('generic');
-  await form.getByLabel('Name').fill('Survivor');
-  await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
-  await form.getByLabel('Model', { exact: true }).fill('test-model');
-  await form.getByRole('button', { name: 'Save profile' }).click();
+  await addCustomEndpoint(settings, { name: 'Survivor' });
   await expect(settings.getByText(savedMessage('Survivor'))).toBeVisible();
-  await settings.locator('[data-profile="Survivor"]').getByRole('button', { name: 'Use this profile' }).click();
-  await expect(settings.getByText('is now the active profile')).toBeVisible();
+  await expect(settings.locator('[data-profile="Survivor"]')).toContainText('Active');
   await settings.getByRole('button', { name: 'Close' }).click();
 
   await page.reload();
@@ -203,7 +180,7 @@ test.describe('the request log clock follows the formatter locale', () => {
     await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
     await page.goto('/');
     const settings = await openSettings(page);
-    await addGenericProfile(settings, 'Clock test');
+    await addCustomEndpoint(settings);
 
     const log = settings.getByTestId('request-log');
     await expect(log.locator('tbody tr').first().locator('td').first()).toHaveText(/^\d{2}:\d{2}:\d{2}$/);

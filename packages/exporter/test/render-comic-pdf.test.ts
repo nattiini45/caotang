@@ -39,7 +39,7 @@ const base = (book: ComicPdfBook, extra: Partial<ComicPdfInput> = {}): ComicPdfI
   loadEmojiFont: loadEmojiFontInNode,
   loadArabicFont: loadArabicFontInNode,
   loadHebrewFont: loadHebrewFontInNode,
-  loadDevanagariFont: loadDevanagariFontInNode,
+  loadIndicFonts: { devanagari: loadDevanagariFontInNode },
   ...extra,
 });
 

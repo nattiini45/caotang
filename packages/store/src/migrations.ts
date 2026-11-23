@@ -4,8 +4,7 @@
  * §6 in full, because every rule below is transcribed from it rather than
  * invented: "Migrations run **load-time, in-memory first**: `v(n) → v(n+1)`
  * functions in a fixed registry, each with a unit test fixture pair. A migration
- * failure aborts the open with the project untouched." … "Writers always save at
- * the **current** version (no rolling forward on unrelated edits)."
+ * failure aborts the open with the project untouched."
  *
  * Four decisions are load-bearing and each is enforced structurally, not by
  * convention:
@@ -22,15 +21,9 @@
  *      clone, which is what makes "the project untouched" true even when a
  *      migration mutates its own argument in place and a later step throws. On
  *      failure the caller holds the object it passed in, byte for byte.
- *   4. **The registry is empty, and that is correct.** §2's note is that
- *      "no wild artifacts exist before implementation; versioning starts at first
- *      release", and §6's first line is "v1 is the first stable format". There has
- *      never been a v0, so there is no `v(n) → v(n+1)` to register. Seeding a fake
- *      v0 would invent a format version that never shipped, and the machinery
- *      below is therefore tested against a synthetic registry plus fixture pairs
- *      in `test/migrations.test.ts` — which also asserts that every registered
- *      migration has a fixture, so adding the first real one cannot skip the
- *      pair §6 requires.
+ *   4. **The registry is empty, and that is correct.** v1 is the first format;
+ *      v2 protects newly written codex data without transforming v1 data.
+ *      The migration chain is tested against synthetic steps and fixture pairs.
  */
 
 import { FORMAT_VERSION, type Manifest } from './manifest.js';
@@ -105,7 +98,7 @@ export const MIGRATIONS: MigrationRegistry = Object.freeze([]);
  */
 export interface FormatContext {
   readonly registry: MigrationRegistry;
-  /** the version this build validates against and writes */
+  /** the highest supported version */
   readonly current: number;
 }
 
@@ -124,6 +117,11 @@ export const PRODUCTION_FORMAT: FormatContext = Object.freeze({
   registry: MIGRATIONS,
   current: FORMAT_VERSION,
 });
+
+/** v1 and v2 coexist in production; a substituted context still requires its migration chain. */
+export function migrationTarget(format: FormatContext): number {
+  return format === PRODUCTION_FORMAT ? FIRST_FORMAT_VERSION : format.current;
+}
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -251,7 +249,7 @@ export function runMigrations(
 }
 
 /** {@link runMigrations} against the production {@link MIGRATIONS} registry. */
-export function migrateToCurrent(input: unknown, target: number = FORMAT_VERSION): MigrationResult {
+export function migrateToCurrent(input: unknown, target: number = migrationTarget(PRODUCTION_FORMAT)): MigrationResult {
   return runMigrations(MIGRATIONS, input, target);
 }
 

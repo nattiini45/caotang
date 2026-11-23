@@ -25,9 +25,21 @@
  *
  * The TOC recipe rejects the two alternatives by name. `beginDirty: false` gives no prompt but
  * a stale table, because nothing ever refreshes it; a static table loses the field's
- * semantics, so Word can no longer regenerate it. The default — a dirty field with
- * cached content — is what `docx` writes when `beginDirty` is not given, and this
- * file leaves it that way on purpose.
+ * semantics, so Word can no longer regenerate it. A dirty field with cached content is
+ * what a `.docx` needs, and this file leaves it that way on purpose.
+ *
+ * ## Why the field is written by hand
+ *
+ * `docx`'s `TableOfContents` wraps the field in a `w:sdt` block control and packs `fldChar begin`, the `instrText` and
+ * `fldChar separate` into a single run. Word reads that shape, but LibreOffice flattens it: it shows the instruction as
+ * text ahead of the first cached entry, imports nothing as a document index (Tools → Update indexes finds none), and
+ * re-saves the file with the field instruction gone. The field is therefore emitted here as literal XML in the shape
+ * Word writes — begin, instruction and separate each in their own run, one paragraph per cached entry, no `w:sdt`.
+ * LibreOffice imports that shape as a real `ContentIndex` it can regenerate and re-save intact.
+ *
+ * The Heading styles carry `w:outlineLvl`, because a `\o` TOC field collects paragraphs by outline level and neither
+ * Word nor LibreOffice regenerates entries for headings without one. The regenerated table in LibreOffice, and the
+ * table Word rebuilds after the update prompt, keep their entries for that reason alone.
  *
  * ## Why the cached entries are not links
  *
@@ -40,6 +52,14 @@
  * The cached entries carry titles and no page numbers. Page numbers need a layout
  * this renderer does not do; Word fills them in when it updates the field. A viewer
  * that never updates a field shows the titles, which is the content the recipe requires.
+ *
+ * ## Notes
+ *
+ * A body's footnote marker (prose.ts `Run.noteId`) is a `w:footnoteReference` at the run's place, or a
+ * `w:endnoteReference` when the recipe's `notes` option asks for endnotes; the note's own paragraphs are collected
+ * into `footnotes`/`endnotes` on the Document, numbered in the order the markers are met. Word and LibreOffice put a
+ * footnote's text at the page's foot and an endnote's at the document's end — the recipe's two placements are the
+ * format's own (exporter.md §3).
  *
  * ## Text XML cannot carry
  *
@@ -56,7 +76,7 @@
 
 import type * as Docx from 'docx';
 import { boilerplateOf, chapterHeadings, contentsEntries, contentsHeading, hasTitlePage, headingsByBlock, sectionTitle, type RenderInput } from './render-input.js';
-import { parseProse, plainRuns, type ProseBlock, type Run } from './prose.js';
+import { parseProse, plainRuns, type ParsedProse, type ProseBlock, type Run } from './prose.js';
 import type { FigurePack, ResolvedFigure } from './figures.js';
 import { DOCX_TEXT_WIDTH_TWIPS } from './picture-profile.js';
 import { stripXmlIllegal } from './xml-text.js';
@@ -92,7 +112,7 @@ function extentOf(width: number, height: number): { readonly width: number; read
 }
 
 type DocxModule = typeof Docx;
-type Block = Docx.Paragraph | Docx.TableOfContents;
+type Block = Docx.FileChild;
 
 /** Renders the whole project as a `.docx` and returns the package bytes. */
 export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
@@ -117,19 +137,36 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
         children: [new docx.TextRun({ text: stripXmlIllegal(contentsHeading(input)), bold: true })],
       }),
     );
-    children.push(
-      new docx.TableOfContents(stripXmlIllegal(contentsHeading(input)), {
-        hyperlink: true,
-        // exporter.md §2's recipe: `TableOfContents(alias, { hyperlink: true, headingStyleRange: '1-2' })`. Heading 1 is a
-        // chapter and Heading 2 a `section` scene, so the cached entries list both, in document order, as the field would. With
-        // parts the range reaches the deepest heading, since a chapter inside a part is Heading 2 and its sections Heading 3.
-        headingStyleRange: `1-${deepest}`,
-        cachedEntries: entries.map((entry) => ({ title: stripXmlIllegal(entry.label), level: Math.min(6, entry.level) })),
-      }),
-    );
+    children.push(...tocField(docx, entries, deepest));
   }
 
   const byBlock = headingsByBlock(input);
+  // The notes the document's markers name: a marker's id is document-wide (footnotes.xml numbers continuously), so the
+  // scope is keyed by each body's own `notes` map — two scenes may both write `[^1]`.
+  const endnote = input.notes === 'endnote';
+  const noteNumbers = new WeakMap<ParsedProse['notes'], Map<string, number>>();
+  const footnotes = new Map<number, Docx.Paragraph[]>();
+  const endnotes = new Map<number, Docx.Paragraph[]>();
+  let nextNoteId = 1;
+  /** The `w:id` a marker in this body's `notes` refers to, assigning it and building the note's paragraphs on first ask. */
+  const noteIdOf =
+    (defs: ParsedProse['notes']) =>
+    (noteId: string): { readonly id: number; readonly endnote: boolean } | undefined => {
+      const blocks = defs.get(noteId);
+      if (blocks === undefined) return undefined;
+      let scoped = noteNumbers.get(defs);
+      if (scoped === undefined) noteNumbers.set(defs, (scoped = new Map()));
+      let num = scoped.get(noteId);
+      if (num === undefined) {
+        num = nextNoteId++;
+        scoped.set(noteId, num);
+        const resolve = noteIdOf(defs);
+        const content = blocks.flatMap((inner) => proseParagraphs(docx, inner, 0, input.figures, resolve));
+        (endnote ? endnotes : footnotes).set(num, content);
+      }
+      return { id: num, endnote };
+    };
+
   /** The level of the heading the text is under, so a `section` scene's heading sits one level below it. */
   let depth = 1;
   for (const [index, block] of input.blocks.entries()) {
@@ -153,7 +190,8 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
             new docx.Paragraph({ heading: headingLevel(docx, depth + 1), children: [new docx.TextRun(stripXmlIllegal(section))] }),
           );
         }
-        for (const prose of parseProse(block.body)) children.push(...proseParagraphs(docx, prose, 0, input.figures));
+        const parsed = parseProse(block.body);
+        for (const prose of parsed.blocks) children.push(...proseParagraphs(docx, prose, 0, input.figures, noteIdOf(parsed.notes)));
         break;
       }
       case 'separator':
@@ -164,6 +202,9 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
     }
   }
 
+  const notesRecord = (record: Map<number, Docx.Paragraph[]>): Record<string, { readonly children: readonly Docx.Paragraph[] }> | undefined =>
+    record.size === 0 ? undefined : Object.fromEntries([...record].map(([id, children]) => [String(id), { children }]));
+
   const document = new docx.Document({
     // The core properties are XML too (docProps/core.xml), so they get the same cleaning.
     creator: stripXmlIllegal(input.author === '' ? 'Caotang' : input.author),
@@ -172,6 +213,8 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
     // entries are replaced by the real ones. Without a field there is nothing to update, so no setting and no prompt.
     features: hasContents ? { updateFields: true } : undefined,
     styles: styleDefinitions(docx, deepest),
+    footnotes: notesRecord(footnotes),
+    endnotes: notesRecord(endnotes),
     sections: [{ properties: {}, children }],
   });
 
@@ -190,7 +233,7 @@ function styleDefinitions(docx: DocxModule, deepest: number): Docx.IStylesOption
   for (const level of deeper) {
     deeperHeadings[`heading${level as 3 | 4 | 5 | 6}`] = {
       run: { font: BODY_FONT, size: Math.max(BODY_SIZE, 28 - (level - 2) * 2), bold: true },
-      paragraph: { spacing: { before: 240, after: 240 } },
+      paragraph: { spacing: { before: 240, after: 240 }, outlineLevel: level - 1 },
     };
   }
   return {
@@ -205,11 +248,11 @@ function styleDefinitions(docx: DocxModule, deepest: number): Docx.IStylesOption
       },
       heading1: {
         run: { font: BODY_FONT, size: 32, bold: true },
-        paragraph: { spacing: { before: 240, after: 360 } },
+        paragraph: { spacing: { before: 240, after: 360 }, outlineLevel: 0 },
       },
       heading2: {
         run: { font: BODY_FONT, size: 28, bold: true },
-        paragraph: { spacing: { before: 240, after: 240 } },
+        paragraph: { spacing: { before: 240, after: 240 }, outlineLevel: 1 },
       },
       ...deeperHeadings,
     },
@@ -258,6 +301,37 @@ function styleDefinitions(docx: DocxModule, deepest: number): Docx.IStylesOption
   };
 }
 
+/** Text for the literal XML the contents field is written as. */
+const escapeXml = (text: string): string =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+
+/**
+ * The contents field as literal XML paragraphs (see "Why the field is written by hand" above): a dirty complex field
+ * (`fldChar begin` + `instrText` + `fldChar separate`) ahead of the first cached entry, one `toc N` paragraph per
+ * entry, `fldChar end` on the last. The instruction `TOC \h \o "1-N"` reaches the deepest heading level the file
+ * uses; `\h` makes the entries Word regenerates clickable (there are no `_Toc` bookmarks to link to in the cache).
+ */
+function tocField(docx: DocxModule, entries: readonly { readonly label: string; readonly level: number }[], deepest: number): Docx.FileChild[] {
+  const tabs = '<w:tabs><w:tab w:val="clear" w:pos="9026"/><w:tab w:val="right" w:pos="9025" w:leader="dot"/></w:tabs>';
+  return entries.map((entry, index) => {
+    const runs = [
+      ...(index === 0
+        ? [
+            '<w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>',
+            `<w:r><w:instrText xml:space="preserve"> TOC \\h \\o &quot;1-${deepest}&quot; </w:instrText></w:r>`,
+            '<w:r><w:fldChar w:fldCharType="separate"/></w:r>',
+          ]
+        : []),
+      `<w:r><w:t xml:space="default">${escapeXml(stripXmlIllegal(entry.label))}</w:t><w:tab/></w:r>`,
+      ...(index === entries.length - 1 ? ['<w:r><w:fldChar w:fldCharType="end"/></w:r>'] : []),
+    ];
+    // One component per paragraph: fromXmlString writes the XML's single root element.
+    return docx.ImportedXmlComponent.fromXmlString(
+      `<w:p><w:pPr><w:pStyle w:val="TOC${Math.min(6, Math.max(1, entry.level))}"/>${tabs}</w:pPr>${runs.join('')}</w:p>`,
+    ) as unknown as Docx.FileChild;
+  });
+}
+
 /** The Word heading style for an outline level, from Heading 1 to Heading 6. */
 function headingLevel(docx: DocxModule, level: number): (typeof docx.HeadingLevel)[keyof typeof docx.HeadingLevel] {
   const levels = [
@@ -285,28 +359,35 @@ function centred(docx: DocxModule, text: string): Docx.Paragraph {
  * the Caption style (pictures.md §4); a placement whose file is missing degrades to
  * its caption as a plain paragraph.
  */
-function proseParagraphs(docx: DocxModule, block: ProseBlock, indent: number, figures: FigurePack | undefined, lead?: string): Docx.Paragraph[] {
+function proseParagraphs(
+  docx: DocxModule,
+  block: ProseBlock,
+  indent: number,
+  figures: FigurePack | undefined,
+  noteId?: (noteId: string) => { readonly id: number; readonly endnote: boolean } | undefined,
+  lead?: string,
+): Docx.Paragraph[] {
   switch (block.kind) {
     case 'paragraph':
-      return [paragraph(docx, lead === undefined ? block.runs : [{ text: lead }, ...block.runs], indent)];
+      return [paragraph(docx, lead === undefined ? block.runs : [{ text: lead }, ...block.runs], indent, noteId)];
     case 'heading':
-      return [paragraph(docx, block.runs.map((run) => ({ ...run, strong: true })), indent)];
+      return [paragraph(docx, block.runs.map((run) => ({ ...run, strong: true })), indent, noteId)];
     case 'break':
       return [centred(docx, '* * *')];
     case 'figure':
       return figureParagraphs(docx, block, figures);
     case 'quote':
-      return block.blocks.flatMap((inner) => proseParagraphs(docx, inner, indent + QUOTE_INDENT, figures));
+      return block.blocks.flatMap((inner) => proseParagraphs(docx, inner, indent + QUOTE_INDENT, figures, noteId));
     case 'list':
       return block.items.flatMap((item, index) => {
         const marker = block.ordered ? `${index + 1}. ` : '• ';
         return item.flatMap((inner, position) =>
-          proseParagraphs(docx, inner, indent + LIST_INDENT, figures, position === 0 ? marker : undefined),
+          proseParagraphs(docx, inner, indent + LIST_INDENT, figures, noteId, position === 0 ? marker : undefined),
         );
       });
     case 'code':
       return block.text.split('\n').map((line) =>
-        paragraph(docx, [{ text: line, code: true }], indent),
+        paragraph(docx, [{ text: line, code: true }], indent, noteId),
       );
   }
 }
@@ -336,19 +417,37 @@ function figureParagraphs(docx: DocxModule, block: Extract<ProseBlock, { kind: '
   return out;
 }
 
-function paragraph(docx: DocxModule, runs: readonly Run[], indent: number): Docx.Paragraph {
+function paragraph(
+  docx: DocxModule,
+  runs: readonly Run[],
+  indent: number,
+  noteId?: (noteId: string) => { readonly id: number; readonly endnote: boolean } | undefined,
+): Docx.Paragraph {
   return new docx.Paragraph({
     indent: indent > 0 ? { left: indent } : undefined,
-    children: runs.map((run) => textRun(docx, run)),
+    children: runs.map((run) => textRun(docx, run, noteId)),
   });
 }
 
-function textRun(docx: DocxModule, run: Run): Docx.TextRun {
+function textRun(
+  docx: DocxModule,
+  run: Run,
+  noteId?: (noteId: string) => { readonly id: number; readonly endnote: boolean } | undefined,
+): Docx.ParagraphChild {
   if (run.br === true) return new docx.TextRun({ break: 1 });
-  return new docx.TextRun({
-    text: stripXmlIllegal(plainRuns([run])),
+  if (run.noteId !== undefined) {
+    // The marker becomes the format's own reference; a note the resolver cannot place stays its written text.
+    const note = noteId?.(run.noteId);
+    if (note !== undefined) return note.endnote ? new docx.EndnoteReferenceRun(note.id) : new docx.FootnoteReferenceRun(note.id);
+    return new docx.TextRun({ text: stripXmlIllegal(`[^${run.noteId}]`), ...runMarks(run) });
+  }
+  return new docx.TextRun({ text: stripXmlIllegal(plainRuns([run])), ...runMarks(run) });
+}
+
+function runMarks(run: Run): { readonly bold?: true; readonly italics?: true; readonly font?: string } {
+  return {
     bold: run.strong === true ? true : undefined,
     italics: run.em === true ? true : undefined,
     font: run.code === true ? MONO_FONT : undefined,
-  });
+  };
 }

@@ -77,6 +77,18 @@ describe('reserveGroup — a set of names is reserved together', () => {
     expect(() => emitter.reserveGroup([{ name: 'Book.md' }, { name: 'Book.md' }])).toThrow('named two of its files the same');
   });
 
+  it('refuses two names of one set that differ only in case — a synced folder holds just one of them', async () => {
+    const emitter = await ready(new MemoryArtifactFs());
+    expect(() => emitter.reserveGroup([{ name: 'post.html' }, { name: 'Post.html' }])).toThrow('named two of its files the same');
+  });
+
+  it('moves past a file that is already in exports/ under a different case', async () => {
+    const fs = new MemoryArtifactFs();
+    fs.putFile('exports/Post.html', 'old');
+    const emitter = await ready(fs);
+    expect(emitter.reserveGroup([{ name: 'post.html' }]).map((file) => file.path)).toEqual(['exports/post-2.html']);
+  });
+
   it('refuses before exports/ has been listed, as the single reservation does', () => {
     const emitter = createEmitter({ artifacts: new MemoryArtifactFs() });
     expect(() => emitter.reserveGroup([{ name: 'Book.md' }])).toThrow(ExportNotReadyError);

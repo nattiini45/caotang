@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { setBody } from '@caotang/store';
 import { resolveAnchor } from '@caotang/editor';
 import type { TextSearchData } from '../src/tools/text-search.js';
-import { estimateTokens, type RuleSet } from '../src/index.js';
+import { codexReadPort, estimateTokens, type RuleSet } from '../src/index.js';
 import { modelResult, turnNonce } from '../src/agent/untrusted.js';
 import { CHAPTER_ONE, ENTRY, FRIEND, LANDING, makeHarness, STORM } from './fixtures.js';
 
@@ -40,6 +40,20 @@ describe('text.search as a local read tool', () => {
     expect((result.value.data as TextSearchData).hits.map((hit) => hit.nodeId)).toEqual([LANDING]);
     expect(JSON.stringify(result.value)).not.toContain(FRIEND);
     expect(JSON.stringify(result.value)).not.toContain(ENTRY);
+  });
+
+it('leaves out a codex entry attached only to withheld nodes, as codex.read does', () => {
+    const rules: RuleSet = { rules: ['doc.read', 'codex.read'].map((tool) => ({ source: 'app', tool, effect: 'deny', access: 'read', scope: { subtree: FRIEND } })) };
+    const harness = makeHarness({ rules: () => rules, ports: { 'codex.read': codexReadPort } });
+    const entry = harness.state.manifest.codex!.find((item) => item.id === ENTRY)!;
+    entry.attachments = [FRIEND];
+    entry.description = 'The keeper of the quietlamp.';
+    const search = harness.call({ callId: `search-${++callId}`, name: 'text.search', params: { query: 'quietlamp' } }, { turnId: 'search' });
+    const read = harness.call({ callId: `search-${++callId}`, name: 'codex.read', params: { query: 'quietlamp' } }, { turnId: 'search' });
+    expect(read.ok).toBe(true);
+    if (read.ok) expect(JSON.stringify(read.value)).not.toContain('quietlamp');
+    expect(search.ok).toBe(true);
+    if (search.ok) expect(JSON.stringify(search.value)).not.toContain('quietlamp');
   });
 
   it('expands binder scope, filters fields and refuses bad focus or scope ids', () => {

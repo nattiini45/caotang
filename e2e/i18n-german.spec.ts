@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { binderRow, binderTitle, createProject, waitForSaved } from './support.js';
+import { binderRow, binderTitle, createProject, waitForSaved, chooseInterfaceLanguage} from './support.js';
 
 /**
  * The German interface as a real-catalogue witness (i18n.md §3.3 "German (I14/L12)", §8.3; D5).
@@ -44,7 +44,7 @@ async function documentLanguage(page: Page): Promise<{ lang: string; dir: string
 
 /** Chooses German in the picker and waits for `<html lang dir>`, the way i18n-switch.spec.ts does. */
 async function switchToGerman(page: Page, settings: Locator): Promise<void> {
-  await languageRadio(settings, 'de').click();
+  await chooseInterfaceLanguage(page, settings, 'de');
   await expect.poll(() => documentLanguage(page)).toEqual({ lang: 'de', dir: 'ltr' });
 }
 
@@ -178,7 +178,7 @@ for (const width of [960, 1100]) {
       await expect(editorTools.getByRole('button', { name: 'Bild einfügen', exact: true })).toBeVisible();
       const editorStatus = page.locator('.editor-status');
       await expect(editorStatus).toHaveAttribute('aria-label', 'Dokumentstatus');
-      await expect(editorStatus).toContainText('4 Wörtern');
+      await expect(editorStatus).toContainText('4 Wörter');
       // The manuscript itself keeps the project's language and direction, and the writer's text.
       const host = page.locator('.editor-host');
       await expect(host).toContainText('The harbour was quiet.');
@@ -222,6 +222,16 @@ for (const width of [960, 1100]) {
       expect(await fitsWidth(page)).toBe(true);
       await dialog.getByRole('button', { name: 'Abbrechen', exact: true }).click();
       await expect(dialog).toHaveCount(0);
+
+      // The codex's own words, read off the screen rather than out of the catalogue: a new entry is attached to
+      // nothing yet, and the help names the include policy the way the policy option above it labels it (#734).
+      await page.getByRole('tab', { name: 'Kodex' }).click();
+      await expect(page.getByRole('region', { name: 'Der Kodex ist leer' })).toBeVisible();
+      await page.locator('.empty-state .empty-actions button').first().click();
+      const attachments = page.getByRole('region', { name: 'Angehängt an' });
+      await expect(attachments).toContainText('Noch an keine Elemente angehängt.');
+      await expect(attachments).toContainText('Ein Eintrag mit der Richtlinie „Manuell“');
+      await expect(attachments).not.toContainText('Manual');
 
       // Back on the shell: still inside the window, nothing clipped, and no CSP violation happened.
       expectInsideWindow(await page.getByTestId('save-state').boundingBox(), width);

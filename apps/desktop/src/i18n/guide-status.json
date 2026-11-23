@@ -31,17 +31,9 @@
           "hash": "b4789a8c",
           "anchor": "änderungen-auf-der-zeitachse-vorschlagen"
         },
-        "the-inspector": {
-          "hash": "bcdec977",
-          "anchor": "der-inspektor"
-        },
         "writing-a-screenplay": {
           "hash": "952ebb2f",
           "anchor": "ein-drehbuch-schreiben"
-        },
-        "the-screenplay-pdf": {
-          "hash": "3adbece3",
-          "anchor": "das-drehbuch-pdf"
         },
         "writing-dialogue": {
           "hash": "6432e2fe",
@@ -56,12 +48,8 @@
           "anchor": "einen-comic-schreiben"
         },
         "the-codex": {
-          "hash": "0af900f6",
+          "hash": "b4891c6b",
           "anchor": "der-kodex"
-        },
-        "prologues-and-epilogues": {
-          "hash": "0b686038",
-          "anchor": "prologe-und-epiloge"
         },
         "knowledge": {
           "hash": "6e10c440",
@@ -84,7 +72,7 @@
           "anchor": "caotang-auf-einem-telefon-oder-tablet-verwenden"
         },
         "settings": {
-          "hash": "bade9b1c",
+          "hash": "0cee1304",
           "anchor": "einstellungen"
         },
         "keyboard": {
@@ -102,6 +90,10 @@
         "installing-the-mcp-bundle": {
           "hash": "4651f5c6",
           "anchor": "das-mcp-bundle-installieren"
+        },
+        "scripting-caotang": {
+          "hash": "170443fb",
+          "anchor": "caotang-per-skript-steuern"
         }
       }
     }

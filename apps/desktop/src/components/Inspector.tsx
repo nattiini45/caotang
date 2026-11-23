@@ -24,7 +24,7 @@ import { hasDivider, splitNotes } from '../app/notes-model.js';
 import { InspectorGoals } from './InspectorGoals.js';
 import { SynopsisField } from './SynopsisField.js';
 import { openDialog } from './dialog-requests.js';
-import { CodexSection, FolderPartSection, SceneMetaSection, SceneStyleSection } from './InspectorSections.js';
+import { CodexSection, FolderPartSection, PublishSection, SceneMetaSection, SceneStyleSection } from './InspectorSections.js';
 import { DialogueMetaSection } from './InspectorDialogue.js';
 import { InspectorPictures } from './InspectorPictures.js';
 import { addKeyword, explain, removeKeyword, setLabel, setNotes, setStatus } from './actions.js';
@@ -156,6 +156,7 @@ function InspectorContent({
 
       <CodexSection session={session} node={node} onOpenCodex={onOpenCodex} />
       {node.type === 'document' ? <SceneMetaSection session={session} node={node} /> : null}
+      {node.type === 'document' ? <PublishSection session={session} node={node} /> : null}
       {node.type === 'folder' ? <FolderPartSection session={session} node={node} /> : null}
       {node.type === 'dialogue' ? <DialogueMetaSection session={session} node={node} /> : null}
       <InspectorPictures session={session} node={node} onOpenPicture={onOpenPicture} />
@@ -221,6 +222,7 @@ function InspectorDisclosures({
         {node.type === 'document' ? <SceneStyleSection session={session} node={node} /> : null}
         <CodexSection session={session} node={node} onOpenCodex={onOpenCodex} />
         {node.type === 'document' ? <SceneMetaSection session={session} node={node} /> : null}
+        {node.type === 'document' ? <PublishSection session={session} node={node} /> : null}
         {node.type === 'folder' ? <FolderPartSection session={session} node={node} /> : null}
         {node.type === 'dialogue' ? <DialogueMetaSection session={session} node={node} /> : null}
         <InspectorPictures session={session} node={node} onOpenPicture={onOpenPicture} />

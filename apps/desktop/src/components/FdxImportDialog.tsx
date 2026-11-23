@@ -8,35 +8,32 @@
  * merges into an entry. **Import** writes the script and the ticked rows in one undo step; **Cancel** changes nothing.
  */
 
-import { scanImport } from '@caotang/harness';
 import { useState, type ReactNode } from 'react';
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 
 import { describeFdxImport, type FdxCodexSeed, type FdxImportedScript } from '@caotang/screenplay';
 
+import { seedFlagged } from '../app/import-scan.js';
 import { ChoiceDialog } from './shared.js';
 
 /** Where a row's name was read, in the writer's words. */
-const SOURCE_WORDS: Readonly<Record<FdxCodexSeed['sources'][number], string>> = {
-  smarttype: 'SmartType',
-  cast: 'cast',
-  highlighting: 'character highlighting',
-  'cast-list': 'Cast List',
-};
+function sourceWord(source: FdxCodexSeed['sources'][number]): string {
+  switch (source) {
+    case 'smarttype':
+      return t`SmartType`;
+    case 'cast':
+      return t`cast`;
+    case 'highlighting':
+      return t`character highlighting`;
+    case 'cast-list':
+      return t`Cast List`;
+  }
+}
 
 function seedKey(seed: FdxCodexSeed): string {
   return `${seed.type}:${seed.name.toLowerCase()}`;
-}
-
-/**
- * Whether the import scan flags a row's name or description as reading like instructions to an AI. Such a row is added
- * with the include policy `manual`, as `codex.importBatch` adds a flagged row, so it reaches a generation only in the
- * documents it is attached to until the writer has read it.
- */
-export function seedFlagged(seed: Pick<FdxCodexSeed, 'name' | 'description'>): boolean {
-  return scanImport([
-    { where: 'name', text: seed.name },
-    { where: 'description', text: seed.description },
-  ]).total > 0;
 }
 
 export function FdxImportDialog({
@@ -58,6 +55,7 @@ export function FdxImportDialog({
   onImport: (seeds: readonly FdxCodexSeed[]) => void;
   onCancel: () => void;
 }): ReactNode {
+  useLingui();
   const open = fileName !== null && script !== null;
   const notices = open ? script.notices : [];
   const seeds = open ? script.seeds : [];
@@ -82,26 +80,26 @@ export function FdxImportDialog({
   return (
     <ChoiceDialog
       open={open}
-      title="Import this Final Draft script?"
-      choices={[{ label: 'Import', onChoose: () => onImport(chosen()) }]}
+      title={t`Import this Final Draft script?`}
+      choices={[{ label: t`Import`, onChoose: () => onImport(chosen()) }]}
       onCancel={onCancel}
     >
       {open ? (
         <div className="twee-report">
           <p>
-            <strong>{fileName}</strong> will become screenplay scenes. Read what the import keeps first.
+            <strong>{fileName}</strong> <Trans>will become screenplay scenes. Read what the import keeps first.</Trans>
           </p>
-          <ul aria-label="What the import does">
+          <ul aria-label={t`What the import does`}>
             {describeFdxImport(script).map((line) => (
               <li key={line}>{line}</li>
             ))}
           </ul>
           {seeds.length > 0 ? (
             <fieldset className="fdx-seeds">
-              <legend>Codex entries (optional)</legend>
+              <legend><Trans>Codex entries (optional)</Trans></legend>
               <p>
-                Final Draft lists these characters and places. Tick the ones to add to the codex; each attaches to the first scene that names
-                it, in the same undo step as the script.
+                <Trans>Final Draft lists these characters and places. Tick the ones to add to the codex; each attaches to the first scene that names
+                it, in the same undo step as the script.</Trans>
               </p>
               {free.length > 1 ? (
                 <label className="fdx-seed">
@@ -113,14 +111,14 @@ export function FdxImportDialog({
                       setTicked(() => (on ? new Set(free.map(seedKey)) : new Set()));
                     }}
                   />
-                  Tick all {free.length}
+                  <Trans>Tick all</Trans> {free.length}
                 </label>
               ) : null}
-              <ul aria-label="Codex entries to add">
+              <ul aria-label={t`Codex entries to add`}>
                 {seeds.map((seed) => {
                   const key = seedKey(seed);
                   const collides = taken.has(seed.name.toLowerCase());
-                  const from = seed.sources.map((source) => SOURCE_WORDS[source]).join(', ');
+                  const from = seed.sources.map((source) => sourceWord(source)).join(', ');
                   const flagged = seedFlagged(seed);
                   return (
                     <li key={key}>
@@ -132,10 +130,10 @@ export function FdxImportDialog({
                           onChange={(event) => toggle(key, event.currentTarget.checked)}
                         />
                         <span>
-                          <strong>{seed.name}</strong> ({seed.type === 'character' ? 'character' : 'place'}, from {from})
+                          <strong>{seed.name}</strong> ({seed.type === 'character' ? t`character` : t`place`}<Trans>, from</Trans> {from})
                           {seed.description !== '' ? `: ${seed.description}` : ''}
-                          {collides ? ' — already in the codex, left as it is' : ''}
-                          {!collides && flagged ? ' — reads like instructions to an AI, so it is added as Manual: sent only in the documents it is attached to' : ''}
+                          {collides ? t` — already in the codex, left as it is` : ''}
+                          {!collides && flagged ? t` — reads like instructions to an AI, so it is added as Manual: sent only in the documents it is attached to` : ''}
                         </span>
                       </label>
                     </li>
@@ -146,8 +144,8 @@ export function FdxImportDialog({
           ) : null}
           {notices.length + warnings.length > 0 ? (
             <>
-              <h3>Notices</h3>
-              <ul aria-label="Notices">
+              <h3><Trans>Notices</Trans></h3>
+              <ul aria-label={t`Notices`}>
                 {[...notices, ...warnings].map((notice) => (
                   <li key={notice}>{notice}</li>
                 ))}

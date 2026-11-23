@@ -128,5 +128,40 @@ For `toc-off.docx`:
 | Pages (current macOS) | | | not recorded | |
 | Google Docs | | | not recorded | |
 
-Owner-pending. Until a row is filled in, the docs say the field has not been tested in Word or LibreOffice. LibreOffice never
-updates fields on open; a scripted check of the structure is a later step and is not part of this checklist.
+Owner-pending. Until a row is filled in, the docs say the field has not been tested in Word, Pages or Google Docs.
+LibreOffice never updates fields on open; its handling is covered by the scripted check below, so this checklist is for
+Word and the read-only importers.
+
+## Headless: the contents field in LibreOffice
+
+`packages/exporter/test/docx-write-corpus.test.ts` writes the five corpus files through the renderer to
+`$CAOTANG_DOCX_OUT`, with `expected.json` beside them (per file: whether a contents field is expected and its entry
+titles in order). The `office-interop` CI job then runs `tools/office-interop/check_docx.py` on each file, after the
+same job's XLSX steps:
+
+- **the package:** a sound ZIP whose document holds a complex `w:fldChar` field (begin, `instrText`, separate, cached
+  entries, end) with no `w:sdt` wrapper — the packed single-run `w:sdt` shape is the one LibreOffice flattens —
+  `w:updateFields` in the settings exactly when the file has contents, and `w:outlineLvl` on the Heading styles, which a
+  `\o` field collects its entries by;
+- **the cache is visible:** LibreOffice converts each file to PDF, and the region between the `Contents` heading and the
+  first chapter lists every expected title, in order, without the instruction showing as text; `toc-off` has no
+  `Contents` page;
+- **the field survives a re-save:** converted back to `.docx`, the file still carries a `TOC` instruction;
+- **LibreOffice can regenerate it:** over a UNO socket each index is updated, and the exported PDF lists every title
+  with a page number — something only a real index produces;
+- **links:** on the regenerated PDF each contents row links to the page its number names. The cached entries are plain
+  text with no links by design (there are no `_Toc` bookmarks to point at), recorded as a note.
+
+`tools/office-interop/docx_negative_controls.py` proves the checker can fail: a contents page flattened to static text,
+headings without an outline level, and two cached entries traded, are each rejected naming the file and the reason.
+LibreOffice, `pdftotext`, `pdftohtml` and `python3-uno` are not part of `pnpm install`; `--skip-libreoffice` runs the
+package stage only.
+
+```sh
+CAOTANG_DOCX_OUT=/tmp/docx pnpm exec vitest run packages/exporter/test/docx-write-corpus.test.ts
+python3 tools/office-interop/check_docx.py /tmp/docx                         # all stages
+python3 tools/office-interop/check_docx.py /tmp/docx --skip-libreoffice      # the package only
+python3 tools/office-interop/docx_negative_controls.py /tmp/docx             # the controls
+```
+
+This is not a check in Word. Word's update prompt cannot be scripted.

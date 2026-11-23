@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './test.js';
 
 import { NO_PIN } from './classic-pin.js';
 import { createProject } from './support.js';
@@ -56,7 +57,7 @@ async function openAgent(page: Page): Promise<void> {
 
 const HOME = 'Projects in this browser';
 
-test('a fresh profile is a new writer: Modern, stored at once, with its stylesheet, and it stays Modern on a reload', async ({ page }) => {
+test('a fresh profile is a new writer: Modern, stored at once, with its stylesheet, and it stays Modern on a reload', { tag: '@modern' }, async ({ page }) => {
   const css = watchModernCss(page);
   await page.goto('/');
   await expect(page.getByRole('heading', { name: HOME })).toBeVisible();
@@ -69,7 +70,7 @@ test('a fresh profile is a new writer: Modern, stored at once, with its styleshe
   expect(await shellOf(page)).toBe('modern');
 });
 
-test('Settings › Appearance names Modern plainly, with no Preview, and says who starts where', async ({ page }) => {
+test('Settings › Appearance names Modern plainly, with no Preview, and says who starts where', { tag: '@modern' }, async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByTestId('settings');
@@ -100,7 +101,7 @@ test('an existing profile with a project and no interface stored settles on Clas
   expect(await stored(page)).toBe('classic');
 });
 
-test('a stored Modern loads its stylesheet before the first render, and survives a reload', async ({ page }) => {
+test('a stored Modern loads its stylesheet before the first render, and survives a reload', { tag: '@modern' }, async ({ page }) => {
   await page.addInitScript(() => (globalThis as unknown as View).localStorage.setItem('caotang.interface', 'modern'));
   await page.goto('/');
   await expect(page.getByRole('heading', { name: HOME })).toBeVisible();
@@ -108,7 +109,7 @@ test('a stored Modern loads its stylesheet before the first render, and survives
   expect(await radius(page)).toBe('14px');
 });
 
-test('Settings › Appearance › Interface switches live: the unsaved text, the open agent panel and focus on the radio all stay', async ({ page }) => {
+test('Settings › Appearance › Interface switches live: the unsaved text, the open agent panel and focus on the radio all stay', { tag: '@modern' }, async ({ page }) => {
   // This writer starts from Classic, chosen once.
   await page.addInitScript(() => {
     const store = (globalThis as unknown as View).localStorage;

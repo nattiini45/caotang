@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
+import { test } from './test.js';
 
 import { NO_PIN } from './classic-pin.js';
 import { createProject, waitForSaved, waitForShell } from './support.js';
@@ -207,7 +208,7 @@ function worstContrast(element: Locator, wallpaper: readonly string[]): Promise<
 }
 
 test.describe('the page (Write)', () => {
-  test('Insert picture, Add footnote and the daily target are 44 px in Modern, and keep their size in Classic', async ({ page }) => {
+  test('Insert picture, Add footnote and the daily target are 44 px in Modern, and keep their size in Classic', { tag: '@modern' }, async ({ page }) => {
     await sceneInClassic(page);
     const toolbar = page.getByRole('toolbar', { name: 'Insert into the scene' });
     const footer = page.locator('footer.editor-status');
@@ -240,7 +241,7 @@ test.describe('the page (Write)', () => {
 
 test.describe('Scene info', () => {
   for (const scheme of SCHEMES) {
-    test(`${scheme}: every field, picker and button is 44 px, and the field notes keep 4.5:1 on the glass`, async ({ page }) => {
+    test(`${scheme}: every field, picker and button is 44 px, and the field notes keep 4.5:1 on the glass`, { tag: '@modern' }, async ({ page }) => {
       await sceneInClassic(page, scheme);
       await switchToModern(page);
       const dialog = await openSceneInfo(page);
@@ -270,7 +271,7 @@ test.describe('Scene info', () => {
     });
   }
 
-  test('the project’s line names the project and opens Project details (§7.1)', async ({ page }) => {
+  test('the project’s line names the project and opens Project details (§7.1)', { tag: '@modern' }, async ({ page }) => {
     await sceneInClassic(page);
     await switchToModern(page);
     const dialog = await openSceneInfo(page);
@@ -284,7 +285,7 @@ test.describe('Scene info', () => {
 
 test.describe('the agent window', () => {
   for (const scheme of SCHEMES) {
-    test(`${scheme}: sections are h3 under the window's h2, Close keeps 4.5:1 on the glass, Mode and New task are 44 px`, async ({ page }) => {
+    test(`${scheme}: sections are h3 under the window's h2, Close keeps 4.5:1 on the glass, Mode and New task are 44 px`, { tag: '@modern' }, async ({ page }) => {
       await sceneInClassic(page, scheme);
       // Classic's drawer keeps its h4 (its DOM does not change).
       const drawer = page.getByTestId('agent-panel');
@@ -315,7 +316,7 @@ test.describe('the agent window', () => {
 
 test.describe('the top ornament', () => {
   for (const scheme of SCHEMES) {
-    test(`${scheme}: the save state sits on the scrim and keeps 4.5:1 on the thin glass`, async ({ page }) => {
+    test(`${scheme}: the save state sits on the scrim and keeps 4.5:1 on the thin glass`, { tag: '@modern' }, async ({ page }) => {
       await sceneInClassic(page, scheme);
       await switchToModern(page);
       await settle(page);
@@ -333,7 +334,7 @@ async function openView(page: Page, name: 'Board' | 'Codex'): Promise<void> {
 }
 
 test.describe('the Board and the Codex', () => {
-  test('the Board’s New card and card size (S/M/L, in the top ornament) are 44 px', async ({ page }) => {
+  test('the Board’s New card and card size (S/M/L, in the top ornament) are 44 px', { tag: '@modern' }, async ({ page }) => {
     await sceneInClassic(page);
     await switchToModern(page);
     await openView(page, 'Board');
@@ -349,7 +350,7 @@ test.describe('the Board and the Codex', () => {
     expect(await smallControls(controls)).toEqual([]);
   });
 
-  test('the Codex’s buttons, filter chips and search field are 44 px', async ({ page }) => {
+  test('the Codex’s buttons, filter chips and search field are 44 px', { tag: '@modern' }, async ({ page }) => {
     await sceneInClassic(page);
     await switchToModern(page);
     await openView(page, 'Codex');
