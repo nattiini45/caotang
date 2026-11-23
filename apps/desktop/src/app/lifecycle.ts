@@ -107,6 +107,8 @@ import { folderFileDiff, type FolderDiffLine } from './folder-diff.js';
 import { applyEncodingDecisions, encodingResultLines, type EncodingDecision } from './encoding-review.js';
 import { changedDuringSave, pruneFolderBackups, watchSave } from './folder-guard.js';
 import { folderArtifactFs, folderIsEmpty, isSameFolder, type DirectoryHandleLike } from './fs-access.js';
+import type { HostedProjectSource } from './studio-host.js';
+import { openRemoteProject, picturesOnProjectFs } from './hosted-project.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
 import {
   copiedFromOf,
@@ -1243,6 +1245,29 @@ export interface FolderDiffers {
   /** The folder's `caotang.json` text and the digests of its files, as the open read them: the baseline a later save is checked against. */
   readonly baselineText: string;
   readonly digests: ReadonlyMap<string, string>;
+}
+
+/**
+ * A project whose words live on the account — hosted.md §11. A host hands the frame the origin that serves the project's
+ * routes, the id, the device label and the project key as a non-extractable `CryptoKey`; this reads the project through the
+ * encrypted adapter and opens it here, as a folder open does, because the app's own open path is what gives a writer the
+ * binder, the codex and the compile step.
+ *
+ * The adapter is reached through this one dynamic import, and only when a host has handed a project over: `caotang.app`
+ * imports nothing from `@caotang/remote-store` and makes no call beyond the provider until then. `open` is injectable so a
+ * test can drive the adoption with a fake remote rather than a server.
+ */
+export async function openHostedProject(
+  store: RuntimeStore,
+  source: HostedProjectSource,
+  open: (source: HostedProjectSource) => Promise<ArtifactFs> = openRemoteProject,
+): Promise<Opened> {
+  const fs = await open(source);
+  const loaded = await readProject(fs);
+  // The project's pictures travel with it: the copy this browser keeps is what a later save is measured on, so a picture left
+  // behind here would be a picture the next save prunes from the account.
+  const pictures = await picturesOnProjectFs(fs);
+  return await adopt(store, loaded.state, await folderSessionsOf(fs), noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
 }
 
 /**

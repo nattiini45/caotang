@@ -15,7 +15,8 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { droppedFieldsSentence } from './app/integrity-model.js';
 import type { DirectoryHandleLike } from './app/fs-access.js';
 import { languageRevision, subscribeLanguage } from './i18n/language.js';
-import { openDemoSample, openFolder, type Opened } from './app/lifecycle.js';
+import { openDemoSample, openFolder, openHostedProject, type Opened } from './app/lifecycle.js';
+import { hostedProject } from './app/studio-host.js';
 import { useBootPhase } from './app/use-boot-phase.js';
 import { DemoStart } from './app/demo-start.js';
 import { openInTurn } from './app/open-queue.js';
@@ -53,6 +54,7 @@ export function App(): ReactNode {
   useEffect(() => {
     installTestHook(() => current.current);
   }, []);
+
 
   const show = (opened: Opened): void => {
     const previous = current.current;
@@ -145,6 +147,28 @@ export function App(): ReactNode {
       },
     ).finally(() => demo.settled());
   };
+
+  /**
+   * A frame a host handed a project to opens that project, and nothing else: the studio's own projects screen is not what the
+   * writer asked for when the shell said "open this one". It is the same turn queue a folder open takes, so a reload in the
+   * middle of an open cannot put two sessions in front of the writer.
+   */
+  useEffect(() => {
+    if (boot.kind !== 'ready') return;
+    const source = hostedProject();
+    if (source === null) return;
+    const token = (serial.current += 1);
+    void openInTurn(async () => {
+      const opened = await openHostedProject(boot.store, source);
+      if (token !== serial.current) return;
+      show(opened);
+    }).catch((error: unknown) => {
+      if (token !== serial.current) return;
+      setNotice(t`The project could not be opened: ${{ error: error instanceof Error ? error.message : String(error) }}`);
+    });
+    // The store is ready once; a project is handed over once per frame, and the frame is replaced rather than re-pointed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boot]);
 
   if (boot.kind === 'failed') {
     return (
