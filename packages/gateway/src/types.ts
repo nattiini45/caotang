@@ -42,7 +42,17 @@ export interface ProviderProfile {
   baseUrl: string;
   /** stored via §7 (AES-GCM, non-extractable). Never persisted in plaintext. */
   apiKey: string;
+  /**
+   * The first model the writer picked under this connection, and the one a request that names none is sent with. A profile
+   * holds one key and any number of models (`pickedModels`); this is the head of that list, never a separate model of its own.
+   */
   defaultModel: string;
+  /**
+   * Every model the writer picked under this connection, in the order the picker shows them, `defaultModel` first. One key
+   * covers all of them, so adding a model is a pick and not another key; a connection that holds only its default stores no
+   * list and reads as the one model (§2, "One connection, many models").
+   */
+  pickedModels?: readonly string[];
   /** sent only when the model row (or `params.temperature`) allows one; there is no built-in default */
   temperature?: number;
   maxOutputTokens?: number;
@@ -112,6 +122,11 @@ export interface NewProfile {
   apiKey?: string;
   /** the preset's default model when omitted */
   defaultModel?: string;
+  /**
+   * Every model this connection may be sent with, `defaultModel` first. Absent or empty reads as the default alone, so a
+   * caller that knows one model stays one call.
+   */
+  pickedModels?: readonly string[];
   /** the preset's extra fields a templated base URL is built from (workspace id, region) */
   fields?: Readonly<Record<string, string>>;
   /** extra request headers, sealed with the key; `generic` profiles only. Values never appear on a view. */
@@ -136,6 +151,11 @@ export interface ProfilePatch {
   /** replaces the sealed custom headers (`generic` only); `null` clears them, absent keeps them */
   customHeaders?: Readonly<Record<string, string>> | null;
   defaultModel?: string;
+  /**
+   * Replaces the picked list; `null` clears it, so the connection reads as its default model alone. The default model is
+   * always the head of the list, whatever order the patch gives, so a patch that moves the default moves it in the list too.
+   */
+  pickedModels?: readonly string[] | null;
   /** A new temperature replaces the saved one; `null` clears it; absent keeps it. */
   temperature?: number | null;
   maxOutputTokens?: number;

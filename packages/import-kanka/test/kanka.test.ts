@@ -207,15 +207,56 @@ describe('the Kanka entities (#293)', () => {
   });
 
   it('never lets a script’s text through, even when an entry is not readable HTML', async () => {
-    const broken = '<p>Unclosed <b>bold<script>alert(1)</script><style>p{color:red}</style> and a stray </p> tag.';
+    const broken =
+      '<p>Unclosed <b>bold<script>alert(1)</script><style>p{color:red}</style> and a stray </p> tag.' +
+      ' <<script>alert(2)</script> <script>alert(3)';
     const read = await readKanka(zipOf({ ...CAMPAIGN, 'characters/mara_12.json': entity(12, 'Mara', { entry: broken }) }));
     expect(read.ok).toBe(true);
     if (!read.ok) return;
     const body = read.value.pages.find((row) => row.entityId === 12)?.body ?? '';
     expect(body).toContain('Unclosed');
     expect(body).not.toContain('alert(1)');
+    expect(body).not.toContain('alert(2)');
+    expect(body).not.toContain('alert(3)');
+    expect(body).not.toContain('<script');
     expect(body).not.toContain('color:red');
     expect(read.value.losses.some((loss) => loss.message?.includes('not readable HTML'))).toBe(true);
+  });
+
+  it('keeps an entry’s picture and a post’s picture under their own refs', async () => {
+    const withTwo = {
+      ...CAMPAIGN,
+      'characters/elena_11.json': (CAMPAIGN['characters/elena_11.json'] as string)
+        .replace('She never sent it.', 'She never sent it.<img src=\\"campaigns/1/post.png\\" alt=\\"post\\"/>')
+        .replace('https://example.com/x.png', 'campaigns/1/inline.png'),
+      'campaigns/1/inline.png': PNG,
+      'campaigns/1/post.png': PNG,
+    };
+    const read = await readKanka(zipOf(withTwo));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const body = read.value.pages.find((row) => row.entityId === 11)?.body ?? '';
+    const refs = [...body.matchAll(/!\[[^\]]*\]\((import:kanka-entry-11-[^)]+)\)/g)].map((match) => match[1]);
+    expect(refs).toHaveLength(2);
+    expect(new Set(refs).size).toBe(2);
+    for (const ref of refs) expect(read.value.assetData.has(ref ?? '')).toBe(true);
+  });
+
+  it('caps an entity’s keywords at the field’s limit and names the rest', async () => {
+    const many = { ...CAMPAIGN };
+    const tags = Array.from({ length: 40 }, (_, index) => `tag ${index + 1}`);
+    many['characters/elena_11.json'] = entity(11, 'Elena', {
+      entry: '<p>Elena maps the harbour.</p>',
+      entityTags: tags.map((_tag, index) => ({ entity_id: 11, tag_id: 100 + index })),
+    });
+    for (const [index, tag] of tags.entries()) many[`tags/t${100 + index}_${100 + index}.json`] = entity(100 + index, tag);
+    const read = await readKanka(zipOf(many));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    // 41 offered (the module word plus 40 tags): 32 kept, the rest named.
+    expect(read.value.keywords.get(11)).toHaveLength(32);
+    expect(read.value.keywordOverflow).toHaveLength(9);
+    expect(read.value.keywordOverflow[0]).toBe('tag 32');
   });
 
   it('names a mention whose target the export does not carry, and counts it', () => {
@@ -223,5 +264,11 @@ describe('the Kanka entities (#293)', () => {
     expect(rewriteMentions('with [entity:12]', names)).toEqual({ text: 'with Mara', unresolved: 0, targets: [12] });
     expect(rewriteMentions('with [entity:99|the stranger]', names)).toEqual({ text: 'with the stranger', unresolved: 1, targets: [] });
     expect(rewriteMentions('with [entity:99]', names)).toEqual({ text: 'with #99', unresolved: 1, targets: [] });
+    // A label stops at a nested or unclosed `[entity:` instead of spanning it.
+    expect(rewriteMentions('with [entity:99|a [entity:12]', names)).toEqual({
+      text: 'with [entity:99|a Mara',
+      unresolved: 0,
+      targets: [12],
+    });
   });
 });

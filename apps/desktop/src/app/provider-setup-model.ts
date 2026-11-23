@@ -73,3 +73,12 @@ export function visibleModels(
   if (showAll || models.length <= COLLAPSED_MODEL_COUNT) return { shown: models, hidden: 0 };
   return { shown: models.slice(0, COLLAPSED_MODEL_COUNT), hidden: models.length - COLLAPSED_MODEL_COUNT };
 }
+
+/**
+ * What the model list starts with: the recommended model, so a writer who presses the one finish button gets a working provider.
+ * A provider that marks none recommended starts with nothing, and the finish button waits for a pick.
+ */
+export function defaultPick(models: readonly ModelChoice[]): readonly string[] {
+  const recommended = models.find((model) => model.recommended);
+  return recommended === undefined ? [] : [recommended.id];
+}

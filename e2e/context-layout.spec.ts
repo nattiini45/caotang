@@ -45,7 +45,7 @@ for (const variant of [
       if (variant.shell === 'modern') await page.keyboard.press('Control+j');
     }
     await page.setViewportSize({ width: variant.width, height: variant.height });
-    const input = panel.getByRole('combobox');
+    const input = panel.getByRole('combobox', { name: variant.language === 'de' ? 'Absicht' : 'Intent' });
     await input.fill('Consider @Storm');
     await expect(page.getByTestId('command-menu').getByRole('option')).toHaveCount(1);
     await input.press('Enter');

@@ -6,8 +6,8 @@
  */
 
 import type { ImportAsset, ImportDocument } from '@caotang/import-core';
-import { htmlToBlocks, type HtmlDropped } from '@caotang/import-html';
-import { readEpub, containerOpfPath, parseOpf, type EpubChapter, type EpubMatter } from '@caotang/import-epub';
+import { dropUnresolvedPictures, htmlToBlocks, pictureRefusal, type HtmlDropped, type PictureRefusal } from '@caotang/import-html';
+import { readEpubArchive, containerOpfPath, parseOpf, type EpubChapter, type EpubMatter } from '@caotang/import-epub';
 import { decodePlainText } from '@caotang/import-read/text';
 import { openZip } from '@caotang/import-read/zip';
 
@@ -112,8 +112,8 @@ function dataUriBytes(target: string): Uint8Array | null {
 function plainHeadings(blocks: ImportDocument['blocks']): ImportDocument['blocks'] {
   return blocks.map((block) => {
     if (block.kind !== 'heading') return block;
-    const text = block.text.replace(/\[([^\]]*)\]\(#[^)]*\)/g, '$1').trim();
-    return text === block.text ? block : { ...block, text, md: `${'#'.repeat(block.level)} ${text}` };
+    const md = block.md.replace(/\[([^\]]*)\]\((?:#|https?:\/\/[^)]*)\)/g, '$1').trim();
+    return md === block.md ? block : { ...block, md };
   });
 }
 
@@ -132,16 +132,26 @@ export function readAo3Html(bytes: Uint8Array, fileName: string): Ao3Result {
 
   const assetData = new Map<string, Uint8Array>();
   const assets: ImportAsset[] = [];
+  const refused = new Map<string, PictureRefusal>();
   for (const [ref, target] of walked.value.images) {
     const data = dataUriBytes(target);
     if (data === null) continue;
+    // The commit's picture pipeline is strict over the whole batch, so bytes it would refuse never become an offer.
+    const why = pictureRefusal(data);
+    if (why !== undefined) {
+      refused.set(ref, why);
+      continue;
+    }
     assetData.set(ref, data);
     assets.push({ ref, name: ref, bytes: data.length });
   }
 
+  // A picture with no bytes behind it keeps its alt text and is named, rather than leaving a ref that resolves to nothing.
+  const kept = dropUnresolvedPictures(walked.value.blocks, new Set(assetData.keys()), walked.value.images, refused);
+
   const document: ImportDocument = {
-    blocks: plainHeadings(walked.value.blocks),
-    losses: walked.value.losses,
+    blocks: plainHeadings(kept.blocks),
+    losses: [...walked.value.losses, ...kept.losses],
     assets,
     metadata: { title: preface.meta.title, ...(preface.meta.author === '' ? {} : { author: preface.meta.author }), ...(preface.meta.language === '' ? {} : { language: preface.meta.language }) },
   };
@@ -169,7 +179,9 @@ export function readAo3Html(bytes: Uint8Array, fileName: string): Ao3Result {
 
 /** Read an AO3 EPUB download: the same work, its chapters from the book's own navigation. */
 export async function readAo3Epub(bytes: Uint8Array): Promise<Ao3Result> {
-  const read = await readEpub(bytes, { skip: AO3_SKIP });
+  const archive = await openZip(bytes);
+  if (!archive.ok) return { ok: false, error: { kind: 'archive', message: archive.error.message } };
+  const read = await readEpubArchive(archive.value, { skip: AO3_SKIP });
   if (!read.ok) {
     const error = read.error;
     switch (error.kind) {
@@ -189,8 +201,6 @@ export async function readAo3Epub(bytes: Uint8Array): Promise<Ao3Result> {
   }
 
   // The preface sits on the first page of the download: read it again as markup, without the text import's skipping.
-  const archive = await openZip(bytes);
-  if (!archive.ok) return { ok: false, error: { kind: 'archive', message: archive.error.message } };
   const container = await archive.value.read('META-INF/container.xml');
   if (!container.ok) return { ok: false, error: { kind: 'no-opf' } };
   const containerText = decodePlainText(container.value);

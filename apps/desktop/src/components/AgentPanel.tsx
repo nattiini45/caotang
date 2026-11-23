@@ -41,9 +41,13 @@ import { formatUsd } from '../app/plan-preview.js';
 import { sumUsage } from '@caotang/gateway';
 import { groupUsage } from '../app/usage-model.js';
 import { isImeEnter, keyFacts, keyboardLayoutStore, MODAL_DIALOG_SELECTOR, resolveKey, shortcutLabel } from '../app/keymap.js';
+import type { ChatModelView } from '../app/chat-model.js';
 import { providerLabel } from '../app/provider-label.js';
 import { unresolvedNotice } from '../app/review-text.js';
 import type { AgentController, AgentSnapshot, GoalRecoveryView } from '../app/agent.js';
+import { ChatModelPicker } from './ChatModelPicker.js';
+import { useNarrow } from './narrow.js';
+import { THINKING_LEVEL_NAMES } from './thinking-levels.js';
 import type { CommandNote } from '../app/slash-model.js';
 import type { RecurringTasks } from '../app/recurring-tasks.js';
 import type { StartIntent } from '../App.js';
@@ -115,6 +119,12 @@ export interface AgentPanelProps {
   readonly placement?: 'drawer' | 'window';
   /** Closes the window. Only the window placement draws **Close** and calls it. */
   readonly onClose?: () => void;
+  /**
+   * The chat window's model picker (provider-gateway §2, "One connection, many models"): every model the writer's provider
+   * connections hold, where chat runs now, and the write a pick makes. Absent in a host that draws no picker.
+   */
+  readonly model?: ChatModelView;
+  readonly onPickModel?: (profileId: string, model: string, thinking?: string) => void;
   /** Opens Settings › Providers. Only the window gets it, and offers it under the demo's refusal (#363). */
   readonly onAddProvider?: () => void;
   readonly onOpenProviders?: () => void;
@@ -167,6 +177,8 @@ export function AgentPanel({
   sample,
   placement = 'drawer',
   onClose,
+  model,
+  onPickModel,
   onAddProvider,
   onOpenProviders,
   onOpenTaskFindings,
@@ -177,8 +189,10 @@ export function AgentPanel({
   const sectionHeading = inWindow ? 3 : 4;
   // A window is always open: only the drawer folds.
   const open = inWindow || drawerOpen;
-  useLingui();
+  const { i18n } = useLingui();
   const sessionVersion = useSession(session);
+  // A narrow header does not draw the provider line, so there the picker carries the connection's name itself.
+  const narrow = useNarrow();
   const snapshot = useSyncExternalStore(agent.subscribe, agent.snapshot);
   const goalInConversation = (goal: GoalRecoveryView): boolean => open && (goal.goalId === snapshot.activeGoalId || (goal.status === 'settled' && !goal.unreadable));
   const chatMemory = snapshot.sessionMemory.find((memory) => memory.role === 'chat');
@@ -430,6 +444,11 @@ export function AgentPanel({
   };
 
   const provider = snapshot.providerName;
+  // A pick pins chat to its own connection, so this line names the connection the next turn goes through rather than the active
+  // profile, and a narrow header can show the picker without hiding the only place the connection is named.
+  const connection = model?.connection === null || model?.connection === undefined ? null : isolate(model.connection);
+  // One message for one line: the connection a pick pinned, else the active profile's label.
+  const named = connection ?? (provider === null ? null : isolate(providerLabel(provider, snapshot.providerIsDemo)));
   const runActionPending = snapshot.runHistory.some((run) => run.pending !== null && run.pending !== undefined);
   const running = snapshot.turns[snapshot.turns.length - 1];
   const stepRef = running === undefined || isSettled(running) ? null : headerRefOf(running.tasks, (ref) => renderRef(ref, { userValues: WRITER_VALUE_KEYS }));
@@ -546,8 +565,22 @@ export function AgentPanel({
           </button>
         )}
         <span className="agent-provider" data-testid="agent-provider">
-          {provider === null ? t`No provider` : t`Provider: ${{ provider: isolate(providerLabel(provider, snapshot.providerIsDemo)) }}`}
+          {named === null ? t`No provider` : t`Provider: ${{ provider: named }}`}
         </span>
+        {model === undefined || onPickModel === undefined || snapshot.providerIsDemo ? null : (
+          <ChatModelPicker
+            groups={model.groups}
+            value={model.value}
+            levels={model.levels.map((level) => ({ id: level, label: i18n._(THINKING_LEVEL_NAMES[level]) }))}
+            thinking={model.thinking}
+            showConnection={narrow}
+            disabled={snapshot.busy}
+            onPick={(profileId, chosen) => onPickModel(profileId, chosen)}
+            onPickThinking={(level) => {
+              if (model.value !== null) onPickModel(model.value.profileId, model.value.model, level);
+            }}
+          />
+        )}
         {/* The permission mode (agent-harness §4): a radio group named by its visible label, in the header so it shows with the drawer closed too. */}
         <fieldset className="agent-mode" data-testid="agent-mode">
           <legend><Trans>Mode</Trans></legend>

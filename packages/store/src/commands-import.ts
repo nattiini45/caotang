@@ -191,17 +191,21 @@ function importTreeApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectAp
     // 5. The codex pages and entries (codex.importBatch's shape), attached to the document each cites.
     const hadCodex = state.manifest.codex !== undefined;
     const pageIds: string[] = [];
+    const pageMaps = new Map<number, (offset: number) => number>();
     const madeEntries: CodexEntry[] = [];
     if (params.codex !== undefined) {
-      for (const page of params.codex.pages ?? []) {
-        pageIds.push(addDocument(state, { parentId: 'research', title: page.title, body: page.body, now: at }).id);
+      for (const [pageIndex, page] of (params.codex.pages ?? []).entries()) {
+        // A codex page's body rewrites its picture refs like every document's, and a cite into it re-maps the same way.
+        const rewritten = rewritePictureRefs(page.body, paths);
+        pageMaps.set(pageIndex, rewritten.map);
+        pageIds.push(addDocument(state, { parentId: 'research', title: page.title, body: rewritten.body, now: at }).id);
       }
       const codex = state.manifest.codex ?? (state.manifest.codex = []);
       const taken = new Set(codex.map((entry) => entry.id));
       for (const op of params.codex.entries) {
         const docId = op.node !== undefined ? ids[op.node] : (op.attachTo ?? pageIds[op.page ?? -1]);
         if (docId === undefined) throw new Error(`binder.importTree reached its apply with a codex row ("${op.name}") that names no document`);
-        const map = op.node === undefined ? undefined : maps.get(op.node);
+        const map = op.node === undefined ? (op.page === undefined ? undefined : pageMaps.get(op.page)) : maps.get(op.node);
         const from = map === undefined ? op.cite.from : map(op.cite.from);
         const to = map === undefined ? op.cite.to : map(op.cite.to);
         const id = newId('c', { taken });

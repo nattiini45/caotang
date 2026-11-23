@@ -11,7 +11,7 @@ import type { KankaError, KankaImport } from '@caotang/import-kanka';
 import { codexTypeOf } from '@caotang/import-kanka';
 
 import { formatCount } from '../i18n/locale.js';
-import type { ImportPreviewSource, PreviewBlock, PreviewCodexRow, PreviewNode, PreviewOption, PreviewPicture, PreviewPlan, ScanExtra } from './model.js';
+import type { ImportPreviewSource, PreviewBlock, PreviewCodexRow, PreviewNode, PreviewOption, PreviewPicture, PreviewPlan, PreviewSettings, ScanExtra } from './model.js';
 import { ReaderHost } from './reader-host.js';
 import type { ReaderOpen } from './reader-protocol.js';
 
@@ -35,6 +35,11 @@ export function kankaErrorText(error: KankaError): string {
 
 function wordsIn(text: string): number {
   return text.split(/\s+/).filter((word) => word !== '').length;
+}
+
+/** With the pictures option off the references leave the bodies, as the other imports do: the words stay. */
+function stripImages(md: string): string {
+  return md.replace(/!\[[^\]]*\]\(import:[^)]+\)/g, '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /** A Kanka campaign export in the preview, read in the Worker. */
@@ -101,10 +106,18 @@ export function kankaPreviewSource(fileName: string, bytes: Uint8Array): ImportP
       const title = t`Campaign gallery`;
       named.push({ title, body: `# ${title}\n\n${read.gallery.body}` });
     }
+    // A campaign with no events and no unused gallery picture still needs one document: an empty tree cannot commit.
+    if (named.length === 0) {
+      const title = t`Campaign index`;
+      const lines = read.entities.map((entity) => `- ${entity.name} — ${[entity.module, entity.type].filter((part) => part !== '').join(' · ')}`);
+      named.push({ title, body: `# ${title}\n\n${lines.join('\n')}` });
+    }
+    if (!picturesOn) return named.map((doc) => ({ ...doc, body: stripImages(doc.body) }));
     return named;
   };
 
-  const plan = (): PreviewPlan => {
+  const plan = (settings: PreviewSettings): PreviewPlan => {
+    picturesOn = settings.options[KANKA_OPTIONS.pictures] !== false;
     const blocks: PreviewBlock[] = [];
     const tree: PreviewNode[] = [];
     let words = 0;
@@ -152,7 +165,6 @@ export function kankaPreviewSource(fileName: string, bytes: Uint8Array): ImportP
       loaded = true;
     },
     prepare: async (_settings, signal) => {
-      picturesOn = _settings.options[KANKA_OPTIONS.pictures] ?? true;
       await readAs(signal);
       loaded = true;
     },
@@ -180,7 +192,7 @@ export function kankaPreviewSource(fileName: string, bytes: Uint8Array): ImportP
           ...(page.description === '' ? {} : { description: page.description }),
           ...(keywords.length === 0 ? {} : { keywords }),
           ...(entity.isPrivate ? { includePolicy: 'manual' } : {}),
-          page: { title: page.title, body: page.body },
+          page: { title: page.title, body: picturesOn ? page.body : stripImages(page.body) },
           preferPage: true,
         }];
       });
@@ -227,7 +239,21 @@ export function kankaPreviewSource(fileName: string, bytes: Uint8Array): ImportP
         const mentions = read.unresolvedMentions;
         approximated.push(plural(mentions, { one: '# mention names an entity the export does not carry', other: '# mentions name entities the export does not carry' }));
       }
+      if (!picturesOn) approximated.push(t`The pictures were left out, as chosen.`);
       if (approximated.length > 0) lists.push({ heading: t`Kanka`, label: t`What was approximated`, lines: approximated });
+
+      if (read.keywordOverflow.length > 0) {
+        const overflow = read.keywordOverflow.length;
+        const rest = read.keywordOverflow.join(', ');
+        lists.push({
+          heading: t`Keywords`,
+          label: t`What an entry cannot hold`,
+          lines: [
+            plural(overflow, { one: '# keyword is past the limit of the keywords field', other: '# keywords are past the limit of the keywords field' }),
+            t`The rest are listed here: ${rest}`,
+          ],
+        });
+      }
 
       const dropped: string[] = [];
       const scripts = read.dropped.scripts;

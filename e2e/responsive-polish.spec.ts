@@ -2,6 +2,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 import { FAKE_ENDPOINT, fakeEndpoint, planThenAnswer } from './endpoint.js';
 import { test } from './test.js';
 import { chooseInterfaceLanguage, createProject } from './support.js';
+import { pickModels } from './provider-setup-support.js';
 
 async function selectLanguage(page: Page, settings: Locator, language: string): Promise<void> {
   await settings.locator('[data-section="appearance"]').click();
@@ -82,7 +83,9 @@ for (const shell of ['classic', 'modern'] as const) {
       await page.setViewportSize({ width: 390, height: 844 });
       await form.locator('input[type="url"]').fill(FAKE_ENDPOINT);
       await form.getByRole('button', { name: de ? 'Verbinden und Modelle auflisten' : 'Connect and list models', exact: true }).click();
-      await settings.getByRole('option', { name: 'test-model' }).click();
+      // A custom endpoint recommends no model, so the writer picks one and the step finishes on it.
+      await pickModels(settings, ['test-model']);
+      await settings.getByRole('button', { name: de ? 'Dieses Modell verwenden' : 'Use this model', exact: true }).click();
       await settings.getByRole('button', { name: de ? 'Erledigt' : 'Done', exact: true }).click();
 
       const profile = 'Coastal demo';
