@@ -47,6 +47,8 @@ import {
 } from '../app/lifecycle.js';
 import type { ZoomLevel } from '../app/corkboard-model.js';
 import type { AppServices } from '../app/services.js';
+import { chatModelView, withChatModel } from '../app/chat-model.js';
+import { normalizeRoleSettings } from '../app/settings.js';
 import { contextConfigOf } from '../app/settings.js';
 import type { PendingFailure } from '../app/pending-journal.js';
 import type { ProjectSession, SaveState } from '../app/session.js';
@@ -325,6 +327,33 @@ export function Workspace({
   // A whole sentence used as a value in the banner's message; a name keeps it out of a positional `{0}`.
   const storageSentence = durabilitySentence(durability);
   const sample = settingsNow.sampleProjectIds.includes(session.projectId);
+
+  // The chat window's model picker (provider-gateway §2, "One connection, many models"): every model picked under the writer's
+  // provider connections, and the write a pick makes — the chat role's route, through the settings record the Task roles section
+  // writes, so both surfaces show one choice.
+  const chatModel = chatModelView(
+    services.providers.list(),
+    services.providers.roleSettings,
+    services.providers.active()?.id ?? null,
+    (profileId, modelId) => services.providers.gateway.modelCaps(profileId, modelId).effortLevels ?? [],
+  );
+  const pickChatModel = (profileId: string, modelId: string, thinking?: string): void => {
+    const active = services.providers.active();
+    const chosen = withChatModel(
+      services.providers.roleSettings,
+      { profileId, model: modelId },
+      active === undefined ? null : { profileId: active.id, defaultModel: active.defaultModel },
+      // A level the writer picks is theirs to state: `''` clears it back to the provider default, and either way it is written even
+      // where chat otherwise follows the active connection, because a level is not that connection's default.
+      {
+        ...(thinking === undefined ? {} : { level: thinking }),
+        levels: services.providers.gateway.modelCaps(profileId, modelId).effortLevels ?? [],
+      },
+    );
+    services.providers.applyRoleSettings(normalizeRoleSettings(chosen));
+    void services.settings.update({ provider: { roles: chosen } });
+    agent?.refresh();
+  };
 
   const reportChannel = useMemo(() => new ReportChannel(), []);
   const report = useCallback((message: StatusMessage) => {
@@ -1064,6 +1093,8 @@ export function Workspace({
           recurring={recurring}
           startIntent={startIntent}
           draft={agentDraft}
+          model={chatModel}
+          onPickModel={pickChatModel}
           open={agentOpen}
           onToggle={() => setAgentOpen((on) => !on)}
           sample={sample}
@@ -1083,6 +1114,8 @@ export function Workspace({
           recurring={recurring}
           startIntent={startIntent}
           draft={agentDraft}
+          model={chatModel}
+          onPickModel={pickChatModel}
           open
           onToggle={() => setAgentOpen((on) => !on)}
           onClose={() => setAgentOpen(false)}

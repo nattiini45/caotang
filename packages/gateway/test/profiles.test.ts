@@ -8,6 +8,7 @@ import {
   createKeyStore,
   createMemoryVaultPort,
   createProfileStore,
+  modelsOf,
   PROFILE_ID_PATTERN,
   ProfileError,
   type NewProfile,
@@ -467,6 +468,59 @@ describe('validation', () => {
       ProfileError,
     );
     expect(profiles.get(created.id)?.baseUrl).toBe('https://a.example/v1');
+  });
+});
+
+describe('one connection holds many models (§2)', () => {
+  it('stores the models picked under one key, its default first, and stores no list for a single model', async () => {
+    const { profiles } = store();
+    const alone = await profiles.create(endpoint('one model'));
+    expect(alone.pickedModels).toBeUndefined();
+    expect(modelsOf(alone)).toEqual(['model-x']);
+
+    const many = await profiles.create(endpoint('three models', { defaultModel: 'model-b', pickedModels: ['model-a', 'model-b', 'model-c'] }));
+    // The default is the head of the list whatever order the save gave, and each model appears once.
+    expect(many.pickedModels).toEqual(['model-b', 'model-a', 'model-c']);
+    expect(modelsOf(many)).toEqual(['model-b', 'model-a', 'model-c']);
+    expect(profiles.get(many.id)?.pickedModels).toEqual(['model-b', 'model-a', 'model-c']);
+  });
+
+  it('replaces the list on a patch, keeps it when the patch says nothing, and clears it on null', async () => {
+    const { profiles } = store();
+    const created = await profiles.create(endpoint('models', { defaultModel: 'a', pickedModels: ['a', 'b'] }));
+    await profiles.update(created.id, { pickedModels: ['a', 'b', 'c'] });
+    expect(profiles.get(created.id)?.pickedModels).toEqual(['a', 'b', 'c']);
+    // A patch about another field leaves the list alone.
+    await profiles.update(created.id, { name: 'renamed' });
+    expect(profiles.get(created.id)?.pickedModels).toEqual(['a', 'b', 'c']);
+    // Moving the default moves it to the head, and the previous default stays in the list.
+    await profiles.update(created.id, { defaultModel: 'c' });
+    expect(profiles.get(created.id)?.pickedModels).toEqual(['c', 'a', 'b']);
+    await profiles.update(created.id, { pickedModels: null });
+    expect(profiles.get(created.id)?.pickedModels).toBeUndefined();
+    expect(modelsOf(profiles.get(created.id)!)).toEqual(['c']);
+  });
+
+  it('counts a repeated model once and refuses a list that is not a list of names', async () => {
+    const { profiles } = store();
+    const created = await profiles.create(endpoint('dupes', { pickedModels: ['model-x', 'model-x', 'model-y', ' model-y '] }));
+    expect(profiles.get(created.id)?.pickedModels).toEqual(['model-x', 'model-y']);
+    await expect(profiles.update(created.id, { pickedModels: [42] as unknown as string[] })).rejects.toMatchObject({ code: 'invalid' });
+    await expect(profiles.update(created.id, { pickedModels: 'model-x' as unknown as string[] })).rejects.toMatchObject({ code: 'invalid' });
+  });
+
+  it('leaves a mock profile with its one model, whatever the save lists', async () => {
+    const { profiles } = store();
+    const mock = await profiles.create({ name: 'demo', kind: 'mock', pickedModels: ['mock/other'] });
+    expect(mock.pickedModels).toBeUndefined();
+    expect(modelsOf(mock)).toEqual(['mock/echo-1']);
+  });
+
+  it('keeps the key out of a view that lists several models', async () => {
+    const { profiles, keys } = store();
+    const created = await profiles.create(endpoint('many', { pickedModels: ['model-x', 'model-y'] }));
+    expect(await keys.reveal(created.id)).toBe(KEY);
+    expect(JSON.stringify(profiles.list())).not.toContain(KEY);
   });
 });
 

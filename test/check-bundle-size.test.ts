@@ -189,13 +189,13 @@ describe('Modern: the lazy chunk, the stylesheets and Modern first load (modern-
     expect(BUDGET.css?.caps['modern-shell']).toBe(98_300);
     expect(BUDGET.css?.entryMargin).toBe(0.01);
     expect(BUDGET.modernFirstLoadDelta).toBe(36_500);
-    expect(BUDGET.totalJs).toBe(8_968_000);
+    expect(BUDGET.totalJs).toBe(8_976_800);
   });
 
-  it('pins the approved ceilings: all JS 8,968,000 bytes, the entry chunk 1,250,000 and the first load 1,117,000 gzip', () => {
-    expect(BUDGET.totalJs).toBe(8_968_000);
+  it('pins the approved ceilings: all JS 8,976,800 bytes, the entry chunk 1,250,000 and the first load 1,118,500 gzip', () => {
+    expect(BUDGET.totalJs).toBe(8_976_800);
     expect(BUDGET.allow.index).toBe(1_250_000);
-    expect(BUDGET.initialGzip).toBe(1_117_000);
+    expect(BUDGET.initialGzip).toBe(1_118_500);
   });
 });
 

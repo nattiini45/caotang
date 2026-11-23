@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { MemoryIndexedDb } from '@caotang/store';
 import { ProviderService } from '../src/app/providers.js';
-import type { AppDb } from '../src/app/app-db.js';
+import { APP_KEYS, type AppDb } from '../src/app/app-db.js';
 
 function memoryDb(): AppDb {
   const rows = new Map<string, unknown>();
@@ -93,6 +93,41 @@ describe('the studio host seam', () => {
     // can be told about it.
     await service.keys.put('mcp:server-one', 'token-value');
     expect(seen).toEqual([{ profileId: created.id, change: { origin: 'https://a.example', payload: { apiKey: 'sk-after' } } }]);
+  });
+
+  it('adds models to a profile whose key lives in the account vault, without the writer entering it again', async () => {
+    const db = memoryDb();
+    const vault = new MemoryIndexedDb();
+    // An earlier build saved one model and no list; its key is only on the account, as a hosted writer's is.
+    const first = await ProviderService.open({ db, vault });
+    const created = await first.service.profiles.create(endpoint('Endpoint', 'sk-vaulted'));
+    await first.service.persist();
+    await first.service.keys.remove(created.id);
+
+    const second = await ProviderService.open({
+      db,
+      vault,
+      host: { restore: async (origins) => [...origins].some(([id]) => id === created.id) ? [{ profileId: created.id, payload: { apiKey: 'sk-vaulted' } }] : [] },
+    });
+    expect(await second.service.keys.reveal(created.id)).toBe('sk-vaulted');
+
+    // Picking more models under that one key is a profile write: the id, the origin and the sealed key are untouched, so the
+    // account's copy stays openable and nothing asks for the key again.
+    const extended = await second.service.profiles.update(created.id, { pickedModels: ['model-x', 'model-y'] });
+    expect(extended.id).toBe(created.id);
+    expect(extended.pickedModels).toEqual(['model-x', 'model-y']);
+    expect(await second.service.keys.reveal(created.id)).toBe('sk-vaulted');
+    await second.service.persist();
+
+    const third = await ProviderService.open({
+      db,
+      vault,
+      host: { restore: async () => [{ profileId: created.id, payload: { apiKey: 'sk-vaulted' } }] },
+    });
+    const restored = third.service.get(created.id);
+    expect(restored?.pickedModels).toEqual(['model-x', 'model-y']);
+    expect(await third.service.keys.reveal(created.id)).toBe('sk-vaulted');
+    expect(JSON.stringify(await db.get(APP_KEYS.profiles))).not.toContain('sk-vaulted');
   });
 
   it('does not report the keys it reads back while opening the stored studio', async () => {
