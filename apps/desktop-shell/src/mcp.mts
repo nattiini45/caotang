@@ -65,16 +65,25 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
     });
   };
 
-  /** Set while a stop was asked for, so the exit it causes is reported as a stop and not as a server that died. */
-  let stopping = false;
-  /** The start in flight, so two starts cannot each fork a child and kill the other's. */
-  let starting: Promise<McpHostReply<McpHostStatus>> | null = null;
   /**
-   * How many saves have asked for a pause and not yet finished. The host keeps it, not only the server, because a start forks a new
-   * child whose own count is zero: a save in flight must pause that child too, or a write could start in the middle of a save that
-   * began before the server did.
+   * One operation at a time. A start, a stop, a pause and a resume all touch the same child, and the bugs this file had were mostly
+   * two of them in flight together — a stop landing inside a start, a resume retried while another save paused. The queue is the
+   * whole answer to that: one at a time, in the order they were asked for.
+   */
+  let queue: Promise<unknown> = Promise.resolve();
+  const serial = <T,>(run: () => Promise<T>): Promise<T> => {
+    const next = queue.then(run, run);
+    queue = next.then(() => undefined, () => undefined);
+    return next;
+  };
+
+  /**
+   * How many saves hold a pause. It is the host's count, not only the child's, because a start forks a child whose own count is zero:
+   * a save in flight must pause that child before the page is told its address, or a write could start mid-save.
    */
   let pauses = 0;
+  /** Set while a stop was asked for, so the exit it causes is reported as a stop and not as a server that died. */
+  let stopping = false;
 
   const stopChild = async (): Promise<void> => {
     const running = child;
@@ -85,94 +94,6 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
     running.kill();
     await ended;
     stopping = false;
-  };
-
-  /** A start: the same bundle, the open folder, a token this app minted, and writes on or off as the writer chose. */
-  const begin = async (folderId: unknown, allowWrites: unknown): Promise<McpHostReply<McpHostStatus>> => {
-    if (typeof folderId !== 'string') return { ok: false, refusal: 'no-folder' };
-    const root = options.rootOf(folderId);
-    if (root === undefined) return { ok: false, refusal: 'no-folder' };
-    if (!existsSync(options.bundle)) return { ok: false, refusal: 'bundle-missing' };
-    await stopChild();
-    const token = randomBytes(24).toString('base64url');
-    publish({ state: 'starting', folderId, allowWrites: allowWrites === true });
-    const args = ['serve', '--project', root, '--port', '0'];
-    if (allowWrites === true) args.push('--allow-writes');
-    const forked = utilityProcess.fork(options.bundle, args, {
-      // The write setting is set explicitly, both ways: a `CAOTANG_MCP_ALLOW_WRITES=true` inherited from whatever launched the app would
-      // otherwise expose writes while the switch says they are off (cli.ts reads that variable as an argument).
-      env: { ...process.env, CAOTANG_MCP_TOKEN: token, CAOTANG_MCP_ALLOW_WRITES: allowWrites === true ? 'true' : 'false' },
-      stdio: 'pipe',
-      serviceName: 'Caotang MCP server',
-    });
-    child = forked;
-
-    return await new Promise<McpHostReply<McpHostStatus>>((resolve) => {
-      let settled = false;
-      let said = '';
-      const since = new Date().toISOString();
-      const settle = (answer: McpHostReply<McpHostStatus>): void => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve(answer);
-      };
-      // A save that began before this start is still saving: the new child is paused before the answer goes out.
-      const reapply = async (running: McpHostStatus): Promise<McpHostReply<McpHostStatus>> => {
-        if (pauses > 0) await postControl(running, 'pause').catch(() => false);
-        return { ok: true, value: running };
-      };
-      const timer = setTimeout(() => {
-        void stopChild();
-        publish({ state: 'failed', refusal: 'failed', folderId, detail: said.trim().split('\n').slice(-1)[0] });
-        settle({ ok: false, refusal: 'failed' });
-      }, READY_TIMEOUT_MS);
-
-      forked.stderr?.on('data', (chunk: Buffer) => {
-        said = `${said}${chunk.toString('utf8')}`.slice(-4096);
-        // Against everything it has said so far, because a line can arrive in two chunks.
-        const endpoint = ENDPOINT.exec(said.split('\n').map((line) => line.trim()).find((line) => ENDPOINT.test(line)) ?? '');
-        if (endpoint === null) return;
-        const running: McpHostStatus = { state: 'running', url: endpoint[1], token, allowWrites: allowWrites === true, since, folderId };
-        publish(running);
-        void reapply(running).then(settle);
-      });
-      forked.stderr?.on('end', () => {
-        if (settled) return;
-        publish({ state: 'failed', refusal: 'failed', folderId, detail: said.trim().split('\n').slice(-1)[0] });
-        settle({ ok: false, refusal: 'failed' });
-      });
-      forked.once('exit', (code) => {
-        if (child === forked) child = undefined;
-        if (!settled && stopping) {
-          // A stop the writer asked for, while the server was still starting: they asked for it to be stopped, and it is.
-          publish({ state: 'stopped' });
-          settle({ ok: true, value: status });
-          return;
-        }
-        // A server that goes after it was ready, without a stop being asked for, failed: reporting it as stopped would leave the block
-        // saying the writer stopped something they did not.
-        if (status.state === 'running') {
-          publish({ state: 'failed', refusal: 'failed', folderId: status.folderId, detail: said.trim().split('\n').slice(-1)[0] });
-        } else if (status.state === 'starting') {
-          publish({ state: 'stopped' });
-        }
-        if (!settled) {
-          // The command line's own exit codes say why it would not serve: 3 is the folder another writer holds, 2 is a folder that
-          // holds no project and cannot be made one, and anything else is this app's to report (cli.ts).
-          const refusal: McpHostRefusal = code === 3 ? 'busy' : 'failed';
-          publish({ state: 'failed', refusal, folderId, detail: said.trim().split('\n').slice(-1)[0] });
-          settle({ ok: false, refusal });
-        }
-      });
-    });
-  };
-
-  const start = async (folderId: unknown, allowWrites: unknown): Promise<McpHostReply<McpHostStatus>> => {
-    // One start at a time: a second one while the first is still in its handshake would kill that child mid-start and report a death
-    // the writer did not ask for.
-    if (starting === null) starting = begin(folderId, allowWrites).finally(() => { starting = null; });
-    return await starting;
   };
 
   /** Posts one control call to a running server: the pause that stands between the app's check and its rename, and its end. */
@@ -192,52 +113,123 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
     }
   };
 
-  /** One control call: the app's own token, its own server, and the pause that stands between a check and a rename. */
-  const control = async (what: 'pause' | 'resume'): Promise<McpHostReply<McpHostStatus>> => {
-    if (status.state !== 'running') {
-      // Nothing running is not a failure: a save with no server has nothing to pause.
-      return { ok: true, value: status };
+  /**
+   * A start: the same bundle, the open folder, a token this app minted, and writes on or off as the writer chose. The answer is given
+   * only once the child is ready and, if a save is in flight, paused: the address the page receives is never one that accepts writes
+   * in the middle of a save.
+   */
+  const begin = async (folderId: unknown, allowWrites: unknown): Promise<McpHostReply<McpHostStatus>> => {
+    if (typeof folderId !== 'string') return { ok: false, refusal: 'no-folder' };
+    const root = options.rootOf(folderId);
+    if (root === undefined) return { ok: false, refusal: 'no-folder' };
+    if (!existsSync(options.bundle)) return { ok: false, refusal: 'bundle-missing' };
+    await stopChild();
+    const token = randomBytes(24).toString('base64url');
+    publish({ state: 'starting', folderId, allowWrites: allowWrites === true });
+    const args = ['serve', '--project', root, '--port', '0'];
+    if (allowWrites === true) args.push('--allow-writes');
+    const forked = utilityProcess.fork(options.bundle, args, {
+      // The write setting is set explicitly, both ways: a `CAOTANG_MCP_ALLOW_WRITES=true` inherited from whatever launched the app would
+      // otherwise expose writes while the switch says they are off (cli.ts reads that variable as an argument).
+      env: { ...process.env, CAOTANG_MCP_TOKEN: token, CAOTANG_MCP_ALLOW_WRITES: allowWrites === true ? 'true' : 'false' },
+      stdio: 'pipe',
+      serviceName: 'Caotang MCP server',
+    });
+    child = forked;
+    const since = new Date().toISOString();
+    let said = '';
+
+    const ready = await new Promise<{ readonly ok: true; readonly url: string } | { readonly ok: false; readonly refusal: McpHostRefusal }>((resolve) => {
+      let done = false;
+      const finish = (answer: { readonly ok: true; readonly url: string } | { readonly ok: false; readonly refusal: McpHostRefusal }): void => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve(answer);
+      };
+      const timer = setTimeout(() => {
+        void stopChild();
+        finish({ ok: false, refusal: 'failed' });
+      }, READY_TIMEOUT_MS);
+      forked.stderr?.on('data', (chunk: Buffer) => {
+        said = `${said}${chunk.toString('utf8')}`.slice(-4096);
+        // Against everything it has said so far, because a line can arrive in two chunks.
+        const line = said.split('\n').map((text) => text.trim()).find((text) => ENDPOINT.test(text));
+        const endpoint = line === undefined ? null : ENDPOINT.exec(line);
+        const url = endpoint?.[1];
+        if (url === undefined) return;
+        finish({ ok: true, url });
+      });
+      forked.stderr?.on('end', () => finish({ ok: false, refusal: 'failed' }));
+      forked.once('exit', (code) => {
+        if (child === forked) child = undefined;
+        // The command line's own exit codes say why it would not serve: 3 is the folder another writer holds, 2 is a folder that
+        // holds no project and cannot be made one, and anything else is this app's to report (cli.ts).
+        finish({ ok: false, refusal: code === 3 ? 'busy' : 'failed' });
+      });
+    });
+
+    if (!ready.ok) {
+      const last = said.trim().split('\n').slice(-1)[0];
+      publish({ state: 'failed', refusal: ready.refusal, folderId, ...(last === undefined ? {} : { detail: last }) });
+      return { ok: false, refusal: ready.refusal };
     }
-    // The host's count is the truth for nested saves, and the server is told only at the edges: the first pause of a run of saves is
-    // sent, and the resume that ends the last one is sent. The server's own count then rises and falls once, which is what keeps a
-    // child replaced mid-save from being reachable while a save is in flight.
-    if (what === 'pause') {
-      pauses += 1;
-      if (pauses > 1) return { ok: true, value: status };
-    } else {
-      pauses = Math.max(0, pauses - 1);
-      if (pauses > 0) return { ok: true, value: status };
-    }
-    const post = async (): Promise<boolean> => await postControl(status, what);
-    // One attempt each way, never a retry: a resume that timed out may have reached the server and lifted its pause, and a second one
-    // would lift another save's. A failed pause costs nothing (the digest check is the guarantee). A failed resume leaves every write
-    // refused for the life of that server, so the server is stopped instead — a state the writer can see and act on.
-    if (await post()) return { ok: true, value: status };
-    // A pause the server never took is not owed a resume: the count goes back to what it was, so the save that asked ends cleanly.
-    if (what === 'pause') pauses = Math.max(0, pauses - 1);
-    if (what === 'resume' && status.state === 'running') {
-      const folderId = status.folderId;
-      const allowWrites = status.allowWrites === true;
-      await stopChild();
-      publish({ state: 'stopped', ...(folderId === undefined ? {} : { folderId }), allowWrites, detail: RESTARTED_AFTER_RESUME });
-      return { ok: true, value: status };
-    }
-    return { ok: false, refusal: 'failed' };
+    const running: McpHostStatus = { state: 'running', url: ready.url, token, allowWrites: allowWrites === true, since, folderId };
+    // A save that began before this start is still saving, so the child is paused before the page hears about it.
+    if (pauses > 0) await postControl(running, 'pause');
+    publish(running);
+    // A child that goes after it was ready, with no stop asked for, failed: reporting it as stopped would say the writer stopped
+    // something they did not.
+    forked.once('exit', () => {
+      if (child === forked) child = undefined;
+      if (stopping) return;
+      if (status.state !== 'running') return;
+      const last = said.trim().split('\n').slice(-1)[0];
+      publish({ state: 'failed', refusal: 'failed', folderId, ...(last === undefined ? {} : { detail: last }) });
+    });
+    return { ok: true, value: running };
   };
 
-  ipcMain.handle('mcp:start', async (event, folderId: unknown, allowWrites: unknown): Promise<McpHostReply<McpHostStatus>> => (
-    fromStudioFrame(event, options.entryUrl) ? await start(folderId, allowWrites) : { ok: false, refusal: 'no-folder' }
-  ));
-  handle('stop', async () => {
+  const start = (folderId: unknown, allowWrites: unknown): Promise<McpHostReply<McpHostStatus>> => serial(async () => await begin(folderId, allowWrites));
+
+  const stop = (): Promise<McpHostReply<McpHostStatus>> => serial(async () => {
     await stopChild();
     // A stop ends whatever a save was waiting for: the next start must not begin paused by a save that has since finished.
     pauses = 0;
     publish({ state: 'stopped' });
     return { ok: true, value: status };
   });
+
+  /** The pause a save takes. The first of a run of saves posts it; the rest wait for that call, so none of them writes before it lands. */
+  const pause = (): Promise<McpHostReply<McpHostStatus>> => serial(async () => {
+    if (status.state !== 'running') return { ok: true, value: status };
+    pauses += 1;
+    if (pauses > 1) return { ok: true, value: status };
+    if (await postControl(status, 'pause')) return { ok: true, value: status };
+    // A pause the server never took is not owed a resume: the count goes back, and the digest check is the guarantee anyway.
+    pauses = 0;
+    return { ok: false, refusal: 'failed' };
+  });
+
+  /** The resume that ends a save. Only the last one is sent, and a server that cannot take it is stopped rather than left refusing. */
+  const resume = (): Promise<McpHostReply<McpHostStatus>> => serial(async () => {
+    pauses = Math.max(0, pauses - 1);
+    if (pauses > 0 || status.state !== 'running') return { ok: true, value: status };
+    if (await postControl(status, 'resume')) return { ok: true, value: status };
+    const folderId = status.folderId;
+    const allowWrites = status.allowWrites === true;
+    await stopChild();
+    publish({ state: 'stopped', ...(folderId === undefined ? {} : { folderId }), allowWrites, detail: RESTARTED_AFTER_RESUME });
+    return { ok: true, value: status };
+  });
+
+  ipcMain.handle('mcp:start', async (event, folderId: unknown, allowWrites: unknown): Promise<McpHostReply<McpHostStatus>> => (
+    fromStudioFrame(event, options.entryUrl) ? await start(folderId, allowWrites) : { ok: false, refusal: 'no-folder' }
+  ));
+  handle('stop', () => stop());
   handle('status', async () => ({ ok: true, value: status }));
-  handle('pause', () => control('pause'));
-  handle('resume', () => control('resume'));
+  handle('pause', () => pause());
+  handle('resume', () => resume());
 
   ipcMain.removeAllListeners('mcp:subscribe');
   ipcMain.removeAllListeners('mcp:unsubscribe');

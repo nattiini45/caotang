@@ -88,6 +88,8 @@ export function App(): ReactNode {
     // The workspace goes at once, so nothing is typed into a session that is closing. The projects list does not take the lease this
     // close still holds for another tab's (lifecycle `openElsewhere`).
     if (previous !== null) closeSession(previous);
+    // Nothing is open, so nothing is being served: the project's own MCP server stops with the project it was started for.
+    void stopProjectServerUnless(undefined);
   };
 
   /**
