@@ -312,9 +312,6 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../../packages/ids
-      '@caotang/import-ao3':
-        specifier: workspace:*
-        version: link:../../packages/import-ao3
       '@caotang/import-captions':
         specifier: workspace:*
         version: link:../../packages/import-captions
@@ -333,9 +330,6 @@ importers:
       '@caotang/import-inklewriter':
         specifier: workspace:*
         version: link:../../packages/import-inklewriter
-      '@caotang/import-kanka':
-        specifier: workspace:*
-        version: link:../../packages/import-kanka
       '@caotang/import-read':
         specifier: workspace:*
         version: link:../../packages/import-read
@@ -987,21 +981,6 @@ importers:
 
   packages/ids: {}
 
-  packages/import-ao3:
-    dependencies:
-      '@caotang/import-core':
-        specifier: workspace:*
-        version: link:../import-core
-      '@caotang/import-epub':
-        specifier: workspace:*
-        version: link:../import-epub
-      '@caotang/import-html':
-        specifier: workspace:*
-        version: link:../import-html
-      '@caotang/import-read':
-        specifier: workspace:*
-        version: link:../import-read
-
   packages/import-captions:
     dependencies:
       '@caotang/bus':
@@ -1048,18 +1027,6 @@ importers:
       '@caotang/dialogue':
         specifier: workspace:*
         version: link:../dialogue
-
-  packages/import-kanka:
-    dependencies:
-      '@caotang/import-core':
-        specifier: workspace:*
-        version: link:../import-core
-      '@caotang/import-html':
-        specifier: workspace:*
-        version: link:../import-html
-      '@caotang/import-read':
-        specifier: workspace:*
-        version: link:../import-read
 
   packages/import-read:
     dependencies:
