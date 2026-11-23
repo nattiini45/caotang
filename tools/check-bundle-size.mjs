@@ -304,7 +304,9 @@ export const BUDGET = {
   // tree. Measured again on the merge of main aec90b9b, which carries the merged EPUB import: 8,984,862 bytes.
   // Named: the @caotang/import-ao3 adapter and its preview source, all on-use chunks, and the German AO3
   // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  totalJs: 8_985_000,
+  // Measured again at 8,985,761 bytes after the review fixes (the shared reader and picture refusal lines); the
+  // ceiling is the measurement rounded up to the thousand.
+  totalJs: 8_986_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
