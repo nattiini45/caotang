@@ -1,5 +1,5 @@
 msgid ""
-msgstr """POT-Creation-Date: 2026-11-20 20:42+0000\n""MIME-Version: 1.0\n""Content-Type: text/plain; charset=utf-8\n""Content-Transfer-Encoding: 8bit\n""X-Generator: @lingui/cli\n""Language: de\n"
+msgstr ""
 "POT-Creation-Date: 2026-11-20 20:42+0000\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
@@ -2269,6 +2269,11 @@ msgstr "{others, plural, one {Das Kompilieren schreibt {fileName} und # weitere 
 #: apps/desktop/src/app/agent-model.ts
 msgid "{outcome, select, running {Working} done {Finished} partial {Stopped before it finished} other {Failed}}"
 msgstr "{outcome, select, running {In Arbeit} done {Fertig} partial {Vorzeitig gestoppt} other {Fehlgeschlagen}}"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "{overflow, plural, one {# keyword is past the limit of the keywords field} other {# keywords are past the limit of the keywords field}}"
+msgstr "{overflow, plural, one {# Schlagwort liegt über dem Limit des Schlagwortfelds} other {# Schlagworte liegen über dem Limit des Schlagwortfelds}}"
 
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #: apps/desktop/src/import-preview/ao3-source.ts
@@ -6312,6 +6317,11 @@ msgstr "Kamerabewegung"
 #: apps/desktop/src/import-preview/kanka-source.ts
 msgid "Campaign gallery"
 msgstr "Kampagnen-Galerie"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "Campaign index"
+msgstr "Kampagnen-Übersicht"
 
 #. Agent instructions copy. Interpolated values: title and name are note titles, path is a file path, used, sent, allowed and count are token counts.
 #. Background task and Inbox status. Counts describe drafts, calls, tokens or findings; titles and model labels are supplied text.
@@ -12519,6 +12529,7 @@ msgstr "Stichwort-Kriterien"
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -23673,6 +23684,11 @@ msgstr "Die Bilderansicht"
 msgid "The pictures could not be imported."
 msgstr "Die Bilder konnten nicht importiert werden."
 
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "The pictures were left out, as chosen."
+msgstr "Die Bilder wurden wie gewählt weggelassen."
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "The Podcasting 2.0 chapters document — start, title and end per segment — the file a feed’s podcast:chapters points at."
@@ -23986,6 +24002,11 @@ msgstr "Die Anfrage-Parameter konnten nicht gelesen werden."
 #: apps/desktop/src/media/prompt-edit-model.ts
 msgid "the resolution is 720p or 1080p"
 msgstr "die Auflösung ist 720p oder 1080p"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "The rest are listed here: {rest}"
+msgstr "Die übrigen stehen hier: {rest}"
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -27133,6 +27154,11 @@ msgstr "Wöchentlich"
 #: apps/desktop/src/import-preview/ao3-source.ts
 msgid "What a scene cannot hold"
 msgstr "Was eine Szene nicht aufnehmen kann"
+
+#. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
+#: apps/desktop/src/import-preview/kanka-source.ts
+msgid "What an entry cannot hold"
+msgstr "Was ein Eintrag nicht fassen kann"
 
 #. Interpolated values: calls
 #: apps/desktop/src/components/RecurringTasks.tsx

@@ -512,6 +512,27 @@ describe('the sources', () => {
     source.dispose?.();
   });
 
+  it('a Kanka campaign with no events or gallery still offers a Campaign index, so the tree is never empty', async () => {
+    const kankaEntity = (id: number, name: string): string =>
+      JSON.stringify({ id, name, entity: { id, name, type: 'Cartographer', entry: '<p>A note.</p>', is_private: false, image_path: '', entityTags: [], relationships: [], posts: [], entityAttributes: [], reminders: [] } });
+    const zip = rawZip([
+      { name: 'info.json', data: enc(JSON.stringify({ kanka_version: '2.1.4' })) },
+      { name: 'campaign.json', data: enc(JSON.stringify({ name: 'Quiet Quarter' })) },
+      { name: 'characters/elena_11.json', data: enc(kankaEntity(11, 'Elena')) },
+    ]);
+    const source = kankaPreviewSource('campaign.zip', zip);
+    await source.load?.(() => {}, new AbortController().signal);
+    const plan = source.plan(initialSettings(source.chips(), source.options()), NO_OVERRIDES);
+    expect(plan.tree.map((node) => [node.title, node.place])).toEqual([['Campaign index', 'research']]);
+    const commit = buildCommit(
+      { plan, edits: NO_EDITS, destination: 'manuscript', mapping: {}, statuses: [], labels: [], statusAnswers: {}, labelAnswers: {}, codexRows: source.codexRows?.() ?? [], codexAnswers: {}, codexHeld: [], pictures: [] },
+      PREVIEW_HELPERS,
+    );
+    expect(commit.params.nodes).toHaveLength(1);
+    expect(commit.params.codex?.entries.map((entry) => entry.name)).toEqual(['Elena']);
+    source.dispose?.();
+  });
+
   it('a Word file offers its tracked changes as a chip, and rejecting them re-reads the text', async () => {
     const W_NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
     const styles = `<?xml version="1.0"?><w:styles ${W_NS}><w:style w:styleId="Heading1"><w:name w:val="heading 1"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style></w:styles>`;

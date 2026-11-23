@@ -268,7 +268,12 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
       if (state.options.tracked === 'accept') continue;
       const text = renderRuns(child, state, inherited, false);
       if (state.options.tracked === 'keep') {
-        if (text.trim() !== '') state.deletions.push({ blockIndex: state.blocks.length, text });
+        if (text.trim() !== '') {
+          state.deletions.push({ blockIndex: state.blocks.length, text });
+          // "Accept, and list what was deleted" means the scene's notes carry it: the comment list is the channel
+          // the splitter already turns into the owning chunk's notes.
+          state.commentList.push({ blockIndex: state.blocks.length, md: text });
+        }
         continue;
       }
       out += text;

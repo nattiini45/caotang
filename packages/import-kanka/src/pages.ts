@@ -55,13 +55,23 @@ function withoutKankaLinks(md: string): string {
   return md.replace(/\[([^\]]*)\]\((?:https?:)?\/\/(?:[a-z0-9-]+\.)*kanka\.io[^)]*\)/gi, '$1');
 }
 
-/** The last resort when an entry is not readable HTML: its text, with script and style content gone, never just its tags stripped. */
+/**
+ * The last resort when an entry is not readable HTML: its text, with script and style content gone, never just its
+ * tags stripped. Both steps repeat to a fixed point so a marker one removal uncovers (``<<script>``) goes too.
+ */
 function textOnly(html: string): string {
-  return html
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
-    .replace(/<[^>]*>/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  let text = html;
+  let previous = '';
+  while (text !== previous) {
+    previous = text;
+    text = text.replace(/<(script|style)\b[^>]*>[\s\S]*?(<\/\1[^>]*>|$)/gi, '');
+  }
+  previous = '';
+  while (text !== previous) {
+    previous = text;
+    text = text.replace(/<[^>]*>/g, '');
+  }
+  return text.replace(/\s+/g, ' ').trim();
 }
 
 /** Blocks as Markdown, one blank line between them. */
@@ -159,11 +169,15 @@ export function entityPage(entity: KankaEntity, options: PageOptions): PageParts
   const assetData = new Map<string, Uint8Array>();
   let unresolvedMentions = 0;
 
+  // Every walk gets its own ref namespace: the walker's index restarts at zero each call, so the entry's and each
+  // post's pictures would otherwise share one ref and overwrite each other in `images`.
+  let walkIndex = 0;
   const walk = (html: string): { md: string; plain: string } => {
     if (html.trim() === '') return { md: '', plain: '' };
     const mentioned = rewriteMentions(html, options.names);
     unresolvedMentions += mentioned.unresolved;
-    const walked = htmlToBlocks(asPage(mentioned.text), { unit: `kanka:${entity.id}`, refPrefix: options.refPrefix });
+    const walked = htmlToBlocks(asPage(mentioned.text), { unit: `kanka:${entity.id}`, refPrefix: `${options.refPrefix}${walkIndex}-` });
+    walkIndex += 1;
     if (!walked.ok) {
       losses.push({ code: 'unsupported', message: `The text of “${entity.name}” is not readable HTML.` });
       const plain = textOnly(mentioned.text);

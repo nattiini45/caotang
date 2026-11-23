@@ -12,7 +12,9 @@ export interface MentionResult {
   targets: number[];
 }
 
-const MENTION = /\[entity:(\d+)(?:\|([^\]]*))?\]/g;
+// A label stops at `[` too, not just `]`: a nested or unclosed `[entity:` inside a label would give the expression
+// two ways to split the same input (quadratic matching), and a label with a bracket in it is mangled anyway.
+const MENTION = /\[entity:(\d+)(?:\|([^\][]*))?\]/g;
 
 /** Rewrite every entity mention in `text` to a plain name. */
 export function rewriteMentions(text: string, names: ReadonlyMap<number, string>): MentionResult {

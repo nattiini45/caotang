@@ -45,7 +45,6 @@
     "@caotang/import-docx": "workspace:*",
     "@caotang/import-epub": "workspace:*",
     "@caotang/import-html": "workspace:*",
-    "@caotang/import-docx": "workspace:*",
     "@caotang/import-inklewriter": "workspace:*",
     "@caotang/import-kanka": "workspace:*",
     "@caotang/import-highland": "workspace:*",

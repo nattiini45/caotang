@@ -145,6 +145,10 @@ describe('tracked changes (#279)', () => {
     expect(reject.ok && reject.value.document.blocks[0]?.kind === 'para' ? reject.value.document.blocks[0].md : '').toBe('The ferry left at dawn.');
     expect(keep.ok && keep.value.document.blocks[0]?.kind === 'para' ? keep.value.document.blocks[0].md : '').toBe('The ferry came at noon.');
     expect(keep.ok ? keep.value.deletions : []).toEqual([{ blockIndex: 0, text: 'left at dawn' }]);
+    // The mode's own promise: the deleted text reaches the document's comments, which become the scene's notes.
+    expect(keep.ok ? keep.value.document.comments : []).toEqual([{ blockIndex: 0, md: 'left at dawn' }]);
+    expect(accept.ok ? accept.value.document.comments : []).toEqual([]);
+    expect(reject.ok ? reject.value.document.comments : []).toEqual([]);
   });
 });
 
