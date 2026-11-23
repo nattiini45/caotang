@@ -45,7 +45,7 @@ async function runtime(bindings: Record<string, string> = {}, options: { store?:
   open.push(instance);
   const address = String(await instance.ready);
   const db = await instance.getD1Database('ACCOUNT_DB');
-  await applyMigrations(db, ['0001_accounts.sql', '0002_quota.sql', '0003_quota_prune.sql']);
+  await applyMigrations(db, ['0001_accounts.sql', '0002_quota.sql', '0003_quota_prune.sql', '0009_project_leases.sql']);
   const bucket = options.store === false ? undefined : await instance.getR2Bucket('PROJECT_STORE');
   const invite = (login: string, limitBytes = 1_000) => db.prepare(accountOperatorSql({ type: 'invite', identity: { id: `github:${IDS[login]}`, login }, limitBytes })).run();
   const dispatch = (path: string, init: { method?: string; headers?: Record<string, string>; body?: Uint8Array | ReadableStream | string; duplex?: 'half' } = {}) =>

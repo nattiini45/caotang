@@ -24,6 +24,8 @@ Serve static assets without authentication. Run the Worker first only for `/v1/*
 | `DELETE /v1/account/vault` | Account mode: removes the vault under `If-Match` of its version, `204`. |
 | `GET /v1/projects` | Account mode: the account's [project records](#project-records), oldest first. |
 | `PUT /v1/projects/{id}` | Account mode: records a project — its wrapped key and its sealed record — under `If-None-Match: *` (`201`, `409` when it exists) or replaces that row (`200`). |
+| `POST /v1/projects/{id}/lease` | Account mode: takes or renews the [device lease](#the-device-lease), answering `{leased, until}`; `X-Caotang-Takeover: 1` takes it from another device. |
+| `DELETE /v1/projects/{id}/lease` | Account mode: releases the lease when this device holds it (`204`), `409` when another does. |
 | `GET /v1/projects/{id}/blobs` | Account mode with `PROJECT_STORE`: the live object names, ETags and sizes. See [Encrypted object storage](#encrypted-object-storage). |
 | `GET /v1/projects/{id}/blobs/{name}` | Account mode with `PROJECT_STORE`: the object's bytes and ETag, or `404`. |
 | `PUT /v1/projects/{id}/blobs/{name}` | Account mode with `PROJECT_STORE`: create or replace under an ETag precondition, quota-charged. |
@@ -97,6 +99,14 @@ Every call requires `X-Caotang-Account` naming the account read from `GET /v1/ac
 
 The server stores the wrapper and the record as bytes it was handed: it never parses, decrypts, logs or re-serializes either, and a project's name is as unreadable to it as a manuscript ([hosted.md §5](hosted.md#the-project-record-and-the-accounts-registry)). Deleting a project is not built: there is no route that removes a row, and removing a project's objects is the retention slice's business.
 
+## The device lease
+
+One device edits a project at a time and the others read it, so two writers do not race each other into a conflict question they could have avoided ([hosted.md §7](hosted.md#7-sync-conflicts-and-rollback)). The lease is soft on purpose: `POST /v1/projects/{id}/lease` with `X-Caotang-Device` takes it or renews it, and the row (`0009_project_leases.sql`) lapses 60 seconds after the last heartbeat. A closed tab, a lost network or a crash frees the project with no lock to clear.
+
+The answer is `{leased, until}`: whether this device holds it, and when it ends. A device that is refused learns when the lease lapses and not which device holds it — a lease is not a device directory. `X-Caotang-Takeover: 1` takes a live lease from another device, which is what the interface asks the writer before it offers; without the header a live lease is never taken. `DELETE` releases it, and only the holding device may: another device's attempt is `409` and releases nothing.
+
+A device names itself with a label of at most 64 letters, digits, `-` and `_` that it draws once per session. The label authorizes nothing — the account still comes from the session and every call still requires `X-Caotang-Account` — it is only compared with the label in this account's own row. While a lease is live, a blob `PUT` or `DELETE` from another device is refused `423`, and one that names no device at all is refused `428`, so the second device is read-only in fact as well as in the interface. A client that takes no lease is not blocked by one, which keeps a script or the desktop’s own path working; `GET` and the object listing are never refused.
+
 ## Encrypted object storage
 
 **Status.** In account mode with the `PROJECT_STORE` R2 binding and the `STORAGE_COORDINATOR` namespace, the Worker implements the blob service of [hosted.md §6](hosted.md): opaque bytes under opaque names, one account at a time. The server never parses, decrypts or inspects a payload. Without the binding or the namespace the storage routes answer `503`; in allowlist mode they do not exist (`404`). The local browser app imports none of this; `@caotang/remote-store` ships the matching HTTP client.
@@ -134,4 +144,4 @@ Replaced and soft-deleted versions are retained and remain charged; nothing in t
 
 ## Not yet built
 
-This package is not a complete sync service. Retention collection, the device lease, client sync, merge/history, encryption setup and public-service hardening need their own contracts and tests. Its exports do not select a deployment or alter the browser app.
+This package is not a complete sync service. Retention collection, client sync, merge/history, encryption setup and public-service hardening need their own contracts and tests. Its exports do not select a deployment or alter the browser app.

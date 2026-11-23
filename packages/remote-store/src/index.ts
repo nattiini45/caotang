@@ -10,12 +10,14 @@ export {
 } from './encrypted-remote-fs.js';
 export {
   BlobPreconditionFailedError,
+  RemoteLeaseHeldError,
   RemoteUnavailableError,
   type Precondition,
   type RemoteBlob,
   type RemoteBlobStore,
 } from './blob-store.js';
 export { createHttpBlobStore, type HttpBlobStoreOptions } from './http-blob-store.js';
+export { createHttpLease, type HttpLeaseOptions, type LeaseState, type ProjectLease } from './http-lease.js';
 export {
   createHttpProjectRegistry,
   RemoteProjectExistsError,
