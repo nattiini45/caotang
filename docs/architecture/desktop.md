@@ -130,6 +130,11 @@ allowed plain http
 ([native-egress.ts](../../packages/gateway/src/native-egress.ts)). A provider profile is never such an entry, so a local model
 server keeps the browser's path exactly as it was.
 
+**The two calls answer different shapes.** On the pinned Electron, `safeStorage.encryptStringAsync` resolves the sealed bytes and
+`decryptStringAsync` resolves a record whose `result` is the plain text; a host that unwraps one like the other stores a value its
+own read-back cannot match. The seal and the open both live in `apps/desktop-shell/src/vault.mts`, behind one `Sealer` a spec can
+replace, so the vault's put, read-back and read run on a machine with no keyring as well as on one with.
+
 What is not verified here: `safeStorage` on a real Windows, macOS or KDE desktop. The vault's rules are tested with a scripted
 sealer (`packages/gateway/test/os-vault.test.ts`), and the shell suite proves the channels the page gets; the Linux runner the
 suite runs on has no keyring, so the fallback is the path it exercises. Signing and notarisation (#409) and the upgrade train
@@ -165,9 +170,9 @@ written into the executable, so a modified archive refuses to start. Electron's 
 
 Each build leg runs the repository's gate (`pnpm verify`) for the commit it packages, the same gate
 [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on every pull request, so a released commit is never gated by
-less than a merged one. The Windows leg leaves out the three `packages/sync-server/test` suites that boot a Worker runtime per
-case — `account-mode`, `storage` and `server` — with `CAOTANG_SKIP_WORKER_SUITES=1`, exactly as ci.yml's `verify (Windows)` job
-does while #815 moves those files onto one shared runtime and #820 tracks the third.
+less than a merged one. The Windows leg leaves out the five `packages/sync-server/test` suites whose cases run through a Worker
+runtime — `account-mode`, `storage`, `server`, `quota` and `accounts` — with `CAOTANG_SKIP_WORKER_SUITES=1`, exactly as ci.yml's
+`verify (Windows)` job does while #815 moves those files onto one shared runtime and #820 tracks the later ones.
 
 The job that builds packages also runs on `workflow_dispatch`, so the packaging can be proved without releasing anything: a
 dispatch publishes nothing and only leaves the packages and their checksums as workflow artifacts.

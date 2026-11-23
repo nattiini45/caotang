@@ -17,7 +17,7 @@
  * bytes follow on one channel keyed by the request's own id.
  */
 
-import { attachKeys, checkNativeEgress, nativeEgressTargets, pumpResponse, createSecretScrubber } from '@caotang/gateway/native-egress';
+import { attachKeys, checkNativeEgress, nativeEgressTargets, pumpResponse, createSecretScrubber, redactSecrets } from '@caotang/gateway/native-egress';
 import { net, ipcMain } from 'electron';
 import type { WebContents } from 'electron';
 
@@ -33,10 +33,14 @@ class EgressRefusal extends Error {
 
 type Stream = { readonly controller: AbortController; readonly sender: WebContents };
 
-/** The headers of a response as a plain record: what crosses to the page is data, not a Headers instance. */
-function headersOf(headers: Headers): Record<string, string> {
+/**
+ * The headers of a response as a plain record: what crosses to the page is data, not a Headers instance. Each value is scrubbed
+ * of the secrets attached to the call, because a provider that echoes a key in a header puts it in the head, which is not the
+ * body the streaming scrubber watches.
+ */
+function headersOf(headers: Headers, secrets: readonly string[]): Record<string, string> {
   const out: Record<string, string> = {};
-  headers.forEach((value, name) => { out[name] = value; });
+  headers.forEach((value, name) => { out[name] = redactSecrets(value, secrets); });
   return out;
 }
 
@@ -156,7 +160,11 @@ export function registerEgressIpc(entryUrl: string, vault: KeyVault): void {
       throw new EgressRefusal('aborted');
     }
     void pump(id, stream, response, keyed.secrets);
-    return { status: response.status, statusText: response.statusText, headers: headersOf(response.headers) };
+    return {
+      status: response.status,
+      statusText: redactSecrets(response.statusText, keyed.secrets),
+      headers: headersOf(response.headers, keyed.secrets),
+    };
   }));
 
   ipcMain.handle('net:abort', (event, id: unknown): Promise<EgressReply<null>> => reply(() => {

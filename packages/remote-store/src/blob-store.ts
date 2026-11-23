@@ -30,6 +30,14 @@ export class BlobPreconditionFailedError extends Error {
   }
 }
 
+/** Another device is editing this project: its lease is live, so this write was refused and nothing was written. */
+export class RemoteLeaseHeldError extends Error {
+  constructor() {
+    super('another device is editing this project. Open it read-only here, or take the lease over.');
+    this.name = 'RemoteLeaseHeldError';
+  }
+}
+
 /** The server could not be reached. Nothing was written. */
 export class RemoteUnavailableError extends Error {
   constructor(message = 'the server could not be reached') {

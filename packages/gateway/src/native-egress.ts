@@ -259,7 +259,13 @@ export function attachKeys(
     if (secret === undefined) continue;
     values.push(secret);
     const handle = keyHandle(id);
-    if (url.includes(handle)) url = url.split(handle).join(encodeURIComponent(secret));
+    if (url.includes(handle)) {
+      // A key in an address goes in percent-encoded, so that is the form a provider echoes back from the URL it received. Both
+      // forms are scrubbed, because an answer may carry either: the encoded one it read from the query, the raw one from anywhere.
+      const inUrl = encodeURIComponent(secret);
+      url = url.split(handle).join(inUrl);
+      if (inUrl !== secret) values.push(inUrl);
+    }
     for (const [name, value] of Object.entries(headers)) {
       if (value.includes(handle)) headers[name] = value.split(handle).join(secret);
     }
@@ -312,6 +318,23 @@ export async function pumpResponse(response: Response, sink: EgressSink, limits:
 }
 
 const REDACTED = new TextEncoder().encode('[redacted]');
+
+/** The redaction, as text: the same word {@link createSecretScrubber} puts in a body, for a header value or a reason phrase. */
+export const REDACTED_SECRET = '[redacted]';
+
+/**
+ * `text` with every one of `secrets` replaced by {@link REDACTED_SECRET}. The answer's body goes through
+ * {@link createSecretScrubber}, which holds a chunk boundary together; a header value and the reason phrase are strings already
+ * read whole, so this is their form of the same rule — a provider that echoes a key in a header must not reach the page with it.
+ */
+export function redactSecrets(text: string, secrets: readonly string[]): string {
+  let out = text;
+  for (const secret of secrets) {
+    if (secret.length === 0) continue;
+    if (out.includes(secret)) out = out.split(secret).join(REDACTED_SECRET);
+  }
+  return out;
+}
 
 /**
  * A sink that never lets one of `secrets` through, even across a chunk boundary. The host attaches a key it holds, so the

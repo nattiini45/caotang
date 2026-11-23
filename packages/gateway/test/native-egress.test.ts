@@ -15,6 +15,7 @@ import {
   nativeEgressTargets,
   normalizeOrigin,
   pumpResponse,
+  redactSecrets,
 } from '../src/index.js';
 
 const ORIGINS = nativeEgressTargets([
@@ -251,6 +252,16 @@ describe('a key the request names', () => {
   });
 });
 
+describe('redactSecrets', () => {
+  it('takes every secret out of a header value or a reason phrase, and leaves the rest as it came', () => {
+    expect(redactSecrets('Bearer sk-live-1', ['sk-live-1'])).toBe('Bearer [redacted]');
+    expect(redactSecrets('sk-a and sk-b', ['sk-a', 'sk-b'])).toBe('[redacted] and [redacted]');
+    expect(redactSecrets('nothing here', [])).toBe('nothing here');
+    // A provider that percent-encodes a key in a header echoes it encoded, and that is a secret of the call too.
+    expect(redactSecrets('key=a%2Bb', ['a+b', 'a%2Bb'])).toBe('key=[redacted]');
+  });
+});
+
 describe('a secret in an answer', () => {
   const SECRET = 'sk-live-0123456789abcdef';
   const collected = (): { seen: string[]; scrubber: ReturnType<typeof createSecretScrubber> } => {
@@ -316,6 +327,17 @@ describe('attaching a key to the request that named it', () => {
     expect(attached.url).toBe('https://api.example.com/v1/models?key=a%2Bb%2Fc%3D&page=2');
     // A header is not a URL: the same secret goes in it as it is.
     expect(attached.headers.authorization).toBe('Bearer a+b/c=');
+    // Both forms are secrets of this call, because a provider echoes back the encoded one it read from the query.
+    expect(attached.values).toEqual(['a+b/c=', 'a%2Bb%2Fc%3D']);
+  });
+
+  it('scrubs the encoded form a provider echoes from the URL, and the raw form it may put anywhere else', () => {
+    const attached = attachKeys(named({ url: `https://api.example.com/v1/models?key=${keyHandle(KEY)}`, keys: [KEY] }), new Map([[KEY, 'a+b/c=']]));
+    const seen: string[] = [];
+    const scrubber = createSecretScrubber(attached.values, (bytes) => seen.push(new TextDecoder().decode(bytes)));
+    scrubber.write(new TextEncoder().encode('{"url":"?key=a%2Bb%2Fc%3D","hint":"a+b/c="}'));
+    scrubber.end();
+    expect(seen.join('')).toBe('{"url":"?key=[redacted]","hint":"[redacted]"}');
   });
 
   it('attaches nothing for a key the caller does not hold, and names only what it did attach', () => {
