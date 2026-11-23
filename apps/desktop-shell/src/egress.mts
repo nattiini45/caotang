@@ -3,19 +3,27 @@
  *
  * A page request to a provider must survive a CORS preflight. In the desktop app there is no preflight: the main process
  * makes the call. That makes this a fetcher, so it is held to [native-egress.ts](../../../packages/gateway/src/native-egress.ts)
- * — https only, to origins the app configured, never this computer, with caps on every part of the request and on the
- * answer. A refusal names its reason, so the app can say what went wrong instead of reporting a dead network.
+ * — https only, to origins the app configured, never this computer unless the entry is a local MCP server, with caps on every
+ * part of the request and on the answer. A refusal names its reason, so the app can say what went wrong instead of reporting
+ * a dead network.
+ *
+ * **A keyed call is attached here.** The page writes `caotang-key:<id>` where the key goes, because the adapter that builds a
+ * provider's headers knows the shape and this file does not. The handle is swapped for the secret from the vault, and only for
+ * an address that key was configured for; the secret is then scrubbed out of the answer, so a provider that echoes a key back
+ * cannot put one in the page's request log.
  *
  * The body streams back as it arrives. A model's answer is server-sent events, and holding it until the response ended
  * would turn a live answer into a pause followed by a wall of text; so the reply carries the status and headers, and the
  * bytes follow on one channel keyed by the request's own id.
  */
 
-import { checkNativeEgress, nativeEgressOrigins, pumpResponse } from '@caotang/gateway/native-egress';
+import { attachKeys, checkNativeEgress, nativeEgressTargets, pumpResponse, createSecretScrubber, redactSecrets } from '@caotang/gateway/native-egress';
 import { net, ipcMain } from 'electron';
-import type { IpcMainInvokeEvent, WebContents } from 'electron';
+import type { WebContents } from 'electron';
 
 import type { EgressChunk, EgressEnd, EgressError, EgressHead, EgressReply } from './egress-contract.cjs';
+import { fromStudioFrame } from './ipc-guard.mjs';
+import type { KeyVault } from './vault.mjs';
 
 class EgressRefusal extends Error {
   constructor(readonly reason: EgressError) {
@@ -25,10 +33,14 @@ class EgressRefusal extends Error {
 
 type Stream = { readonly controller: AbortController; readonly sender: WebContents };
 
-/** The headers of a response as a plain record: what crosses to the page is data, not a Headers instance. */
-function headersOf(headers: Headers): Record<string, string> {
+/**
+ * The headers of a response as a plain record: what crosses to the page is data, not a Headers instance. Each value is scrubbed
+ * of the secrets attached to the call, because a provider that echoes a key in a header puts it in the head, which is not the
+ * body the streaming scrubber watches.
+ */
+function headersOf(headers: Headers, secrets: readonly string[]): Record<string, string> {
   const out: Record<string, string> = {};
-  headers.forEach((value, name) => { out[name] = value; });
+  headers.forEach((value, name) => { out[name] = redactSecrets(value, secrets); });
   return out;
 }
 
@@ -45,14 +57,8 @@ function reply<T>(run: () => T | Promise<T>): Promise<EgressReply<T>> {
     }));
 }
 
-/** Whether the call comes from the studio's own top frame: a child frame or another origin never reaches the port. */
-function trusted(event: IpcMainInvokeEvent, entryUrl: string): boolean {
-  const frame = event.senderFrame;
-  return frame !== null && frame.parent === null && frame.url === entryUrl;
-}
-
-export function registerEgressIpc(entryUrl: string): void {
-  let origins: ReadonlySet<string> = new Set();
+export function registerEgressIpc(entryUrl: string, vault: KeyVault): void {
+  let targets: ReturnType<typeof nativeEgressTargets> = new Map();
   const streams = new Map<string, Stream>();
   const watched = new Set<number>();
 
@@ -66,8 +72,10 @@ export function registerEgressIpc(entryUrl: string): void {
    * cap, or broke part-way, ends the call here: the page has its status and headers already, so this is where a failure has
    * to be said.
    */
-  async function pump(id: string, stream: Stream, response: Response): Promise<void> {
-    const outcome = await pumpResponse(response, (bytes) => send(stream, 'net:chunk', { id, bytes }));
+  async function pump(id: string, stream: Stream, response: Response, secrets: readonly string[]): Promise<void> {
+    const scrubber = createSecretScrubber(secrets, (bytes) => send(stream, 'net:chunk', { id, bytes }));
+    const outcome = await pumpResponse(response, (bytes) => scrubber.write(bytes));
+    if (outcome !== 'unavailable' || !stream.controller.signal.aborted) scrubber.end();
     streams.delete(id);
     if (outcome === 'too-large') stream.controller.abort();
     // A call the page stopped ends through `abort`, which has already said so; sending a second end would be a message about
@@ -91,19 +99,42 @@ export function registerEgressIpc(entryUrl: string): void {
     });
   }
 
+  /**
+   * The request with its handles swapped for the secrets they name, and the secrets in that order for scrubbing. A configured
+   * key the vault does not hold is refused rather than sent as a handle, which the provider would report as a bad key.
+   */
+  async function attach(request: { url: string; headers: Readonly<Record<string, string>>; keys: readonly string[] }): Promise<{
+    url: string;
+    headers: Record<string, string>;
+    secrets: readonly string[];
+  }> {
+    if (request.keys.length === 0) return { url: request.url, headers: { ...request.headers }, secrets: [] };
+    const secrets = new Map<string, string>();
+    for (const id of request.keys) {
+      const payload = await vault.read(id);
+      // A key the app configured but the keychain does not hold is not a key: refusing beats sending the handle, which the
+      // provider would report as a bad key and the writer would read as a wrong key rather than a missing one.
+      if (payload === undefined) throw new EgressRefusal('denied');
+      secrets.set(id, payload.apiKey);
+    }
+    const attached = attachKeys(request, secrets);
+    return { url: attached.url, headers: attached.headers, secrets: attached.values };
+  }
+
   ipcMain.handle('net:configure', (event, entries: unknown): Promise<EgressReply<null>> => reply(() => {
-    if (!trusted(event, entryUrl)) throw new EgressRefusal('invalid');
-    origins = nativeEgressOrigins(Array.isArray(entries) ? entries : []);
+    if (!fromStudioFrame(event, entryUrl)) throw new EgressRefusal('invalid');
+    targets = nativeEgressTargets(Array.isArray(entries) ? entries : []);
     return null;
   }));
 
   ipcMain.handle('net:start', (event, spec: unknown): Promise<EgressReply<EgressHead>> => reply(async () => {
-    if (!trusted(event, entryUrl)) throw new EgressRefusal('invalid');
+    if (!fromStudioFrame(event, entryUrl)) throw new EgressRefusal('invalid');
     const id = spec !== null && typeof spec === 'object' ? (spec as { id?: unknown }).id : undefined;
     if (typeof id !== 'string' || !/^[A-Za-z0-9-]{8,64}$/u.test(id)) throw new EgressRefusal('invalid');
     if (streams.has(id)) throw new EgressRefusal('invalid');
-    const checked = checkNativeEgress(origins, spec);
+    const checked = checkNativeEgress(targets, spec);
     if (!checked.ok) throw new EgressRefusal(checked.refusal);
+    const keyed = await attach(checked.request);
 
     const controller = new AbortController();
     const stream: Stream = { controller, sender: event.sender };
@@ -111,9 +142,9 @@ export function registerEgressIpc(entryUrl: string): void {
     watch(event.sender);
     let response: Response;
     try {
-      response = await net.fetch(checked.request.url, {
+      response = await net.fetch(keyed.url, {
         method: checked.request.method,
-        headers: checked.request.headers,
+        headers: keyed.headers,
         ...(checked.request.body === undefined ? {} : { body: checked.request.body }),
         // A redirect leads to an address the allowlist has not approved, so it is never followed: the status goes back to the
         // page, which already refuses a 3xx with what it means. Following it here would make the allowlist a starting point.
@@ -128,12 +159,16 @@ export function registerEgressIpc(entryUrl: string): void {
       streams.delete(id);
       throw new EgressRefusal('aborted');
     }
-    void pump(id, stream, response);
-    return { status: response.status, statusText: response.statusText, headers: headersOf(response.headers) };
+    void pump(id, stream, response, keyed.secrets);
+    return {
+      status: response.status,
+      statusText: redactSecrets(response.statusText, keyed.secrets),
+      headers: headersOf(response.headers, keyed.secrets),
+    };
   }));
 
   ipcMain.handle('net:abort', (event, id: unknown): Promise<EgressReply<null>> => reply(() => {
-    if (!trusted(event, entryUrl)) throw new EgressRefusal('invalid');
+    if (!fromStudioFrame(event, entryUrl)) throw new EgressRefusal('invalid');
     if (typeof id !== 'string') throw new EgressRefusal('invalid');
     const stream = streams.get(id);
     if (stream === undefined) return null;

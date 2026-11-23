@@ -48,6 +48,16 @@ export interface KeyStore {
   credentialRevision(profileId: string): Promise<string>;
   has(profileId: string): Promise<boolean>;
   remove(profileId: string): Promise<void>;
+  /**
+   * Puts back what the last `put` for `id` replaced, where the store can — the one way a caller that cannot read a stored key
+   * can still undo a write it decided against. Absent on a store whose `reveal` answers the stored value itself.
+   */
+  restore?(id: string): Promise<void>;
+  /**
+   * The ids this store holds a key for, when its port can enumerate itself. Absent everywhere else, so a caller that needs
+   * the list (a migration away from this vault) has to be told there is none rather than shown an empty answer.
+   */
+  entryIds?(): Promise<readonly string[]>;
 }
 
 export interface KeyStoreOptions {
@@ -102,6 +112,7 @@ function decodePayload(plain: string): { payload: KeyPayload; legacy: boolean } 
 
 export function createKeyStore(port: KeyVaultPort, options: KeyStoreOptions = {}): KeyStore {
   const subtle = options.subtle ?? globalThis.crypto.subtle;
+  const listEntryIds = port.listEntryIds?.bind(port);
   const randomBytes = options.randomBytes ?? defaultRandomBytes;
 
   // Resolved at most once per store, so two concurrent first saves in one tab share one key.
@@ -209,5 +220,6 @@ export function createKeyStore(port: KeyVaultPort, options: KeyStoreOptions = {}
     async remove(profileId) {
       await port.deleteEntry(profileId);
     },
+    ...(listEntryIds === undefined ? {} : { entryIds: listEntryIds }),
   };
 }

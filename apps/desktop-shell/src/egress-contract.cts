@@ -16,6 +16,13 @@ export type EgressReply<T> = { readonly ok: true; readonly value: T } | {
   readonly error: EgressError;
 };
 
+/** One address the app may reach. `keys` names the vault ids whose secret it may carry, and `local` a server on this machine. */
+export interface EgressTargetSpec {
+  readonly origin: string;
+  readonly keys?: readonly string[];
+  readonly local?: boolean;
+}
+
 /** One request to make. `id` is minted by the page and echoed on every chunk, so one channel serves many calls. */
 export interface EgressRequestSpec {
   readonly id: string;
@@ -44,8 +51,11 @@ export interface EgressEnd {
 }
 
 export interface NativeEgressBridge {
-  /** Replaces the origins that may be reached. Called before a request to an address the page has not used yet. */
-  configure(origins: readonly string[]): Promise<EgressReply<null>>;
+  /**
+   * Replaces the addresses that may be reached and the keys each may carry. Called before a request to an address the page has
+   * not used yet; the main process normalises it, so an entry it cannot read is dropped rather than trusted.
+   */
+  configure(targets: readonly EgressTargetSpec[]): Promise<EgressReply<null>>;
   start(spec: EgressRequestSpec): Promise<EgressReply<EgressHead>>;
   /** Stops a call that is still streaming. A call that already ended is not an error. */
   abort(id: string): Promise<EgressReply<null>>;

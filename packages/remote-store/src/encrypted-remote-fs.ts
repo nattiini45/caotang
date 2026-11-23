@@ -26,8 +26,8 @@ import {
   sealFile,
   sealManifest,
   systemRandom,
+  type ProjectKeySource,
   type RandomBytes,
-  type SecretKey,
 } from '@caotang/crypto';
 import { ArtifactNotFoundError, assertContained, joinPath, type ArtifactFs } from '@caotang/store';
 import { BlobPreconditionFailedError, type Precondition, type RemoteBlobStore } from './blob-store.js';
@@ -61,7 +61,8 @@ function sameEntry(a: FileEntry | undefined, b: FileEntry | undefined): boolean 
 export interface EncryptedRemoteFsOptions {
   readonly store: RemoteBlobStore;
   readonly projectId: string;
-  readonly projectKey: SecretKey;
+  /** The project key itself, or its non-extractable imported form when a host hands it over (crypto `importProjectKey`). */
+  readonly projectKey: ProjectKeySource;
   /** The device's memory of the highest versions it has seen. Pass the persisted one; a fresh one trusts the first state it meets. */
   readonly highWater?: HighWaterMarks;
   readonly random?: RandomBytes;
@@ -80,7 +81,7 @@ export class EncryptedRemoteArtifactFs implements ArtifactFs {
   readonly highWater: HighWaterMarks;
   readonly #store: RemoteBlobStore;
   readonly #projectId: string;
-  readonly #key: SecretKey;
+  readonly #key: ProjectKeySource;
   readonly #random: RandomBytes;
   #manifest = new Manifest();
   /** The etag of the manifest as last read or written; `null` while the server has none. */

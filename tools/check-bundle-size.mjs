@@ -205,7 +205,13 @@ export const BUDGET = {
   // (i18n.md §3.3); the readers, the preview sources and the Worker stay on use. The ceiling is the measurement
   // rounded up to the thousand. [delegated 2026-11-23]
   // 1,121,600 measured on the merge of main aa653891 (#405's transport, #842's hosted list, #848's index swap). [delegated 2026-11-23]
-  initialGzip: 1_122_000,
+  // The keychain (#404), built and measured again on the merge of main aa653891, which carries #405: 1,122.2 kB gzip, 1.2 kB over
+  // the ceiling that tree set. Named: the vault's
+  // rules and the sealed record they write, the six channels the preload answers and the handle a request carries in place of a key,
+  // the write-verify-delete migration the app runs as it opens, and the Settings sentence that says which store holds the keys. All
+  // of it is read by `openAppServices` before the first paint, so there was no chunk to move it to; the pages that only a form needs
+  // were already on use. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  initialGzip: 1_123_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -349,6 +355,10 @@ export const BUDGET = {
   // (every other chunk is the same size to the tenth of a kilobyte). What is named above applies: the transport, its refusals and
   // the wiring that reaches it from Settings. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   // 9,049,800 on the merge of main aa653891. [delegated 2026-11-23]
+  // The keychain (#404): 9,027.9 kB measured on the merge of main aa653891, 4.9 kB over that tree's ceiling, again the entry
+  // chunk. The vault, the channels' contract and the migration are named above. The ceiling is the measurement rounded up to the
+  // thousand.
+  // [delegated 2026-11-23]
   totalJs: 9_050_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
