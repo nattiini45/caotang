@@ -107,6 +107,8 @@ interface StoredProfile {
   fields?: Record<string, string>;
   baseUrl: string;
   defaultModel: string;
+  /** every model picked under this connection, `defaultModel` first; absent when the connection holds only its default */
+  pickedModels?: readonly string[];
   temperature?: number;
   maxOutputTokens?: number;
   params?: RequestParams;
@@ -122,6 +124,7 @@ interface CheckedFields {
   name: string;
   baseUrl: string;
   defaultModel: string;
+  pickedModels?: readonly string[];
   fields?: Record<string, string>;
   customHeaders?: Record<string, string>;
   temperature?: number;
@@ -135,6 +138,7 @@ interface RawFields {
   preset?: string;
   baseUrl?: string;
   defaultModel?: string;
+  pickedModels?: readonly string[] | null;
   fields?: Readonly<Record<string, string>>;
   customHeaders?: Readonly<Record<string, string>> | null;
   temperature?: number;
@@ -191,6 +195,37 @@ function checkHeaders(kind: ProfileKind, preset: PresetDef | undefined, raw: Rea
   return headers;
 }
 
+/** The most models one connection may hold. A provider list is long; a saved connection is not a catalogue. */
+const MAX_PICKED_MODELS = 200;
+
+/**
+ * The models picked under one connection (provider-gateway §2, "One connection, many models"): the default first, then the rest
+ * in the order given, each a model id, duplicates dropped. `null` or absent means the connection holds only its default, and a
+ * single model stores no list at all. A mock profile holds exactly its one model, because its answer does not depend on a model.
+ */
+function checkPickedModels(kind: ProfileKind, raw: readonly string[] | null | undefined, defaultModel: string): readonly string[] | undefined {
+  if (kind === 'mock') return undefined;
+  if (raw === undefined || raw === null) return undefined;
+  if (!Array.isArray(raw)) {
+    throw new ProfileError('invalid', 'The models for this provider could not be read.', { field: 'pickedModels', messageRef: { id: 'gateway.invalid.pickedModelsRead', message: 'The models for this provider could not be read.' } });
+  }
+  const kept: string[] = [defaultModel];
+  const seen = new Set(kept);
+  for (const entry of raw) {
+    if (typeof entry !== 'string') {
+      throw new ProfileError('invalid', 'The models for this provider could not be read.', { field: 'pickedModels', messageRef: { id: 'gateway.invalid.pickedModelsRead', message: 'The models for this provider could not be read.' } });
+    }
+    const id = entry.trim();
+    if (id === '' || seen.has(id)) continue;
+    seen.add(id);
+    kept.push(id);
+  }
+  if (kept.length > MAX_PICKED_MODELS) {
+    throw new ProfileError('invalid', `A provider can hold at most ${MAX_PICKED_MODELS} models.`, { field: 'pickedModels', messageRef: { id: 'gateway.invalid.pickedModelsMax', message: 'A provider can hold at most {max} models.', values: { max: MAX_PICKED_MODELS } } });
+  }
+  return kept.length === 1 ? undefined : kept;
+}
+
 function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
   const name = trimString(raw.name ?? '', 'name');
   if (name === '') throw new ProfileError('invalid', 'Give the profile a name.', { field: 'name', messageRef: { id: 'gateway.invalid.nameRequired', message: 'Give the profile a name.' } });
@@ -241,6 +276,8 @@ function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
   }
 
   const checked: CheckedFields = { name, baseUrl, defaultModel };
+  const picked = checkPickedModels(kind, raw.pickedModels, defaultModel);
+  if (picked !== undefined) checked.pickedModels = picked;
   if (fields !== undefined) checked.fields = fields;
   const headers = checkHeaders(kind, preset, raw.customHeaders);
   if (headers !== undefined) checked.customHeaders = headers;
@@ -367,6 +404,7 @@ function toView(rec: StoredProfile): ProfileView {
     isActive: rec.isActive,
     hasKey: rec.hasKey,
   };
+  if (rec.pickedModels !== undefined) view.pickedModels = [...rec.pickedModels];
   if (rec.temperature !== undefined) view.temperature = rec.temperature;
   if (rec.maxOutputTokens !== undefined) view.maxOutputTokens = rec.maxOutputTokens;
   if (rec.params !== undefined) view.params = copyParams(rec.params);
@@ -428,6 +466,7 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         name: fields.name,
         baseUrl: fields.baseUrl,
         defaultModel: fields.defaultModel,
+        ...(fields.pickedModels === undefined ? {} : { pickedModels: fields.pickedModels }),
         ...(fields.temperature === undefined ? {} : { temperature: fields.temperature }),
         ...(fields.maxOutputTokens === undefined ? {} : { maxOutputTokens: fields.maxOutputTokens }),
         ...(fields.params === undefined ? {} : { params: fields.params }),
@@ -455,6 +494,9 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         // A fields patch on a templated preset rebuilds the base URL from the new fields.
         baseUrl: patch.baseUrl ?? (patch.fields !== undefined && preset?.baseUrlFor !== undefined ? '' : rec.baseUrl),
         defaultModel: patch.defaultModel ?? rec.defaultModel,
+        // `null` clears the list, so the connection reads as its default alone; an absent field keeps it as it is. The
+        // default is the head of whatever the save stores, so moving the default moves it in the list too.
+        pickedModels: patch.pickedModels === undefined ? rec.pickedModels : patch.pickedModels,
         fields: mergedFields,
         // `null` clears the headers; an absent field keeps what is sealed.
         customHeaders: patch.customHeaders === null ? undefined : patch.customHeaders,
@@ -530,6 +572,7 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
       if (fields.temperature === undefined) delete rec.temperature;
       if (fields.params === undefined) delete rec.params;
       if (fields.fields === undefined) delete rec.fields;
+      if (fields.pickedModels === undefined) delete rec.pickedModels;
       // §5's probe is about one endpoint and one model with one key. Any of those
       // changing makes the cached answer a guess, so it goes.
       if (endpointChanged || keyChanged) {

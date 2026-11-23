@@ -16,6 +16,7 @@ import { Trans } from '@lingui/react/macro';
 import { isolate } from '@caotang/i18n';
 import {
   isLocalBase,
+  modelsOf,
   presetFor,
   STEP_CLASSES,
   type ProfileView,
@@ -56,6 +57,7 @@ import languageStats from '../i18n/locales/stats.json';
 import { timeLabel } from '../app/activity-model.js';
 import { DEMO_PROFILE_NAME } from '../app/providers.js';
 import { ProfileEditor } from './ProfileEditor.js';
+import { THINKING_LEVEL_NAMES } from './thinking-levels.js';
 import { ProviderSetup } from './ProviderSetup.js';
 import { CoherenceSection } from './CoherenceSettings.js';
 import { AgentModeSettings } from './AgentModeSettings.js';
@@ -242,14 +244,6 @@ const STEP_NAMES: Readonly<Record<StepClass, MessageDescriptor>> = {
 
 const EMPTY_FALLBACK = { profileId: '' };
 
-const ROLE_LEVEL_NAMES: Readonly<Record<ThinkingLevel, MessageDescriptor>> = {
-  off: msg`Off`,
-  low: msg`Low`,
-  medium: msg`Medium`,
-  high: msg`High`,
-  xhigh: msg`Extra high`,
-  max: msg`Max`,
-};
 
 /**
  * A destination's model and thinking-level controls, for a role's own choice and for a step's (provider-gateway §6): the model list,
@@ -265,18 +259,36 @@ function TargetFields({ label, profile, model, thinking, levels, listId, onChang
   readonly listId: string;
   readonly onChange: (next: { readonly model: string; readonly thinking: string }) => void;
 }): ReactNode {
-  const preset = presetFor(profile.kind === 'mock' ? 'mock' : profile.preset);
+  // The models this connection holds (provider-gateway §2, "One connection, many models"): the same list the chat window's picker
+  // shows, because a role sends through that key. A model the connection no longer holds still shows while it is stored, and a
+  // provider that lists nothing to pick from falls back to a typed name, so an older record stays editable.
+  const held = modelsOf(profile);
   return (
     <>
-      <input
-        aria-label={t`${{ destination: label }} model`}
-        list={listId}
-        placeholder={profile.defaultModel}
-        value={model}
-        onChange={(event) => onChange({ model: event.target.value, thinking })}
-      />
+      {held.length > 1 ? (
+        <select
+          aria-label={t`${{ destination: label }} model`}
+          value={model === '' ? '' : model}
+          onChange={(event) => onChange({ model: event.target.value, thinking: '' })}
+        >
+          <option value="">{t`The connection’s default`}</option>
+          {[...new Set([...held, ...(model === '' || held.includes(model) ? [] : [model])])].map((modelOption) => (
+            <option key={modelOption} value={modelOption}>
+              {modelOption}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          aria-label={t`${{ destination: label }} model`}
+          list={listId}
+          placeholder={profile.defaultModel}
+          value={model}
+          onChange={(event) => onChange({ model: event.target.value, thinking })}
+        />
+      )}
       <datalist id={listId}>
-        {[...new Set((preset?.models ?? []).filter((row) => !row.pattern.includes('*')).map((row) => row.pattern))].map((modelOption) => (
+        {held.map((modelOption) => (
           <option key={modelOption} value={modelOption} />
         ))}
       </datalist>
@@ -291,7 +303,7 @@ function TargetFields({ label, profile, model, thinking, levels, listId, onChang
           <option value="">{t`Provider default`}</option>
           {levels.map((level) => (
             <option key={level} value={level}>
-              {i18n._(ROLE_LEVEL_NAMES[level])}
+              {i18n._(THINKING_LEVEL_NAMES[level])}
             </option>
           ))}
         </select>
@@ -417,7 +429,9 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                     t`Demo, no key`
                   ) : (
                     <>
-                      {card?.name ?? t`OpenAI-compatible endpoint`} · {profile.baseUrl} · {profile.defaultModel}
+                      {card?.name ?? t`OpenAI-compatible endpoint`} · {profile.baseUrl} · {modelsOf(profile).length === 1
+                        ? profile.defaultModel
+                        : t`${{ count: modelsOf(profile).length }} models: ${{ models: modelsOf(profile).join(', ') }}`}
                     </>
                   )}
                 </span>

@@ -89,3 +89,14 @@ export function chooseModels(preset: PresetDef | undefined, listed: readonly Mod
     };
   });
 }
+
+/**
+ * The models one connection offers (provider-gateway §2, "One connection, many models"): what the writer picked under that key,
+ * its default first. A connection that stores no list is its default alone, so one model and several read the same way at the
+ * call site, and a picker, a role row and a chat surface can never disagree about what a key can be sent with.
+ */
+export function modelsOf(profile: { readonly defaultModel: string; readonly pickedModels?: readonly string[] }): readonly string[] {
+  const picked = profile.pickedModels;
+  if (picked === undefined || picked.length === 0) return [profile.defaultModel];
+  return picked[0] === profile.defaultModel ? picked : [profile.defaultModel, ...picked.filter((id) => id !== profile.defaultModel)];
+}

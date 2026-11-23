@@ -58,16 +58,44 @@ describe('adding a provider: the key, then the models it can use', () => {
     const found = await service.beginSetup({ preset: 'openai', apiKey: KEY });
     const chosen = found.models.find((model) => !model.recommended)!.id;
 
-    const { view } = await service.finishSetup(found.draftId, chosen);
+    const { view } = await service.finishSetup(found.draftId, [chosen]);
 
     expect(view.defaultModel).toBe(chosen);
+    // One model stores no list: the connection reads as that model alone (provider-gateway §2).
+    expect(view.pickedModels).toBeUndefined();
     expect(view.isActive).toBe(true);
     expect(service.active()?.id).toBe(view.id);
     expect(service.list().map((profile) => profile.id)).toContain(view.id);
     expect(view.verification?.kind).toBe('verified');
     const stored = db.rows.get(APP_KEYS.profiles) as { id: string; defaultModel: string }[];
     expect(stored.find((profile) => profile.id === view.id)?.defaultModel).toBe(chosen);
-    await expect(service.finishSetup(found.draftId, chosen)).rejects.toThrow();
+    await expect(service.finishSetup(found.draftId, [chosen])).rejects.toThrow();
+  });
+
+  it('saves every model picked under one key, its first the default, so one key serves chat, drafting and background', async () => {
+    const db = memoryDb();
+    const { service } = await ProviderService.open({
+      db, vault: null,
+      fetch: async (url, init) => (init?.method === 'POST' ? completion() : listing(['model-a', 'model-b', 'model-c'])),
+    });
+    const found = await service.beginSetup({ preset: 'openai', apiKey: KEY });
+    const [first, second, third] = found.models.map((model) => model.id);
+
+    const { view } = await service.finishSetup(found.draftId, [second!, third!, first!]);
+
+    expect(view.defaultModel).toBe(second);
+    expect(view.pickedModels).toEqual([second, third, first]);
+    const stored = db.rows.get(APP_KEYS.profiles) as { id: string; pickedModels?: readonly string[] }[];
+    expect(stored.find((profile) => profile.id === view.id)?.pickedModels).toEqual([second, third, first]);
+    // The key is stored once, for the connection, and the list carries no secret.
+    expect(JSON.stringify(stored)).not.toContain(KEY);
+  });
+
+  it('refuses a finish with no model, and says so without saving', async () => {
+    const { service } = await ProviderService.open({ db: null, vault: null, fetch: async (url, init) => (init?.method === 'POST' ? completion() : listing(['model-a'])) });
+    const found = await service.beginSetup({ preset: 'openai', apiKey: KEY });
+    await expect(service.finishSetup(found.draftId, [])).rejects.toThrow();
+    expect(service.list().map((profile) => profile.id)).not.toContain(found.draftId);
   });
 
   it('leaves nothing behind when the key is refused, and says it is the key', async () => {

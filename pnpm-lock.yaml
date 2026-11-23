@@ -321,9 +321,6 @@ importers:
       '@caotang/import-core':
         specifier: workspace:*
         version: link:../../packages/import-core
-      '@caotang/import-docx':
-        specifier: workspace:*
-        version: link:../../packages/import-docx
       '@caotang/import-epub':
         specifier: workspace:*
         version: link:../../packages/import-epub
@@ -336,9 +333,6 @@ importers:
       '@caotang/import-inklewriter':
         specifier: workspace:*
         version: link:../../packages/import-inklewriter
-      '@caotang/import-kanka':
-        specifier: workspace:*
-        version: link:../../packages/import-kanka
       '@caotang/import-read':
         specifier: workspace:*
         version: link:../../packages/import-read
@@ -1016,15 +1010,6 @@ importers:
 
   packages/import-core: {}
 
-  packages/import-docx:
-    dependencies:
-      '@caotang/import-core':
-        specifier: workspace:*
-        version: link:../import-core
-      '@caotang/import-read':
-        specifier: workspace:*
-        version: link:../import-read
-
   packages/import-epub:
     dependencies:
       '@caotang/import-core':
@@ -1060,18 +1045,6 @@ importers:
       '@caotang/dialogue':
         specifier: workspace:*
         version: link:../dialogue
-
-  packages/import-kanka:
-    dependencies:
-      '@caotang/import-core':
-        specifier: workspace:*
-        version: link:../import-core
-      '@caotang/import-html':
-        specifier: workspace:*
-        version: link:../import-html
-      '@caotang/import-read':
-        specifier: workspace:*
-        version: link:../import-read
 
   packages/import-read:
     dependencies:

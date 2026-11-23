@@ -21,7 +21,7 @@ test('UI SDK can inspect and operate memory without bypassing paid-request appro
   await openAgent(page, 'classic');
   const panel = page.getByTestId('agent-panel');
   for (const intent of ['Keep the storm.', 'Use the lighthouse.', 'Who knows about the letter?']) {
-    await panel.getByRole('combobox').fill(intent);
+    await panel.getByRole('combobox', { name: /^(Intent|Absicht)$/ }).fill(intent);
     await panel.getByRole('button', { name: 'Send', exact: true }).click();
     await expect(panel.locator('.agent-turn').last()).toHaveClass(/is-done/);
     await expect(panel).toHaveAttribute('data-state', 'idle');
@@ -138,7 +138,7 @@ test('settled sessions survive reload, continue their L6 and fork without a manu
   await createProject(page, 'Session Book');
   await openAgent(page, 'classic');
   const panel = page.getByTestId('agent-panel');
-  await panel.getByRole('combobox').fill('Who knows about the letter?');
+  await panel.getByRole('combobox', { name: /^(Intent|Absicht)$/ }).fill('Who knows about the letter?');
   await panel.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(panel.locator('.agent-turn')).toHaveCount(1);
   await expect(panel.locator('.agent-turn')).toHaveClass(/is-done/);
@@ -149,7 +149,7 @@ test('settled sessions survive reload, continue their L6 and fork without a manu
   await openAgent(page, 'classic');
   await expect(panel.getByTestId('stored-turn')).toHaveText('From an earlier visit');
   await expect(panel.locator('.agent-turn')).toHaveAttribute('data-turn', turnId!);
-  await panel.getByRole('combobox').fill('Now tell me who does not.');
+  await panel.getByRole('combobox', { name: /^(Intent|Absicht)$/ }).fill('Now tell me who does not.');
   await panel.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(panel.locator('.agent-turn')).toHaveCount(2);
   await expect(panel.locator('.agent-turn').last()).toHaveClass(/is-done/);
@@ -195,7 +195,7 @@ for (const variant of [
     const panel = page.getByTestId('agent-panel');
     if (variant.shell === 'modern') await page.getByTestId('modern-ask').click();
     const manuscript = await projectTrace(page);
-    await panel.getByRole('combobox').fill('Tell me about the lighthouse.');
+    await panel.getByRole('combobox', { name: /^(Intent|Absicht)$/ }).fill('Tell me about the lighthouse.');
     await panel.getByRole('button', { name: variant.language === 'de' ? 'Senden' : 'Send', exact: true }).click();
     const recovery = panel.locator('.askback');
     await expect(recovery).toContainText(variant.language === 'de' ? 'Es wurde keine Anfrage gesendet.' : 'No request was sent.');
@@ -236,7 +236,7 @@ for (const variant of [
     await openAgent(page, variant.shell);
     const panel = page.getByTestId('agent-panel');
     for (const intent of ['Keep the storm.', 'Use the lighthouse.', 'Who knows about the letter?']) {
-      await panel.getByRole('combobox').fill(intent);
+      await panel.getByRole('combobox', { name: /^(Intent|Absicht)$/ }).fill(intent);
       await panel.getByRole('button', { name: variant.language === 'de' ? 'Senden' : 'Send', exact: true }).click();
       await expect(panel.locator('.agent-turn').last()).toHaveClass(/is-done/);
       await expect(panel).toHaveAttribute('data-state', 'idle');
@@ -342,7 +342,7 @@ for (const variant of [
     await waitForSaved(page);
     await openAgent(page, variant.shell);
     const panel = page.getByTestId('agent-panel');
-    await panel.getByRole('combobox').fill('Keep the lighthouse and the storm in mind.');
+    await panel.getByRole('combobox', { name: /^(Intent|Absicht)$/ }).fill('Keep the lighthouse and the storm in mind.');
     await panel.getByRole('button', { name: variant.language === 'de' ? 'Senden' : 'Send', exact: true }).click();
     await expect(panel.locator('.agent-turn')).toHaveCount(1);
     await expect(panel.locator('.agent-turn')).toHaveClass(/is-done/);
@@ -358,7 +358,7 @@ for (const variant of [
     await picker.getByRole('button', { name: variant.language === 'de' ? 'Neue Sitzung' : 'New session', exact: true }).click();
     await expect(picker).toHaveAttribute('data-state', 'ready');
     await expect(panel.locator('.agent-turn')).toHaveCount(0);
-    await panel.getByRole('combobox').fill('Remember the ferryman’s route.');
+    await panel.getByRole('combobox', { name: /^(Intent|Absicht)$/ }).fill('Remember the ferryman’s route.');
     await panel.getByRole('button', { name: variant.language === 'de' ? 'Senden' : 'Send', exact: true }).click();
     await expect(panel.locator('.agent-turn')).toHaveClass(/is-done/);
     await expect(panel).toHaveAttribute('data-state', 'idle');
@@ -389,7 +389,7 @@ for (const variant of [
     })).toBe(true);
     if (variant.language === 'de') await expect(sessions.locator('.agent-session-actions > button').filter({ hasText: /^Öffnen$/ })).toHaveCount(3);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await expect(panel.getByRole('combobox')).toBeInViewport();
+    await expect(panel.getByRole('combobox', { name: /^(Intent|Absicht)$/ })).toBeInViewport();
     await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`sessions-${variant.shell}-${variant.language}-${variant.width}-opened.png`) });
     const list = sessions.locator('.agent-session-list');
     const fork = list.locator('li[aria-current="true"]');

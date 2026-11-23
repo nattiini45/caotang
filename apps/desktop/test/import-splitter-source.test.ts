@@ -541,6 +541,7 @@ describe('the sources', () => {
     source.dispose?.();
   });
 
+
   it('a source keeps the document while only rule chips change', () => {
     let reads = 0;
     const source = splitterPreviewSource({

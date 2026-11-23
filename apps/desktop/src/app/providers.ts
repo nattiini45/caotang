@@ -449,6 +449,7 @@ export class ProviderService {
             kind,
             baseUrl: record.baseUrl,
             defaultModel: record.defaultModel,
+            ...(record.pickedModels === undefined ? {} : { pickedModels: record.pickedModels }),
             ...(record.preset === undefined ? {} : { preset: record.preset }),
             ...(record.fields === undefined ? {} : { fields: record.fields }),
             ...(payload === undefined || payload.apiKey === '' ? {} : { apiKey: payload.apiKey }),
@@ -652,10 +653,16 @@ export class ProviderService {
     return { draftId: id, name, preset: effective, models, source: effective.noModelsRoute === true ? 'table' : 'live' };
   }
 
-  /** Adding a provider, step two: the chosen model becomes the profile's, the profile appears in the list and becomes the active one. */
-  async finishSetup(draftId: string, model: string, overrides: Pick<ProfilePatch, 'params' | 'temperature' | 'pricePer1k'> = {}): Promise<{ view: ProfileView; note?: string }> {
+  /**
+   * Adding a provider, step two: the models picked under that one key become the connection's, the first one is its default, and
+   * the profile appears in the list and becomes the active one. Every picked model is offered in the chat window's picker and in
+   * the task roles, because they all send through this one key (provider-gateway §2, "One connection, many models").
+   */
+  async finishSetup(draftId: string, models: readonly string[], overrides: Pick<ProfilePatch, 'params' | 'temperature' | 'pricePer1k'> = {}): Promise<{ view: ProfileView; note?: string }> {
     if (!this.drafts.has(draftId)) throw new Error(t`This setup is no longer open.`);
-    await this.profiles.update(draftId, { ...overrides, defaultModel: model });
+    const [model] = models;
+    if (model === undefined) throw new Error(t`Choose at least one model for this provider.`);
+    await this.profiles.update(draftId, { ...overrides, defaultModel: model, pickedModels: [...models] });
     this.drafts.delete(draftId);
     const attempt = ++this.verificationAttempt;
     this.verification(draftId, { type: 'check', attempt });

@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { PRESETS, presetFor, resolveRoute } from '../packages/gateway/src/index.js';
 import { adapterFor } from '../packages/gateway/src/adapters/index.js';
 import { startLocalStub, type LocalStub, type StubConfig } from './local-stub.js';
-import { openProviderSetup } from './provider-setup-support.js';
+import { openProviderSetup, pickModels } from './provider-setup-support.js';
 
 /**
  * The CORS support sweep (provider-gateway §9, providers-browser-cors.md §2). For every shipped preset this asks the
@@ -243,7 +243,8 @@ for (const product of LOCAL_PRODUCTS) {
       stub = await startLocalStub(product.configured(new URL(page.url()).origin));
       const configured = await connectLocal(page, product, stub.baseUrl);
       await expect(configured.getByRole('listbox')).toContainText('stub-model');
-      await configured.getByRole('listbox').getByRole('option', { name: 'stub-model' }).click();
+      await pickModels(configured, ['stub-model']);
+      await configured.getByRole('button', { name: 'Use this model', exact: true }).click();
       await expect(configured.getByRole('heading', { name: /is ready$/ })).toBeVisible();
       // The format probe's POST crossed the preflight too (a JSON body is not a simple request), and still carried no key.
       expect(stub.requests.some((request) => request.method === 'OPTIONS')).toBe(true);

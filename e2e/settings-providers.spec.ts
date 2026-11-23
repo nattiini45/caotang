@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { sumUsage, type DayUsageRow } from '../packages/gateway/src/index.js';
 
 import { endpointRoute, FAKE_ENDPOINT, fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
-import { addCustomEndpoint, addHostedProvider, openProviderSetup } from './provider-setup-support.js';
+import { addCustomEndpoint, addHostedProvider, finishModelPick, openProviderSetup, pickModels } from './provider-setup-support.js';
 import { bodyOf, createProject, idOf, savedMessage, chooseInterfaceLanguage} from './support.js';
 
 /**
@@ -180,8 +180,8 @@ test('a custom endpoint keeps its extra headers sealed: sent on its calls, never
   await form.getByLabel('Header 1 name').fill('x-org');
   await form.getByLabel('Header 1 value').fill('secret-value');
   await form.getByRole('button', { name: 'Connect and list models' }).click();
-  await settings.getByRole('listbox').getByRole('option', { name: 'test-model' }).click();
-  await settings.getByRole('button', { name: 'Done', exact: true }).click();
+  await pickModels(settings, ['test-model']);
+  await finishModelPick(settings);
 
   // The probes carried it — and no render, list or log line ever repeats it.
   expect(seen.some((headers) => headers['x-org'] === 'secret-value')).toBe(true);
@@ -782,8 +782,8 @@ test('the local model servers sit behind Custom endpoint, need no key, and say w
   await form.getByRole('button', { name: 'Connect and list models' }).click();
   const models = settings.getByRole('listbox', { name: 'Models you can use with Ollama' });
   await expect(models).toContainText('qwen3');
-  await models.getByRole('option', { name: 'llama3.2' }).click();
-  await settings.getByRole('button', { name: 'Done', exact: true }).click();
+  await pickModels(settings, ['llama3.2']);
+  await finishModelPick(settings);
   const row = settings.locator('[data-profile="Ollama"]');
   await expect(row).toContainText('Ollama · http://127.0.0.1:11434/v1 · llama3.2');
   await expect(row).toContainText('Your text stays on this computer');
