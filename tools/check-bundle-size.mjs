@@ -117,15 +117,6 @@ export const BUDGET = {
   // 1,030.3 kB (1,030,261 bytes) measured with #488's request-parameter enforcement in the gateway, which loads at start: the deny map that
   // takes a denied thinking field off the wire, the one output settlement the body and `modelLimits` share, and the pinned-preset rows. The
   // ceiling is that plus about 1%, rounded up to the thousand. [owner 2026-11-08]
-<<<<<<< HEAD
-  // 1,070.0 kB (1,069,960 bytes) measured with the spreadsheet import (#288) on #298's 1,068,780: +975 bytes gzip in the compiled
-  // English catalogue (the column roles, the two modes and the report's words, which must be in the entry before the first paint,
-  // i18n.md §3.3) and +123 in the entry itself (the codex-only import's guard and sentence). The readers stay lazy. The ceiling is
-  // the measured size plus about 1 kB, rounded up to the thousand.
-  initialGzip: 1_071_000,
-||||||| dadc2820
-  initialGzip: 1_069_000,
-=======
   // 1,072.9 kB (1,072,868 bytes) measured with queued coherence reviews and the Review Inbox (#50): the task substrate's costed approval and
   // checkpoint accounting, the agent controller's queued path, and the compiled English catalogue's new queue/Inbox messages, which must be in
   // the entry before the first paint (i18n.md §3.3). The Inbox UI itself is lazy. Optimisations checked: the Inbox components and their CSS load
@@ -195,8 +186,11 @@ export const BUDGET = {
   // The OpenDocument import (#298) on the merge of #279's branch: 1,119,286 bytes gzip measured. Named:
   // the compiled English catalogue's ODT button and error copy beside the Word import's. The ceiling is
   // the measurement rounded up to the thousand. [delegated 2026-11-23]
-  initialGzip: 1_120_000,
->>>>>>> imports/298-odt
+  // The spreadsheet import (#288) on the merge of #298's branch: 1,120,357 bytes gzip measured. Named: the compiled
+  // English catalogue's column roles, the two modes and the report's words, which must precede first paint (i18n.md
+  // §3.3), and the entry's codex-only import guard and sentence. The reader stays on use. The ceiling is the
+  // measurement rounded up to the thousand. [delegated 2026-11-23]
+  initialGzip: 1_121_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -247,47 +241,6 @@ export const BUDGET = {
   // Effort levels per provider, DeepSeek as a full preset and the request-parameters form (#488): 7,782,495 bytes measured (entry
   // 1,206,897). PawCommit Studio raised both ceilings on 2026-11-07 to leave headroom instead of approving each small raise: all JS 8,000,000,
   // entry 1,250,000. With #489 merged in: 7,790.4 kB measured (entry 1,207.9 kB, first load 1,030.3 kB gzip), under all three.
-<<<<<<< HEAD
-  // The HTML import (#299): 8,306,046 bytes measured on #597's worker host (+26,981: the own XHTML walker and its reader, the HTML
-  // preview source and the reader session's HTML branch, in lazy chunks; the first load did not move). The walker is reached from
-  // both the main thread and the reader Worker, so it is in the build twice until #649 shares that code. The ceiling is the measured
-  // size plus about 4 kB.
-  // The EPUB import (#296): 8,324,326 bytes measured on #299 (+18,280: the OPF, navigation and spine reader, the EPUB preview source
-  // and the reader session's EPUB branch, in lazy chunks; the first load did not move). The ceiling is the measured size plus about
-  // 6 kB. #649 (the walker and readers shared between the main thread and the Worker) is what brings this back down.
-  // The AO3 import (#297): 8,341,767 bytes measured on #296 (+17,441: the preface reader over the same XHTML walker, the AO3
-  // preview source and the reader session's AO3 branch, in lazy chunks; the first load did not move). The ceiling is the measured
-  // size plus about 8 kB.
-  // The Kanka import (#293): 8,366,004 bytes measured on #297 (+24,237: the campaign reader, its page builder and the Kanka preview
-  // source, in lazy chunks; the first load did not move). The ceiling is the measured size plus about 4 kB.
-  // The Word import (#279): 8,393,566 bytes measured on #293 (+27,562: the own DOCX reader, its parts and the Word preview source,
-  // in lazy chunks; the first load did not move). The ceiling is the measured size plus about 6 kB. mammoth would have been
-  // 92 kB gzip on top of this, which is why decision 1 chose an own reader.
-  // The OpenDocument import (#298): 8,411,701 bytes measured on #279 (+18,135: the ODF reader and its preview source, in lazy
-  // chunks; the first load did not move). The ceiling is the measured size plus about 8 kB.
-  // The spreadsheet import (#288): 8,433,618 bytes measured on #298 (+21,917: the RFC 4180 reader, its role tables and the
-  // spreadsheet preview source, in lazy chunks; the first load did not move). The ceiling is the measured size plus about 6 kB.
-  totalJs: 8_440_000,
-||||||| dadc2820
-  // The HTML import (#299): 8,306,046 bytes measured on #597's worker host (+26,981: the own XHTML walker and its reader, the HTML
-  // preview source and the reader session's HTML branch, in lazy chunks; the first load did not move). The walker is reached from
-  // both the main thread and the reader Worker, so it is in the build twice until #649 shares that code. The ceiling is the measured
-  // size plus about 4 kB.
-  // The EPUB import (#296): 8,324,326 bytes measured on #299 (+18,280: the OPF, navigation and spine reader, the EPUB preview source
-  // and the reader session's EPUB branch, in lazy chunks; the first load did not move). The ceiling is the measured size plus about
-  // 6 kB. #649 (the walker and readers shared between the main thread and the Worker) is what brings this back down.
-  // The AO3 import (#297): 8,341,767 bytes measured on #296 (+17,441: the preface reader over the same XHTML walker, the AO3
-  // preview source and the reader session's AO3 branch, in lazy chunks; the first load did not move). The ceiling is the measured
-  // size plus about 8 kB.
-  // The Kanka import (#293): 8,366,004 bytes measured on #297 (+24,237: the campaign reader, its page builder and the Kanka preview
-  // source, in lazy chunks; the first load did not move). The ceiling is the measured size plus about 4 kB.
-  // The Word import (#279): 8,393,566 bytes measured on #293 (+27,562: the own DOCX reader, its parts and the Word preview source,
-  // in lazy chunks; the first load did not move). The ceiling is the measured size plus about 6 kB. mammoth would have been
-  // 92 kB gzip on top of this, which is why decision 1 chose an own reader.
-  // The OpenDocument import (#298): 8,411,701 bytes measured on #279 (+18,135: the ODF reader and its preview source, in lazy
-  // chunks; the first load did not move). The ceiling is the measured size plus about 8 kB.
-  totalJs: 8_420_000,
-=======
   // With origin/main merged in (the CPU worker of #669 and the search worker of #646, which regroup the lazy chunks): 8,312,279 bytes
   // measured, the first load 1,068.0 kB gzip. The reader Worker keeps `worker.format: 'es'`, which its dynamic imports need. The
   // ceiling is the measured size plus about 3 kB.
@@ -371,8 +324,10 @@ export const BUDGET = {
   // merged #279 tree. Named: the @caotang/import-odt reader and its preview source, all on-use chunks, and the
   // German OpenDocument strings in the de catalogue. The ceiling is the measurement rounded up to the
   // thousand. [delegated 2026-11-23]
-  totalJs: 9_054_000,
->>>>>>> imports/298-odt
+  // The spreadsheet import (#288) on the merge of #298's branch: 9,075,608 bytes measured, +21,795 over the
+  // merged #298 tree. Named: the @caotang/import-csv reader, its role tables and the spreadsheet preview
+  // source, all on-use chunks. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  totalJs: 9_076_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

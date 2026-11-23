@@ -1403,20 +1403,16 @@ msgstr "{current} of {target, plural, one {# word} other {# words}} · {stateKey
 msgid "{current} of {target} {unit} · {state}"
 msgstr "{current} of {target} {unit} · {state}"
 
-<<<<<<< HEAD
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
-msgid "{dated, plural, one {# row’s days are kept as a note on its scene, not as a timeline date} other {# rows’ days are kept as notes on their scenes, not as timeline dates}}"
-msgstr "{dated, plural, one {# row’s days are kept as a note on its scene, not as a timeline date} other {# rows’ days are kept as notes on their scenes, not as timeline dates}}"
-
-||||||| dadc2820
-=======
 #. The trace panel's rows. Interpolated values: millis, startMs and durationMs are times; chars, cutChars, replyCut, paramsCut and resultCut are character counts; inTokens, outTokens, estimated, calls and tokenCount are token and call counts; messagesSent, toolsDeclared, tools, sent and attempts describe what was sent; records is a record count; statusNote is a run's status; callId is a tool call id.
 #: apps/desktop/src/components/TracePanel.tsx
 msgid "{cutChars} characters of this message were cut to keep the record small."
 msgstr "{cutChars} characters of this message were cut to keep the record small."
 
->>>>>>> imports/298-odt
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#: apps/desktop/src/import-preview/csv-source.ts
+msgid "{dated, plural, one {# row’s days are kept as a note on its scene, not as a timeline date} other {# rows’ days are kept as notes on their scenes, not as timeline dates}}"
+msgstr "{dated, plural, one {# row’s days are kept as a note on its scene, not as a timeline date} other {# rows’ days are kept as notes on their scenes, not as timeline dates}}"
+
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "{day, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}"
@@ -1952,21 +1948,17 @@ msgstr "{lines} {lineCount, plural, one {cue} other {cues}} in {scenes} {sceneCo
 msgid "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {container} other {containers}}, {words} {wordCount, plural, one {word} other {words}}"
 msgstr "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {container} other {containers}}, {words} {wordCount, plural, one {word} other {words}}"
 
-<<<<<<< HEAD
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
-msgid "{mapped, plural, one {# column was mapped} other {# columns were mapped}}"
-msgstr "{mapped, plural, one {# column was mapped} other {# columns were mapped}}"
-
-||||||| dadc2820
-=======
 #. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
 #. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
 #: apps/desktop/src/components/export-preview-model.ts
 msgid "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {episode} other {episodes}}, {words} {wordCount, plural, one {word} other {words}}"
 msgstr "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {episode} other {episodes}}, {words} {wordCount, plural, one {word} other {words}}"
 
->>>>>>> imports/298-odt
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#: apps/desktop/src/import-preview/csv-source.ts
+msgid "{mapped, plural, one {# column was mapped} other {# columns were mapped}}"
+msgstr "{mapped, plural, one {# column was mapped} other {# columns were mapped}}"
+
 #. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
 #: apps/desktop/src/import-preview/docx-source.ts
 msgid "{marks, plural, one {# changed paragraph mark was counted; the paragraphs were not merged} other {# changed paragraph marks were counted; the paragraphs were not merged}}"
@@ -3248,7 +3240,6 @@ msgstr "{who}: {what}"
 msgid "{width} × {height} px ({megapixels} MP)"
 msgstr "{width} × {height} px ({megapixels} MP)"
 
-<<<<<<< HEAD
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/import-preview/csv-source.ts
 msgid "{withDetail, plural, one {# detail field is written as text on its page, not as a field} other {# detail fields are written as text on their pages, not as fields}}"
@@ -3264,10 +3255,7 @@ msgstr "{withImage, plural, one {# image file name is kept as text; the picture 
 msgid "{withRelation, plural, one {# relation is written as text on its page, not as a typed relation} other {# relations are written as text on their pages, not as typed relations}}"
 msgstr "{withRelation, plural, one {# relation is written as text on its page, not as a typed relation} other {# relations are written as text on their pages, not as typed relations}}"
 
-||||||| dadc2820
-=======
 #. Interpolated values: file is the imported file name; reason is the import failure message
->>>>>>> imports/298-odt
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #. The import preview's notices and sentences. Interpolated values: words, partCount, chapters, scenes, images, comments, footnotes and codexRows are counts; megabytes and kilobytes are sizes; label and host name a download option; title, rowName and name are node or row names; documents and folders are the import's own counts; fileName is the file's name.
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
@@ -3455,11 +3443,20 @@ msgstr "01/31/2026 (month first)"
 msgid "1 item"
 msgstr "1 item"
 
-<<<<<<< HEAD
+#. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
+#: apps/desktop/src/app/replay-model.ts
+msgid "1 model call"
+msgstr "1 model call"
+
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/import-preview/csv-source.ts
 msgid "2026-01-31"
 msgstr "2026-01-31"
+
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "2026-11-15T12:00:00Z"
+msgstr "2026-11-15T12:00:00Z"
 
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/import-preview/csv-source.ts
@@ -3471,19 +3468,6 @@ msgstr "2026/01/31 (year first)"
 msgid "31.01.2026 (day first)"
 msgstr "31.01.2026 (day first)"
 
-||||||| dadc2820
-=======
-#. The Replay dialog's sentences. Interpolated values: count and index are numbers, detail is the engine's own account of where a replay stopped, params are the tool parameters that moved.
-#: apps/desktop/src/app/replay-model.ts
-msgid "1 model call"
-msgstr "1 model call"
-
-#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
-#: apps/desktop/src/components/InspectorSections.tsx
-msgid "2026-11-15T12:00:00Z"
-msgstr "2026-11-15T12:00:00Z"
-
->>>>>>> imports/298-odt
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "a “Chapter” line"
@@ -5557,18 +5541,12 @@ msgstr "Approved. The tools are searchable now, and the pins are updated to this
 msgid "AR"
 msgstr "AR"
 
-<<<<<<< HEAD
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/import-preview/csv-source.ts
 msgid "Arc"
 msgstr "Arc"
 
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-||||||| dadc2820
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-=======
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
->>>>>>> imports/298-odt
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Argument"
 msgstr "Argument"
@@ -8937,13 +8915,9 @@ msgstr "Describe what the changed passages should satisfy. Use at most 4,000 cha
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/CodexPanel.tsx
-<<<<<<< HEAD
-#: apps/desktop/src/import-preview/csv-source.ts
-||||||| dadc2820
-=======
 #: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/components/MacrosPanel.tsx
->>>>>>> imports/298-odt
+#: apps/desktop/src/import-preview/csv-source.ts
 msgid "Description"
 msgstr "Description"
 
@@ -8985,15 +8959,11 @@ msgid "Detail field"
 msgstr "Detail field"
 
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
-<<<<<<< HEAD
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
-||||||| dadc2820
-=======
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/components/CodexDetails.tsx
 #: apps/desktop/src/components/CodexPanel.tsx
->>>>>>> imports/298-odt
+#: apps/desktop/src/import-preview/csv-source.ts
 #: apps/desktop/src/import-preview/kanka-source.ts
 msgid "Details"
 msgstr "Details"
@@ -9004,14 +8974,6 @@ msgstr "Details"
 msgid "Details of {title}"
 msgstr "Details of {title}"
 
-<<<<<<< HEAD
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
-msgid "Detect it"
-msgstr "Detect it"
-
-||||||| dadc2820
-=======
 #. check is the translated name of a deterministic goal check.
 #: apps/desktop/src/components/GoalRecovery.tsx
 msgid "Details: {check}"
@@ -9022,7 +8984,11 @@ msgstr "Details: {check}"
 msgid "Details: {fieldKey}"
 msgstr "Details: {fieldKey}"
 
->>>>>>> imports/298-odt
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#: apps/desktop/src/import-preview/csv-source.ts
+msgid "Detect it"
+msgstr "Detect it"
+
 #: apps/desktop/src/app/codex-model.ts
 msgid "Detected"
 msgstr "Detected"
@@ -9572,15 +9538,9 @@ msgstr "Drop step {number}"
 msgid "Drop to add these pictures to the project."
 msgstr "Drop to add these pictures to the project."
 
-<<<<<<< HEAD
-#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-||||||| dadc2820
-#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
-=======
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
->>>>>>> imports/298-odt
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/components/PlanCard.tsx
 #: apps/desktop/src/import-preview/csv-source.ts
 msgid "Duration"
@@ -9980,16 +9940,16 @@ msgstr "Enables a hook that sends limited task text to the Background provider"
 msgid "Encoding"
 msgstr "Encoding"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Encoding work"
+msgstr "Encoding work"
+
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/import-preview/csv-source.ts
 msgid "End"
 msgstr "End"
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Encoding work"
-msgstr "Encoding work"
 
 #. Interpolated values: model, name, provider, total
 #. Interpolated values: model, profile
@@ -10255,14 +10215,6 @@ msgstr "Every quick check is off in Settings, so this tab’s scan runs nothing.
 msgid "every reference names a codex entry or a project image, or is taken out"
 msgstr "every reference names a codex entry or a project image, or is taken out"
 
-<<<<<<< HEAD
-#. Interpolated values: file is the imported file name; reason is the import failure message
-#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
-msgid "Everything is left out, so there is nothing to import. Tick at least one chapter, scene or codex entry."
-msgstr "Everything is left out, so there is nothing to import. Tick at least one chapter, scene or codex entry."
-
-||||||| dadc2820
-=======
 #: apps/desktop/src/components/GoalComposer.tsx
 #: apps/desktop/src/components/GoalRecovery.tsx
 msgid "Every synopsis is filled"
@@ -10275,10 +10227,9 @@ msgstr "Every week"
 
 #. Interpolated values: file is the imported file name; reason is the import failure message
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
-msgid "Everything is left out, so there is nothing to import. Tick at least one chapter or scene."
-msgstr "Everything is left out, so there is nothing to import. Tick at least one chapter or scene."
+msgid "Everything is left out, so there is nothing to import. Tick at least one chapter, scene or codex entry."
+msgstr "Everything is left out, so there is nothing to import. Tick at least one chapter, scene or codex entry."
 
->>>>>>> imports/298-odt
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "Exclude phrases"
@@ -11679,20 +11630,12 @@ msgstr "Images, listed by address; the import does not download them"
 #. Interpolated values: file is the imported file name; reason is the import failure message
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
-<<<<<<< HEAD
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-||||||| dadc2820
-=======
 #. The Twine/Twee import. Interpolated values: knot is a passage name.
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/components/FdxImportDialog.tsx
->>>>>>> imports/298-odt
 #: apps/desktop/src/components/McpSection.tsx
-<<<<<<< HEAD
 #: apps/desktop/src/import-preview/csv-source.ts
-||||||| dadc2820
-=======
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
->>>>>>> imports/298-odt
 #: apps/desktop/src/import-preview/kanka-source.ts
 #: apps/desktop/src/import-preview/twee-source.ts
 msgid "Import"
@@ -11702,14 +11645,10 @@ msgstr "Import"
 #. The Inklewriter import. Interpolated values: file (the file's name), count (containers or images), title (the story's title), url (an image's address), stitch (the stitch an image sits in), from (a section label or Inklewriter flag name as written), to (the name it is imported under)
 #. The Kanka import. Interpolated values: file (the file's name), version (the Kanka version), count (entities, pictures, properties), size (megabytes)
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
-<<<<<<< HEAD
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/import-preview/csv-source.ts
-||||||| dadc2820
-=======
 #: apps/desktop/src/import-preview/highland-source.ts
 #: apps/desktop/src/import-preview/inklewriter-source.ts
->>>>>>> imports/298-odt
 #: apps/desktop/src/import-preview/kanka-source.ts
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Import “{file}”"
@@ -11776,20 +11715,16 @@ msgstr "Import a zip…"
 msgid "Import AO3…"
 msgstr "Import AO3…"
 
-<<<<<<< HEAD
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/import-preview/csv-source.ts
 msgid "Import as"
 msgstr "Import as"
 
-||||||| dadc2820
-=======
 #. Interpolated values: file is the imported file name; reason is the import failure message
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 msgid "Import as page only"
 msgstr "Import as page only"
 
->>>>>>> imports/298-odt
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Import bundle (.caotang)"
@@ -11870,20 +11805,16 @@ msgstr "Import RTFD…"
 msgid "Import script"
 msgstr "Import script"
 
-<<<<<<< HEAD
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
 msgid "Import spreadsheet…"
 msgstr "Import spreadsheet…"
 
-||||||| dadc2820
-=======
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #: apps/desktop/src/import-preview/captions-source.ts
 msgid "Import the episode"
 msgstr "Import the episode"
 
->>>>>>> imports/298-odt
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.picturesImport.content"
@@ -11936,20 +11867,16 @@ msgstr "Imported {containers, plural, one {# dialogue container} other {# dialog
 msgid "Imported {count, plural, one {# skill} other {# skills}}. Read each one and approve it before the agent can use it."
 msgstr "Imported {count, plural, one {# skill} other {# skills}}. Read each one and approve it before the agent can use it."
 
-<<<<<<< HEAD
-#. Interpolated values: file is the imported file name; reason is the import failure message
-#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
-msgid "Imported {entryCount} codex entries from {file}."
-msgstr "Imported {entryCount} codex entries from {file}."
-
-||||||| dadc2820
-=======
 #. The import preview's notices and sentences. Interpolated values: words, partCount, chapters, scenes, images, comments, footnotes and codexRows are counts; megabytes and kilobytes are sizes; label and host name a download option; title, rowName and name are node or row names; documents and folders are the import's own counts; fileName is the file's name.
 #: apps/desktop/src/import-preview/model.ts
 msgid "Imported {documents, plural, one {# document} other {# documents}} in {folders, plural, one {# folder} other {# folders}} from {fileName}."
 msgstr "Imported {documents, plural, one {# document} other {# documents}} in {folders, plural, one {# folder} other {# folders}} from {fileName}."
 
->>>>>>> imports/298-odt
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "Imported {entryCount} codex entries from {file}."
+msgstr "Imported {entryCount} codex entries from {file}."
+
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Imported {file} as one dialogue container: {passages, plural, one {# knot} other {# knots}}, {choices, plural, one {# choice} other {# choices}}, {stripped, plural, one {# logic block} other {# logic blocks}} stripped."
@@ -11982,20 +11909,16 @@ msgstr "imported a {format} script: {scenes, plural, one {# scene} other {# scen
 msgid "Imported into the binder"
 msgstr "Imported into the binder"
 
-<<<<<<< HEAD
 #. Interpolated values: file is the imported file name; reason is the import failure message
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 msgid "Imported one codex entry from {file}."
 msgstr "Imported one codex entry from {file}."
 
-||||||| dadc2820
-=======
 #. The Highland import. Interpolated values: file (the file's name), count (scenes or pictures), size (megabytes), name (a section, scene or picture)
 #: apps/desktop/src/import-preview/highland-source.ts
 msgid "Imported scenes"
 msgstr "Imported scenes"
 
->>>>>>> imports/298-odt
 #. Interpolated values: bytes, folder, max, name, path, problem, size, taken
 #: apps/desktop/src/app/skills-model.ts
 msgid "Imported the skill “{name}”. Read it and approve it before the agent can use it."
@@ -13021,18 +12944,12 @@ msgstr "Leave it as it is — the file is not changed."
 msgid "Leave it out"
 msgstr "Leave it out"
 
-<<<<<<< HEAD
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/import-preview/csv-source.ts
 msgid "Leave out"
 msgstr "Leave out"
 
-#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
-||||||| dadc2820
-#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
-=======
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
->>>>>>> imports/298-odt
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "Leave out {name} from optional context for this request ({id})"
 msgstr "Leave out {name} from optional context for this request ({id})"
@@ -13651,21 +13568,17 @@ msgstr "Marked fixed"
 msgid "marked, the arrow keys propose a new day"
 msgstr "marked, the arrow keys propose a new day"
 
-<<<<<<< HEAD
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/import-preview/csv-source.ts
 msgid "Marker"
 msgstr "Marker"
 
-||||||| dadc2820
-=======
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Marking keeps the agent’s new text in the scene and underlines or strikes only the words that changed, so you can keep or put back each change. The agent’s text is already saved when the marks appear, so other tools and git see the accepted version, and rejecting a change is what edits the file. It covers prose scenes only, not Ink or Fountain. Closing the tab with changes still marked keeps the agent’s text. A new agent edit accepts any earlier marks first. The choice applies the next time you open a document."
 msgstr "Marking keeps the agent’s new text in the scene and underlines or strikes only the words that changed, so you can keep or put back each change. The agent’s text is already saved when the marks appear, so other tools and git see the accepted version, and rejecting a change is what edits the file. It covers prose scenes only, not Ink or Fountain. Closing the tab with changes still marked keeps the agent’s text. A new agent edit accepts any earlier marks first. The choice applies the next time you open a document."
 
->>>>>>> imports/298-odt
 #. Interpolated values: parent, title, amount
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/app/plan-preview.ts
@@ -16529,20 +16442,16 @@ msgstr "Part of the step was taken back too."
 msgid "partial"
 msgstr "partial"
 
-<<<<<<< HEAD
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
-msgid "Participants"
-msgstr "Participants"
-
-||||||| dadc2820
-=======
 #. Background task and Inbox status. Counts describe drafts, calls, tokens or findings; titles and model labels are supplied text.
 #: apps/desktop/src/components/BackgroundTasks.tsx
 msgid "Partial review: {findingCount, plural, one {# finding recorded.} other {# findings recorded.}}"
 msgstr "Partial review: {findingCount, plural, one {# finding recorded.} other {# findings recorded.}}"
 
->>>>>>> imports/298-odt
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
+#: apps/desktop/src/import-preview/csv-source.ts
+msgid "Participants"
+msgstr "Participants"
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Parts"
@@ -16997,14 +16906,8 @@ msgstr "Point at a bar to read its day and words."
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
-<<<<<<< HEAD
-#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
-#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-||||||| dadc2820
-#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
-=======
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
->>>>>>> imports/298-odt
+#. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/components/PlanCard.tsx
 #: apps/desktop/src/components/timeline/Agenda.tsx
@@ -17848,12 +17751,8 @@ msgstr "Reading “{doc}”"
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/import-preview/ao3-source.ts
-<<<<<<< HEAD
-#: apps/desktop/src/import-preview/csv-source.ts
-||||||| dadc2820
-=======
 #: apps/desktop/src/import-preview/captions-source.ts
->>>>>>> imports/298-odt
+#: apps/desktop/src/import-preview/csv-source.ts
 #: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/epub-source.ts
 #: apps/desktop/src/import-preview/highland-source.ts
@@ -18242,15 +18141,9 @@ msgstr "Reject all"
 msgid "Reject them"
 msgstr "Reject them"
 
-<<<<<<< HEAD
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-#: apps/desktop/src/import-preview/csv-source.ts
-msgid "Relation"
-msgstr "Relation"
-
-||||||| dadc2820
-=======
 #: apps/desktop/src/components/CodexRelations.tsx
+#: apps/desktop/src/import-preview/csv-source.ts
 msgid "Relation"
 msgstr "Relation"
 
@@ -18260,7 +18153,6 @@ msgstr "Relation"
 msgid "Relations"
 msgstr "Relations"
 
->>>>>>> imports/298-odt
 #. Interpolated values: subject
 #: apps/desktop/src/components/InkGate.tsx
 #: apps/desktop/src/components/lazy-view.tsx
@@ -20453,18 +20345,12 @@ msgstr "Selected pictures"
 msgid "Selection changed"
 msgstr "Selection changed"
 
-<<<<<<< HEAD
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/import-preview/csv-source.ts
 msgid "Semicolon"
 msgstr "Semicolon"
 
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-||||||| dadc2820
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-=======
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
->>>>>>> imports/298-odt
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Send"
 msgstr "Send"
@@ -21327,7 +21213,11 @@ msgstr "Spend"
 msgid "Splash"
 msgstr "Splash"
 
-<<<<<<< HEAD
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "Split: {kind}, because {reason}"
+msgstr "Split: {kind}, because {reason}"
+
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/import-preview/csv-source.ts
@@ -21339,14 +21229,6 @@ msgstr "Spreadsheet"
 msgid "Spreadsheet file"
 msgstr "Spreadsheet file"
 
-||||||| dadc2820
-=======
-#. Interpolated values: file is the imported file name; reason is the import failure message
-#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
-msgid "Split: {kind}, because {reason}"
-msgstr "Split: {kind}, because {reason}"
-
->>>>>>> imports/298-odt
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "Sprint"
@@ -21362,24 +21244,18 @@ msgstr "Sprint length in minutes"
 msgid "Sprint timer"
 msgstr "Sprint timer"
 
-<<<<<<< HEAD
+#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
+#: apps/desktop/src/import-preview/captions-source.ts
+msgid "SRT cue coordinates left out: a script has no screen position. First: {sample}"
+msgstr "SRT cue coordinates left out: a script has no screen position. First: {sample}"
+
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/import-preview/csv-source.ts
 msgid "Start"
 msgstr "Start"
 
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-||||||| dadc2820
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-=======
-#. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
-#: apps/desktop/src/import-preview/captions-source.ts
-msgid "SRT cue coordinates left out: a script has no screen position. First: {sample}"
-msgstr "SRT cue coordinates left out: a script has no screen position. First: {sample}"
-
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
->>>>>>> imports/298-odt
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Start a new session"
 msgstr "Start a new session"
@@ -21994,12 +21870,8 @@ msgstr "Tag selected"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
-<<<<<<< HEAD
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-||||||| dadc2820
-=======
 #: apps/desktop/src/components/InspectorSections.tsx
->>>>>>> imports/298-odt
 #: apps/desktop/src/import-preview/ao3-source.ts
 #: apps/desktop/src/import-preview/csv-source.ts
 #: apps/desktop/src/media/PictureDetails.tsx
@@ -26160,7 +26032,6 @@ msgstr "This skill includes scripts. Caotang reads the instructions and does not
 msgid "This skill is not in the project any more."
 msgstr "This skill is not in the project any more."
 
-<<<<<<< HEAD
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
 #: apps/desktop/src/import-preview/csv-source.ts
 msgid "This spreadsheet has no columns."
@@ -26171,12 +26042,7 @@ msgstr "This spreadsheet has no columns."
 msgid "This spreadsheet has no rows."
 msgstr "This spreadsheet has no rows."
 
-#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
-||||||| dadc2820
-#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
-=======
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
->>>>>>> imports/298-odt
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "This step changes no scene’s day, duration, part or place."
 msgstr "This step changes no scene’s day, duration, part or place."
@@ -26468,12 +26334,8 @@ msgstr "timestamps inside the words (karaoke timing) left out; the cue's own sta
 
 #. Agent instructions copy. Interpolated values: title and name are note titles, path is a file path, used, sent, allowed and count are token counts.
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
-<<<<<<< HEAD
 #. The spreadsheet import. Interpolated values: file (the file's name), column (a column's name), count (rows, entries), limit (the description limit)
-||||||| dadc2820
-=======
 #: apps/desktop/src/components/AgentInstructionsPanel.tsx
->>>>>>> imports/298-odt
 #: apps/desktop/src/components/ProjectPanel.tsx
 #: apps/desktop/src/import-preview/csv-source.ts
 msgid "Title"

@@ -2,26 +2,12 @@
   "sourceLocale": "en",
   "locales": {
     "de": {
-<<<<<<< HEAD
-      "total": 4144,
-      "translated": 4144,
-||||||| dadc2820
-      "total": 4095,
-      "translated": 4095,
-=======
-      "total": 5311,
-      "translated": 5311,
->>>>>>> imports/298-odt
+      "total": 5358,
+      "translated": 5358,
       "untranslated": 0,
       "missing": 0,
       "fuzzy": 0,
-<<<<<<< HEAD
-      "sameAsEnglish": 103,
-||||||| dadc2820
-      "sameAsEnglish": 102,
-=======
-      "sameAsEnglish": 117,
->>>>>>> imports/298-odt
+      "sameAsEnglish": 118,
       "completion": 100
     }
   }
