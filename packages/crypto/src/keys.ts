@@ -114,6 +114,8 @@ export const INFO_LABELS = {
   file: 'caotang/v1/file-key',
   path: 'caotang/v1/path-hmac-key',
   manifest: 'caotang/v1/manifest-key',
+  /** The project record: the project's name as the host shows it before anything is opened (hosted.md §5). */
+  name: 'caotang/v1/name-key',
 } as const;
 
 export type SubkeyPurpose = keyof typeof INFO_LABELS;
