@@ -82,6 +82,12 @@ export interface PresetDef {
   readonly cors: CorsStatus;
   /** The words a UI shows next to `cors`, when the status needs them. */
   readonly corsNote?: string;
+  /**
+   * A route the browser treats differently from the chat route: `unreadable` means a page cannot read this preset's model
+   * list even though chat works. A browser reports a CORS refusal and an unreachable host the same way, so a rejected list
+   * on such a row is worded as the list the page could not read, never as a dead network (provider-gateway §9).
+   */
+  readonly corsModelsRoute?: 'unreadable';
   /** Extra profile fields beyond name/key/model (Alibaba workspace, Tencent region). */
   readonly fields?: readonly PresetField[];
   /** Builds the base URL from the extra fields, when `baseUrl` is a template. */

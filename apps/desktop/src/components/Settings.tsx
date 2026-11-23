@@ -45,6 +45,7 @@ import {
 } from '../app/settings.js';
 import { applyInterface, interfaceStatus, rememberInterface, subscribeInterface, type Interface } from '../app/interface.js';
 import { readModernPreferences, setModernPreference, type ModernPreferences } from '../app/modern-preferences.js';
+import { nativeEgressAvailable } from '../app/native-egress.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import { developerLanguageExposure, languageRevision, subscribeLanguage, switchInterfaceLanguage } from '../i18n/language.js';
 import { sameLanguageSetting } from '../i18n/catalogues.js';
@@ -365,6 +366,8 @@ function fallbacksOf(draft: RoleDraft): readonly RoleTargetRef[] {
 }
 
 function ProvidersSection({ services, onChanged }: { services: AppServices; onChanged?: () => void }): ReactNode {
+  // Whether this app makes the call itself: a badge about what a browser cannot reach would be false here.
+  const native = nativeEgressAvailable();
   useLingui();
   const providers = services.providers;
   const [, refresh] = useReducer((n: number) => n + 1, 0);
@@ -435,7 +438,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                     </>
                   )}
                 </span>
-                {card?.cors === 'blocked' ? (
+                {card?.cors === 'blocked' && !native ? (
                   <span className="badge">
                     <Trans>Desktop app or hosted only</Trans>
                   </span>

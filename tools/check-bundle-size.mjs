@@ -194,6 +194,12 @@ export const BUDGET = {
   // measured, +1,796 over the ceiling that tree sat under. Named: the compiled English catalogue's Kanka messages, which must
   // precede first paint (i18n.md §3.3); the reader, the preview source and the Worker stay on use. The ceiling is the
   // measurement rounded up to the thousand. [delegated 2026-11-23]
+  // The desktop app's own provider transport (#405), built and measured on CI: 1,120.7 kB gzip, 1.1 kB over the ceiling this tree
+  // sat under. Named: the transport's rules and the wording of each refusal, the allowlist it reads before every call, and the two
+  // Settings and ProviderSetup lines that decide whether a preset a browser cannot read is worth a badge in this app. No chunk was
+  // available to move any of it: `openAppServices` reads the transport and the key store while the app boots, before the first
+  // paint, so a dynamic import would only trade these bytes for a chunk that must load before the first request. The ceiling is the
+  // measurement rounded up to the thousand. [delegated 2026-11-23]
   // The Word import (#279) on the merge of main 7e303a1d, which carries the AO3 import and the model picker: 1,120,296
   // bytes gzip measured. Named: the compiled English catalogue's Kanka and Word messages, which must precede first paint
   // (i18n.md §3.3); the readers, the preview sources and the Worker stay on use. The ceiling is the measurement
@@ -338,6 +344,9 @@ export const BUDGET = {
   // measured; 9,046,800 on the merge of the Kanka review answers. Named: the @caotang/import-docx reader and its preview
   // source, all on-use chunks, and the German Word strings in the de catalogue. The ceiling is the measurement rounded up
   // to the thousand. [delegated 2026-11-23]
+  // The desktop app's own provider transport (#405): 9,022.5 kB measured on CI, 2.5 kB over that ceiling, all of it the entry chunk
+  // (every other chunk is the same size to the tenth of a kilobyte). What is named above applies: the transport, its refusals and
+  // the wiring that reaches it from Settings. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   totalJs: 9_047_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`

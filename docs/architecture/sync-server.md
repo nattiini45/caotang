@@ -22,6 +22,10 @@ Serve static assets without authentication. Run the Worker first only for `/v1/*
 | `GET /v1/account/vault` | Account mode: the sealed provider-key vault, `{version, vault}` with its ETag, or `404` before the first commit. |
 | `PUT /v1/account/vault` | Account mode: `If-None-Match: *` creates (`201`), `If-Match: "<version>"` replaces (`200`), answering `{version}`. `412` on a lost race; `400` for a malformed body. |
 | `DELETE /v1/account/vault` | Account mode: removes the vault under `If-Match` of its version, `204`. |
+| `GET /v1/projects` | Account mode: the account's [project records](#project-records), oldest first. |
+| `PUT /v1/projects/{id}` | Account mode: records a project — its wrapped key and its sealed record — under `If-None-Match: *` (`201`, `409` when it exists) or replaces that row (`200`). |
+| `POST /v1/projects/{id}/lease` | Account mode: takes or renews the [device lease](#the-device-lease), answering `{leased, until}`; `X-Caotang-Takeover: 1` takes it from another device. |
+| `DELETE /v1/projects/{id}/lease` | Account mode: releases the lease when this device holds it (`204`), `409` when another does. |
 | `GET /v1/projects/{id}/blobs` | Account mode with `PROJECT_STORE`: the live object names, ETags and sizes. See [Encrypted object storage](#encrypted-object-storage). |
 | `GET /v1/projects/{id}/blobs/{name}` | Account mode with `PROJECT_STORE`: the object's bytes and ETag, or `404`. |
 | `PUT /v1/projects/{id}/blobs/{name}` | Account mode with `PROJECT_STORE`: create or replace under an ETag precondition, quota-charged. |
@@ -84,6 +88,24 @@ The caller configures a finite write lease and bounded sweep interval. Each due,
 The R2 writer and the scheduled sweep are wired by the encrypted object storage section below. The local D1 tests use a deterministic fake uploader through the same settlement seam; the storage tests exercise the real R2 adapter through workerd, including the crash/race paths and the outage exception. Neither a successful sign-in nor these accounting tests claim that a service is launch-ready.
 
 The agreed test seams are verified OAuth/HTTP through actual workerd with local D1 and R2, the exported account/operator interface, and `QuotaStore` with real local D1 and a fake uploader. Cover identity rename/reuse, concurrent claims/reservations, session cutover/revocation including existing sockets, quota boundaries, idempotency, retained charges and failed/recovered reconciliation. The browser dependency boundary remains a repository guard.
+
+## Project records
+
+A device that has never opened a project needs two things before it can: the project's key, and a name to show. Account mode keeps one row per project (`0008_project_records.sql`) holding both, and the server can read neither.
+
+`GET /v1/projects` answers `{projects: [{id, wrappedKey, record, createdAt, updatedAt}]}` for the signed-in account only, oldest first. `PUT /v1/projects/{id}` records a project or replaces its row: the body is exactly `{"wrappedKey": "<base64>", "record": "<base64>"}` at most 2,048 bytes, the wrapper canonical base64 of exactly 61 bytes — a format byte, a nonce, a 32-byte key and a tag — and the record canonical base64 of 1 to 1,024 bytes. `If-None-Match: *` records a new project and answers `201`, or `409` when that id is already recorded; no precondition replaces the row and answers `200`, which is what renaming a project is. `If-Match`, extra fields, non-canonical base64 and the wrong sizes are the same fixed `400`. A project id is at most 64 letters, digits, `-` and `_`; a method either route does not serve is `405`.
+
+Every call requires `X-Caotang-Account` naming the account read from `GET /v1/account` — a precondition, not a selector: a missing or different value is `412`, so a cookie that changed in another tab cannot record a project under the wrong account. Every statement joins the active account, invitation and session revision, so a revoked session is `401` rather than an empty list. The row is written by one `INSERT … ON CONFLICT` statement, so two devices recording the same id elect one winner. In allowlist mode these routes do not exist (`404`).
+
+The server stores the wrapper and the record as bytes it was handed: it never parses, decrypts, logs or re-serializes either, and a project's name is as unreadable to it as a manuscript ([hosted.md §5](hosted.md#the-project-record-and-the-accounts-registry)). Deleting a project is not built: there is no route that removes a row, and removing a project's objects is the retention slice's business.
+
+## The device lease
+
+One device edits a project at a time and the others read it, so two writers do not race each other into a conflict question they could have avoided ([hosted.md §7](hosted.md#7-sync-conflicts-and-rollback)). The lease is soft on purpose: `POST /v1/projects/{id}/lease` with `X-Caotang-Device` takes it or renews it, and the row (`0009_project_leases.sql`) lapses 60 seconds after the last heartbeat. A closed tab, a lost network or a crash frees the project with no lock to clear.
+
+The answer is `{leased, until}`: whether this device holds it, and when it ends. A device that is refused learns when the lease lapses and not which device holds it — a lease is not a device directory. `X-Caotang-Takeover: 1` takes a live lease from another device, which is what the interface asks the writer before it offers; without the header a live lease is never taken. `DELETE` releases it, and only the holding device may: another device's attempt is `409` and releases nothing.
+
+A device names itself with a label of at most 64 letters, digits, `-` and `_` that it draws once per session. The label authorizes nothing — the account still comes from the session and every call still requires `X-Caotang-Account` — it is only compared with the label in this account's own row. While a lease is live, a blob `PUT` or `DELETE` from another device is refused `423`, and one that names no device at all is refused `428`, so the second device is read-only in fact as well as in the interface. A client that takes no lease is not blocked by one, which keeps a script or the desktop’s own path working; `GET` and the object listing are never refused.
 
 ## Encrypted object storage
 
