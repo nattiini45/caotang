@@ -18,6 +18,7 @@ import { NO_EDITS, NO_OVERRIDES, buildCommit, initialSettings, scanTree, type Co
 import { RTF_OPTIONS, rtfErrorText, rtfPreviewSource, rtfSizeRefusal } from '../src/import-preview/rtf-source.js';
 import { epubPreviewSource } from '../src/import-preview/epub-source.js';
 import { ao3PreviewSource } from '../src/import-preview/ao3-source.js';
+import { kankaPreviewSource } from '../src/import-preview/kanka-source.js';
 import { rawZip } from '../../../packages/import-read/test/zip-fixtures.js';
 import {
   SPLIT_CHIPS,
@@ -463,6 +464,72 @@ describe('the sources', () => {
     expect(source.report?.(plan)[0]?.lines[0]).toBe('3 tags became keywords');
     const scan = scanTree(plan.tree, PREVIEW_HELPERS, source.scanExtra?.() ?? []);
     expect(scan.total).toBe(0);
+  });
+
+  it('a Kanka export offers its entities as codex rows with pages, keywords and a manual private entry', async () => {
+    const kankaEntity = (id: number, name: string, extra: Record<string, unknown>): string =>
+      JSON.stringify({ id, name, entity: { id, name, type: '', entry: '', is_private: false, image_path: '', entityTags: [], relationships: [], posts: [], entityAttributes: [], reminders: [], ...extra } });
+    const zip = rawZip([
+      { name: 'info.json', data: enc(JSON.stringify({ kanka_version: '2.1.4' })) },
+      { name: 'campaign.json', data: enc(JSON.stringify({ name: 'The Ninth House' })) },
+      { name: 'characters/elena_11.json', data: enc(kankaEntity(11, 'Elena', { type: 'Cartographer', entry: '<p>Elena maps the harbour.</p>', entityTags: [{ tag_id: 31 }] })) },
+      { name: 'journals/secret_16.json', data: enc(kankaEntity(16, 'Secret', { is_private: true, entry: '<p>Only the writer sees this.</p>' })) },
+      { name: 'events/flood_17.json', data: enc(JSON.stringify({ id: 17, name: 'The Flood', date: 'Year 1204', entity: { id: 17, name: 'The Flood', entry: '<p>The water came.</p>', reminders: [] } })) },
+      { name: 'tags/slow-burn_31.json', data: enc(kankaEntity(31, 'Slow Burn', {})) },
+    ]);
+    const source = kankaPreviewSource('campaign.zip', zip);
+    await source.load?.(() => {}, new AbortController().signal);
+    const settings = initialSettings(source.chips(), source.options());
+    const plan = source.plan(settings, NO_OVERRIDES);
+    expect(plan.tree.map((node) => [node.title, node.place])).toEqual([['World history', 'research']]);
+    expect(source.codexRows?.().map((row) => [row.name, row.type, row.includePolicy ?? 'detected'])).toEqual([
+      ['Elena', 'character', 'detected'],
+      ['The Flood', 'lore', 'detected'],
+      ['Secret', 'lore', 'manual'],
+    ]);
+    const elena = source.codexRows?.()[0];
+    expect(elena?.keywords).toEqual(['characters', 'Cartographer', 'Slow Burn']);
+    expect(elena?.page?.body.startsWith('# Elena')).toBe(true);
+    expect(source.metadata?.()).toEqual({ title: 'The Ninth House' });
+    expect(source.report?.(plan)[0]?.lines[0]).toBe('3 entities are offered as codex entries with their own Research pages');
+    // The pages are not tree nodes, so the scan reads them through scanExtra.
+    const extras = source.scanExtra?.() ?? [];
+    expect(extras.some((part) => part.text.includes('Only the writer sees this.'))).toBe(true);
+    expect(scanTree(plan.tree, PREVIEW_HELPERS, extras).total).toBe(0);
+
+    // The commit carries the source's keywords and include policy, and one page per entry.
+    const commit = buildCommit(
+      { plan, edits: NO_EDITS, destination: 'manuscript', mapping: {}, statuses: [], labels: [], statusAnswers: {}, labelAnswers: {}, codexRows: source.codexRows?.() ?? [], codexAnswers: {}, codexHeld: [], pictures: [] },
+      PREVIEW_HELPERS,
+    );
+    expect(commit.params.codex?.entries.map((entry) => [entry.name, entry.includePolicy ?? 'detected', entry.keywords ?? []])).toEqual([
+      ['Elena', 'detected', ['characters', 'Cartographer', 'Slow Burn']],
+      ['The Flood', 'detected', ['events']],
+      ['Secret', 'manual', ['journals']],
+    ]);
+    expect(commit.params.codex?.pages).toHaveLength(3);
+    source.dispose?.();
+  });
+
+  it('a Kanka campaign with no events or gallery still offers a Campaign index, so the tree is never empty', async () => {
+    const kankaEntity = (id: number, name: string): string =>
+      JSON.stringify({ id, name, entity: { id, name, type: 'Cartographer', entry: '<p>A note.</p>', is_private: false, image_path: '', entityTags: [], relationships: [], posts: [], entityAttributes: [], reminders: [] } });
+    const zip = rawZip([
+      { name: 'info.json', data: enc(JSON.stringify({ kanka_version: '2.1.4' })) },
+      { name: 'campaign.json', data: enc(JSON.stringify({ name: 'Quiet Quarter' })) },
+      { name: 'characters/elena_11.json', data: enc(kankaEntity(11, 'Elena')) },
+    ]);
+    const source = kankaPreviewSource('campaign.zip', zip);
+    await source.load?.(() => {}, new AbortController().signal);
+    const plan = source.plan(initialSettings(source.chips(), source.options()), NO_OVERRIDES);
+    expect(plan.tree.map((node) => [node.title, node.place])).toEqual([['Campaign index', 'research']]);
+    const commit = buildCommit(
+      { plan, edits: NO_EDITS, destination: 'manuscript', mapping: {}, statuses: [], labels: [], statusAnswers: {}, labelAnswers: {}, codexRows: source.codexRows?.() ?? [], codexAnswers: {}, codexHeld: [], pictures: [] },
+      PREVIEW_HELPERS,
+    );
+    expect(commit.params.nodes).toHaveLength(1);
+    expect(commit.params.codex?.entries.map((entry) => entry.name)).toEqual(['Elena']);
+    source.dispose?.();
   });
 
   it('a source keeps the document while only rule chips change', () => {

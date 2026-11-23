@@ -181,7 +181,11 @@ export const BUDGET = {
   // picker and the models step themselves are already in lazily loaded views, and the picker's stylesheet was moved out of the
   // entry onto its own chunk, which is what keeps the entry CSS under its cap. The ceiling is the measurement plus under 1 kB.
   // [delegated 2026-11-22]
-  initialGzip: 1_118_500,
+  // The Kanka import (#293) on the merge of main 7e303a1d (which carries the AO3 import, #297): 1,119,417 bytes gzip
+  // measured, +1,796 over the ceiling that tree sat under. Named: the compiled English catalogue's Kanka messages, which must
+  // precede first paint (i18n.md §3.3); the reader, the preview source and the Worker stay on use. The ceiling is the
+  // measurement rounded up to the thousand. [delegated 2026-11-23]
+  initialGzip: 1_120_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -308,7 +312,11 @@ export const BUDGET = {
   // strings in the de catalogue. Measured again at 8,985,761 bytes after the review fixes (the shared reader and
   // picture refusal lines). Measured again on the merge of main 1ff564dd, which carries the provider-model
   // picker (#824): 8,994,369 bytes. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  totalJs: 8_995_000,
+  // The Kanka import (#293) on the merge of main 7e303a1d: 9,018,273 bytes measured, +23,904 over that tree's ceiling.
+  // Named: the @caotang/import-kanka reader and its preview source, all on-use chunks, and the German Kanka strings in the
+  // de catalogue. Measured again at 9,019,400 bytes at the review-answers head. The ceiling is the measurement rounded up
+  // to the thousand. [delegated 2026-11-23]
+  totalJs: 9_020_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

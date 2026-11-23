@@ -151,6 +151,17 @@ export interface PreviewCodexRow {
   readonly cite?: { readonly nodeId?: string; readonly quote: string };
   /** The row's full text as a Research page, when the source has one. */
   readonly page?: { readonly title: string; readonly body: string };
+  /** The source's own words for it (a Kanka module, a tag), offered as the entry's keywords. */
+  readonly keywords?: readonly string[];
+  /** Other names the source used for the same thing. */
+  readonly aliases?: readonly string[];
+  /** The include policy the source asks for: a private entity is `'manual'`, never detected into a prompt. */
+  readonly includePolicy?: string;
+  /**
+   * The row's page is its own text and is created even when the name also appears in the imported documents (a Kanka entity,
+   * whose name is in the world-history index). Without it, a name found in the tree is cited there and no page is made.
+   */
+  readonly preferPage?: boolean;
 }
 
 export interface PreviewPicture {
@@ -704,15 +715,6 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
 
   for (const node of tree) push(node, undefined, undefined);
 
-  // The pictures the kept bodies use, and only those.
-  const bodies = nodes.map((node) => node.body ?? '').join('\n');
-  const pictures = input.pictures.filter((picture) => bodies.includes(`](${picture.ref}`));
-  const dropped = input.pictures.length - pictures.length;
-  if (dropped > 0) {
-    const count = plural(dropped, { one: '# picture', other: '# pictures' });
-    notices.push(dropped === 1 ? t`${count} in left-out text was not imported.` : t`${count} in left-out text were not imported.`);
-  }
-
   // The codex rows, by the writer's answers.
   const entries: ImportTreeCodexEntry[] = [];
   const pages: { title: string; body: string }[] = [];
@@ -726,8 +728,15 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
     }
     const name = answer.action === 'rename' ? answer.name.trim() : row.name;
     if (name === '') continue;
-    const base = { name, type: row.type, ...(row.description === undefined || row.description === '' ? {} : { description: [...row.description].slice(0, 2000).join('') }) };
-    const cite = citeOf(row, nodes, indexOf);
+    const base = {
+      name,
+      type: row.type,
+      ...(row.description === undefined || row.description === '' ? {} : { description: [...row.description].slice(0, 2000).join('') }),
+      ...(row.keywords === undefined || row.keywords.length === 0 ? {} : { keywords: [...row.keywords] }),
+      ...(row.aliases === undefined || row.aliases.length === 0 ? {} : { aliases: [...row.aliases] }),
+      ...(row.includePolicy === undefined ? {} : { includePolicy: row.includePolicy }),
+    };
+    const cite = row.preferPage === true ? undefined : citeOf(row, nodes, indexOf);
     if (cite !== undefined) {
       entries.push({ ...base, node: cite.node, cite: { from: cite.from, to: cite.to, quote: cite.quote } });
       continue;
@@ -740,6 +749,16 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
     }
     const rowName = row.name;
     notices.push(t`“${rowName}” is not named in the imported text, so its codex entry was not made.`);
+  }
+
+  // The pictures the kept bodies use, and only those — codex pages' bodies count too, since an entity page carries
+  // its picture.
+  const bodies = [...nodes.map((node) => node.body ?? ''), ...pages.map((page) => page.body)].join('\n');
+  const pictures = input.pictures.filter((picture) => bodies.includes(`](${picture.ref}`));
+  const dropped = input.pictures.length - pictures.length;
+  if (dropped > 0) {
+    const count = plural(dropped, { one: '# picture', other: '# pictures' });
+    notices.push(dropped === 1 ? t`${count} in left-out text was not imported.` : t`${count} in left-out text were not imported.`);
   }
 
   const vocabulary = {
