@@ -93,7 +93,9 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
     const args = ['serve', '--project', root, '--port', '0'];
     if (allowWrites === true) args.push('--allow-writes');
     const forked = utilityProcess.fork(options.bundle, args, {
-      env: { ...process.env, CAOTANG_MCP_TOKEN: token },
+      // The write setting is set explicitly, both ways: a `CAOTANG_MCP_ALLOW_WRITES=true` inherited from whatever launched the app would
+      // otherwise expose writes while the switch says they are off (cli.ts reads that variable as an argument).
+      env: { ...process.env, CAOTANG_MCP_TOKEN: token, CAOTANG_MCP_ALLOW_WRITES: allowWrites === true ? 'true' : 'false' },
       stdio: 'pipe',
       serviceName: 'Caotang MCP server',
     });
@@ -137,7 +139,13 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
           settle({ ok: true, value: status });
           return;
         }
-        if (status.state === 'running' || status.state === 'starting') publish({ state: 'stopped' });
+        // A server that goes after it was ready, without a stop being asked for, failed: reporting it as stopped would leave the block
+        // saying the writer stopped something they did not.
+        if (status.state === 'running') {
+          publish({ state: 'failed', refusal: 'failed', folderId: status.folderId, detail: said.trim().split('\n').slice(-1)[0] });
+        } else if (status.state === 'starting') {
+          publish({ state: 'stopped' });
+        }
         if (!settled) {
           // The command line's own exit codes say why it would not serve: 3 is the folder another writer holds, 2 is a folder that
           // holds no project and cannot be made one, and anything else is this app's to report (cli.ts).
@@ -176,14 +184,10 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
         return false;
       }
     };
-    // A pause that fails costs nothing (the digest check is the guarantee). A resume that fails would leave every write refused for
-    // the life of that server, so it is tried again, and then the server is restarted: a stopped server is a state the writer can see
-    // and act on, a server that silently refuses everything is not.
-    const attempts = what === 'resume' ? 3 : 1;
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-      if (await post()) return { ok: true, value: status };
-      if (attempt + 1 < attempts) await new Promise((resolve) => setTimeout(resolve, 150));
-    }
+    // One attempt each way, never a retry: a resume that timed out may have reached the server and lifted its pause, and a second one
+    // would lift another save's. A failed pause costs nothing (the digest check is the guarantee). A failed resume leaves every write
+    // refused for the life of that server, so the server is stopped instead — a state the writer can see and act on.
+    if (await post()) return { ok: true, value: status };
     if (what === 'resume' && status.state === 'running') {
       const folderId = status.folderId;
       const allowWrites = status.allowWrites === true;

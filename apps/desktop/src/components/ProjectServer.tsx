@@ -92,6 +92,19 @@ export function ProjectServerSection({ folderId }: { readonly folderId: string |
     };
   }, []);
 
+  // A server belongs to the folder it was started for. Opening another project while one runs must not leave the last project
+  // reachable on an address the writer has stopped looking at, so the switch to a different folder stops it.
+  useEffect(() => {
+    const running = status?.state === 'running';
+    const otherFolder = status?.folderId !== undefined && status.folderId !== folderId;
+    if (!running || !otherFolder) return;
+    void stopProjectServer()
+      .then((next) => {
+        if (next !== undefined) setStatus(next);
+      })
+      .catch(() => undefined);
+  }, [folderId, status?.state, status?.folderId]);
+
   const state: McpHostState = status?.state ?? 'stopped';
   const running = state === 'running';
   // While the server runs or starts, the setting it was started with is the truth; stopped, the switch is what the next start uses.
