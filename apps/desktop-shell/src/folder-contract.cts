@@ -1,4 +1,4 @@
-import type { EgressChunk, EgressEnd, NativeEgressBridge } from './egress-contract.cjs';
+import type { NativeEgressBridge } from './egress-contract.cjs';
 import type { NativeOsBridge } from './os-contract.cjs';
 
 export interface NativeFolder {

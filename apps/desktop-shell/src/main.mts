@@ -154,9 +154,8 @@ function deliverAll(evidence: readonly string[]): void {
 
 async function start(): Promise<void> {
   await serveBuild();
-  await registerFolderIpc(app.getPath('userData'), ENTRY);
-  registerEgressIpc(ENTRY);
   const folders = await registerFolderIpc(app.getPath('userData'), ENTRY);
+  registerEgressIpc(ENTRY);
   os = registerOsIpc({
     entryUrl: ENTRY,
     own: [process.execPath, app.getAppPath()],
