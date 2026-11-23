@@ -12,4 +12,6 @@ Choose an empty folder when creating a project, or use **Open a folder** for an 
 
 Provider and MCP calls: provider requests are made by the main process, so a provider that sends no CORS headers answers the app where a browser could not read it (`docs/architecture/desktop.md` §Native provider calls). That port is not a general fetcher: https only, to the origins of the provider profiles the app holds, never this computer, and capped in every direction. The local model servers keep the browser's path. Settings therefore shows no "Desktop app or hosted only" badge here: that badge would be a browser's limit, and this app does not have it.
 
-There is no keychain, stdio MCP, or external-link handoff yet.
+Keys and MCP tokens are held by this computer's keychain, in the main process, through Electron's `safeStorage`; the page may put, delete, check, revise, restore and remove one and never read one, and a request carries a handle the main process swaps for the secret at the address that key belongs to (`docs/architecture/desktop.md` §The keychain). Without a usable keychain — a Linux desktop that falls back to Chromium's built-in key counts as none — keys stay in the browser's encrypted vault, and Settings and the start-up notice say so.
+
+There is no stdio MCP or external-link handoff yet.

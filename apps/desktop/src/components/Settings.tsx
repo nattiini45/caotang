@@ -400,10 +400,17 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
         <Trans>Providers</Trans>
       </h3>
       <p className="muted">
-        <Trans>
-          The agent calls the active profile. Keys are encrypted in this browser and never written into a project. The built-in demo
-          profile answers only the three demo requests.
-        </Trans>
+        {services.keychain ? (
+          <Trans>
+            The agent calls the active profile. Keys are held by this computer's keychain and never written into a project, and none of
+            them reaches this page. The built-in demo profile answers only the three demo requests.
+          </Trans>
+        ) : (
+          <Trans>
+            The agent calls the active profile. Keys are encrypted in this browser and never written into a project. The built-in demo
+            profile answers only the three demo requests.
+          </Trans>
+        )}
       </p>
 
       <ul className="profile-list" aria-label={t`Provider profiles`}>

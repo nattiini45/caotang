@@ -6429,6 +6429,10 @@ msgstr "Caotang could not prepare this comparison."
 msgid "Caotang could not reach the folder it remembers. Choose Open a folder… to find it."
 msgstr "Caotang could not reach the folder it remembers. Choose Open a folder… to find it."
 
+#: apps/desktop/src/app/native-vault.ts
+msgid "Caotang could not read this key's extra header values from the keychain."
+msgstr "Caotang could not read this key's extra header values from the keychain."
+
 #. Encoding conversion results. Interpolated values: name is a document title, codex entry name or file path of the writer's project; from and named are text encoding names; why and reason are failure messages; backup is a file path.
 #: apps/desktop/src/app/encoding-review.ts
 msgid "Caotang could not tell which encoding to read it with"
@@ -20745,6 +20749,11 @@ msgstr "Some changes were taken back in this tab, but they could not be saved. K
 msgid "Some documents in this folder changed since Caotang last saved them"
 msgstr "Some documents in this folder changed since Caotang last saved them"
 
+#. Interpolated values: error
+#: apps/desktop/src/app/services.ts
+msgid "Some keys could not be moved into this computer's keychain. Settings names each profile without one, and entering the key again keeps it there."
+msgstr "Some keys could not be moved into this computer's keychain. Settings names each profile without one, and entering the key again keeps it there."
+
 #: apps/desktop/src/components/RestoreResult.tsx
 msgid "Some of this turn’s project changes were taken back."
 msgstr "Some of this turn’s project changes were taken back."
@@ -22058,6 +22067,11 @@ msgstr "the agent"
 #: apps/desktop/src/components/Settings.tsx
 msgid "The agent calls the active profile. Keys are encrypted in this browser and never written into a project. The built-in demo profile answers only the three demo requests."
 msgstr "The agent calls the active profile. Keys are encrypted in this browser and never written into a project. The built-in demo profile answers only the three demo requests."
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "The agent calls the active profile. Keys are held by this computer's keychain and never written into a project, and none of them reaches this page. The built-in demo profile answers only the three demo requests."
+msgstr "The agent calls the active profile. Keys are held by this computer's keychain and never written into a project, and none of them reaches this page. The built-in demo profile answers only the three demo requests."
 
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
 #: apps/desktop/src/media/ScreenplayView.tsx
@@ -23399,6 +23413,11 @@ msgstr "The most findings one review may add is a whole number from 1 to {max}."
 msgid "The new read matches the approved text."
 msgstr "The new read matches the approved text."
 
+#. Interpolated values: key
+#: apps/desktop/src/app/mcp.ts
+msgid "The new token was not kept, and the old one could not be put back. Enter the token again for this server."
+msgstr "The new token was not kept, and the old one could not be put back. Enter the token again for this server."
+
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #. Slash command replies. Interpolated values: id and name are a context layer's key and name, tokens and budget are token counts, budgetNote is the budget phrase, topic is a command name, drop is a dropped layer, number and arg are turn numbers.
 #: apps/desktop/src/app/agent.ts
@@ -23429,6 +23448,11 @@ msgstr "The open document is not a scene the agent drafts. Open a scene to see t
 #: apps/desktop/src/app/picture-retention-host.ts
 msgid "the open undo groups"
 msgstr "the open undo groups"
+
+#. Interpolated values: error
+#: apps/desktop/src/app/services.ts
+msgid "The operating system's keychain could not be used on this computer, so keys stay encrypted in this browser. Add them again from Settings if you expect one there."
+msgstr "The operating system's keychain could not be used on this computer, so keys stay encrypted in this browser. Add them again from Settings if you expect one there."
 
 #. Sizes of the original file before it was stored as a working copy; width and height are pixel counts, size is a formatted byte count.
 #: apps/desktop/src/media/PictureDetails.tsx
@@ -27747,6 +27771,11 @@ msgstr "Your later changes are in other parts of the project, so this can be tak
 #: apps/desktop/src/components/Home.tsx
 msgid "Your projects could not be listed: {error}"
 msgstr "Your projects could not be listed: {error}"
+
+#. Interpolated values: error
+#: apps/desktop/src/app/services.ts
+msgid "Your provider keys are now kept by this computer's keychain instead of this browser."
+msgstr "Your provider keys are now kept by this computer's keychain instead of this browser."
 
 #. Interpolated values: error, name
 #: apps/desktop/src/app/providers.ts
