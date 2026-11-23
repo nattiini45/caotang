@@ -212,11 +212,16 @@ interface State {
   suppressed: number;
   /** The annotation open at this point, with the text it anchors. */
   annotation: { text: string } | null;
+  /** Inside a note, annotation or cell body, whose text is not the paragraph's own. */
+  inBody: number;
 }
 
 /** The inline content of a paragraph or a span, as Markdown. */
 function inline(node: XmlNode, state: State, inherited: { bold: boolean; italic: boolean; strike: boolean; underline: boolean }): string {
-  if (node.type === 'text') return state.suppressed > 0 ? '' : node.text;
+  if (node.type === 'text') {
+    if (state.suppressed === 0 && state.inBody === 0 && state.annotation !== null) state.annotation.text += node.text;
+    return state.suppressed > 0 ? '' : node.text;
+  }
   const local = node.local;
   if (state.suppressed > 0 && local !== 'change-start' && local !== 'change-end') return '';
   if (local === 'span') {
@@ -307,7 +312,10 @@ const PLAIN = { bold: false, italic: false, strike: false, underline: false };
 
 /** A paragraph's text without its Markdown: for a note or an annotation. */
 function plain(paragraph: XmlElement, state: State): string {
-  return children(paragraph, state, PLAIN).replace(/[ \t]+/g, ' ').trim();
+  state.inBody += 1;
+  const text = children(paragraph, state, PLAIN).replace(/[ \t]+/g, ' ').trim();
+  state.inBody -= 1;
+  return text;
 }
 
 /** A frame's picture: its ref, or nothing when it cannot come in. */
@@ -547,6 +555,7 @@ function newState(options: OdtOptions): State {
     imageIndex: 0,
     suppressed: 0,
     annotation: null,
+    inBody: 0,
   };
 }
 
