@@ -188,6 +188,11 @@ export interface ProviderOpenOptions {
   readonly host?: StudioHost;
   /** The browser's `indexedDB` for the vault, or `null` for an in-memory vault (no keys survive a reload then). */
   readonly vault: IDBFactory | null;
+  /**
+   * The key store, when the host keeps the keys itself — the desktop app's operating-system keychain. Given, the vault above is
+   * not consulted at all, and the keys this store answers with are handles the host swaps for the secrets it holds.
+   */
+  readonly keys?: KeyStore;
   readonly fetch?: FetchLike;
   readonly clock?: Clock;
   readonly mock?: MockProvider;
@@ -317,7 +322,7 @@ export class ProviderService {
     // until the studio is open.
     let installing = true;
     const host = options.host;
-    const keys = createKeyStore(vault);
+    const keys = options.keys ?? createKeyStore(vault);
     if (host?.restore !== undefined) {
       try {
         // Read here, not later: a key for a profile whose endpoint has moved since another device saved it must not come

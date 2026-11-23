@@ -7,15 +7,23 @@
  * nothing else. This module is that rule, in one place, with no Electron and no network in it, so the rule is tested by
  * the repository's own gate rather than only by a launched app.
  *
- * **No loopback.** A local model server and a local MCP server are reached from the page as they are today
- * (decisions.md: provider calls are made natively, https only, to the configured profiles' origins and connected MCP
- * URLs, no loopback). Everything here therefore refuses a request whose origin is this computer.
+ * **Provider calls never reach this computer.** A local model server is reached from the page exactly as it is in a browser
+ * (decisions.md: provider calls are made natively, https only, to the configured profiles' origins, no loopback). An MCP
+ * server on this computer is the one exception, because a local server is where a bearer token most often lives and a token
+ * held by the main process cannot be attached by the page; such an entry is `local` and is the only kind allowed plain http
+ * to a loopback literal.
  *
- * The refusal kind is what the host tells the writer: `denied` means the address is not one they configured, `invalid`
- * means the request itself is malformed, and `too-large` means it would spend more memory than the port allows.
+ * **A key is a handle until it arrives here.** The page's key store never holds a provider key or an MCP token: it holds
+ * `caotang-key:<id>`, and the adapter that would have written the key writes the handle where the key goes — in a header, in
+ * the URL, wherever its own protocol puts it. The host swaps the handle for the secret of that id ({@link attachKeys}), but only
+ * when the address is one the id belongs to, and then scrubs the secret out of the answer before the page sees it
+ * ({@link createSecretScrubber}), so a provider that echoes a key cannot put one in the request log.
+ *
+ * The refusal kind is what the host tells the writer: `denied` means the address or the key is not one the app configured,
+ * `invalid` means the request itself is malformed, and `too-large` means it would spend more memory than the port allows.
  */
 
-import { isLoopbackHost } from './loopback.js';
+import { isLoopbackHost, isLoopbackLiteral } from './loopback.js';
 
 /** A request the native side may make: exactly what the port accepts and hands to a network stack. */
 export interface NativeEgressRequest {
@@ -23,6 +31,8 @@ export interface NativeEgressRequest {
   readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   readonly headers: Readonly<Record<string, string>>;
   readonly body?: string;
+  /** The key-vault ids this request names as handles. Empty when it carries no credential. */
+  readonly keys: readonly string[];
 }
 
 export type NativeEgressRefusal = 'invalid' | 'denied' | 'too-large';
@@ -52,7 +62,24 @@ export const NATIVE_EGRESS_LIMITS: NativeEgressLimits = {
   maxResponseBytes: 64 * 1024 * 1024,
 };
 
-/** The methods a model call, a model listing and an MCP session use. Anything else is not a shape this app sends. */
+/** One address the app may reach, and the keys whose secrets may be sent to it. */
+export interface NativeEgressTarget {
+  readonly origin: string;
+  /** The vault ids (a profile id, or an `mcp:` reference) whose secret this address may carry. */
+  readonly keys?: readonly string[];
+  /** A server on this computer: the only kind that may be plain http, and only to a loopback literal. */
+  readonly local?: boolean;
+}
+
+/** What one configured address allows, as the rule reads it. */
+export interface NativeEgressAllowance {
+  readonly keys: ReadonlySet<string>;
+  readonly local: boolean;
+}
+
+/** A vault id: a provider profile, or an MCP token reference. Never a secret. */
+const KEY_ID = /^[A-Za-z0-9:_.-]{1,128}$/u;
+
 const METHODS: ReadonlySet<string> = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
 
 /** An RFC 9110 token: what a header name may be. */
@@ -74,6 +101,26 @@ const REFUSED_HEADERS: ReadonlySet<string> = new Set([
   'upgrade',
 ]);
 
+/** Where a key would have gone, the host puts this instead until it has checked the address it is going to. */
+export const KEY_HANDLE_PREFIX = 'caotang-key:';
+
+/** The handle for a vault id: what the page may hold and what the host swaps for the secret. */
+export function keyHandle(id: string): string {
+  return `${KEY_HANDLE_PREFIX}${id}`;
+}
+
+const HANDLE = new RegExp(`${KEY_HANDLE_PREFIX}([A-Za-z0-9:_.-]{1,128})`, 'gu');
+
+/** The vault ids a piece of text names, in order, without repeats. */
+export function handleIds(text: string): readonly string[] {
+  const ids = new Set<string>();
+  for (const match of text.matchAll(HANDLE)) {
+    const id = match[1];
+    if (id !== undefined) ids.add(id);
+  }
+  return [...ids];
+}
+
 /** Whether a header value carries a control character: a line break would split one header into two, and nothing here sends one. */
 function hasControl(text: string): boolean {
   for (let index = 0; index < text.length; index += 1) {
@@ -84,40 +131,60 @@ function hasControl(text: string): boolean {
 }
 
 /**
- * The origins a host may reach, from the entries the app configured. An entry that is not a bare `https` origin is
- * dropped rather than repaired: the app's own profile and server records are what produce these, so a malformed entry is
- * a bug, and accepting a truncated address would widen the allowlist instead of narrowing it.
+ * The addresses a host may reach, from the entries the app configured. An entry that is not a bare origin, or is this
+ * computer without being a `local` entry, is dropped rather than repaired: the app's own profile and server records are what
+ * produce these, so a malformed entry is a bug, and accepting a truncated address would widen the allowlist instead of
+ * narrowing it.
  */
-export function nativeEgressOrigins(entries: readonly unknown[]): ReadonlySet<string> {
-  const origins = new Set<string>();
+export function nativeEgressTargets(entries: readonly unknown[]): ReadonlyMap<string, NativeEgressAllowance> {
+  const targets = new Map<string, NativeEgressAllowance>();
   for (const entry of entries) {
-    const origin = typeof entry === 'string' ? normalizeOrigin(entry) : undefined;
-    if (origin !== undefined) origins.add(origin);
+    if (entry === null || typeof entry !== 'object') continue;
+    const candidate = entry as { origin?: unknown; keys?: unknown; local?: unknown };
+    if (typeof candidate.origin !== 'string') continue;
+    const local = candidate.local === true;
+    const origin = normalizeOrigin(candidate.origin, local);
+    if (origin === undefined) continue;
+    const keys = Array.isArray(candidate.keys)
+      ? candidate.keys.filter((key): key is string => typeof key === 'string' && KEY_ID.test(key))
+      : [];
+    const known = targets.get(origin);
+    targets.set(origin, { keys: new Set([...(known?.keys ?? []), ...keys]), local: known?.local === true || local });
   }
-  return origins;
+  return targets;
 }
 
-/** A bare `https` origin, or undefined for anything else (a path, a query, a credential, another scheme). */
-export function normalizeOrigin(raw: string): string | undefined {
+/**
+ * A bare origin, or undefined for anything else (a path, a query, a credential, another scheme). A `local` address may be
+ * plain http, and must then be a loopback literal; an address on this computer that is not `local` is never an origin the
+ * port reaches.
+ */
+export function normalizeOrigin(raw: string, local = false): string | undefined {
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
     return undefined;
   }
-  if (url.protocol !== 'https:' || url.username !== '' || url.password !== '') return undefined;
+  if (url.username !== '' || url.password !== '') return undefined;
   // An origin carries no path, query or fragment: `https://api.example.com/v1` is a base URL, not an origin.
   if (url.pathname !== '/' || url.search !== '' || url.hash !== '') return undefined;
+  if (local) {
+    if (url.protocol === 'https:' && !isLoopbackHost(url.hostname)) return undefined;
+    if (url.protocol === 'http:' && !isLoopbackLiteral(url.hostname)) return undefined;
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.origin : undefined;
+  }
+  if (url.protocol !== 'https:') return undefined;
   if (isLoopbackHost(url.hostname)) return undefined;
   return url.origin;
 }
 
 /**
- * Whether one request may be made. Every field is checked here and not in the host that runs the network call, so the
- * rule is the same in a test as in the app, and a request that passes is exactly the one the host sends.
+ * Whether one request may be made, and with which key. Every field is checked here and not in the host that runs the network
+ * call, so the rule is the same in a test as in the app, and a request that passes is exactly the one the host sends.
  */
 export function checkNativeEgress(
-  origins: ReadonlySet<string>,
+  targets: ReadonlyMap<string, NativeEgressAllowance>,
   candidate: unknown,
   limits: NativeEgressLimits = NATIVE_EGRESS_LIMITS,
 ): NativeEgressCheck {
@@ -130,11 +197,14 @@ export function checkNativeEgress(
   } catch {
     return { ok: false, refusal: 'invalid' };
   }
-  // The scheme is decided before the allowlist is consulted, so a non-https address is refused as invalid wherever it
-  // points and never merely as unconfigured.
-  if (url.protocol !== 'https:' || url.username !== '' || url.password !== '') return { ok: false, refusal: 'invalid' };
-  if (isLoopbackHost(url.hostname)) return { ok: false, refusal: 'denied' };
-  if (!origins.has(url.origin)) return { ok: false, refusal: 'denied' };
+  if (url.username !== '' || url.password !== '') return { ok: false, refusal: 'invalid' };
+  // Only a local entry may be plain http, and only to a loopback literal: anywhere else a non-https address is a shape this port
+  // does not carry, which is a malformed request rather than an address the writer did not configure.
+  const plain = url.protocol === 'http:';
+  if (!plain && url.protocol !== 'https:') return { ok: false, refusal: 'invalid' };
+  const target = targets.get(url.origin);
+  if (target === undefined) return { ok: false, refusal: plain ? 'invalid' : 'denied' };
+  if (plain && !(target.local && isLoopbackLiteral(url.hostname))) return { ok: false, refusal: 'invalid' };
 
   if (typeof spec.method !== 'string' || !METHODS.has(spec.method)) return { ok: false, refusal: 'invalid' };
   const method = spec.method as NativeEgressRequest['method'];
@@ -160,7 +230,41 @@ export function checkNativeEgress(
     body = spec.body;
   }
 
-  return { ok: true, request: { url: url.href, method, headers, ...(body === undefined ? {} : { body }) } };
+  // A handle is only a request to attach a secret where that secret belongs: an address this key was not configured for is
+  // refused outright rather than sent with the handle, which the provider would report as a bad key.
+  const keys = new Set<string>();
+  for (const text of [url.href, ...Object.values(headers)]) {
+    for (const id of handleIds(text)) {
+      if (!target.keys.has(id)) return { ok: false, refusal: 'denied' };
+      keys.add(id);
+    }
+  }
+
+  return { ok: true, request: { url: url.href, method, headers, ...(body === undefined ? {} : { body }), keys: [...keys] } };
+}
+
+/**
+ * A request with its handles replaced by the secrets they name: raw in a header value, percent-encoded where it stood in a URL,
+ * because a key in a query parameter is a key a URL grammar has to carry.
+ */
+export function attachKeys(
+  request: { readonly url: string; readonly headers: Readonly<Record<string, string>>; readonly keys: readonly string[] },
+  secrets: ReadonlyMap<string, string>,
+): { readonly url: string; readonly headers: Record<string, string>; readonly values: readonly string[] } {
+  let url = request.url;
+  const headers: Record<string, string> = { ...request.headers };
+  const values: string[] = [];
+  for (const id of request.keys) {
+    const secret = secrets.get(id);
+    if (secret === undefined) continue;
+    values.push(secret);
+    const handle = keyHandle(id);
+    if (url.includes(handle)) url = url.split(handle).join(encodeURIComponent(secret));
+    for (const [name, value] of Object.entries(headers)) {
+      if (value.includes(handle)) headers[name] = value.split(handle).join(secret);
+    }
+  }
+  return { url, headers, values };
 }
 
 /** UTF-8 length without building the bytes twice: what the cap is measured against. */
@@ -205,4 +309,64 @@ export async function pumpResponse(response: Response, sink: EgressSink, limits:
   } catch {
     return 'unavailable';
   }
+}
+
+const REDACTED = new TextEncoder().encode('[redacted]');
+
+/**
+ * A sink that never lets one of `secrets` through, even across a chunk boundary. The host attaches a key it holds, so the
+ * page's own redaction — which scrubs the values it sent, and it sent a handle — cannot see the secret a provider echoes
+ * back; this is what keeps "a key never reaches a log" true once the key lives here.
+ *
+ * Bytes are matched as bytes, so a multi-byte character split across two chunks is unaffected. The tail of each chunk is held
+ * back by one byte less than the longest secret, because a secret can start there and finish in the next chunk.
+ */
+export function createSecretScrubber(secrets: readonly string[], sink: EgressSink): { write(bytes: Uint8Array): void; end(): void } {
+  const encoded = secrets.filter((secret) => secret.length > 0).map((secret) => new TextEncoder().encode(secret));
+  if (encoded.length === 0) return { write: sink, end: () => undefined };
+  const hold = Math.max(...encoded.map((secret) => secret.byteLength)) - 1;
+  let pending = new Uint8Array(0);
+
+  const indexOf = (haystack: Uint8Array, needle: Uint8Array, from: number): number => {
+    const last = haystack.byteLength - needle.byteLength;
+    outer: for (let at = Math.max(0, from); at <= last; at += 1) {
+      for (let offset = 0; offset < needle.byteLength; offset += 1) {
+        if (haystack[at + offset] !== needle[offset]) continue outer;
+      }
+      return at;
+    }
+    return -1;
+  };
+
+  const replace = (): void => {
+    for (const secret of encoded) {
+      for (;;) {
+        const at = indexOf(pending, secret, 0);
+        if (at === -1) break;
+        const next = new Uint8Array(pending.byteLength - secret.byteLength + REDACTED.byteLength);
+        next.set(pending.subarray(0, at));
+        next.set(REDACTED, at);
+        next.set(pending.subarray(at + secret.byteLength), at + REDACTED.byteLength);
+        pending = next;
+      }
+    }
+  };
+
+  return {
+    write(bytes) {
+      const joined = new Uint8Array(pending.byteLength + bytes.byteLength);
+      joined.set(pending);
+      joined.set(bytes, pending.byteLength);
+      pending = joined;
+      replace();
+      if (pending.byteLength <= hold) return;
+      const kept = pending.byteLength - hold;
+      sink(pending.subarray(0, kept));
+      pending = pending.slice(kept);
+    },
+    end() {
+      if (pending.byteLength > 0) sink(pending);
+      pending = new Uint8Array(0);
+    },
+  };
 }

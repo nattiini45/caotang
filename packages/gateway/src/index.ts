@@ -100,18 +100,26 @@ export { defaultConcurrency, type ConcurrencyPolicy } from './limiter.js';
 export { STEP_CLASSES } from './types.js';
 export { normalizeBaseUrl, normalizeLocalBaseUrl, originOf, MOCK_BASE_URL, isLoopbackBase, isLocalBase } from './base-url.js';
 export { isLoopbackHost, isLoopbackLiteral } from './loopback.js';
+export { nativeKeyStore, type NativeKeyVault } from './keys/native-store.js';
 export {
+  attachKeys,
   checkNativeEgress,
+  createSecretScrubber,
+  handleIds,
+  keyHandle,
+  KEY_HANDLE_PREFIX,
   NATIVE_EGRESS_LIMITS,
-  nativeEgressOrigins,
+  nativeEgressTargets,
   normalizeOrigin,
   pumpResponse,
   type EgressPump,
   type EgressSink,
+  type NativeEgressAllowance,
   type NativeEgressCheck,
   type NativeEgressLimits,
   type NativeEgressRefusal,
   type NativeEgressRequest,
+  type NativeEgressTarget,
 } from './native-egress.js';
 
 export {

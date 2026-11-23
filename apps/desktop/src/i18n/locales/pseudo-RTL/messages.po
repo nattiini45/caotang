@@ -20745,6 +20745,11 @@ msgstr ""
 msgid "Some documents in this folder changed since Caotang last saved them"
 msgstr ""
 
+#. Interpolated values: error
+#: apps/desktop/src/app/services.ts
+msgid "Some keys could not be moved into this computer's keychain. Settings names each profile without one, and entering the key again keeps it there."
+msgstr ""
+
 #: apps/desktop/src/components/RestoreResult.tsx
 msgid "Some of this turn’s project changes were taken back."
 msgstr ""
@@ -22057,6 +22062,11 @@ msgstr ""
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "The agent calls the active profile. Keys are encrypted in this browser and never written into a project. The built-in demo profile answers only the three demo requests."
+msgstr ""
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "The agent calls the active profile. Keys are held by this computer's keychain and never written into a project, and none of them reaches this page. The built-in demo profile answers only the three demo requests."
 msgstr ""
 
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
@@ -23428,6 +23438,11 @@ msgstr ""
 #. A root of the picture sweep's inventory, named in the sentence that says why a sweep was refused. key is a document's journal key; root is the name of another root; reason is a sentence.
 #: apps/desktop/src/app/picture-retention-host.ts
 msgid "the open undo groups"
+msgstr ""
+
+#. Interpolated values: error
+#: apps/desktop/src/app/services.ts
+msgid "The operating system's keychain could not be used on this computer, so keys stay encrypted in this browser. Add them again from Settings if you expect one there."
 msgstr ""
 
 #. Sizes of the original file before it was stored as a working copy; width and height are pixel counts, size is a formatted byte count.
@@ -27746,6 +27761,11 @@ msgstr ""
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Your projects could not be listed: {error}"
+msgstr ""
+
+#. Interpolated values: error
+#: apps/desktop/src/app/services.ts
+msgid "Your provider keys are now kept by this computer's keychain instead of this browser."
 msgstr ""
 
 #. Interpolated values: error, name

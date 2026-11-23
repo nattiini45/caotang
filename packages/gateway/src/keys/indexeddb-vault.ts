@@ -128,5 +128,10 @@ export function createIndexedDbVaultPort(options: IndexedDbVaultOptions = {}): K
     async deleteEntry(profileId) {
       await run(STORE_ENTRIES, 'readwrite', (objects) => objects.delete(profileId));
     },
+    async listEntryIds() {
+      // `getAll` rather than `getAllKeys`: the records are small, and a cursor-free read is what every binding models.
+      const records = await run<EntryRecord[]>(STORE_ENTRIES, 'readonly', (objects) => objects.getAll());
+      return records.map((record) => record.profileId);
+    },
   };
 }

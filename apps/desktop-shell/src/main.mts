@@ -7,6 +7,7 @@ import { app, BrowserWindow, net, protocol, screen, session } from 'electron';
 
 import { registerEgressIpc } from './egress.mjs';
 import { registerFolderIpc } from './folders.mjs';
+import { openKeyVault, registerVaultIpc } from './vault.mjs';
 const ORIGIN = 'app://caotang';
 const ENTRY = `${ORIGIN}/`;
 const BUILD = resolve(import.meta.dirname, '../../desktop/dist');
@@ -98,7 +99,9 @@ async function openWindow(): Promise<void> {
 async function start(): Promise<void> {
   await serveBuild();
   await registerFolderIpc(app.getPath('userData'), ENTRY);
-  registerEgressIpc(ENTRY);
+  const vault = await openKeyVault(app.getPath('userData'));
+  registerVaultIpc(ENTRY, vault);
+  registerEgressIpc(ENTRY, vault);
   const allowed = (permission: string): boolean => permission === 'clipboard-sanitized-write';
   session.defaultSession.setPermissionCheckHandler((contents, permission, origin) => (
     contents?.getURL() === ENTRY && origin === ORIGIN && allowed(permission)

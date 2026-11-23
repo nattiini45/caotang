@@ -6,7 +6,7 @@ import type { EgressChunk, EgressEnd } from './egress-contract.cjs';
 import type { IpcRendererEvent } from 'electron';
 
 const bridge: DesktopBridge = {
-  version: 3,
+  version: 4,
   folders: {
     pickFolder: (mode) => ipcRenderer.invoke('folders:pick', mode),
     recentFolders: () => ipcRenderer.invoke('folders:recent'),
@@ -24,6 +24,15 @@ const bridge: DesktopBridge = {
       ipcRenderer.on('folders:changed', notify);
       return () => { ipcRenderer.off('folders:changed', notify); };
     },
+  },
+  vault: {
+    available: () => ipcRenderer.invoke('vault:available'),
+    put: (id, payload) => ipcRenderer.invoke('vault:put', id, payload),
+    remove: (id) => ipcRenderer.invoke('vault:remove', id),
+    has: (id) => ipcRenderer.invoke('vault:has', id),
+    revision: (id) => ipcRenderer.invoke('vault:revision', id),
+    restore: (id) => ipcRenderer.invoke('vault:restore', id),
+    headers: (id) => ipcRenderer.invoke('vault:headers', id),
   },
   net: {
     configure: (origins) => ipcRenderer.invoke('net:configure', origins),

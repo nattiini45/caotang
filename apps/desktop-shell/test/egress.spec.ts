@@ -36,7 +36,7 @@ test('the page reaches an address the app configured, and nothing else', async (
       version: window.caotangDesktop?.version,
       net: window.caotangDesktop === undefined ? null : Object.keys(window.caotangDesktop.net).sort(),
     }));
-    expect(surface).toEqual({ version: 3, net: ['abort', 'configure', 'onChunk', 'onEnd', 'start'] });
+    expect(surface).toEqual({ version: 4, net: ['abort', 'configure', 'onChunk', 'onEnd', 'start'] });
 
     const call = (url: string, headers: Record<string, string> = {}) => page.evaluate(
       async ({ url, headers }) => window.caotangDesktop!.net.start({ id: crypto.randomUUID(), url, method: 'POST', headers, body: '{}' }),
@@ -46,7 +46,11 @@ test('the page reaches an address the app configured, and nothing else', async (
     // Nothing is configured yet, so every address is refused: a page that has said nothing yet reaches nothing.
     expect(await call('https://api.example.com/v1/chat/completions')).toMatchObject({ ok: false, error: 'denied' });
 
-    expect(await page.evaluate(() => window.caotangDesktop!.net.configure(['https://api.example.com']))).toEqual({ ok: true, value: null });
+    expect(await page.evaluate(() => window.caotangDesktop!.net.configure([{ origin: 'https://api.example.com' }]))).toEqual({ ok: true, value: null });
+
+    // A key handle at an address that key was not configured for is refused rather than sent as a handle.
+    expect(await call('https://api.example.com/v1/chat/completions', { authorization: 'Bearer caotang-key:prv_ABCDEFGHJK' }))
+      .toMatchObject({ ok: false, error: 'denied' });
 
     // A configured address, but a shape the port refuses before any socket opens: a header that names the connection.
     expect(await call('https://api.example.com/v1/chat/completions', { host: 'evil.example' })).toMatchObject({ ok: false, error: 'invalid' });

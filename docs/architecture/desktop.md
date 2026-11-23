@@ -1,11 +1,11 @@
 # Caotang for desktop
 
-The [development shell](../../apps/desktop-shell/README.md) in [epic #16](https://github.com/nattiini45/caotang/issues/16) hosts the existing root-base Vite build from `apps/desktop/dist/`. The browser site, project format, storage schema and Vite output stay unchanged. This spec records the feasibility spike (#398), the shell (#400), the unsigned packages (#401), native project folders (#402), the watcher (#403) and native provider calls (#405).
+The [development shell](../../apps/desktop-shell/README.md) in [epic #16](https://github.com/nattiini45/caotang/issues/16) hosts the existing root-base Vite build from `apps/desktop/dist/`. The browser site, project format, storage schema and Vite output stay unchanged. This spec records the feasibility spike (#398), the shell (#400), the unsigned packages (#401), native project folders (#402), the watcher (#403), the keychain (#404) and native provider calls (#405).
 
 ## Runtime and trust boundary
 
 - Serve the build from the fixed origin `app://caotang/`; keep that origin stable because Chromium keys storage to it. Register the scheme before Electron is ready as standard, secure and Fetch/CORS-capable. Do not bypass CSP. Serve only built assets from a fixed directory, reject other hosts and paths outside that directory, and do not start a loopback server.
-- The renderer is sandboxed and context-isolated, with Node integration off and Chromium web security on. It never navigates to remote pages or creates arbitrary windows. Serve a CSP header alongside the unchanged HTML meta policy: scripts, styles and Workers are same-origin; no inline script, eval, embedded frames, objects or form submission. Deny framing with `frame-ancestors 'none'` in the header, where Chromium enforces it. Renderer data requests remain subject to Chromium's network rules, except the provider calls the main process makes for it (below); the keychain is still to come (#404).
+- The renderer is sandboxed and context-isolated, with Node integration off and Chromium web security on. It never navigates to remote pages or creates arbitrary windows. Serve a CSP header alongside the unchanged HTML meta policy: scripts, styles and Workers are same-origin; no inline script, eval, embedded frames, objects or form submission. Deny framing with `frame-ancestors 'none'` in the header, where Chromium enforces it. Renderer data requests remain subject to Chromium's network rules, except the provider and MCP calls the main process makes for it; keys and tokens live in the main process and the page never reads one.
 - The typed preload bridge exposes `window.caotangDesktop.version`, the narrow folder calls below and the provider port below. There is no generic Electron or IPC API. Only the studio URL can receive Electron permission for sanitized clipboard writes. Other permission requests, including browser file handles, are denied. Packaged-binary fuses and ASAR integrity belong to #401, not the unpacked smoke launcher.
 - Each Electron profile allows one instance. It restores the last normal window dimensions and maximized state, not the screen position, so changing monitors does not reopen the window off-screen.
 - There is no shipped service worker in the web build. The custom scheme can support one, but the shell does not register one or enable that privilege until there is a worker to ship and its update/cache policy is specified.
@@ -26,7 +26,7 @@ Built current main with `pnpm build`, then launched Electron **45.4.1** (Chromiu
 
 The initial probes reached the project picker in about **0.62–0.63 s** from Playwright launch on a fresh Linux profile. One near-start sample of the browser, renderer, GPU and utility processes totalled about **526 MiB RSS** (shared pages can be counted twice). Neither number is a pass against the epic's reference-machine gates: they do not use the reopened large fixture, the interactive performance mark, or proportional set size after ten minutes.
 
-For the keychain follow-up (#404), [`@napi-rs/keyring` 2.1.2](https://www.npmjs.com/package/@napi-rs/keyring) is MIT and offers a Node-facing binding, while [`keyring` for Rust](https://github.com/open-source-cooperative/keyring-rs) is MIT OR Apache-2.0 and would require a binding maintained here. Both repositories showed recent activity at the time of the spike. Neither was installed or tested; verify packaged binaries and keychain behaviour on target platforms before choosing.
+For the keychain follow-up (#404), [`@napi-rs/keyring` 2.1.2](https://www.npmjs.com/package/@napi-rs/keyring) (MIT, a Node-facing binding) and [`keyring` for Rust](https://github.com/open-source-cooperative/keyring-rs) (MIT OR Apache-2.0, needing a binding maintained here) were the candidates the spike named. #404 chose neither: Electron's own `safeStorage` seals a value through DPAPI, the login keychain, or libsecret/KWallet with no native module to build, package or unpack from the ASAR, and it reports the one Linux case that matters — Chromium's built-in `basic_text` key — so the app can fall back instead of calling obfuscation encryption. See §The keychain.
 
 ## Native project folders (#402)
 
@@ -84,6 +84,56 @@ The rule is tested by the repository's gate
 ([`native-egress.test.ts`](../../packages/gateway/test/native-egress.test.ts)) and the port by a launched app
 ([`egress.spec.ts`](../../apps/desktop-shell/test/egress.spec.ts)), which configures one origin and proves every other
 address is refused after it.
+
+## The keychain (#404)
+
+The desktop app keeps provider keys and MCP bearer tokens in the main process, sealed by the operating system's own store
+through Electron's `safeStorage`: DPAPI on Windows, the login keychain on macOS, libsecret or KWallet on Linux. The vault is
+one file in the app profile, `native-key-vault.json`, holding one sealed entry per key id — a profile id for a provider, an
+`mcp:` reference for a server's token — written the way every other Caotang artifact is written
+([`os-vault.ts`](../../packages/gateway/src/keys/os-vault.ts) is the vault, and the rule it keeps).
+
+**The page may store, check, revise, restore and remove; it may never read.** The preload's `vault` channels are
+`available`, `put`, `remove`, `has`, `revision`, `restore` and `headers` — there is no `read`, `get` or `reveal` among them, and
+the shell suite asserts that list. A key is written by the form that took it; from then on the page learns only whether one is
+there, which revision it is at, and the extra header values the writer typed beside it, never the key itself.
+
+**A key reaches a request as a handle that becomes a secret.** The page's key store answers `reveal` with
+`caotang-key:<id>`, and the adapter that knows a provider's protocol writes that handle where the key would go — in
+`authorization`, in `x-api-key`, in a query parameter, wherever its own route puts it. When the call reaches the main process,
+the handle is swapped for the secret from the keychain, but only for an address that key was configured for: a handle at any
+other origin is refused as `denied` rather than sent. So a script in the page can use a stored key while the app is open, and
+cannot take one away — which is the difference the browser vault cannot offer (provider-gateway §7).
+
+**A provider that echoes a key cannot put one in the log.** The secret is attached in the main process, so the page's own
+redaction, which scrubs the values it sent and it sent a handle, would not see it. The answer's bytes are scrubbed of every
+secret attached to that call as they stream back, across chunk boundaries, before the page receives one.
+
+**A failed replacement can be undone without a read.** `put` remembers the sealed value it replaced, and `restore` writes it
+back, so the MCP client's "store the new token, then update the server, and put the old one back if that update is refused"
+works with a store that cannot read: the undo is the vault's, not the page's.
+
+**Migration writes, verifies, deletes.** On first open with a keychain, each key an earlier build sealed in this browser's
+IndexedDB vault is opened by the store that already holds it, written to the keychain, read back by the main process before it
+is reported stored, checked once more, and only then removed from the browser. An entry the browser's store cannot open is left
+where it is. A machine where the move stops part-way keeps every key it did not move, and the app says so rather than opening
+as though nothing were missing.
+
+**Without a keychain the browser's vault stays, and says so.** `safeStorage` on Linux falls back to a built-in key that is the
+same on every machine, which is obfuscation rather than encryption; the vault treats `basic_text` and `unknown` backends as no
+keychain at all. There, the WebCrypto vault of provider-gateway §7 keeps the keys, and Settings says the keys are in this
+browser rather than in the computer's keychain, as does the notice at start-up.
+
+**An MCP server on this computer is the one local address the port reaches.** A bearer token held by the main process cannot be
+attached by the page, so MCP HTTP goes through the same port; a server whose address is a loopback literal is the one entry
+allowed plain http
+([native-egress.ts](../../packages/gateway/src/native-egress.ts)). A provider profile is never such an entry, so a local model
+server keeps the browser's path exactly as it was.
+
+What is not verified here: `safeStorage` on a real Windows, macOS or KDE desktop. The vault's rules are tested with a scripted
+sealer (`packages/gateway/test/os-vault.test.ts`), and the shell suite proves the channels the page gets; the Linux runner the
+suite runs on has no keyring, so the fallback is the path it exercises. Signing and notarisation (#409) and the upgrade train
+(#410) are unchanged.
 
 ## Packaging (#401)
 
