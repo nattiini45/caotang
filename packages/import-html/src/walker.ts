@@ -405,6 +405,8 @@ function walkNode(node: XmlNode, state: WalkState, context: InlineContext, inher
   const selector = skippedBy(node, state.skip);
   if (selector !== undefined) {
     state.skipped.push({ selector, blockIndex: state.blocks.length, element: node });
+    // The place the region sat stays addressable by fragment: a nav entry may cut a chapter there.
+    for (const pending of state.pendingAnchors) if (!state.anchors.has(pending)) state.anchors.set(pending, state.blocks.length);
     state.pendingAnchors.length = 0;
     return;
   }

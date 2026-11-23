@@ -175,13 +175,13 @@ export const BUDGET = {
   // compiled English catalogue's twenty HTML messages (+1,392 raw), which must precede first paint (i18n.md §3.3), and the entry's
   // loader for the command; the XHTML walker, the reader, its preview source and the Worker stay on use. The ceiling is the
   // measurement rounded up to the thousand. [delegated 2026-11-22]
-  // The EPUB import (#296) on the merge of #299's branch into main: 1,116,362 bytes gzip measured, +863 over the ceiling
-  // #299's measurement set. Named: the compiled English catalogue's EPUB messages, which must precede first paint
-  // (i18n.md §3.3), and the entry's loader for the command; the reader, the preview source and the Worker stay on use. The
-  // ceiling is the measurement rounded up to the thousand. [delegated 2026-11-22]
-  // The Kanka import (#293) on the merge of #297's branch: 1,118,072 bytes gzip measured, +1,072 over the
-  // ceiling the merged tree sat under; 1,118,071 on the merge of main aec90b9b. Named: the compiled English catalogue's Kanka messages, which must
-  // precede first paint (i18n.md §3.3); the reader, the preview source and the Worker stay on use. The
+  // The EPUB import (#296) and one connection holding many models (#824), measured together on the merge of main aec90b9b:
+  // 1,117,621 bytes gzip. Named: the compiled English catalogue's new EPUB messages and the models step's and picker's, which
+  // must precede first paint (i18n.md §3.3), the entry's loader for the EPUB command, and the role write the picker makes. The
+  // picker and the models step themselves are already in lazily loaded views, and the picker's stylesheet was moved out of the
+  // entry onto its own chunk, which is what keeps the entry CSS under its cap. The ceiling is the measurement plus under 1 kB.
+  // [delegated 2026-11-22]
+  // The Kanka import (#293) adds the catalogue's Kanka messages on top of that; the value below is re-measured on this merge. The
   // ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   initialGzip: 1_119_000,
   /** All JS, raw. */
@@ -297,20 +297,22 @@ export const BUDGET = {
   // measurement left the dialog's new German entries untranslated; translating them, so the Appearance screen still shows 100% complete,
   // put 736 more bytes in the on-use `locale-de` chunk and none in the first load. 8,949,346 on the rebuild with them, and the ceiling is
   // that plus 654 bytes, so later work inherits no free room. [delegated 2026-11-22]
-  // The EPUB import (#296) on the merge of #299's branch into main: 8,966,997 bytes measured, +17,651 over #82's
-  // ceiling measurement. Named: the EPUB reader package, the preview source and the Worker, all on-use chunks, and the
-  // walker's anchors, notes and noterefs in the import-html chunk. The ceiling is the measurement rounded up to the
-  // thousand. [delegated 2026-11-22]
-  // The German catalogue's EPUB strings (#296): 8,967,257 bytes measured, +260 over the reader's own ceiling
-  // measurement. The compiled de catalogue stays on use too. Same round-up-to-the-thousand ceiling. [delegated
+  // The EPUB import (#296) and one connection holding many models (#824), measured together on the merge of main aec90b9b:
+  // 8,975,867 bytes. Named: the EPUB reader package, the preview source and the Worker, all on-use chunks, and the walker's
+  // anchors, notes and noterefs in the import-html chunk; and for the picker the gateway's picked-model list and its checks,
+  // the client's several-model setup, the chat picker with its levels and both catalogues' new messages. Optimisations tried
+  // first: the picker sits in the already lazy Agent panel and its stylesheet on its own chunk, its model and level names were
+  // measured out of the entry, and no dependency was added. The ceiling is the measurement plus under 1 kB. [delegated
   // 2026-11-22]
   // The AO3 import (#297) on the merge of #296's branch: 8,984,782 bytes measured, +17,525 over the merged #296
   // tree. Measured again on the merge of main aec90b9b, which carries the merged EPUB import: 8,984,862 bytes.
   // Named: the @caotang/import-ao3 adapter and its preview source, all on-use chunks, and the German AO3
-  // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  // The Kanka import (#293) on the merge of #297's branch: 9,008,325 bytes measured, +23,543 over the merged #297
-  // tree; 9,008,341 on the merge of main aec90b9b. Named: the @caotang/import-kanka reader and its preview source, all on-use chunks, and the German Kanka
-  // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  // strings in the de catalogue. Measured again at 8,985,761 bytes after the review fixes (the shared reader and
+  // picture refusal lines). Measured again on the merge of main 1ff564dd, which carries the provider-model
+  // picker (#824): 8,994,369 bytes. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  // The Kanka import (#293) adds the @caotang/import-kanka reader and its preview source, all on-use chunks, and the
+  // German Kanka strings in the de catalogue; the value below is re-measured on this merge. The ceiling is the
+  // measurement rounded up to the thousand. [delegated 2026-11-23]
   totalJs: 9_009_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`

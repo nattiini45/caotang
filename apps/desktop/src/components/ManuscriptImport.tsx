@@ -155,7 +155,15 @@ export function ManuscriptImportActions(): ReactNode {
 
   const openAo3 = async (file: File): Promise<void> => {
     try {
-      const { ao3PreviewSource } = await import('../import-preview/ao3-source.js');
+      const { ao3PreviewSource, ao3SizeRefusal } = await import('../import-preview/ao3-source.js');
+      const epub = /\.epub$/i.test(file.name);
+      const { MAX_TEXT_BYTES } = await import('@caotang/import-read/text');
+      const { ARCHIVE_LIMITS } = await import('@caotang/import-read/zip');
+      const refusal = ao3SizeRefusal(file.name, file.size, epub ? ARCHIVE_LIMITS.maxArchiveBytes : MAX_TEXT_BYTES);
+      if (refusal !== undefined) {
+        report({ text: refusal, tone: 'error' });
+        return;
+      }
       const bytes = new Uint8Array(await file.arrayBuffer());
       openImportPreview({ source: ao3PreviewSource(file.name, bytes) });
     } catch (failure) {

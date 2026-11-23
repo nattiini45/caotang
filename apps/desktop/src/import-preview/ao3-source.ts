@@ -23,6 +23,15 @@ export const AO3_OPTIONS = { pictures: 'pictures' } as const;
 /** What a scene's keywords hold; the rest are listed in the report rather than dropped. */
 const KEYWORD_LIMIT = 32;
 
+/**
+ * Why a file of this size is not read at all, before its bytes are loaded; undefined when the reader takes it. `maxBytes` is
+ * the archive reader's cap for an EPUB download and the text reader's for an HTML page, checked before the file is read.
+ */
+export function ao3SizeRefusal(fileName: string, size: number, maxBytes: number): string | undefined {
+  if (size <= maxBytes) return undefined;
+  return t`${{ file: fileName }} is too large to import as an AO3 download (${{ limit: formatCount(Math.round(maxBytes / (1024 * 1024))) }} MB max).`;
+}
+
 /** Why the reader stopped, in words. */
 export function ao3ErrorText(error: Ao3Error): string {
   switch (error.kind) {
@@ -181,9 +190,10 @@ export function ao3PreviewSource(fileName: string, bytes: Uint8Array): ImportPre
       const lists = [];
       const kept: string[] = [];
       const tags = read.keywords.length;
+      const applied = Math.min(tags, KEYWORD_LIMIT);
       const characters = read.meta.characters.length;
       const notes = read.notes.length;
-      if (tags > 0) kept.push(plural(tags, { one: '# tag became a keyword', other: '# tags became keywords' }));
+      if (applied > 0) kept.push(plural(applied, { one: '# tag became a keyword', other: '# tags became keywords' }));
       if (characters > 0) kept.push(plural(characters, { one: '# character is offered as a codex entry', other: '# characters are offered as codex entries' }));
       if (notes > 0) kept.push(plural(notes, { one: '# note from the work is kept', other: '# notes from the work are kept' }));
       if (read.summary !== '') kept.push(t`The summary became the synopsis.`);

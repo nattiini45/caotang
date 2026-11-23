@@ -93,7 +93,7 @@ export {
   type ProfileStoreOptions,
 } from './profiles.js';
 export { detectProvider, FEATURED_PROVIDERS, type KeyDetection } from './detect.js';
-export { chooseModels, type ModelChoice } from './model-catalog.js';
+export { chooseModels, modelsOf, type ModelChoice } from './model-catalog.js';
 export { defaultConcurrency, type ConcurrencyPolicy } from './limiter.js';
 
 /** Every step class, in the order Settings offers them (§6): a value, so the rows and the normaliser agree. */

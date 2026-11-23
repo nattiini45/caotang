@@ -11,7 +11,7 @@ import { Button } from '@ui-sdk/react/button';
 import { Field, FieldDescription, FieldLabel } from '@ui-sdk/react/field';
 import { Input } from '@ui-sdk/react/input';
 import { PasswordInput, PasswordInputControl, PasswordInputToggle } from '@ui-sdk/react/password-input';
-import { chooseModels, presetFor, presetForProfile, type ModelChoice, type ProfileView } from '@caotang/gateway';
+import { chooseModels, modelsOf, presetFor, presetForProfile, type ModelChoice, type ProfileView } from '@caotang/gateway';
 
 import { displayText, priceClearedBy, priceFromInputs, type ProviderService, type SaveOutcome } from '../app/providers.js';
 import { paramsDraftOf, paramsFromDraft } from '../app/request-params-form.js';
@@ -50,7 +50,7 @@ export function ProfileEditor({
   const [apiKey, setApiKey] = useState('');
   const [address, setAddress] = useState(profile.baseUrl);
   const [fields, setFields] = useState<Readonly<Record<string, string>>>(profile.fields ?? {});
-  const [model, setModel] = useState(profile.defaultModel);
+  const [models, setModels] = useState<readonly string[]>(() => modelsOf(profile));
   const [advanced, setAdvanced] = useState<AdvancedDraft>(() => advancedOf(profile));
   const [listed, setListed] = useState<readonly ModelChoice[] | 'loading' | 'failed'>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -67,8 +67,11 @@ export function ProfileEditor({
     return () => { current = false; };
   }, [providers, profile.id, isMock, effective]);
 
-  const choices: readonly ModelChoice[] =
-    listed === 'loading' || listed === 'failed' ? [] : listed.some((choice) => choice.id === profile.defaultModel) ? listed : [{ id: profile.defaultModel, recommended: false }, ...listed];
+  // Every model the connection holds stays in the list even when the provider no longer lists it, so an edit can remove it and
+  // never silently drops a model the writer picked.
+  const choices: readonly ModelChoice[] = listed === 'loading' || listed === 'failed'
+    ? models.map((id) => ({ id, recommended: false }))
+    : [...listed, ...models.filter((id) => !listed.some((choice) => choice.id === id)).map((id) => ({ id, recommended: false }))];
 
   const save = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -88,7 +91,7 @@ export function ProfileEditor({
         ...(typedAddress ? { baseUrl: address } : {}),
         ...(preset?.fields === undefined ? {} : { fields }),
         ...(headersPatch === undefined ? {} : { customHeaders: headersPatch }),
-        ...(isMock ? {} : { defaultModel: model }),
+        ...(isMock ? {} : { defaultModel: models[0] ?? profile.defaultModel, pickedModels: models.length === 0 ? null : [...models] }),
         ...(apiKey === '' ? {} : { apiKey }),
         ...(showAdvanced ? { ...(priceChange === undefined ? {} : { pricePer1k: priceChange }), params: request.params ?? null, temperature: request.temperature ?? null } : {}),
       })
@@ -134,13 +137,16 @@ export function ProfileEditor({
       ) : listed === 'failed' ? (
         <Field className="field">
           <FieldLabel><Trans>Model name the endpoint expects</Trans></FieldLabel>
-          <Input value={model} autoComplete="off" spellCheck={false} onValueChange={setModel} />
+          <Input value={models[0] ?? ''} autoComplete="off" spellCheck={false} onValueChange={(value) => setModels(value.trim() === '' ? [] : [value.trim(), ...models.slice(1).filter((id) => id !== value.trim())])} />
           <FieldDescription><Trans>The provider did not list its models just now, so the name stays as it is unless you change it.</Trans></FieldDescription>
         </Field>
       ) : (
         <Field className="field">
-          <FieldLabel><Trans>Model</Trans></FieldLabel>
-          <ModelList models={choices} value={model} label={label} onPick={setModel} />
+          <FieldLabel><Trans>Models</Trans></FieldLabel>
+          <p className="field-help">
+            <Trans>Every model picked here shares this key and appears in the chat window’s picker. The first one is where a new conversation starts.</Trans>
+          </p>
+          <ModelList models={choices} value={models} label={label} onChange={setModels} />
         </Field>
       )}
       {showAdvanced ? (
@@ -149,7 +155,7 @@ export function ProfileEditor({
           onChange={setAdvanced}
           preset={profile.preset ?? 'generic'}
           baseUrl={address}
-          model={model}
+          model={models[0] ?? profile.defaultModel}
           providerName={preset?.name ?? ''}
           headers={profile.preset === 'generic'}
           keepHeaders

@@ -101,6 +101,7 @@ export function resultTransferList(result: ReaderResult): Transferable[] {
   else if (result.kind === 'epub' && result.result.ok) pictures = result.result.value.assetData.values();
   else if (result.kind === 'ao3' && result.result.ok) pictures = result.result.value.assetData.values();
   else if (result.kind === 'kanka' && result.result.ok) pictures = result.result.value.assetData.values();
+  else if (result.kind === 'ao3' && result.result.ok) pictures = result.result.value.assetData.values();
   else return [];
   const seen = new Set<ArrayBuffer>();
   const buffers: Transferable[] = [];

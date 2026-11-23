@@ -877,24 +877,5 @@ describe('the captions import (#287)', () => {
     expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **Kanka importieren…** liest einen **JSON**-Kampagnen-Export');
   });
 
-  it('the Kanka import: the guide’s claims match the reader, the button and the spec', () => {
-    expect(guide).toContain('- **Import Kanka…** reads a **JSON** campaign export from Kanka');
-    expect(guide).toContain('A private entity is kept **manual**');
-    expect(guide).toContain('An export from Kanka older than 2.1 is refused');
-    expect(guide).toContain("Caotang never calls Kanka's API");
-    const manuscript = read('apps/desktop/src/components/ManuscriptImport.tsx');
-    expect(manuscript).toContain("await import('../import-preview/kanka-source.js')");
-    expect(manuscript).toContain('kankaPreviewSource(file.name, bytes)');
-    const source = read('apps/desktop/src/import-preview/kanka-source.ts');
-    expect(source).toContain("includePolicy: 'manual'");
-    expect(source).toContain('preferPage: true');
-    expect(source).toContain('scanExtra:');
-    const reader = read('packages/import-kanka/src/reader.ts');
-    expect(reader).toContain("versionAtLeast(info.kankaVersion, 2, 1)");
-    expect(reader).toContain("kind: 'not-kanka'");
-    expect(read('packages/import-kanka/src/entity.ts')).toContain("quests: 'subplot'");
-    expect(read('docs/architecture/import-kanka.md')).toContain('## 2. Entities to codex entries');
-    expect(changelog).toContain('**Import Kanka.**');
-    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **Kanka importieren…** liest einen **JSON**-Kampagnen-Export');
-  });
+
 });
