@@ -19,6 +19,7 @@ import { SegmentedControl, SegmentedControlIndicator, SegmentedControlItem } fro
 import { isolate } from '@caotang/i18n';
 import { detectProvider, isLocalBase, modelsOf, presetFor, PRESETS, type PresetDef, type ProfileView } from '@caotang/gateway';
 
+import { nativeEgressAvailable } from '../app/native-egress.js';
 import { priceFromInputs, type ProviderService } from '../app/providers.js';
 import { paramsFromDraft } from '../app/request-params-form.js';
 import { SetupError, type SetupDiscovery, type SetupFailure } from '../app/provider-setup.js';
@@ -66,6 +67,8 @@ export function ProviderSetup({
   const [discovery, setDiscovery] = useState<SetupDiscovery | null>(null);
   const [picked, setPicked] = useState<readonly string[]>([]);
   const [done, setDone] = useState<{ readonly name: string; readonly models: readonly string[]; readonly note?: string } | null>(null);
+  // Whether this app makes the call itself: a provider a browser cannot read is reachable here, so its browser warning is not.
+  const native = nativeEgressAvailable();
 
   const ime = useComposingEnter();
   const run = useRef(0);
@@ -394,7 +397,8 @@ export function ProviderSetup({
               <Listbox aria-label={t`More providers`} activation="manual" value={rest.some((entry) => entry.id === chosen) ? chosen : null} onValueChange={(next) => { if (typeof next === 'string') { setChosen(next); invalidate(); } }}>
                 {rest.map((entry) => (
                   <ListboxItem key={entry.id} value={entry.id}>
-                    {entry.cors === 'blocked' ? t`${{ provider: entry.name }} — Desktop app or hosted only` : entry.name}
+                    {/* "Desktop app or hosted only" is a browser's answer; the desktop app makes the call itself, so it does not say it here. */}
+                    {entry.cors === 'blocked' && !native ? t`${{ provider: entry.name }} — Desktop app or hosted only` : entry.name}
                   </ListboxItem>
                 ))}
               </Listbox>
@@ -423,7 +427,7 @@ export function ProviderSetup({
         </div>
       ) : null}
 
-      {preset?.cors === 'blocked' ? (
+      {preset?.cors === 'blocked' && !native ? (
         <p className="field-help"><Trans>Desktop app or hosted only</Trans>{preset.corsNote === undefined ? null : ` — ${preset.corsNote}`}</p>
       ) : null}
 

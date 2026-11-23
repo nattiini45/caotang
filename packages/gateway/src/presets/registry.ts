@@ -131,6 +131,8 @@ export const PRESETS: readonly PresetDef[] = [
     quirks: { browserAccess: true },
     cors: 'ok',
     corsNote: 'Browser calls are supported; the adapter sends anthropic-dangerous-direct-browser-access. As of 2026-10 a wrong key makes the model list unreadable to a page (saving says so), while chat reports it as a rejected key.',
+    // The list route above is why a rejected list here is worded as the page's limit rather than as a dead network.
+    corsModelsRoute: 'unreadable',
     docsUrl: 'https://platform.claude.com/docs',
     models: [
       // Window and output cap: Anthropic's model overview, "Compare models" table (1M and 128K tokens for all four),
@@ -156,7 +158,8 @@ export const PRESETS: readonly PresetDef[] = [
     // `store` defaults true on Responses; store:false is sent. Stateless resend,
     // since previous_response_id is unusable against non-stored responses.
     quirks: { store: true, stateless: true },
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://developers.openai.com/api/docs',
     models: [
       // Prices: OpenAI's price list, Standard tier, short context, read 2026-11-07 (https://developers.openai.com/api/docs/pricing):
@@ -178,7 +181,8 @@ export const PRESETS: readonly PresetDef[] = [
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
     defaultModel: 'gemini-3.8-flash',
     quirks: {},
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://ai.google.dev/gemini-api/docs/openai',
     models: [
       // Gemini 3 models cannot disable thinking and take no `max`; minimal errors on
@@ -201,7 +205,8 @@ export const PRESETS: readonly PresetDef[] = [
     // store defaults true (30-day retention); stateless resend because
     // previous_response_id cannot reference a non-stored response.
     quirks: { store: true, stateless: true },
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://docs.x.ai/docs',
     models: [
       // Reasoning cannot be disabled on grok-4.4 and later; presence/frequency/stop are rejected. 4.6 and 4.7 take xhigh; 4.5 tops at high.
@@ -220,7 +225,8 @@ export const PRESETS: readonly PresetDef[] = [
     defaultModel: 'muse-spark-1.3',
     // Reasoning continues across turns via encrypted_content replay.
     quirks: { includeEncryptedReasoning: true, stateless: true },
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://dev.meta.ai/docs',
     models: [
       { pattern: 'muse-spark-1.3', caps: { tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'], effortWire: OWN_NAMES, replayStyle: 'items' }, pricePer1k: { prompt: 0.00125, completion: 0.00425 } },
@@ -236,7 +242,8 @@ export const PRESETS: readonly PresetDef[] = [
     baseUrl: 'https://api.mistral.ai/v1',
     defaultModel: 'mistral-medium-3-5',
     quirks: {},
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://docs.mistral.ai',
     models: [
       // reasoning_effort is documented only on Medium 3.5 and Small: `none` and `high`.
@@ -262,7 +269,8 @@ export const PRESETS: readonly PresetDef[] = [
     // different shape): the table is the catalogue.
     noModelsRoute: true,
     quirks: {},
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://docs.cohere.com/docs/compatibility-api',
     models: [
       // TODO: a third party says A+ takes reasoning_effort none|high; Cohere's own docs don't. Verify live before offering.
@@ -285,7 +293,8 @@ export const PRESETS: readonly PresetDef[] = [
     baseUrl: 'https://api.deepseek.com',
     defaultModel: 'deepseek-flash',
     quirks: {},
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://api-docs.deepseek.com',
     models: [
       { pattern: 'deepseek-flash', ...DEEPSEEK_FLASH },
@@ -359,7 +368,9 @@ export const PRESETS: readonly PresetDef[] = [
       },
     ],
     quirks: {},
-    cors: 'unknown',
+    // The chat route's preflight never allows a page (sweep, 2026-11-23).
+    cors: 'blocked',
+    corsNote: "The browser preflight to the chat route is refused: OPTIONS answers 405 with no allow-origin header, so a web page cannot chat with it (sweep, 2026-11-23).",
     docsUrl: 'https://intl.cloud.tencent.com/document/product/1300',
     models: [
       // thinking disabled is documented for both; reasoning_effort is low|high on hy3 and high only on hy4-preview. Both are
@@ -393,7 +404,8 @@ export const PRESETS: readonly PresetDef[] = [
     baseUrl: 'https://api.moonshot.ai/v1',
     defaultModel: 'kimi-k3',
     quirks: {},
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://platform.kimi.ai/docs',
     models: [
       // kimi-k3 cannot turn thinking off; medium is unsupported (high); max is its default.
@@ -415,7 +427,9 @@ export const PRESETS: readonly PresetDef[] = [
     // The BYOK base is the general paas/v4 host; Coding Plan bases are excluded.
     // The 2026-10-26 sweep found the chat route refusing the preflight; on 2026-10-30 it answered a browser POST (401 without a key),
     // so it is no longer blocked. Z.ai documents no browser access, so it is 'unknown', not 'ok'.
-    cors: 'unknown',
+    // The chat route's preflight never allows a page (sweep, 2026-11-23).
+    cors: 'blocked',
+    corsNote: "The chat route's preflight answers without an allow-origin header, so a web page cannot chat with it; the model list still reads. A browser chat call worked on 2026-10-30, so this is the provider's change (sweep, 2026-11-23).",
     docsUrl: 'https://docs.z.ai',
     models: [
       // glm-5.3 family cannot disable thinking; it takes low|high|max (max is the default), anything else errors.
@@ -438,7 +452,8 @@ export const PRESETS: readonly PresetDef[] = [
     baseUrl: 'https://api.minimax.io/v1',
     defaultModel: 'MiniMax-M3',
     quirks: {},
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://platform.minimax.io/docs',
     models: [
       // M3 takes thinking adaptive|disabled on the Chat route (reasoning_effort is ignored). `reasoning_split` is
@@ -458,7 +473,8 @@ export const PRESETS: readonly PresetDef[] = [
     // Official examples send `api-key`; Bearer is also accepted. Chat takes
     // `max_completion_tokens` (max_tokens is not in its parameter table).
     quirks: { auth: 'api-key', maxTokensField: 'max_completion_tokens' },
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://mimo.mi.com/docs/en-US',
     models: [
       // Chat thinking is enabled|disabled with no levels: On and Off.
@@ -475,7 +491,8 @@ export const PRESETS: readonly PresetDef[] = [
     defaultModel: 'x-ai/grok-4.7',
     keylessModels: true,
     quirks: {},
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://docs.nano-gpt.com',
     models: [
       // `reasoning_effort` in the body takes none..max, checked per model against the live catalog's `reasoning_efforts`.
@@ -498,7 +515,8 @@ export const PRESETS: readonly PresetDef[] = [
     defaultModel: 'x-ai/grok-4.7',
     keylessModels: true,
     quirks: {},
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://openrouter.ai/docs',
     models: [
       // Effort is nested reasoning.effort even on the Chat route. `reasoning` fields
@@ -573,7 +591,8 @@ export const PRESETS: readonly PresetDef[] = [
     baseUrl: 'https://api.perplexity.ai/router/v1',
     defaultModel: 'perplexity/kimi-k3',
     quirks: { maxTokensField: 'max_completion_tokens' },
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://docs.perplexity.ai/docs',
     models: [
       // The Router accepts response_format json_schema (always strict) or json_object.
@@ -593,7 +612,8 @@ export const PRESETS: readonly PresetDef[] = [
     baseUrl: 'https://api.together.ai/v1',
     defaultModel: 'moonshotai/Kimi-K3',
     quirks: {},
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://docs.together.ai',
     models: [
       // Hybrid models toggle with reasoning:{enabled}; the per-level reasoning_effort
@@ -617,7 +637,8 @@ export const PRESETS: readonly PresetDef[] = [
     baseUrl: 'https://api.fireworks.ai/inference/v1',
     defaultModel: 'accounts/fireworks/models/kimi-k3',
     quirks: {},
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://docs.fireworks.ai',
     models: [
       // Levels from the chat reference's per-model reasoning_effort map: kimi-k3 takes none, low, high and max (its default;
@@ -642,7 +663,8 @@ export const PRESETS: readonly PresetDef[] = [
     defaultModel: 'google/gemini-2.5-pro',
     keylessModels: true,
     quirks: {},
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://docs.deepinfra.com',
     models: [
       // Effort is documented per model only where the reasoning guide or a provider
@@ -666,7 +688,8 @@ export const PRESETS: readonly PresetDef[] = [
     baseUrl: 'https://api.groq.com/openai/v1',
     defaultModel: 'openai/gpt-oss-120b',
     quirks: { maxTokensField: 'max_completion_tokens' },
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://console.groq.com/docs',
     models: [
       // gpt-oss rejects `none` (400) and has no max. Reasoning lands in `reasoning`.
@@ -688,7 +711,8 @@ export const PRESETS: readonly PresetDef[] = [
     defaultModel: 'openai/gpt-oss-120b',
     keylessModels: true,
     quirks: {},
-    cors: 'unknown',
+    // The chat route reads in a browser page (sweep, 2026-11-23).
+    cors: 'ok',
     docsUrl: 'https://huggingface.co/docs/inference-providers',
     models: [
       { pattern: 'openai/gpt-oss-120b', caps: { tools: true, vision: false, effortStyle: 'reasoning_effort', effortLevels: ['low', 'medium', 'high'] } },

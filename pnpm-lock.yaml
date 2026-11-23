@@ -418,6 +418,9 @@ importers:
       '@caotang/artifact-fs-node':
         specifier: workspace:*
         version: link:../../packages/artifact-fs-node
+      '@caotang/gateway':
+        specifier: workspace:*
+        version: link:../../packages/gateway
       '@caotang/store':
         specifier: workspace:*
         version: link:../../packages/store

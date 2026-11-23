@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 import { app, BrowserWindow, net, protocol, screen, session } from 'electron';
 
+import { registerEgressIpc } from './egress.mjs';
 import { registerFolderIpc } from './folders.mjs';
 const ORIGIN = 'app://caotang';
 const ENTRY = `${ORIGIN}/`;
@@ -97,6 +98,7 @@ async function openWindow(): Promise<void> {
 async function start(): Promise<void> {
   await serveBuild();
   await registerFolderIpc(app.getPath('userData'), ENTRY);
+  registerEgressIpc(ENTRY);
   const allowed = (permission: string): boolean => permission === 'clipboard-sanitized-write';
   session.defaultSession.setPermissionCheckHandler((contents, permission, origin) => (
     contents?.getURL() === ENTRY && origin === ORIGIN && allowed(permission)
