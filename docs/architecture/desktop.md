@@ -63,7 +63,9 @@ allowlist a starting point rather than a rule.
 
 **The origins come from the app, read before each call.** The page publishes the origin of every provider profile from the
 profile store at the moment of a request — not at start-up — so a profile saved a second ago is reachable on its first call.
-A profile that does not parse, is not https, or is this computer contributes nothing. The local model presets therefore keep
+A profile that does not parse, is not https, or is this computer contributes nothing; "this computer" is judged by text, so
+`127.0.0.1`, `localhost`, `[::1]`, any `*.localhost` name and an IPv4-mapped spelling such as `[::ffff:127.0.0.1]` are all the
+same machine. The local model presets therefore keep
 the browser's path exactly as they are today: decisions.md keeps loopback out of the native port, so Ollama, LM Studio and
 `llama-server` are called from the page, with the Local Network Access prompt and the product's own CORS advice. A connected
 MCP server's URL joins the list when MCP calls move onto the port with the keychain (#404), not before.
@@ -72,12 +74,19 @@ MCP server's URL joins the list when MCP calls move onto the port with the keych
 keyed by the request's own id, so a model's server-sent events reach the page as they are written rather than after the
 answer ends. The page rebuilds a `Response` from the head and the chunks, which is why the gateway's SSE parser, its retry
 and its deadline code needed no change. A body that passes the cap, or breaks part-way, ends the call with that reason: the
-page has the status already, so the end of the body is the only place a failure can still be said. A call the page stops is
-stopped in the main process too, and a window that goes stops every call it started.
+page has the status already, so the end of the body is the only place a failure can still be said. A head that carries no
+body — 204, 205 and 304 — is answered as the head alone, because a `Response` refuses a stream with those statuses and a
+successful call must not turn into a failed one. A call the page stops is stopped in the main process too, and a window that
+goes stops every call it started — as does a reload or a navigation of the studio's own frame, which leaves the page that
+made them behind. Chunks and ends are keyed to the stream that is still in the map for their id, so a stopped call's
+remaining body reaches nobody.
 
 **What the page sees.** The preload bridge is version 3 and exposes `net` beside `folders`: `configure`, `start`, `abort`,
 `onChunk`, `onEnd`. Every call is checked for the studio's own top frame at `app://caotang/`, so a child frame or another
-origin cannot use the port. A refusal names its reason (`invalid`, `denied`, `too-large`, `unavailable`, `aborted`), and the
+origin cannot use the port. A request's shape is checked before any socket opens, and `invalid` covers what the network stack would otherwise refuse on
+the way out: a header that names the connection, a body on a `GET`, a method the app never sends. A call stopped before it
+started is not made at all, and one stopped while its head was still arriving is reported as `aborted` rather than as a dead
+network. A refusal names its reason (`invalid`, `denied`, `too-large`, `unavailable`, `aborted`), and the
 page turns it into the failure the gateway already knows how to explain, so a refused address reads as an address the app
 does not connect to rather than as a dead network.
 
