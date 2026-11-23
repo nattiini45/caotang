@@ -191,13 +191,13 @@ export const BUDGET = {
   // available to move any of it: `openAppServices` reads the transport and the key store while the app boots, before the first
   // paint, so a dynamic import would only trade these bytes for a chunk that must load before the first request. The ceiling is the
   // measurement rounded up to the thousand. [delegated 2026-11-23]
-  // The keychain (#404), built and measured on this branch: 1,122.1 kB gzip, 1.4 kB over the ceiling #405 set. Named: the vault's
+  // The keychain (#404), re-measured on the merge of main aa653891: 1,122.2 kB gzip, 1.2 kB over the ceiling that tree set. Named: the vault's
   // rules and the sealed record they write, the six channels the preload answers and the handle a request carries in place of a key,
   // the write-verify-delete migration the app runs as it opens, and the Settings sentence that says which store holds the keys. All
   // of it is read by `openAppServices` before the first paint, so there was no chunk to move it to; the pages that only a form needs
   // were already on use. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  // The project's own MCP server (#406), built and measured on its branch after the review fixes landed under it: 1,123,100 bytes gzip,
-  // 100 bytes over the ceiling #404 set.
+  // The project's own MCP server (#406), measured on the merge of main deb99b57, which carries #845 and #847: 1,123.2 kB gzip, 1.0 kB
+  // over the ceiling that tree set.
   // Named: the compiled English catalogue's messages for the Settings block and the guard's own wording, which must precede first paint
   // (i18n.md §3.3), and the two functions the save path calls — the pause and the question whether a lock is this app's own server's.
   // Two duplicate strings were merged rather than added twice; the Settings block itself is in the Settings chunk, on use, not here.
