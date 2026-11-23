@@ -21,10 +21,10 @@ function jobBlock(workflow: string, id: string): string {
 
 /**
  * The suites `CAOTANG_SKIP_WORKER_SUITES` leaves out, each of which boots its own Miniflare Worker runtime per case: too slow for
- * GitHub's Windows runner to finish inside the case deadline (#815, and #820 for the third). The list lives here so the two
+ * GitHub's Windows runner to finish inside the case deadline (#815, and #820 for the later ones). The list lives here so the two
  * Windows legs' step names and the exclusion itself are checked against one another rather than each being trusted alone.
  */
-const WORKER_SUITE_FILES = ['account-mode', 'storage', 'server'];
+const WORKER_SUITE_FILES = ['account-mode', 'storage', 'server', 'quota'];
 
 const ci = read('.github/workflows/ci.yml');
 const browsers = read('.github/workflows/e2e-browsers.yml');

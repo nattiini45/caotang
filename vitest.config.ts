@@ -21,12 +21,13 @@ export default defineConfig({
     // The Ink compiler loads on demand, so every test file starts with it loaded, as a Node host's entry does.
     setupFiles: ['test/setup-ink-compiler.ts'],
     reporters: ['default'],
-    // Three suites in `packages/sync-server/test` start a Miniflare Worker runtime per case, which takes longer on a loaded runner
+    // Four suites in `packages/sync-server/test` start a Miniflare Worker runtime per case, which takes longer on a loaded runner
     // than the default case deadline allows: `account-mode.test.ts` took 55 s for its 19 cases on GitHub's Windows runner and six
-    // of them timed out at five seconds, and `storage.test.ts` and `server.test.ts` time out there intermittently. Windows is where
-    // that bites, so the Windows legs set this variable and run the rest of the gate; every other runner runs them, and #815 tracks
-    // moving those files onto one shared runtime so the exclusion can go (#820 keeps the third one named until then). Nothing is
-    // skipped silently: the job that sets it lists the files and the reason in its step's name.
+    // of them timed out at five seconds, `storage.test.ts` and `server.test.ts` time out there intermittently, and
+    // `quota.test.ts` timed out on two of its cases in a 78 s run. Windows is where that bites, so the Windows legs set this
+    // variable and run the rest of the gate; every other runner runs them, and #815 tracks moving those files onto one shared
+    // runtime so the exclusion can go (#820 keeps the later ones named until then). Nothing is skipped silently: the job that sets
+    // it lists the files and the reason in its step's name.
     exclude: [
       ...configDefaults.exclude,
       ...(process.env['CAOTANG_SKIP_WORKER_SUITES'] === '1'
@@ -34,6 +35,7 @@ export default defineConfig({
             'packages/sync-server/test/account-mode.test.ts',
             'packages/sync-server/test/storage.test.ts',
             'packages/sync-server/test/server.test.ts',
+            'packages/sync-server/test/quota.test.ts',
           ]
         : []),
     ],

@@ -11,7 +11,7 @@
 #     artifacts, so packaging can be proved without releasing anything.
 #   - The repository's gate (`pnpm verify`) is ci.yml's business, and it runs on every pull request and on `main`. Every leg here
 #     runs it again for the released commit, Windows included, matching its ci.yml counterpart: the macOS and Linux legs run the
-#     whole gate, and the Windows leg leaves out the three sync-server suites that boot a Worker runtime per case (#815, #820),
+#     whole gate, and the Windows leg leaves out the four sync-server suites that boot a Worker runtime per case (#815, #820),
 #     with CAOTANG_SKIP_WORKER_SUITES=1, exactly as ci.yml's `verify (Windows)` job does.
 #   - Tags are desktop-v<version>, never v<version>: release.yml owns v* tags for the MCP and command-line bundles, and the two
 #     releases must not start each other. The version must equal apps/desktop-shell/package.json's, because SignPath enforces it as
@@ -96,7 +96,7 @@ jobs:
 
       # The same gate ci.yml's `verify (Windows)` job runs on every pull request, so a released commit is gated here too. Only the
       # three sync-server suites that boot a Worker runtime per case stay out (#815, #820).
-      - name: "Lint, typecheck and every unit suite, less sync-server account-mode, storage and server suites (each boots a Worker runtime per case: #815, #820)"
+      - name: "Lint, typecheck and every unit suite, less sync-server account-mode, storage, server and quota suites (each boots a Worker runtime per case: #815, #820)"
         env:
           CAOTANG_SKIP_WORKER_SUITES: '1'
         run: pnpm verify
