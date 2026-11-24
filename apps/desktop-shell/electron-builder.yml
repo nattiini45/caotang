@@ -46,6 +46,15 @@ electronFuses:
   enableEmbeddedAsarIntegrityValidation: true
   onlyLoadAppFromAsar: true
 
+# `caotang://` links open the app because each package registers the scheme at install: NSIS adds it to the registry, the DMG's
+# Info.plist declares CFBundleURLTypes, and the AppImage's .desktop entry carries MimeType=x-scheme-handler/caotang. The id a link
+# carries is a folder this profile has already been granted, never a path (docs/architecture/desktop.md §Deep links and folder
+# handoff).
+protocols:
+  - name: Caotang project
+    schemes:
+      - caotang
+
 win:
   target:
     - nsis

@@ -1,10 +1,13 @@
 # Caotang for desktop
 
 The [development shell](../../apps/desktop-shell/README.md) in [epic #16](https://github.com/nattiini45/caotang/issues/16) hosts the existing root-base Vite build from `apps/desktop/dist/`. The browser site, project format, storage schema and Vite output stay unchanged. This spec records the feasibility spike (#398), the shell (#400), the unsigned packages (#401), native project folders (#402), the watcher (#403), the keychain (#404) and native provider calls (#405).
+\nThe [development shell](../../apps/desktop-shell/README.md) in [epic #16](https://github.com/nattiini45/caotang/issues/16) hosts the existing root-base Vite build from `apps/desktop/dist/`. The browser site, project format, storage schema and Vite output stay unchanged. This spec records the feasibility spike (#398), the shell (#400), the unsigned packages (#401), native project folders (#402), the watcher (#403), the keychain (#404), native provider calls (#405) and the project's own MCP server (#406).
 
 ## Runtime and trust boundary
 
 - Serve the build from the fixed origin `app://caotang/`; keep that origin stable because Chromium keys storage to it. Register the scheme before Electron is ready as standard, secure and Fetch/CORS-capable. Do not bypass CSP. Serve only built assets from a fixed directory, reject other hosts and paths outside that directory, and do not start a loopback server.
+- The renderer is sandboxed and context-isolated, with Node integration off and Chromium web security on. It never navigates to remote pages or creates arbitrary windows. Serve a CSP header alongside the unchanged HTML meta policy: scripts, styles and Workers are same-origin; no inline script, eval, embedded frames, objects or form submission. Deny framing with `frame-ancestors 'none'` in the header, where Chromium enforces it. Renderer data requests remain subject to Chromium's network rules, except the provider calls the main process makes for it (below); the keychain is still to come (#404).
+- The typed preload bridge exposes `window.caotangDesktop.version` and three namespaces under it: `folders` (the folder calls below), `net` (the provider port below) and `os` (the menu commands, the deep link's answer, the Save dialog, the system timezone and the window's tray state). The version is 3, and a page reads it before it reads a namespace, so a page and a shell from different builds each see only what both have. There is no generic Electron or IPC API. Only the studio URL can receive Electron permission for sanitized clipboard writes. Other permission requests, including browser file handles, are denied. Packaged-binary fuses and ASAR integrity belong to #401, not the unpacked smoke launcher.
 - The renderer is sandboxed and context-isolated, with Node integration off and Chromium web security on. It never navigates to remote pages or creates arbitrary windows. Serve a CSP header alongside the unchanged HTML meta policy: scripts, styles and Workers are same-origin; no inline script, eval, embedded frames, objects or form submission. Deny framing with `frame-ancestors 'none'` in the header, where Chromium enforces it. Renderer data requests remain subject to Chromium's network rules, except the provider and MCP calls the main process makes for it; keys and tokens live in the main process and the page never reads one.
 - The typed preload bridge exposes `window.caotangDesktop.version`, the narrow folder calls below and the provider port below. There is no generic Electron or IPC API. Only the studio URL can receive Electron permission for sanitized clipboard writes. Other permission requests, including browser file handles, are denied. Packaged-binary fuses and ASAR integrity belong to #401, not the unpacked smoke launcher.
 - Each Electron profile allows one instance. It restores the last normal window dimensions and maximized state, not the screen position, so changing monitors does not reopen the window off-screen.
@@ -94,6 +97,103 @@ The rule is tested by the repository's gate
 ([`egress.spec.ts`](../../apps/desktop-shell/test/egress.spec.ts)), which configures one origin and proves every other
 address is refused after it.
 
+## Native menus (#407)
+
+The main process builds one application menu from a template that is pure and read by the shell's suite
+([`menu.mts`](../../apps/desktop-shell/src/menu.mts)); the page supplies its words through `os.publish`, so a German interface has a
+German menu and the shell itself holds no sentence. File has New project…, Open folder…, Compile…, Export bundle…, Settings… and
+Quit (the last two, and Quit, move to the application menu on macOS, where they belong). Edit exists on macOS only, because the
+clipboard's own chords need it there and Chromium provides them without a menu elsewhere: its Undo is a command to the page, and
+Cut, Copy, Paste and Select All are Electron's roles. View has Focus mode and Toggle full screen; Window has Minimize and Close;
+Windows and Linux add Help › About Caotang. An item that needs a project is enabled only while one is open — the page publishes
+whether one is, with the rest of the state — so a menu never offers a click that would do nothing. Choosing an item sends one
+command to the page, which runs the same handler its toolbar button runs and answers in its own words.
+
+**Which shortcuts are the menu's, and which stay the page's.** The page's keymap is the one authority for its own chords, because
+a menu accelerator is delivered *before* the page: a writer pressing Ctrl+Z inside a field would lose the field's own undo to the
+app-wide one, and every context rule in `keymap.ts` would be bypassed. So the menu registers no chord the page owns:
+
+| Chord | Owner |
+| --- | --- |
+| Ctrl+N (new document), Ctrl+Z (app undo outside fields), Ctrl+Shift+F (focus mode), Ctrl+Alt+F (filter), Ctrl+Enter (open in editor), Ctrl+K and Ctrl+J (Modern's palette and agent), Ctrl+Shift+N (Modern's New menu), F2, Delete, the arrows, Alt+arrows, Enter/Space, Shift+F10, Escape | the page |
+| Ctrl+O (open a folder), Ctrl+, (Settings), Ctrl+W (close window), Ctrl+Q (quit, Windows and Linux) | the menu |
+| Cut, Copy, Paste, Select All, Minimize, Quit and the application menu's Hide, on macOS | the menu, as Electron roles |
+
+On Windows and Linux a chord the page owns may still be *shown* beside an item, because Electron can display an accelerator it does
+not register (`registerAccelerator: false`): Focus mode shows Ctrl+Shift+F. On macOS a key equivalent cannot be displayed without
+being registered, so those items carry none, and the toolbar's hint stays the place the chord is named. Not built: an Open recent
+submenu, a Print item, zoom items, and documentation links, which the shell blocks from opening a browser anyway. The macOS
+application menu is Electron's own role menu and its items keep Electron's English labels; the four menus this spec owns are
+translated.
+
+## Deep links and folder handoff (#407)
+
+One scheme, one route, one parser: `caotang://project/<id>`, where the id is a folder **this profile has already been granted** —
+one opened with the picker or remembered in Recent project folders. A link therefore reaches only a folder Caotang would open
+anyway, and it can neither carry a path nor name one. Every other shape — another route, a query, a fragment, a user, a port, an
+id this profile does not know — is refused, and the page says so in a sentence: "That link names a project this copy of Caotang
+does not have" or "That link is not a Caotang project link". [`links.mts`](../../apps/desktop-shell/src/links.mts) is the only
+place either rule is written.
+
+The scheme is registered when a package is installed: electron-builder's `protocols` writes the Windows registry entry, the
+macOS `Info.plist`'s `CFBundleURLTypes` and the AppImage's `MimeType=x-scheme-handler/caotang`. A packaged build also asks the
+running system to point the scheme at itself. A development shell does not take the scheme over; it is given the URL as an
+argument, which is exactly how the system delivers one.
+
+A folder the operating system hands over — a file manager's "Open with", a desktop file, a command line, the `open-file` event on
+macOS — is granted by the picker's own rule: a readable directory that holds a `caotang.json`. Anything else is refused with "That
+folder does not hold a Caotang project" or "Caotang could not read that folder". An empty folder is not accepted, so nothing outside
+the app can start a project; the grant joins the recent list, so the writer can reopen it from the projects list afterwards. The
+app's own paths — its executable and the directory a development launcher is given — are never treated as a folder.
+
+Deliveries reach the page as commands on the same channel the menu uses. A command that arrives before the page is listening waits
+in the main process and is handed over when the page asks on mount, so a link that launched the app lands exactly where one that
+arrived later does. While a project is open, a delivery does not replace it: the workspace says "Close this project before opening
+another one from a link." Not built: a link to a scene, a codex entry or a place inside a project; a link that carries a path; more
+than one project per launch; and opening a second project from outside while one is open.
+
+## Native save (#407)
+
+The exporter makes the bytes and the name; the shell shows the operating system's Save dialog and writes once. `os.saveFile` takes
+a name and bytes, refuses a name that is a path or holds a control character, an empty file and one over 256 MiB, and answers
+`saved: false` when the writer cancels — nothing is written and that is not an error. The default place is the writer's Documents
+folder and the dialog filters by the file's own extension. The write goes through a temporary name in the same folder and a rename,
+so the file appears whole or not at all; Windows, which will not rename over an existing file, first moves the file already there
+aside to its own name and puts it back if the replacement fails, so a save that cannot finish costs neither copy — the dialog having
+already asked about replacing it.
+
+Compile… offers it for what a compile writes: the one file the format makes, or the zip of several. The bytes are the exporter's own,
+read through `ExportStore.read`, whose `isBinaryPath` list decides text from bytes — a Markdown or plain-text export is its text
+encoded as UTF-8, and a DOCX, EPUB, XLSX or PDF is the bytes as made. Cancelling leaves the dialog open saying "Nothing was saved."
+The project bundle's **Export bundle** keeps the browser's download, because it is a copy of the whole project rather than a file the
+writer is placing. The browser build is unchanged: with no shell the same call downloads.
+
+## The system timezone (#407)
+
+`os.timeZone()` answers with the zone Node reads for the platform (falling back to `UTC`), read once at start-up; it is read-only and
+nothing about it is stored. It is what goals-progress's assumption A3 can finally be: the writer's own calendar day. The session
+target counts "today" in that zone (`dayKeyIn`, `session-progress.ts`), and a scheduled task is due in it, so a daily 09:00 task runs
+at 09:00 on the writer's clock rather than the renderer's idea of it. The browser keeps the device's local day, which is the only
+honest reading a page has. No project format, schema or setting changes.
+
+## The tray and scheduled task runs (#407)
+
+Closing the window **hides** it while a tray exists; the app keeps running, and Quit — the menu's, the tray's, or Cmd+Q/Ctrl+Q — is
+the only thing that ends it. The tray is made on the page's first publish, because its words are the page's, and until then closing
+the window ends the app as it did before there was a tray. A window that cannot be put back is worse than none, so when the tray
+cannot be made at all the shell keeps the old behaviour and lets the close end the app.
+
+The hidden window's renderer keeps its timers: `backgroundThrottling` is off for it, so a hidden page is not a throttled tab. The
+page treats the tray-held window as running for its recurring tasks — the whole rule is `ticksCount` in `native-os.ts` — so the
+once-a-minute due check still happens, and a task that becomes due is handled as it is with the window open.
+
+What that honestly means: a `scan` task whose file says `run`, and a `plan` task the writer allowed and capped, start by themselves,
+stage their drafts in the Inbox for review, and record the run in the task history as usual; nothing applies by itself. An `intent`
+task is always offered rather than started (#685), so it waits, in the tray as it would on screen. No project open means nothing is
+scheduled. Quitting stops all of it, and the tray's Quit says so. The tray's status line is the page's own sentence — no project
+open, tasks running while the window is open, or tasks keeping on while Caotang is in the tray — so the tray never claims a run that
+is not happening. Not built: a task runner in the main process (nothing runs with the app quit), a tray item that runs a task now,
+and a notification when a run finishes.
 ## The keychain (#404)
 
 The desktop app keeps provider keys and MCP bearer tokens in the main process, sealed by the operating system's own store
@@ -148,6 +248,62 @@ What is not verified here: `safeStorage` on a real Windows, macOS or KDE desktop
 sealer (`packages/gateway/test/os-vault.test.ts`), and the shell suite proves the channels the page gets; the Linux runner the
 suite runs on has no keyring, so the fallback is the path it exercises. Signing and notarisation (#409) and the upgrade train
 (#410) are unchanged.
+
+## The project's own MCP server (#406)
+
+The app serves the open project over MCP itself, so a host on this computer can read the manuscript without a terminal, a port
+number or a token typed in by hand. It runs no new program: `dist/mcp/caotang-mcp.mjs` — the same bundle the `.mcpb` ships — is
+forked as an Electron `utilityProcess` with `serve --project <folder> --port 0`, so the port is one the operating system picks and
+one app has one server. `apps/desktop-shell/scripts/mcp-bundle.mjs` copies the built bundle into `dist/mcp/`, and the shell's build,
+smoke test and package preparation all do that first, so the bundle travels beside the app rather than being installed.
+
+**One server, one open folder, named by id.** The page asks for a folder **id**, never a path: `mcp:start` takes an id and a write
+setting, and the shell resolves the id through the grant list every folder channel uses. A page cannot point this server at a
+directory the writer never opened, and a folder the writer closed grants nothing new. The server's own login flow stays as it is:
+it takes the folder's single-writer lock, refuses a folder another writer holds, and reads and writes through `@caotang/sdk`'s
+folder session.
+
+**Read-only until the writer says otherwise.** The app passes `--allow-writes` only when the **Allow changes** switch is on, which is
+off by default, and the switch says what it means: a host may write the same files the writer does. Changing the setting restarts the
+server, because the tools a server lists are fixed when it opens the project.
+
+**The token is minted in the main process and handed to the page, once.** The app makes 192 bits of base64url for each start, sets
+`CAOTANG_MCP_TOKEN` in the child's environment, and keeps the value in its own memory; the server prints everything else on stderr
+and never prints a token it was given. The page receives the address and the token in the bridge — that is the one place a token
+crosses into the page in this app — because the writer's next step is to copy both into another program's configuration. It is not a
+provider key (keychain, #404), it is not written into a project, an export or a log, and it ends with the run. The page shows it
+read-only with a copy button beside the address and a **Copy the configuration** button that copies the JSON an MCP host reads.
+
+**Two writers, one pause.** The app and the server write the same folder, and the server's lock alone cannot make the app wait: it
+holds the lock for its whole run, and the app saves many times while it does. So the app pauses the server for the length of a save.
+`pauseProjectServer` posts `POST /control/pause` with the same bearer token before the first file the save writes and
+`resumeProjectServer` posts `POST /control/resume` after the last, and the guard refuses a write tool while the pause stands, with a refusal that says the app is
+saving and that a read is never refused. The endpoints exist on every HTTP server this package starts, including one a terminal
+started, where nobody uses them; a server started without a gate answers `404` and says nothing coordinates a save with it.
+
+What the pause does and does not guarantee: a write tool that has not started is refused rather than queued, so nothing lands after
+the save; a write that is already running when the pause arrives finishes, and the app's digest check — the one `writeProject` makes
+for each file before it replaces it, and `changedDuringSave` after — refuses that file and names it to the writer instead of replacing
+it. That is "reported, not lost", the same guarantee the folder guard gives without a server. The pause is taken only for a save that
+writes: a save the verdict refuses never reaches it.
+
+**A pause that cannot be confirmed stops the save.** With a server holding this folder, a save whose pause did not answer takes the
+folder's own lock refusal, so the writer is asked before anything is written and can save anyway. Without that, the save would run
+while a server that may still accept writes holds the same folder, which is the one thing this pause exists to prevent; the digest
+check would still catch a file it changed, but the promise is about what the server cannot start, not only about what it already did.
+
+**The app's own server's lock is not another writer's.** The server holds `.caotang-mcp.lock` for its whole run, so the checks that
+refuse a locked folder would otherwise refuse every save. Two places tell the app's own server from another program's by the process
+the lock body records: the folder channel (`folders.mts`) compares the lock's pid with the pid of the child it forked, and the save's
+verdict (`writeFolder` in `lifecycle.ts`) treats the lock as gone while that server is running over this very folder. A lock from a
+server started in a terminal is another writer, and is still refused and still asked about. After the app's server has died, its pid is
+no longer one the app forked, so a lock it left behind reads as another writer's and the writer is asked — the same question a crashed
+server has always asked — and the server's own stale-lock takeover is what clears the file.
+
+What is not verified here: the whole path has only been run on Linux x64 under Xvfb. `utilityProcess` forking a bundle that speaks
+MCP over HTTP has not been seen on Windows or macOS, and the bridge's `clipboard-sanitized-write` permission, which the copy buttons
+rely on, has not been checked on a real desktop either. A packaged app's `dist/mcp/` has been built and copied in CI, and no packaged
+build has started a server. Windows and macOS path and code-signing behaviour for the child (`#401`, `#409`) is unchecked.
 
 ## Packaging (#401)
 
