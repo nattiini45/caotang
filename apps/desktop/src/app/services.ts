@@ -196,6 +196,11 @@ interface PersistedProfile {
  * its bearer token. Read before the keychain opens, so a key an earlier build stored can be given the one address its record
  * names. This is auxiliary data for that migration, so a read that fails — or a record that is not a list — names nothing:
  * the keys it would have placed stay denied, and the app opens normally.
+ *
+ * **One entry holds one address.** A bearer token reference two servers share at two addresses is one entry, so it is placed for
+ * the first server that names it and for that one only; the other server is refused a token this computer holds for a different
+ * address, in words, rather than being handed the writer's token at its own. Two servers that genuinely need one token each need
+ * their own reference, and entering it there is what gives them one (#879).
  */
 export async function migrationOrigins(db: Pick<AppDb, 'get'> | null, mcp: McpSettings): Promise<Map<string, string>> {
   const origins = new Map<string, string>();
@@ -218,7 +223,9 @@ export async function migrationOrigins(db: Pick<AppDb, 'get'> | null, mcp: McpSe
   }
   for (const server of mcp.servers) {
     if (server.auth.kind !== 'bearer') continue;
-    origins.set(server.auth.tokenRef, serverOrigin(server.url));
+    // First claim wins: the settings are read in their own order, and a later server at another address must not move the entry.
+    const { tokenRef } = server.auth;
+    if (!origins.has(tokenRef)) origins.set(tokenRef, serverOrigin(server.url));
   }
   return origins;
 }

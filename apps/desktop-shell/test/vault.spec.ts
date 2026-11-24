@@ -62,9 +62,10 @@ test('the page can store a secret and can never read one back', async () => {
       const afterHeaders = await page.evaluate((id) => window.caotangDesktop!.vault.revision(id), id);
       expect(afterHeaders.ok && afterHeaders.value).not.toBe(beforeHeaders);
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.restore(id), id)).toEqual({ ok: true, value: null });
-      // A key already placed for an address cannot be stored for another one: the page cannot move a saved key (#864).
+      // A key already placed for an address cannot be stored for another one: the page cannot move a saved key (#864), and the
+      // answer says which refusal it is, so the writer is told to enter the key again rather than that the keychain failed (#879).
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'sk-second' }, 'https://other.example'), id))
-        .toEqual({ ok: false, error: 'invalid' });
+        .toEqual({ ok: false, error: 'bound' });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.remove(id), id)).toEqual({ ok: true, value: null });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.has(id), id)).toEqual({ ok: true, value: false });
       // Removing frees the id, so the writer's next save may take it for the address they entered for it.

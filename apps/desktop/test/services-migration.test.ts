@@ -47,6 +47,17 @@ describe('the addresses a stored credential belongs to', () => {
     expect([...origins]).toEqual([[TOKEN_REF, 'https://mcp.example.com']]);
   });
 
+  it('places a token two servers share at the first server’s address, and never moves it to the second (#879)', async () => {
+    const db = database(async () => []);
+    const origins = await migrationOrigins(db, settings([
+      server({ key: 'srv-one', url: 'http://127.0.0.1:3845/mcp', auth: { kind: 'bearer', tokenRef: TOKEN_REF } }),
+      server({ key: 'srv-two', url: 'http://127.0.0.1:3846/mcp', auth: { kind: 'bearer', tokenRef: TOKEN_REF } }),
+    ]));
+    // One entry holds one address: the token is placed for the first server that names it, and the second server's address
+    // never serves it — so the second is refused a token this computer holds for another address instead of being handed it.
+    expect([...origins]).toEqual([[TOKEN_REF, 'http://127.0.0.1:3845']]);
+  });
+
   it('names nothing for a server without a bearer token, because it has no key to move', async () => {
     const db = database(async () => []);
     expect([...(await migrationOrigins(db, settings([server({ url: 'https://mcp.example.com/mcp' })])))]).toEqual([]);

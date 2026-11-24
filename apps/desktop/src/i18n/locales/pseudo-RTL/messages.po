@@ -25278,6 +25278,10 @@ msgstr ""
 msgid "This compile would be refused. {reason}"
 msgstr ""
 
+#: apps/desktop/src/app/native-vault.ts
+msgid "This computer keeps a key for another address under this reference. Enter the key again for this address."
+msgstr ""
+
 #. Interpolated values: count, path, reason
 #. Interpolated values: count, path, reason
 #: apps/desktop/src/app/lifecycle.ts

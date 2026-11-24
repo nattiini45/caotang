@@ -83,8 +83,9 @@ export function registerVaultIpc(entryUrl: string, vault: KeyVault, ipc: VaultIp
       // A refusal is the shape the page can show: an argument the page got wrong says so, and a machine without a keychain is
       // the one reason a well-formed call fails on purpose.
       if (error instanceof InvalidCall) return { ok: false, error: 'invalid' };
-      // An id already bound to another address is this call's origin being wrong for it, not a keychain that would not answer.
-      if (error instanceof KeyBoundElsewhere) return { ok: false, error: 'invalid' };
+      // An id the keychain already holds for another address says so: the page can tell the writer which key to enter again,
+      // where a keychain that would not answer would send them looking for a broken keychain instead (#879).
+      if (error instanceof KeyBoundElsewhere) return { ok: false, error: 'bound' };
       if (!(error instanceof Error)) throw error;
       return { ok: false, error: 'unavailable' };
     });

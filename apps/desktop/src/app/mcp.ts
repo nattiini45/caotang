@@ -17,6 +17,8 @@
 
 import { t } from '@lingui/core/macro';
 
+import { KeyStoredElsewhere } from './native-vault.js';
+
 /* lingui-set comment="Interpolated values: key" */
 
 import {
@@ -179,6 +181,9 @@ export class McpApp {
       if (updated.ok) return { ok: true };
       message = updated.error;
     } catch (error) {
+      // A reference this computer holds for another server's address is that server's entry, so there is nothing here to remove
+      // or put back: the writer is told which address it belongs to and enters this server's own token (#879).
+      if (error instanceof KeyStoredElsewhere) return { ok: false, message: error.message };
       message = error instanceof Error ? error.message : String(error);
     }
     const named = this.client.settings().servers.some((current) => current.auth.kind === 'bearer' && current.auth.tokenRef === ref);

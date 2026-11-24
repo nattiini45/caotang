@@ -5,7 +5,11 @@
  * ask whether one is there, and it can never take one out.
  */
 
-export type VaultError = 'invalid' | 'unavailable';
+/**
+ * `bound` is a reference this computer already holds for another address: the writer has to enter the key again for the address
+ * they mean, and it is a different answer from a keychain that would not respond (#879).
+ */
+export type VaultError = 'invalid' | 'unavailable' | 'bound';
 
 export type VaultReply<T> = { readonly ok: true; readonly value: T } | {
   readonly ok: false;

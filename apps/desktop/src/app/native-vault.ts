@@ -45,8 +45,16 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** A key this computer holds for another address: the one refusal the writer can act on, and not a keychain that failed. */
+export class KeyStoredElsewhere extends Error {
+  constructor() {
+    super(t`This computer keeps a key for another address under this reference. Enter the key again for this address.`);
+  }
+}
+
 function unwrap<T>(reply: VaultReply<T>): T {
   if (reply.ok) return reply.value;
+  if (reply.error === 'bound') throw new KeyStoredElsewhere();
   throw new Error('The operating system keychain did not answer.');
 }
 

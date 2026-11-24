@@ -227,8 +227,9 @@ secret and the address the writer entered it for, and one write of the file comm
 a later step that says where it goes, so a key is never stored without its address and never has an address without its key, and
 a write that fails leaves neither. The page has no call that says where an existing key goes: the port rebuilds the allowlist on
 every request from those addresses, so a page can name a key's id inside a request and cannot say which address that id belongs
-to. A `put` for an id stored for another address is refused rather than rebinding it, and a key with no address is denied rather
-than sent. The one replacement that moves an address is `putReplacement`, which carries the key the writer typed again for an
+to. A `put` for an id stored for another address is refused rather than rebinding it, and the refusal says `bound`, which is how
+the page tells the writer the key is kept for a different address and to enter it again, rather than reporting a keychain that
+would not answer (#879); a key with no address is denied rather than sent. The one replacement that moves an address is `putReplacement`, which carries the key the writer typed again for an
 endpoint they changed: it writes the new secret and the new address in the same turn, so no secret already stored is ever
 pointed at a new address. A key nothing has placed — one stored before addresses were kept — stays denied, and the one act that
 gives it an address is the writer entering it again for the endpoint the profile names; no page call can assign an address to a
@@ -275,7 +276,9 @@ is reported stored, checked once more, and only then removed from the browser. A
 where it is. An entry that holds only headers moves like any other key, under its own id, so the profile whose origin it belongs
 to keeps it. A machine where the move stops part-way keeps every key it did not move, and the app says so rather than opening as
 though nothing were missing. A key moves (or, for MCP, a bearer token moves) only for an address its own record names: a provider
-profile's endpoint origin, or an MCP server's own URL origin for the token its settings reference. A credential whose record is
+profile's endpoint origin, or an MCP server's own URL origin for the token its settings reference. Two servers that name one
+reference at two addresses are one entry's worth of token: it is placed for the first server that names it, in the settings'
+own order, and the second is refused rather than handed a token saved for another address (#879). A credential whose record is
 gone, or whose address does not parse, is left where it is and stays denied.
 
 **A key the keychain already held has no address, and stays denied (#864).** A record written before addresses were kept holds

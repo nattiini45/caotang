@@ -47,7 +47,7 @@ function scriptedVault(options: { available?: boolean; failPut?: boolean } = {})
         if (parsed === undefined) return Promise.resolve({ ok: false as const, error: 'invalid' as const });
         // And the address rule the shell keeps (#864): a second address is refused; a replacement is the one write that moves it.
         const bound = bindings.get(id);
-        if (bound !== undefined && bound !== origin) return Promise.resolve({ ok: false as const, error: 'invalid' as const });
+        if (bound !== undefined && bound !== origin) return Promise.resolve({ ok: false as const, error: 'bound' as const });
         bindings.set(id, origin);
         held.set(id, parsed);
         return ok(null);
@@ -106,6 +106,20 @@ describe('a page in the desktop app', () => {
     expect(await opened.store.has(ID)).toBe(true);
     await opened.store.remove(ID);
     expect(await opened.store.reveal(ID)).toBeUndefined();
+  });
+
+  it('answers a key this computer holds for another address with a sentence, not with a dead keychain (#879)', async () => {
+    const scripted = scriptedVault();
+    withBridge(scripted.bridge);
+    const opened = await openDesktopKeys(null, originsOfEveryKey());
+    if (opened.kind !== 'keychain') throw new Error('expected the keychain');
+    await opened.store.putPayload(ID, { apiKey: 'sk-at-a' }, ORIGIN);
+    // A second address for one id is refused before the vault is touched, in words the writer can act on: the sentence names
+    // the address the key is kept for and what to do, and the key it was entered for stays where it is.
+    await expect(opened.store.putPayload(ID, { apiKey: 'sk-at-b' }, 'https://other.example'))
+      .rejects.toThrow(/keeps a key for another address under this reference/u);
+    expect(scripted.bindings.get(ID)).toBe(ORIGIN);
+    expect(scripted.held.get(ID)).toEqual({ apiKey: 'sk-at-a' });
   });
 
   it('keeps the extra header values the writer typed beside the key', async () => {
