@@ -7,7 +7,7 @@ The [development shell](../../apps/desktop-shell/README.md) in [epic #16](https:
 
 - Serve the build from the fixed origin `app://caotang/`; keep that origin stable because Chromium keys storage to it. Register the scheme before Electron is ready as standard, secure and Fetch/CORS-capable. Do not bypass CSP. Serve only built assets from a fixed directory, reject other hosts and paths outside that directory, and do not start a loopback server.
 - The renderer is sandboxed and context-isolated, with Node integration off and Chromium web security on. It never navigates to remote pages or creates arbitrary windows. Serve a CSP header alongside the unchanged HTML meta policy: scripts, styles and Workers are same-origin; no inline script, eval, embedded frames, objects or form submission. Deny framing with `frame-ancestors 'none'` in the header, where Chromium enforces it. Renderer data requests remain subject to Chromium's network rules, except the provider calls the main process makes for it (below); the keychain is still to come (#404).
-- The typed preload bridge exposes `window.caotangDesktop.version` and three namespaces under it: `folders` (the folder calls below), `net` (the provider port below) and `os` (the menu commands, the deep link's answer, the Save dialog, the system timezone and the window's tray state). The version is 3, and a page reads it before it reads a namespace, so a page and a shell from different builds each see only what both have. There is no generic Electron or IPC API. Only the studio URL can receive Electron permission for sanitized clipboard writes. Other permission requests, including browser file handles, are denied. Packaged-binary fuses and ASAR integrity belong to #401, not the unpacked smoke launcher.
+- The typed preload bridge exposes `window.caotangDesktop.version` and three namespaces under it: `folders` (the folder calls below), `net` (the provider port below) and `os` (the menu commands, the deep link's answer, the Save dialog, the system timezone and the window's tray state). The version is 6, and a page reads it before it reads a namespace, so a page and a shell from different builds each see only what both have. There is no generic Electron or IPC API. Only the studio URL can receive Electron permission for sanitized clipboard writes. Other permission requests, including browser file handles, are denied. Packaged-binary fuses and ASAR integrity belong to #401, not the unpacked smoke launcher.
 - The renderer is sandboxed and context-isolated, with Node integration off and Chromium web security on. It never navigates to remote pages or creates arbitrary windows. Serve a CSP header alongside the unchanged HTML meta policy: scripts, styles and Workers are same-origin; no inline script, eval, embedded frames, objects or form submission. Deny framing with `frame-ancestors 'none'` in the header, where Chromium enforces it. Renderer data requests remain subject to Chromium's network rules, except the provider and MCP calls the main process makes for it; keys and tokens live in the main process and the page never reads one.
 - The typed preload bridge exposes `window.caotangDesktop.version`, the narrow folder calls below and the provider port below. There is no generic Electron or IPC API. Only the studio URL can receive Electron permission for sanitized clipboard writes. Other permission requests, including browser file handles, are denied. Packaged-binary fuses and ASAR integrity belong to #401, not the unpacked smoke launcher.
 - Each Electron profile allows one instance. It restores the last normal window dimensions and maximized state, not the screen position, so changing monitors does not reopen the window off-screen.
@@ -91,7 +91,7 @@ its way out, and a decryption nobody waits for any more is still handled rather 
 Claimed after the wait, the cancel found no call to stop and was answered as though the call had never been made, and then
 the request went out for a writer who had already stopped it (#869).
 
-**What the page sees.** The preload bridge is version 3 and exposes `net` beside `folders`: `configure`, `start`, `abort`,
+**What the page sees.** The preload bridge is version 6 and exposes `net` beside `folders`: `configure`, `start`, `abort`,
 `onChunk`, `onEnd`. Every call is checked for the studio's own top frame at `app://caotang/`, so a child frame or another
 origin cannot use the port. A request's shape is checked before any socket opens, and `invalid` covers what the network stack would otherwise refuse on
 the way out: a header that names the connection, a body on a `GET`, a method the app never sends. A call stopped before it
@@ -214,10 +214,10 @@ that whole file in one turn, the way every other Caotang artifact is written
 ([`os-vault.ts`](../../packages/gateway/src/keys/os-vault.ts) is the vault, and the rule it keeps).
 
 **The page may store, check, revise, restore and remove; it may never read.** The preload's `vault` channels are
-`available`, `put`, `putReplacement`, `remove`, `has`, `revision`, `restore` and `headers` — there is no `read`, `get` or
-`reveal` among them, and the shell suite asserts that list. A key is written by the form that took it; from then on the page
-learns only whether one is there, which revision it is at, and the extra header values the writer typed beside it, never the key
-itself.
+`available`, `put`, `putReplacement`, `putHeaders`, `remove`, `has`, `revision`, `restore`, `headers` and `keyState` — there is no
+`read`, `get` or `reveal` among them, and the shell suite asserts that list. A key is written by the form that took it; from then
+on the page learns only whether one is there, whether the entry holds a key at all, which revision it is at, and the extra header
+values the writer typed beside it, never the key itself.
 
 **Which address a key belongs to is main-process state, inside the vault's own record (#864).** Each entry is the sealed
 secret and the address the writer entered it for, and one write of the file commits both: there is no step that stores a key and
@@ -239,9 +239,22 @@ the handle is swapped for the secret from the keychain, but only for an address 
 other origin is refused as `denied` rather than sent. So a script in the page can use a stored key while the app is open, and
 cannot take one away — which is the difference the browser vault cannot offer (provider-gateway §7).
 
+**A key may be empty when the profile authenticates with its headers alone.** The generic endpoint preset reaches a service that
+wants its own headers rather than a bearer key, and a profile saved that way reaches the vault as `{ apiKey: '', customHeaders }`
+with at least one header beside the empty key. The vault accepts that payload, because a profile with no bearer key is still a
+profile; it refuses one that holds neither a key nor a header, since there would be nothing to seal. The empty key stays an empty
+key: `keyState` answers whether an id holds nothing, a key, or headers alone, and `reveal` and `revealPayload` answer `''` for the
+last rather than a handle, because a handle names a secret and there is none — so a call made from such a profile carries its own
+headers and no key at all. That is the shape the browser's WebCrypto vault already stores, so a headers-only profile reads the same
+in both stores (#868).
+
 **A provider that echoes a key cannot put one in the log.** The secret is attached in the main process, so the page's own
 redaction, which scrubs the values it sent and it sent a handle, would not see it. The answer's bytes are scrubbed of every
-secret attached to that call as they stream back, across chunk boundaries, before the page receives one.
+secret attached to that call as they stream back, across chunk boundaries, before the page receives one. The pass reads the
+answer once, longest secret first, and never reads what it wrote: `[redacted]` is not candidate text, which it has to be when a
+key is a single character — one that is also part of the word replacing it — or the pass would find its own output and grow
+without end (#870). That holds across a chunk boundary too: what is held back for the next chunk is the provider's own bytes,
+never a replacement already written (#877). The same rule applies to a header value and a reason phrase, which are scrubbed as strings.
 
 **A write can be undone without a read.** The vault remembers the entry the last write of an id replaced — the sealed secret
 and the address it was written for — and `restore` puts that entry back in one write of the file, so the MCP client's "store the
@@ -256,20 +269,21 @@ repository's gate tests it without Electron.
 **Migration writes, verifies, deletes.** On first open with a keychain, each key an earlier build sealed in this browser's
 IndexedDB vault is opened by the store that already holds it, written to the keychain, read back by the main process before it
 is reported stored, checked once more, and only then removed from the browser. An entry the browser's store cannot open is left
-where it is. A machine where the move stops part-way keeps every key it did not move, and the app says so rather than opening
-as though nothing were missing. A key moves (or, for MCP, a bearer token moves) only for an address its own record names: a
-provider profile's endpoint origin, or an MCP server's own URL origin for the token its settings reference. A credential whose
-record is gone, or whose address does not parse, is left where it is and stays denied.
+where it is. An entry that holds only headers moves like any other key, under its own id, so the profile whose origin it belongs
+to keeps it. A machine where the move stops part-way keeps every key it did not move, and the app says so rather than opening as
+though nothing were missing. A key moves (or, for MCP, a bearer token moves) only for an address its own record names: a provider
+profile's endpoint origin, or an MCP server's own URL origin for the token its settings reference. A credential whose record is
+gone, or whose address does not parse, is left where it is and stays denied.
 
-**A key the keychain already held has no address, and stays denied (#864).** A record written before addresses were kept
-holds its keys without one; the upgrade keeps the entries as they are, so the port refuses every request that names one, and
-there is no call that gives an existing secret an address, because the page supplies both the id and the address, which is the
-pairing this design keeps out of the page. The writer enters the key again for the endpoint the profile names, which places it
-in one write, and Settings names the profile without a usable key. No shipped build has such keys.
-The settings database is read for the migration as auxiliary data, so a read that fails names no addresses and startup
-continues; the provider store reads the profile list twice before it gives up, and a session that still could not read it keeps
-those records rather than replacing them with the demo profile. Adding, editing or removing a profile in that session is refused
-in words, because a change that could not be written must not be reported as saved.
+**A key the keychain already held has no address, and stays denied (#864).** A record written before addresses were kept holds
+its keys without one; the upgrade keeps the entries as they are, so the port refuses every request that names one, and there is
+no call that gives an existing secret an address, because the page supplies both the id and the address, which is the pairing
+this design keeps out of the page. The writer enters the key again for the endpoint the profile names, which places it in one
+write, and Settings names the profile without a usable key. No shipped build has such keys. The settings database is read for
+the migration as auxiliary data, so a read that fails names no addresses and startup continues; the provider store reads the
+profile list twice before it gives up, and a session that still could not read it keeps those records rather than replacing them
+with the demo profile. Adding, editing or removing a profile in that session is refused in words, because a change that could
+not be written must not be reported as saved.
 
 **Without a keychain the browser's vault stays, and says so.** `safeStorage` on Linux falls back to a built-in key that is the
 same on every machine, which is obfuscation rather than encryption; the vault treats `basic_text` and `unknown` backends as no
@@ -322,24 +336,37 @@ read-only with a copy button beside the address and a **Copy the configuration**
 holds the lock for its whole run, and the app saves many times while it does. So the app pauses the server for the length of a save.
 `pauseProjectServer` posts `POST /control/pause` with the same bearer token before the first file the save writes and
 `resumeProjectServer` posts `POST /control/resume` after the last, and the guard refuses a write tool while the pause stands, with a refusal that says the app is
-saving and that a read is never refused. The endpoints exist on every HTTP server this package starts, including one a terminal
-started, where nobody uses them; a server started without a gate answers `404` and says nothing coordinates a save with it.
+saving and that a read is never refused. Every control call names the pause in `X-Caotang-Pause`, a lease of the app's own making, so
+a resume or a cancel lets go of that pause and no other — even when the pause has not reached the server yet, which is the case a save
+that stopped waiting for its answer is in. `POST /control/cancel` is that save's call: it lets the pause go and reads nothing, because
+no save of it is coming. The endpoints exist on every HTTP server this package starts, including one a terminal started, where nobody
+uses them; a server started without a gate answers `404` and says nothing coordinates a save with it.
 
 What the pause does and does not guarantee: a write tool that has not started is refused rather than queued, so nothing lands after
-the save; a write that is already running when the pause arrives finishes, and the app's digest check — the one `writeProject` makes
-for each file before it replaces it, and `changedDuringSave` after — refuses that file and names it to the writer instead of replacing
-it. That is "reported, not lost", the same guarantee the folder guard gives without a server. The pause is taken only for a save that
-writes: a save the verdict refuses never reaches it.
+the save; so is `coherence.scan`, the one read whose answer the server appends to `coherence.json`, because its run reaches the same
+folder a write does — and a read-only server, which saves nothing for it, still answers it; the pause is a barrier, so a write the
+server had already admitted finishes first — the pause answers only once every such
+write has released, and a folder with none in flight answers at once, so a save into a free folder never waits. A save therefore never
+runs while the server is still persisting a file, and the app's digest check — the one `writeProject` makes for each file before it
+replaces it, and `changedDuringSave` after — stays the backstop for a change from anywhere else, naming the file to the writer instead
+of replacing it. That is "reported, not lost", the same guarantee the folder guard gives without a server. The pause is taken only for
+a save that writes: a save the verdict refuses never reaches it.
 
 **A pause that cannot be confirmed stops the save.** With a server holding this folder, a save whose pause did not answer takes the
-folder's own lock refusal, so the writer is asked before anything is written and can save anyway. Without that, the save would run
-while a server that may still accept writes holds the same folder, which is the one thing this pause exists to prevent; the digest
-check would still catch a file it changed, but the promise is about what the server cannot start, not only about what it already did.
+folder's own lock refusal, so the writer is asked before anything is written and can save anyway. A pause that is draining a long write
+can take that write's own time, and one that outlasts the app's wait gets the same answer: the save stops and the writer is asked,
+rather than written beside a server that may still be writing. A pause the app stopped waiting for is let go by the app: it posts the
+cancel it would otherwise never send, naming the same lease, so a pause is only ever held by a save that is still running and the folder
+does not stay paused until the server restarts. A server that has already seen the cancel and not yet the pause cancels that lease, so
+the pause that lands afterwards does not stand either. A server that answers neither the pause nor that resume is stopped, and the app
+tells the writer to start it again. Without that refusal the save would run while a server that may still accept writes holds the same
+folder, which is the one thing this pause exists to prevent; the digest check would still catch a file it changed, but the promise is
+about what the server cannot start, not only about what it already did.
 
 **The resume that ends a save is when the server reads the folder again.** The server holds the project it read when it opened, plus a
 digest of every document and codex file it read, so a save by the app would otherwise leave it answering from the project as it was —
 and its next write tool would find the app's files against that old baseline and stop its own writes for good. So the last resume of a
-save reads the folder again before it is answered (`folder.reload` in `@caotang/sdk`, through the folder's own queue): the manifest
+save reads the folder again before it is answered — a cancel never does, since it is the save that never happened (`folder.reload` in `@caotang/sdk`, through the folder's own queue): the manifest
 text is the check that anything was written, because every save rewrites `caotang.json`; the documents are digested before the project
 is read, as at open; the state the server already holds is given the loaded project's fields, so its tools, resources and exporter see
 the new project; and the digests and `coherence.json` it checks its saves against become the folder's. A host subscribed to the

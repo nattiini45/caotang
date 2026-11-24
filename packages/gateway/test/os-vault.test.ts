@@ -137,6 +137,22 @@ describe('a vault with entries', () => {
     expect(await vault.read(ID)).toEqual({ apiKey: KEY, customHeaders: { 'x-workspace': 'w1' } });
   });
 
+  it('keeps an entry whose key is empty, because a profile may authenticate with its headers alone (#868)', async () => {
+    const vault = await openOsVault(host());
+    await vault.put(ID, { apiKey: '', customHeaders: { 'x-workspace': 'w1' } }, A);
+    // The empty key is sealed and read back as an empty key, not as a missing entry and not as a header-only payload.
+    expect(await vault.read(ID)).toEqual({ apiKey: '', customHeaders: { 'x-workspace': 'w1' } });
+    expect(await vault.headers(ID)).toEqual({ 'x-workspace': 'w1' });
+    expect(await vault.keyState(ID)).toBe('empty');
+    expect(await vault.keyState(TOKEN)).toBe('none');
+    await vault.put(TOKEN, { apiKey: KEY }, A);
+    expect(await vault.keyState(TOKEN)).toBe('key');
+    // An edit that changes only the headers keeps the empty key where it was, at the address it was stored for.
+    await vault.putHeaders(ID, { 'x-workspace': 'w2' });
+    expect(await vault.read(ID)).toEqual({ apiKey: '', customHeaders: { 'x-workspace': 'w2' } });
+    expect(vault.originOf(ID)).toBe(A);
+  });
+
   it('opens its file again, so a key and its address survive a restart', async () => {
     const held = host();
     await (await openOsVault(held)).put(ID, { apiKey: KEY }, A);

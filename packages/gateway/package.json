@@ -13,7 +13,8 @@
     "./mock": "./src/mock/index.ts",
     "./native-egress": "./src/native-egress.ts",
     "./keys/key-origin": "./src/keys/key-origin.ts",
-    "./keys/os-vault": "./src/keys/os-vault.ts"
+    "./keys/os-vault": "./src/keys/os-vault.ts",
+    "./keys/vault-payload": "./src/keys/vault-payload.ts"
   },
   "dependencies": {
     "@caotang/machine": "workspace:*",

@@ -24,12 +24,14 @@ import { t } from '@lingui/core/macro';
 import type { VaultPayload, VaultReply } from '../../../desktop-shell/src/vault-contract.cjs';
 import { scopedStoreName } from './storage-scope.js';
 
-/** The keychain, when this page runs in the desktop shell and the machine has one. */
+/**
+ * The keychain, when this page runs in the desktop shell and the machine has one. Version 6 is the first whose vault records the
+ * address a key is stored for and answers what an entry holds, which is how a headers-only entry reveals its empty key rather
+ * than a handle (#864, #868); an older shell records neither and keeps the browser's vault instead.
+ */
 function bridge(): NonNullable<Window['caotangDesktop']>['vault'] | undefined {
   if (typeof window === 'undefined') return undefined;
   const desktop = window.caotangDesktop;
-  // Version 6 added the calls that record which address a key belongs to; an older shell, which records none, would deny every
-  // key, so the browser's vault stays in use there rather than half of this one.
   return desktop !== undefined && desktop.version >= 6 ? desktop.vault : undefined;
 }
 
@@ -65,6 +67,7 @@ function vaultPort(api: NonNullable<ReturnType<typeof bridge>>): NativeKeyVault 
     putHeaders: async (id, headers) => {
       unwrap(await api.putHeaders(id, headers));
     },
+    keyState: async (id) => unwrap(await api.keyState(id)),
     headers: async (id) => {
       // A call that failed answers no headers, and saying "none" would read as a key stored without any: the store's answer is
       // "not known", which is an error, not silence.

@@ -37,6 +37,9 @@ export class KeyBoundElsewhere extends Error {
   }
 }
 
+/** What one vault id holds, without the secret: nothing, a key, or headers alone with an empty key (#868). */
+export type OsVaultKeyState = 'none' | 'empty' | 'key';
+
 export interface OsKeyVault {
   /** Whether the operating system's keychain is usable on this machine. */
   available(): Promise<boolean>;
@@ -66,6 +69,11 @@ export interface OsKeyVault {
    * address, or holds nothing: a secret is only ever handed over for the address it belongs to at the moment it is read.
    */
   readFor(origin: string, ids: readonly string[]): Promise<ReadonlyMap<string, OsVaultPayload> | undefined>;
+  /**
+   * Whether `id` holds nothing, a key, or headers alone with an empty key. Never the key, and never anything about it: the page
+   * needs the difference to answer a revealed payload with the empty key rather than a handle.
+   */
+  keyState(id: string): Promise<OsVaultKeyState>;
 }
 
 /** What the host brings: the file, the seal, and the answer to whether there is a keychain at all. */
@@ -292,5 +300,11 @@ export async function openOsVault(host: OsVaultHost): Promise<OsKeyVault> {
       }
       return secrets;
     }),
+
+    async keyState(id) {
+      const payload = await open(id);
+      if (payload === undefined) return 'none';
+      return payload.apiKey === '' ? 'empty' : 'key';
+    },
   };
 }

@@ -37,6 +37,7 @@ const bridge: DesktopBridge = {
     revision: (id) => ipcRenderer.invoke('vault:revision', id),
     restore: (id) => ipcRenderer.invoke('vault:restore', id),
     headers: (id) => ipcRenderer.invoke('vault:headers', id),
+    keyState: (id) => ipcRenderer.invoke('vault:keyState', id),
   },
   mcp: {
     start: (folderId, allowWrites) => ipcRenderer.invoke('mcp:start', folderId, allowWrites),
