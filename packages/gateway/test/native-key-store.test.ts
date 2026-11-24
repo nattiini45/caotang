@@ -25,6 +25,11 @@ function vault(): NativeKeyVault & { readonly held: Map<string, KeyPayload>; rea
       pairings.set(id, origin);
       held.set(id, payload);
     },
+    async putHeaders(id, headers) {
+      const payload = held.get(id);
+      if (payload === undefined) return;
+      held.set(id, { apiKey: payload.apiKey, ...(Object.keys(headers).length === 0 ? {} : { customHeaders: { ...headers } }) });
+    },
     async headers(id) {
       const payload = held.get(id);
       return payload === undefined ? undefined : { ...(payload.customHeaders ?? {}) };
@@ -71,6 +76,27 @@ describe('a key the host holds', () => {
     await store.putPayload(ID, { apiKey: KEY, customHeaders: { 'x-workspace': 'w1' } }, ORIGIN);
     const payload = await store.revealPayload(ID);
     expect(payload).toEqual({ apiKey: keyHandle(ID), customHeaders: { 'x-workspace': 'w1' } });
+  });
+
+  it('keeps the stored key when the payload it was given comes back with the handle in it (#863)', async () => {
+    const held = vault();
+    const store = nativeKeyStore(held);
+    await store.putPayload(ID, { apiKey: KEY, customHeaders: { 'x-team': 'one' } }, ORIGIN);
+    // Reading a key and writing it back is how an edit that changes only the headers arrives: the key it saw is the handle.
+    const read = await store.revealPayload(ID);
+    expect(read?.apiKey).toBe(keyHandle(ID));
+    await store.putPayload(ID, { ...read!, customHeaders: { 'x-team': 'two' } }, ORIGIN);
+    // The stored secret is untouched, and the headers are the ones the edit wrote.
+    expect(held.held.get(ID)?.apiKey).toBe(KEY);
+    expect(held.held.get(ID)?.customHeaders).toEqual({ 'x-team': 'two' });
+    expect(JSON.stringify(await store.revealPayload(ID))).not.toContain(KEY);
+  });
+
+  it('refuses a handle where a key belongs, because a handle names a secret rather than being one', async () => {
+    const held = vault();
+    const store = nativeKeyStore(held);
+    await expect(store.put(ID, keyHandle(ID), ORIGIN)).rejects.toThrow(/handle is not a secret/u);
+    expect(held.held.has(ID)).toBe(false);
   });
 
   it('remaps a handle at a new id, because the handle is the id and not the key', async () => {

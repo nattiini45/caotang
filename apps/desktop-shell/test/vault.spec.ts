@@ -40,7 +40,7 @@ test('the page can store a secret and can never read one back', async () => {
       return vault === undefined ? null : Object.keys(vault).sort();
     });
     // There is no `read`, `get` or `reveal` here, and adding one is the change this test exists to refuse.
-    expect(surface).toEqual(['available', 'has', 'headers', 'put', 'remove', 'restore', 'revision']);
+    expect(surface).toEqual(['available', 'has', 'headers', 'put', 'putHeaders', 'remove', 'restore', 'revision']);
 
     // A machine with a keychain stores and reports; a machine without one refuses, and says so rather than pretending.
     const available = await page.evaluate(() => window.caotangDesktop!.vault.available());
@@ -53,6 +53,13 @@ test('the page can store a secret and can never read one back', async () => {
       const revision = await page.evaluate((id) => window.caotangDesktop!.vault.revision(id), id);
       expect(revision.ok && revision.value).toMatch(/^[0-9a-f]{64}$/);
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.headers(id), id)).toEqual({ ok: true, value: {} });
+      // A headers-only edit keeps the key: the page read a handle, and handing that handle back as a secret would destroy the key
+      // it was given for (#863). What changes is the headers, and the revision moves with them.
+      const beforeHeaders = revision.ok ? revision.value : '';
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.putHeaders(id, { 'x-team': 'two' }), id)).toEqual({ ok: true, value: null });
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.headers(id), id)).toEqual({ ok: true, value: { 'x-team': 'two' } });
+      const afterHeaders = await page.evaluate((id) => window.caotangDesktop!.vault.revision(id), id);
+      expect(afterHeaders.ok && afterHeaders.value).not.toBe(beforeHeaders);
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.restore(id), id)).toEqual({ ok: true, value: null });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.remove(id), id)).toEqual({ ok: true, value: null });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.has(id), id)).toEqual({ ok: true, value: false });

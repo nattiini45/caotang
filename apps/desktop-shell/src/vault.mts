@@ -120,6 +120,20 @@ export function registerVaultIpc(entryUrl: string, vault: KeyVault, bindings: Ke
     return url.origin;
   };
 
+  /** The extra headers a page may hand back: text under a name, both bounded. Nothing here is a secret. */
+  const headersOf = (raw: unknown): Readonly<Record<string, string>> => {
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) throw new InvalidCall('invalid');
+    const copy: Record<string, string> = {};
+    const entries = Object.entries(raw as Record<string, unknown>);
+    // The same bound the payload parser applies: a page cannot spend the host's memory on headers either way.
+    if (entries.length > 64) throw new InvalidCall('invalid');
+    for (const [name, value] of entries) {
+      if (typeof value !== 'string' || value.length > 8192 || name === '' || name.length > 256) throw new InvalidCall('invalid');
+      copy[name] = value;
+    }
+    return copy;
+  };
+
   ipcMain.handle('vault:available', (event): Promise<VaultReply<boolean>> => reply(async () => {
     if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
     return vault.available();
@@ -134,6 +148,14 @@ export function registerVaultIpc(entryUrl: string, vault: KeyVault, bindings: Ke
     // removes the key first, which is a deliberate act rather than a page's say-so.
     await bindings.bind(id, originOf(rawOrigin));
     await vault.put(id, payload);
+    return null;
+  }));
+
+  // A headers-only edit: the page read a key (and was given a handle) and changed only the extra headers. The secret stays where it
+  // is, because sealing the handle over it would destroy the key the writer saved (#863).
+  ipcMain.handle('vault:putHeaders', (event, rawId: unknown, rawHeaders: unknown): Promise<VaultReply<null>> => reply(async () => {
+    if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
+    await vault.putHeaders(idOf(rawId), headersOf(rawHeaders));
     return null;
   }));
 

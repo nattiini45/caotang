@@ -55,6 +55,9 @@ function vaultPort(api: NonNullable<ReturnType<typeof bridge>>): NativeKeyVault 
       // The address the key is for is part of storing it: the shell records it, and a page cannot change it afterwards (#864).
       unwrap(await api.put(id, stored, origin));
     },
+    putHeaders: async (id, headers) => {
+      unwrap(await api.putHeaders(id, headers));
+    },
     headers: async (id) => {
       // A call that failed answers no headers, and saying "none" would read as a key stored without any: the store's answer is
       // "not known", which is an error, not silence.
