@@ -122,22 +122,23 @@ export async function openOsVault(host: OsVaultHost): Promise<OsKeyVault> {
     entries = next;
   };
 
-  const put = async (id: string, payload: OsVaultPayload): Promise<void> => {
+  /** The write itself, without the queue: only a caller that already holds the queue may use this. */
+  const store = async (id: string, payload: OsVaultPayload): Promise<void> => {
     if (!await host.available()) throw new Error('The operating system keychain is not available.');
     const sealed = await host.seal(JSON.stringify(payload));
-    await serialize(async () => {
-      const before = entries;
-      undo.set(id, before[id]);
-      await write({ ...before, [id]: sealed });
-      // A key is stored when it can be read back, not when the file said so: reading it again is the one operation that proves
-      // the seal, the file and the opener all work for what was just written, and a failure puts the earlier file back.
-      const match = await open(id);
-      if (!samePayload(match, payload)) {
-        await write(before);
-        throw new Error('The key did not survive being stored, so it was not kept.');
-      }
-    });
+    const before = entries;
+    undo.set(id, before[id]);
+    await write({ ...before, [id]: sealed });
+    // A key is stored when it can be read back, not when the file said so: reading it again is the one operation that proves
+    // the seal, the file and the opener all work for what was just written, and a failure puts the earlier file back.
+    const match = await open(id);
+    if (!samePayload(match, payload)) {
+      await write(before);
+      throw new Error('The key did not survive being stored, so it was not kept.');
+    }
   };
+
+  const put = (id: string, payload: OsVaultPayload): Promise<void> => serialize(() => store(id, payload));
 
   return {
     available: () => host.available(),
@@ -152,9 +153,13 @@ export async function openOsVault(host: OsVaultHost): Promise<OsKeyVault> {
      * alone would leave an entry with a handle for a key.
      */
     async putHeaders(id, headers) {
-      const payload = await open(id);
-      if (payload === undefined) return;
-      await put(id, { apiKey: payload.apiKey, ...(Object.keys(headers).length === 0 ? {} : { customHeaders: { ...headers } }) });
+      // The read and the write are one turn. Reading outside the queue and writing inside it would let a key stored in between be
+      // overwritten by the older payload this read saw, which is the same replace-a-secret mistake the caller is avoiding.
+      await serialize(async () => {
+        const payload = await open(id);
+        if (payload === undefined) return;
+        await store(id, { apiKey: payload.apiKey, ...(Object.keys(headers).length === 0 ? {} : { customHeaders: { ...headers } }) });
+      });
     },
 
     async remove(id) {

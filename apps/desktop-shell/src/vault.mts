@@ -108,7 +108,10 @@ export function registerVaultIpc(entryUrl: string, vault: KeyVault): void {
   const headersOf = (raw: unknown): Readonly<Record<string, string>> => {
     if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) throw new InvalidCall('invalid');
     const copy: Record<string, string> = {};
-    for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
+    const entries = Object.entries(raw as Record<string, unknown>);
+    // The same bound the payload parser applies: a page cannot spend the host's memory on headers either way.
+    if (entries.length > 64) throw new InvalidCall('invalid');
+    for (const [name, value] of entries) {
       if (typeof value !== 'string' || value.length > 8192 || name === '' || name.length > 256) throw new InvalidCall('invalid');
       copy[name] = value;
     }
