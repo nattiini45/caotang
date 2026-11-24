@@ -215,6 +215,7 @@ export class HostedTarget {
       digests.set(path, digest);
     }
     if (moved.length > 0) {
+      // The staged bytes are the answer's to replay: "keep mine" sends this device's pictures on top of the other device's version.
       this.queue?.hold(moved);
       this.#conflict = moved;
       this.#set({ kind: 'conflict', paths: moved.map((change) => change.path) });
