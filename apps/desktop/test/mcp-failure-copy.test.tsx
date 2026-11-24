@@ -33,7 +33,7 @@ const SERVER: McpServerConfig = {
 
 function renderCard(mcp: McpApp): HTMLElement {
   const host = document.createElement('div');
-  host.innerHTML = renderToStaticMarkup(<I18nProvider i18n={i18n}><McpSection mcp={mcp} /></I18nProvider>);
+  host.innerHTML = renderToStaticMarkup(<I18nProvider i18n={i18n}><McpSection mcp={mcp} session={null} /></I18nProvider>);
   const card = host.querySelector<HTMLElement>('[data-server="Story Bible"]');
   if (card === null) throw new Error('The server card was not rendered.');
   return card;

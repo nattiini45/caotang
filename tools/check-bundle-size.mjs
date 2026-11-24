@@ -197,7 +197,7 @@ export const BUDGET = {
   // the write-verify-delete migration the app runs as it opens, and the Settings sentence that says which store holds the keys. All
   // of it is read by `openAppServices` before the first paint, so there was no chunk to move it to; the pages that only a form needs
   // were already on use. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  initialGzip: 1_123_000,
+  initialGzip: 1_126_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -339,7 +339,7 @@ export const BUDGET = {
   // ceiling that tree set, again the entry chunk. Named: the GET rule, the mapped-loopback predicate, the no-body head a page answers
   // without a stream, and the guard that ties a chunk to the call still holding its id. The ceiling is the measurement rounded up to
   // the thousand. [delegated 2026-11-23]
-  totalJs: 9_029_000,
+  totalJs: 9_045_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

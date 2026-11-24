@@ -11,6 +11,7 @@ import { BrowserWindow, dialog, ipcMain } from 'electron';
 import type { IpcMainInvokeEvent, WebContents } from 'electron';
 
 import type { FolderReply, NativeFolder, NativeFolderChange, NativeFolderEntry } from './folder-contract.cjs';
+import { fromStudioFrame } from './ipc-guard.mjs';
 
 type FolderError = Extract<FolderReply<never>, { ok: false }>['error'];
 type Grant = NativeFolder & { readonly root: string; readonly dev: number; readonly ino: number };
@@ -102,7 +103,48 @@ function changedPaths(root: string, events: readonly Event[]): readonly string[]
   return [...new Set(paths)];
 }
 
-export async function registerFolderIpc(profile: string, entryUrl: string): Promise<void> {
+/**
+/**
+ * What the rest of the shell may do with the folders this process has granted: the directory an id names, the folder behind an id
+ * for a `caotang://` link, and the grant of one the operating system handed over (desktop.md §Deep links and folder handoff).
+ */
+export interface FolderRegistry {
+  /** The directory the id names, for a channel that must be handed an id and never a path. */
+  rootOf(id: string): string | undefined;
+  /** The folder behind a link's id, or `null` when this profile has never been granted it. */
+  find(id: string): NativeFolder | null;
+  /** Grants a folder the system named, or says why not: it is not a folder, or it holds no `caotang.json`. */
+  grantPath(root: string): Promise<{ readonly ok: true; readonly value: NativeFolder } | { readonly ok: false; readonly error: 'not-a-project' | 'unreadable' }>;
+}
+
+export interface FolderIpcOptions {
+  /**
+   * The pid of the MCP server this app runs, when one is running. A lock that names it is the app's own writer, not another program's:
+   * the page pauses that server around its saves, so a write from here never races it (mcp.mts, packages/sdk/src/lock.ts).
+   */
+  readonly ownWriter?: () => number | undefined;
+}
+
+/**
+ * Whether another writer holds the folder. The lock a Caotang MCP server leaves records its process; the one this app started is not
+ * another writer, because the page pauses it for the length of its own save. Any other lock — a server a terminal started, or one whose
+ * body cannot be read — is another writer, and the write is refused as it always was.
+ */
+async function heldByOtherWriter(fs: NodeArtifactFs, ownWriter: () => number | undefined): Promise<boolean> {
+  if (!(await fs.exists('.caotang-mcp.lock'))) return false;
+  const own = ownWriter();
+  if (own === undefined) return true;
+  const bytes = await fs.readBytes('.caotang-mcp.lock').catch(() => undefined);
+  if (bytes === undefined) return true;
+  try {
+    const body: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    return !(body !== null && typeof body === 'object' && (body as { pid?: unknown }).pid === own);
+  } catch {
+    return true;
+  }
+}
+
+export async function registerFolderIpc(profile: string, entryUrl: string, options: FolderIpcOptions = {}): Promise<FolderRegistry> {
   const registryFs = new NodeArtifactFs(profile);
   const registry = 'native-project-folders.json';
   const recent = new Map<string, Grant>();
@@ -149,8 +191,7 @@ export async function registerFolderIpc(profile: string, entryUrl: string): Prom
   };
   function handle<T>(channel: string, run: (event: IpcMainInvokeEvent, ...args: unknown[]) => T | Promise<T>): void {
     ipcMain.handle(`folders:${channel}`, async (event, ...args: unknown[]): Promise<FolderReply<T>> => {
-      const frame = event.senderFrame;
-      if (!frame || frame.parent !== null || frame.url !== entryUrl) return { ok: false, error: 'invalid' };
+      if (!fromStudioFrame(event, entryUrl)) return { ok: false, error: 'invalid' };
       try {
         return { ok: true, value: await run(event, ...args) };
       } catch (error) {
@@ -168,7 +209,7 @@ export async function registerFolderIpc(profile: string, entryUrl: string): Prom
     const target = entryPath(grant.root, path, file);
     await checkRoot(grant, writable);
     const fs = new NodeArtifactFs(grant.root);
-    if (writable && path !== '' && await fs.exists('.caotang-mcp.lock')) throw new FolderRefusal('unavailable');
+    if (writable && path !== '' && await heldByOtherWriter(fs, options.ownWriter ?? (() => undefined))) throw new FolderRefusal('unavailable');
     return use(fs, target);
   }
   handle('pick', async (event, mode) => {
@@ -269,4 +310,41 @@ export async function registerFolderIpc(profile: string, entryUrl: string): Prom
     void dropWatch(typeof subscription === 'string' ? subscription : '');
     return Promise.resolve(null);
   });
+
+  return {
+    rootOf: (id) => selected.get(id)?.root ?? recent.get(id)?.root,
+    find: (id) => {
+      const grant = selected.get(id) ?? recent.get(id);
+      return grant === undefined ? null : publicFolder(grant);
+    },
+    /**
+     * A folder the operating system handed the app — a file manager's "Open with", a desktop file, a command line — is granted by
+     * the rule the picker's own `open` answer follows: a readable folder that holds a `caotang.json`. The grant is remembered, so
+     * the projects list can show and reopen it, exactly as a folder opened with the picker is once it opens.
+     */
+    grantPath: async (root) => {
+      let real: string;
+      let info;
+      try {
+        real = await realpath(root);
+        info = await stat(real);
+        if (!info.isDirectory()) return { ok: false, error: 'unreadable' };
+        if (!await new NodeArtifactFs(real).exists('caotang.json')) return { ok: false, error: 'not-a-project' };
+      } catch (error) {
+        console.warn('Caotang could not read the folder the system handed it.', error);
+        return { ok: false, error: 'unreadable' };
+      }
+      const prior = [...recent.values(), ...selected.values()].find((item) => item.root === real && item.dev === info.dev && item.ino === info.ino);
+      const grant: Grant = prior ?? { id: randomUUID(), name: basename(real), root: real, dev: info.dev, ino: info.ino };
+      try {
+        await checkRoot(grant, false);
+      } catch {
+        return { ok: false, error: 'unreadable' };
+      }
+      selected.set(grant.id, grant);
+      // A registry that cannot be written costs the remembered list, never the folder the writer asked for.
+      await updateRecents((next) => next.set(grant.id, grant)).catch(() => undefined);
+      return { ok: true, value: publicFolder(grant) };
+    },
+  };
 }

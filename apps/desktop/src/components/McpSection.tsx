@@ -18,13 +18,17 @@ import { riskBadge, type ExternalToolDescriptor, type McpServerConfig, type McpS
 
 import type { McpApp } from '../app/mcp.js';
 import { mcpServerView, reviewHeading, reviewSummary, stateLabel, toolStatusLabel } from '../app/mcp-model.js';
+import { nativeFolderId } from '../app/native-folders.js';
+import { projectServerAvailable } from '../app/native-mcp.js';
+import type { ProjectSession } from '../app/session.js';
 import { CatalogReview, CatalogRows } from './McpCatalog.js';
+import { ProjectServerSection } from './ProjectServer.js';
 import { useComposingEnter } from './shared.js';
 import './mcp.css';
 
 
 /* lingui-set comment="MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number." */
-export function McpSection({ mcp }: { mcp: McpApp }): ReactNode {
+export function McpSection({ mcp, session }: { mcp: McpApp; session: ProjectSession | null }): ReactNode {
   useLingui();
   const [, refresh] = useReducer((count: number) => count + 1, 0);
   const client = mcp.client;
@@ -49,6 +53,11 @@ export function McpSection({ mcp }: { mcp: McpApp }): ReactNode {
         <Trans>External tool servers are connected by you, one at a time. Caotang does not reach a server until you connect it, and every
         call an agent makes to a server asks you first.</Trans>
       </p>
+
+      {/* The server this app runs over the open folder: only the desktop app has one, so the browser build renders nothing here. */}
+      {projectServerAvailable() ? (
+        <ProjectServerSection folderId={nativeFolderId(session?.folderBaseline()?.folder ?? null)} />
+      ) : null}
 
       <div className="mcp-master">
         <label className="mcp-switch">

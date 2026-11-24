@@ -54,6 +54,9 @@ function vaultPort(api: NonNullable<ReturnType<typeof bridge>>): NativeKeyVault 
       const stored: VaultPayload = { apiKey: payload.apiKey, ...(payload.customHeaders === undefined ? {} : { customHeaders: payload.customHeaders }) };
       unwrap(await api.put(id, stored));
     },
+    putHeaders: async (id, headers) => {
+      unwrap(await api.putHeaders(id, headers));
+    },
     headers: async (id) => {
       // A call that failed answers no headers, and saying "none" would read as a key stored without any: the store's answer is
       // "not known", which is an error, not silence.
