@@ -22,7 +22,11 @@ export interface StudioHost {
    * points: a key returns only for the origin it was entered for, because a secret may not travel to another address
    * just because another device edited the profile.
    */
-  restore?(origins: ReadonlyMap<string, string>): Promise<readonly { readonly profileId: string; readonly payload: KeyPayload }[]>;
+  /**
+   * The keys the account holds, for the profiles named by `origins`, each with the address it was restored for: a key is stored
+   * for that address, so a host that cannot name one supplies no key (#864).
+   */
+  restore?(origins: ReadonlyMap<string, string>): Promise<readonly { readonly profileId: string; readonly payload: KeyPayload; readonly origin: string }[]>;
 }
 
 /**

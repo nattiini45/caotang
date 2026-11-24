@@ -187,19 +187,23 @@ async function throughPort(api: NativeEgressBridge, sinks: Map<string, Sink>, ta
  * a local server asks for may be held by the keychain, which only the main process can read, so the page's handle has to become
  * the secret there. Local means "this computer" to the port, which is why such an entry may be plain http and nothing else may:
  * an address anywhere else is still https, and a profile there is published as an https origin.
+ *
+ * **The page names addresses and never keys.** Which key each address may carry is the main process's answer, read from the
+ * address the vault stored with the key (#864), so this publishes no key ids at all: the shell adds them as it builds the port's
+ * own allowlist, and a page that named one could point a saved key at an address of its own.
  */
 export function egressTargets(profiles: readonly ProfileView[], mcp: McpSettings): NativeEgressTarget[] {
   const targets: NativeEgressTarget[] = [];
   /** A record whose address does not parse cannot be reached anyway; the form that saved it reported the address. */
-  const add = (url: string, keys: readonly string[], local = false): void => {
+  const add = (url: string, local = false): void => {
     try {
-      targets.push({ origin: originOf(url), keys, ...(local ? { local } : {}) });
+      targets.push({ origin: originOf(url), ...(local ? { local } : {}) });
     } catch {
       // A record whose address does not parse is not an address, so it adds nothing to the list.
     }
   };
   for (const profile of profiles) {
-    if (profile.kind !== 'mock') add(profile.baseUrl, [profile.id], isLocalBase(profile.baseUrl));
+    if (profile.kind !== 'mock') add(profile.baseUrl, isLocalBase(profile.baseUrl));
   }
   for (const server of mcp.servers) {
     let local = false;
@@ -208,7 +212,7 @@ export function egressTargets(profiles: readonly ProfileView[], mcp: McpSettings
     } catch {
       continue;
     }
-    add(server.url, server.auth.kind === 'bearer' ? [server.auth.tokenRef] : [], local);
+    add(server.url, local);
   }
   return targets;
 }

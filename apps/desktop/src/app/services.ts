@@ -5,7 +5,8 @@
  */
 
 import { t } from '@lingui/core/macro';
-import type { WireFactory } from '@caotang/mcp-client';
+import { originOf } from '@caotang/gateway';
+import type { McpSettings, WireFactory } from '@caotang/mcp-client';
 
 /* lingui-set comment="Interpolated values: error" */
 
@@ -13,7 +14,7 @@ import { sweepHistory } from './history-store.js';
 import { desktopEgress, egressTargets } from './native-egress.js';
 import { openDesktopKeys } from './native-vault.js';
 import { APP_KEYS, openAppDb, setActiveAppDb, type AppDb } from './app-db.js';
-import { McpApp } from './mcp.js';
+import { McpApp, serverOrigin } from './mcp.js';
 import { SaveChannel } from './save-channel.js';
 import { studioHost } from './studio-host.js';
 import { ProviderService } from './providers.js';
@@ -142,7 +143,9 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
   // where a browser could not read it (desktop.md). Published addresses come from the profiles themselves, read before each
   // call, so a profile saved a moment ago is reachable on its first request.
   const egress = desktopEgress();
-  const keys = await openDesktopKeys(factory);
+  // A key from an earlier build moves in, or is placed, for the address its own record names; a key whose record is gone stays
+  // where it is, because a host that cannot bind a key could never send it (native-vault.ts, #864).
+  const keys = await openDesktopKeys(factory, await migrationOrigins(db, initial.mcp));
   const { service, notices: providerNotices } = await ProviderService.open({
     db,
     vault: factory,
@@ -180,6 +183,51 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
     }),
   });
   return { db, settingsKept: settingsKeptAtStart === true, settings, providers: service, mcp, keychain: keys.kind === 'keychain', notices };
+}
+
+/** A profile record as an earlier save left it: the id a key is stored under, and the endpoint its address comes from. */
+interface PersistedProfile {
+  readonly id?: unknown;
+  readonly baseUrl?: unknown;
+}
+
+/**
+ * The address every stored credential belongs to: a provider profile's endpoint origin, and each MCP server's own URL origin for
+ * its bearer token. Read before the keychain opens, so a key an earlier build stored can be given the one address its record
+ * names. This is auxiliary data for that migration, so a read that fails — or a record that is not a list — names nothing:
+ * the keys it would have placed stay denied, and the app opens normally.
+ *
+ * **One entry holds one address.** A bearer token reference two servers share at two addresses is one entry, so it is placed for
+ * the first server that names it and for that one only; the other server is refused a token this computer holds for a different
+ * address, in words, rather than being handed the writer's token at its own. Two servers that genuinely need one token each need
+ * their own reference, and entering it there is what gives them one (#879).
+ */
+export async function migrationOrigins(db: Pick<AppDb, 'get'> | null, mcp: McpSettings): Promise<Map<string, string>> {
+  const origins = new Map<string, string>();
+  if (db !== null) {
+    let stored: unknown;
+    try {
+      stored = await db.get<unknown>(APP_KEYS.profiles);
+    } catch {
+      stored = undefined;
+    }
+    for (const record of Array.isArray(stored) ? stored as readonly PersistedProfile[] : []) {
+      if (record === null || typeof record !== 'object') continue;
+      if (typeof record.id !== 'string' || typeof record.baseUrl !== 'string') continue;
+      try {
+        origins.set(record.id, originOf(record.baseUrl));
+      } catch {
+        // An address that does not parse names no origin, so its key is not placed.
+      }
+    }
+  }
+  for (const server of mcp.servers) {
+    if (server.auth.kind !== 'bearer') continue;
+    // First claim wins: the settings are read in their own order, and a later server at another address must not move the entry.
+    const { tokenRef } = server.auth;
+    if (!origins.has(tokenRef)) origins.set(tokenRef, serverOrigin(server.url));
+  }
+  return origins;
 }
 
 function errorText(error: unknown): string {

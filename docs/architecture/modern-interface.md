@@ -335,7 +335,7 @@ Graph shows the branch graph, outline and findings; Ink shows the full-width sou
 
 ### 8.1 Ornaments
 
-An ornament is a glass capsule that floats half over the page's edge. The top one is `role="toolbar"` named "Scene"; the bottom one is a `nav` named "Views and tools" holding the view radio group and the two buttons. Tab enters an ornament, the arrow keys move inside it (the APG toolbar and radio patterns), Tab leaves. Every control is at least 44 px (the concept's 48 to 64 px is the target), labelled with words and an icon; when the labels would not fit (a long interface language, a narrow window) a container query drops the words to icons with the words kept as the accessible name and the tooltip, never truncating a word.
+An ornament is a glass capsule that floats half over the page's edge. The top one is `role="toolbar"` named "Scene"; the bottom one is a `nav` named "Views and tools" holding the view radio group and the two buttons. Its inline start lands on the pixel grid: the capsule is as wide as its content, so half its width is a fraction, and an ornament centred on a fraction gives the text and icons inside it two possible rasters — their sub-pixel phase, or the integer-snapped one Chromium paints when a run ends up in a layer of its own — which is what made the German sidebar snapshot flake (#644). Tab enters an ornament, the arrow keys move inside it (the APG toolbar and radio patterns), Tab leaves. Every control is at least 44 px (the concept's 48 to 64 px is the target), labelled with words and an icon; when the labels would not fit (a long interface language, a narrow window) a container query drops the words to icons with the words kept as the accessible name and the tooltip, never truncating a word.
 
 ### 8.2 Popovers
 
