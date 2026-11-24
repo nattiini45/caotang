@@ -99,6 +99,7 @@ import {
   setExpanded,
 } from './actions.js';
 import { ChoiceDialog, ConfirmDialog, ReportChannel, ReportContext, useSession, type MenuAnchor, type StatusMessage } from './shared.js';
+import { HostedSaveNotice } from './HostedSaveNotice.js';
 import { OpenOnDesktop, useNarrow } from './narrow.js';
 import { railTabId } from './shell/ClassicShell.js';
 import { minimapDots } from './shell/minimap.js';
@@ -1200,6 +1201,8 @@ export function Workspace({
             <button type="button" className="button is-quiet" disabled={review.stopRequested} onClick={() => session.coherenceReview.stop()}><Trans>Stop the review</Trans></button>
           </div>
         ) : null}
+        {/* The account's copy of a hosted project: a save it did not take, or the question another device's save asks. */}
+        <HostedSaveNotice session={session} />
         {message !== null || folderSaving ? (
           <div className={`status-line is-${message?.tone ?? 'info'}`} role={message?.tone === 'error' ? 'alert' : 'status'} data-state={folderSaving ? 'saving' : undefined}>
             <span>

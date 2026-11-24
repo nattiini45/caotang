@@ -1,0 +1,121 @@
+// @vitest-environment jsdom
+
+/**
+ * The account's copy of a hosted project, as the writer is told about it (hosted.md §7, §11): a save the server did not take
+ * says the account is behind; a save another device committed first asks the "files changed" question and names the documents
+ * by their titles rather than their file names; and both answers work — keep this device's text, or leave it for now.
+ */
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { i18n } from '@lingui/core';
+import { I18nProvider } from '@lingui/react';
+import { addDocument, createEmptyManifest, createProjectState, type ProjectState } from '@caotang/store';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+
+import type { ProjectSession } from '../src/app/session.js';
+import { HostedSaveNotice } from '../src/components/HostedSaveNotice.js';
+import { forgetHostedTarget, HostedTarget, rememberHostedTarget } from '../src/app/hosted-target.js';
+import { activateEnglish } from '../src/i18n/runtime.js';
+
+const DOC = 'n_LIGHTHOUSE';
+const PATH = `docs/${DOC}.md`;
+
+let root: Root;
+let host: HTMLDivElement;
+let state: ProjectState;
+let session: ProjectSession;
+let committed: unknown[][];
+
+function target(outcome: unknown): HostedTarget {
+  const fs = {
+    refresh: async () => undefined,
+    commitChanges: async (changes: unknown[]) => {
+      committed.push(changes);
+    },
+  };
+  return new HostedTarget('p_lighthouse', fs as never, (async () => outcome) as never);
+}
+
+async function render(one: HostedTarget): Promise<void> {
+  rememberHostedTarget(one);
+  await act(async () => root.render(<I18nProvider i18n={i18n}><HostedSaveNotice session={session} /></I18nProvider>));
+}
+
+beforeEach(() => {
+  activateEnglish();
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value(this: HTMLDialogElement) { this.open = true; } });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value(this: HTMLDialogElement) { this.open = false; this.dispatchEvent(new Event('close')); } });
+  committed = [];
+  state = createProjectState(createEmptyManifest('The lighthouse', new Date(0)));
+  addDocument(state, { parentId: 'manuscript', id: DOC, title: 'The lamp goes out', body: 'The lamp went out.', now: new Date(0) });
+  session = { projectId: 'p_lighthouse', state } as unknown as ProjectSession;
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+});
+
+afterEach(async () => {
+  await act(async () => root.unmount());
+  host.remove();
+  forgetHostedTarget('p_lighthouse');
+  Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal');
+  Reflect.deleteProperty(HTMLDialogElement.prototype, 'close');
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+/** Everything the notice shows: a status line in the workspace, and the question, which the app's dialog renders in the body. */
+function shown(): string {
+  return document.body.textContent ?? '';
+}
+
+/** The button labelled `label`, which is how the writer reaches every answer here. */
+function button(label: string): HTMLButtonElement {
+  const found = [...document.body.querySelectorAll('button')].find((one) => one.textContent?.trim() === label);
+  if (found === undefined) throw new Error(`no button labelled ${label}: ${shown()}`);
+  return found;
+}
+
+it('says nothing while a save is idle', async () => {
+  await render(target({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }));
+  expect(host.innerHTML).toBe('');
+});
+
+it('says the account is behind this browser when the server does not take the save', async () => {
+  const one = target({ kind: 'unavailable', changes: [] });
+  await render(one);
+  await act(async () => one.save(state));
+  expect(shown()).toContain('This browser has your latest words.');
+  expect(button('Save to your account again')).toBeTruthy();
+});
+
+it('names the documents another device changed by their titles, never by their file names', async () => {
+  const one = target({ kind: 'conflict', paths: [PATH], changes: [{ path: PATH, kind: 'modified' }] });
+  await render(one);
+  await act(async () => one.save(state));
+  expect(shown()).toContain('Another device saved these first');
+  expect(shown()).toContain('The lamp goes out');
+  expect(shown()).not.toContain(PATH);
+});
+
+it('keeps this device’s text when the writer says so, and the question goes', async () => {
+  const one = target({ kind: 'conflict', paths: [PATH], changes: [{ path: PATH, kind: 'modified' }] });
+  await render(one);
+  await act(async () => one.save(state));
+  await act(async () => button('Keep this device’s text').click());
+  expect(committed).toEqual([[{ path: PATH, kind: 'modified' }]]);
+  expect(shown()).not.toContain('Another device saved these first');
+  expect(host.innerHTML).toBe('');
+});
+
+it('leaves it for now, and holds that answer until the writer asks again', async () => {
+  const one = target({ kind: 'conflict', paths: [PATH], changes: [{ path: PATH, kind: 'modified' }] });
+  await render(one);
+  await act(async () => one.save(state));
+  await act(async () => button('Leave it for now').click());
+  expect(shown()).toContain('Your account keeps the other device’s version.');
+  expect(committed).toEqual([]);
+  await act(async () => button('Ask me again').click());
+  expect(shown()).toContain('Another device saved these first');
+});

@@ -5059,6 +5059,11 @@ msgstr "Einstellungen werden beschriftet"
 msgid "Another agent action is active. Wait for it to finish, then try again."
 msgstr "Eine andere Agent-Aktion ist aktiv. Warten Sie, bis sie beendet ist, und versuchen Sie es erneut."
 
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Another device saved these first"
+msgstr "Ein anderes Gerät hat diese zuerst gespeichert"
+
 #. Picture drops on a storyboard. Interpolated values: name and title are a file name and a shot title; number is a shot number; reason is a sentence ending or a failure message; where is a shot position; shotId is an id; counts are numbers.
 #: apps/desktop/src/media/shot-image-model.ts
 msgid "another file in this drop is also named for shot {number}, so neither was imported"
@@ -5415,6 +5420,11 @@ msgstr "{label} erfragen"
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Ask it to draft a scene, fill the synopses of a chapter, or check the manuscript for continuity. It proposes each change first, and nothing is written until you approve it."
 msgstr "Bitten Sie ihn, eine Szene zu entwerfen, die Zusammenfassungen eines Kapitels auszufüllen oder das Manuskript auf Kontinuität zu prüfen. Er schlägt jede Änderung zuerst vor, und es wird nichts geschrieben, bis Sie sie genehmigen."
+
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Ask me again"
+msgstr "Noch einmal fragen"
 
 #. Interpolated values: calls
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
@@ -12346,6 +12356,11 @@ msgstr "Die privaten Details der Bilder behalten, etwa wo sie aufgenommen wurden
 msgid "Keep this browser’s version and save it to the folder"
 msgstr "Die Version dieses Browsers behalten und in den Ordner speichern"
 
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Keep this device’s text"
+msgstr "Text dieses Geräts behalten"
+
 #: apps/desktop/src/components/StaleTabNotice.tsx
 msgid "Keep this tab"
 msgstr "Diesen Tab behalten"
@@ -12648,6 +12663,11 @@ msgstr "Fokusmodus verlassen"
 #: apps/desktop/src/components/EncodingDialog.tsx
 msgid "Leave it as it is — the file is not changed."
 msgstr "Lassen Sie es so, wie es ist — die Datei wird nicht geändert."
+
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Leave it for now"
+msgstr "Vorerst so lassen"
 
 #. The captions import. Interpolated values: file (the file's name), limit, count, cues, lines, segments and seconds (numbers), sample (text from the file), encoding (an encoding's name)
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
@@ -15230,6 +15250,11 @@ msgstr "In diesem Projekt hat sich noch nichts geändert."
 #: apps/desktop/src/components/ActivityPanel.tsx
 msgid "Nothing has changed yet"
 msgstr "Noch nichts geändert"
+
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Nothing here was written over them. Keep this device’s text to save it on top of their version; their version stays as the one it replaced."
+msgstr "Hier wurde nichts davon überschrieben. Behalten Sie den Text dieses Geräts, um ihn über die Version des anderen Geräts zu speichern; dessen Version bleibt als die erhalten, die ersetzt wurde."
 
 #. Binder row labels. Interpolated values: access is an access level's name, from is the node the rule was set on, title is a row's title.
 #: apps/desktop/src/components/Binder.tsx
@@ -19276,6 +19301,11 @@ msgstr "In Ordner speichern"
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Save to the folder?"
 msgstr "In den Ordner speichern?"
+
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Save to your account again"
+msgstr "Erneut auf dem Konto speichern"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
@@ -23663,6 +23693,11 @@ msgstr "Das Projekt wurde geschlossen, bevor die Prüfung starten konnte."
 msgid "The project closed before the scan finished. Your findings are unchanged."
 msgstr "Das Projekt wurde geschlossen, bevor der Scan fertig war. Deine Befunde sind unverändert."
 
+#. Interpolated values: error
+#: apps/desktop/src/App.tsx
+msgid "The project could not be opened: {error}"
+msgstr "Das Projekt konnte nicht geöffnet werden: {error}"
+
 #. Session restore messages. Interpolated values: reason is why a restore stopped.
 #: apps/desktop/src/app/session.ts
 msgid "The project could not be saved, so nothing was restored. Keep this tab open and retry the failed save before restoring again."
@@ -24866,6 +24901,11 @@ msgstr "Diese Einstellungen gelten für die moderne Oberfläche: Glas wird undur
 msgid "These apply to the whole container. The default speaker fills the speaker column of the dialogue table. Add line ids on save writes the missing line ids into the Ink text as it saves."
 msgstr "Diese gelten für den ganzen Container. Der Standardsprecher füllt die Sprecherspalte der Dialogtabelle. „Zeilen-IDs beim Speichern hinzufügen“ schreibt die fehlenden Zeilen-IDs in den Ink-Text, während er speichert."
 
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "These changed on another device: {files}"
+msgstr "Diese Dateien wurden auf einem anderen Gerät geändert: {files}"
+
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "These checks use your Background provider. They can send text from this step."
@@ -25009,6 +25049,11 @@ msgstr "Dieser Browser hat kein IndexedDB, daher werden Anbietereinstellungen un
 #: apps/desktop/src/components/PictureStorageMeter.tsx
 msgid "This browser has not promised to keep these pictures. Attach a folder, or export a bundle, for a copy of them that stays yours."
 msgstr "Dieser Browser hat nicht zugesagt, diese Bilder aufzubewahren. Hängen Sie einen Ordner an oder exportieren Sie ein Bundle, um eine Kopie zu erhalten, die Ihnen gehört."
+
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "This browser has your latest words. Your account does not have them yet."
+msgstr "Dieser Browser hat Ihre neuesten Wörter. Auf Ihrem Konto sind sie noch nicht."
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
@@ -27728,6 +27773,11 @@ msgstr "Sie haben {manualEdits} gemacht. {keepThem} mit der neuen Regel behalten
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "You need to approve the rewrite yourself, even in Auto mode."
 msgstr "Geben Sie die Änderung selbst frei, auch im Auto-Modus."
+
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Your account keeps the other device’s version. This device’s words stay only in this browser."
+msgstr "Auf Ihrem Konto bleibt die Version des anderen Geräts. Die Wörter dieses Geräts bleiben nur in diesem Browser."
 
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
