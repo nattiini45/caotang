@@ -198,7 +198,12 @@ export class HostedTarget {
     // A queue conflict the writer has answered but whose replay did not land: the held words are still the newer ones, so the save that
     // would write this session's older state sends them again instead.
     if (this.#fromQueue && this.queue !== null) {
-      this.#settle(await this.queue.replay());
+      const outcome = await this.queue.replay();
+      // Once the account really holds them, this target is a save target again and the session in front of the writer is the one that
+      // has to be read again; a replay that did not land leaves the queue as the newest copy and keeps sending it.
+      this.#reread = outcome.kind === 'sent';
+      if (outcome.kind === 'sent') this.#fromQueue = false;
+      this.#settle(outcome);
       return;
     }
     this.#fromQueue = false;
@@ -270,8 +275,9 @@ export class HostedTarget {
       for (const path of outcome.report.pruned) if (path.startsWith('assets/')) this.#assetsAt.delete(path);
       // This save carried these paths at the state they hold now, so a queued edit of any of them is older than what landed. One
       // it did not carry stays queued: the queue is a record of what the account has not taken, and a save that happened to skip a
-      // path says nothing about it.
-      this.queue?.forget([...outcome.report.written, ...outcome.report.pruned]);
+      // path says nothing about it. The pictures are staged outside the report, so the paths they were sent at are named here too —
+      // otherwise a picture the account now holds stays queued and is offered as a conflict against itself.
+      this.queue?.forget([...outcome.report.written, ...outcome.report.pruned, ...Object.keys(files), ...removedAssets]);
       this.queue?.marks();
       this.#set({ kind: 'idle' });
     } else if (outcome.kind === 'unavailable') {

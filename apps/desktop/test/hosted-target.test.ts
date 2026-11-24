@@ -292,7 +292,9 @@ function queue(initial: readonly string[], answer: () => Promise<HostedReplay> |
 }
 
 function withQueue(port: HostedQueuePort, save: (state: ProjectState) => Promise<unknown>): HostedTarget {
-  return new HostedTarget('p_lighthouse', { refresh: async () => undefined } as never, save as never, port);
+  // The adapter under these tests is a stand-in: it reads as version 0 for every path, which is what a picture the account has never
+  // seen looks like.
+  return new HostedTarget('p_lighthouse', { refresh: async () => undefined, versionOf: () => 0 } as never, save as never, port);
 }
 
 describe('the queue a hosted project keeps on this device', () => {
@@ -324,6 +326,43 @@ describe('the queue a hosted project keeps on this device', () => {
     // The replay refuses again: the queue is still the newest copy, so the book in front of the writer must not be replaced by it.
     expect(await saving.keepMine()).toEqual({ kind: 'conflict', paths: ['docs/a.md'] });
     expect(saving.rereadNeeded).toBe(false);
+  });
+
+  it('settles a picture it carried, so the account does not offer it as a conflict against itself', async () => {
+    const one = queue(['assets/c_2K4Q9WJ1TT.png']);
+    const saving = withQueue(one.port, (async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } })) as never);
+    const project = state();
+    saving.attach({ ...session(project), assets: async () => ({ 'assets/c_2K4Q9WJ1TT.png': new Uint8Array([5]) }) });
+    await saving.rememberOpened(project.documents.keys(), {});
+    await saving.save(project);
+    // The picture was staged outside the report, and it is still what the queue held: a save that carried it settles it.
+    expect(one.calls).toContain(`forget:assets/c_2K4Q9WJ1TT.png`);
+  });
+
+  it('sends the queue from a retry while the writer’s answer has not landed, and asks for a re-read once it has', async () => {
+    const answers = [
+      { kind: 'conflict' as const, paths: ['docs/a.md'] },
+      { kind: 'unavailable' as const, changes: [] },
+      { kind: 'sent' as const, count: 1 },
+    ];
+    const one = queue(['docs/a.md'], () => answers.shift() ?? { kind: 'sent', count: 1 });
+    const saves: unknown[] = [];
+    const saving = withQueue(one.port, (async (current: ProjectState) => {
+      saves.push(current);
+      return { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } };
+    }) as never);
+    await saving.replayHeld();
+    await saving.keepMine();
+    // The answer did not reach the account: an ordinary save must send the queue, not write this session's older state.
+    expect(saving.state()).toEqual({ kind: 'unsaved' });
+    expect(saving.rereadNeeded).toBe(false);
+    await saving.save(state());
+    expect(saves).toEqual([]);
+    expect(saving.state()).toEqual({ kind: 'idle' });
+    expect(saving.rereadNeeded).toBe(true);
+    // Once it landed, the next save is an ordinary one again.
+    await saving.save(state());
+    expect(saves.length).toBe(1);
   });
 
   it('replays the paths the writer just answered for, measured against the version the refresh read', async () => {

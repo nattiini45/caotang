@@ -57,7 +57,12 @@ export function HostedSaveNotice({
   if (state.kind === 'unsaved') {
     return <p className="status-line" role="status">
       <span><Trans>This browser has your latest words. Your account does not have them yet.</Trans></span>
-      <button type="button" className="button" onClick={() => void target.save(session.state)}>
+      <button type="button" className="button" onClick={() => {
+        void target.save(session.state).then(() => {
+          // A queue this retry finally sent means the account now holds words the session in front of the writer does not.
+          if (target.rereadNeeded) onReopenAccount?.();
+        });
+      }}>
         <Trans>Save to your account again</Trans>
       </button>
     </p>;
