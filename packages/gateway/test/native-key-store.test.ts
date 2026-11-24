@@ -29,6 +29,10 @@ function vault(): NativeKeyVault & { readonly held: Map<string, KeyPayload>; rea
       const payload = held.get(id);
       return payload === undefined ? undefined : { ...(payload.customHeaders ?? {}) };
     },
+    async keyState(id) {
+      const payload = held.get(id);
+      return payload === undefined ? 'none' : payload.apiKey === '' ? 'empty' : 'key';
+    },
     async revision(id) {
       const payload = held.get(id);
       return payload === undefined ? 'empty' : `rev-${payload.apiKey}`;
@@ -85,6 +89,22 @@ describe('a key the host holds', () => {
     expect(held.held.get(ID)?.apiKey).toBe(KEY);
     expect(held.held.get(ID)?.customHeaders).toEqual({ 'x-team': 'two' });
     expect(JSON.stringify(await store.revealPayload(ID))).not.toContain(KEY);
+  });
+
+  it('answers a headers-only entry with its empty key, and keeps it when the payload comes back (#868)', async () => {
+    const held = vault();
+    const store = nativeKeyStore(held);
+    await store.putPayload(ID, { apiKey: '', customHeaders: { 'x-workspace': 'w1' } });
+    // The page stored an empty key, so the empty key is what it reads back: a handle would name a secret there is none of.
+    const read = await store.revealPayload(ID);
+    expect(read).toEqual({ apiKey: '', customHeaders: { 'x-workspace': 'w1' } });
+    expect(await store.reveal(ID)).toBe('');
+    // Writing the payload back with new headers keeps the entry and its empty key.
+    await store.putPayload(ID, { ...read!, customHeaders: { 'x-workspace': 'w2' } });
+    expect(held.held.get(ID)).toEqual({ apiKey: '', customHeaders: { 'x-workspace': 'w2' } });
+    // A handle is still not a secret, whatever else the entry holds.
+    await expect(store.put(ID, keyHandle(ID))).rejects.toThrow(/handle is not a secret/u);
+    expect(held.held.get(ID)).toEqual({ apiKey: '', customHeaders: { 'x-workspace': 'w2' } });
   });
 
   it('refuses a handle where a key belongs, because a handle names a secret rather than being one', async () => {

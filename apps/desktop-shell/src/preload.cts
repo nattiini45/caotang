@@ -8,7 +8,7 @@ import type { NativeCommand, NativeShellState, NativeWindowState, SaveRequest } 
 import type { IpcRendererEvent } from 'electron';
 
 const bridge: DesktopBridge = {
-  version: 5,
+  version: 6,
   folders: {
     pickFolder: (mode) => ipcRenderer.invoke('folders:pick', mode),
     recentFolders: () => ipcRenderer.invoke('folders:recent'),
@@ -36,6 +36,7 @@ const bridge: DesktopBridge = {
     revision: (id) => ipcRenderer.invoke('vault:revision', id),
     restore: (id) => ipcRenderer.invoke('vault:restore', id),
     headers: (id) => ipcRenderer.invoke('vault:headers', id),
+    keyState: (id) => ipcRenderer.invoke('vault:keyState', id),
   },
   mcp: {
     start: (folderId, allowWrites) => ipcRenderer.invoke('mcp:start', folderId, allowWrites),

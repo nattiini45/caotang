@@ -7,6 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryIndexedDb } from '@caotang/store';
 import { createIndexedDbVaultPort, createKeyStore, keyHandle, PROVIDER_KEY_DB_NAME } from '@caotang/gateway';
+import { parseVaultPayload } from '@caotang/gateway/keys/vault-payload';
 
 import { openDesktopKeys } from '../src/app/native-vault.js';
 import { scopedStoreName } from '../src/app/storage-scope.js';
@@ -19,7 +20,7 @@ interface Scripted {
   readonly calls: string[];
 }
 
-/** The main process as the page sees it: the six channels, over a Map, with an answer for whether a keychain exists. */
+/** The main process as the page sees it: the vault channels, over a Map, with an answer for whether a keychain exists. */
 function scriptedVault(options: { available?: boolean; failPut?: boolean } = {}): Scripted & { bridge: NonNullable<Window['caotangDesktop']>['vault'] } {
   const held = new Map<string, { apiKey: string; customHeaders?: Record<string, string> }>();
   const calls: string[] = [];
@@ -32,7 +33,11 @@ function scriptedVault(options: { available?: boolean; failPut?: boolean } = {})
       put: (id, payload) => {
         calls.push(`put:${id}`);
         if (options.failPut === true) return Promise.resolve({ ok: false as const, error: 'unavailable' as const });
-        held.set(id, payload);
+        // The shell's own parser decides what the vault may hold (#868), so this bridge refuses what the app refuses: a
+        // headers-only payload is stored, and a payload that holds nothing at all is not.
+        const parsed = parseVaultPayload(payload);
+        if (parsed === undefined) return Promise.resolve({ ok: false as const, error: 'invalid' as const });
+        held.set(id, parsed);
         return ok(null);
       },
       remove: (id) => { calls.push(`remove:${id}`); held.delete(id); return ok(null); },
@@ -40,12 +45,13 @@ function scriptedVault(options: { available?: boolean; failPut?: boolean } = {})
       revision: (id) => ok(`rev-${held.get(id)?.apiKey ?? 'empty'}`),
       restore: (id) => { calls.push(`restore:${id}`); return ok(null); },
       headers: (id) => ok(held.has(id) ? (held.get(id)?.customHeaders ?? {}) : null),
+      keyState: (id) => ok(!held.has(id) ? 'none' as const : held.get(id)?.apiKey === '' ? 'empty' as const : 'key' as const),
     },
   };
 }
 
 function withBridge(vault: NonNullable<Window['caotangDesktop']>['vault'] | undefined): void {
-  vi.stubGlobal('window', vault === undefined ? {} : { caotangDesktop: { version: 4, vault } });
+  vi.stubGlobal('window', vault === undefined ? {} : { caotangDesktop: { version: 6, vault } });
 }
 
 afterEach(() => {
@@ -87,6 +93,24 @@ describe('a page in the desktop app', () => {
     expect(await opened.store.revealPayload(ID)).toEqual({ apiKey: keyHandle(ID), customHeaders: { 'x-workspace': 'w1' } });
   });
 
+  it('answers a headers-only entry with its empty key and keeps it when the payload is written back (#868)', async () => {
+    const scripted = scriptedVault();
+    withBridge(scripted.bridge);
+    const opened = await openDesktopKeys(null);
+    if (opened.kind !== 'keychain') throw new Error('expected the keychain');
+    // A generic profile that authenticates with its own headers has no bearer key to store, and stores an empty one.
+    await opened.store.putPayload(ID, { apiKey: '', customHeaders: { 'x-workspace': 'w1' } });
+    expect(scripted.held.get(ID)).toEqual({ apiKey: '', customHeaders: { 'x-workspace': 'w1' } });
+    // What it reads back is the empty key, not a handle: a handle names a secret this entry does not have.
+    const read = await opened.store.revealPayload(ID);
+    expect(read).toEqual({ apiKey: '', customHeaders: { 'x-workspace': 'w1' } });
+    expect(await opened.store.reveal(ID)).toBe('');
+    // Writing that payload back with new headers keeps the entry: the headers move, and the empty key stays empty.
+    await opened.store.putPayload(ID, { ...read!, customHeaders: { 'x-workspace': 'w2' } });
+    expect(scripted.held.get(ID)).toEqual({ apiKey: '', customHeaders: { 'x-workspace': 'w2' } });
+    expect(await opened.store.revealPayload(ID)).toEqual({ apiKey: '', customHeaders: { 'x-workspace': 'w2' } });
+  });
+
   it('cannot store anything when the keychain refuses, and does not pretend a key is there', async () => {
     withBridge(scriptedVault({ failPut: true }).bridge);
     const opened = await openDesktopKeys(null);
@@ -111,6 +135,24 @@ describe('the keys an earlier version sealed in this browser', () => {
     expect(scripted.held.get('mcp:one')?.apiKey).toBe('fixture-token');
 
     // The browser's copy is gone only after the keychain had it.
+    expect(await legacy.entryIds?.()).toEqual([]);
+  });
+
+  it('carries a headers-only entry across with its empty key and its headers (#868)', async () => {
+    const factory = new MemoryIndexedDb();
+    const legacy = createKeyStore(createIndexedDbVaultPort({ factory, name: scopedStoreName(PROVIDER_KEY_DB_NAME) }));
+    await legacy.putPayload(ID, { apiKey: '', customHeaders: { 'x-workspace': 'w1' } });
+
+    const scripted = scriptedVault();
+    withBridge(scripted.bridge);
+    const opened = await openDesktopKeys(factory as unknown as IDBFactory);
+    // An entry with no key is still an entry: it moves like any other, under its own id, which is the id of the profile whose
+    // configured origin still owns it.
+    expect(opened).toMatchObject({ kind: 'keychain', moved: 1, failed: false });
+    expect(scripted.held.get(ID)).toEqual({ apiKey: '', customHeaders: { 'x-workspace': 'w1' } });
+    if (opened.kind !== 'keychain') throw new Error('expected the keychain');
+    expect(await opened.store.revealPayload(ID)).toEqual({ apiKey: '', customHeaders: { 'x-workspace': 'w1' } });
+    // The browser's copy is gone only after the keychain had it, headers and all.
     expect(await legacy.entryIds?.()).toEqual([]);
   });
 
