@@ -209,7 +209,8 @@ export const BUDGET = {
   // were already on use. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   // 1,123,700 on the merge of main deb99b57 (#404's keychain, #844's host key, #853's Windows schedule). [delegated 2026-11-23]
   // 1,124,900 on the merge of main 4e21e4f7 (#850's open-project MCP server, #854's native port hardening). [delegated 2026-11-24]
-  initialGzip: 1_126_000,
+  // 1,126,700 on the merge of main c41a695d (#871's headers-only key edit). [delegated 2026-11-24]
+  initialGzip: 1_127_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -365,7 +366,8 @@ export const BUDGET = {
   // without a stream, and the guard that ties a chunk to the call still holding its id. The ceiling is the measurement rounded up to
   // the thousand. [delegated 2026-11-23]
   // 9,090,600 on the merge of main 4e21e4f7. [delegated 2026-11-24]
-  totalJs: 9_091_000,
+  // 9,097,700 on the merge of main c41a695d. [delegated 2026-11-24]
+  totalJs: 9_098_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
