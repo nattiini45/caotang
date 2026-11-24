@@ -35,6 +35,7 @@ vi.mock('electron', () => ({
 const { registerEgressIpc } = await import('../src/egress.mjs');
 
 const ENTRY = 'caotang-app://studio/';
+const ORIGIN = 'https://api.example.com';
 const KEY = 'prv_869';
 const SECRET = 'sk-the-writer-saved-this-869';
 
@@ -86,16 +87,25 @@ function handler(channel: string): (event: unknown, ...args: unknown[]) => Promi
   return found;
 }
 
-/** A vault holding one key, whose read is the case's own: this is the decryption the cancellation has to survive. */
+/**
+ * A vault holding one key for the configured address, whose read is the case's own: this is the decryption the cancellation
+ * has to survive. The port asks it which ids it stored for an address and then reads them for that same address (#864), so
+ * the fake answers both and the page never names a key.
+ */
 function port(reading: () => Promise<{ apiKey: string }>): void {
   shell.handlers.clear();
   shell.fetched.length = 0;
-  registerEgressIpc(ENTRY, { read: reading });
+  registerEgressIpc(ENTRY, {
+    keysFor: (origin) => origin === ORIGIN ? [KEY] : [],
+    readFor: async (origin, ids) => {
+      if (origin !== ORIGIN || ids.length !== 1 || ids[0] !== KEY) return undefined;
+      return new Map([[KEY, await reading()]]);
+    },
+  });
 }
 
 async function configure(studio: Page): Promise<void> {
-  expect(await handler('net:configure')(studio.event, [{ origin: 'https://api.example.com', keys: [KEY] }]))
-    .toEqual({ ok: true, value: null });
+  expect(await handler('net:configure')(studio.event, [{ origin: ORIGIN }])).toEqual({ ok: true, value: null });
 }
 
 const start = (studio: Page, id: string): Promise<unknown> => handler('net:start')(studio.event, {

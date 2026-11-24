@@ -8,22 +8,40 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { KeyBoundElsewhere } from '@caotang/gateway/keys/os-vault';
+
 import { registerVaultIpc, type KeyVault, type VaultIpcHost } from '../../desktop-shell/src/vault.mjs';
 
 const ENTRY = 'app://caotang/index.html';
 const ID = 'prv_ABCDEFGHJK';
+const ORIGIN = 'https://api.example.com';
 const HEADERS = { 'x-workspace': 'made-up' };
 
 type Reply = { readonly ok: boolean; readonly value?: unknown; readonly error?: string };
 
-/** The main process's vault behind the channels: payloads in a Map, sealed and read back for real by the gateway's own suite. */
-function fakeVault(): KeyVault & { readonly held: Map<string, { apiKey: string; customHeaders?: Record<string, string> }> } {
+/**
+ * The main process's vault behind the channels: payloads and their addresses in Maps, sealed and read back for real by the
+ * gateway's own suite. It refuses a second address for an id the way the vault does, so the channel is driven against the rule.
+ */
+function fakeVault(): KeyVault & {
+  readonly held: Map<string, { apiKey: string; customHeaders?: Record<string, string> }>;
+  readonly origins: Map<string, string>;
+} {
   const held = new Map<string, { apiKey: string; customHeaders?: Record<string, string> }>();
+  const origins = new Map<string, string>();
   return {
     held,
+    origins,
     available: async () => true,
     read: async (id) => held.get(id),
-    async put(id, payload) {
+    async put(id, payload, origin) {
+      const bound = origins.get(id);
+      if (bound !== undefined && bound !== origin) throw new KeyBoundElsewhere(id, bound);
+      origins.set(id, origin);
+      held.set(id, payload);
+    },
+    async putReplacement(id, payload, origin) {
+      origins.set(id, origin);
       held.set(id, payload);
     },
     async putHeaders(id, headers) {
@@ -33,6 +51,7 @@ function fakeVault(): KeyVault & { readonly held: Map<string, { apiKey: string; 
     },
     async remove(id) {
       held.delete(id);
+      origins.delete(id);
     },
     has: async (id) => held.has(id),
     restore: async () => undefined,
@@ -44,6 +63,18 @@ function fakeVault(): KeyVault & { readonly held: Map<string, { apiKey: string; 
     async keyState(id) {
       const payload = held.get(id);
       return payload === undefined ? 'none' : payload.apiKey === '' ? 'empty' : 'key';
+    },
+    originOf: (id) => origins.get(id),
+    keysFor: (origin) => [...origins].filter(([, value]) => value === origin).map(([id]) => id),
+    async readFor(origin, ids) {
+      const secrets = new Map<string, { apiKey: string; customHeaders?: Record<string, string> }>();
+      for (const id of ids) {
+        if (origins.get(id) !== origin) return undefined;
+        const payload = held.get(id);
+        if (payload === undefined) return undefined;
+        secrets.set(id, payload);
+      }
+      return secrets;
     },
   };
 }
@@ -69,7 +100,7 @@ describe('a payload the page hands the keychain', () => {
   it('stores one whose key is empty because the profile authenticates with its own headers (#868)', async () => {
     const vault = fakeVault();
     const call = channels(vault);
-    expect(await call('vault:put', ID, { apiKey: '', customHeaders: HEADERS })).toEqual({ ok: true, value: null });
+    expect(await call('vault:put', ID, { apiKey: '', customHeaders: HEADERS }, ORIGIN)).toEqual({ ok: true, value: null });
     // The distinction the page reads back is an empty key, not the absence of an entry and not a handle.
     expect(vault.held.get(ID)).toEqual({ apiKey: '', customHeaders: HEADERS });
     expect(await call('vault:headers', ID)).toEqual({ ok: true, value: HEADERS });
@@ -79,8 +110,8 @@ describe('a payload the page hands the keychain', () => {
   it('refuses a payload that holds neither a key nor a header', async () => {
     const vault = fakeVault();
     const call = channels(vault);
-    expect(await call('vault:put', ID, { apiKey: '' })).toEqual({ ok: false, error: 'invalid' });
-    expect(await call('vault:put', ID, { apiKey: '', customHeaders: {} })).toEqual({ ok: false, error: 'invalid' });
+    expect(await call('vault:put', ID, { apiKey: '' }, ORIGIN)).toEqual({ ok: false, error: 'invalid' });
+    expect(await call('vault:put', ID, { apiKey: '', customHeaders: {} }, ORIGIN)).toEqual({ ok: false, error: 'invalid' });
     expect(vault.held.has(ID)).toBe(false);
   });
 
@@ -88,12 +119,12 @@ describe('a payload the page hands the keychain', () => {
     const vault = fakeVault();
     const call = channels(vault);
     const tooMany = Object.fromEntries(Array.from({ length: 65 }, (_, index) => [`x-header-${index}`, 'value']));
-    expect(await call('vault:put', ID, { apiKey: '', customHeaders: tooMany })).toEqual({ ok: false, error: 'invalid' });
-    expect(await call('vault:put', ID, { apiKey: '', customHeaders: { ['x'.repeat(257)]: 'value' } })).toEqual({ ok: false, error: 'invalid' });
-    expect(await call('vault:put', ID, { apiKey: '', customHeaders: { 'x-workspace': 'v'.repeat(8193) } })).toEqual({ ok: false, error: 'invalid' });
-    expect(await call('vault:put', ID, { apiKey: 42, customHeaders: HEADERS })).toEqual({ ok: false, error: 'invalid' });
-    expect(await call('vault:put', ID, { apiKey: 'k'.repeat(8193), customHeaders: HEADERS })).toEqual({ ok: false, error: 'invalid' });
-    expect(await call('vault:put', ID, null)).toEqual({ ok: false, error: 'invalid' });
+    expect(await call('vault:put', ID, { apiKey: '', customHeaders: tooMany }, ORIGIN)).toEqual({ ok: false, error: 'invalid' });
+    expect(await call('vault:put', ID, { apiKey: '', customHeaders: { ['x'.repeat(257)]: 'value' } }, ORIGIN)).toEqual({ ok: false, error: 'invalid' });
+    expect(await call('vault:put', ID, { apiKey: '', customHeaders: { 'x-workspace': 'v'.repeat(8193) } }, ORIGIN)).toEqual({ ok: false, error: 'invalid' });
+    expect(await call('vault:put', ID, { apiKey: 42, customHeaders: HEADERS }, ORIGIN)).toEqual({ ok: false, error: 'invalid' });
+    expect(await call('vault:put', ID, { apiKey: 'k'.repeat(8193), customHeaders: HEADERS }, ORIGIN)).toEqual({ ok: false, error: 'invalid' });
+    expect(await call('vault:put', ID, null, ORIGIN)).toEqual({ ok: false, error: 'invalid' });
     expect(vault.held.has(ID)).toBe(false);
   });
 
@@ -101,7 +132,7 @@ describe('a payload the page hands the keychain', () => {
     const vault = fakeVault();
     const call = channels(vault);
     expect(await call('vault:keyState', ID)).toEqual({ ok: true, value: 'none' });
-    await call('vault:put', ID, { apiKey: 'sk-made-up-key-1' });
+    await call('vault:put', ID, { apiKey: 'sk-made-up-key-1' }, ORIGIN);
     expect(await call('vault:keyState', ID)).toEqual({ ok: true, value: 'key' });
     // An edit that touches only the headers keeps the key, so the state does not move.
     expect(await call('vault:putHeaders', ID, HEADERS)).toEqual({ ok: true, value: null });

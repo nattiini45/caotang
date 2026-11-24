@@ -17,6 +17,8 @@
 
 import { t } from '@lingui/core/macro';
 
+import { KeyStoredElsewhere } from './native-vault.js';
+
 /* lingui-set comment="Interpolated values: key" */
 
 import {
@@ -50,8 +52,21 @@ export interface McpSettingsPort {
 }
 
 /** The part of the key store the MCP client uses: a token is put, read, checked and removed under its reference. */
+/**
+ * The address a server's own URL names: where its bearer token may be sent, and nothing else. A URL that does not parse names
+ * an address nothing reaches, so the token it would bind is denied rather than sent anywhere.
+ */
+export function serverOrigin(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return 'https://invalid.invalid';
+  }
+}
+
 export interface McpKeyPort {
-  put(ref: string, token: string): Promise<void>;
+  /** Stores a server's token for that server's own origin: a host that keeps its own keys records the pairing (#864). */
+  put(ref: string, token: string, origin: string): Promise<void>;
   reveal(ref: string): Promise<string | undefined>;
   has(ref: string): Promise<boolean>;
   remove(ref: string): Promise<void>;
@@ -131,7 +146,7 @@ export class McpApp {
     const auth: McpAuth = ref === undefined ? { kind: 'none' } : { kind: 'bearer', tokenRef: ref };
     let result;
     try {
-      if (ref !== undefined) await this.keys.put(ref, token);
+      if (ref !== undefined) await this.keys.put(ref, token, serverOrigin(input.url));
       result = await this.client.addServer({ name: input.name, url: input.url, auth });
     } catch (error) {
       if (ref !== undefined) await this.keys.remove(ref);
@@ -161,11 +176,14 @@ export class McpApp {
     const restore = this.keys.restore?.bind(this.keys);
     let message: string;
     try {
-      await this.keys.put(ref, trimmed);
+      await this.keys.put(ref, trimmed, serverOrigin(server.url));
       const updated = await this.client.updateServer(key, { auth: { kind: 'bearer', tokenRef: ref } }, { url: server.url, auth: server.auth });
       if (updated.ok) return { ok: true };
       message = updated.error;
     } catch (error) {
+      // A reference this computer holds for another server's address is that server's entry, so there is nothing here to remove
+      // or put back: the writer is told which address it belongs to and enters this server's own token (#879).
+      if (error instanceof KeyStoredElsewhere) return { ok: false, message: error.message };
       message = error instanceof Error ? error.message : String(error);
     }
     const named = this.client.settings().servers.some((current) => current.auth.kind === 'bearer' && current.auth.tokenRef === ref);
@@ -174,7 +192,7 @@ export class McpApp {
     try {
       if (previous === undefined || !named) await this.keys.remove(ref);
       else if (restore !== undefined) await restore(ref);
-      else await this.keys.put(ref, previous);
+      else await this.keys.put(ref, previous, serverOrigin(server.url));
     } catch {
       message = t`The new token was not kept, and the old one could not be put back. Enter the token again for this server.`;
     }

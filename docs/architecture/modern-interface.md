@@ -335,7 +335,7 @@ Graph shows the branch graph, outline and findings; Ink shows the full-width sou
 
 ### 8.1 Ornaments
 
-An ornament is a glass capsule that floats half over the page's edge. The top one is `role="toolbar"` named "Scene"; the bottom one is a `nav` named "Views and tools" holding the view radio group and the two buttons. Tab enters an ornament, the arrow keys move inside it (the APG toolbar and radio patterns), Tab leaves. Every control is at least 44 px (the concept's 48 to 64 px is the target), labelled with words and an icon; when the labels would not fit (a long interface language, a narrow window) a container query drops the words to icons with the words kept as the accessible name and the tooltip, never truncating a word.
+An ornament is a glass capsule that floats half over the page's edge. The top one is `role="toolbar"` named "Scene"; the bottom one is a `nav` named "Views and tools" holding the view radio group and the two buttons. Its inline start lands on the pixel grid: the capsule is as wide as its content, so half its width is a fraction, and an ornament centred on a fraction gives the text and icons inside it two possible rasters — their sub-pixel phase, or the integer-snapped one Chromium paints when a run ends up in a layer of its own — which is what made the German sidebar snapshot flake (#644). Tab enters an ornament, the arrow keys move inside it (the APG toolbar and radio patterns), Tab leaves. Every control is at least 44 px (the concept's 48 to 64 px is the target), labelled with words and an icon; when the labels would not fit (a long interface language, a narrow window) a container query drops the words to icons with the words kept as the accessible name and the tooltip, never truncating a word.
 
 ### 8.2 Popovers
 
@@ -551,6 +551,7 @@ Playwright `toHaveScreenshot` in a `visual` project, run only in CI in the pinne
 
 - **Classic lock-in (M1):** the projects screen, the workspace with the binder, an open scene, the inspector and the agent drawer, the corkboard, the Codex, Findings and Activity tabs, Settings › Appearance, the Export dialog and the narrow layout at 390 by 844, light and dark. Threshold: zero pixels. Taken before any token work, and unchanged by every pull request of this epic except where Settings › Appearance gains its new radio (re-baselined once, in M1).
 - **Modern (M4 onwards):** 1,440 by 900, light and dark, glass and reduced transparency: Write, Board, Codex, Scene info, the sidebar open and pinned, the agent window, the palette, **⋯**, a toast, focus mode; and the narrow Modern layout at 390 by 844.
+- **A capture taken after the window changes size waits for the layout it moved to.** Below 960 px Modern's panels and their stylesheet are a chunk of their own, fetched when the narrow layout first needs them (§13); until it arrives, the boundary around them draws "Loading the binder…" as a capsule at the foot of the page, over the tab bar. The narrow captures therefore wait for `modern-drawer`, the first thing the chunk renders, which enters the page in the same commit that takes the capsule away (#881).
 
 ## 16. Rollout
 

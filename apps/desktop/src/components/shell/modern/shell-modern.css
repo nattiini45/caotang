@@ -176,6 +176,21 @@
   inset-block-start: calc(var(--page-top) - var(--radius-ornament));
 }
 
+/* Centred on whole pixels (§8.1). The capsule is as wide as its content, so half that width is a fraction whenever the labels
+   are (the title capsule's name is), and an auto margin lands it on a fraction of a pixel. Text on a fraction of a pixel has two
+   possible rasters — its exact sub-pixel phase, or the integer-snapped one a frame commits when the text run is painted in a layer
+   of its own — and which one a frame gets depends on the compositing, not on the layout; that is what made the German sidebar
+   count snapshot flake (#644), 836 pixels apart with identical geometry. Rounded, both rasters are one image. The narrow layout
+   below 960 px keeps its own placement: there the ornaments are full-width bars with integer insets, not centred capsules. */
+@media (min-width: 960px) {
+  :root[data-shell='modern'] .modern-ornament {
+    inset-inline-start: round(nearest, calc(var(--area-start) + (100% - var(--area-start) - var(--area-end)) / 2), 1px);
+    inset-inline-end: auto;
+    margin-inline: 0;
+    translate: round(nearest, calc(var(--dir, 1) * -50%), 1px);
+  }
+}
+
 :root[data-shell='modern'] .document-mode-outlet {
   display: contents;
 }

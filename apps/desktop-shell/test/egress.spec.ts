@@ -52,6 +52,16 @@ test('the page reaches an address the app configured, and nothing else', async (
     expect(await call('https://api.example.com/v1/chat/completions', { authorization: 'Bearer caotang-key:prv_ABCDEFGHJK' }))
       .toMatchObject({ ok: false, error: 'denied' });
 
+    // A key belongs to the address it was stored for. Stored for api.example.com, it is refused at another address the page is
+    // free to reach: a page may widen what it reaches and cannot say where a key goes (#864). A machine whose keychain is not
+    // usable holds no key at all, and the vault spec is where that is proved.
+    const available = await page.evaluate(() => window.caotangDesktop!.vault.available());
+    if (available.ok && available.value) {
+      expect(await page.evaluate(() => window.caotangDesktop!.vault.put('prv_ABCDEFGHJK', { apiKey: 'sk-bound' }, 'https://api.example.com'))).toEqual({ ok: true, value: null });
+      expect(await call('https://other.example/v1/chat/completions', { authorization: 'Bearer caotang-key:prv_ABCDEFGHJK' }))
+        .toMatchObject({ ok: false, error: 'denied' });
+    }
+
     // A configured address, but a shape the port refuses before any socket opens: a header that names the connection.
     expect(await call('https://api.example.com/v1/chat/completions', { host: 'evil.example' })).toMatchObject({ ok: false, error: 'invalid' });
     // Another host on the same port, and this computer, stay out whatever the allowlist says.

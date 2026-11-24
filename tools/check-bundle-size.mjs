@@ -425,7 +425,14 @@ export const BUDGET = {
   // Navigation (#474): 34,502 bytes measured (+1,600 on main's 32,902: Modern's chunk +6.8 kB raw and its stylesheet +1.0 kB raw; Classic's
   // first load itself grew 1,309 bytes gzip for new-menu.ts in the entry). The allowance is that plus about 1%. Raising an owner-recorded
   // allowance: see the PR.
-  modernFirstLoadDelta: 36_500,
+  // The storage banner's own row (#735) and the merges since (#580/#578's rule, then #865/#866/#877 and #867's loopback target):
+  // 36,144 bytes measured, and the ornament rule (#644) takes it to 36,502 on the merge with main 24a3878c, with 274 bytes of
+  // stylesheet (the media query that puts a centred capsule's inline start on the pixel grid; no JS moves, and the narrow layout keeps
+  // its own placement). Optimisations tried and kept: the rule is one media query over the existing selector for the existing element,
+  // its four declarations are each load-bearing (the rounded start, the released end, the zeroed margin and the rounded half width), and
+  // the narrow scoping is what keeps it out of the narrow sheet, so nothing could be dropped or moved to an on-use chunk. The allowance
+  // is the measurement rounded up to the thousand, because a ceiling 2 bytes above its measurement fails on the next machine.
+  modernFirstLoadDelta: 37_000,
 };
 
 /** The lazy chunk whose JS and CSS make "Modern first load". */

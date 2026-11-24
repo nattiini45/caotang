@@ -6476,6 +6476,11 @@ msgstr "Caotang konnte diesen Ordner nicht lesen, deshalb wurde nichts geöffnet
 msgid "Caotang could not read this key's extra header values from the keychain."
 msgstr "Caotang konnte die zusätzlichen Header-Werte dieses Schlüssels nicht aus dem Schlüsselbund lesen."
 
+#. Interpolated values: error, name
+#: apps/desktop/src/app/providers.ts
+msgid "Caotang could not read your saved provider settings when it opened, so they cannot be changed in this session. Close Caotang and open it again."
+msgstr "Caotang konnte Ihre gespeicherten Anbieter-Einstellungen beim Öffnen nicht lesen, deshalb lassen sie sich in dieser Sitzung nicht ändern. Schließen Sie Caotang und öffnen Sie es erneut."
+
 #. Encoding conversion results. Interpolated values: name is a document title, codex entry name or file path of the writer's project; from and named are text encoding names; why and reason are failure messages; backup is a file path.
 #: apps/desktop/src/app/encoding-review.ts
 msgid "Caotang could not tell which encoding to read it with"
@@ -25327,6 +25332,10 @@ msgstr "Dieser Befehl bleibt im Vordergrund, damit seine Skill-Beschränkungen o
 #: apps/desktop/src/components/ExportProofView.tsx
 msgid "This compile would be refused. {reason}"
 msgstr "Dieses Kompilieren würde abgelehnt. {reason}"
+
+#: apps/desktop/src/app/native-vault.ts
+msgid "This computer keeps a key for another address under this reference. Enter the key again for this address."
+msgstr "Dieser Computer hält unter dieser Referenz einen Schlüssel für eine andere Adresse. Geben Sie den Schlüssel für diese Adresse erneut ein."
 
 #. Interpolated values: count, path, reason
 #. Interpolated values: count, path, reason

@@ -32,10 +32,18 @@ export interface KeyPayload {
 }
 
 export interface KeyStore {
-  /** Seals and stores the key for `profileId`, replacing any earlier one. */
-  put(profileId: string, apiKey: string): Promise<void>;
-  /** Seals and stores a full payload — key plus custom headers — for `profileId`. */
-  putPayload(profileId: string, payload: KeyPayload): Promise<void>;
+  /**
+   * Seals and stores the key for `profileId`, replacing any earlier one. `origin` is the address the key is for: a host that
+   * keeps its own keys records it, so a request can never carry this key to another address (#864).
+   */
+  put(profileId: string, apiKey: string, origin: string): Promise<void>;
+  /** Seals and stores a full payload — key plus custom headers — for `profileId`, for the address they were entered for. */
+  putPayload(profileId: string, payload: KeyPayload, origin: string): Promise<void>;
+  /**
+   * Seals and stores the key a writer typed again for an endpoint they moved, and takes the new address with it: the one write
+   * that may change which address an id belongs to. It carries a secret the writer entered, never a stored key's handle (#864).
+   */
+  putPayloadForNewOrigin(profileId: string, payload: KeyPayload, origin: string): Promise<void>;
   /**
    * Opens the stored key. Only the transport calls this, and only for a request it is
    * about to send. Returns undefined when nothing is stored, or when the entry or the
@@ -193,11 +201,19 @@ export function createKeyStore(port: KeyVaultPort, options: KeyStoreOptions = {}
   };
 
   return {
-    async put(profileId, apiKey) {
+    // The browser's own store keeps its keys in this origin's storage, which is the only address they can be read at, so the
+    // address a host would record is one this store already implies.
+    async put(profileId, apiKey, _origin) {
       await seal(profileId, { apiKey });
     },
 
-    async putPayload(profileId, payload) {
+    async putPayload(profileId, payload, _origin) {
+      await seal(profileId, payload);
+    },
+
+    // This store's keys cannot be read at any other address: the browser holds them for its own origin alone, so the address
+    // a host would record is one this store already implies.
+    async putPayloadForNewOrigin(profileId, payload, _origin) {
       await seal(profileId, payload);
     },
 

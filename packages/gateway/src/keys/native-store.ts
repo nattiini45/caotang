@@ -25,8 +25,10 @@ import type { OsVaultKeyState } from './os-vault.js';
 export interface NativeKeyVault {
   /** Whether the operating system's keychain can be used at all. False means the browser's WebCrypto vault is in use. */
   available(): Promise<boolean>;
-  /** Stores the payload under `id`, and answers only once the host has read it back. */
-  put(id: string, payload: KeyPayload): Promise<void>;
+  /** Stores the payload under `id` for one address, and answers only once the host has read it back. */
+  put(id: string, payload: KeyPayload, origin: string): Promise<void>;
+  /** Stores the key the writer typed again for an endpoint they changed, and moves the id's address with it. */
+  putReplacement(id: string, payload: KeyPayload, origin: string): Promise<void>;
   /**
    * Replaces the extra header values stored with `id` and keeps the key it already holds. This is what a headers-only edit uses:
    * the page hands back the payload it was given, whose key is the handle, and sealing that handle over the real key would destroy
@@ -51,13 +53,13 @@ export interface NativeKeyVault {
 /** What `reveal` answers for a stored key: a handle, never the key. */
 export function nativeKeyStore(vault: NativeKeyVault): KeyStore {
   return {
-    async put(id, apiKey) {
+    async put(id, apiKey, origin) {
       // A handle names a stored key; it is not one. Sealing it would replace the secret with its own name, which nothing can open.
       if (apiKey === keyHandle(id)) throw new Error('A key handle is not a secret. This store keeps the key itself, so it cannot be set from what it returned.');
-      await vault.put(id, { apiKey });
+      await vault.put(id, { apiKey }, origin);
     },
 
-    async putPayload(id, payload) {
+    async putPayload(id, payload, origin) {
       // Reading a payload and writing it back is how an edit that touches only the headers arrives: its key is this store's own
       // handle. The stored secret stays, and only the headers move (native-key-store.test.ts, #863). A headers-only entry comes
       // back with its empty key instead, and storing that payload again keeps the entry and its headers (#868).
@@ -65,7 +67,14 @@ export function nativeKeyStore(vault: NativeKeyVault): KeyStore {
         await vault.putHeaders(id, payload.customHeaders ?? {});
         return;
       }
-      await vault.put(id, payload);
+      await vault.put(id, payload, origin);
+    },
+
+    async putPayloadForNewOrigin(id, payload, origin) {
+      // Moving an id to a new address needs a secret the writer typed for it. A handle names the secret already stored, so the
+      // stored key has no new address to move to, and sealing the handle would destroy it.
+      if (payload.apiKey === keyHandle(id)) throw new Error('A key handle is not a secret. Enter the key again for the new endpoint.');
+      await vault.putReplacement(id, payload, origin);
     },
 
     async reveal(id) {
