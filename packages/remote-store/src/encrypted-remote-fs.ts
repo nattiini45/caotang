@@ -269,6 +269,15 @@ export class EncryptedRemoteArtifactFs implements ArtifactFs {
     }
   }
 
+  /**
+   * The version of `path` as this device last read it, or `0` when the index it read does not hold the path. A caller holding an
+   * older edit compares this with what it recorded to tell whether another device moved the file in between.
+   */
+  versionOf(path: string): number {
+    const entry = this.#manifest.files.get(path);
+    return entry === undefined || entry.deleted ? 0 : entry.version;
+  }
+
   async listFiles(dir: string): Promise<string[]> {
     assertContained(dir);
     const names: string[] = [];

@@ -17,6 +17,10 @@ import type { DirectoryHandleLike } from './app/fs-access.js';
 import { nativeTrayHidden, publishNativeState, readNativeTimeZone, subscribeNativeWindow, watchNativeWindow } from './app/native-os.js';
 import { languageRevision, subscribeLanguage } from './i18n/language.js';
 import { openDemoSample, openFolder, type Opened } from './app/lifecycle.js';
+import type { HostedProjectSource } from './app/studio-host.js';
+import type { RuntimeStore } from '@caotang/store';
+import { hostedProject, hostedProjectRevision, subscribeHostedProject } from './app/studio-host.js';
+import { forgetHostedTarget, hostedTargetFor } from './app/hosted-target.js';
 import { stopProjectServerUnless } from './app/native-mcp.js';
 import { nativeFolderId } from './app/native-folders.js';
 import { useBootPhase } from './app/use-boot-phase.js';
@@ -36,12 +40,25 @@ export interface StartIntent {
   readonly serial: number;
 }
 
+/**
+ * Opening a project the host gives us. The hosted modules are fetched here and nowhere else, so the first load of `caotang.app` and of the
+ * folder app carries none of them (hosted.md §2).
+ */
+async function openFromAccount(store: RuntimeStore, source: HostedProjectSource): Promise<Opened> {
+  const { openHostedProject } = await import('./app/hosted-open.js');
+  return await openHostedProject(store, source);
+}
+
 export function App(): ReactNode {
   useDisclosureDismissal();
   const boot = useBootPhase();
   const [demo] = useState(() => new DemoStart());
   const demoState = useSyncExternalStore(demo.subscribe, demo.getSnapshot);
   const [session, setSession] = useState<ProjectSession | null>(null);
+  // The project a host handed this frame, followed rather than read once: a lock clears it, and an open still in flight has to
+  // notice that it did rather than put a session from the account in front of a writer who signed out.
+  const handed = useSyncExternalStore(subscribeHostedProject, hostedProjectRevision);
+  const hostedOpen = useRef<string | null>(null);
   const [notice, setNotice] = useState<string | null>();
   const [startIntent, setStartIntent] = useState<StartIntent | null>(null);
   // The folder the writer chose to save this browser's version into, as the project opens (lifecycle `answerFolderDiffers`).
@@ -141,11 +158,57 @@ export function App(): ReactNode {
     });
   };
 
-  /** Ends a session. A writing session that could not be recorded is said, not dropped in silence. */
+  /**
+   * Reads the account's version of the open project again, after the writer kept this device's text over another device's: the
+   * replay wrote their words to the account, so the book in front of them is read from it rather than left on the version this
+   * device read before the answer.
+   */
+  const reopenAccount = (): void => {
+    const source = hostedProject();
+    if (source === null) return;
+    serial.current += 1;
+    const token = serial.current;
+    void openInTurn(async () => {
+      const previous = current.current;
+      current.current = null;
+      setNotice(null);
+      setSaveToFolder(null);
+      setSession(null);
+      setStartIntent(null);
+      if (previous !== null) {
+        // The session being replaced still holds the version read before the answer: its close settles the browser save, and a target
+        // still attached would commit that older state over the words the answer just replayed.
+        hostedTargetFor(previous.projectId)?.detach();
+        await previous.closeSafely().catch(() => undefined);
+      }
+      // The reopen after a send the writer chose (hosted.md §7.2): the account always holds the newer words now, and an open takes its
+      // version over this browser's copy whatever the copy still holds.
+      const opened = await openFromAccount(boot.kind === 'ready' ? boot.store : store, source);
+      if (token !== serial.current) {
+        await opened.session.closeSafely().catch(() => undefined);
+        forgetHostedTarget(opened.session.projectId);
+        return;
+      }
+      hostedOpen.current = opened.session.projectId;
+      show(opened);
+    }).catch((error: unknown) => {
+      if (token !== serial.current) return;
+      setNotice(couldNotOpen(error));
+    });
+  };
+
+  /**
+   * Ends a session. A writing session that could not be recorded is said, not dropped in silence. A hosted project's target stops
+   * following this browser's saves once the session has closed, so a settle that arrives afterwards cannot write to the account
+   * from a session nobody is looking at.
+   */
   const closeSession = (leaving: ProjectSession): void => {
     void leaving.closeSafely().catch((error: unknown) => {
       const errorText = error instanceof Error ? error.message : String(error);
       setNotice(t`The writing session could not be recorded: ${{ error: errorText }}`);
+    }).finally(() => {
+      hostedTargetFor(leaving.projectId)?.detach();
+      forgetHostedTarget(leaving.projectId);
     });
   };
 
@@ -169,6 +232,48 @@ export function App(): ReactNode {
       },
     ).finally(() => demo.settled());
   };
+
+  /**
+   * A frame a host handed a project to opens that project, and nothing else: the studio's own projects screen is not what the
+   * writer asked for when the shell said "open this one". The turn queue is the one a folder open takes, and the handed project
+   * is followed rather than read once, so a lock mid-open cancels it instead of showing a session from an account that signed
+   * out.
+   */
+  useEffect(() => {
+    if (boot.kind !== 'ready') return;
+    const source = hostedProject();
+    if (source === null) {
+      // The host took the project away: the serial cancels an open still on its way, and a session opened from one is closed.
+      // The serial cancels an open still on its way whether or not one has been shown yet, and a session opened from one is
+      // closed. The project's target stops following this browser's saves, so nothing reaches the account after the lock.
+      const shown = hostedOpen.current;
+      hostedOpen.current = null;
+      serial.current += 1;
+      if (shown === null) return;
+      hostedTargetFor(shown)?.detach();
+      forgetHostedTarget(shown);
+      goHome();
+      return;
+    }
+    const token = (serial.current += 1);
+    void openInTurn(async () => {
+      const opened = await openFromAccount(boot.store, source);
+      if (token !== serial.current) {
+        // The host locked, signed out or handed another project while this read was on its way: the session it made is closed here,
+        // because nothing else holds it and its browser copy is not a project the writer will see.
+        await opened.session.closeSafely().catch(() => undefined);
+        forgetHostedTarget(opened.session.projectId);
+        return;
+      }
+      hostedOpen.current = opened.session.projectId;
+      show(opened);
+    }).catch((error: unknown) => {
+      if (token !== serial.current) return;
+      setNotice(couldNotOpen(error));
+    });
+    // The store is ready once, and the handed project is followed: `handed` is the revision this effect answers to.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boot, handed]);
 
   if (boot.kind === 'failed') {
     return (
@@ -205,11 +310,17 @@ export function App(): ReactNode {
         startIntent={startIntent}
         saveToFolder={saveToFolder}
         onReopenFolder={reopenFolder}
+        onReopenAccount={reopenAccount}
       />
     );
   }
   const notices = [...services.notices, ...(shownNotice === null ? [] : [shownNotice])];
   return <Home store={store} services={services} onOpened={show} onRunDemo={runDemo} demoOpening={demoState.kind === 'opening'} notices={notices} />;
+}
+
+/** The sentence a hosted opening that failed is said with: one place, so its translator comment stays one place too. */
+function couldNotOpen(error: unknown): string {
+  return t`The project could not be opened: ${{ error: error instanceof Error ? error.message : String(error) }}`;
 }
 
 /**
