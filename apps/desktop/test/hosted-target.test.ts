@@ -30,8 +30,8 @@ function session(current: ProjectState): HostedSaveSession & { saved(): void; re
   };
 }
 
-function target(save: (state: ProjectState) => Promise<unknown>): HostedTarget {
-  return new HostedTarget('p_lighthouse', {} as never, save as never);
+function target(save: (state: ProjectState) => Promise<unknown>, versions: Record<string, number> = {}): HostedTarget {
+  return new HostedTarget('p_lighthouse', { versionOf: (path: string) => versions[path] ?? 0 } as never, save as never);
 }
 
 describe('the account as a session’s save target', () => {
@@ -142,19 +142,54 @@ describe('the answer to a conflict this session’s own save raised', () => {
     expect(committed).toEqual([]);
   });
 
-  it('sends the project’s pictures with the save that names them, and nothing it did not see deleted', async () => {
-    const seen: unknown[] = [];
+  it('sends the picture this device changed, and leaves the ones it did not', async () => {
+    const seen: { assets?: { files: Record<string, Uint8Array> } }[] = [];
     const saving = target(async (_state, options) => {
-      seen.push(options);
+      seen.push(options as never);
       return { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } };
     });
-    const files = { 'assets/c_2K4Q9WJ1TT.png': new Uint8Array([7]) };
+    const untouched = new Uint8Array([7]);
+    const before = new Uint8Array([8]);
+    const files = { 'assets/c_2K4Q9WJ1TT.png': untouched, 'assets/c_5RB7XQ2MNN.png': new Uint8Array([9]) };
     saving.attach({ ...session(state()), assets: async () => files });
     const project = state();
-    saving.rememberOpened(project.documents.keys(), Object.keys(files));
+    await saving.rememberOpened(project.documents.keys(), { 'assets/c_2K4Q9WJ1TT.png': untouched, 'assets/c_5RB7XQ2MNN.png': before });
     await saving.save(project);
-    // Nothing was deleted on this device, so the save removes nothing: another device's picture is not this one's to delete.
-    expect(seen).toEqual([{ removed: [], assets: { files, removed: [] } }]);
+    // The cover is the account's own bytes as this device opened them, so it is not sent again; the picture the writer changed is.
+    expect(seen).toEqual([{ removed: [], assets: { files: { 'assets/c_5RB7XQ2MNN.png': new Uint8Array([9]) }, removed: [] } }]);
+  });
+
+  it('does not write this browser’s older picture over another device’s newer one', async () => {
+    const seen: { assets?: { files: Record<string, Uint8Array> } }[] = [];
+    // The account's version of the cover moved past the one this device opened at: another device wrote it.
+    const saving = target(async (_state, options) => {
+      seen.push(options as never);
+      return { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } };
+    }, { 'assets/c_2K4Q9WJ1TT.png': 4 });
+    const mine = new Uint8Array([7]);
+    saving.attach({ ...session(state()), assets: async () => ({ 'assets/c_2K4Q9WJ1TT.png': mine }) });
+    const project = state();
+    await saving.rememberOpened(project.documents.keys(), { 'assets/c_2K4Q9WJ1TT.png': mine });
+    // As it opened, with the adapter's version of the cover already behind the account's: the baseline records what it read.
+    await saving.save(project);
+    expect(seen).toEqual([{ removed: [], assets: { files: {}, removed: [] } }]);
+  });
+
+  it('asks about a picture this device changed while another device changed it too', async () => {
+    const seen: unknown[] = [];
+    // The cover's version on the account, as the adapter holds it: 1 when this device read it, 2 after another device wrote it.
+    let coverVersion = 1;
+    const saving = new HostedTarget('p_lighthouse', { versionOf: (path: string) => (path === 'assets/c_2K4Q9WJ1TT.png' ? coverVersion : 0) } as never,
+      (async (_state, options) => { seen.push(options); return { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }; }) as never);
+    const asOpened = new Uint8Array([1]);
+    const changed = new Uint8Array([2]);
+    saving.attach({ ...session(state()), assets: async () => ({ 'assets/c_2K4Q9WJ1TT.png': changed }) });
+    const project = state();
+    await saving.rememberOpened(project.documents.keys(), { 'assets/c_2K4Q9WJ1TT.png': asOpened });
+    coverVersion = 2;
+    await saving.save(project);
+    expect(saving.state()).toEqual({ kind: 'conflict', paths: ['assets/c_2K4Q9WJ1TT.png'] });
+    expect(seen).toEqual([]);
   });
 
   it('names the documents and pictures this device deleted since it opened', async () => {
@@ -165,7 +200,7 @@ describe('the answer to a conflict this session’s own save raised', () => {
     });
     const project = state();
     saving.attach({ ...session(project), assets: async () => ({}) });
-    saving.rememberOpened(['n_old', ...project.documents.keys()], ['assets/c_2K4Q9WJ1TT.png']);
+    await saving.rememberOpened(['n_old', ...project.documents.keys()], { 'assets/c_2K4Q9WJ1TT.png': new Uint8Array([9]) });
     await saving.save(project);
     expect(seen).toEqual([{ removed: ['n_old'], assets: { files: {}, removed: ['assets/c_2K4Q9WJ1TT.png'] } }]);
   });
@@ -178,7 +213,7 @@ describe('the answer to a conflict this session’s own save raised', () => {
     });
     const project = state();
     saving.attach({ ...session(project), assets: async () => ({}) });
-    saving.rememberOpened(['n_old'], []);
+    await saving.rememberOpened(['n_old'], {});
     await saving.save(project);
     await saving.save(project);
     expect(seen).toEqual([

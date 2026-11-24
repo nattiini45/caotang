@@ -53,6 +53,13 @@ export class HostedTarget {
   /** The documents and pictures this device last saw the account hold, so a deletion is one it made rather than one it missed. */
   readonly #knownDocuments = new Set<string>();
   readonly #knownAssets = new Set<string>();
+  /**
+   * Each picture as this device last agreed with the account: the digest of the bytes and the account version they are. A save
+   * stages only what changed here against that baseline, so a picture another device wrote after this one opened is never written
+   * back from this browser's older snapshot — the adapter compares bytes with the index it holds, and an unrelated commit has
+   * already advanced that index past the other device's write.
+   */
+  readonly #assetsAt = new Map<string, { readonly digest: string; readonly version: number }>();
 
   constructor(
     readonly projectId: string,
@@ -101,9 +108,20 @@ export class HostedTarget {
    * that the state no longer holds is a deletion this device made; a path that is not here belongs to another device, and a save
    * that pruned it would delete work it never saw.
    */
-  rememberOpened(documents: Iterable<string>, assets: Iterable<string>): void {
+  async rememberOpened(documents: Iterable<string>, assets: Readonly<Record<string, Uint8Array>>): Promise<void> {
     for (const id of documents) this.#knownDocuments.add(id);
-    for (const path of assets) this.#knownAssets.add(path);
+    this.#knownAssets.clear();
+    this.#assetsAt.clear();
+    for (const [path, bytes] of Object.entries(assets)) {
+      this.#knownAssets.add(path);
+      this.#assetsAt.set(path, { digest: await digestOf(bytes), version: this.#versionOf(path) });
+    }
+  }
+
+  /** The account's version of a path, as the adapter holds it; a filesystem without one is treated as never having moved. */
+  #versionOf(path: string): number {
+    const version = (this.fs as { versionOf?: (path: string) => number }).versionOf;
+    return typeof version === 'function' ? version.call(this.fs, path) : 0;
   }
 
   /** Commits this session's state to the account. A second call while one is running runs once more after it. */
@@ -130,12 +148,40 @@ export class HostedTarget {
     this.#set({ kind: 'saving' });
     const docs = new Set(state.documents.keys());
     const removed = [...this.#knownDocuments].filter((id) => !docs.has(id));
-    const files = (await this.#assets?.()) ?? null;
-    const kept = files === null ? null : new Set(Object.keys(files));
+    const held = (await this.#assets?.()) ?? null;
+    const kept = held === null ? null : new Set(Object.keys(held));
     const removedAssets = kept === null ? [] : [...this.#knownAssets].filter((path) => !kept.has(path));
+    // Only the pictures this device changed are staged. The rest are the account's own bytes as this device opened them, and
+    // sending them again would write this browser's older snapshot over another device's newer picture.
+    const files: Record<string, Uint8Array> = {};
+    const digests = new Map<string, string>();
+    const moved: RemoteChange[] = [];
+    for (const [path, bytes] of Object.entries(held ?? {})) {
+      const digest = await digestOf(bytes);
+      const at = this.#assetsAt.get(path);
+      // Unchanged here: nothing to say about it, whatever the account has done with it.
+      if (at !== undefined && at.digest === digest) {
+        digests.set(path, digest);
+        continue;
+      }
+      // Changed here while the account moved too (or arrived from another device this one never read): that is the same question a
+      // document raises, and nothing is written until the writer answers it.
+      if ((at === undefined && this.#versionOf(path) !== 0) || (at !== undefined && at.version !== this.#versionOf(path))) {
+        moved.push({ path, bytes });
+        continue;
+      }
+      files[path] = bytes;
+      digests.set(path, digest);
+    }
+    if (moved.length > 0) {
+      // The staged bytes are the answer's to replay: "keep mine" sends this device's pictures on top of the other device's version.
+      this.#conflict = moved;
+      this.#set({ kind: 'conflict', paths: moved.map((change) => change.path) });
+      return;
+    }
     let outcome: HostedSaveOutcome;
     try {
-      outcome = await this.saveState(state, { removed, assets: files === null ? undefined : { files, removed: removedAssets } });
+      outcome = await this.saveState(state, { removed, assets: held === null ? undefined : { files, removed: removedAssets } });
     } catch {
       // A refusal this target has no answer of its own for — a full account, a lease taken in between, a blob that failed to
       // authenticate — is still the account being behind this browser, and saying nothing would leave the writer believing it
@@ -150,6 +196,10 @@ export class HostedTarget {
       for (const id of docs) this.#knownDocuments.add(id);
       this.#knownAssets.clear();
       for (const path of kept ?? []) this.#knownAssets.add(path);
+      // The pictures this save carried are the account's at the version the commit gave them. One it left alone keeps the baseline it
+      // had, so a later edit here against a picture another device has since written still asks rather than overwriting it.
+      for (const path of Object.keys(files)) this.#assetsAt.set(path, { digest: digests.get(path)!, version: this.#versionOf(path) });
+      for (const path of outcome.report.pruned) if (path.startsWith('assets/')) this.#assetsAt.delete(path);
       this.#set({ kind: 'idle' });
     } else if (outcome.kind === 'unavailable') {
       this.#set({ kind: 'unsaved' });
@@ -187,6 +237,16 @@ export class HostedTarget {
     this.#state = next;
     for (const listener of this.#listeners) listener();
   }
+}
+
+/** A picture's bytes as one string, so a save can tell this device's change from another device's. */
+async function digestOf(bytes: Uint8Array): Promise<string> {
+  // A copy of its own: the bytes may come from a snapshot whose buffer the browser also holds, and `subtle.digest` wants an
+  // `ArrayBuffer` it can read without sharing.
+  const copy = new Uint8Array(bytes.length);
+  copy.set(bytes);
+  const digest = await crypto.subtle.digest('SHA-256', copy);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 const targets = new Map<string, HostedTarget>();
