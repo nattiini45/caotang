@@ -7,7 +7,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryArtifactFs, MemoryIndexedDb, openRuntimeStore, removeNode, writeProject, type ProjectState, type RuntimeStore } from '@caotang/store';
 
 import { setActiveAppDb } from '../src/app/app-db.js';
-import { openHostedProject, type Opened } from '../src/app/lifecycle.js';
+import { type Opened } from '../src/app/lifecycle.js';
+import { openHostedProject } from '../src/app/hosted-open.js';
 import { forgetHostedTarget, HostedTarget, hostedTargetFor, type HostedQueuePort, type HostedReplay } from '../src/app/hosted-target.js';
 import type { HostedProjectSource } from '../src/app/studio-host.js';
 import { IDS, project } from '../../../e2e/unit/fixtures.js';

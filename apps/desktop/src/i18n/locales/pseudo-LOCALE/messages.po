@@ -22243,6 +22243,11 @@ msgstr ""
 msgid "The 1st (the default)"
 msgstr ""
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "the account’s copy of this project"
+msgstr ""
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "The action did not finish: {reason}"

@@ -52,7 +52,6 @@ import {
   exportProjectZip,
   FolderDriftError,
   importProjectZip,
-  isBodyFileName,
   isBodyType,
   listProjectIds,
   ManifestUnreadableError,
@@ -108,11 +107,6 @@ import { folderFileDiff, type FolderDiffLine } from './folder-diff.js';
 import { applyEncodingDecisions, encodingResultLines, type EncodingDecision } from './encoding-review.js';
 import { changedDuringSave, pruneFolderBackups, watchSave } from './folder-guard.js';
 import { folderArtifactFs, folderIsEmpty, isSameFolder, type DirectoryHandleLike } from './fs-access.js';
-import type { RemoteChange } from '@caotang/remote-store';
-import type { HostedProjectSource } from './studio-host.js';
-import { openHostedTarget, picturesOnProjectFs } from './hosted-project.js';
-import { installHostedTarget } from './hosted-target-registry.js';
-import type { HostedTarget } from './hosted-target.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
 import {
   copiedFromOf,
@@ -182,7 +176,7 @@ export function setSessionDefaults(next: SessionDefaults): void {
 }
 
 /** The project's lease, or the refusal: another tab has the project open. */
-async function leaseFor(projectId: string): Promise<ProjectLease> {
+export async function leaseFor(projectId: string): Promise<ProjectLease> {
   const lease = await acquireProjectLease(projectId);
   if (lease === null) throw new ProjectOpenElsewhereError(projectId);
   // The lease is recorded as this page's until it is given back, so the projects list does not take a project this page is still closing
@@ -712,7 +706,7 @@ async function bundleOf(
  * is written in full on the first pass (its shadow is `null`), and the session log the
  * bundle carried is appended line by line, so history survives the import.
  */
-async function adopt(
+export async function adopt(
   store: RuntimeStore,
   state: ProjectState,
   sessions: readonly SessionRecord[],
@@ -845,7 +839,7 @@ function deletedSince(copy: FolderBaseline, state: ProjectState): string[] {
  * The fields a load noticed that a save drops (`LoadNotice.droppedField`), by name, in the order the file names them. The open says these
  * and nothing else is dropped, so no other notice is counted as one.
  */
-function droppedFieldsOf(notices: readonly LoadNotice[]): string[] {
+export function droppedFieldsOf(notices: readonly LoadNotice[]): string[] {
   return notices.flatMap((notice) => (notice.droppedField === undefined ? [] : [notice.droppedField]));
 }
 
@@ -859,7 +853,7 @@ function exportsKeptHere(error: unknown): string {
  * The notices a load raised that are not dropped fields, as the lines the writer reads: each one's own sentence (`LoadNotice.say`), and a
  * count of those that have none, whose messages name paths, ids or spec sections (`openNoticeLines`).
  */
-function noticesOf(notices: readonly LoadNotice[]): string[] {
+export function noticesOf(notices: readonly LoadNotice[]): string[] {
   return openNoticeLines(notices.filter((notice) => notice.droppedField === undefined));
 }
 
@@ -867,7 +861,7 @@ function noticesOf(notices: readonly LoadNotice[]): string[] {
  * The session log a folder holds (project-format §4), or none when the folder has no `sessions.jsonl`. A line the parser cannot read is
  * counted by it and left out here, as a bundle's log is read (zip.ts), so one damaged line does not refuse the open.
  */
-async function folderSessionsOf(fs: ArtifactFs): Promise<SessionRecord[]> {
+export async function folderSessionsOf(fs: ArtifactFs): Promise<SessionRecord[]> {
   if (!(await fs.exists(SESSIONS_FILE))) return [];
   return parseSessionsLog(await fs.read(SESSIONS_FILE)).records;
 }
@@ -886,7 +880,7 @@ function sessionLineKey(line: SessionRecord): string {
  * The held lines are counted by key, so the check is linear in the two logs: it runs at every folder open and save, and a log grows with
  * the writer's history.
  */
-function linesNotHeld(lines: readonly SessionRecord[], held: readonly SessionRecord[]): SessionRecord[] {
+export function linesNotHeld(lines: readonly SessionRecord[], held: readonly SessionRecord[]): SessionRecord[] {
   const unanswered = new Map<string, number>();
   for (const line of held) {
     const key = sessionLineKey(line);
@@ -924,7 +918,7 @@ function emptyReport(): WriteReport {
  * on the manifest (`project.modifiedAt`) is left out: a folder save stamps it on the copy it writes and not on the project this browser
  * keeps, so after any save the two differ there and nowhere else.
  */
-function sameBook(stored: ProjectState, folder: ProjectState): boolean {
+export function sameBook(stored: ProjectState, folder: ProjectState): boolean {
   if (manifestTextOf(stored, folder.manifest.project.modifiedAt) !== manifestTextOf(folder, folder.manifest.project.modifiedAt)) return false;
   if (stored.documents.size !== folder.documents.size) return false;
   for (const [id, record] of stored.documents) {
@@ -939,7 +933,7 @@ function sameBook(stored: ProjectState, folder: ProjectState): boolean {
  * (read.ts), so a folder's copy never carries the stored copy's; and the serializer keeps each node's keys in the order the object was made
  * in, which a project made in this browser and the same project read from its folder do not share, so the keys are sorted.
  */
-function manifestTextOf(state: ProjectState, stamp: string): string {
+export function manifestTextOf(state: ProjectState, stamp: string): string {
   const manifest = { ...state.manifest, project: { ...state.manifest.project, modifiedAt: stamp } };
   const parsed = JSON.parse(serializeManifest(manifest, PRODUCTION_FORMAT)) as Record<string, unknown>;
   delete parsed.derived;
@@ -959,7 +953,7 @@ function sortedJson(value: unknown): string {
  * findings, and the pictures the folder holds. A project another tab holds is refused with `ProjectOpenElsewhereError`, as the projects list
  * refuses it: the folder is not opened again as a second copy of a book that tab already has open.
  */
-async function openStored(
+export async function openStored(
   store: RuntimeStore,
   projectId: string,
   /** The folder this copy lives in, or `null` for a project whose home is not a folder (a hosted project's account). */
@@ -1265,130 +1259,6 @@ export interface FolderDiffers {
  * imports nothing from `@caotang/remote-store` and makes no call beyond the provider until then. `open` is injectable so a
  * test can drive the adoption with a fake remote rather than a server.
  */
-/**
- * The documents one state holds whose text the other does not: a page this device wrote that the account has never seen, a page the
- * account has that this device deleted, or a page both hold at different words. Their ids, so the text can be read from the copy
- * that has it.
- */
-function differingDocumentIds(mine: ProjectState, theirs: ProjectState): string[] {
-  const ids = new Set([...mine.documents.keys(), ...theirs.documents.keys()]);
-  return [...ids].filter((id) => mine.documents.get(id)?.body !== theirs.documents.get(id)?.body);
-}
-
-/**
- * Those documents as the queue holds them: the text as this browser shows it, at the path the project format gives it — which is the
- * codex's own file for a screenplay (`.fountain`) and an Ink knot (`.ink`), not the `.md` every document used to have, so the body is
- * found by the name the copy actually wrote. A document the account holds and this copy does not is held as a deletion (`bytes: null`),
- * because the writer's copy is the one the question is about. A document this copy holds no file for at all — a load declined it
- * because its bytes are not UTF-8 — has no text to hold either, and the account's version stands for it.
- */
-async function heldDocumentChanges(state: ProjectState, ids: readonly string[], onAccount: ReadonlySet<string>): Promise<RemoteChange[]> {
-  const copy = new MemoryArtifactFs();
-  await writeProject(copy, copyState(state), { now: new Date(), copyFor: 'internal' });
-  const names = await copy.listFiles(DOCS_DIR);
-  const changes: RemoteChange[] = [];
-  for (const id of ids) {
-    const name = names.find((candidate) => candidate.startsWith(`${id}.`) && isBodyFileName(candidate));
-    if (name !== undefined) {
-      changes.push({ path: `${DOCS_DIR}/${name}`, bytes: await copy.readBytes(`${DOCS_DIR}/${name}`) });
-      continue;
-    }
-    const onAccountName = [...onAccount].find((candidate) => candidate.startsWith(`${id}.`) && isBodyFileName(candidate));
-    if (onAccountName !== undefined) changes.push({ path: `${DOCS_DIR}/${onAccountName}`, bytes: null });
-  }
-  return changes;
-}
-
-export async function openHostedProject(
-  store: RuntimeStore,
-  source: HostedProjectSource,
-  openTarget: (source: HostedProjectSource) => Promise<HostedTarget> = openHostedTarget,
-  /**
-   * This open is the session catching up after a send the writer chose (hosted.md §7.2, the `stale` state), not a project being opened. The
-   * account now holds their words and everything else, so its version takes this browser's place without the divergent-copy question: asking
-   * here would offer to send the copy that was read before the send, which is exactly what the send replaced.
-   */
-  catchingUp = false,
-): Promise<Opened> {
-  const target = await openTarget(source);
-  // Nothing the queue holds is sent here: opening a project reads it, and the writer is told what is still on this device with the one
-  // action that would send it (hosted.md §7.2). An open that replayed on its own would write to the account without being asked.
-  const loaded = await readProject(target.fs);
-  // The project's pictures travel with it: the copy this browser keeps is what a later save is measured on, so a picture left
-  // behind here would be a picture the next save prunes from the account.
-  const pictures = await picturesOnProjectFs(target.fs);
-  // The account is this project's home, so the browser's copy of it is a cache rather than a second project: the account's version
-  // takes its place under the same id, with the writing history of both. Adopting it the way a folder open does would see a copy
-  // already in this browser and make a second project, whose id the next save would write into the account's manifest.
-  const accountLog = await folderSessionsOf(target.fs);
-  const projectId = loaded.state.manifest.project.id;
-  const cached = (await listProjectIds(store)).includes(projectId) ? await readProjectState(store, projectId) : null;
-  let opened: Opened;
-  if (cached === null) {
-    opened = await adopt(store, loaded.state, accountLog, noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
-  } else if (sameBook(cached, loaded.state)) {
-    // The same book on both sides: the account's version takes the browser's place under the same id, with the writing history of both.
-    // It is written over the copy rather than replacing it, because the copy is more than its manuscript: the writer's recurring tasks,
-    // their run history and the consents they gave are this browser's, keyed by the project's id, and removing the project to make room
-    // would drop them for a difference the book does not have.
-    const keptLog = await readSessions(store, projectId);
-    // The copy is written only while this page holds the project: another tab with it open would be writing the same rows, and the
-    // lease is what says the writer is here rather than there. It is given back before the project is opened, which takes its own.
-    const writing = await leaseFor(projectId);
-    try {
-      await writeProjectState(store, loaded.state, { now: new Date() });
-    } finally {
-      writing.release();
-    }
-    opened = await openStored(store, projectId, null, { notices: noticesOf(loaded.notices), droppedFields: droppedFieldsOf(loaded.notices), folderLog: [...accountLog, ...linesNotHeld(keptLog, accountLog)] }, pictures);
-  } else {
-    // The browser's copy holds words the account does not. Nothing is written over either of them: those documents are held in the
-    // device queue as this device's version, the account's copy opens in their place, and the writer is asked which text the account
-    // should keep — the same question a save raises when another device moved the files. "Keep mine" replays the held words; the
-    // account's version stands if the writer leaves it. Opening the browser's copy silently instead would be this device's words
-    // winning without the writer ever seeing they were at odds with the account.
-    const held = catchingUp
-      ? []
-      : await heldDocumentChanges(cached, differingDocumentIds(cached, loaded.state), new Set(await target.fs.listFiles(DOCS_DIR)));
-    // The manifest is the writer's own settings as much as the book — the title, the tree, the codex entries — so a copy whose manifest
-    // differs from the account's is part of the same question rather than something the account's version may simply replace.
-    if (!catchingUp && manifestTextOf(cached, cached.manifest.project.modifiedAt) !== manifestTextOf(loaded.state, cached.manifest.project.modifiedAt)) {
-      const manifest = new MemoryArtifactFs();
-      await writeProject(manifest, copyState(cached), { now: new Date(), copyFor: 'internal' });
-      held.push({ path: MANIFEST_FILE, bytes: await manifest.readBytes(MANIFEST_FILE) });
-    }
-    if (held.length === 0) {
-      // Catching up after a send, or nothing here can be held (a copy whose words this browser cannot read): the account's version takes the
-      // copy's place under this page's lease, which keeps everything keyed by the project's id, and nothing is asked.
-      opened = await openStored(store, projectId, null, { notices: noticesOf(loaded.notices), droppedFields: droppedFieldsOf(loaded.notices), folderLog: accountLog }, pictures);
-    } else {
-      target.queue?.hold(held);
-      const keptLog = await readSessions(store, projectId);
-      await removeProject(store, projectId);
-      opened = await adopt(store, loaded.state, [...accountLog, ...linesNotHeld(keptLog, accountLog)], noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
-      // A conflict the queue's own replay raised is already naming what it could not send; these paths join it, because both are this
-      // device's words against the account's and both need the same answer.
-      const asked = target.state();
-      const paths = held.map((change) => change.path);
-      target.raiseConflict(asked.kind === 'conflict' ? [...new Set([...asked.paths, ...paths])] : paths);
-    }
-  }
-  // The target is kept for the session and follows every save this browser finishes, carrying the project's pictures with the files
-  // that name them, and knowing what this device held so a save removes only what it deleted itself.
-  // The baseline is the account's pictures, not the browser's copy of them: a picture this browser holds and the account does not is
-  // one the writer still has to send, and a baseline taken from the copy would make the next save skip exactly that.
-  await target.rememberOpened(opened.session.state.documents.keys(), pictures);
-  installHostedTarget(target);
-  // Words a save could not deliver are the writer's to send: the target says they are here, and the notice offers the action.
-  target.heldAtOpen();
-  target.attach({
-    state: opened.session.state,
-    persistence: opened.session.persistence,
-    assets: () => opened.session.assets.snapshot(),
-  });
-  return opened;
-}
-
 /**
  * Opens a folder whose version differs from this browser's, the way the writer chose (`FolderDiffersAnswer`):
  * - `use-folder`: this browser's copy is removed and the folder's version takes its place, under the same id, with the writing history of

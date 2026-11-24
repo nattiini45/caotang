@@ -74,6 +74,12 @@ import type { SourceRoute } from '../media/element-menu.js';
 
 
 import { LazyBoundary, lazyView } from './lazy-view.js';
+
+/**
+ * The account's save notice is loaded when a hosted project first has something to say, which is the only time it exists: the app's own
+ * projects never render it, so its code and its states stay out of the first load (hosted.md §7.2).
+ */
+const HostedSaveNotice = lazyView(() => import('./HostedSaveNotice.js').then((module) => ({ default: module.HostedSaveNotice })));
 import type { TimelineFocusRequest } from '../app/timeline-model.js';
 import { clearTray, pendingRows } from '../app/timeline-tray.js';
 import { EditorPane, type RevealRequest } from './EditorPane.js';
@@ -101,7 +107,7 @@ import {
   setExpanded,
 } from './actions.js';
 import { ChoiceDialog, ConfirmDialog, ReportChannel, ReportContext, useSession, type MenuAnchor, type StatusMessage } from './shared.js';
-import { HostedSaveNotice } from './HostedSaveNotice.js';
+import { hostedTargetFor } from '../app/hosted-target-registry.js';
 import { OpenOnDesktop, useNarrow } from './narrow.js';
 import { railTabId } from './shell/ClassicShell.js';
 import { minimapDots } from './shell/minimap.js';
@@ -1263,8 +1269,11 @@ export function Workspace({
             <button type="button" className="button is-quiet" disabled={review.stopRequested} onClick={() => session.coherenceReview.stop()}><Trans>Stop the review</Trans></button>
           </div>
         ) : null}
-        {/* The account's copy of a hosted project: a save it did not take, or the question another device's save asks. */}
-        <HostedSaveNotice session={session} onReopenAccount={onReopenAccount} />
+        {/* The account's copy of a hosted project: a save it did not take, or the question another device's save asks. Rendered only
+            when a host has made this project a hosted one, so an ordinary project never fetches the notice. */}
+        {hostedTargetFor(session.projectId) !== null && <LazyBoundary label={t`the account’s copy of this project`}>
+          <HostedSaveNotice session={session} onReopenAccount={onReopenAccount} />
+        </LazyBoundary>}
         {message !== null || folderSaving ? (
           <div className={`status-line is-${message?.tone ?? 'info'}`} role={message?.tone === 'error' ? 'alert' : 'status'} data-state={folderSaving ? 'saving' : undefined}>
             <span>

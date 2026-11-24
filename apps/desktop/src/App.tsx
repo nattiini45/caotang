@@ -16,7 +16,9 @@ import { droppedFieldsSentence } from './app/integrity-model.js';
 import type { DirectoryHandleLike } from './app/fs-access.js';
 import { nativeTrayHidden, publishNativeState, readNativeTimeZone, subscribeNativeWindow, watchNativeWindow } from './app/native-os.js';
 import { languageRevision, subscribeLanguage } from './i18n/language.js';
-import { openDemoSample, openFolder, openHostedProject, type Opened } from './app/lifecycle.js';
+import { openDemoSample, openFolder, type Opened } from './app/lifecycle.js';
+import type { HostedProjectSource } from './app/studio-host.js';
+import type { RuntimeStore } from '@caotang/store';
 import { hostedProject, hostedProjectRevision, subscribeHostedProject } from './app/studio-host.js';
 import { forgetHostedTarget, hostedTargetFor } from './app/hosted-target.js';
 import { stopProjectServerUnless } from './app/native-mcp.js';
@@ -36,6 +38,15 @@ export interface StartIntent {
   readonly intent: string;
   /** Distinguishes two runs of one intent, so the shell submits each run once. */
   readonly serial: number;
+}
+
+/**
+ * Opening a project the host gives us. The hosted modules are fetched here and nowhere else, so the first load of `caotang.app` and of the
+ * folder app carries none of them (hosted.md §2).
+ */
+async function openFromAccount(store: RuntimeStore, source: HostedProjectSource, catchingUp = false): Promise<Opened> {
+  const { openHostedProject } = await import('./app/hosted-open.js');
+  return await openHostedProject(store, source, undefined, catchingUp);
 }
 
 export function App(): ReactNode {
@@ -172,7 +183,7 @@ export function App(): ReactNode {
       }
       // This is the session catching up after a send the writer chose (hosted.md §7.2), not a project being opened, so the account's
       // version takes this browser's place without asking about the copy that was read before the send.
-      const opened = await openHostedProject(boot.kind === 'ready' ? boot.store : store, source, undefined, true);
+      const opened = await openFromAccount(boot.kind === 'ready' ? boot.store : store, source, true);
       if (token !== serial.current) {
         await opened.session.closeSafely().catch(() => undefined);
         forgetHostedTarget(opened.session.projectId);
@@ -246,7 +257,7 @@ export function App(): ReactNode {
     }
     const token = (serial.current += 1);
     void openInTurn(async () => {
-      const opened = await openHostedProject(boot.store, source);
+      const opened = await openFromAccount(boot.store, source);
       if (token !== serial.current) {
         // The host locked, signed out or handed another project while this read was on its way: the session it made is closed here,
         // because nothing else holds it and its browser copy is not a project the writer will see.
