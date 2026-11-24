@@ -34,6 +34,19 @@ class EgressRefusal extends Error {
 type Stream = { readonly controller: AbortController; readonly sender: WebContents };
 
 /**
+ * What the port needs of the keychain: the secret one handle names, and nothing else. Reading it is asynchronous — the
+ * operating system opens the seal — and that await is the one a cancellation has to survive.
+ */
+export type KeyReader = Pick<KeyVault, 'read'>;
+
+/** A request with its handles swapped for the secrets they name, and those secrets in the order to scrub them. */
+interface AttachedRequest {
+  readonly url: string;
+  readonly headers: Record<string, string>;
+  readonly secrets: readonly string[];
+}
+
+/**
  * The headers of a response as a plain record: what crosses to the page is data, not a Headers instance. Each value is scrubbed
  * of the secrets attached to the call, because a provider that echoes a key in a header puts it in the head, which is not the
  * body the streaming scrubber watches.
@@ -57,7 +70,7 @@ function reply<T>(run: () => T | Promise<T>): Promise<EgressReply<T>> {
     }));
 }
 
-export function registerEgressIpc(entryUrl: string, vault: KeyVault): void {
+export function registerEgressIpc(entryUrl: string, vault: KeyReader): void {
   let targets: ReturnType<typeof nativeEgressTargets> = new Map();
   const streams = new Map<string, Stream>();
   const watched = new Set<number>();
@@ -122,11 +135,7 @@ export function registerEgressIpc(entryUrl: string, vault: KeyVault): void {
    * The request with its handles swapped for the secrets they name, and the secrets in that order for scrubbing. A configured
    * key the vault does not hold is refused rather than sent as a handle, which the provider would report as a bad key.
    */
-  async function attach(request: { url: string; headers: Readonly<Record<string, string>>; keys: readonly string[] }): Promise<{
-    url: string;
-    headers: Record<string, string>;
-    secrets: readonly string[];
-  }> {
+  async function attach(request: { url: string; headers: Readonly<Record<string, string>>; keys: readonly string[] }): Promise<AttachedRequest> {
     if (request.keys.length === 0) return { url: request.url, headers: { ...request.headers }, secrets: [] };
     const secrets = new Map<string, string>();
     for (const id of request.keys) {
@@ -153,14 +162,28 @@ export function registerEgressIpc(entryUrl: string, vault: KeyVault): void {
     if (streams.has(id)) throw new EgressRefusal('invalid');
     const checked = checkNativeEgress(targets, spec);
     if (!checked.ok) throw new EgressRefusal(checked.refusal);
-    const keyed = await attach(checked.request);
-
+    // The call is claimed before its key is opened, not after. Opening one is asynchronous, and a page that cancels during that
+    // wait has to find a stream to stop: claimed afterwards there was nothing to find, so the cancel was answered as though the
+    // call had never been made, and the request went out for a caller that had already stopped it (#869). A reload takes the
+    // same path, through `stopAll`.
     const controller = new AbortController();
     const stream: Stream = { controller, sender: event.sender };
     streams.set(id, stream);
     watch(event.sender);
+
+    /** Whether the call has been stopped from the page's side since it was claimed: then nothing more is sent for it. */
+    const stopped = (): boolean => {
+      if (!controller.signal.aborted) return false;
+      streams.delete(id);
+      return true;
+    };
+
+    let keyed: AttachedRequest;
     let response: Response;
     try {
+      keyed = await attach(checked.request);
+      // A key that arrived for a call the page has stopped is not a reason to send it: the cancellation is the answer.
+      if (stopped()) throw new EgressRefusal('aborted');
       response = await net.fetch(keyed.url, {
         method: checked.request.method,
         headers: keyed.headers,
@@ -171,16 +194,13 @@ export function registerEgressIpc(entryUrl: string, vault: KeyVault): void {
         signal: controller.signal,
       });
     } catch (error) {
+      // A call the page stopped is an abort, whatever went wrong on the way out: a key the vault would not open after the
+      // writer cancelled is not the answer they are owed, and neither is a dead network.
+      if (stopped()) throw new EgressRefusal('aborted');
       streams.delete(id);
-      // A call the page stopped while the head was still arriving is an abort, whatever the network stack made of it on the
-      // way out: the page asked for one thing and would otherwise be told the network was unreachable.
-      if (controller.signal.aborted) throw new EgressRefusal('aborted');
       throw error;
     }
-    if (controller.signal.aborted) {
-      streams.delete(id);
-      throw new EgressRefusal('aborted');
-    }
+    if (stopped()) throw new EgressRefusal('aborted');
     void pump(id, stream, response, keyed.secrets);
     return {
       status: response.status,
