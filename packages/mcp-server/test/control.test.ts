@@ -11,12 +11,21 @@ import { describe, expect, it } from 'vitest';
 import { createWriteGate, type WriteGate } from '../src/index.js';
 import { connectClient, LANDING, resultJson, startFixture, type Fixture } from './support.js';
 
-/** One control call, as the app makes it: a POST with the token, and the answer read as JSON. */
-async function control(url: string, path: string, token: string | undefined, method = 'POST'): Promise<{ status: number; body: Record<string, unknown> }> {
+/** One control call, as the app makes it: a POST with the token and the pause's lease, and the answer read as JSON. */
+async function control(
+  url: string,
+  path: string,
+  token: string | undefined,
+  method = 'POST',
+  lease?: string,
+): Promise<{ status: number; body: Record<string, unknown> }> {
   const base = url.replace(/\/mcp$/, '');
   const response = await fetch(`${base}${path}`, {
     method,
-    headers: token === undefined ? {} : { authorization: `Bearer ${token}` },
+    headers: {
+      ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
+      ...(lease === undefined ? {} : { 'x-caotang-pause': lease }),
+    },
   });
   return { status: response.status, body: (await response.json()) as Record<string, unknown> };
 }
@@ -108,6 +117,27 @@ describe('createWriteGate', () => {
     expect(gate.resume()).toEqual({ paused: true, since: '2026-11-23T10:00:00.000Z' });
     expect(gate.resume()).toEqual({ paused: false });
     expect(gate.paused()).toBe(false);
+  });
+
+  it('lifts only the pause its lease names, and keeps the others standing', async () => {
+    const gate = createWriteGate(() => new Date('2026-11-23T10:00:00.000Z'));
+    await gate.pause('save-one');
+    await gate.pause('save-two');
+    expect(gate.resume('save-one')).toEqual({ paused: true, since: '2026-11-23T10:00:00.000Z' });
+    expect(gate.paused()).toBe(true);
+    expect(gate.resume('save-two')).toEqual({ paused: false });
+    expect(gate.paused()).toBe(false);
+  });
+
+  it('cancels a lease whose resume arrived first, so the pause that lands after it does not stand', async () => {
+    const gate = createWriteGate(() => new Date('2026-11-23T10:00:00.000Z'));
+    // A save that stopped waiting for its pause sends the resume before the server has processed the pause it belongs to.
+    expect(gate.resume('late')).toEqual({ paused: false });
+    expect(await gate.pause('late')).toEqual({ paused: false });
+    expect(gate.paused()).toBe(false);
+    // The lease is spent: the next pause names its own and stands as usual.
+    expect(await gate.pause('next')).toEqual({ paused: true, since: '2026-11-23T10:00:00.000Z' });
+    expect(gate.resume('next')).toEqual({ paused: false });
   });
 
   it('counts one release for each write it admitted, however often a release is called', async () => {
@@ -281,7 +311,7 @@ describe('a pause waits for the writes already running', () => {
     }
   });
 
-  it('takes the resume a save that gave up on its pause sends, so nothing is left standing', async () => {
+  it('lifts the pause a save that gave up on it sends the resume for, so nothing is left standing', async () => {
     const { gate, held } = holdingGate();
     fixture = await startFixture({ label: 'control-handshake', allowWrites: true, seed: true, gate });
     const client = await connectClient(fixture.url, fixture.token);
@@ -289,23 +319,41 @@ describe('a pause waits for the writes already running', () => {
       await client.callTool({ name: 'meta.set', arguments: { targets: [LANDING], status: 'final' } });
       expect(held).toHaveLength(1);
 
-      // A slow write keeps the pause draining, and the save stops waiting for its answer, so it sends the resume itself (mcp.mts).
-      const paused = control(fixture.url, '/control/pause', fixture.token);
+      // A slow write keeps the pause draining; the save stops waiting for its answer and sends the resume it would never send, with
+      // the lease both calls carry (mcp.mts).
+      const paused = control(fixture.url, '/control/pause', fixture.token, 'POST', 'save-one');
       await until(() => gate.paused());
-      expect(await control(fixture.url, '/control/resume', fixture.token)).toEqual({ status: 200, body: { paused: false } });
+      expect(await control(fixture.url, '/control/resume', fixture.token, 'POST', 'save-one')).toEqual({ status: 200, body: { paused: false } });
       expect(gate.paused()).toBe(false);
-      expect(held).toHaveLength(1);
-
-      // The pause that was draining still answers, with the instant it raised, and the count it took is gone: the folder is not left
-      // paused once the write it waited for has finished.
+      // The pause that was draining answers too, with the state the resume left, so neither call is left hanging.
+      expect(await paused).toEqual({ status: 200, body: { paused: false } });
       held[0]?.();
-      expect(await paused).toEqual({ status: 200, body: { paused: true, since: '2026-11-23T10:00:00.000Z' } });
       expect(gate.paused()).toBe(false);
-      expect(await control(fixture.url, '/control/pause', fixture.token)).toEqual({ status: 200, body: { paused: true, since: '2026-11-23T10:00:00.000Z' } });
-      await control(fixture.url, '/control/resume', fixture.token);
-      expect(gate.paused()).toBe(false);
+      // The lease is spent: the next save's pause is its own, and its resume lifts it as usual.
+      expect(await control(fixture.url, '/control/pause', fixture.token, 'POST', 'save-two')).toEqual({
+        status: 200,
+        body: { paused: true, since: '2026-11-23T10:00:00.000Z' },
+      });
+      expect(await control(fixture.url, '/control/resume', fixture.token, 'POST', 'save-two')).toEqual({ status: 200, body: { paused: false } });
     } finally {
       for (const release of held) release();
+      await client.close();
+      await fixture.close();
+    }
+  });
+
+  it('lets go of a pause whose resume reached the server before it did', async () => {
+    fixture = await startFixture({ label: 'control-late', allowWrites: true, seed: true, gate: true });
+    const client = await connectClient(fixture.url, fixture.token);
+    try {
+      // A save that stopped waiting for its pause sends the resume first; the pause it belongs to is still in flight and lands second.
+      expect(await control(fixture.url, '/control/resume', fixture.token, 'POST', 'late')).toEqual({ status: 200, body: { paused: false } });
+      expect(await control(fixture.url, '/control/pause', fixture.token, 'POST', 'late')).toEqual({ status: 200, body: { paused: false } });
+      expect(fixture.gate?.paused()).toBe(false);
+      // Nothing stands, so a host's write is taken rather than refused.
+      const written = (await client.callTool({ name: 'meta.set', arguments: { targets: [LANDING], status: 'final' } })) as { isError?: boolean };
+      expect(written.isError).toBeUndefined();
+    } finally {
       await client.close();
       await fixture.close();
     }

@@ -53,6 +53,12 @@ import { MCP_PATH, MODERN_PROTOCOL_VERSION, VERSION } from './version.js';
 export const CONTROL_PAUSE = '/control/pause';
 export const CONTROL_RESUME = '/control/resume';
 
+/** The header a control call names its pause in, so a resume can let go of a pause that lands after it. */
+export const CONTROL_LEASE_HEADER = 'x-caotang-pause';
+
+/** The longest lease a control call may name. A longer value names no pause, which counts as a call that names none. */
+const MAX_LEASE_LENGTH = 128;
+
 /** The most body a POST may carry. The SDK's own default is the same 4 MiB. */
 export const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
@@ -227,8 +233,9 @@ async function readBody(req: IncomingMessage): Promise<string> {
  * The pause a desktop app asks for while it saves (gate.ts, desktop.md §The project's own MCP server): `POST /control/pause` stops a
  * write from starting and answers only once the writes already admitted have finished, `POST /control/resume` lets them start again and
  * answers at once, and both answer the pause as it now stands. The token is the same one the MCP endpoint takes, so only the app that
- * holds it can pause a server it started. An app that gives up waiting for the pause — its own wait is shorter than a slow write — sends
- * the resume it would otherwise send at the end of the save, so a pause is only ever held by a save that is still running.
+ * holds it can pause a server it started. Both calls may name the pause in `X-Caotang-Pause`, so the resume that ends a pause can arrive
+ * before it and cancel it (gate.ts): an app that stops waiting for its pause sends that resume, and it must let go even when the pause it
+ * belongs to is still in flight.
  */
 async function answerControl(req: IncomingMessage, res: ServerResponse, path: string, options: HttpServerOptions): Promise<void> {
   if (!bearerAccepted(req.headers.authorization, options.token)) {
@@ -244,7 +251,14 @@ async function answerControl(req: IncomingMessage, res: ServerResponse, path: st
     sendJson(res, 405, { error: `${path} takes POST` }, { Allow: 'POST' });
     return;
   }
-  sendJson(res, 200, path === CONTROL_PAUSE ? await gate.pause() : gate.resume());
+  const lease = pauseLeaseOf(req);
+  sendJson(res, 200, path === CONTROL_PAUSE ? await gate.pause(lease) : gate.resume(lease));
+}
+
+/** The lease a control call names, or `undefined` for a call that names none: an over-long or empty value names no pause. */
+function pauseLeaseOf(req: IncomingMessage): string | undefined {
+  const value = req.headers[CONTROL_LEASE_HEADER];
+  return typeof value === 'string' && value.length > 0 && value.length <= MAX_LEASE_LENGTH ? value : undefined;
 }
 
 /** One request, from the guards to the SDK's handler: what is admitted, and what is served. See the module comment for the order. */

@@ -86,6 +86,7 @@ export {
 } from './pictures.js';
 export { ASSETS_URI, RESOURCE_MAX_BYTES, TIMELINE_CSV_URI, TIMELINE_URI, assetUri, registerCaotangResources } from './resources.js';
 export {
+  CONTROL_LEASE_HEADER,
   CONTROL_PAUSE,
   CONTROL_RESUME,
   LEGACY_ROUND_TIMEOUT_MS,
