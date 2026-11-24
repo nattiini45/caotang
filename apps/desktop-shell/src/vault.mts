@@ -20,10 +20,11 @@ import { join } from 'node:path';
 
 import { NodeArtifactFs } from '@caotang/artifact-fs-node';
 import { openOsVault, VAULT_ID, type OsKeyVault } from '@caotang/gateway/keys/os-vault';
+import { parseVaultHeaders, parseVaultPayload } from '@caotang/gateway/keys/vault-payload';
 import { ipcMain, safeStorage } from 'electron';
 
 import { fromStudioFrame } from './ipc-guard.mjs';
-import type { VaultPayload, VaultReply } from './vault-contract.cjs';
+import type { VaultKeyState, VaultPayload, VaultReply } from './vault-contract.cjs';
 
 export type KeyVault = OsKeyVault;
 
@@ -69,8 +70,11 @@ export async function openKeyVault(profile: string, sealer: Sealer = electronSea
 /** A call whose arguments the page got wrong: a different answer from a machine that has no keychain. */
 class InvalidCall extends Error {}
 
+/** What these channels are registered on: the running app's `ipcMain`, or a spec's own, so the parser is testable without Electron. */
+export type VaultIpcHost = Pick<typeof ipcMain, 'handle'>;
+
 /** The channels the page may call, and the answers it gets. Nothing here reads a secret back to the page. */
-export function registerVaultIpc(entryUrl: string, vault: KeyVault): void {
+export function registerVaultIpc(entryUrl: string, vault: KeyVault, ipc: VaultIpcHost = ipcMain): void {
   const reply = <T,>(run: () => T | Promise<T>): Promise<VaultReply<T>> => Promise.resolve()
     .then(run)
     .then((value): VaultReply<T> => ({ ok: true, value }), (error: unknown): VaultReply<T> => {
@@ -86,44 +90,26 @@ export function registerVaultIpc(entryUrl: string, vault: KeyVault): void {
     return value;
   };
 
-  /** A payload the page may store: a key, and a generic endpoint's extra headers, all text and all bounded. */
+  /** A payload the page may store, as the vault's own rules read it: a key, and a generic endpoint's extra headers. */
   const payloadOf = (value: unknown): VaultPayload => {
-    if (value === null || typeof value !== 'object') throw new InvalidCall('invalid');
-    const candidate = value as { apiKey?: unknown; customHeaders?: unknown };
-    if (typeof candidate.apiKey !== 'string' || candidate.apiKey === '' || candidate.apiKey.length > 8192) throw new InvalidCall('invalid');
-    const headers = candidate.customHeaders;
-    if (headers === undefined) return { apiKey: candidate.apiKey };
-    if (headers === null || typeof headers !== 'object' || Array.isArray(headers)) throw new InvalidCall('invalid');
-    const copy: Record<string, string> = {};
-    const entries = Object.entries(headers as Record<string, unknown>);
-    if (entries.length > 64) throw new InvalidCall('invalid');
-    for (const [name, header] of entries) {
-      if (typeof header !== 'string' || header.length > 8192 || name === '' || name.length > 256) throw new InvalidCall('invalid');
-      copy[name] = header;
-    }
-    return { apiKey: candidate.apiKey, ...(entries.length === 0 ? {} : { customHeaders: copy }) };
+    const payload = parseVaultPayload(value);
+    if (payload === undefined) throw new InvalidCall('invalid');
+    return payload;
   };
 
   /** The extra headers a page may hand back: text under a name, both bounded. Nothing here is a secret. */
   const headersOf = (raw: unknown): Readonly<Record<string, string>> => {
-    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) throw new InvalidCall('invalid');
-    const copy: Record<string, string> = {};
-    const entries = Object.entries(raw as Record<string, unknown>);
-    // The same bound the payload parser applies: a page cannot spend the host's memory on headers either way.
-    if (entries.length > 64) throw new InvalidCall('invalid');
-    for (const [name, value] of entries) {
-      if (typeof value !== 'string' || value.length > 8192 || name === '' || name.length > 256) throw new InvalidCall('invalid');
-      copy[name] = value;
-    }
-    return copy;
+    const headers = parseVaultHeaders(raw);
+    if (headers === undefined) throw new InvalidCall('invalid');
+    return headers;
   };
 
-  ipcMain.handle('vault:available', (event): Promise<VaultReply<boolean>> => reply(async () => {
+  ipc.handle('vault:available', (event): Promise<VaultReply<boolean>> => reply(async () => {
     if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
     return vault.available();
   }));
 
-  ipcMain.handle('vault:put', (event, rawId: unknown, rawPayload: unknown): Promise<VaultReply<null>> => reply(async () => {
+  ipc.handle('vault:put', (event, rawId: unknown, rawPayload: unknown): Promise<VaultReply<null>> => reply(async () => {
     if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
     await vault.put(idOf(rawId), payloadOf(rawPayload));
     return null;
@@ -131,35 +117,40 @@ export function registerVaultIpc(entryUrl: string, vault: KeyVault): void {
 
   // A headers-only edit: the page read a key (and was given a handle) and changed only the extra headers. The secret stays where it
   // is, because sealing the handle over it would destroy the key the writer saved (#863).
-  ipcMain.handle('vault:putHeaders', (event, rawId: unknown, rawHeaders: unknown): Promise<VaultReply<null>> => reply(async () => {
+  ipc.handle('vault:putHeaders', (event, rawId: unknown, rawHeaders: unknown): Promise<VaultReply<null>> => reply(async () => {
     if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
     await vault.putHeaders(idOf(rawId), headersOf(rawHeaders));
     return null;
   }));
 
-  ipcMain.handle('vault:remove', (event, rawId: unknown): Promise<VaultReply<null>> => reply(async () => {
+  ipc.handle('vault:remove', (event, rawId: unknown): Promise<VaultReply<null>> => reply(async () => {
     if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
     await vault.remove(idOf(rawId));
     return null;
   }));
 
-  ipcMain.handle('vault:has', (event, rawId: unknown): Promise<VaultReply<boolean>> => reply(async () => {
+  ipc.handle('vault:has', (event, rawId: unknown): Promise<VaultReply<boolean>> => reply(async () => {
     if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
     return vault.has(idOf(rawId));
   }));
 
-  ipcMain.handle('vault:revision', (event, rawId: unknown): Promise<VaultReply<string>> => reply(async () => {
+  ipc.handle('vault:revision', (event, rawId: unknown): Promise<VaultReply<string>> => reply(async () => {
     if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
     return vault.revision(idOf(rawId));
   }));
 
-  ipcMain.handle('vault:restore', (event, rawId: unknown): Promise<VaultReply<null>> => reply(async () => {
+  ipc.handle('vault:restore', (event, rawId: unknown): Promise<VaultReply<null>> => reply(async () => {
     if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
     await vault.restore(idOf(rawId));
     return null;
   }));
 
-  ipcMain.handle('vault:headers', (event, rawId: unknown): Promise<VaultReply<Readonly<Record<string, string>> | null>> => reply(async () => {
+  ipc.handle('vault:keyState', (event, rawId: unknown): Promise<VaultReply<VaultKeyState>> => reply(async () => {
+    if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
+    return vault.keyState(idOf(rawId));
+  }));
+
+  ipc.handle('vault:headers', (event, rawId: unknown): Promise<VaultReply<Readonly<Record<string, string>> | null>> => reply(async () => {
     if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
     return (await vault.headers(idOf(rawId))) ?? null;
   }));

@@ -338,12 +338,14 @@ export function ProviderSetup({
                   </a>
                 )}
               </p>
-              <p className="field-help">
-                <Trans>
-                  The first time, Chrome and Edge ask whether this site may connect to apps on your device. Choose Allow; if you decline,
-                  requests are blocked until you allow them in the site settings. Safari is unverified.
-                </Trans>
-              </p>
+              {native ? null : (
+                <p className="field-help">
+                  <Trans>
+                    The first time, Chrome and Edge ask whether this site may connect to apps on your device. Choose Allow; if you decline,
+                    requests are blocked until you allow them in the site settings. Safari is unverified.
+                  </Trans>
+                </p>
+              )}
               {isLocalBase(address) ? <p className="field-help"><Trans>Your text stays on this computer.</Trans></p> : null}
             </>
           )}
