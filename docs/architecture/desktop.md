@@ -83,19 +83,29 @@ goes stops every call it started — as does a reload or a navigation of the stu
 made them behind. Chunks and ends are keyed to the stream that is still in the map for their id, so a stopped call's
 remaining body reaches nobody.
 
+**A call is claimed before its key is opened.** Opening one is asynchronous — the operating system decrypts the seal (§The
+keychain) — so the call is registered as stoppable first and the request is checked again after the secret arrives and before
+it opens: a cancel that lands during that wait finds the call and stops it, and one that lands a moment late still keeps the
+request from leaving. A call stopped while its key was being opened is answered as `aborted`, never as whatever the key did on
+its way out, and a decryption nobody waits for any more is still handled rather than left as a rejection with no owner.
+Claimed after the wait, the cancel found no call to stop and was answered as though the call had never been made, and then
+the request went out for a writer who had already stopped it (#869).
+
 **What the page sees.** The preload bridge is version 6 and exposes `net` beside `folders`: `configure`, `start`, `abort`,
 `onChunk`, `onEnd`. Every call is checked for the studio's own top frame at `app://caotang/`, so a child frame or another
 origin cannot use the port. A request's shape is checked before any socket opens, and `invalid` covers what the network stack would otherwise refuse on
 the way out: a header that names the connection, a body on a `GET`, a method the app never sends. A call stopped before it
-started is not made at all, and one stopped while its head was still arriving is reported as `aborted` rather than as a dead
-network. A refusal names its reason (`invalid`, `denied`, `too-large`, `unavailable`, `aborted`), and the
+started is not made at all, and one stopped while its key was being opened or while its head was still arriving is reported as
+`aborted` rather than as a dead network or as a key that would not open. A refusal names its reason (`invalid`, `denied`,
+`too-large`, `unavailable`, `aborted`), and the
 page turns it into the failure the gateway already knows how to explain, so a refused address reads as an address the app
 does not connect to rather than as a dead network.
 
 The rule is tested by the repository's gate
-([`native-egress.test.ts`](../../packages/gateway/test/native-egress.test.ts)) and the port by a launched app
+([`native-egress.test.ts`](../../packages/gateway/test/native-egress.test.ts)), the port by a launched app
 ([`egress.spec.ts`](../../apps/desktop-shell/test/egress.spec.ts)), which configures one origin and proves every other
-address is refused after it.
+address is refused after it, and its cancellation by a check with its own slot (`egress-cancel.test.ts`, beside it), because
+a vault that opens slowly is not something a runner with no keychain can be given.
 
 ## Native menus (#407)
 
