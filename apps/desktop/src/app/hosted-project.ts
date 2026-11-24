@@ -81,13 +81,14 @@ export async function deviceQueue(source: HostedProjectSource, fs: EncryptedRemo
       const moved = edits.paths.filter((path) => base.get(path) !== undefined && base.get(path) !== fs.versionOf(path));
       if (moved.length > 0) return { kind: 'conflict', paths: moved };
       try {
-        // What this replay took, so the queue keeps anything that arrived while it was on its way.
-        const took = edits.paths;
         const count = await replayPending(fs, edits);
-        for (const path of took) base.delete(path);
+        // A path the replay did not settle is one whose edit arrived while the commit was on its way: it keeps the version it was
+        // staged against, so the next replay still refuses it if the account moved too.
+        const queued = new Set(edits.paths);
+        for (const path of [...base.keys()]) if (!queued.has(path)) base.delete(path);
         keep();
         keepMarks(source, fs);
-        return { kind: 'sent', count, paths: took };
+        return { kind: 'sent', count };
       } catch (error) {
         // A refusal leaves the queue as it was; which refusal it was is the writer's next question, not this one's error.
         if (error instanceof Error && 'paths' in error) {

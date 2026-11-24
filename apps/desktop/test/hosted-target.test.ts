@@ -40,7 +40,7 @@ function holdingQueue(): { port: HostedQueuePort; held(): string[] } {
   return {
     port: {
       hold: (changes) => { for (const change of changes) paths.add(change.path); },
-      replay: async () => ({ kind: 'sent', count: 0, paths: [] }),
+      replay: async () => ({ kind: 'sent', count: 0 }),
       forget: (named) => { if (named === undefined) paths.clear(); else for (const path of named) paths.delete(path); },
       held: () => [...paths],
       marks: () => {},
@@ -242,7 +242,7 @@ describe('the answer to a conflict this session’s own save raised', () => {
 });
 
 /** A queue as the adapter hands it to the target: paths held, and what a replay answers. */
-function queue(initial: readonly string[], answer: () => Promise<HostedReplay> | HostedReplay = async () => ({ kind: 'sent', count: 1, paths: [...initial] })) {
+function queue(initial: readonly string[], answer: () => Promise<HostedReplay> | HostedReplay = async () => ({ kind: 'sent', count: 1 })) {
   const held = new Set(initial);
   const calls: string[] = [];
   const port: HostedQueuePort = {
@@ -253,8 +253,7 @@ function queue(initial: readonly string[], answer: () => Promise<HostedReplay> |
     replay: async () => {
       calls.push('replay');
       const outcome = await answer();
-      // What the server took, not the whole queue: a port that cleared everything would hide an edit held during the replay.
-      if (outcome.kind === 'sent') for (const path of outcome.paths) held.delete(path);
+      if (outcome.kind === 'sent') held.clear();
       return outcome;
     },
     forget: (paths) => {
@@ -274,13 +273,14 @@ function withQueue(port: HostedQueuePort, save: (state: ProjectState) => Promise
 }
 
 describe('the queue a hosted project keeps on this device', () => {
-  it('forgets only the paths the replay took, so an edit held while it was on its way is still queued', async () => {
-    const one = queue(['docs/a.md', 'docs/b.md'], () => ({ kind: 'sent', count: 1, paths: ['docs/a.md'] }));
+  it('leaves what a replay did not settle to the queue, so an edit staged while it was on its way stays', async () => {
+    // The queue settles a replay itself, and only where a path still holds exactly the bytes it sent: an edit staged during the commit
+    // is newer than what landed. The target must not forget by path, which would drop it and still report the save as landed.
+    const one = queue(['docs/a.md'], () => ({ kind: 'sent', count: 1 }));
     const saving = withQueue(one.port, (async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } })) as never);
     await saving.replayHeld();
     expect(saving.state()).toEqual({ kind: 'idle' });
-    // The second path was never on the account, so it is still waiting to go: a replay that cleared the queue would have dropped it.
-    expect(one.port.held()).toEqual(['docs/b.md']);
+    expect(one.calls.filter((call) => call.startsWith('forget'))).toEqual([]);
   });
 
   it('replays the paths the writer just answered for, measured against the version the refresh read', async () => {
@@ -318,7 +318,7 @@ describe('the queue a hosted project keeps on this device', () => {
   it('replays an earlier tab’s words before the project is read, and keeps the marks after', async () => {
     const kept = queue(['docs/a.md']);
     const saving = withQueue(kept.port, async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }));
-    expect(await saving.replayHeld()).toEqual({ kind: 'sent', count: 1, paths: ['docs/a.md'] });
+    expect(await saving.replayHeld()).toEqual({ kind: 'sent', count: 1 });
     expect(saving.state()).toEqual({ kind: 'idle' });
     expect(kept.calls).toContain('marks');
   });
@@ -327,9 +327,9 @@ describe('the queue a hosted project keeps on this device', () => {
     // The replay loses to another device first, then lands once the writer keeps this device's text.
     const answers = [
       { kind: 'conflict' as const, paths: ['docs/a.md'] },
-      { kind: 'sent' as const, count: 1, paths: ['docs/a.md'] },
+      { kind: 'sent' as const, count: 1 },
     ];
-    const kept = queue(['docs/a.md'], () => answers.shift() ?? { kind: 'sent', count: 1, paths: ['docs/a.md'] });
+    const kept = queue(['docs/a.md'], () => answers.shift() ?? { kind: 'sent', count: 1 });
     const saving = withQueue(kept.port, async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }));
     expect(await saving.replayHeld()).toEqual({ kind: 'conflict', paths: ['docs/a.md'] });
     expect(saving.state()).toEqual({ kind: 'conflict', paths: ['docs/a.md'] });

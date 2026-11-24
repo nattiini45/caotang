@@ -37,7 +37,7 @@ function target(outcome: unknown, queue: HostedQueuePort | null = null): HostedT
 }
 
 /** A queue an earlier tab left: it holds `held`, and a replay answers `answer`. */
-function queue(held: readonly string[], answer: HostedReplay = { kind: 'sent', count: 1, paths: [...held] }): HostedQueuePort {
+function queue(held: readonly string[], answer: HostedReplay = { kind: 'sent', count: 1 }): HostedQueuePort {
   const paths = new Set(held);
   return {
     hold: () => undefined,

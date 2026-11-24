@@ -31,8 +31,7 @@ export type HostedSaveState =
  * server did not answer at all.
  */
 export type HostedReplay =
-  /** `paths` is what the server took, so the queue forgets exactly those and keeps anything newer it took on meanwhile. */
-  | { readonly kind: 'sent'; readonly count: number; readonly paths: readonly string[] }
+  | { readonly kind: 'sent'; readonly count: number }
   | { readonly kind: 'conflict'; readonly paths: readonly string[] }
   | { readonly kind: 'unavailable' };
 
@@ -326,7 +325,7 @@ export class HostedTarget {
     try {
       const changes = this.#conflict;
       await this.fs.commitChanges(changes);
-      return { kind: 'sent', count: changes.length, paths: changes.map((change) => change.path) };
+      return { kind: 'sent', count: changes.length };
     } catch {
       return { kind: 'unavailable' };
     }
@@ -334,9 +333,8 @@ export class HostedTarget {
 
   #settle(outcome: HostedReplay): void {
     if (outcome.kind === 'sent') {
-      // Only what the server took is forgotten: a save that went unavailable while this replay was on its way added its own paths to
-      // the queue, and those are still unsent.
-      this.queue?.forget(outcome.paths);
+      // The queue forgets what its replay sent, and only where a path still holds exactly those bytes — an edit staged while the
+      // commit was in flight is newer than what landed and stays queued. Forgetting by path here would drop it without a word.
       this.queue?.marks();
       this.#conflict = [];
       this.#set({ kind: 'idle' });

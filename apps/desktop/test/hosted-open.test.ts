@@ -40,7 +40,7 @@ afterEach(async () => {
 });
 
 /** A queue that holds one scene's words and replays them into the same filesystem the open reads. */
-function queueHolding(fs: MemoryArtifactFs, replayedBody: string | undefined, outcome: HostedReplay = { kind: 'sent', count: 1, paths: [`docs/${IDS.sceneA}.md`] }): HostedQueuePort {
+function queueHolding(fs: MemoryArtifactFs, replayedBody: string | undefined, outcome: HostedReplay = { kind: 'sent', count: 1 }): HostedQueuePort {
   const held = new Set([`docs/${IDS.sceneA}.md`]);
   return {
     hold: (changes) => {
