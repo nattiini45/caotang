@@ -107,6 +107,7 @@ import { folderFileDiff, type FolderDiffLine } from './folder-diff.js';
 import { applyEncodingDecisions, encodingResultLines, type EncodingDecision } from './encoding-review.js';
 import { changedDuringSave, pruneFolderBackups, watchSave } from './folder-guard.js';
 import { folderArtifactFs, folderIsEmpty, isSameFolder, type DirectoryHandleLike } from './fs-access.js';
+import type { RemoteChange } from '@caotang/remote-store';
 import type { HostedProjectSource } from './studio-host.js';
 import { openHostedTarget, picturesOnProjectFs } from './hosted-project.js';
 import { rememberHostedTarget, type HostedTarget } from './hosted-target.js';
@@ -1261,6 +1262,36 @@ export interface FolderDiffers {
  * imports nothing from `@caotang/remote-store` and makes no call beyond the provider until then. `open` is injectable so a
  * test can drive the adoption with a fake remote rather than a server.
  */
+/**
+ * The documents one state holds whose text the other does not: a page this device wrote that the account has never seen, a page the
+ * account has that this device deleted, or a page both hold at different words. Their ids, so the text can be read from the copy
+ * that has it.
+ */
+function differingDocumentIds(mine: ProjectState, theirs: ProjectState): string[] {
+  const ids = new Set([...mine.documents.keys(), ...theirs.documents.keys()]);
+  return [...ids].filter((id) => mine.documents.get(id)?.body !== theirs.documents.get(id)?.body);
+}
+
+/**
+ * Those documents as the queue holds them: the text as this browser shows it, at the path the project format gives it. A document
+ * this copy holds no file for — one a load declined because its bytes are not UTF-8 — has no text to hold either, so it is left out
+ * and the account's version stands for it.
+ */
+async function heldDocumentChanges(state: ProjectState, ids: readonly string[]): Promise<RemoteChange[]> {
+  const copy = new MemoryArtifactFs();
+  await writeProject(copy, copyState(state), { now: new Date(), copyFor: 'internal' });
+  const changes: RemoteChange[] = [];
+  for (const id of ids) {
+    const path = `${DOCS_DIR}/${id}.md`;
+    try {
+      changes.push({ path, bytes: await copy.readBytes(path) });
+    } catch {
+      continue;
+    }
+  }
+  return changes;
+}
+
 export async function openHostedProject(
   store: RuntimeStore,
   source: HostedProjectSource,
@@ -1289,9 +1320,27 @@ export async function openHostedProject(
     await removeProject(store, projectId);
     opened = await adopt(store, loaded.state, [...accountLog, ...linesNotHeld(keptLog, accountLog)], noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
   } else {
-    // The browser's copy holds words the account does not: it opens as it stands, with the account as its save target, so those
-    // words reach the account through the save (and its question, if another device moved them first) instead of being deleted here.
-    opened = await openStored(store, projectId, null, { notices: noticesOf(loaded.notices), droppedFields: droppedFieldsOf(loaded.notices), folderLog: accountLog }, pictures);
+    // The browser's copy holds words the account does not. Nothing is written over either of them: those documents are held in the
+    // device queue as this device's version, the account's copy opens in their place, and the writer is asked which text the account
+    // should keep — the same question a save raises when another device moved the files. "Keep mine" replays the held words; the
+    // account's version stands if the writer leaves it. Opening the browser's copy silently instead would be this device's words
+    // winning without the writer ever seeing they were at odds with the account.
+    const held = await heldDocumentChanges(cached, differingDocumentIds(cached, loaded.state));
+    if (held.length === 0) {
+      // Nothing here can be held (a copy whose words this browser cannot read), so the copy opens as it stands rather than being
+      // removed with no way back.
+      opened = await openStored(store, projectId, null, { notices: noticesOf(loaded.notices), droppedFields: droppedFieldsOf(loaded.notices), folderLog: accountLog }, pictures);
+    } else {
+      target.queue?.hold(held);
+      const keptLog = await readSessions(store, projectId);
+      await removeProject(store, projectId);
+      opened = await adopt(store, loaded.state, [...accountLog, ...linesNotHeld(keptLog, accountLog)], noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
+      // A conflict the queue's own replay raised is already naming what it could not send; these paths join it, because both are this
+      // device's words against the account's and both need the same answer.
+      const asked = target.state();
+      const paths = held.map((change) => change.path);
+      target.raiseConflict(asked.kind === 'conflict' ? [...new Set([...asked.paths, ...paths])] : paths);
+    }
   }
   // The target is kept for the session and follows every save this browser finishes, carrying the project's pictures with the files
   // that name them, and knowing what this device held so a save removes only what it deleted itself.

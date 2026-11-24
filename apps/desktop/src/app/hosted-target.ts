@@ -229,6 +229,16 @@ export class HostedTarget {
   }
 
   /**
+   * Asks the writer which text the account should keep, for paths whose words this device holds and the account does not. The words
+   * are in the queue by the time this is called, so the answer "keep mine" replays them and "leave it" drops them for the account's
+   * version — and nothing was written before the writer answered.
+   */
+  raiseConflict(paths: readonly string[]): void {
+    this.#fromQueue = true;
+    this.#set({ kind: 'conflict', paths });
+  }
+
+  /**
    * Sends what an earlier tab could not, before the project is read. A replay that lands means the account now holds the
    * writer's words and the session that follows reads them; one that does not leaves the queue exactly as it was.
    *

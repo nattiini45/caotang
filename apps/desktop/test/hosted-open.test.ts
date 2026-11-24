@@ -7,7 +7,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryArtifactFs, MemoryIndexedDb, openRuntimeStore, writeProject, type RuntimeStore } from '@caotang/store';
 
 import { openHostedProject, type Opened } from '../src/app/lifecycle.js';
-import { forgetHostedTarget, HostedTarget, type HostedQueuePort, type HostedReplay } from '../src/app/hosted-target.js';
+import { forgetHostedTarget, HostedTarget, hostedTargetFor, type HostedQueuePort, type HostedReplay } from '../src/app/hosted-target.js';
 import type { HostedProjectSource } from '../src/app/studio-host.js';
 import { IDS, project } from '../../../e2e/unit/fixtures.js';
 
@@ -39,7 +39,7 @@ afterEach(async () => {
 });
 
 /** A queue that holds one scene's words and replays them into the same filesystem the open reads. */
-function queueHolding(fs: MemoryArtifactFs, replayedBody: string, outcome: HostedReplay = { kind: 'sent', count: 1 }): HostedQueuePort {
+function queueHolding(fs: MemoryArtifactFs, replayedBody: string | undefined, outcome: HostedReplay = { kind: 'sent', count: 1 }): HostedQueuePort {
   const held = new Set([`docs/${IDS.sceneA}.md`]);
   return {
     hold: (changes) => {
@@ -49,7 +49,7 @@ function queueHolding(fs: MemoryArtifactFs, replayedBody: string, outcome: Hoste
       if (outcome.kind !== 'sent') return outcome;
       const state = project();
       state.manifest.project = BOOK.manifest.project;
-      state.documents.get(IDS.sceneA)!.body = replayedBody;
+      if (replayedBody !== undefined) state.documents.get(IDS.sceneA)!.body = replayedBody;
       await writeProject(fs, state);
       held.clear();
       return outcome;
@@ -63,7 +63,7 @@ function queueHolding(fs: MemoryArtifactFs, replayedBody: string, outcome: Hoste
   };
 }
 
-async function targetFor(replayedBody: string, outcome?: HostedReplay): Promise<HostedTarget> {
+async function targetFor(replayedBody: string | undefined, outcome?: HostedReplay): Promise<HostedTarget> {
   const fs = new MemoryArtifactFs();
   await writeProject(fs, BOOK);
   const queue = queueHolding(fs, replayedBody, outcome);
@@ -77,9 +77,11 @@ async function targetFor(replayedBody: string, outcome?: HostedReplay): Promise<
   );
 }
 
-/** Opens through the lifecycle, closing whatever it opened when the test ends. */
-async function open(body: string, outcome?: HostedReplay): Promise<Opened> {
+/** Opens through the lifecycle, closing whatever it opened when the test ends. The target is kept for the assertions on it. */
+let lastTarget: HostedTarget | null = null;
+async function open(body?: string, outcome?: HostedReplay): Promise<Opened> {
   const target = await targetFor(body, outcome);
+  lastTarget = target;
   const result = await openHostedProject(store, SOURCE, async () => target);
   opened.push(result);
   return result;
@@ -113,7 +115,7 @@ it('opens the same project again under its own id, not as a copy of itself', asy
   expect(second.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
 });
 
-it('keeps a browser copy that holds words the account does not, instead of deleting them', async () => {
+it('asks about words a browser copy holds and the account does not, instead of picking one of them silently', async () => {
   const first = await open();
   // The writer typed here and the browser kept it; the account never got it.
   first.session.state.documents.get(IDS.sceneA)!.body = 'Five words, written offline';
@@ -121,8 +123,14 @@ it('keeps a browser copy that holds words the account does not, instead of delet
   await first.session.closeSafely();
   opened = opened.filter((one) => one !== first);
 
+  // The account's version opens, the browser's differing text is held as this device's version, and the writer is asked which one the
+  // account should keep.
   const second = await open();
+  const path = `docs/${IDS.sceneA}.md`;
   expect(second.session.projectId).toBe(BOOK.manifest.project.id);
   expect(second.copiedFrom).toBeNull();
-  expect(second.session.state.documents.get(IDS.sceneA)?.body).toBe('Five words, written offline');
+  expect(second.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
+  expect(lastTarget?.state()).toEqual({ kind: 'conflict', paths: [path] });
+  expect(lastTarget?.queue?.held()).toContain(path);
+  expect(hostedTargetFor(SOURCE.projectId)?.state()).toEqual({ kind: 'conflict', paths: [path] });
 });
