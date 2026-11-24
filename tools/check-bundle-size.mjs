@@ -197,7 +197,12 @@ export const BUDGET = {
   // the write-verify-delete migration the app runs as it opens, and the Settings sentence that says which store holds the keys. All
   // of it is read by `openAppServices` before the first paint, so there was no chunk to move it to; the pages that only a form needs
   // were already on use. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  initialGzip: 1_126_000,
+  // The hosted save target (hosted.md §7.2): 1,130.2 kB gzip measured on CI, 4.2 kB over the ceiling that tree set. Named: the save
+  // notice's states and the one action each offers, and their English text in the entry catalogue, which every screen reads before its
+  // first paint. The target itself is not here: `HostedTarget` and the queue port sit behind the host's dynamic import, and the registry
+  // the app asks for a project's target was split into its own module for exactly that reason (one place to look a target up, no reason
+  // to load the class for it). The ceiling is the measurement plus about 1%, rounded up to the thousand. [delegated 2026-11-24]
+  initialGzip: 1_142_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -339,7 +344,13 @@ export const BUDGET = {
   // ceiling that tree set, again the entry chunk. Named: the GET rule, the mapped-loopback predicate, the no-body head a page answers
   // without a stream, and the guard that ties a chunk to the call still holding its id. The ceiling is the measurement rounded up to
   // the thousand. [delegated 2026-11-23]
-  totalJs: 9_045_000,
+  // The hosted save target and its queue (hosted.md §7.2): 9,081.1 kB measured on CI, 36.1 kB over the ceiling that tree set. Named: the
+  // state machine's tables and their comments do not ship, so what is counted is the class, the queue port's contract, the open's hold
+  // and question for a divergent browser cache, and the notice. Every part of it is reached only when a host hands a project over: the
+  // adapter, the target and the queue are one lazy chunk behind that dynamic import, and the registry split keeps the class out of the
+  // first load. Trimming further would mean leaving a state without its transition. The ceiling is the measurement plus about 1%,
+  // rounded up to the thousand. [delegated 2026-11-24]
+  totalJs: 9_173_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

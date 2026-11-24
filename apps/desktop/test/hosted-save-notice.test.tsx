@@ -14,7 +14,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import type { ProjectSession } from '../src/app/session.js';
 import { HostedSaveNotice } from '../src/components/HostedSaveNotice.js';
-import { forgetHostedTarget, HostedTarget, rememberHostedTarget, type HostedQueuePort, type HostedReplay } from '../src/app/hosted-target.js';
+import { HostedTarget, type HostedQueuePort, type HostedReplay } from '../src/app/hosted-target.js';
+import { forgetHostedTarget, installHostedTarget } from '../src/app/hosted-target-registry.js';
 import { activateEnglish } from '../src/i18n/runtime.js';
 
 const DOC = 'n_LIGHTHOUSE';
@@ -54,7 +55,7 @@ function queue(held: readonly string[], answer: HostedReplay | readonly HostedRe
 }
 
 async function render(one: HostedTarget, onReopenAccount?: () => void): Promise<void> {
-  rememberHostedTarget(one);
+  installHostedTarget(one);
   await act(async () => root.render(
     <I18nProvider i18n={i18n}><HostedSaveNotice session={session} onReopenAccount={onReopenAccount} /></I18nProvider>,
   ));

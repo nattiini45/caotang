@@ -13,7 +13,8 @@ import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'rea
 import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
 import { isolate } from '@caotang/i18n';
-import { hostedTargetFor, type HostedSaveState } from '../app/hosted-target.js';
+import { hostedTargetFor } from '../app/hosted-target-registry.js';
+import type { HostedSaveState } from '../app/hosted-target.js';
 import type { ProjectSession } from '../app/session.js';
 import { ChoiceDialog } from './shared.js';
 

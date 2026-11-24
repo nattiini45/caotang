@@ -111,7 +111,8 @@ import { folderArtifactFs, folderIsEmpty, isSameFolder, type DirectoryHandleLike
 import type { RemoteChange } from '@caotang/remote-store';
 import type { HostedProjectSource } from './studio-host.js';
 import { openHostedTarget, picturesOnProjectFs } from './hosted-project.js';
-import { installHostedTarget, type HostedTarget } from './hosted-target.js';
+import { installHostedTarget } from './hosted-target-registry.js';
+import type { HostedTarget } from './hosted-target.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
 import {
   copiedFromOf,

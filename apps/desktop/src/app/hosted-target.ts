@@ -436,27 +436,4 @@ async function digestOf(bytes: Uint8Array): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-const targets = new Map<string, HostedTarget>();
-
-/**
- * Installs a target for the project it saves, replacing any earlier one: a session still closing must not commit its older state over
- * the project the writer has just opened, so the target installed before stops listening first.
- */
-export function installHostedTarget(target: HostedTarget): void {
-  const stale = targets.get(target.projectId);
-  if (stale !== undefined && stale !== target) stale.detach();
-  targets.set(target.projectId, target);
-}
-
-/** Keeps a hosted project's target for as long as it is open, so the workspace can show what the account holds. */
-export function rememberHostedTarget(target: HostedTarget): void {
-  installHostedTarget(target);
-}
-
-export function hostedTargetFor(projectId: string): HostedTarget | null {
-  return targets.get(projectId) ?? null;
-}
-
-export function forgetHostedTarget(projectId: string): void {
-  targets.delete(projectId);
-}
+export { forgetHostedTarget, hostedTargetFor, installHostedTarget } from './hosted-target-registry.js';
