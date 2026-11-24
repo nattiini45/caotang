@@ -1,4 +1,5 @@
 import type { NativeEgressBridge } from './egress-contract.cjs';
+import type { DesktopMcpBridge } from './mcp-contract.cjs';
 import type { KeyVaultBridge } from './vault-contract.cjs';
 
 export interface NativeFolder {
@@ -37,13 +38,16 @@ export interface NativeFolderBridge {
   onChanged(listener: (change: NativeFolderChange) => void): () => void;
 }
 
+
 export interface DesktopBridge {
-  readonly version: 4;
+  readonly version: 5;
   readonly folders: NativeFolderBridge;
   /** Provider and MCP calls made by the main process, where no CORS preflight applies. */
   readonly net: NativeEgressBridge;
   /** The operating system's keychain: a page may store, remove and ask, never read. */
   readonly vault: KeyVaultBridge;
+  /** The project's own MCP server, run by this app, and the pause that keeps the two writers apart. */
+  readonly mcp: DesktopMcpBridge;
 }
 
 declare global {
