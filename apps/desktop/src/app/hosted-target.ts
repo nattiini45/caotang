@@ -163,10 +163,9 @@ export class HostedTarget {
     }
   }
 
-  /** The account's version of a path, as the adapter holds it; a filesystem without one is treated as never having moved. */
+  /** The account's version of a path, as the adapter last read it. */
   #versionOf(path: string): number {
-    const version = (this.fs as { versionOf?: (path: string) => number }).versionOf;
-    return typeof version === 'function' ? version.call(this.fs, path) : 0;
+    return this.fs.versionOf(path);
   }
 
   /** Commits this session's state to the account. A second call while one is running runs once more after it. */
