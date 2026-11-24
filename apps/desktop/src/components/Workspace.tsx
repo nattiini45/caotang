@@ -60,6 +60,8 @@ import { ExportSweepOffer, sweepBeforeExport, sweepOfferBeforeExport } from '../
 import { PictureNotices } from './PictureNotices.js';
 import { saveStateWords } from '../app/integrity-model.js';
 import { nativeFolderId, nativeFoldersAvailable } from '../app/native-folders.js';
+import { deviceTimeZone, nativeRefusalSentence, onNativeCommand, studioTicks, takeNativeCommands } from '../app/native-os.js';
+import type { NativeCommand } from '../../../desktop-shell/src/os-contract.cjs';
 import { useFolderWatch } from '../app/use-folder-watch.js';
 import { requestInspector } from '../app/inspector-request.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
@@ -285,8 +287,17 @@ export function Workspace({
   );
   // The project's recurring tasks (agent-harness.md §12): looked at as the project opens and every minute while the tab is visible.
   // They run through the agent, so they start once its controller has loaded.
+  // A window closed to the tray is not a tab nobody is looking at: its timers still fire, so the due tasks are still looked at
+  // (desktop.md §The tray and scheduled task runs). The zone is the operating system's when the shell reports it, so a schedule at
+  // 09:00 is 09:00 on the writer's own clock.
   const recurring = useMemo(
-    () => (agent === null ? null : new RecurringTasks({ session, agent, enabledChecks: () => services.settings.current().coherence.enabledChecks })),
+    () => (agent === null ? null : new RecurringTasks({
+      session,
+      agent,
+      enabledChecks: () => services.settings.current().coherence.enabledChecks,
+      visible: () => studioTicks(),
+      timeZone: () => deviceTimeZone() ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+    })),
     [session, agent, services.settings],
   );
   useEffect(() => {
@@ -298,7 +309,7 @@ export function Workspace({
   useEffect(() => {
     let alive = true;
     const read = (): void => {
-      void wordsWrittenToday(store, Date.now()).then((words) => {
+      void wordsWrittenToday(store, Date.now(), deviceTimeZone()).then((words) => {
         if (alive) setStoredToday(words);
       });
     };
@@ -931,6 +942,51 @@ export function Workspace({
       theme: toggleTheme,
     },
   );
+
+  /**
+   * What the native menu asked for while a project is open (desktop.md §Native menus). The two actions that need no project, and
+   * the two sentences an outside request can start with, belong to the projects list; a link that arrives here is answered where the
+   * writer is, because opening another project would have to close this one.
+   */
+  const nativeCommand = (command: NativeCommand): void => {
+    switch (command.kind) {
+      case 'compile':
+        setExporting(true);
+        return;
+      case 'export-bundle':
+        exportBundleOffering();
+        return;
+      case 'settings':
+        openProviders();
+        return;
+      case 'undo':
+        undoNow();
+        return;
+      case 'focus-mode':
+        toggleFocus();
+        return;
+      case 'open-project':
+        report({ text: t`Close this project before opening another one from a link.`, tone: 'info' });
+        return;
+      case 'refused':
+        report({ text: nativeRefusalSentence(command.reason), tone: 'info' });
+        return;
+      default:
+        return;
+    }
+  };
+  // One subscription for the life of the workspace, and the commands that arrived before it: opening a project closes the screen
+  // that would have answered them, so the queue is read again here. The handler is read through a ref, updated after each render.
+  const nativeHandler = useRef<(command: NativeCommand) => void>(() => undefined);
+  useEffect(() => {
+    nativeHandler.current = nativeCommand;
+  });
+  useEffect(() => {
+    void takeNativeCommands().then((commands) => {
+      for (const command of commands) nativeHandler.current(command);
+    });
+    return onNativeCommand((command) => nativeHandler.current(command));
+  }, []);
 
   // The regions a shell arranges (modern-interface.md §4.1): the feature elements, built once here, and the view state.
   const newTargetNode = newTarget(state, selected, view.activeDocId);
