@@ -92,6 +92,26 @@ function readOnlyError(name: string, risk: string): CommandError {
   };
 }
 
+/**
+ * The write tool a request calls, or `undefined` when it calls none. A batch is a write when any call inside it is, because the
+ * request path admits a write for the whole request that carries it (gate.ts), and a request with no write never delays a pause.
+ */
+export function writeToolCall(message: unknown): { readonly name: string; readonly risk: string } | undefined {
+  if (Array.isArray(message)) {
+    for (const item of message) {
+      const call = writeToolCall(item);
+      if (call !== undefined) return call;
+    }
+    return undefined;
+  }
+  if (!isRecord(message) || message['method'] !== 'tools/call') return undefined;
+  const params = isRecord(message['params']) ? message['params'] : {};
+  const name = typeof params['name'] === 'string' ? params['name'] : '';
+  const meta = metadataFor(name);
+  if (meta === undefined || meta.risk === 'read' || meta.risk === 'meta') return undefined;
+  return { name, risk: meta.risk };
+}
+
 /** The refusal for a write tool the app's save has paused the server in the middle of. */
 function pausedError(name: string): CommandError {
   return {
@@ -118,13 +138,9 @@ export function guardMessage(message: unknown, policy: GuardPolicy): RefusalResp
   const stopped = policy.degraded?.(name);
   if (stopped !== undefined) return refusalResponse(id, stopped);
 
-  const meta = metadataFor(name);
-  if (meta !== undefined && meta.risk !== 'read' && meta.risk !== 'meta' && !policy.allowWrites) {
-    return refusalResponse(id, readOnlyError(name, meta.risk));
-  }
-  if (meta !== undefined && meta.risk !== 'read' && meta.risk !== 'meta' && policy.paused?.() === true) {
-    return refusalResponse(id, pausedError(name));
-  }
+  const meta = writeToolCall(message);
+  if (meta !== undefined && !policy.allowWrites) return refusalResponse(id, readOnlyError(meta.name, meta.risk));
+  if (meta !== undefined && policy.paused?.() === true) return refusalResponse(id, pausedError(meta.name));
   return undefined;
 }
 

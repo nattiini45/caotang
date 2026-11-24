@@ -38,7 +38,7 @@ import { bearerAccepted } from './auth.js';
 import { createConfirmLedger, createRoundCodec } from './confirm.js';
 import type { WriteGate } from './gate.js';
 import { createReplayCache } from './replay.js';
-import { guardBatch, guardMessage, type GuardPolicy, type RefusalResponse } from './guard.js';
+import { guardBatch, guardMessage, writeToolCall, type GuardPolicy, type RefusalResponse } from './guard.js';
 import { LegacySessions, type LegacySessionOptions } from './legacy-sessions.js';
 import { degradedInstructions, guardDegraded, registerRecoveryTools, type DegradedSession, type RecoveryRuntime } from './recovery.js';
 import { registerPictureTools } from './pictures.js';
@@ -223,13 +223,13 @@ async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-/** One request, from the guards to the SDK's handler. See the module comment for the order. */
 /**
- * The pause a desktop app asks for while it saves (gate.ts, desktop.md §The project's own MCP server): `POST /control/pause` stops
- * a write from starting, `POST /control/resume` lets them start again, and both answer the pause as it now stands. The token is the
- * same one the MCP endpoint takes, so only the app that holds it can pause a server it started.
+ * The pause a desktop app asks for while it saves (gate.ts, desktop.md §The project's own MCP server): `POST /control/pause` stops a
+ * write from starting and answers only once the writes already admitted have finished, `POST /control/resume` lets them start again and
+ * answers at once, and both answer the pause as it now stands. The token is the same one the MCP endpoint takes, so only the app that
+ * holds it can pause a server it started.
  */
-function answerControl(req: IncomingMessage, res: ServerResponse, path: string, options: HttpServerOptions): void {
+async function answerControl(req: IncomingMessage, res: ServerResponse, path: string, options: HttpServerOptions): Promise<void> {
   if (!bearerAccepted(req.headers.authorization, options.token)) {
     sendJson(res, 401, { error: 'a bearer token is required: send Authorization: Bearer <token>' }, { 'WWW-Authenticate': 'Bearer realm="caotang-mcp"' });
     return;
@@ -243,9 +243,10 @@ function answerControl(req: IncomingMessage, res: ServerResponse, path: string, 
     sendJson(res, 405, { error: `${path} takes POST` }, { Allow: 'POST' });
     return;
   }
-  sendJson(res, 200, path === CONTROL_PAUSE ? gate.pause() : gate.resume());
+  sendJson(res, 200, path === CONTROL_PAUSE ? await gate.pause() : gate.resume());
 }
 
+/** One request, from the guards to the SDK's handler: what is admitted, and what is served. See the module comment for the order. */
 async function answer(
   req: IncomingMessage,
   res: ServerResponse,
@@ -258,7 +259,7 @@ async function answer(
 
   const path = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
   if (path === CONTROL_PAUSE || path === CONTROL_RESUME) {
-    answerControl(req, res, path, options);
+    await answerControl(req, res, path, options);
     return;
   }
   if (path !== MCP_PATH) {
@@ -296,6 +297,28 @@ async function answer(
     }
   }
 
+  // A write the guards let through is admitted here, so a pause asked for now waits for it instead of letting the app save over it.
+  // The guard read the pause in this same turn, so a write cannot slip in behind a pause raised between the two. The release runs
+  // however this request ends — an answer, a refusal, a deadline, a thrown error — and a request that carries no write admits
+  // nothing, so a read never holds a pause.
+  const gate = options.gate;
+  const release = gate !== undefined && req.method === 'POST' && writeToolCall(parsed) !== undefined ? gate.admit() : undefined;
+  try {
+    await serveRequest(req, res, runtime, options, http, parsed);
+  } finally {
+    release?.();
+  }
+}
+
+/** A guarded MCP request, served: a 2025-era connection's own server, a first `initialize`, or the handler for one request. */
+async function serveRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  runtime: ServerRuntime,
+  options: HttpServerOptions,
+  http: HttpSurface,
+  parsed: unknown,
+): Promise<void> {
   // A request that names a session belongs to a 2025-era connection, and only that connection can answer it.
   const session = req.headers['mcp-session-id'];
   if (typeof session === 'string') {

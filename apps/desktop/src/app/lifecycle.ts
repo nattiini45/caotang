@@ -1980,9 +1980,9 @@ async function writeFolder(
   let toWrite: ReturnType<typeof copyState> | undefined;
   let warnings: readonly string[] = [];
   // **The pause.** The server this app runs serves the same folder, so it is paused from the first file this save writes to the last:
-  // a write tool is refused rather than starting between the digest check above and a rename below. A save the verdict refused never
-  // reached this point, so a save that writes nothing never pauses. A write already running when the pause arrives finishes, and the
-  // digest check then refuses the file it was about to replace (gate.ts, native-mcp.ts).
+  // a write tool is refused rather than starting between the digest check above and a rename below, and the pause is answered only
+  // once the writes the server had already admitted have finished, so nothing of its is persisting a file here either. A save the
+  // verdict refused never reached this point, so a save that writes nothing never pauses (gate.ts, native-mcp.ts).
   // A pause that cannot be confirmed stops the save here, in the words the folder's own lock gets: a server that may still accept
   // writes is holding this folder, and writing anyway would break the promise below that nothing of its can start mid-save. The
   // writer can save anyway through the same confirmation a stray lock file asks for.

@@ -1,6 +1,6 @@
 /**
- * The pause a desktop app asks for while it saves (gate.ts, desktop.md §The project's own MCP server): what the gate says, and
- * what the two control endpoints answer with and without the token.
+ * The pause a desktop app asks for while it saves (gate.ts, desktop.md §The project's own MCP server): what the gate says, that a
+ * pause waits for the writes the server admitted before it, and what the two control endpoints answer with and without the token.
  */
 
 import { readFileSync } from 'node:fs';
@@ -8,7 +8,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { createWriteGate } from '../src/index.js';
+import { createWriteGate, type WriteGate } from '../src/index.js';
 import { connectClient, LANDING, resultJson, startFixture, type Fixture } from './support.js';
 
 /** One control call, as the app makes it: a POST with the token, and the answer read as JSON. */
@@ -21,23 +21,37 @@ async function control(url: string, path: string, token: string | undefined, met
   return { status: response.status, body: (await response.json()) as Record<string, unknown> };
 }
 
+/** Lets every continuation queued so far run, so a pause that answered at once would have answered by now. */
+async function settle(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 10));
+}
+
+/** Waits until a request has reached the server and changed what the condition reads. */
+async function until(condition: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (condition()) return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error('the condition never held');
+}
+
 describe('createWriteGate', () => {
-  it('is not paused until asked, and says when a pause began', () => {
+  it('is not paused until asked, and says when a pause began', async () => {
     const gate = createWriteGate(() => new Date('2026-11-23T10:00:00.000Z'));
     expect(gate.paused()).toBe(false);
     expect(gate.state()).toEqual({ paused: false });
-    expect(gate.pause()).toEqual({ paused: true, since: '2026-11-23T10:00:00.000Z' });
+    expect(await gate.pause()).toEqual({ paused: true, since: '2026-11-23T10:00:00.000Z' });
     expect(gate.paused()).toBe(true);
     expect(gate.resume()).toEqual({ paused: false });
     expect(gate.paused()).toBe(false);
   });
 
-  it('keeps the first instant when asked twice, and lifts only when the second resume arrives', () => {
+  it('keeps the first instant when asked twice, and lifts only when the second resume arrives', async () => {
     let now = new Date('2026-11-23T10:00:00.000Z');
     const gate = createWriteGate(() => now);
-    gate.pause();
+    await gate.pause();
     now = new Date('2026-11-23T10:00:05.000Z');
-    expect(gate.pause().since).toBe('2026-11-23T10:00:00.000Z');
+    expect((await gate.pause()).since).toBe('2026-11-23T10:00:00.000Z');
     // Two saves overlap: the first one finishing must not let a write start under the second.
     expect(gate.resume()).toEqual({ paused: true, since: '2026-11-23T10:00:00.000Z' });
     expect(gate.paused()).toBe(true);
@@ -45,7 +59,72 @@ describe('createWriteGate', () => {
     expect(gate.paused()).toBe(false);
     // A resume with nothing paused answers what the gate already says, and the next pause starts its own clock.
     expect(gate.resume()).toEqual({ paused: false });
-    expect(gate.pause().since).toBe('2026-11-23T10:00:05.000Z');
+    expect((await gate.pause()).since).toBe('2026-11-23T10:00:05.000Z');
+  });
+
+  it('does not answer a pause while a write it admitted is running, and answers the moment it releases', async () => {
+    const gate = createWriteGate(() => new Date('2026-11-23T10:00:00.000Z'));
+    const release = gate.admit();
+    const paused = gate.pause();
+    // The pause is raised before it answers: a write asked for now is refused, not admitted behind a barrier that has not drained yet.
+    expect(gate.paused()).toBe(true);
+    expect(gate.state()).toEqual({ paused: true, since: '2026-11-23T10:00:00.000Z' });
+    let answered = false;
+    void paused.then(() => {
+      answered = true;
+    });
+    await settle();
+    expect(answered).toBe(false);
+    release();
+    expect(await paused).toEqual({ paused: true, since: '2026-11-23T10:00:00.000Z' });
+  });
+
+  it('answers a pause at once when no write is in flight', async () => {
+    const gate = createWriteGate(() => new Date('2026-11-23T10:00:00.000Z'));
+    const paused = gate.pause();
+    // Settled within the turn it was asked in, so an app saving over a folder with nothing of the server's in it never waits.
+    expect(await Promise.race([paused, Promise.resolve('still waiting')])).toEqual({ paused: true, since: '2026-11-23T10:00:00.000Z' });
+  });
+
+  it('drains two overlapping pauses only once, and still needs one resume for each', async () => {
+    const gate = createWriteGate(() => new Date('2026-11-23T10:00:00.000Z'));
+    const release = gate.admit();
+    const first = gate.pause();
+    const second = gate.pause();
+    let answered = 0;
+    void first.then(() => {
+      answered += 1;
+    });
+    void second.then(() => {
+      answered += 1;
+    });
+    await settle();
+    expect(answered).toBe(0);
+    expect(gate.state()).toEqual({ paused: true, since: '2026-11-23T10:00:00.000Z' });
+    release();
+    expect(await first).toEqual({ paused: true, since: '2026-11-23T10:00:00.000Z' });
+    expect(await second).toEqual({ paused: true, since: '2026-11-23T10:00:00.000Z' });
+    expect(gate.paused()).toBe(true);
+    expect(gate.resume()).toEqual({ paused: true, since: '2026-11-23T10:00:00.000Z' });
+    expect(gate.resume()).toEqual({ paused: false });
+    expect(gate.paused()).toBe(false);
+  });
+
+  it('counts one release for each write it admitted, however often a release is called', async () => {
+    const gate = createWriteGate(() => new Date('2026-11-23T10:00:00.000Z'));
+    const first = gate.admit();
+    const second = gate.admit();
+    first();
+    first();
+    const paused = gate.pause();
+    let answered = false;
+    void paused.then(() => {
+      answered = true;
+    });
+    await settle();
+    expect(answered).toBe(false);
+    second();
+    expect(await paused).toEqual({ paused: true, since: '2026-11-23T10:00:00.000Z' });
   });
 });
 
@@ -120,6 +199,83 @@ describe('the control endpoints', () => {
       expect(written.isError).toBeUndefined();
       expect(manifest()).not.toBe(before);
     } finally {
+      await client.close();
+      await fixture.close();
+    }
+  });
+});
+
+describe('a pause waits for the writes already running', () => {
+  let fixture: Fixture;
+
+  /** A gate whose admitted writes a test holds the release of, so it can prove what a pause waits for. */
+  const holdingGate = (): { gate: WriteGate; held: (() => void)[] } => {
+    const inner = createWriteGate(() => new Date('2026-11-23T10:00:00.000Z'));
+    const held: (() => void)[] = [];
+    return {
+      held,
+      gate: {
+        paused: () => inner.paused(),
+        state: () => inner.state(),
+        resume: () => inner.resume(),
+        pause: () => inner.pause(),
+        // The server's own release is a no-op, so the write stays in flight until the test says it finished.
+        admit: () => {
+          held.push(inner.admit());
+          return () => undefined;
+        },
+      },
+    };
+  };
+
+  it('answers a pause only once the write the server admitted has finished', async () => {
+    const { gate, held } = holdingGate();
+    fixture = await startFixture({ label: 'control-drain', allowWrites: true, seed: true, gate });
+    const client = await connectClient(fixture.url, fixture.token);
+    try {
+      const written = (await client.callTool({ name: 'meta.set', arguments: { targets: [LANDING], status: 'final' } })) as { isError?: boolean };
+      expect(written.isError).toBeUndefined();
+      // The request path admitted the write it let through, and its release is what a pause waits for.
+      expect(held).toHaveLength(1);
+
+      const answer = control(fixture.url, '/control/pause', fixture.token);
+      let answered = false;
+      void answer.then(
+        () => {
+          answered = true;
+        },
+        () => {
+          answered = true;
+        },
+      );
+      await until(() => gate.paused());
+      await settle();
+      expect(answered).toBe(false);
+
+      held[0]?.();
+      expect(await answer).toEqual({ status: 200, body: { paused: true, since: '2026-11-23T10:00:00.000Z' } });
+      expect(gate.paused()).toBe(true);
+      await control(fixture.url, '/control/resume', fixture.token);
+      expect(gate.paused()).toBe(false);
+    } finally {
+      for (const release of held) release();
+      await client.close();
+      await fixture.close();
+    }
+  });
+
+  it('admits no write for a read, so a pause during one answers at once', async () => {
+    const { gate, held } = holdingGate();
+    fixture = await startFixture({ label: 'control-read', allowWrites: true, seed: true, gate });
+    const client = await connectClient(fixture.url, fixture.token);
+    try {
+      expect(await client.callTool({ name: 'doc.read', arguments: { doc: LANDING, response_format: 'detailed' } })).toBeDefined();
+      expect(held).toHaveLength(0);
+      const paused = await control(fixture.url, '/control/pause', fixture.token);
+      expect(paused).toEqual({ status: 200, body: { paused: true, since: '2026-11-23T10:00:00.000Z' } });
+      await control(fixture.url, '/control/resume', fixture.token);
+    } finally {
+      for (const release of held) release();
       await client.close();
       await fixture.close();
     }

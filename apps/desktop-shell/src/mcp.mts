@@ -8,7 +8,7 @@
  * **The app and the server are one coordinated writer.** Both write the same folder, and the server's own lock makes the app ask
  * before it saves. The window both could lose a change in is the instant between the app's digest check and its rename, so the app
  * pauses the server for the length of a save: `pause` posts to the server's `/control/pause`, a write tool is refused while it
- * stands, and `resume` lifts it when the save is done.
+ * stands, and the answer comes only once the writes already running have finished; `resume` lifts it when the save is done.
  *
  * A folder id, never a path, is what the page names: the grant list every folder channel uses resolves it, so the page cannot point
  * this server at a directory the writer never opened.
