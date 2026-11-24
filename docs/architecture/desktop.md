@@ -239,7 +239,11 @@ that is put back returns the key at the address the writer stored it for. A requ
 takes, and a replacement hides its id until the new secret is sealed and placed, so no request is answered with the older key
 at the address the writer just moved to. The remembered address is written only once the binding and the vault's own write have
 both been attempted and is put back when either fails, so a refused write can never leave `restore` pairing an older secret with
-a later address. `bound-vault.ts` is that rule, and the repository's gate tests it without Electron.
+a later address. A rejected write puts the address back only when the vault still shows the secret that id had before it — a
+`put` can fail after its entry was written, and the secret it holds then is the one just entered, which only ever goes to the
+address it was entered for; until the writer enters it again, the id is denied. A headers edit holds the same line: it records
+the address for its undo only once the vault has taken the new headers, so an edit that failed leaves the undo describing the
+write before it. `bound-vault.ts` is that rule, and the repository's gate tests it without Electron.
 
 **Migration writes, verifies, deletes.** On first open with a keychain, each key an earlier build sealed in this browser's
 IndexedDB vault is opened by the store that already holds it, written to the keychain, read back by the main process before it

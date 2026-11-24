@@ -248,6 +248,71 @@ describe('a key belongs to one address', () => {
     expect(await bound.readFor(B, [ID])).toBeUndefined();
   });
 
+  it('leaves a replacement unbound when the write that failed may have stored its new key, so the old endpoint never gets it', async () => {
+    const saved: { value: string | undefined } = { value: undefined };
+    let writes = 0;
+    let failWrite = Number.POSITIVE_INFINITY;
+    let failOpen = 0;
+    const v = await vault({
+      read: async () => saved.value,
+      write: async (text) => {
+        writes += 1;
+        if (writes === failWrite) throw new Error('the vault file could not be written');
+        saved.value = text;
+      },
+      open: async (sealed) => {
+        if (failOpen > 0) {
+          failOpen -= 1;
+          throw new Error('the keychain refused to open it');
+        }
+        return Buffer.from(sealed.slice('sealed:'.length), 'base64').toString('utf8');
+      },
+    });
+    await v.bound.put(ID, { apiKey: 'sk-at-a' }, A);
+
+    // The replacement's entry is written, its read-back fails, and the rollback cannot be written either: the vault is left
+    // holding the key entered for the new endpoint and reports the failure.
+    failOpen = 1;
+    failWrite = writes + 2;
+    await expect(v.bound.putReplacement(ID, { apiKey: 'sk-at-b' }, B)).rejects.toThrow(/could not be written/u);
+    // The key typed for the new endpoint is not handed to the old one, and the id is denied rather than placed anywhere.
+    expect(v.bindings.originOf(ID)).toBeUndefined();
+    expect(v.bindings.keysFor(A)).toEqual([]);
+    expect(await v.bound.readFor(A, [ID])).toBeUndefined();
+
+    // The undo still describes the write before the failed one, and the id is free for the writer to place: entering the key
+    // for the endpoint they mean binds it there and nowhere else.
+    await v.bound.putReplacement(ID, { apiKey: 'sk-at-b' }, B);
+    expect(v.bindings.originOf(ID)).toBe(B);
+    expect(v.bindings.keysFor(A)).toEqual([]);
+    expect((await v.bound.readFor(B, [ID]))?.get(ID)?.apiKey).toBe('sk-at-b');
+  });
+
+  it('keeps a failed headers edit from moving the address a later undo puts the key back at', async () => {
+    const saved: { value: string | undefined } = { value: undefined };
+    let failNext = false;
+    const v = await vault({
+      read: async () => saved.value,
+      write: async (text) => {
+        if (failNext) {
+          failNext = false;
+          throw new Error('the vault file could not be written');
+        }
+        saved.value = text;
+      },
+    });
+    await v.bound.put(ID, { apiKey: 'sk-at-a' }, A);
+    await v.bound.putReplacement(ID, { apiKey: 'sk-at-b' }, B);
+
+    failNext = true;
+    await expect(v.bound.putHeaders(ID, { 'x-team': 'two' })).rejects.toThrow(/could not be written/u);
+    // The edit did not happen, so the undo still names the write before it: the key goes back to the address it was entered for.
+    await v.bound.restore(ID);
+    expect((await v.os.read(ID))?.apiKey).toBe('sk-at-a');
+    expect(v.bindings.originOf(ID)).toBe(A);
+    expect(await v.bound.readFor(B, [ID])).toBeUndefined();
+  });
+
   it('refuses to read a key for an address other than the one it is bound to', async () => {
     const { bound, bindings } = await vault();
     await bound.put(ID, { apiKey: KEY }, A);

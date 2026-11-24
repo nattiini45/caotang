@@ -61,6 +61,15 @@ export function openBoundKeyVault(vault: OsKeyVault, bindings: KeyBindings): Bou
     else await bindings.rebind(id, origin);
   };
 
+  /** The undo record as it stands, and the function that puts it back: what a write that did not happen costs. */
+  const snapshot = (id: string): (() => void) => {
+    const recorded = undo.has(id) ? { had: true as const, origin: undo.get(id) } : { had: false as const };
+    return () => {
+      if (recorded.had) undo.set(id, recorded.origin);
+      else undo.delete(id);
+    };
+  };
+
   /**
    * A write that may change the address, and the undo of both halves. A binding that cannot be made leaves the vault untouched
    * and the undo record as it was; a seal that fails puts the address back, so a key that was not stored never leaves its id
@@ -70,18 +79,17 @@ export function openBoundKeyVault(vault: OsKeyVault, bindings: KeyBindings): Bou
    * session remembers for that undo is written only once the binding and the vault's write have both been attempted, and is put
    * back whenever the write fails. A rejected write that left a later address in this map would let `restore` pair an older
    * secret with an address the writer never entered it for.
+   *
+   * **A rejected write only puts the address back when the secret came back too.** A `put` can fail after its entry is written,
+   * so the id may hold the key just entered; that key only ever goes to the address it was entered for.
    */
   const write = (id: string, payload: OsVaultPayload, origin: string, replace: boolean): Promise<void> => serialize(async () => {
     const previous = bindings.originOf(id);
     // An id bound elsewhere is refused before the vault is touched; only the writer's own replacement may move one.
     if (!replace && previous !== undefined && previous !== origin) throw new KeyBoundElsewhere(id, previous);
 
-    const recorded = undo.has(id) ? { had: true as const, origin: undo.get(id) } : { had: false as const };
     /** Puts the undo record back the way the vault's own undo describes it after a write that did not happen. */
-    const restoreRecord = (): void => {
-      if (recorded.had) undo.set(id, recorded.origin);
-      else undo.delete(id);
-    };
+    const restoreRecord = snapshot(id);
 
     // A replacement hides the id for the whole write: a request made while the new secret is being sealed is refused, rather than
     // answered with the older secret at the address the writer just moved to. An id with no address is already hidden.
@@ -90,12 +98,29 @@ export function openBoundKeyVault(vault: OsKeyVault, bindings: KeyBindings): Bou
     // The secret is stored while the id is unbound or already at this address, and the address is written only after the seal
     // holds. No interruption — a refused binding, a failed seal, or the process stopping between the two — can leave an older
     // secret paired with an address the writer did not enter it for: an id that was not placed is denied.
+    const before = await vault.revision(id);
+    /** Whether the vault still holds the secret this id had before the write: an unreadable vault counts as changed. */
+    const holdsBefore = async (): Promise<boolean> => {
+      try {
+        return await vault.revision(id) === before;
+      } catch {
+        return false;
+      }
+    };
     undo.set(id, previous);
     try {
       await vault.put(id, payload);
     } catch (error) {
-      await setAddress(id, previous);
-      restoreRecord();
+      // A write that is reported failed can still have stored the secret: the read-back is what fails, and the entry it means
+      // to put back may not be written either. Only a vault that still shows the secret this id had before the write may keep
+      // the address, because the one it shows otherwise is the key just entered — sending that to the older endpoint would
+      // hand over the key the writer typed for the new one. Such an id is left unbound, and denied, until entered again.
+      const unchanged = previous === origin || await holdsBefore();
+      try {
+        if (unchanged) await setAddress(id, previous);
+      } finally {
+        restoreRecord();
+      }
       throw error;
     }
     if (!replace && previous === origin) return;
@@ -129,8 +154,16 @@ export function openBoundKeyVault(vault: OsKeyVault, bindings: KeyBindings): Bou
     putHeaders: (id, headers) => serialize(async () => {
       // A key that is not stored is not created by a headers edit, so there is nothing to remember an address for either.
       if (!await vault.has(id)) return;
+      const restoreRecord = snapshot(id);
       undo.set(id, bindings.originOf(id));
-      await vault.putHeaders(id, headers);
+      try {
+        await vault.putHeaders(id, headers);
+      } catch (error) {
+        // The headers edit did not happen, so the undo must still describe the write before it: an address recorded for an
+        // edit that failed would send the secret a later undo puts back to an endpoint it was never entered for.
+        restoreRecord();
+        throw error;
+      }
     }),
 
     remove: (id) => serialize(async () => {
