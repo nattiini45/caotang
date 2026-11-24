@@ -216,6 +216,11 @@ export class ProviderService {
   private readonly roleState: { current: RoleSettings | undefined };
   readonly saves = new SaveChannel('settings');
   private usageReadFailure: string | null = null;
+  /**
+   * Whether the stored profile records could not be read at open. While that holds, no write may put this session's list over
+   * records it never saw: a transient read failure must not cost the writer their profiles.
+   */
+  private profilesUnreadable = false;
   private verificationAttempt = 0;
   private readonly drafts = new Set<string>();
   private readonly verificationListeners = new Set<() => void>();
@@ -427,7 +432,8 @@ export class ProviderService {
     installing = false;
     if (profiles.list().length === 0) {
       await profiles.create({ name: DEMO_PROFILE_NAME, kind: 'mock', isActive: true });
-      await service.persist();
+      // A demo profile this session could not know is new is not written over the records that could not be read.
+      if (!service.profilesUnreadable) await service.persist();
     }
     ledger.subscribe(() => { void service.persist(); });
     return { service, notices };
@@ -481,6 +487,7 @@ export class ProviderService {
       if (activeId !== null) this.profiles.activate(activeId);
     } catch (error) {
       const reason = displayText(error);
+      this.profilesUnreadable = true;
       notices.push(t`Your provider profiles could not be read: ${{ error: reason }}`);
     }
 
@@ -535,9 +542,13 @@ export class ProviderService {
   private async write(): Promise<string | null> {
     if (this.db === null) return null;
     try {
-      await this.db.put(APP_KEYS.profiles, this.list().map((profile) => profile.verification?.kind === 'checking'
-        ? { ...profile, verification: readVerification(profile.verification) }
-        : profile));
+      // The list here is what this session could restore; when the stored records could not be read, it is missing every one of
+      // them, so writing it would replace them for good.
+      if (!this.profilesUnreadable) {
+        await this.db.put(APP_KEYS.profiles, this.list().map((profile) => profile.verification?.kind === 'checking'
+          ? { ...profile, verification: readVerification(profile.verification) }
+          : profile));
+      }
       if (this.usageReadFailure === null) await this.db.put(APP_KEYS.usage, this.ledger.snapshot());
       await this.db.put(APP_KEYS.requests, this.requests.entries().slice(-REQUEST_LOG_KEEP));
       return this.usageReadFailure;
