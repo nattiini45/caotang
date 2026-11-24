@@ -17,6 +17,7 @@ import type { DirectoryHandleLike } from './app/fs-access.js';
 import { languageRevision, subscribeLanguage } from './i18n/language.js';
 import { openDemoSample, openFolder, openHostedProject, type Opened } from './app/lifecycle.js';
 import { hostedProject, hostedProjectRevision, subscribeHostedProject } from './app/studio-host.js';
+import { forgetHostedTarget, hostedTargetFor } from './app/hosted-target.js';
 import { useBootPhase } from './app/use-boot-phase.js';
 import { DemoStart } from './app/demo-start.js';
 import { openInTurn } from './app/open-queue.js';
@@ -122,11 +123,18 @@ export function App(): ReactNode {
     });
   };
 
-  /** Ends a session. A writing session that could not be recorded is said, not dropped in silence. */
+  /**
+   * Ends a session. A writing session that could not be recorded is said, not dropped in silence. A hosted project's target stops
+   * following this browser's saves once the session has closed, so a settle that arrives afterwards cannot write to the account
+   * from a session nobody is looking at.
+   */
   const closeSession = (leaving: ProjectSession): void => {
     void leaving.closeSafely().catch((error: unknown) => {
       const errorText = error instanceof Error ? error.message : String(error);
       setNotice(t`The writing session could not be recorded: ${{ error: errorText }}`);
+    }).finally(() => {
+      hostedTargetFor(leaving.projectId)?.detach();
+      forgetHostedTarget(leaving.projectId);
     });
   };
 
@@ -162,21 +170,32 @@ export function App(): ReactNode {
     const source = hostedProject();
     if (source === null) {
       // The host took the project away: the serial cancels an open still on its way, and a session opened from one is closed.
-      if (hostedOpen.current === null) return;
+      // The serial cancels an open still on its way whether or not one has been shown yet, and a session opened from one is
+      // closed. The project's target stops following this browser's saves, so nothing reaches the account after the lock.
+      const shown = hostedOpen.current;
       hostedOpen.current = null;
       serial.current += 1;
+      if (shown === null) return;
+      hostedTargetFor(shown)?.detach();
+      forgetHostedTarget(shown);
       goHome();
       return;
     }
     const token = (serial.current += 1);
     void openInTurn(async () => {
       const opened = await openHostedProject(boot.store, source);
-      if (token !== serial.current) return;
+      if (token !== serial.current) {
+        // The host locked, signed out or handed another project while this read was on its way: the session it made is closed here,
+        // because nothing else holds it and its browser copy is not a project the writer will see.
+        await opened.session.closeSafely().catch(() => undefined);
+        forgetHostedTarget(opened.session.projectId);
+        return;
+      }
       hostedOpen.current = opened.session.projectId;
       show(opened);
     }).catch((error: unknown) => {
       if (token !== serial.current) return;
-      setNotice(t`The project could not be opened: ${{ error: error instanceof Error ? error.message : String(error) }}`);
+      setNotice(couldNotOpen(error));
     });
     // The store is ready once, and the handed project is followed: `handed` is the revision this effect answers to.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -222,6 +241,11 @@ export function App(): ReactNode {
   }
   const notices = [...services.notices, ...(shownNotice === null ? [] : [shownNotice])];
   return <Home store={store} services={services} onOpened={show} onRunDemo={runDemo} demoOpening={demoState.kind === 'opening'} notices={notices} />;
+}
+
+/** The sentence a hosted opening that failed is said with: one place, so its translator comment stays one place too. */
+function couldNotOpen(error: unknown): string {
+  return t`The project could not be opened: ${{ error: error instanceof Error ? error.message : String(error) }}`;
 }
 
 /**

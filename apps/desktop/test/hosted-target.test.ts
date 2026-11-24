@@ -92,3 +92,65 @@ describe('the account as a session’s save target', () => {
     expect(await saving.keepMine()).toEqual({ kind: 'unsaved' });
   });
 });
+
+describe('a save that fails in a way the target has no answer for', () => {
+  it('says the account is behind instead of staying in the saving state', async () => {
+    const saving = target(async () => {
+      throw new Error('The account is full.');
+    });
+    await saving.save(state());
+    expect(saving.state()).toEqual({ kind: 'unsaved' });
+  });
+
+  it('lets the writer send it again once the refusal is gone', async () => {
+    let refuse = true;
+    const saving = target(async () => {
+      if (refuse) throw new Error('The account is full.');
+      return { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } };
+    });
+    await saving.save(state());
+    expect(saving.state()).toEqual({ kind: 'unsaved' });
+    refuse = false;
+    await saving.save(state());
+    expect(saving.state()).toEqual({ kind: 'idle' });
+  });
+});
+
+describe('the answer to a conflict this session’s own save raised', () => {
+  it('runs the whole save again against the other device’s version, so a deleted document comes back with its body', async () => {
+    const saves: ProjectState[] = [];
+    const committed: unknown[] = [];
+    const outcomes = [
+      { kind: 'conflict', paths: ['docs/a.md'], changes: [{ path: 'docs/a.md', bytes: new Uint8Array([1]) }] },
+      { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } },
+    ];
+    const saving = new HostedTarget('p_lighthouse', {
+      refresh: async () => undefined,
+      commitChanges: async (changes: readonly unknown[]) => committed.push(changes),
+    } as never, (async (current: ProjectState) => {
+      saves.push(current);
+      return outcomes.shift();
+    }) as never);
+    const current = state();
+    await saving.save(current);
+    expect(saving.state().kind).toBe('conflict');
+
+    expect(await saving.keepMine(current)).toEqual({ kind: 'idle' });
+    // The state itself is the answer: a partial replay of the staged paths could write a manifest naming a document whose file
+    // the other device deleted, and the whole save run again writes the body with it.
+    expect(saves).toEqual([current, current]);
+    expect(committed).toEqual([]);
+  });
+
+  it('sends the project’s pictures with the save that names them', async () => {
+    const seen: unknown[] = [];
+    const saving = target(async (_state, assets) => {
+      seen.push(assets);
+      return { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } };
+    });
+    const one = { files: { 'assets/c_2K4Q9WJ1TT.png': new Uint8Array([7]) }, complete: true };
+    saving.attach({ ...session(state()), assets: async () => one });
+    await saving.save(state());
+    expect(seen).toEqual([one]);
+  });
+});

@@ -39,5 +39,5 @@ export async function picturesOnProjectFs(fs: ArtifactFs): Promise<Record<string
 export async function openHostedTarget(source: HostedProjectSource): Promise<HostedTarget> {
   const fs = await openRemoteProject(source);
   const { saveProjectToAccount } = await import('@caotang/remote-store');
-  return new HostedTarget(source.projectId, fs, (state) => saveProjectToAccount(fs, state));
+  return new HostedTarget(source.projectId, fs, (state, assets) => saveProjectToAccount(fs, state, { assets }));
 }

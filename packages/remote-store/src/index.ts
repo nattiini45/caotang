@@ -29,4 +29,4 @@ export {
 export { RemoteConflictError, RemoteIntegrityError, RemoteQuotaExceededError } from './errors.js';
 export { PendingEdits, replayPending, saveOrQueue, type SaveOutcome } from './pending-edits.js';
 export { BatchedSave } from './batched-save.js';
-export { saveProjectToAccount, type HostedSaveOutcome } from './save-project.js';
+export { saveProjectToAccount, type HostedSaveOutcome, type SaveAssets } from './save-project.js';

@@ -100,11 +100,16 @@ it('names the documents another device changed by their titles, never by their f
 });
 
 it('keeps this device’s text when the writer says so, and the question goes', async () => {
-  const one = target({ kind: 'conflict', paths: [PATH], changes: [{ path: PATH, kind: 'modified' }] });
+  // The first save loses to another device; the whole save run again on top of their version lands.
+  const outcomes = [
+    { kind: 'conflict', paths: [PATH], changes: [{ path: PATH, kind: 'modified' }] },
+    { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } },
+  ];
+  const one = new HostedTarget('p_lighthouse', { refresh: async () => undefined } as never, (async () => outcomes.shift()) as never);
   await render(one);
   await act(async () => one.save(state));
   await act(async () => button('Keep this device’s text').click());
-  expect(committed).toEqual([[{ path: PATH, kind: 'modified' }]]);
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
   expect(shown()).not.toContain('Another device saved these first');
   expect(host.innerHTML).toBe('');
 });

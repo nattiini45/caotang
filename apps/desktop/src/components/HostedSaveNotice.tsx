@@ -71,7 +71,7 @@ export function HostedSaveNotice({ session }: { readonly session: ProjectSession
     open
     title={t`Another device saved these first`}
     choices={[
-      { label: t`Keep this device’s text`, onChoose: () => void target.keepMine() },
+      { label: t`Keep this device’s text`, onChoose: () => void target.keepMine(session.state) },
       { label: t`Leave it for now`, onChoose: () => setPutOff(key) },
     ]}
     onCancel={() => setPutOff(key)}

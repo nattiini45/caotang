@@ -8,7 +8,7 @@
  * folder save already asks. Nothing here reaches the network on its own: the target is built when a host hands a project over
  * and disposed when the session closes.
  */
-import type { EncryptedRemoteArtifactFs, HostedSaveOutcome, RemoteChange } from '@caotang/remote-store';
+import type { EncryptedRemoteArtifactFs, HostedSaveOutcome, RemoteChange, SaveAssets } from '@caotang/remote-store';
 import type { ProjectState } from '@caotang/store';
 
 /** What the writer is owed to know about the account's copy. */
@@ -28,6 +28,11 @@ export interface HostedSaveSession {
     /** The save state's own name: `saved` is the moment this browser's copy and the state agree. */
     getStatus(): string;
   };
+  /**
+   * Every picture the project holds, and whether that is all of `assets/`. They travel in the same batch as the files, because the
+   * state that names a picture and the picture are one save: a cover the account never gets is a cover the next device cannot show.
+   */
+  assets?(): Promise<SaveAssets>;
 }
 
 export class HostedTarget {
@@ -36,12 +41,15 @@ export class HostedTarget {
   #listeners = new Set<() => void>();
   #running: Promise<void> | null = null;
   #again = false;
+  #detached: (() => void) | null = null;
+  /** The attached session's pictures, so a save carries them with the files that name them. */
+  #assets: (() => Promise<SaveAssets>) | null = null;
 
   constructor(
     readonly projectId: string,
     readonly fs: EncryptedRemoteArtifactFs,
     /** The whole-project save, bound by the module that holds the adapter so this one imports no package at run time. */
-    readonly saveState: (state: ProjectState) => Promise<HostedSaveOutcome>,
+    readonly saveState: (state: ProjectState, assets?: SaveAssets) => Promise<HostedSaveOutcome>,
   ) {}
 
   state(): HostedSaveState {
@@ -60,10 +68,23 @@ export class HostedTarget {
    * save, so a save still in flight queues exactly one more pass rather than one per keystroke.
    */
   attach(session: HostedSaveSession): () => void {
-    return session.persistence.subscribe(() => {
+    this.detach();
+    this.#assets = session.assets ?? null;
+    const stop = session.persistence.subscribe(() => {
       if (session.persistence.getStatus() !== 'saved') return;
       void this.save(session.state);
     });
+    this.#detached = stop;
+    return () => {
+      stop();
+      if (this.#detached === stop) this.#detached = null;
+    };
+  }
+
+  /** Stops following the browser's saves: the host took the project away, or the session closed. */
+  detach(): void {
+    this.#detached?.();
+    this.#detached = null;
   }
 
   /** Commits this session's state to the account. A second call while one is running runs once more after it. */
@@ -74,19 +95,7 @@ export class HostedTarget {
       await running;
       return;
     }
-    this.#running = (async () => {
-      this.#set({ kind: 'saving' });
-      const outcome = await this.saveState(state);
-      if (outcome.kind === 'written') {
-        this.#conflict = [];
-        this.#set({ kind: 'idle' });
-      } else if (outcome.kind === 'unavailable') {
-        this.#set({ kind: 'unsaved' });
-      } else {
-        this.#conflict = outcome.changes;
-        this.#set({ kind: 'conflict', paths: outcome.paths });
-      }
-    })();
+    this.#running = this.#commit(state);
     try {
       await this.#running;
     } finally {
@@ -98,20 +107,50 @@ export class HostedTarget {
     }
   }
 
-  /**
-   * The writer chose this device's text: read what the other device did, then write this session's staged save on top of it.
-   * Their documents are not lost — they stay as the version this device's save replaced, which is what the account's version
-   * history is for.
-   */
-  async keepMine(): Promise<HostedSaveState> {
-    await this.fs.refresh();
+  async #commit(state: ProjectState): Promise<void> {
+    this.#set({ kind: 'saving' });
+    let outcome: HostedSaveOutcome;
     try {
-      await this.fs.commitChanges(this.#conflict);
+      outcome = await this.saveState(state, await this.#assets?.());
+    } catch {
+      // A refusal this target has no answer of its own for — a full account, a lease taken in between, a blob that failed to
+      // authenticate — is still the account being behind this browser, and saying nothing would leave the writer believing it
+      // saved. The retry is the writer's, so it is offered rather than retried here.
+      this.#set({ kind: 'unsaved' });
+      return;
+    }
+    if (outcome.kind === 'written') {
       this.#conflict = [];
       this.#set({ kind: 'idle' });
-    } catch {
+    } else if (outcome.kind === 'unavailable') {
       this.#set({ kind: 'unsaved' });
+    } else {
+      this.#conflict = outcome.changes;
+      this.#set({ kind: 'conflict', paths: outcome.paths });
     }
+  }
+
+  /**
+   * The writer chose this device's text. The state the session read is the answer: the adapter re-reads the other device's index
+   * and the whole save runs again against it, so a document the other device deleted comes back with its body rather than as a
+   * manifest entry with no file — a replay of only the paths this device staged would write that manifest and nothing else.
+   *
+   * Their documents are not lost: they stay as the version this device's save replaced, which is what the account's version
+   * history is for.
+   */
+  async keepMine(state?: ProjectState): Promise<HostedSaveState> {
+    await this.fs.refresh();
+    if (state === undefined) {
+      try {
+        await this.fs.commitChanges(this.#conflict);
+        this.#conflict = [];
+        this.#set({ kind: 'idle' });
+      } catch {
+        this.#set({ kind: 'unsaved' });
+      }
+      return this.#state;
+    }
+    await this.save(state);
     return this.#state;
   }
 
