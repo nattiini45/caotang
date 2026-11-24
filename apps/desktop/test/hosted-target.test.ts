@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createEmptyManifest, createProjectState, type ProjectState } from '@caotang/store';
 import { RemoteConflictError } from '@caotang/remote-store';
-import { HostedTarget, type HostedQueuePort, type HostedReplay, type HostedSaveSession } from '../src/app/hosted-target.js';
+import { HostedTarget, type HostedSaveSession } from '../src/app/hosted-target.js';
 
 const T0 = new Date('2026-11-24T09:00:00.000Z');
 
@@ -93,6 +93,68 @@ describe('the account as a session’s save target', () => {
   });
 });
 
+describe('a save that fails in a way the target has no answer for', () => {
+  it('says the account is behind instead of staying in the saving state', async () => {
+    const saving = target(async () => {
+      throw new Error('The account is full.');
+    });
+    await saving.save(state());
+    expect(saving.state()).toEqual({ kind: 'unsaved' });
+  });
+
+  it('lets the writer send it again once the refusal is gone', async () => {
+    let refuse = true;
+    const saving = target(async () => {
+      if (refuse) throw new Error('The account is full.');
+      return { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } };
+    });
+    await saving.save(state());
+    expect(saving.state()).toEqual({ kind: 'unsaved' });
+    refuse = false;
+    await saving.save(state());
+    expect(saving.state()).toEqual({ kind: 'idle' });
+  });
+});
+
+describe('the answer to a conflict this session’s own save raised', () => {
+  it('runs the whole save again against the other device’s version, so a deleted document comes back with its body', async () => {
+    const saves: ProjectState[] = [];
+    const committed: unknown[] = [];
+    const outcomes = [
+      { kind: 'conflict', paths: ['docs/a.md'], changes: [{ path: 'docs/a.md', bytes: new Uint8Array([1]) }] },
+      { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } },
+    ];
+    const saving = new HostedTarget('p_lighthouse', {
+      refresh: async () => undefined,
+      commitChanges: async (changes: readonly unknown[]) => committed.push(changes),
+    } as never, (async (current: ProjectState) => {
+      saves.push(current);
+      return outcomes.shift();
+    }) as never);
+    const current = state();
+    await saving.save(current);
+    expect(saving.state().kind).toBe('conflict');
+
+    expect(await saving.keepMine(current)).toEqual({ kind: 'idle' });
+    // The state itself is the answer: a partial replay of the staged paths could write a manifest naming a document whose file
+    // the other device deleted, and the whole save run again writes the body with it.
+    expect(saves).toEqual([current, current]);
+    expect(committed).toEqual([]);
+  });
+
+  it('sends the project’s pictures with the save that names them', async () => {
+    const seen: unknown[] = [];
+    const saving = target(async (_state, assets) => {
+      seen.push(assets);
+      return { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } };
+    });
+    const one = { files: { 'assets/c_2K4Q9WJ1TT.png': new Uint8Array([7]) }, complete: true };
+    saving.attach({ ...session(state()), assets: async () => one });
+    await saving.save(state());
+    expect(seen).toEqual([one]);
+  });
+});
+
 /** A queue as the adapter hands it to the target: paths held, and what a replay answers. */
 function queue(initial: readonly string[], answer: () => Promise<HostedReplay> | HostedReplay = async () => ({ kind: 'sent', count: 1 })) {
   const held = new Set(initial);
@@ -108,9 +170,10 @@ function queue(initial: readonly string[], answer: () => Promise<HostedReplay> |
       if (outcome.kind === 'sent') held.clear();
       return outcome;
     },
-    forget: () => {
-      calls.push('forget');
-      held.clear();
+    forget: (paths) => {
+      calls.push(`forget:${paths === undefined ? 'all' : paths.join(',')}`);
+      if (paths === undefined) held.clear();
+      else for (const path of paths) held.delete(path);
     },
     held: () => [...held],
     marks: () => calls.push('marks'),
@@ -119,7 +182,7 @@ function queue(initial: readonly string[], answer: () => Promise<HostedReplay> |
 }
 
 function withQueue(port: HostedQueuePort, save: (state: ProjectState) => Promise<unknown>): HostedTarget {
-  return new HostedTarget('p_lighthouse', {} as never, save as never, port);
+  return new HostedTarget('p_lighthouse', { refresh: async () => undefined } as never, save as never, port);
 }
 
 describe('the queue a hosted project keeps on this device', () => {
@@ -132,36 +195,46 @@ describe('the queue a hosted project keeps on this device', () => {
     expect(held.port.held()).toEqual(['docs/a.md']);
   });
 
-  it('forgets the held words once a whole save lands, because that save carried them', async () => {
-    const kept = queue(['docs/old.md']);
-    const saving = withQueue(kept.port, async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }));
+  it('forgets only the paths the save carried, and keeps what it did not touch queued', async () => {
+    const kept = queue(['docs/old.md', 'docs/written.md']);
+    const saving = withQueue(kept.port, async () => ({
+      kind: 'written',
+      report: { written: ['docs/written.md'], rotated: [], dropped: [], pruned: [] },
+    }));
     await saving.save(state());
     expect(saving.state()).toEqual({ kind: 'idle' });
-    expect(kept.port.held()).toEqual([]);
-    expect(kept.calls).toEqual(['forget', 'marks']);
+    expect(kept.calls).toEqual(['forget:docs/written.md', 'marks']);
+    expect(kept.port.held()).toEqual(['docs/old.md']);
   });
 
   it('replays an earlier tab’s words before the project is read, and keeps the marks after', async () => {
     const kept = queue(['docs/a.md']);
     const saving = withQueue(kept.port, async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }));
-    expect(saving.fromHeldQueue).toBe(true);
     expect(await saving.replayHeld()).toEqual({ kind: 'sent', count: 1 });
     expect(saving.state()).toEqual({ kind: 'idle' });
     expect(kept.calls).toContain('marks');
   });
 
-  it('asks when the replayed words lose to another device, and keeps them queued', async () => {
-    const kept = queue(['docs/a.md'], () => ({ kind: 'conflict', paths: ['docs/a.md'] }));
+  it('asks when the replayed words lose to another device, keeps them queued, and replays on the answer', async () => {
+    // The replay loses to another device first, then lands once the writer keeps this device's text.
+    const answers = [
+      { kind: 'conflict' as const, paths: ['docs/a.md'] },
+      { kind: 'sent' as const, count: 1 },
+    ];
+    const kept = queue(['docs/a.md'], () => answers.shift() ?? { kind: 'sent', count: 1 });
     const saving = withQueue(kept.port, async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }));
     expect(await saving.replayHeld()).toEqual({ kind: 'conflict', paths: ['docs/a.md'] });
     expect(saving.state()).toEqual({ kind: 'conflict', paths: ['docs/a.md'] });
     expect(kept.port.held()).toEqual(['docs/a.md']);
+
+    expect(await saving.keepMine()).toEqual({ kind: 'idle' });
+    expect(saving.rereadNeeded).toBe(true);
+    expect(kept.calls.filter((call) => call === 'replay').length).toBe(2);
   });
 
   it('does nothing at open when no earlier tab left anything', async () => {
     const empty = queue([]);
     const saving = withQueue(empty.port, async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }));
-    expect(saving.fromHeldQueue).toBe(false);
     expect(await saving.replayHeld()).toBeNull();
     expect(empty.calls).toEqual([]);
   });

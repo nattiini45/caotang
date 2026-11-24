@@ -32,28 +32,25 @@ function keepMarks(source: HostedProjectSource, fs: EncryptedRemoteArtifactFs): 
 }
 
 /**
- * The queue an earlier tab left for this project: the adapter's own text, kept on this device under the account's scope. A text
- * this build cannot read is dropped by the caller rather than failing the open, because a project that opens is worth more than a
- * queue nobody can send.
+ * The queue this project keeps on this device: the adapter's own text, kept under the account's scope. It exists whether or not an
+ * earlier tab left anything, because the first save the server does not take has to be held somewhere. A text this build cannot
+ * read is dropped rather than failing the open, because a project that opens is worth more than a queue nobody can send.
  */
-async function heldQueue(
-  source: HostedProjectSource,
-  fs: EncryptedRemoteArtifactFs,
-): Promise<{ edits: PendingEdits; port: HostedQueuePort } | null> {
+async function deviceQueue(source: HostedProjectSource, fs: EncryptedRemoteArtifactFs): Promise<HostedQueuePort> {
   const kept = loadHostedQueue(source.projectId);
-  if (kept === null) return null;
   const { PendingEdits, replayPending } = await import('@caotang/remote-store');
-  let edits: PendingEdits;
-  try {
-    edits = PendingEdits.parse(kept);
-  } catch {
-    saveHostedQueue(source.projectId, null);
-    return null;
+  let edits: PendingEdits = new PendingEdits();
+  if (kept !== null) {
+    try {
+      edits = PendingEdits.parse(kept);
+    } catch {
+      saveHostedQueue(source.projectId, null);
+    }
   }
   const keep = (): void => {
     saveHostedQueue(source.projectId, edits.isEmpty ? null : edits.serialize());
   };
-  const port: HostedQueuePort = {
+  return {
     hold: (changes) => {
       edits.stageAll(changes);
       keep();
@@ -73,14 +70,13 @@ async function heldQueue(
         return { kind: 'unavailable' };
       }
     },
-    forget: () => {
-      edits.clear();
+    forget: (paths?: readonly string[]) => {
+      edits.clear(paths);
       keep();
     },
     held: () => edits.paths,
     marks: () => keepMarks(source, fs),
   };
-  return { edits, port };
 }
 
 /**
@@ -101,7 +97,7 @@ export async function picturesOnProjectFs(fs: ArtifactFs): Promise<Record<string
 export async function openHostedTarget(source: HostedProjectSource): Promise<HostedTarget> {
   const fs = await openRemoteProject(source);
   const { saveProjectToAccount } = await import('@caotang/remote-store');
-  const queue = await heldQueue(source, fs);
+  const queue = await deviceQueue(source, fs);
   keepMarks(source, fs);
-  return new HostedTarget(source.projectId, fs, (state) => saveProjectToAccount(fs, state), queue?.port ?? null);
+  return new HostedTarget(source.projectId, fs, (state, assets) => saveProjectToAccount(fs, state, { assets }), queue);
 }

@@ -45,7 +45,10 @@ function queue(held: readonly string[], answer = { kind: 'sent' as const, count:
       if (answer.kind === 'sent') paths.clear();
       return answer;
     },
-    forget: () => paths.clear(),
+    forget: (forgotten?: readonly string[]) => {
+      if (forgotten === undefined) paths.clear();
+      else for (const path of forgotten) paths.delete(path);
+    },
     held: () => [...paths],
     marks: () => undefined,
   };
@@ -117,11 +120,16 @@ it('names the documents another device changed by their titles, never by their f
 });
 
 it('keeps this device’s text when the writer says so, and the question goes', async () => {
-  const one = target({ kind: 'conflict', paths: [PATH], changes: [{ path: PATH, kind: 'modified' }] });
+  // The first save loses to another device; the whole save run again on top of their version lands.
+  const outcomes = [
+    { kind: 'conflict', paths: [PATH], changes: [{ path: PATH, kind: 'modified' }] },
+    { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } },
+  ];
+  const one = new HostedTarget('p_lighthouse', { refresh: async () => undefined } as never, (async () => outcomes.shift()) as never);
   await render(one);
   await act(async () => one.save(state));
   await act(async () => button('Keep this device’s text').click());
-  expect(committed).toEqual([[{ path: PATH, kind: 'modified' }]]);
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
   expect(shown()).not.toContain('Another device saved these first');
   expect(host.innerHTML).toBe('');
 });
@@ -139,12 +147,10 @@ it('leaves it for now, and holds that answer until the writer asks again', async
 
 it('reads the account again when this device’s text wins over an earlier tab’s queued words', async () => {
   const reopen = vi.fn();
-  const one = target(
-    { kind: 'conflict', paths: [PATH], changes: [{ path: PATH, kind: 'modified' }] },
-    queue([PATH]),
-  );
+  // The conflict is the one an earlier tab's queue raised at open, so the words are the queue's and not this session's state.
+  const one = target({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }, queue([PATH], { kind: 'conflict', paths: [PATH] }));
   await render(one, reopen);
-  await act(async () => one.save(state));
+  await act(async () => one.replayHeld());
   expect(shown()).toContain('Another device saved these first');
   await act(async () => button('Keep this device’s text').click());
   await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));

@@ -24,6 +24,43 @@ export type HostedSaveOutcome =
   /** The server did not answer: nothing was written, and `changes` is the save for the caller to queue. */
   | { readonly kind: 'unavailable'; readonly changes: readonly RemoteChange[] };
 
+/** `assets/` in a project: the pictures, the cover among them (project-format §2). */
+const ASSETS_DIR = 'assets';
+
+/**
+ * The project's pictures as this device holds them. `complete` says whether they are the project's whole `assets/`: a listing
+ * that failed or a browser with no asset store is not a project whose pictures were all deleted, so a save then uploads what it
+ * has and removes nothing.
+ */
+export interface SaveAssets {
+  readonly files: Readonly<Record<string, Uint8Array>>;
+  readonly complete: boolean;
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let index = 0; index < a.length; index += 1) if (a[index] !== b[index]) return false;
+  return true;
+}
+
+/**
+ * Stages the pictures into the same commit as the project files, so a save that returns a picture to the account returns it in
+ * the batch that names it: a file already there byte for byte is left as it is, and one the account holds that this device's
+ * complete listing does not is removed.
+ */
+async function stageAssets(save: BatchedSave, fs: EncryptedRemoteArtifactFs, assets: SaveAssets): Promise<void> {
+  const onAccount = new Set(await fs.listFiles(ASSETS_DIR));
+  for (const [path, bytes] of Object.entries(assets.files)) {
+    if (!path.startsWith(`${ASSETS_DIR}/`)) continue;
+    const name = path.slice(ASSETS_DIR.length + 1);
+    const current = onAccount.has(name) ? await fs.readBytes(path) : null;
+    if (current === null || !sameBytes(current, bytes)) await save.writeBytesAtomic(path, bytes);
+    onAccount.delete(name);
+  }
+  if (!assets.complete) return;
+  for (const name of onAccount) await save.remove(`${ASSETS_DIR}/${name}`);
+}
+
 /** The project's documents on the account, as ids, from the listing the adapter holds. */
 async function documentIdsOnAccount(fs: EncryptedRemoteArtifactFs): Promise<readonly string[]> {
   const names = await fs.listFiles(DOCS_DIR);
@@ -37,15 +74,16 @@ async function documentIdsOnAccount(fs: EncryptedRemoteArtifactFs): Promise<read
 export async function saveProjectToAccount(
   fs: EncryptedRemoteArtifactFs,
   state: ProjectState,
-  options: WriteOptions & { readonly removed?: readonly string[] } = {},
+  options: WriteOptions & { readonly removed?: readonly string[]; readonly assets?: SaveAssets } = {},
 ): Promise<HostedSaveOutcome> {
   const save = new BatchedSave(fs);
   try {
     const onAccount = await documentIdsOnAccount(fs);
     const kept = new Set(state.documents.keys());
     const removed = new Set([...(options.removed ?? []), ...onAccount.filter((id) => !kept.has(id))]);
-    const { removed: _removed, ...writeOptions } = options;
+    const { removed: _removed, assets, ...writeOptions } = options;
     const report = await writeProject(save, state, { ...writeOptions, pruneDocumentIds: [...removed] });
+    if (assets !== undefined) await stageAssets(save, fs, assets);
     await save.commit();
     return { kind: 'written', report };
   } catch (error) {

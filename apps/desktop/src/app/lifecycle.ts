@@ -1271,10 +1271,23 @@ export async function openHostedProject(
   // The project's pictures travel with it: the copy this browser keeps is what a later save is measured on, so a picture left
   // behind here would be a picture the next save prunes from the account.
   const pictures = await picturesOnProjectFs(target.fs);
-  const opened = await adopt(store, loaded.state, await folderSessionsOf(target.fs), noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
-  // The account is this project's home: the target is kept for the session and follows every save this browser finishes.
+  // The account is this project's home, so the browser's copy of it is a cache rather than a second project: the account's version
+  // takes its place under the same id, with the writing history of both. Adopting it the way a folder open does would see a copy
+  // already in this browser and make a second project, whose id the next save would write into the account's manifest.
+  const accountLog = await folderSessionsOf(target.fs);
+  const projectId = loaded.state.manifest.project.id;
+  const cached = (await listProjectIds(store)).includes(projectId);
+  const keptLog = cached ? await readSessions(store, projectId) : [];
+  if (cached) await removeProject(store, projectId);
+  const opened = await adopt(store, loaded.state, [...accountLog, ...linesNotHeld(keptLog, accountLog)], noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
+  // The target is kept for the session and follows every save this browser finishes, carrying the project's pictures with the files
+  // that name them.
   rememberHostedTarget(target);
-  target.attach(opened.session);
+  target.attach({
+    state: opened.session.state,
+    persistence: opened.session.persistence,
+    assets: async () => ({ files: await opened.session.assets.snapshot(), complete: opened.session.assets.listingAuthoritative() }),
+  });
   return opened;
 }
 

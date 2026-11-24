@@ -8,7 +8,7 @@
  * folder save already asks. Nothing here reaches the network on its own: the target is built when a host hands a project over
  * and disposed when the session closes.
  */
-import type { EncryptedRemoteArtifactFs, HostedSaveOutcome, RemoteChange } from '@caotang/remote-store';
+import type { EncryptedRemoteArtifactFs, HostedSaveOutcome, RemoteChange, SaveAssets } from '@caotang/remote-store';
 import type { ProjectState } from '@caotang/store';
 
 /** What the writer is owed to know about the account's copy. */
@@ -21,7 +21,7 @@ export type HostedSaveState =
   | { readonly kind: 'conflict'; readonly paths: readonly string[] };
 
 /**
- * What happened to a replay of the held queue: the server took every path, another device moved one of them first, or the
+ * What happened to a replay of the held edits: the server took every path, another device moved one of them first, or the
  * server did not answer at all.
  */
 export type HostedReplay =
@@ -36,17 +36,17 @@ export type HostedReplay =
 export interface HostedQueuePort {
   /** Holds what a save could not deliver, so a reload sends it instead of losing it. */
   hold(changes: readonly RemoteChange[]): void;
-  /** Sends everything held, in one commit. A refusal changes nothing and keeps the queue. */
+  /** Sends everything held, in one commit. A refusal changes nothing and keeps the queue as it was. */
   replay(): Promise<HostedReplay>;
-  /** Forgets everything held, once the account has it or a whole save has superseded it. */
-  forget(): void;
+  /** Forgets these paths, or every path when none are named. */
+  forget(paths?: readonly string[]): void;
   /** The paths held now. */
   held(): readonly string[];
-  /** Where the marks go after a commit or a refresh, so a replayed server state is refused on the next open. */
+  /** Where the rollback marks go after a commit or a refresh, so a replayed server state is refused on the next open. */
   marks(): void;
 }
 
-/** The session as this target uses it: the state to save, and the browser save that says when this browser's copy is current. */
+/** The session as this target uses it: the state to save, the browser save, and the pictures that travel with it. */
 export interface HostedSaveSession {
   readonly state: ProjectState;
   readonly persistence: {
@@ -54,6 +54,11 @@ export interface HostedSaveSession {
     /** The save state's own name: `saved` is the moment this browser's copy and the state agree. */
     getStatus(): string;
   };
+  /**
+   * Every picture the project holds, and whether that is all of `assets/`. They travel in the same batch as the files, because the
+   * state that names a picture and the picture are one save: a cover the account never gets is a cover the next device cannot show.
+   */
+  assets?(): Promise<SaveAssets>;
 }
 
 export class HostedTarget {
@@ -62,27 +67,21 @@ export class HostedTarget {
   #listeners = new Set<() => void>();
   #running: Promise<void> | null = null;
   #again = false;
+  #detached: (() => void) | null = null;
+  /** The attached session's pictures, so a save carries them with the files that name them. */
+  #assets: (() => Promise<SaveAssets>) | null = null;
+  /** The conflict the writer is answering came from the queue at open rather than from this session's own save. */
+  #fromQueue = false;
+  /** Set by {@link keepMine} when its answer replayed the queue instead of this session's state. */
+  #reread = false;
 
   constructor(
     readonly projectId: string,
     readonly fs: EncryptedRemoteArtifactFs,
     /** The whole-project save, bound by the module that holds the adapter so this one imports no package at run time. */
-    readonly saveState: (state: ProjectState) => Promise<HostedSaveOutcome>,
+    readonly saveState: (state: ProjectState, assets?: SaveAssets) => Promise<HostedSaveOutcome>,
     readonly queue: HostedQueuePort | null = null,
-  ) {
-    // Whether this target met a queue when it was built: the writer's words from an earlier tab, waiting for the server.
-    this.#heldAtBuild = queue?.held() ?? [];
-  }
-
-  /**
-   * A conflict answered from here means the account's own version is what the book now shows, so the session has to read the
-   * account again once the writer's text wins.
-   */
-  get fromHeldQueue(): boolean {
-    return this.#heldAtBuild.length > 0;
-  }
-
-  readonly #heldAtBuild: readonly string[];
+  ) {}
 
   state(): HostedSaveState {
     return this.#state;
@@ -100,10 +99,31 @@ export class HostedTarget {
    * save, so a save still in flight queues exactly one more pass rather than one per keystroke.
    */
   attach(session: HostedSaveSession): () => void {
-    return session.persistence.subscribe(() => {
+    this.detach();
+    this.#assets = session.assets ?? null;
+    const stop = session.persistence.subscribe(() => {
       if (session.persistence.getStatus() !== 'saved') return;
       void this.save(session.state);
     });
+    this.#detached = stop;
+    return () => {
+      stop();
+      if (this.#detached === stop) this.#detached = null;
+    };
+  }
+
+  /** Stops following the browser's saves: the host took the project away, or the session closed. */
+  detach(): void {
+    this.#detached?.();
+    this.#detached = null;
+  }
+
+  /**
+   * Whether the answer just given replays words the session does not hold — an earlier tab's queued edits rather than this
+   * session's own state. The account now holds them and the book in front of the writer does not, so it has to be read again.
+   */
+  get rereadNeeded(): boolean {
+    return this.#reread;
   }
 
   /** Commits this session's state to the account. A second call while one is running runs once more after it. */
@@ -114,24 +134,7 @@ export class HostedTarget {
       await running;
       return;
     }
-    this.#running = (async () => {
-      this.#set({ kind: 'saving' });
-      const outcome = await this.saveState(state);
-      if (outcome.kind === 'written') {
-        this.#conflict = [];
-        // A whole save carries every path this device holds, so anything the queue was keeping is older than what just landed.
-        this.queue?.forget();
-        this.queue?.marks();
-        this.#set({ kind: 'idle' });
-      } else if (outcome.kind === 'unavailable') {
-        this.queue?.hold(outcome.changes);
-        this.#set({ kind: 'unsaved' });
-      } else {
-        this.queue?.hold(outcome.changes);
-        this.#conflict = outcome.changes;
-        this.#set({ kind: 'conflict', paths: outcome.paths });
-      }
-    })();
+    this.#running = this.#commit(state);
     try {
       await this.#running;
     } finally {
@@ -143,14 +146,56 @@ export class HostedTarget {
     }
   }
 
+  async #commit(state: ProjectState): Promise<void> {
+    this.#fromQueue = false;
+    this.#reread = false;
+    this.#set({ kind: 'saving' });
+    let outcome: HostedSaveOutcome;
+    try {
+      outcome = await this.saveState(state, await this.#assets?.());
+    } catch {
+      // A refusal this target has no answer of its own for — a full account, a lease taken in between, a blob that failed to
+      // authenticate — is still the account being behind this browser, and saying nothing would leave the writer believing it
+      // saved. The retry is the writer's, so it is offered rather than retried here.
+      this.#set({ kind: 'unsaved' });
+      return;
+    }
+    if (outcome.kind === 'written') {
+      this.#conflict = [];
+      // This save carried these paths at the state they hold now, so a queued edit of any of them is older than what landed. One
+      // it did not carry stays queued: the queue is a record of what the account has not taken, and a save that happened to skip a
+      // path says nothing about it.
+      this.queue?.forget([...outcome.report.written, ...outcome.report.pruned]);
+      this.queue?.marks();
+      this.#set({ kind: 'idle' });
+    } else if (outcome.kind === 'unavailable') {
+      this.queue?.hold(outcome.changes);
+      this.#set({ kind: 'unsaved' });
+    } else {
+      this.queue?.hold(outcome.changes);
+      this.#conflict = outcome.changes;
+      this.#set({ kind: 'conflict', paths: outcome.paths });
+    }
+  }
+
   /**
-   * The writer chose this device's text: read what the other device did, then write this session's staged save on top of it.
-   * Their documents are not lost — they stay as the version this device's save replaced, which is what the account's version
-   * history is for.
+   * The writer chose this device's text. For a conflict this session's own save raised, the state it read is the answer: the
+   * adapter re-reads the other device's index and the whole save runs again against it, so a document the other device deleted
+   * comes back with its body rather than as a manifest entry with no file. For a conflict an earlier tab's queue raised there is no
+   * state to save — those words are the queued paths — so the queue is replayed instead.
+   *
+   * Their documents are not lost either way: they stay as the version this device's save replaced, which is what the account's
+   * version history is for.
    */
-  async keepMine(): Promise<HostedSaveState> {
+  async keepMine(state?: ProjectState): Promise<HostedSaveState> {
     await this.fs.refresh();
-    this.#settle(await (this.queue?.replay() ?? this.#commitHeld()));
+    this.queue?.marks();
+    this.#reread = this.#fromQueue || state === undefined;
+    if (this.#reread || state === undefined) {
+      this.#settle(await (this.queue?.replay() ?? this.#commitHeld()));
+      return this.#state;
+    }
+    await this.save(state);
     return this.#state;
   }
 
@@ -162,8 +207,10 @@ export class HostedTarget {
     if (this.queue === null || this.queue.held().length === 0) return null;
     const outcome = await this.queue.replay();
     if (outcome.kind === 'sent') this.#settle(outcome);
-    else if (outcome.kind === 'conflict') this.#set({ kind: 'conflict', paths: outcome.paths });
-    else this.#set({ kind: 'unsaved' });
+    else if (outcome.kind === 'conflict') {
+      this.#fromQueue = true;
+      this.#set({ kind: 'conflict', paths: outcome.paths });
+    } else this.#set({ kind: 'unsaved' });
     return outcome;
   }
 

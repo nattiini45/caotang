@@ -81,10 +81,10 @@ export function HostedSaveNotice({
       {
         label: t`Keep this device’s text`,
         onChoose: () => {
-          void target.keepMine().then(() => {
-            // A conflict met while an earlier tab's queue was replayed: the account now holds these words, and the book in front
-            // of the writer still shows the version this device read first.
-            if (target.fromHeldQueue) onReopenAccount?.();
+          void target.keepMine(session.state).then(() => {
+            // The answer replayed an earlier tab's queued words: the account now holds them and the book in front of the writer
+            // still shows the version this device read first.
+            if (target.rereadNeeded) onReopenAccount?.();
           });
         },
       },
