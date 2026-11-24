@@ -36,7 +36,7 @@ test('the page reaches an address the app configured, and nothing else', async (
       version: window.caotangDesktop?.version,
       net: window.caotangDesktop === undefined ? null : Object.keys(window.caotangDesktop.net).sort(),
     }));
-    expect(surface).toEqual({ version: 4, net: ['abort', 'configure', 'onChunk', 'onEnd', 'start'] });
+    expect(surface).toEqual({ version: 5, net: ['abort', 'configure', 'onChunk', 'onEnd', 'start'] });
 
     const call = (url: string, headers: Record<string, string> = {}) => page.evaluate(
       async ({ url, headers }) => window.caotangDesktop!.net.start({ id: crypto.randomUUID(), url, method: 'POST', headers, body: '{}' }),

@@ -15,10 +15,11 @@ import { loadInkCompiler } from '@caotang/harness';
 import { LOCK_FILE, NoProjectError, ProjectLockedError } from '@caotang/sdk/folder';
 
 import { DEFAULT_TOKEN_ENV, resolveToken } from './auth.js';
+import { createWriteGate } from './gate.js';
 import { isDegraded, offerClause, openProjectOrOffer, wayForward, type DegradedSession } from './recovery.js';
 import { ProjectContentError, type ProjectSession } from './session.js';
-import { createToolRuntime, startHttpServer, startStdioServer, type RunningHttpServer } from './server.js';
-import { VERSION } from './version.js';
+import { CONTROL_PAUSE, createToolRuntime, startHttpServer, startStdioServer, type RunningHttpServer } from './server.js';
+import { MCP_PATH, VERSION } from './version.js';
 
 /** The port a host is pointed at when none is given. Chosen to be unlikely to collide, and stable across restarts. */
 export const DEFAULT_PORT = 7433;
@@ -267,8 +268,11 @@ export async function runCli(argv: readonly string[], io: RunIo): Promise<number
       return 0;
     }
 
-    const server: RunningHttpServer = await startHttpServer(runtime, { port: options.port, token: token.token });
+    // The gate is what lets a desktop app that started this server pause it while it saves (gate.ts, desktop.md): a server a host
+    // started from a terminal has the endpoints too, and no one to use them.
+    const server: RunningHttpServer = await startHttpServer(runtime, { port: options.port, token: token.token, gate: createWriteGate() });
     for (const line of linesOf(server.url)) io.stderr(`${line}\n`);
+    io.stderr(`caotang-mcp: control ${server.url.replace(MCP_PATH, CONTROL_PAUSE)} answers a pause while a save runs\n`);
     io.stderr('caotang-mcp: ready\n');
     await io.untilDone(async () => {
       await server.close();
