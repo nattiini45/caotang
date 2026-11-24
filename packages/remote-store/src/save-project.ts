@@ -28,13 +28,13 @@ export type HostedSaveOutcome =
 const ASSETS_DIR = 'assets';
 
 /**
- * The project's pictures as this device holds them. `complete` says whether they are the project's whole `assets/`: a listing
- * that failed or a browser with no asset store is not a project whose pictures were all deleted, so a save then uploads what it
- * has and removes nothing.
+ * The project's pictures as this device holds them, and the ones this device deleted. A removal is named rather than inferred from
+ * the account's listing: another device's picture is on that listing too, and a save that never saw it would delete it.
  */
 export interface SaveAssets {
   readonly files: Readonly<Record<string, Uint8Array>>;
-  readonly complete: boolean;
+  /** The paths this device deleted while the session was open. */
+  readonly removed?: readonly string[];
 }
 
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
@@ -44,21 +44,19 @@ function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 /**
- * Stages the pictures into the same commit as the project files, so a save that returns a picture to the account returns it in
- * the batch that names it: a file already there byte for byte is left as it is, and one the account holds that this device's
- * complete listing does not is removed.
+ * Stages the pictures into the same commit as the project files, so a save that returns a picture to the account returns it in the
+ * batch that names it: a file already there byte for byte is left as it is, and only a path this device deleted is removed.
  */
 async function stageAssets(save: BatchedSave, fs: EncryptedRemoteArtifactFs, assets: SaveAssets): Promise<void> {
-  const onAccount = new Set(await fs.listFiles(ASSETS_DIR));
   for (const [path, bytes] of Object.entries(assets.files)) {
     if (!path.startsWith(`${ASSETS_DIR}/`)) continue;
-    const name = path.slice(ASSETS_DIR.length + 1);
-    const current = onAccount.has(name) ? await fs.readBytes(path) : null;
+    const current = (await fs.exists(path)) ? await fs.readBytes(path) : null;
     if (current === null || !sameBytes(current, bytes)) await save.writeBytesAtomic(path, bytes);
-    onAccount.delete(name);
   }
-  if (!assets.complete) return;
-  for (const name of onAccount) await save.remove(`${ASSETS_DIR}/${name}`);
+  for (const path of assets.removed ?? []) {
+    if (!path.startsWith(`${ASSETS_DIR}/`)) continue;
+    if (await fs.exists(path)) await save.remove(path);
+  }
 }
 
 /** The project's documents on the account, as ids, from the listing the adapter holds. */

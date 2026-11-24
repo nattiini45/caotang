@@ -69,7 +69,22 @@ it('opens the same project again under its own id, not as a copy of itself', asy
   await first.session.closeSafely();
   opened = opened.filter((one) => one !== first);
 
+  // The two copies are the same book, so the account's version takes the browser's place under the same id.
   const second = await open();
   expect(second.session.projectId).toBe(BOOK.manifest.project.id);
   expect(second.copiedFrom).toBeNull();
+});
+
+it('keeps a browser copy that holds words the account does not, instead of deleting them', async () => {
+  const first = await open();
+  // The writer typed here and the browser kept it; the account never got it.
+  first.session.state.documents.get(IDS.sceneA)!.body = 'Five words, written offline';
+  await first.session.persistence.settle();
+  await first.session.closeSafely();
+  opened = opened.filter((one) => one !== first);
+
+  const second = await open();
+  expect(second.session.projectId).toBe(BOOK.manifest.project.id);
+  expect(second.copiedFrom).toBeNull();
+  expect(second.session.state.documents.get(IDS.sceneA)?.body).toBe('Five words, written offline');
 });
