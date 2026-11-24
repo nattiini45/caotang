@@ -133,7 +133,8 @@ These are the project's own rules (see `CONTRIBUTING.md` and `docs/decisions.md`
 
 **Do**
 
-- Run `pnpm verify`, `pnpm build` and `pnpm test:e2e` before opening a PR. CI runs the whole gate (`pnpm verify`, bundle-size check, landing page, MCP pack) once on Node 24, and on both Node 22.19.0 and 24 the engine-strict install, typecheck, production build, CLI bundle and `pnpm test:node-floor`; Chromium E2E runs on Node 24 in parallel, and a separate workflow gates PRs in Firefox and WebKit.
+- Run `pnpm verify`, `pnpm build` and `pnpm test:e2e` before opening a PR. CI runs the whole gate (`pnpm verify`, bundle-size check, landing page, MCP pack) once on Node 24, and on both Node 22.19.0 and 24 the engine-strict install, typecheck, production build, CLI bundle and `pnpm test:node-floor`; Chromium E2E runs on Node 24 in parallel, and a separate workflow gates PRs in Firefox and WebKit. The Windows leg (`verify (Windows)`)
+  runs on a push to main, on the nightly schedule and on demand, not on every pull request; the desktop release runs it before packaging.
 - Use `pnpm` — the workspace uses `workspace:*` dependencies, which npm and yarn do not resolve the same way.
 - Regenerate `THIRD-PARTY-NOTICES.md` when you add or upgrade a dependency.
 - Add a line to `docs/decisions.md` when you change a standing rule, and update the matching spec.
@@ -154,7 +155,7 @@ These are the project's own rules (see `CONTRIBUTING.md` and `docs/decisions.md`
 | `CAOTANG_BASE` | Build for a sub-path, e.g. `CAOTANG_BASE=/app/ pnpm build`. Default: asset paths start at `/`. |
 | `CAOTANG_E2E_PORT` | Dev-server port for the Playwright suite (default 5173). Setting it also stops the suite from reusing an existing server. |
 | `CAOTANG_E2E_PREVIEW_PORT` | Production-preview port (default = dev port + 1000). |
-| `CAOTANG_SKIP_WORKER_SUITES` | `1` leaves `packages/sync-server/test/account-mode.test.ts`, `storage.test.ts`, `server.test.ts`, `quota.test.ts` and `accounts.test.ts` out of `pnpm test`, because each case there runs through a Miniflare Worker runtime. Set by the Windows legs only, until #815 gives those files one shared runtime; #820 tracks the later ones until then. |
+| `CAOTANG_SKIP_WORKER_SUITES` | `1` leaves `packages/sync-server/test/account-mode.test.ts`, `storage.test.ts`, `server.test.ts`, `quota.test.ts`, `accounts.test.ts`, `project-lease.test.ts` and `project-records.test.ts` out of `pnpm test`, because each case there runs through a Miniflare Worker runtime. Set by the Windows legs only, until #815 gives those files one shared runtime; #820 tracks the later ones until then. |
 | `CAOTANG_MCP_ALLOW_WRITES` | `true` allows the MCP server to write to the project folder. |
 | `CAOTANG_MCP_TOKEN` | Bearer token for the MCP server over HTTP (at least 16 characters). |
 

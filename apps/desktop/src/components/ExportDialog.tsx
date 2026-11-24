@@ -32,7 +32,7 @@ import { loadComicPage } from '@caotang/comic';
 import { loadZipEngine } from '@caotang/store';
 import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type HtmlModeOption, type RecipeScriptFont, type SceneNumbersOption } from '@caotang/bus';
 
-import { downloadBytes } from '../app/download.js';
+import { saveExportFile } from '../app/native-save.js';
 import { exportCompileMachine, exportReadinessMachine, type CompileEvent, type CompileState } from '../app/export-dialog-model.js';
 import {
   pictureControlsShownFor,
@@ -607,13 +607,28 @@ export function ExportDialog({
         }
         files.push({ name: fileName(path), bytes });
       }
-      if (files.length === 1) {
-        const [only] = files;
-        if (only !== undefined) downloadBytes(only.bytes, only.name, EXPORT_MIME[format]);
-      } else {
-        const bytes = await zipFiles(files);
-        if (!live.current) return;
-        downloadBytes(bytes, `${zipStem(recipe?.name ?? session.state.manifest.project.name)}.zip`, 'application/zip');
+      // One file goes where the writer chooses: the shell's own Save dialog on the desktop, the browser's download on the web
+      // (desktop.md §Native save). Cancelling writes nothing and leaves the dialog open, so the made export is not lost to a
+      // click that only meant "not here".
+      const [only] = files;
+      const target = files.length === 1 && only !== undefined
+        ? { bytes: only.bytes, name: only.name, mime: EXPORT_MIME[format] }
+        : {
+            bytes: await zipFiles(files),
+            name: `${zipStem(recipe?.name ?? session.state.manifest.project.name)}.zip`,
+            mime: 'application/zip',
+          };
+      if (!live.current) return;
+      const saved = await saveExportFile(target.bytes, target.name, target.mime);
+      if (!live.current) return;
+      if (saved === 'cancelled') {
+        moveCompile({ type: 'reset' });
+        setNotice({ text: t`Nothing was saved.`, tone: 'info' });
+        return;
+      }
+      if (saved === 'unavailable') {
+        moveCompile({ type: 'failed', failure: { text: t`Caotang could not write the file you chose. Compile again and choose another place.` } });
+        return;
       }
       report({ text: exportedSentence(digest, session.exportsToFolder(), comicPanels), tone: 'info' });
       moveCompile({ type: 'succeeded' });

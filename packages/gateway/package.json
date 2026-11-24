@@ -10,7 +10,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./loopback": "./src/loopback.ts",
-    "./mock": "./src/mock/index.ts"
+    "./mock": "./src/mock/index.ts",
+    "./native-egress": "./src/native-egress.ts",
+    "./keys/os-vault": "./src/keys/os-vault.ts",
+    "./keys/vault-payload": "./src/keys/vault-payload.ts"
   },
   "dependencies": {
     "@caotang/machine": "workspace:*",

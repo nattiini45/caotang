@@ -68,7 +68,7 @@ export {
   type ReplayCache,
   type ReplayEntry,
 } from './replay.js';
-export { guardBatch, guardMessage, hardDeniedError, refusalResponse, type GuardPolicy, type RefusalResponse } from './guard.js';
+export { folderWrite, guardBatch, guardMessage, hardDeniedError, refusalResponse, type GuardPolicy, type RefusalResponse } from './guard.js';
 export { advertisedInput, advertisedOutput, registerCaotangTools, resultEnvelope, toCallResult, type ToolRuntime } from './tools.js';
 export {
   MESSAGE_MAX_BYTES,
@@ -86,6 +86,10 @@ export {
 } from './pictures.js';
 export { ASSETS_URI, RESOURCE_MAX_BYTES, TIMELINE_CSV_URI, TIMELINE_URI, assetUri, registerCaotangResources } from './resources.js';
 export {
+  CONTROL_CANCEL,
+  CONTROL_LEASE_HEADER,
+  CONTROL_PAUSE,
+  CONTROL_RESUME,
   LEGACY_ROUND_TIMEOUT_MS,
   MAX_BODY_BYTES,
   buildMcpServer,
@@ -98,6 +102,7 @@ export {
   type RunningHttpServer,
 } from './server.js';
 export { LEGACY_SESSION_IDLE_MS, LEGACY_SESSION_LIMIT, LegacySessions, type LegacySessionOptions } from './legacy-sessions.js';
+export { createWriteGate, type PauseState, type WriteGate } from './gate.js';
 export { DEFAULT_TOKEN_ENV, TOKEN_MIN_LENGTH, bearerAccepted, mintToken, resolveToken, type ResolvedToken } from './auth.js';
 export {
   DEFAULT_PORT,

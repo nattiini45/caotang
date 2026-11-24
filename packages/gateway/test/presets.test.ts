@@ -81,23 +81,23 @@ describe('the registry', () => {
     expect(PRESETS.filter((p) => p.noModelsRoute === true).map((p) => p.id)).toEqual(['cohere']);
   });
 
-  it('says which presets a browser can reach, and says so honestly where the docs are silent', () => {
+  it('records the browser-reachability sweep for every preset, and claims nothing it did not measure', () => {
     const cors = new Map(PRESETS.map((p) => [p.id, p.cors]));
-    expect(cors.get('anthropic')).toBe('ok'); // documents the browser-access header
-    expect(cors.get('mock')).toBe('ok'); // the local seam is not a network call
-    // The sweep asks the chat route (POST) a browser would need, not just the model list: this one answers the list's preflight
-    // and refuses the chat route's, so a page cannot use it (e2e/providers-cors.spec.ts, providers-browser-cors.md §2).
-    expect(cors.get('opencode')).toBe('blocked');
+    // The sweep asks the chat route a browser would need (a POST), not just the model list: these refuse the chat route, so a
+    // page cannot use them (e2e/providers-cors.spec.ts, providers-browser-cors.md §2).
+    for (const id of ['opencode', 'tencent-hunyuan', 'zhipu-zai']) expect(cors.get(id), id).toBe('blocked');
     for (const id of ['ollama', 'lmstudio', 'llamacpp']) expect(cors.get(id), id).toBe('local'); // the server's own setting decides
-    // Everything else is 'unknown' — never claimed reachable without documentation.
+    // Three rows are deliberately not claimed. Alibaba's address is a template with placeholders, and generic's depends on the
+    // endpoint the writer types; Cerebras and BytePlus answer the preflight and then leave the allow-origin header off a wrong
+    // key's rejection, which a real key may carry, so the sweep cannot say either way (sweep, 2026-11-23).
+    for (const id of ['alibaba', 'byteplus-ark', 'cerebras', 'generic']) expect(cors.get(id), id).toBe('unknown');
+    // Every other row answered the page, so it is reachable and says so; the sweep that recorded it is dated in
+    // providers-browser-cors.md §2.
+    const claimed = ['opencode', 'tencent-hunyuan', 'zhipu-zai', 'ollama', 'lmstudio', 'llamacpp', 'alibaba', 'byteplus-ark', 'cerebras', 'generic'];
     for (const preset of PRESETS) {
-      if (!['anthropic', 'mock', 'opencode', 'ollama', 'lmstudio', 'llamacpp'].includes(preset.id)) {
-        expect(preset.cors, preset.id).toBe('unknown');
-      }
+      if (!claimed.includes(preset.id)) expect(preset.cors, preset.id).toBe('ok');
       if (preset.cors === 'blocked') expect(preset.corsNote, preset.id).toBeTruthy();
     }
-    // Z.ai answered a browser chat request on 2026-10-30, so its old "refuses the browser preflight" note is gone for good.
-    expect(presetFor('zhipu-zai')!.corsNote, 'zhipu-zai').toBeUndefined();
   });
 
   it('opts into the browser-access header on every anthropic-messages preset pointed at an Anthropic host', () => {

@@ -55,6 +55,12 @@ export interface McpKeyPort {
   reveal(ref: string): Promise<string | undefined>;
   has(ref: string): Promise<boolean>;
   remove(ref: string): Promise<void>;
+  /**
+   * Puts back the token a failed replacement overwrote, where the store can. A store that keeps the token itself answers
+   * `reveal` with a handle instead of the token, so re-putting what `reveal` gave would store the handle: the undo is the
+   * store's to do.
+   */
+  restore?(ref: string): Promise<void>;
 }
 
 export interface McpAppOptions {
@@ -62,6 +68,13 @@ export interface McpAppOptions {
   readonly keys: McpKeyPort;
   /** The transport. Absent in a shipped build, where the SDK's Streamable HTTP wire is used. */
   readonly wire?: WireFactory;
+  /**
+   * The fetch the default transport uses, when the host makes the call itself: the desktop app's port. The token it carries is a
+   * handle the host swaps for the one in its keychain, so the page never holds a server's bearer token.
+   */
+  readonly fetch?: (url: string | URL, init?: RequestInit) => Promise<Response>;
+  /** How a failed call is classified. A host that makes the call has no CORS, so a failure there is a network failure. */
+  readonly probe?: (url: string) => Promise<boolean>;
 }
 
 /** What the add form may ask for: a name, a URL, and either no credentials or a token the form holds for one moment. */
@@ -86,6 +99,8 @@ export class McpApp {
     this.client = createMcpClient({
       settings: options.settings.current(),
       ...(options.wire === undefined ? {} : { wire: options.wire }),
+      ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+      ...(options.probe === undefined ? {} : { probe: options.probe }),
       resolveBearer: (ref) => options.keys.reveal(ref),
       onChange: (mcp) => this.settings.update({ mcp }, { publishAfterSave: true }),
       // A credential that a change dropped is taken out of the vault: the settings no longer name
@@ -143,6 +158,7 @@ export class McpApp {
     if (trimmed === '') return { ok: false, message: t`the token is empty — enter the token the server gave you` };
     const ref = server.auth.kind === 'bearer' ? server.auth.tokenRef : `${BEARER_REF_PREFIX}${randomRef()}`;
     const previous = await this.keys.reveal(ref);
+    const restore = this.keys.restore?.bind(this.keys);
     let message: string;
     try {
       await this.keys.put(ref, trimmed);
@@ -153,8 +169,15 @@ export class McpApp {
       message = error instanceof Error ? error.message : String(error);
     }
     const named = this.client.settings().servers.some((current) => current.auth.kind === 'bearer' && current.auth.tokenRef === ref);
-    if (previous === undefined || !named) await this.keys.remove(ref);
-    else await this.keys.put(ref, previous);
+    // The undo is best effort: the answer is already a refusal, and a vault that cannot put the old token back must not turn it
+    // into a rejection the caller has no shape for.
+    try {
+      if (previous === undefined || !named) await this.keys.remove(ref);
+      else if (restore !== undefined) await restore(ref);
+      else await this.keys.put(ref, previous);
+    } catch {
+      message = t`The new token was not kept, and the old one could not be put back. Enter the token again for this server.`;
+    }
     return { ok: false, message };
   }
 

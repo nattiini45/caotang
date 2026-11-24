@@ -27,7 +27,17 @@ A key does not appear anywhere in this: a refused preflight fails before auth is
 pnpm exec playwright test e2e/providers-cors.spec.ts
 ```
 
-The registry's `cors` field records the swept answer; presets that cannot answer a browser request are shown disabled in Settings as **"Desktop app or hosted only"** rather than pretending to work. The local model presets (`cors: 'local'`) are not swept: they are on this computer, and §4 covers them.
+The registry's `cors` field records the swept answer; presets that cannot answer a browser request carry a **"Desktop app or hosted only"** badge in Settings rather than pretending to work, and the desktop app, which makes the call itself, shows no such badge ([desktop.md §Native provider calls](desktop.md#native-provider-calls-405)). The local model presets (`cors: 'local'`) are not swept: they are on this computer, and §4 covers them.
+
+### The 2026-11-23 run
+
+The sweep was run again and every row it could answer was recorded:
+
+- **Reachable from a page, and now `ok`:** OpenAI, Gemini, xAI, Muse, Mistral, Cohere (no listing route), DeepSeek, Moonshot, MiniMax, Xiaomi MiMo, NanoGPT, OpenRouter, Perplexity, Together, Fireworks, DeepInfra, Groq and Hugging Face.
+- **Blocked, and now `blocked` with a note:** Tencent Hunyuan (the chat route's preflight answers 405 without an allow-origin header) and Z.ai (its chat preflight now answers without one, where a browser chat call worked on 2026-10-30; the model list still reads). OpenCode was already recorded.
+- **Left `unknown`, because this run cannot claim either way:** Alibaba, whose preset address is a template with `{workspaceId}` and `{region}` placeholders and so resolves nowhere; Cerebras and BytePlus, whose chat preflights pass and whose answers then leave the allow-origin header off a wrong key's rejection, the case above where a real key may read; and the generic endpoint, whose reachability is whatever the writer types.
+
+The run's origin was a development server on loopback, which is what the sweep uses; a provider that allowlists `https://caotang.app` alone would read as blocked here and work there, so a `blocked` row is the browser's answer for that origin and not a statement about every origin.
 
 ## 3. The real-key round
 

@@ -94,6 +94,26 @@ Which transport a host should use:
 - A host on a **2025 protocol revision** confirms writes over HTTP as it does over stdio, provided it declares elicitation. Its handshake is an `initialize` request, and the server keeps that connection under the `Mcp-Session-Id` it returns. The host sends that id on every later request, as the 2025 transport requires, and the server asks its questions on that connection. A request that names no session is served without one, so a write that would ask is refused, and the refusal names the handshake and the stdio route. The connections are bounded: the server holds at most 16, and closes one that has been idle for 30 minutes (see the security model).
 - A host on the 2026-07-28 revision confirms writes over either transport.
 
+## Pausing for the app that started it
+
+Every HTTP server this package starts answers two control endpoints beside the MCP endpoint, on the same listener and with the same
+bearer token:
+
+| Endpoint | What it does |
+|---|---|
+| `POST /control/pause` | Stop a write tool from starting. A read is never refused. |
+| `POST /control/resume` | Let write tools start again. |
+
+Both answer `200` with the pause as it stands (`{"paused":true,"since":"…"}` or `{"paused":false}`), `401` without the token, and
+`405` to anything but `POST`. Asking for a pause twice keeps the first instant, so two nested saves are one pause and the outer save's
+resume is the one that ends it.
+
+The pause exists for the Caotang desktop app, which runs this server over the folder it has open and saves into that same folder: a
+write tool that is refused while the app saves is a write that is not lost, and the host is told to ask again once the save has
+finished. **A server a terminal started has the endpoints too, and nobody uses them** — there is no coordinator, so the endpoints
+answer and nothing else changes. A server started without a gate (an embedder that builds one) answers `404` and says nothing
+coordinates a save with it.
+
 ## The tools
 
 These are the tools a host lists, measured from `tools/list` on a server started with each setting. The annotations and descriptions are the harness's registry-to-MCP mapping ([extensibility.md §7](../../docs/architecture/extensibility.md)), unchanged. Two things differ from the whole registry: `tool.search` is not listed, and the tools that need a model are not listed; the host's model writes through a brief and an apply instead ([Drafting with the host's model](#drafting-with-the-hosts-model)). The empty-project note of `project.overview` is the harness's own, and it names a write tool only to a caller whose server allows writes.
@@ -254,7 +274,8 @@ Every other tool is refused as a tool result: "this project could not be opened;
 ## Security model
 
 - **Loopback only.** The listener binds `127.0.0.1`. `Host` and `Origin` headers that are not localhost are refused with `403` (DNS rebinding and browser pages).
-- **Bearer token** on every request, compared in constant time.
+- **Bearer token** on every request, compared in constant time. The two control endpoints take the same token, so only a caller that
+  could already write the project can pause writes.
 - **Read-only by default.** Write tools are not even listed without `--allow-writes`. A read never changes the manuscript, codex or manifest, with or without it. The server reads `coherence.json` when it opens, and without `--allow-writes` it writes nothing: a run that `coherence.scan` records stays in the server's memory, and a damaged `coherence.json` is not repaired. With `--allow-writes`, `coherence.scan` appends its run to `coherence.json`, and `coherence.setFindingStatus` keeps `fixed` there, as derived state like `sessions.jsonl`.
 - **Bounded 2025-era connections.** A 2025-era connection is held in memory only while the host keeps it. At most 16 are held, a connection idle for 30 minutes is closed, and a connection with a confirmation still open is never closed to make room. That confirmation waits 60 seconds for its answer, then the connection is free again. A new host is refused with `503` while every connection is busy; the refusal names the limit, how many are busy and the wait, and carries a `Retry-After` header of 60 seconds. A request on a session that has ended gets `404`, and the host sends `initialize` again. The table holds the connection and its server, never project data.
 - **A recovery is the host's word, with the folder checked.** `project.recoverApply` exists only with `--allow-writes`, asks through the same confirmation round trip as every other write, and writes only the store's ladder (the new manifest and the kept original), after the drift check above. A degraded server runs no other tool, so it has no general file access.

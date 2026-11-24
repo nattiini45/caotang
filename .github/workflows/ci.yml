@@ -11,11 +11,14 @@
 #   - `e2e (chromium)` summarizes two duration-balanced Node 24 shard jobs and their merged report, beside `e2e (chromium, Modern gate)`,
 #     which runs the Modern reachability walk and accessibility gate (#313) in parallel. The cross-browser workflow merges the
 #     sharded reports and also runs nightly/on demand.
-#   - `verify (Windows)` runs the same `pnpm verify` gate on windows-latest (#812). It is its own job rather than a leg of
-#     `verify`, so it reports instead of blocking until the suite is green on that runner; the desktop release job runs the same
-#     gate on Windows, so a red suite there stops a release. It leaves out five `packages/sync-server/test` suites —
-#     `account-mode`, `storage`, `server`, `quota` and `accounts` — each of whose cases runs through a Miniflare Worker runtime and
-#     reaches the case deadline on that runner; #815 moves them onto one shared runtime and #820 tracks the later ones until then.
+#   - `verify (Windows)` runs the same `pnpm verify` gate on windows-latest (#812) on pushes to main, on the nightly schedule and on
+#     demand, and on no pull request (owner, 2026-11-23): the suites that reach the case deadline there are the Worker-runtime ones
+#     #815 is moving onto one shared runtime, a red Windows check on a PR blocked nothing a contributor could act on, and the
+#     release job runs the same gate on Windows before packaging, so a red suite still stops a release
+#     (.github/workflows/desktop-release.yml). `verify` requires its result when it ran and accepts a skip when it did not, so the
+#     required status is one shape on a PR and another on main. It leaves out seven `packages/sync-server/test` suites —
+#     `account-mode`, `storage`, `server`, `quota`, `accounts`, `project-lease` and `project-records` — each of whose cases runs
+#     through a Miniflare Worker runtime and reaches the case deadline on that runner; #815 moves them onto one shared runtime and #820 tracks the later ones until then.
 #     The step's own name lists the files and the reason.
 #   - `office-interop` and `pdf-validate` remain separate Node 24 jobs and run alongside the PR gate.
 #   - `pnpm verify` runs lint, typecheck and the vitest suites (packages/ and test/), once and on Node 24. The desktop's pure model
@@ -45,7 +48,8 @@
 #
 # Details that are load-bearing rather than tidy:
 #   - permissions stay `contents: read`: the workflow needs no write token, so a pull request from a fork cannot use it to
-#     change the repository. First-time contributors' runs wait for a maintainer's approval (a repository setting).
+#     change the repository. The one write scope, `issues: write`, sits on `verify_windows` alone, and that job never runs on a pull
+#     request, so a fork's run cannot reach it. First-time contributors' runs wait for a maintainer's approval (a repository setting).
 #   - `merge_group` is here so a merge queue can be switched on without touching this file: a queue runs the required
 #     `verify` on the merge group's own head, and a workflow without that trigger never reports there, so every group
 #     would sit until the queue's check timeout. No job reads pull-request context, and `github.ref` is the group's own
@@ -61,6 +65,11 @@ on:
     branches: [main]
   pull_request:
   merge_group:
+  # The Windows gate runs here rather than on every pull request (owner, 2026-11-23), so the whole workflow gets the two triggers
+  # that give it a nightly run and a run on demand.
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -163,32 +172,46 @@ jobs:
     name: verify
     runs-on: ubuntu-latest
     timeout-minutes: 1
-    needs: [verify_matrix, e2e, e2e_modern, e2e_browsers, visual]
+    needs: [verify_matrix, e2e, e2e_modern, e2e_browsers, visual, verify_windows]
     if: always()
     steps:
-      - name: Require Node matrix and all browser runs
+      - name: Require Node matrix, all browser runs, and Windows where it ran
         env:
           MATRIX_RESULT: ${{ needs.verify_matrix.result }}
           CHROMIUM_RESULT: ${{ needs.e2e.result }}
           MODERN_RESULT: ${{ needs.e2e_modern.result }}
           CROSS_BROWSER_RESULT: ${{ needs.e2e_browsers.result }}
           VISUAL_RESULT: ${{ needs.visual.result }}
+          WINDOWS_RESULT: ${{ needs.verify_windows.result }}
         run: |
           test "$MATRIX_RESULT" = success
           test "$CHROMIUM_RESULT" = success
           test "$MODERN_RESULT" = success
           test "$CROSS_BROWSER_RESULT" = success
           test "$VISUAL_RESULT" = success
+          # Windows runs on main, nightly and on demand and is skipped on a pull request or a merge group, where this status owes
+          # it nothing; when it ran, its result is this status's result too.
+          case "$WINDOWS_RESULT" in
+            success|skipped) ;;
+            *) echo "verify (Windows) was $WINDOWS_RESULT"; exit 1 ;;
+          esac
 
   # The same gate on Windows (#812): the suites, the folder writer and the MCP server all run there in the packaged app, and
   # until this job existed no CI run touched Windows at all, so a contained-path bug and a test runner that could not start its
-  # children both went unseen. It is its own job and not part of `verify`'s needs, so it reports rather than blocks while the
-  # suite is brought to green on that runner; the release job for Caotang for desktop runs `pnpm verify` on Windows too
-  # (.github/workflows/desktop-release.yml), so a red suite there stops a release.
+  # children both went unseen. It runs on a push to main, on the nightly schedule and on demand, and on no pull request (owner,
+  # 2026-11-23): the suites that fail there are the Worker-runtime ones #815 owns, and a red check on every PR blocked work nobody
+  # could act on. The release job for Caotang for desktop runs `pnpm verify` on Windows before it packages
+  # (.github/workflows/desktop-release.yml), so a red suite there still stops a release.
   verify_windows:
     name: verify (Windows)
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 45
+    # The one write scope in this workflow, and it reaches only a job that never runs on a pull request, so the report a red run
+    # leaves on the tracker cannot be written by a fork's.
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -204,10 +227,30 @@ jobs:
       - name: Install (frozen lockfile, strict engines)
         run: pnpm install --frozen-lockfile --engine-strict
 
-      - name: "Lint, typecheck and every unit suite, less sync-server account-mode, storage, server, quota and accounts suites (each case runs through a Miniflare Worker runtime: #815, #820)"
+      - name: "Lint, typecheck and every unit suite, less sync-server account-mode, storage, server, quota, accounts, project-lease and project-records suites (each case runs through a Miniflare Worker runtime: #815, #820)"
         env:
           CAOTANG_SKIP_WORKER_SUITES: '1'
         run: pnpm verify
+
+      # No pull request carries this job, so a red run has nobody reading it: one issue named for the state, updated in place
+      # rather than a second ticket every night.
+      - name: Open or update the tracker issue a red run leaves
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          title='The Windows gate is red'
+          found="$(gh issue list --state open --search 'in:title "The Windows gate is red"' --json number,title --jq 'map(select(.title == "The Windows gate is red")) | .[0].number // ""')"
+          body="The gate runs on main, nightly and on demand, and this run failed: $RUN_URL ($REF_NAME). The suites that reach the five-second case deadline on that runner are the Worker-runtime ones #815 owns; the exclusion is CAOTANG_SKIP_WORKER_SUITES and nothing is retried and no deadline is raised."
+          if [ -n "$found" ]; then
+            gh issue comment "$found" --body "Failed again on $REF_NAME: $RUN_URL"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
 
   e2e:
     name: e2e (chromium)

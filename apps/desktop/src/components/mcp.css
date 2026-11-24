@@ -193,3 +193,49 @@
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   font-size: 0.85em;
 }
+
+/* This project's server: the block above the server list, on the same raised surface as a server card. */
+.mcp-project {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
+  padding: 0.75rem 0.9rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.mcp-project h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.mcp-connection {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.mcp-connection-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.mcp-connection-label {
+  flex: 0 0 auto;
+  min-width: 4.5rem;
+  font-size: 0.9em;
+  color: var(--muted);
+}
+
+/* The address and the token are values to copy, so they are set as data, not as prose. */
+.mcp-connection-row input[type='text'] {
+  flex: 1 1 12rem;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.85em;
+}
+
+.mcp-project-writes {
+  display: grid;
+  gap: 0.25rem;
+}

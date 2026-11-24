@@ -10,6 +10,8 @@ import type { WireFactory } from '@caotang/mcp-client';
 /* lingui-set comment="Interpolated values: error" */
 
 import { sweepHistory } from './history-store.js';
+import { desktopEgress, egressTargets } from './native-egress.js';
+import { openDesktopKeys } from './native-vault.js';
 import { APP_KEYS, openAppDb, setActiveAppDb, type AppDb } from './app-db.js';
 import { McpApp } from './mcp.js';
 import { SaveChannel } from './save-channel.js';
@@ -90,6 +92,8 @@ export interface AppServices {
   readonly mcp: McpApp;
   /** What the start-up could not do, phrased for the writer. Empty when everything opened. */
   readonly notices: readonly string[];
+  /** Whether this computer's keychain holds the provider keys, rather than this browser's storage. */
+  readonly keychain: boolean;
 }
 
 export interface OpenServicesOptions {
@@ -134,7 +138,24 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
   void sweepHistory(db);
 
   const host = studioHost();
-  const { service, notices: providerNotices } = await ProviderService.open({ db, vault: factory, ...(host === null ? {} : { host }) });
+  // In the desktop shell, provider calls are made by the main process: a provider that sends no CORS headers answers the app
+  // where a browser could not read it (desktop.md). Published addresses come from the profiles themselves, read before each
+  // call, so a profile saved a moment ago is reachable on its first request.
+  const egress = desktopEgress();
+  const keys = await openDesktopKeys(factory);
+  const { service, notices: providerNotices } = await ProviderService.open({
+    db,
+    vault: factory,
+    ...(host === null ? {} : { host }),
+    ...(keys.kind === 'keychain' ? { keys: keys.store } : {}),
+    ...(egress === undefined ? {} : { fetch: egress.fetch }),
+  });
+  if (keys.kind === 'unavailable') {
+    notices.push(t`The operating system's keychain could not be used on this computer, so keys stay encrypted in this browser. Add them again from Settings if you expect one there.`);
+  } else if (keys.kind === 'keychain') {
+    if (keys.moved > 0) notices.push(t`Your provider keys are now kept by this computer's keychain instead of this browser.`);
+    if (keys.failed) notices.push(t`Some keys could not be moved into this computer's keychain. Settings names each profile without one, and entering the key again keeps it there.`);
+  }
   notices.push(...providerNotices);
   const settings = new SettingsStore(db, initial);
   // The agent trace follows its setting (agent-harness §5.2): on, the gateway is observed; off, nothing is gathered and what was is cleared.
@@ -146,12 +167,19 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
   if (active !== undefined && settings.current().provider.activeProfileId !== active.id) {
     await settings.update({ provider: { activeProfileId: active.id } });
   }
+  egress?.points(() => egressTargets(service.profiles.list(), settings.current().mcp));
   const mcp = new McpApp({
     settings: { current: () => settings.current().mcp, update: (patch, options) => settings.update(patch, options) },
     keys: service.keys,
     ...(options.mcpWire === undefined ? {} : { wire: options.mcpWire }),
+    // A server's token lives in the keychain with the provider keys, so a call to it is made by the process that holds it. Where
+    // the fetch is the page's own there is nothing to hand over and no CORS refusal to explain away.
+    ...(egress === undefined ? {} : {
+      fetch: (url: string | URL, init?: RequestInit) => egress.fetch(typeof url === 'string' ? url : url.href, init ?? {}),
+      probe: () => Promise.resolve(true),
+    }),
   });
-  return { db, settingsKept: settingsKeptAtStart === true, settings, providers: service, mcp, notices };
+  return { db, settingsKept: settingsKeptAtStart === true, settings, providers: service, mcp, keychain: keys.kind === 'keychain', notices };
 }
 
 function errorText(error: unknown): string {

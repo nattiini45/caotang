@@ -17,14 +17,21 @@ export default defineConfig({
     // is green because it never ran. `apps/desktop/test` holds the app's own
     // component-level checks (the React bidi helper, I4), which need the app's
     // React dependency and therefore cannot live under the root package.
-    include: ['packages/*/test/**/*.test.ts', 'test/**/*.test.ts', 'apps/desktop/test/**/*.test.{ts,tsx}'],
+    include: [
+      'packages/*/test/**/*.test.ts',
+      'test/**/*.test.ts',
+      'apps/desktop/test/**/*.test.{ts,tsx}',
+      // The shell's own checks of the main process (#869): a case that needs a vault which opens slowly, or a page that
+      // aborts mid-call, cannot be told to a launched app on a runner with no keychain. `*.spec.ts` stays Playwright's.
+      'apps/desktop-shell/test/**/*.test.ts',
+    ],
     // The Ink compiler loads on demand, so every test file starts with it loaded, as a Node host's entry does.
     setupFiles: ['test/setup-ink-compiler.ts'],
     reporters: ['default'],
-    // Five suites in `packages/sync-server/test` run their cases through a Miniflare Worker runtime, which takes longer on a loaded
+    // Seven suites in `packages/sync-server/test` run their cases through a Miniflare Worker runtime, which takes longer on a loaded
     // runner than the default case deadline allows: `account-mode.test.ts` took 55 s for its 19 cases on GitHub's Windows runner and
-    // six of them timed out at five seconds, `storage.test.ts`, `server.test.ts`, `quota.test.ts` and `accounts.test.ts` time out
-    // there intermittently. Windows is where that bites, so the Windows legs set this variable and run the rest of the gate; every
+    // six of them timed out at five seconds, and `storage.test.ts`, `server.test.ts`, `quota.test.ts`, `accounts.test.ts`,
+    // `project-lease.test.ts` and `project-records.test.ts` time out there intermittently. Windows is where that bites, so the Windows legs set this variable and run the rest of the gate; every
     // other runner runs them, and #815 tracks moving those files onto one shared runtime so the exclusion can go (#820 keeps the
     // later ones named until then). Nothing is skipped silently: the job that sets it lists the files and the reason in its step's
     // name.
@@ -37,6 +44,8 @@ export default defineConfig({
             'packages/sync-server/test/server.test.ts',
             'packages/sync-server/test/quota.test.ts',
             'packages/sync-server/test/accounts.test.ts',
+            'packages/sync-server/test/project-lease.test.ts',
+            'packages/sync-server/test/project-records.test.ts',
           ]
         : []),
     ],

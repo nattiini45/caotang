@@ -185,7 +185,19 @@ export const BUDGET = {
   // measured, +1,796 over the ceiling that tree sat under. Named: the compiled English catalogue's Kanka messages, which must
   // precede first paint (i18n.md §3.3); the reader, the preview source and the Worker stay on use. The ceiling is the
   // measurement rounded up to the thousand. [delegated 2026-11-23]
-  initialGzip: 1_120_000,
+  // The desktop app's own provider transport (#405), built and measured on CI: 1,120.7 kB gzip, 0.7 kB over the ceiling this tree
+  // sat under. Named: the transport's rules and the wording of each refusal, the allowlist it reads before every call, and the two
+  // Settings and ProviderSetup lines that decide whether a preset a browser cannot read is worth a badge in this app. No chunk was
+  // available to move any of it: `openAppServices` reads the transport and the key store while the app boots, before the first
+  // paint, so a dynamic import would only trade these bytes for a chunk that must load before the first request. The ceiling is the
+  // measurement rounded up to the thousand. [delegated 2026-11-23]
+  // The keychain (#404), built and measured again on the merge of main aa653891, which carries #405: 1,122.2 kB gzip, 1.2 kB over
+  // the ceiling that tree set. Named: the vault's
+  // rules and the sealed record they write, the six channels the preload answers and the handle a request carries in place of a key,
+  // the write-verify-delete migration the app runs as it opens, and the Settings sentence that says which store holds the keys. All
+  // of it is read by `openAppServices` before the first paint, so there was no chunk to move it to; the pages that only a form needs
+  // were already on use. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  initialGzip: 1_126_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -316,7 +328,24 @@ export const BUDGET = {
   // Named: the @caotang/import-kanka reader and its preview source, all on-use chunks, and the German Kanka strings in the
   // de catalogue. Measured again at 9,019,400 bytes at the review-answers head. The ceiling is the measurement rounded up
   // to the thousand. [delegated 2026-11-23]
-  totalJs: 9_020_000,
+  // The desktop app's own provider transport (#405): 9,022.5 kB measured on CI, 2.5 kB over that ceiling, all of it the entry chunk
+  // (every other chunk is the same size to the tenth of a kilobyte). What is named above applies: the transport, its refusals and
+  // the wiring that reaches it from Settings. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  // The keychain (#404): 9,027.9 kB measured on the merge of main aa653891, 4.9 kB over that tree's ceiling, again the entry
+  // chunk. The vault, the channels' contract and the migration are named above. The ceiling is the measurement rounded up to the
+  // thousand.
+  // [delegated 2026-11-23]
+  // The native port's hardening (#854), measured on the merge of main deb99b57, which carries the keychain: 9,028.4 kB, 0.4 kB over the
+  // ceiling that tree set, again the entry chunk. Named: the GET rule, the mapped-loopback predicate, the no-body head a page answers
+  // without a stream, and the guard that ties a chunk to the call still holding its id. The ceiling is the measurement rounded up to
+  // the thousand. [delegated 2026-11-23]
+  // The loopback provider target (#867), measured on CI at 9,045.0 kB: the target list moved into native-egress.ts with the
+  // `local` flag a profile on this computer now carries, and the setup form draws one paragraph fewer in the desktop build.
+  // Optimisations checked: the list cannot be a lazy chunk, because `openAppServices` publishes it at start-up and reads it again
+  // before every call, so a dynamic import would only trade these bytes for a chunk that must load before the first request; the
+  // loopback test reuses the gateway's `isLocalBase` rather than a second predicate; nothing is duplicated and no dependency,
+  // stylesheet or chunk was added. The ceiling is the measurement plus about 1%, as CONTRIBUTING's rule sets. [bundle-raise rule 2026-11-24]
+  totalJs: 9_136_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

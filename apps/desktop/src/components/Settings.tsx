@@ -45,6 +45,7 @@ import {
 } from '../app/settings.js';
 import { applyInterface, interfaceStatus, rememberInterface, subscribeInterface, type Interface } from '../app/interface.js';
 import { readModernPreferences, setModernPreference, type ModernPreferences } from '../app/modern-preferences.js';
+import { nativeEgressAvailable } from '../app/native-egress.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import { developerLanguageExposure, languageRevision, subscribeLanguage, switchInterfaceLanguage } from '../i18n/language.js';
 import { sameLanguageSetting } from '../i18n/catalogues.js';
@@ -191,7 +192,7 @@ export function Settings({
             {section === 'writing' ? <WritingSection services={services} /> : null}
             {section === 'hooks' ? <HookSettings session={session} services={services} /> : null}
             {section === 'coherence' ? <CoherenceSection services={services} /> : null}
-            {section === 'mcp' ? narrow ? <OpenOnDesktop feature="mcp" /> : <McpSection mcp={services.mcp} /> : null}
+            {section === 'mcp' ? narrow ? <OpenOnDesktop feature="mcp" /> : <McpSection mcp={services.mcp} session={session} /> : null}
             {section === 'appearance' ? <AppearanceSection services={services} /> : null}
             {section === 'data' ? <DataSection services={services} session={session} store={store} storage={storage} /> : null}
           </div>
@@ -365,6 +366,8 @@ function fallbacksOf(draft: RoleDraft): readonly RoleTargetRef[] {
 }
 
 function ProvidersSection({ services, onChanged }: { services: AppServices; onChanged?: () => void }): ReactNode {
+  // Whether this app makes the call itself: a badge about what a browser cannot reach would be false here.
+  const native = nativeEgressAvailable();
   useLingui();
   const providers = services.providers;
   const [, refresh] = useReducer((n: number) => n + 1, 0);
@@ -397,10 +400,17 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
         <Trans>Providers</Trans>
       </h3>
       <p className="muted">
-        <Trans>
-          The agent calls the active profile. Keys are encrypted in this browser and never written into a project. The built-in demo
-          profile answers only the three demo requests.
-        </Trans>
+        {services.keychain ? (
+          <Trans>
+            The agent calls the active profile. Keys are held by this computer's keychain and never written into a project, and none of
+            them reaches this page. The built-in demo profile answers only the three demo requests.
+          </Trans>
+        ) : (
+          <Trans>
+            The agent calls the active profile. Keys are encrypted in this browser and never written into a project. The built-in demo
+            profile answers only the three demo requests.
+          </Trans>
+        )}
       </p>
 
       <ul className="profile-list" aria-label={t`Provider profiles`}>
@@ -435,7 +445,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                     </>
                   )}
                 </span>
-                {card?.cors === 'blocked' ? (
+                {card?.cors === 'blocked' && !native ? (
                   <span className="badge">
                     <Trans>Desktop app or hosted only</Trans>
                   </span>
