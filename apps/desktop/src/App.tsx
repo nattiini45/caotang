@@ -17,6 +17,8 @@ import type { DirectoryHandleLike } from './app/fs-access.js';
 import { nativeTrayHidden, publishNativeState, readNativeTimeZone, subscribeNativeWindow, watchNativeWindow } from './app/native-os.js';
 import { languageRevision, subscribeLanguage } from './i18n/language.js';
 import { openDemoSample, openFolder, type Opened } from './app/lifecycle.js';
+import { stopProjectServerUnless } from './app/native-mcp.js';
+import { nativeFolderId } from './app/native-folders.js';
 import { useBootPhase } from './app/use-boot-phase.js';
 import { DemoStart } from './app/demo-start.js';
 import { openInTurn } from './app/open-queue.js';
@@ -80,6 +82,9 @@ export function App(): ReactNode {
     if (previous !== null && previous !== opened.session) {
       closeSession(previous);
     }
+    // The project's own MCP server serves one folder: opening another project, or one the writer holds in the browser, stops it rather
+    // than leaving the last manuscript reachable (desktop.md §The project's own MCP server).
+    void stopProjectServerUnless(nativeFolderId(opened.session.folderBaseline()?.folder ?? null));
     // The browser is asked once per open, and not again once it has said yes (ui-modules §5.3). The answer lands on the session.
     const host = browserStorageHost();
     void requestDurability(host).then((durability) => {
@@ -100,6 +105,8 @@ export function App(): ReactNode {
     // The workspace goes at once, so nothing is typed into a session that is closing. The projects list does not take the lease this
     // close still holds for another tab's (lifecycle `openElsewhere`).
     if (previous !== null) closeSession(previous);
+    // Nothing is open, so nothing is being served: the project's own MCP server stops with the project it was started for.
+    void stopProjectServerUnless(undefined);
   };
 
   /**

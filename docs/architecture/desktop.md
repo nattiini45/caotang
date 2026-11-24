@@ -1,6 +1,7 @@
 # Caotang for desktop
 
 The [development shell](../../apps/desktop-shell/README.md) in [epic #16](https://github.com/nattiini45/caotang/issues/16) hosts the existing root-base Vite build from `apps/desktop/dist/`. The browser site, project format, storage schema and Vite output stay unchanged. This spec records the feasibility spike (#398), the shell (#400), the unsigned packages (#401), native project folders (#402), the watcher (#403), the keychain (#404) and native provider calls (#405).
+\nThe [development shell](../../apps/desktop-shell/README.md) in [epic #16](https://github.com/nattiini45/caotang/issues/16) hosts the existing root-base Vite build from `apps/desktop/dist/`. The browser site, project format, storage schema and Vite output stay unchanged. This spec records the feasibility spike (#398), the shell (#400), the unsigned packages (#401), native project folders (#402), the watcher (#403), the keychain (#404), native provider calls (#405) and the project's own MCP server (#406).
 
 ## Runtime and trust boundary
 
@@ -247,6 +248,62 @@ What is not verified here: `safeStorage` on a real Windows, macOS or KDE desktop
 sealer (`packages/gateway/test/os-vault.test.ts`), and the shell suite proves the channels the page gets; the Linux runner the
 suite runs on has no keyring, so the fallback is the path it exercises. Signing and notarisation (#409) and the upgrade train
 (#410) are unchanged.
+
+## The project's own MCP server (#406)
+
+The app serves the open project over MCP itself, so a host on this computer can read the manuscript without a terminal, a port
+number or a token typed in by hand. It runs no new program: `dist/mcp/caotang-mcp.mjs` — the same bundle the `.mcpb` ships — is
+forked as an Electron `utilityProcess` with `serve --project <folder> --port 0`, so the port is one the operating system picks and
+one app has one server. `apps/desktop-shell/scripts/mcp-bundle.mjs` copies the built bundle into `dist/mcp/`, and the shell's build,
+smoke test and package preparation all do that first, so the bundle travels beside the app rather than being installed.
+
+**One server, one open folder, named by id.** The page asks for a folder **id**, never a path: `mcp:start` takes an id and a write
+setting, and the shell resolves the id through the grant list every folder channel uses. A page cannot point this server at a
+directory the writer never opened, and a folder the writer closed grants nothing new. The server's own login flow stays as it is:
+it takes the folder's single-writer lock, refuses a folder another writer holds, and reads and writes through `@caotang/sdk`'s
+folder session.
+
+**Read-only until the writer says otherwise.** The app passes `--allow-writes` only when the **Allow changes** switch is on, which is
+off by default, and the switch says what it means: a host may write the same files the writer does. Changing the setting restarts the
+server, because the tools a server lists are fixed when it opens the project.
+
+**The token is minted in the main process and handed to the page, once.** The app makes 192 bits of base64url for each start, sets
+`CAOTANG_MCP_TOKEN` in the child's environment, and keeps the value in its own memory; the server prints everything else on stderr
+and never prints a token it was given. The page receives the address and the token in the bridge — that is the one place a token
+crosses into the page in this app — because the writer's next step is to copy both into another program's configuration. It is not a
+provider key (keychain, #404), it is not written into a project, an export or a log, and it ends with the run. The page shows it
+read-only with a copy button beside the address and a **Copy the configuration** button that copies the JSON an MCP host reads.
+
+**Two writers, one pause.** The app and the server write the same folder, and the server's lock alone cannot make the app wait: it
+holds the lock for its whole run, and the app saves many times while it does. So the app pauses the server for the length of a save.
+`pauseProjectServer` posts `POST /control/pause` with the same bearer token before the first file the save writes and
+`resumeProjectServer` posts `POST /control/resume` after the last, and the guard refuses a write tool while the pause stands, with a refusal that says the app is
+saving and that a read is never refused. The endpoints exist on every HTTP server this package starts, including one a terminal
+started, where nobody uses them; a server started without a gate answers `404` and says nothing coordinates a save with it.
+
+What the pause does and does not guarantee: a write tool that has not started is refused rather than queued, so nothing lands after
+the save; a write that is already running when the pause arrives finishes, and the app's digest check — the one `writeProject` makes
+for each file before it replaces it, and `changedDuringSave` after — refuses that file and names it to the writer instead of replacing
+it. That is "reported, not lost", the same guarantee the folder guard gives without a server. The pause is taken only for a save that
+writes: a save the verdict refuses never reaches it.
+
+**A pause that cannot be confirmed stops the save.** With a server holding this folder, a save whose pause did not answer takes the
+folder's own lock refusal, so the writer is asked before anything is written and can save anyway. Without that, the save would run
+while a server that may still accept writes holds the same folder, which is the one thing this pause exists to prevent; the digest
+check would still catch a file it changed, but the promise is about what the server cannot start, not only about what it already did.
+
+**The app's own server's lock is not another writer's.** The server holds `.caotang-mcp.lock` for its whole run, so the checks that
+refuse a locked folder would otherwise refuse every save. Two places tell the app's own server from another program's by the process
+the lock body records: the folder channel (`folders.mts`) compares the lock's pid with the pid of the child it forked, and the save's
+verdict (`writeFolder` in `lifecycle.ts`) treats the lock as gone while that server is running over this very folder. A lock from a
+server started in a terminal is another writer, and is still refused and still asked about. After the app's server has died, its pid is
+no longer one the app forked, so a lock it left behind reads as another writer's and the writer is asked — the same question a crashed
+server has always asked — and the server's own stale-lock takeover is what clears the file.
+
+What is not verified here: the whole path has only been run on Linux x64 under Xvfb. `utilityProcess` forking a bundle that speaks
+MCP over HTTP has not been seen on Windows or macOS, and the bridge's `clipboard-sanitized-write` permission, which the copy buttons
+rely on, has not been checked on a real desktop either. A packaged app's `dist/mcp/` has been built and copied in CI, and no packaged
+build has started a server. Windows and macOS path and code-signing behaviour for the child (`#401`, `#409`) is unchecked.
 
 ## Packaging (#401)
 

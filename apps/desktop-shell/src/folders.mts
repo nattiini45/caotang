@@ -104,18 +104,47 @@ function changedPaths(root: string, events: readonly Event[]): readonly string[]
 }
 
 /**
- * What the rest of the shell may do with the folders this process has granted: look one up for a `caotang://` link, and grant one
- * the operating system handed over (desktop.md §Deep links and folder handoff). Both go through the same rules the picker's own
- * answers do.
+/**
+ * What the rest of the shell may do with the folders this process has granted: the directory an id names, the folder behind an id
+ * for a `caotang://` link, and the grant of one the operating system handed over (desktop.md §Deep links and folder handoff).
  */
 export interface FolderRegistry {
+  /** The directory the id names, for a channel that must be handed an id and never a path. */
+  rootOf(id: string): string | undefined;
   /** The folder behind a link's id, or `null` when this profile has never been granted it. */
   find(id: string): NativeFolder | null;
   /** Grants a folder the system named, or says why not: it is not a folder, or it holds no `caotang.json`. */
   grantPath(root: string): Promise<{ readonly ok: true; readonly value: NativeFolder } | { readonly ok: false; readonly error: 'not-a-project' | 'unreadable' }>;
 }
 
-export async function registerFolderIpc(profile: string, entryUrl: string): Promise<FolderRegistry> {
+export interface FolderIpcOptions {
+  /**
+   * The pid of the MCP server this app runs, when one is running. A lock that names it is the app's own writer, not another program's:
+   * the page pauses that server around its saves, so a write from here never races it (mcp.mts, packages/sdk/src/lock.ts).
+   */
+  readonly ownWriter?: () => number | undefined;
+}
+
+/**
+ * Whether another writer holds the folder. The lock a Caotang MCP server leaves records its process; the one this app started is not
+ * another writer, because the page pauses it for the length of its own save. Any other lock — a server a terminal started, or one whose
+ * body cannot be read — is another writer, and the write is refused as it always was.
+ */
+async function heldByOtherWriter(fs: NodeArtifactFs, ownWriter: () => number | undefined): Promise<boolean> {
+  if (!(await fs.exists('.caotang-mcp.lock'))) return false;
+  const own = ownWriter();
+  if (own === undefined) return true;
+  const bytes = await fs.readBytes('.caotang-mcp.lock').catch(() => undefined);
+  if (bytes === undefined) return true;
+  try {
+    const body: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    return !(body !== null && typeof body === 'object' && (body as { pid?: unknown }).pid === own);
+  } catch {
+    return true;
+  }
+}
+
+export async function registerFolderIpc(profile: string, entryUrl: string, options: FolderIpcOptions = {}): Promise<FolderRegistry> {
   const registryFs = new NodeArtifactFs(profile);
   const registry = 'native-project-folders.json';
   const recent = new Map<string, Grant>();
@@ -180,7 +209,7 @@ export async function registerFolderIpc(profile: string, entryUrl: string): Prom
     const target = entryPath(grant.root, path, file);
     await checkRoot(grant, writable);
     const fs = new NodeArtifactFs(grant.root);
-    if (writable && path !== '' && await fs.exists('.caotang-mcp.lock')) throw new FolderRefusal('unavailable');
+    if (writable && path !== '' && await heldByOtherWriter(fs, options.ownWriter ?? (() => undefined))) throw new FolderRefusal('unavailable');
     return use(fs, target);
   }
   handle('pick', async (event, mode) => {
@@ -283,6 +312,7 @@ export async function registerFolderIpc(profile: string, entryUrl: string): Prom
   });
 
   return {
+    rootOf: (id) => selected.get(id)?.root ?? recent.get(id)?.root,
     find: (id) => {
       const grant = selected.get(id) ?? recent.get(id);
       return grant === undefined ? null : publicFolder(grant);

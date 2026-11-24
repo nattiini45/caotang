@@ -2,13 +2,13 @@
   "sourceLocale": "en",
   "locales": {
     "de": {
-      "total": 5324,
-      "translated": 5324,
-      "untranslated": 0,
-      "missing": 0,
+      "total": 5345,
+      "translated": 5322,
+      "untranslated": 23,
+      "missing": 23,
       "fuzzy": 0,
-      "sameAsEnglish": 115,
-      "completion": 100
+      "sameAsEnglish": 116,
+      "completion": 99.6
     }
   }
 }

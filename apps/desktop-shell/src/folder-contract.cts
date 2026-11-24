@@ -1,4 +1,5 @@
 import type { NativeEgressBridge } from './egress-contract.cjs';
+import type { DesktopMcpBridge } from './mcp-contract.cjs';
 import type { NativeOsBridge } from './os-contract.cjs';
 import type { KeyVaultBridge } from './vault-contract.cjs';
 
@@ -39,17 +40,21 @@ export interface NativeFolderBridge {
 }
 
 /**
- * Everything the desktop shell exposes to the studio. `folders` arrived with version 2 and `os` with version 3: a page reads the
- * version before it reads a member, so an older shell and a newer studio each see only what both have.
+ * Everything the desktop shell exposes to the studio. `folders` arrived with version 2, `os` and the provider port with version 3,
+ * the vault with 4 and the project's own server with 5: a page reads the version before it reads a member, so an older shell and a
+ * newer studio each see only what both have.
  */
+
 export interface DesktopBridge {
-  readonly version: 4;
+  readonly version: 5;
   readonly folders: NativeFolderBridge;
   readonly os: NativeOsBridge;
   /** Provider and MCP calls made by the main process, where no CORS preflight applies. */
   readonly net: NativeEgressBridge;
   /** The operating system's keychain: a page may store, remove and ask, never read. */
   readonly vault: KeyVaultBridge;
+  /** The project's own MCP server, run by this app, and the pause that keeps the two writers apart. */
+  readonly mcp: DesktopMcpBridge;
 }
 
 declare global {

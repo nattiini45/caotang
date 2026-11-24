@@ -1598,8 +1598,9 @@ function folderQuestion({
       ) : (
         <p>
           <Trans>
-            A lock file in this folder says that another program, such as the Caotang MCP server, may be using it. Saving now can overwrite
-            what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?
+            A lock file in this folder says that another program, such as the Caotang MCP server, may be using it, or that server could
+            not be paused for this save. Saving now can overwrite what that program has written. If no such program is running, the lock
+            was left behind when one closed. Save anyway?
           </Trans>
         </p>
       ),

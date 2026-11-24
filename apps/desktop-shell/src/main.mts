@@ -7,6 +7,7 @@ import { app, BrowserWindow, net, protocol, screen, session } from 'electron';
 
 import { registerEgressIpc } from './egress.mjs';
 import { registerFolderIpc } from './folders.mjs';
+import { registerMcpIpc, type McpHost } from './mcp.mjs';
 import { registerOsIpc, type OsIntegration } from './os.mjs';
 import { openKeyVault, registerVaultIpc } from './vault.mjs';
 const ORIGIN = 'app://caotang';
@@ -154,10 +155,15 @@ function deliverAll(evidence: readonly string[]): void {
 
 async function start(): Promise<void> {
   await serveBuild();
-  const folders = await registerFolderIpc(app.getPath('userData'), ENTRY);
+  // The folder channels ask whether a lock is the server this app starts, and that server is registered after them because it needs
+  // the folder grant they own: this box holds its handle, and the check reads it when a file is written, long after both are set up.
+  const host: { mcp?: McpHost } = {};
+  const folders = await registerFolderIpc(app.getPath('userData'), ENTRY, { ownWriter: () => host.mcp?.writerPid() });
   const vault = await openKeyVault(app.getPath('userData'));
   registerVaultIpc(ENTRY, vault);
   registerEgressIpc(ENTRY, vault);
+  // The project's own MCP server: the bundle beside this one, the folder grant the writer already gave, and the pause a save takes.
+  host.mcp = registerMcpIpc({ entryUrl: ENTRY, bundle: resolve(import.meta.dirname, 'mcp/caotang-mcp.mjs'), rootOf: (id) => folders.rootOf(id) });
   os = registerOsIpc({
     entryUrl: ENTRY,
     own: [process.execPath, app.getAppPath()],
