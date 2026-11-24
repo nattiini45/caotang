@@ -5,15 +5,12 @@
  */
 
 import { t } from '@lingui/core/macro';
-import type { McpSettings, WireFactory } from '@caotang/mcp-client';
+import type { WireFactory } from '@caotang/mcp-client';
 
 /* lingui-set comment="Interpolated values: error" */
 
-import { isLoopbackHost, originOf } from '@caotang/gateway';
-import type { NativeEgressTarget, ProfileView } from '@caotang/gateway';
-
 import { sweepHistory } from './history-store.js';
-import { desktopEgress } from './native-egress.js';
+import { desktopEgress, egressTargets } from './native-egress.js';
 import { openDesktopKeys } from './native-vault.js';
 import { APP_KEYS, openAppDb, setActiveAppDb, type AppDb } from './app-db.js';
 import { McpApp, serverOrigin } from './mcp.js';
@@ -185,41 +182,6 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
     }),
   });
   return { db, settingsKept: settingsKeptAtStart === true, settings, providers: service, mcp, keychain: keys.kind === 'keychain', notices };
-}
-
-/**
- * The addresses the desktop port may reach, and the key each may carry: a provider profile's origin with that profile's key,
- * and a connected MCP server's origin with its bearer token.
- *
- * A provider profile is never local, so a model server on this computer keeps the browser's path and its own prompts. An MCP
- * server may be local, because a server on this computer is where a bearer token most often lives, and the main process is
- * where the token is.
- */
-function egressTargets(profiles: readonly ProfileView[], mcp: McpSettings): NativeEgressTarget[] {
-  const targets: NativeEgressTarget[] = [];
-  /** A record whose address does not parse cannot be reached anyway; the form that saved it reported the address. */
-  // The page says which addresses the app is configured for, and nothing about keys: the shell reads each key's address from
-  // the binding it recorded when the writer stored it (#864).
-  const add = (url: string, local = false): void => {
-    try {
-      targets.push({ origin: originOf(url), ...(local ? { local } : {}) });
-    } catch {
-      // A record whose address does not parse is not an address, so it adds nothing to the list.
-    }
-  };
-  for (const profile of profiles) {
-    if (profile.kind !== 'mock') add(profile.baseUrl);
-  }
-  for (const server of mcp.servers) {
-    let local = false;
-    try {
-      local = isLoopbackHost(new URL(server.url).hostname);
-    } catch {
-      continue;
-    }
-    add(server.url, local);
-  }
-  return targets;
 }
 
 /** A profile record as an earlier save left it: the id a key is stored under, and the endpoint its address comes from. */

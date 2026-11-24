@@ -56,21 +56,24 @@ browser's verdict for a preset the app can use. Nothing above the transport chan
 `fetch`.
 
 **The port is not a general fetcher.** [`native-egress.ts`](../../packages/gateway/src/native-egress.ts) is the rule, with no
-Electron and no network in it: https to an origin the app configured, never this computer, no credentials in the address, a
-method a model call or a listing uses, at most 32 headers and 32 KiB of them, a 24 MiB request body, and a response counted
-as it streams with a 64 MiB cap. A header that names the connection rather than the request (`host`, `content-length`,
+Electron and no network in it: https to an origin the app configured, this computer only through a `local` entry, no
+credentials in the address, a method a model call or a listing uses, at most 32 headers and 32 KiB of them, a 24 MiB request
+body, and a response counted as it streams with a 64 MiB cap. A header that names the connection rather than the request (`host`, `content-length`,
 `transfer-encoding` and the like) is refused, and a header value carrying a line break with it. A redirect is never followed:
 the status goes back to the page, which already refuses a 3xx with what it means, because following one would make the
 allowlist a starting point rather than a rule.
 
 **The origins come from the app, read before each call.** The page publishes the origin of every provider profile from the
 profile store at the moment of a request — not at start-up — so a profile saved a second ago is reachable on its first call.
-A profile that does not parse, is not https, or is this computer contributes nothing; "this computer" is judged by text, so
-`127.0.0.1`, `localhost`, `[::1]`, any `*.localhost` name and an IPv4-mapped spelling such as `[::ffff:127.0.0.1]` are all the
-same machine. The local model presets therefore keep
-the browser's path exactly as they are today: decisions.md keeps loopback out of the native port, so Ollama, LM Studio and
-`llama-server` are called from the page, with the Local Network Access prompt and the product's own CORS advice. A connected
-MCP server's URL joins the list when MCP calls move onto the port with the keychain (#404), not before.
+A profile that does not parse, or that names a plain-http address which is not on this computer, contributes nothing; every
+other profile is an https origin, and one on this computer is a `local` entry, the same kind a local MCP server is. "This
+computer" is judged by text and by the local presets' own rule (`isLocalBase`), so `127.0.0.1`, `localhost`, `[::1]` and an
+IPv4-mapped spelling such as `[::ffff:127.0.0.1]` are the same machine while a `*.localhost` name is not: a local entry is the
+one kind the port may reach over plain http, so it is the narrowest reading. Ollama, LM Studio and `llama-server` are therefore
+called by the main process, which is what lets a server that asks for a key receive it: the keychain holds the key and only the
+main process can read it, so a page request carries `caotang-key:<id>` and the host swaps it for the secret at that loopback
+origin. Those servers keep the browser's Local Network Access prompt and the product's CORS advice only in the browser build.
+A connected MCP server's URL is published the same way, a local server as a `local` entry with its bearer token (#404).
 
 **Streaming.** The reply to a call is its status, its reason and its headers; the body follows as chunks on one channel
 keyed by the request's own id, so a model's server-sent events reach the page as they are written rather than after the
@@ -290,12 +293,14 @@ same on every machine, which is obfuscation rather than encryption; the vault tr
 keychain at all. There, the WebCrypto vault of provider-gateway §7 keeps the keys, and Settings says the keys are in this
 browser rather than in the computer's keychain, as does the notice at start-up.
 
-**An MCP server on this computer is the one local address the port reaches.** A bearer token held by the main process cannot be
-attached by the page, so MCP HTTP goes through the same port; a server whose address is a loopback literal is the one entry
-allowed plain http, and its token is stored for that plain-http origin because the vault accepts exactly the addresses the port
-will send to
-([native-egress.ts](../../packages/gateway/src/native-egress.ts), `key-origin.ts`). A provider profile is never such an entry, so
-a local model server keeps the browser's path exactly as it was.
+**A server on this computer is a local entry, and a key it asks for arrives.** A credential held by the main process cannot be
+attached by the page, so MCP HTTP goes through the same port, and so does a provider profile whose address is a loopback literal
+([native-egress.ts](../../packages/gateway/src/native-egress.ts)). Such an entry is the only kind allowed plain http, and the port
+refuses plain http to any other address even when an entry says `local`; a profile elsewhere is published as an https origin. A
+key or a bearer token for one of them is stored for that plain-http origin, because the vault accepts exactly the addresses the
+port will send to (`key-origin.ts`). Without this, a local model server that asks for a key was sent `caotang-key:<id>` as its
+bearer token and answered an authentication failure (#867).
+
 
 **The two calls answer different shapes.** On the pinned Electron, `safeStorage.encryptStringAsync` resolves the sealed bytes and
 `decryptStringAsync` resolves a record whose `result` is the plain text; a host that unwraps one like the other stores a value its

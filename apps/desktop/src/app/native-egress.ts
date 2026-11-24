@@ -6,14 +6,16 @@
  * call. The page's part is to notice when it is running in the shell, to say which addresses the app is configured for,
  * and to turn one response into the `Response` the gateway already reads: a stream, its status, its headers.
  *
- * **What stays in the page.** A local model server, and a local MCP server, are reached by the page as they are in a
- * browser: decisions.md keeps loopback out of the native port, so those calls keep the browser's Local Network Access
- * prompt and its own advice about a server that refuses the page. Anything that is not https, or whose origin this app is
- * not configured for, takes the same path, so a call that would have worked in the browser still works.
+ * **A server on this computer is a local entry.** A provider profile whose address is a loopback literal, and a local MCP
+ * server, reach the port as `local` entries, because that is where a key held by the keychain most often is and the page can
+ * never read one: the main process attaches the secret, and the browser's Local Network Access prompt and its advice about a
+ * server that refuses the page belong to the browser build alone. The port still refuses plain http to any other address, and
+ * anything whose origin this app is not configured for keeps the browser's path, so a call that worked in the browser works.
  */
 
-import { nativeEgressTargets } from '@caotang/gateway';
-import type { FetchLike, NativeEgressTarget } from '@caotang/gateway';
+import { isLocalBase, isLoopbackHost, nativeEgressTargets, originOf } from '@caotang/gateway';
+import type { FetchLike, NativeEgressTarget, ProfileView } from '@caotang/gateway';
+import type { McpSettings } from '@caotang/mcp-client';
 
 import type { EgressError, EgressReply, NativeEgressBridge } from '../../../desktop-shell/src/egress-contract.cjs';
 
@@ -99,8 +101,8 @@ export function desktopEgress(): DesktopEgress | undefined {
   const fetch: FetchLike = async (url, init) => {
     const reachable = await publish();
     const target = new URL(url);
-    // An address the app is not configured for — a local model server, say — keeps the browser's path, with its prompt and
-    // its own advice, exactly as it is in a page.
+    // An address the app is not configured for — a server on another machine that was never added, say — keeps the browser's
+    // path, with its own advice, exactly as it is in a page.
     if (!reachable.has(target.origin)) return globalThis.fetch(url, init);
     return throughPort(api, sinks, target, init);
   };
@@ -175,4 +177,42 @@ async function throughPort(api: NativeEgressBridge, sinks: Map<string, Sink>, ta
   }
 
   return new Response(stream, { status: reply.value.status, statusText: reply.value.statusText, headers: reply.value.headers });
+}
+
+/**
+ * The addresses the desktop port may reach, and the key each may carry: a provider profile's origin with that profile's key,
+ * and a connected MCP server's origin with its bearer token.
+ *
+ * A profile pointed at a loopback literal is published as a `local` entry, exactly as an MCP server on this computer is: the key
+ * a local server asks for may be held by the keychain, which only the main process can read, so the page's handle has to become
+ * the secret there. Local means "this computer" to the port, which is why such an entry may be plain http and nothing else may:
+ * an address anywhere else is still https, and a profile there is published as an https origin.
+ *
+ * **The page names addresses and never keys.** Which key each address may carry is the main process's answer, read from the
+ * address the vault stored with the key (#864), so this publishes no key ids at all: the shell adds them as it builds the port's
+ * own allowlist, and a page that named one could point a saved key at an address of its own.
+ */
+export function egressTargets(profiles: readonly ProfileView[], mcp: McpSettings): NativeEgressTarget[] {
+  const targets: NativeEgressTarget[] = [];
+  /** A record whose address does not parse cannot be reached anyway; the form that saved it reported the address. */
+  const add = (url: string, local = false): void => {
+    try {
+      targets.push({ origin: originOf(url), ...(local ? { local } : {}) });
+    } catch {
+      // A record whose address does not parse is not an address, so it adds nothing to the list.
+    }
+  };
+  for (const profile of profiles) {
+    if (profile.kind !== 'mock') add(profile.baseUrl, isLocalBase(profile.baseUrl));
+  }
+  for (const server of mcp.servers) {
+    let local = false;
+    try {
+      local = isLoopbackHost(new URL(server.url).hostname);
+    } catch {
+      continue;
+    }
+    add(server.url, local);
+  }
+  return targets;
 }
