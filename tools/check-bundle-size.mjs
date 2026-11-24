@@ -339,7 +339,13 @@ export const BUDGET = {
   // ceiling that tree set, again the entry chunk. Named: the GET rule, the mapped-loopback predicate, the no-body head a page answers
   // without a stream, and the guard that ties a chunk to the call still holding its id. The ceiling is the measurement rounded up to
   // the thousand. [delegated 2026-11-23]
-  totalJs: 9_045_000,
+  // The loopback provider target (#867), measured on CI at 9,045.0 kB: the target list moved into native-egress.ts with the
+  // `local` flag a profile on this computer now carries, and the setup form draws one paragraph fewer in the desktop build.
+  // Optimisations checked: the list cannot be a lazy chunk, because `openAppServices` publishes it at start-up and reads it again
+  // before every call, so a dynamic import would only trade these bytes for a chunk that must load before the first request; the
+  // loopback test reuses the gateway's `isLocalBase` rather than a second predicate; nothing is duplicated and no dependency,
+  // stylesheet or chunk was added. The ceiling is the measurement plus about 1%, as CONTRIBUTING's rule sets. [bundle-raise rule 2026-11-24]
+  totalJs: 9_136_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

@@ -7,11 +7,11 @@
  * nothing else. This module is that rule, in one place, with no Electron and no network in it, so the rule is tested by
  * the repository's own gate rather than only by a launched app.
  *
- * **Provider calls never reach this computer.** A local model server is reached from the page exactly as it is in a browser
- * (decisions.md: provider calls are made natively, https only, to the configured profiles' origins, no loopback). An MCP
- * server on this computer is the one exception, because a local server is where a bearer token most often lives and a token
- * held by the main process cannot be attached by the page; such an entry is `local` and is the only kind allowed plain http
- * to a loopback literal.
+ * **This computer is reached only as a `local` entry.** A profile or MCP server whose address is a loopback literal is
+ * published as `local`, because a credential the keychain holds cannot be attached by the page and a server on this machine is
+ * where one most often lives; such an entry is the only kind allowed plain http, and `local` is not a licence to reach any
+ * other address — an https origin elsewhere is still https-only, and a plain-http one is dropped whether or not an entry calls
+ * it local (issue #867).
  *
  * **A key is a handle until it arrives here.** The page's key store never holds a provider key or an MCP token: it holds
  * `caotang-key:<id>`, and the adapter that would have written the key writes the handle where the key goes — in a header, in
