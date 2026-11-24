@@ -23,6 +23,7 @@ import type { WebContents } from 'electron';
 
 import type { EgressChunk, EgressEnd, EgressError, EgressHead, EgressReply } from './egress-contract.cjs';
 import { fromStudioFrame } from './ipc-guard.mjs';
+import type { KeyBindings } from './bindings.mjs';
 import type { KeyVault } from './vault.mjs';
 
 class EgressRefusal extends Error {
@@ -57,8 +58,10 @@ function reply<T>(run: () => T | Promise<T>): Promise<EgressReply<T>> {
     }));
 }
 
-export function registerEgressIpc(entryUrl: string, vault: KeyVault): void {
+export function registerEgressIpc(entryUrl: string, vault: KeyVault, bindings: KeyBindings): void {
   let targets: ReturnType<typeof nativeEgressTargets> = new Map();
+  /** The addresses the page is configured for, and the two facts about each the page may state: `local` marks a server on this machine. */
+  let allowed: { origin: string; local: boolean }[] = [];
   const streams = new Map<string, Stream>();
   const watched = new Set<number>();
 
@@ -122,6 +125,11 @@ export function registerEgressIpc(entryUrl: string, vault: KeyVault): void {
    * The request with its handles swapped for the secrets they name, and the secrets in that order for scrubbing. A configured
    * key the vault does not hold is refused rather than sent as a handle, which the provider would report as a bad key.
    */
+  /** The allowlist as the rule reads it: what the page may reach, and the ids the bindings have put at each address. */
+  function withKeys(): ReturnType<typeof nativeEgressTargets> {
+    return nativeEgressTargets(allowed.map((entry) => ({ ...entry, keys: bindings.keysFor(entry.origin) })));
+  }
+
   async function attach(request: { url: string; headers: Readonly<Record<string, string>>; keys: readonly string[] }): Promise<{
     url: string;
     headers: Record<string, string>;
@@ -142,7 +150,17 @@ export function registerEgressIpc(entryUrl: string, vault: KeyVault): void {
 
   ipcMain.handle('net:configure', (event, entries: unknown): Promise<EgressReply<null>> => reply(() => {
     if (!fromStudioFrame(event, entryUrl)) throw new EgressRefusal('invalid');
-    targets = nativeEgressTargets(Array.isArray(entries) ? entries : []);
+    // The page says which addresses the app is configured for, and nothing about keys: which key a request may carry is read
+    // from the bindings the main process recorded when the writer stored it (#864). A page that named a key here could point a
+    // saved key at an address of its own choosing, which is the thing the handle exists to prevent.
+    allowed = [];
+    for (const entry of Array.isArray(entries) ? entries : []) {
+      if (entry === null || typeof entry !== 'object') continue;
+      const candidate = entry as { origin?: unknown; local?: unknown };
+      if (typeof candidate.origin !== 'string') continue;
+      allowed.push({ origin: candidate.origin, local: candidate.local === true });
+    }
+    targets = withKeys();
     return null;
   }));
 
@@ -151,6 +169,8 @@ export function registerEgressIpc(entryUrl: string, vault: KeyVault): void {
     const id = spec !== null && typeof spec === 'object' ? (spec as { id?: unknown }).id : undefined;
     if (typeof id !== 'string' || !/^[A-Za-z0-9-]{8,64}$/u.test(id)) throw new EgressRefusal('invalid');
     if (streams.has(id)) throw new EgressRefusal('invalid');
+    // Rebuilt per call, so a key stored a moment ago can be used on its first request and a removed one is gone at once.
+    targets = withKeys();
     const checked = checkNativeEgress(targets, spec);
     if (!checked.ok) throw new EgressRefusal(checked.refusal);
     const keyed = await attach(checked.request);

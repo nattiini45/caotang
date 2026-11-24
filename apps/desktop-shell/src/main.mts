@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 import { app, BrowserWindow, net, protocol, screen, session } from 'electron';
 
+import { openKeyBindings } from './bindings.mjs';
 import { registerEgressIpc } from './egress.mjs';
 import { registerFolderIpc } from './folders.mjs';
 import { registerMcpIpc, type McpHost } from './mcp.mjs';
@@ -104,8 +105,11 @@ async function start(): Promise<void> {
   const host: { mcp?: McpHost } = {};
   const folders = await registerFolderIpc(app.getPath('userData'), ENTRY, { ownWriter: () => host.mcp?.writerPid() });
   const vault = await openKeyVault(app.getPath('userData'));
-  registerVaultIpc(ENTRY, vault);
-  registerEgressIpc(ENTRY, vault);
+  // Which address each stored key belongs to lives with the vault, in this process: the page may use a key, and may not say
+  // where it goes (bindings.mts, #864).
+  const bindings = await openKeyBindings(app.getPath('userData'));
+  registerVaultIpc(ENTRY, vault, bindings);
+  registerEgressIpc(ENTRY, vault, bindings);
   // The project's own MCP server: the bundle beside this one, the folder grant the writer already gave, and the pause a save takes.
   host.mcp = registerMcpIpc({ entryUrl: ENTRY, bundle: resolve(import.meta.dirname, 'mcp/caotang-mcp.mjs'), rootOf: (id) => folders.rootOf(id) });
   const allowed = (permission: string): boolean => permission === 'clipboard-sanitized-write';

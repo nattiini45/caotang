@@ -22,6 +22,7 @@ import { NodeArtifactFs } from '@caotang/artifact-fs-node';
 import { openOsVault, VAULT_ID, type OsKeyVault } from '@caotang/gateway/keys/os-vault';
 import { ipcMain, safeStorage } from 'electron';
 
+import type { KeyBindings } from './bindings.mjs';
 import { fromStudioFrame } from './ipc-guard.mjs';
 import type { VaultPayload, VaultReply } from './vault-contract.cjs';
 
@@ -70,7 +71,7 @@ export async function openKeyVault(profile: string, sealer: Sealer = electronSea
 class InvalidCall extends Error {}
 
 /** The channels the page may call, and the answers it gets. Nothing here reads a secret back to the page. */
-export function registerVaultIpc(entryUrl: string, vault: KeyVault): void {
+export function registerVaultIpc(entryUrl: string, vault: KeyVault, bindings: KeyBindings): void {
   const reply = <T,>(run: () => T | Promise<T>): Promise<VaultReply<T>> => Promise.resolve()
     .then(run)
     .then((value): VaultReply<T> => ({ ok: true, value }), (error: unknown): VaultReply<T> => {
@@ -104,20 +105,44 @@ export function registerVaultIpc(entryUrl: string, vault: KeyVault): void {
     return { apiKey: candidate.apiKey, ...(entries.length === 0 ? {} : { customHeaders: copy }) };
   };
 
+  /** The https origin a key is stored for: what the binding records, and the only address the id may ever be sent to. */
+  const originOf = (raw: unknown): string => {
+    if (typeof raw !== 'string') throw new InvalidCall('invalid');
+    let url: URL;
+    try {
+      url = new URL(raw);
+    } catch {
+      throw new InvalidCall('invalid');
+    }
+    if (url.protocol !== 'https:' || url.username !== '' || url.password !== '' || url.pathname !== '/' || url.search !== '' || url.hash !== '') {
+      throw new InvalidCall('invalid');
+    }
+    return url.origin;
+  };
+
   ipcMain.handle('vault:available', (event): Promise<VaultReply<boolean>> => reply(async () => {
     if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
     return vault.available();
   }));
 
-  ipcMain.handle('vault:put', (event, rawId: unknown, rawPayload: unknown): Promise<VaultReply<null>> => reply(async () => {
+  ipcMain.handle('vault:put', (event, rawId: unknown, rawPayload: unknown, rawOrigin: unknown): Promise<VaultReply<null>> => reply(async () => {
     if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
-    await vault.put(idOf(rawId), payloadOf(rawPayload));
+    const id = idOf(rawId);
+    const payload = payloadOf(rawPayload);
+    // The address the key was typed for is part of storing it, and it is recorded before the secret: a key that cannot be bound
+    // is a key nothing may send, rather than a key a page could point anywhere (#864). A rebind is refused here — the writer
+    // removes the key first, which is a deliberate act rather than a page's say-so.
+    await bindings.bind(id, originOf(rawOrigin));
+    await vault.put(id, payload);
     return null;
   }));
 
   ipcMain.handle('vault:remove', (event, rawId: unknown): Promise<VaultReply<null>> => reply(async () => {
     if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
-    await vault.remove(idOf(rawId));
+    const id = idOf(rawId);
+    await vault.remove(id);
+    // The id is free again: nothing is stored under it, so nothing may be sent with it either.
+    await bindings.forget(id);
     return null;
   }));
 
