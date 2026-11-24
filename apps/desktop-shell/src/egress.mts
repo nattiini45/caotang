@@ -3,9 +3,9 @@
  *
  * A page request to a provider must survive a CORS preflight. In the desktop app there is no preflight: the main process
  * makes the call. That makes this a fetcher, so it is held to [native-egress.ts](../../../packages/gateway/src/native-egress.ts)
- * — https only, to origins the app configured, never this computer unless the entry is a local MCP server, with caps on every
- * part of the request and on the answer. A refusal names its reason, so the app can say what went wrong instead of reporting
- * a dead network.
+ * — https only, to origins the app configured, and to this computer only through a `local` entry (a provider profile or MCP
+ * server on a loopback literal), with caps on every part of the request and on the answer. A refusal names its reason, so the
+ * app can say what went wrong instead of reporting a dead network.
  *
  * **A keyed call is attached here.** The page writes `caotang-key:<id>` where the key goes, because the adapter that builds a
  * provider's headers knows the shape and this file does not. The handle is swapped for the secret from the vault, and only for
