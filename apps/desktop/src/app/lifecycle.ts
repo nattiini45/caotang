@@ -1302,7 +1302,9 @@ export async function openHostedProject(
   }
   // The target is kept for the session and follows every save this browser finishes, carrying the project's pictures with the files
   // that name them, and knowing what this device held so a save removes only what it deleted itself.
-  await target.rememberOpened(opened.session.state.documents.keys(), await opened.session.assets.snapshot());
+  // The baseline is the account's pictures, not the browser's copy of them: a picture this browser holds and the account does not is
+  // one the writer still has to send, and a baseline taken from the copy would make the next save skip exactly that.
+  await target.rememberOpened(opened.session.state.documents.keys(), pictures);
   installHostedTarget(target);
   target.attach({
     state: opened.session.state,
