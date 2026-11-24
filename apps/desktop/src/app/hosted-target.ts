@@ -355,7 +355,12 @@ export class HostedTarget {
       this.#fromQueue = true;
       this.#asked = outcome.paths;
       this.#set({ kind: 'conflict', paths: outcome.paths });
-    } else this.#set({ kind: 'unsaved' });
+    } else {
+      // The queue is what this device's words live in while the server cannot be reached, so the next save sends it rather than writing
+      // this session's older state — a state save carries the manifest, and it would drop the queued one without ever sending it.
+      this.#fromQueue = true;
+      this.#set({ kind: 'unsaved' });
+    }
     return outcome;
   }
 
@@ -378,6 +383,9 @@ export class HostedTarget {
       this.#conflict = [];
       this.#set({ kind: 'idle' });
     } else if (outcome.kind === 'conflict') {
+      // The paths this replay refused are the ones the writer is now looking at: the next answer covers those, not the ones the
+      // previous question named.
+      this.#asked = outcome.paths;
       this.#set({ kind: 'conflict', paths: outcome.paths });
     } else {
       this.#set({ kind: 'unsaved' });

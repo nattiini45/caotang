@@ -339,6 +339,23 @@ describe('the queue a hosted project keeps on this device', () => {
     expect(one.calls).toContain(`forget:assets/c_2K4Q9WJ1TT.png`);
   });
 
+  it('retries the queue itself when the server was unreachable at open, instead of saving the older session', async () => {
+    const answers = [{ kind: 'unavailable' as const, changes: [] }, { kind: 'sent' as const, count: 1 }];
+    const one = queue(['caotang.json'], () => answers.shift() ?? { kind: 'sent', count: 1 });
+    const saves: unknown[] = [];
+    const saving = withQueue(one.port, (async (current: ProjectState) => {
+      saves.push(current);
+      return { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } };
+    }) as never);
+    expect(await saving.replayHeld()).toEqual({ kind: 'unavailable', changes: [] });
+    expect(saving.state()).toEqual({ kind: 'unsaved' });
+    // The queue holds the newest manifest this device has; a state save would write the older one and forget the queued path.
+    await saving.save(state());
+    expect(saves).toEqual([]);
+    expect(one.calls.filter((call) => call === 'replay').length).toBe(2);
+    expect(saving.state()).toEqual({ kind: 'idle' });
+  });
+
   it('sends the queue from a retry while the writer’s answer has not landed, and asks for a re-read once it has', async () => {
     const answers = [
       { kind: 'conflict' as const, paths: ['docs/a.md'] },
@@ -363,6 +380,22 @@ describe('the queue a hosted project keeps on this device', () => {
     // Once it landed, the next save is an ordinary one again.
     await saving.save(state());
     expect(saves.length).toBe(1);
+  });
+
+  it('answers for the path a replay surfaced while the writer was deciding', async () => {
+    const answers = [
+      { kind: 'conflict' as const, paths: ['docs/a.md'] },
+      { kind: 'conflict' as const, paths: ['docs/b.md'] },
+      { kind: 'sent' as const, count: 1 },
+    ];
+    const one = queue(['docs/a.md', 'docs/b.md'], () => answers.shift() ?? { kind: 'sent', count: 1 });
+    const saving = withQueue(one.port, (async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } })) as never);
+    await saving.replayHeld();
+    // The writer answers, and the replay surfaces the second path instead.
+    expect(await saving.keepMine()).toEqual({ kind: 'conflict', paths: ['docs/b.md'] });
+    // Their next answer has to cover the path now in front of them, or it would rebase the one they already answered for.
+    await saving.keepMine();
+    expect(one.calls.filter((call) => call.startsWith('rebase'))).toEqual(['rebase:docs/a.md', 'rebase:docs/b.md']);
   });
 
   it('replays the paths the writer just answered for, measured against the version the refresh read', async () => {
