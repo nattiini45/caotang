@@ -51,37 +51,32 @@ function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
 /**
  * Stages the pictures into the same commit as the project files, so a save that returns a picture to the account returns it in the
  * batch that names it: a file already there byte for byte is left as it is, and only a path this device deleted is removed.
+ *
+ * Reading the account's copy is what tells an unchanged picture from a changed one, and that read can fail when the account cannot be
+ * reached. A failed read is not a reason to leave the picture out of the save: its bytes are this device's, they belong in the batch
+ * that names them, and the commit is what decides whether the account will take them.
  */
 async function stageAssets(save: BatchedSave, fs: EncryptedRemoteArtifactFs, assets: SaveAssets): Promise<void> {
   for (const [path, bytes] of Object.entries(assets.files)) {
     if (!path.startsWith(`${ASSETS_DIR}/`)) continue;
-    const current = (await fs.exists(path)) ? await fs.readBytes(path) : null;
+    let current: Uint8Array | null = null;
+    try {
+      current = (await fs.exists(path)) ? await fs.readBytes(path) : null;
+    } catch {
+      current = null;
+    }
     if (current === null || !sameBytes(current, bytes)) await save.writeBytesAtomic(path, bytes);
   }
   for (const path of assets.removed ?? []) {
     if (!path.startsWith(`${ASSETS_DIR}/`)) continue;
-    if (await fs.exists(path)) await save.remove(path);
-  }
-}
-
-/**
- * What `state` would put on the account, without putting it there: the same staged save, read as its file list and then thrown away.
- * A writer can keep working while a question about the account stands (hosted.md §7.2), and those words have to be held somewhere
- * before the next open takes the account's version over this browser's copy.
- */
-export async function stageProjectForAccount(
-  fs: EncryptedRemoteArtifactFs,
-  state: ProjectState,
-  options: WriteOptions & { readonly removed?: readonly string[]; readonly assets?: SaveAssets } = {},
-): Promise<RemoteChange[]> {
-  const save = new BatchedSave(fs);
-  try {
-    const { removed: _removed, assets, ...writeOptions } = options;
-    await writeProject(save, state, { ...writeOptions, pruneDocumentIds: [...(options.removed ?? [])] });
-    if (assets !== undefined) await stageAssets(save, fs, assets);
-    return save.changes();
-  } finally {
-    save.discard();
+    // A removal the account cannot be asked about is staged too: the commit refuses it if the file is not there or moved, which is the
+    // same answer the writer would get from asking.
+    try {
+      if (!(await fs.exists(path))) continue;
+    } catch {
+      // Staged anyway: the commit decides.
+    }
+    await save.remove(path);
   }
 }
 

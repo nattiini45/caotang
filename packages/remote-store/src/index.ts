@@ -31,4 +31,4 @@ export { PendingEdits, replayPending, saveOrQueue, type SaveOutcome } from './pe
 export { BatchedSave } from './batched-save.js';
 /** The device's rollback memory is the app's to keep and hand back with the adapter (hosted.md §7), so it travels with it. */
 export { HighWaterMarks } from '@caotang/crypto';
-export { saveProjectToAccount, stageProjectForAccount, type HostedSaveOutcome, type SaveAssets } from './save-project.js';
+export { saveProjectToAccount, type HostedSaveOutcome, type SaveAssets } from './save-project.js';

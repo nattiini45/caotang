@@ -211,6 +211,8 @@ An open writes the account's version into this browser's copy in place, under th
 | `stale` | the session is opened again | `idle` | the account's words are in front of the writer |
 | `stale` | a save, a send, or a question | `stale` | refused: the older book would go over what the send just put there |
 
+One write reaches the account at a time, whoever asked for it: a send the writer chose and a save the browser finished are chained, so a save that lands while the send is on its way waits for it and then finds the session `stale` rather than committing the older book over what the send just put there. A save made while the question stands is held in the queue, and it is built without reading the account — the project written into a copy in memory, the pictures as the session holds them — because the account is exactly what cannot be reached while a question waits to be answered.
+
 `stale` exists because a send the writer chose puts words on the account that the session in front of them has not read; a save from there would write the older book over exactly those words. The workspace reads the account again (`onReopenAccount`), and that open is what clears the state: every open takes the account's version over this browser's copy, so the text the send replaced cannot come back to be saved over what the send just put on the account.
 
 The queue has two states of its own — empty and holding — and the same rule applies: it is settled per path by what actually committed, rebased only for the paths the writer was shown, and never cleared on a send that did not land.

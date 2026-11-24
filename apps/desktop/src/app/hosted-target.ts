@@ -91,8 +91,12 @@ export { forgetHostedTarget, hostedTargetFor, installHostedTarget } from './host
 export class HostedTarget {
   #state: HostedSaveState = { kind: 'idle' };
   #listeners = new Set<() => void>();
-  #running: Promise<void> | null = null;
-  #again = false;
+  /**
+   * One write to the account at a time, whoever asked for it. A send the writer chose and an ordinary save that lands while it is in
+   * flight would otherwise commit two versions, and the older one could be the last to reach the account; chained, the second runs
+   * after the first and sees what it did.
+   */
+  #turn: Promise<unknown> = Promise.resolve();
   #detached: (() => void) | null = null;
   /** The attached session's pictures, so a save carries them with the files that name them. */
   #assets: (() => Promise<Readonly<Record<string, Uint8Array>>>) | null = null;
@@ -187,59 +191,53 @@ export class HostedTarget {
     if (paths.length > 0 && this.#state.kind === 'idle') this.#set({ kind: 'unsaved', paths });
   }
 
-  /** Commits this session's state to the account. A second call while one is running runs once more after it. */
+  /** Commits this session's state to the account. A call made while one is running runs once more after it. */
   async save(state: ProjectState): Promise<void> {
-    // A send that landed before the session caught up writes nothing: the older book would go over what the send just put there.
-    if (this.#state.kind === 'stale') return;
-    if (this.#state.kind === 'conflict') {
-      // The question is not the writer's only business: they can keep writing while it stands, and those words are held in the queue so
-      // the next open does not take the account's version over them. Nothing is written to the account, and the question stays open.
-      if (this.queue !== null && this.stageState !== null) {
-        const held = (await this.#assets?.()) ?? null;
-        const staged = await this.stageState(state, {
-          removed: [...this.#knownDocuments].filter((id) => !state.documents.has(id)),
-          assets: held === null ? undefined : { files: held, removed: [...this.#knownAssets].filter((path) => !(path in held)) },
-        });
-        this.queue.hold(staged);
+    // The state says a commit is on its way from the moment the browser's save is in hand, so a question raised in between is refused
+    // rather than landing in the middle of a commit.
+    if (this.#state.kind === 'idle' || this.#state.kind === 'unsaved') this.#set({ kind: 'saving' });
+    await this.#inTurn(async () => {
+      // A send that landed before the session caught up writes nothing: the older book would go over what the send just put there.
+      if (this.#state.kind === 'stale') return;
+      if (this.#state.kind === 'conflict') {
+        // The question is not the writer's only business: they can keep writing while it stands, and those words are held in the queue so
+        // the next open does not take the account's version over them. The held words are built without reading the account — a copy in
+        // memory — because the account is exactly what cannot be reached while a question is waiting to be answered.
+        if (this.queue !== null && this.stageState !== null) {
+          const held = (await this.#assets?.()) ?? null;
+          const staged = await this.stageState(state, {
+            removed: [...this.#knownDocuments].filter((id) => !state.documents.has(id)),
+            assets: held === null ? undefined : { files: held, removed: [...this.#knownAssets].filter((path) => !(path in held)) },
+          });
+          this.queue.hold(staged);
+        }
+        this.#set({ kind: 'conflict', paths: this.#asked });
+        return;
       }
-      this.#set({ kind: 'conflict', paths: this.#asked });
-      return;
-    }
-    const running = this.#running;
-    if (running !== null) {
-      this.#again = true;
-      await running;
-      return;
-    }
-    this.#running = this.#commit(state);
-    try {
-      await this.#running;
-    } finally {
-      this.#running = null;
-    }
-    if (this.#again) {
-      this.#again = false;
-      await this.save(state);
-    }
+      await this.#commit(state);
+    });
   }
 
   /**
    * The writer's "send them to my account", for words a save could not deliver because the server was unreachable. The only path from
-   * `unsaved` back to `idle`, and the only place a queue is sent without a question being answered.
+   * `unsaved` back to `idle`, and the only place a queue is sent without a question being answered. It takes the same turn a save does:
+   * a browser save that lands while the send is on its way waits for it, and finds the session stale rather than committing an older
+   * book over what the send just put there.
    */
   async sendQueued(): Promise<HostedSaveState> {
-    if (this.#state.kind !== 'unsaved' || this.queue === null) return this.#state;
-    // Nothing held is nothing to send: a send that went ahead would report a landing and reopen the session for words that never left.
-    if (this.queue.held().length === 0) {
-      this.#set({ kind: 'idle' });
+    return await this.#inTurn(async () => {
+      if (this.#state.kind !== 'unsaved' || this.queue === null) return this.#state;
+      // Nothing held is nothing to send: a send that went ahead would report a landing and reopen the session for words that never left.
+      if (this.queue.held().length === 0) {
+        this.#set({ kind: 'idle' });
+        return this.#state;
+      }
+      this.#set({ kind: 'saving' });
+      await this.fs.refresh();
+      this.queue.marks();
+      this.#settleSend(await this.queue.replay());
       return this.#state;
-    }
-    this.#set({ kind: 'saving' });
-    await this.fs.refresh();
-    this.queue.marks();
-    const outcome = await this.queue.replay();
-    this.#settleSend(outcome);
-    return this.#state;
+    });
   }
 
   /**
@@ -251,34 +249,37 @@ export class HostedTarget {
    * history is for.
    */
   async keepMine(state?: ProjectState): Promise<HostedSaveState> {
-    if (this.#state.kind !== 'conflict') return this.#state;
-    await this.fs.refresh();
-    this.queue?.marks();
-    // The answer to this session's own save is the state it read, saved again on top of the other device's version. A question about
-    // the queue has no state to save — those words are the held paths — so the queue is sent instead.
-    const queueOnly = !this.#fromSave;
-    this.#set({ kind: 'saving' });
-    if (queueOnly) {
-      if (this.queue === null) {
-        // Nothing to send and no state it read: the question stands, because nothing was written over either copy.
+    return await this.#inTurn(async () => {
+      if (this.#state.kind !== 'conflict') return this.#state;
+      await this.fs.refresh();
+      this.queue?.marks();
+      // The answer to this session's own save is the state it read, saved again on top of the other device's version. A question about
+      // the queue has no state to save — those words are the held paths — so the queue is sent instead.
+      const queueOnly = !this.#fromSave;
+      if (queueOnly) {
+        if (this.queue === null) {
+          // Nothing to send and no state it read: the question stands, because nothing was written over either copy.
+          this.#set({ kind: 'conflict', paths: this.#asked });
+          return this.#state;
+        }
+        this.queue.rebase(this.#asked);
+        this.#set({ kind: 'saving' });
+        this.#settleSend(await this.queue.replay());
+        return this.#state;
+      }
+      this.#asked = [];
+      this.#fromSave = false;
+      // A question from this session's own save always has the state it read beside it, and saving it again on top of the version the
+      // refresh just read is the answer. A conflict that arrived without one (a caller that asked for this answer with nothing to save)
+      // keeps its question rather than sending words nobody staged.
+      if (state === undefined) {
         this.#set({ kind: 'conflict', paths: this.#asked });
         return this.#state;
       }
-      this.queue.rebase(this.#asked);
-      this.#settleSend(await this.queue.replay());
+      this.#set({ kind: 'saving' });
+      await this.#commit(state);
       return this.#state;
-    }
-    this.#asked = [];
-    this.#fromSave = false;
-    // A question from this session's own save always has the state it read beside it, and saving it again on top of the version the
-    // refresh just read is the answer. A conflict that arrived without one (a caller that asked for this answer with nothing to save)
-    // keeps its question rather than sending words nobody staged.
-    if (state === undefined) {
-      this.#set({ kind: 'conflict', paths: this.#asked });
-      return this.#state;
-    }
-    await this.save(state);
-    return this.#state;
+    });
   }
 
   /**
@@ -290,6 +291,16 @@ export class HostedTarget {
     this.#asked = paths;
     this.#fromSave = false;
     this.#set({ kind: 'conflict', paths });
+  }
+
+  /** Runs `work` after every write already on its way, so two of them never reach the account out of order. */
+  async #inTurn<T>(work: () => Promise<T>): Promise<T> {
+    const next = this.#turn.then(work, work);
+    this.#turn = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return await next;
   }
 
   async #commit(state: ProjectState): Promise<void> {

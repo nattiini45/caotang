@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generateProjectKey, type SecretKey } from '@caotang/crypto';
 import { addDocument, createEmptyManifest, createProjectState, DOCS_DIR, MANIFEST_FILE, type ProjectState } from '@caotang/store';
-import { EncryptedRemoteArtifactFs, saveProjectToAccount, stageProjectForAccount } from '../src/index.js';
+import { EncryptedRemoteArtifactFs, RemoteUnavailableError, saveProjectToAccount } from '../src/index.js';
 import { FakeBlobServer } from './fake-blob-server.js';
 
 const PROJECT_ID = 'p_LIGHTHOUSE';
@@ -85,23 +85,6 @@ describe('a project save into the account', () => {
   });
 });
 
-describe('a save staged and thrown away', () => {
-  it('names what the save would write without writing any of it', async () => {
-    // The words a writer types while a question about the account stands are held in the queue, and the queue holds what the save
-    // would have sent: staging it is that list, and nothing reaches the account.
-    const server = new FakeBlobServer();
-    const key = generateProjectKey();
-    const fs = await device(server, key);
-
-    const changes = await stageProjectForAccount(fs, project('Staged.'));
-    expect(changes.map((change) => change.path)).toContain(`${DOCS_DIR}/n_3W8RN2TQ6C.md`);
-    expect(server.dump()).toEqual([]);
-
-    const reader = await device(server, key);
-    expect(await reader.exists(`${DOCS_DIR}/n_3W8RN2TQ6C.md`)).toBe(false);
-  });
-});
-
 describe('a project’s pictures travel with the save that names them', () => {
   const COVER = 'assets/c_2K4Q9WJ1TT.png';
 
@@ -115,6 +98,32 @@ describe('a project’s pictures travel with the save that names them', () => {
 
     const reader = await device(server, key);
     expect(await reader.readBytes(COVER)).toEqual(bytes);
+  });
+
+  it('stages a picture whose account copy cannot be read, so the queue carries it', async () => {
+    // Offline, the read that tells an unchanged picture from a changed one fails. The picture is this device's and belongs in the batch
+    // that names it; the commit is what reports that the account did not take it.
+    const server = new FakeBlobServer();
+    const key = generateProjectKey();
+    const fs = await device(server, key);
+    const bytes = new Uint8Array([7, 7, 7]);
+    const original = fs.readBytes.bind(fs);
+    fs.readBytes = async (path: string): Promise<Uint8Array> => {
+      if (path === COVER) throw new RemoteUnavailableError();
+      return await original(path);
+    };
+    // The account cannot be reached, so the comparison above and the commit below both fail.
+    fs.commitChanges = async (): Promise<void> => { throw new RemoteUnavailableError(); };
+    try {
+      const outcome = await saveProjectToAccount(fs, project('With a cover.'), { assets: { files: { [COVER]: bytes } } });
+      expect(outcome.kind).toBe('unavailable');
+      if (outcome.kind !== 'unavailable') throw new Error('expected the save to wait');
+      expect(outcome.changes.map((change) => change.path)).toContain(COVER);
+      expect(outcome.changes.find((change) => change.path === COVER)?.bytes).toEqual(bytes);
+    } finally {
+      delete (fs as { readBytes?: unknown }).readBytes;
+      delete (fs as { commitChanges?: unknown }).commitChanges;
+    }
   });
 
   it('leaves a picture the account already holds byte for byte as it is', async () => {

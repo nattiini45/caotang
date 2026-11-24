@@ -208,6 +208,42 @@ describe('unsaved', () => {
   });
 });
 
+describe('one write at a time', () => {
+  it('a browser save that lands during a send waits for it, and does not commit the older book over it', async () => {
+    // The writer's send is on its way when a save the browser finished arrives. The save must not commit the state read before the
+    // send: chained behind it, it finds the session stale and writes nothing.
+    let finish: (() => void) | null = null;
+    const held = new Set(['docs/a.md']);
+    const calls: string[] = [];
+    const port = {
+      hold: () => undefined,
+      replay: async () => {
+        calls.push('send');
+        await new Promise<void>((resolve) => { finish = resolve; });
+        held.clear();
+        return { kind: 'sent', count: 1 } as const;
+      },
+      forget: () => undefined,
+      rebase: () => undefined,
+      held: () => [...held],
+      marks: () => undefined,
+    };
+    const { saving, saves } = target([{ kind: 'written' }], port);
+    saving.heldAtOpen();
+    expect(saving.state()).toEqual({ kind: 'unsaved', paths: ['docs/a.md'] });
+
+    const sending = saving.sendQueued();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const writing = saving.save(state());
+    finish!();
+    await Promise.all([sending, writing]);
+
+    expect(calls).toEqual(['send']);
+    expect(saves.length).toBe(0);
+    expect(saving.state()).toEqual({ kind: 'stale' });
+  });
+});
+
 describe('conflict', () => {
   it('keeping this device’s text saves the state it read on top of the other device’s version', async () => {
     const { saving, saves } = target([{ kind: 'conflict', paths: ['docs/a.md'] }, { kind: 'written' }]);
@@ -247,7 +283,7 @@ describe('conflict', () => {
     expect(saving.state()).toEqual({ kind: 'conflict', paths: ['docs/a.md'] });
   });
 
-  it('a save while the question stands holds the writer’s words in the queue instead of losing them to the next open', async () => {
+  it('a save made while the question stands is held even when the account cannot be read, and writes nothing', async () => {
     // "Leave it for now" leaves the writer working: those saves are refused to the account, and their words go to the queue, because
     // the account's version takes this browser's copy over at the next open.
     const one = queue([]);
@@ -257,7 +293,8 @@ describe('conflict', () => {
 
     await saving.save(state());
     expect(saves.length).toBe(1);
-    // The refused path is still there from the question, and the words written since join it.
+    // The refused path is still there from the question, and the words written since join it. The held words are built without reading
+    // the account, so a question waiting to be answered cannot cost the writer what they typed.
     expect(one.port.held()).toEqual(['docs/a.md', 'docs/b.md']);
     expect(saving.state()).toEqual({ kind: 'conflict', paths: ['docs/a.md'] });
   });

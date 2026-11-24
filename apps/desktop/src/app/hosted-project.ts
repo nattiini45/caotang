@@ -6,9 +6,10 @@
  * The assets directory is the project format's own (`project-assets.ts` names the same one); it is repeated here so this
  * module compiles and its test runs without the app's component graph.
  */
-import type { ArtifactFs } from '@caotang/store';
-import type { EncryptedRemoteArtifactFs, PendingEdits } from '@caotang/remote-store';
+import { MemoryArtifactFs, writeProject, type ArtifactFs, type ProjectState } from '@caotang/store';
+import type { EncryptedRemoteArtifactFs, PendingEdits, RemoteChange, SaveAssets } from '@caotang/remote-store';
 import { HostedTarget, type HostedQueuePort, type HostedReplay } from './hosted-target.js';
+import { copyState } from './persistence-plan.js';
 import { loadHostedMarks, loadHostedQueue, saveHostedMarks, saveHostedQueue } from './hosted-queue.js';
 import type { HostedProjectSource } from './studio-host.js';
 
@@ -125,6 +126,24 @@ export async function deviceQueue(source: HostedProjectSource, fs: EncryptedRemo
 }
 
 /**
+ * The words a save of `state` would carry, built without reading the account: the project written into a copy in memory, and the
+ * pictures as this session holds them. A save made while a question about the account stands is held with this, so the next open cannot
+ * take those words away — and nothing here can fail for want of a network, which is what a question waiting to be answered does not have.
+ */
+export async function stagedProjectChanges(
+  state: ProjectState,
+  options?: { readonly removed?: readonly string[]; readonly assets?: SaveAssets },
+): Promise<RemoteChange[]> {
+  const copy = new MemoryArtifactFs();
+  const report = await writeProject(copy, copyState(state), { now: new Date(), copyFor: 'internal', pruneDocumentIds: [...(options?.removed ?? [])] });
+  const changes: RemoteChange[] = [];
+  for (const path of report.written) changes.push({ path, bytes: await copy.readBytes(path) });
+  for (const [path, bytes] of Object.entries(options?.assets?.files ?? {})) changes.push({ path, bytes });
+  for (const path of options?.assets?.removed ?? []) changes.push({ path, bytes: null });
+  return changes;
+}
+
+/**
  * Every file under `assets/`, read through the project's own filesystem. The pictures travel with the project: the copy this
  * browser keeps is what a later save is measured against, so a picture left behind here would be a picture the next save
  * prunes from the account.
@@ -141,7 +160,7 @@ export async function picturesOnProjectFs(fs: ArtifactFs): Promise<Record<string
  */
 export async function openHostedTarget(source: HostedProjectSource): Promise<HostedTarget> {
   const fs = await openRemoteProject(source);
-  const { saveProjectToAccount, stageProjectForAccount } = await import('@caotang/remote-store');
+  const { saveProjectToAccount } = await import('@caotang/remote-store');
   const queue = await deviceQueue(source, fs);
   keepMarks(source, fs);
   return new HostedTarget(
@@ -149,6 +168,6 @@ export async function openHostedTarget(source: HostedProjectSource): Promise<Hos
     fs,
     (state, options) => saveProjectToAccount(fs, state, { removed: options?.removed, assets: options?.assets }),
     queue,
-    (state, options) => stageProjectForAccount(fs, state, { removed: options?.removed, assets: options?.assets }),
+    (state, options) => stagedProjectChanges(state, { removed: options?.removed, assets: options?.assets }),
   );
 }
