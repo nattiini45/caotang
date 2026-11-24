@@ -452,7 +452,8 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         key !== '' || fields.customHeaders !== undefined
           ? { apiKey: key, ...(fields.customHeaders === undefined ? {} : { customHeaders: fields.customHeaders }) }
           : null;
-      if (payload !== null) await keys.putPayload(id, payload);
+      // The key is stored for the address it was entered for, and the host records that pairing (#864).
+      if (payload !== null) await keys.putPayload(id, payload, originOf(fields.baseUrl));
 
       // Re-read the active state after the await: another create may have landed meanwhile.
       const anyActive = [...records.values()].some((r) => r.isActive);
@@ -543,7 +544,11 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
             keyRemoved = true;
           } else {
             written = { apiKey: key, ...(headers === undefined ? {} : { customHeaders: headers }) };
-            await keys.putPayload(id, written);
+            const origin = originOf(fields.baseUrl);
+            // The key the writer entered again is for the endpoint they just named, so it takes the new address with it. A
+            // key that stays where it was is only ever stored for the address it already belongs to (#864).
+            if (originMoved && patch.apiKey !== undefined) await keys.putPayloadForNewOrigin(id, written, origin);
+            else await keys.putPayload(id, written, origin);
           }
           hasKey = key !== '';
           keyChanged = true;

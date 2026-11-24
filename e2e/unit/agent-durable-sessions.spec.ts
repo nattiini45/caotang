@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { MemoryIndexedDb, appendRunEvents, createRun, openRuntimeStore, readAgentSessions, readRunEvents, readRuns, saveAgentSession, writeProjectState, type RuntimeStore } from '../../packages/store/src/index.js';
-import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore } from '../../packages/gateway/src/index.js';
+import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore, originOf } from '../../packages/gateway/src/index.js';
 import { createMockProvider, isPlannerCall, userTextOf } from '../../packages/gateway/src/mock/index.js';
 import { AgentController } from '../../apps/desktop/src/app/agent.js';
 import { sessionMarkdown } from '../../apps/desktop/src/app/agent-session-model.js';
@@ -221,7 +221,7 @@ test('discard requires the shared-session count and removes the turn from every 
 test('settled presentation omits reasoning, ghost, stream and preview payloads and keeps run events v3', async () => {
   const f = await fixture();
   try {
-    await f.keys.putPayload(f.profile.id, { apiKey: 'fake-session-api-key-sentinel', customHeaders: { 'x-test-header': 'fake-session-header-sentinel' } });
+    await f.keys.putPayload(f.profile.id, { apiKey: 'fake-session-api-key-sentinel', customHeaders: { 'x-test-header': 'fake-session-header-sentinel' } }, originOf(f.profile.baseUrl));
     const agent = f.controller();
     await agent.submit('Tell me about the lighthouse.');
     const run = (await readRuns(f.store, f.state.manifest.project.id))[0]!;

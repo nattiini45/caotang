@@ -5,7 +5,11 @@
  * ask whether one is there, and it can never take one out.
  */
 
-export type VaultError = 'invalid' | 'unavailable';
+/**
+ * `bound` is a reference this computer already holds for another address: the writer has to enter the key again for the address
+ * they mean, and it is a different answer from a keychain that would not respond (#879).
+ */
+export type VaultError = 'invalid' | 'unavailable' | 'bound';
 
 export type VaultReply<T> = { readonly ok: true; readonly value: T } | {
   readonly ok: false;
@@ -25,7 +29,12 @@ export type VaultKeyState = 'none' | 'empty' | 'key';
 export interface KeyVaultBridge {
   /** Whether this machine has a keychain the app can use. False means the browser's own vault stays in use. */
   available(): Promise<VaultReply<boolean>>;
-  put(id: string, payload: VaultPayload): Promise<VaultReply<null>>;
+  put(id: string, payload: VaultPayload, origin: string): Promise<VaultReply<null>>;
+  /**
+   * Stores the key a writer typed again for an endpoint they moved. The address moves with the key, and only this call may
+   * move one: a key the page did not enter for the new address is refused (#864).
+   */
+  putReplacement(id: string, payload: VaultPayload, origin: string): Promise<VaultReply<null>>;
   /**
    * Replaces the extra headers of a stored key and keeps its secret. What an edit that changes only the headers calls, because the
    * key it read is a handle and storing that handle would overwrite the key (#863).
