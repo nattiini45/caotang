@@ -227,7 +227,8 @@ async function readBody(req: IncomingMessage): Promise<string> {
  * The pause a desktop app asks for while it saves (gate.ts, desktop.md §The project's own MCP server): `POST /control/pause` stops a
  * write from starting and answers only once the writes already admitted have finished, `POST /control/resume` lets them start again and
  * answers at once, and both answer the pause as it now stands. The token is the same one the MCP endpoint takes, so only the app that
- * holds it can pause a server it started.
+ * holds it can pause a server it started. A pause is only a pause when its answer reaches the app: an app that gave up on this answer
+ * sends no resume, so the count this call raised is lifted here rather than standing for the rest of the server's run.
  */
 async function answerControl(req: IncomingMessage, res: ServerResponse, path: string, options: HttpServerOptions): Promise<void> {
   if (!bearerAccepted(req.headers.authorization, options.token)) {
@@ -243,7 +244,23 @@ async function answerControl(req: IncomingMessage, res: ServerResponse, path: st
     sendJson(res, 405, { error: `${path} takes POST` }, { Allow: 'POST' });
     return;
   }
-  sendJson(res, 200, path === CONTROL_PAUSE ? await gate.pause() : gate.resume());
+  if (path === CONTROL_RESUME) {
+    sendJson(res, 200, gate.resume());
+    return;
+  }
+  // The pause drains before it answers, and the app's own wait can be shorter than the write it is waiting for. A connection that closed
+  // before the answer went out is that app giving up: it is not saving, it will not send a resume, and this pause would otherwise stay
+  // standing until the server restarted. Its own count is lifted here; an overlapping pause keeps its own.
+  let abandoned = false;
+  res.on('close', () => {
+    if (!res.writableEnded) abandoned = true;
+  });
+  const paused = await gate.pause();
+  if (abandoned) {
+    gate.resume();
+    return;
+  }
+  sendJson(res, 200, paused);
 }
 
 /** One request, from the guards to the SDK's handler: what is admitted, and what is served. See the module comment for the order. */

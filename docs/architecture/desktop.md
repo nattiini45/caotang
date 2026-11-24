@@ -292,9 +292,11 @@ a save that writes: a save the verdict refuses never reaches it.
 **A pause that cannot be confirmed stops the save.** With a server holding this folder, a save whose pause did not answer takes the
 folder's own lock refusal, so the writer is asked before anything is written and can save anyway. A pause that is draining a long write
 can take that write's own time, and one that outlasts the app's wait gets the same answer: the save stops and the writer is asked,
-rather than written beside a server that may still be writing. Without that refusal the save would run while a server that may still
-accept writes holds the same folder, which is the one thing this pause exists to prevent; the digest check would still catch a file it
-changed, but the promise is about what the server cannot start, not only about what it already did.
+rather than written beside a server that may still be writing. A pause the app gave up on is lifted on the server's side once the writes
+it was draining have finished, so a save that stopped leaves the folder free for the next one instead of leaving the server paused until
+it restarts. Without that refusal the save would run while a server that may still accept writes holds the same folder, which is the one
+thing this pause exists to prevent; the digest check would still catch a file it changed, but the promise is about what the server cannot
+start, not only about what it already did.
 
 **The app's own server's lock is not another writer's.** The server holds `.caotang-mcp.lock` for its whole run, so the checks that
 refuse a locked folder would otherwise refuse every save. Two places tell the app's own server from another program's by the process
