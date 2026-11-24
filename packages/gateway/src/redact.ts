@@ -13,12 +13,39 @@
 const BEARER = /Bearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const SK_TOKEN = /\bsk-[A-Za-z0-9_-]{8,}/g;
 
-export function redact(text: string, secrets: readonly (string | undefined)[] = []): string {
-  let out = text;
-  for (const secret of secrets) {
-    if (secret !== undefined && secret.length > 0) out = out.split(secret).join('[redacted]');
+/** What every redaction puts in a secret's place, here and in an answer's bytes. */
+export const REDACTED_SECRET = '[redacted]';
+
+/**
+ * `text` with every one of `secrets` replaced once, in one pass.
+ *
+ * What a replacement writes is never looked at again. A key may be one character — a generic profile's `checkKey` accepts any
+ * text, and so does the vault — and a one-character key sits inside `REDACTED_SECRET` itself, so a pass that read its own output
+ * as candidate text would never finish (#870). The longest secret wins where several start at the same character, because a
+ * profile's key and a header value can both hold the same text, and redacting the shorter one first would leave the rest of the
+ * longer one in place.
+ */
+export function redactLiterals(text: string, secrets: readonly (string | undefined)[]): string {
+  const ordered = [...new Set(secrets.filter((secret): secret is string => secret !== undefined && secret.length > 0))]
+    .sort((one, other) => other.length - one.length);
+  if (ordered.length === 0) return text;
+  let out = '';
+  let at = 0;
+  while (at < text.length) {
+    const found = ordered.find((secret) => text.startsWith(secret, at));
+    if (found === undefined) {
+      out += text.charAt(at);
+      at += 1;
+      continue;
+    }
+    out += REDACTED_SECRET;
+    at += found.length;
   }
-  return out.replace(BEARER, 'Bearer [redacted]').replace(SK_TOKEN, '[redacted]');
+  return out;
+}
+
+export function redact(text: string, secrets: readonly (string | undefined)[] = []): string {
+  return redactLiterals(text, secrets).replace(BEARER, `Bearer ${REDACTED_SECRET}`).replace(SK_TOKEN, REDACTED_SECRET);
 }
 
 /**
