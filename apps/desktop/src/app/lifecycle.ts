@@ -1282,9 +1282,12 @@ export async function openHostedProject(
     opened = await adopt(store, loaded.state, accountLog, noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
   } else if (sameBook(cached, loaded.state)) {
     // The same book on both sides: the account's version takes the browser's place under the same id, with the writing history of both.
+    // It is written over the copy rather than replacing it, because the copy is more than its manuscript: the writer's recurring tasks,
+    // their run history and the consents they gave are this browser's, keyed by the project's id, and removing the project to make room
+    // would drop them for a difference the book does not have.
     const keptLog = await readSessions(store, projectId);
-    await removeProject(store, projectId);
-    opened = await adopt(store, loaded.state, [...accountLog, ...linesNotHeld(keptLog, accountLog)], noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
+    await writeProjectState(store, loaded.state, { now: new Date() });
+    opened = await openStored(store, projectId, null, { notices: noticesOf(loaded.notices), droppedFields: droppedFieldsOf(loaded.notices), folderLog: [...accountLog, ...linesNotHeld(keptLog, accountLog)] }, pictures);
   } else {
     // The browser's copy holds words the account does not: it opens as it stands, with the account as its save target, so those
     // words reach the account through the save (and its question, if another device moved them first) instead of being deleted here.
