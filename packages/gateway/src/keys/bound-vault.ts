@@ -139,10 +139,19 @@ export function openBoundKeyVault(vault: OsKeyVault, bindings: KeyBindings): Bou
     has: (id) => vault.has(id),
 
     restore: (id) => serialize(async () => {
-      // Throws when there is nothing to put back, before anything about the address is touched.
-      await vault.restore(id);
+      // The id is hidden while its secret goes back, so no request is answered with the restored secret at the address the
+      // write being undone gave it. Throws when there is nothing to put back, and then the id goes back where it was.
+      const current = bindings.originOf(id);
+      if (current !== undefined) await bindings.forget(id);
+      try {
+        await vault.restore(id);
+      } catch (error) {
+        await setAddress(id, current);
+        throw error;
+      }
       const previous = undo.get(id);
       undo.delete(id);
+      // A prior address that cannot be written leaves the key with none: denied, never at the address it was moved away from.
       await setAddress(id, previous);
     }),
 

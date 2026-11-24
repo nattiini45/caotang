@@ -79,6 +79,33 @@ describe('a key belongs to one address', () => {
     expect(bindings.keysFor(B)).toEqual([]);
   });
 
+  it('leaves a restored key with no address rather than the replacement one when its own cannot be written back', async () => {
+    const saved: { text: string | undefined } = { text: undefined };
+    let writes = 0;
+    let failAt = Number.POSITIVE_INFINITY;
+    const bindings = await openKeyBindings({
+      read: async () => saved.text,
+      write: async (text) => {
+        writes += 1;
+        if (writes === failAt) throw new Error('the bindings file could not be written');
+        saved.text = text;
+      },
+    });
+    const os = await openOsVault(host());
+    const bound = openBoundKeyVault(os, bindings);
+    await bound.put(ID, { apiKey: 'sk-at-a' }, A);
+    await bound.putReplacement(ID, { apiKey: 'sk-at-b' }, B);
+
+    // The restore hides the id, puts the older secret back, and then cannot write the address it belongs to.
+    failAt = writes + 2;
+    await expect(bound.restore(ID)).rejects.toThrow(/could not be written/u);
+    // The older secret is back, and no address may carry it: not the one it was moved away from, and not the one it was moved to.
+    expect((await os.read(ID))?.apiKey).toBe('sk-at-a');
+    expect(bindings.originOf(ID)).toBeUndefined();
+    expect(await bound.readFor(A, [ID])).toBeUndefined();
+    expect(await bound.readFor(B, [ID])).toBeUndefined();
+  });
+
   it('puts a removed key back at its own address, and never in reach of another one', async () => {
     const { os, bound, bindings } = await vault();
     await bound.put(ID, { apiKey: 'sk-first' }, A);
