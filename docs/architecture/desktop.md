@@ -216,7 +216,10 @@ cannot take one away — which is the difference the browser vault cannot offer 
 
 **A provider that echoes a key cannot put one in the log.** The secret is attached in the main process, so the page's own
 redaction, which scrubs the values it sent and it sent a handle, would not see it. The answer's bytes are scrubbed of every
-secret attached to that call as they stream back, across chunk boundaries, before the page receives one.
+secret attached to that call as they stream back, across chunk boundaries, before the page receives one. The pass reads the
+answer once, longest secret first, and never reads what it wrote: `[redacted]` is not candidate text, which it has to be when a
+key is a single character — one that is also part of the word replacing it — or the pass would find its own output and grow
+without end (#870). The same rule applies to a header value and a reason phrase, which are scrubbed as strings.
 
 **A failed replacement can be undone without a read.** `put` remembers the sealed value it replaced, and `restore` writes it
 back, so the MCP client's "store the new token, then update the server, and put the old one back if that update is refused"
