@@ -238,6 +238,35 @@ describe('the control endpoints', () => {
     }
   });
 
+  it('lets a pause go on a cancel without reading the folder, because no save of it happened', async () => {
+    await start(true);
+    const client = await connectClient(fixture.url, fixture.token);
+    try {
+      const read = async (): Promise<string> =>
+        JSON.stringify(resultJson(await client.callTool({ name: 'doc.read', arguments: { doc: LANDING, response_format: 'detailed' } })));
+      expect(await read()).toContain(LANDING_BODY);
+
+      // A save that asked for a pause and then stopped waiting for it: the app cancels, and never writes the folder. The folder is
+      // written here anyway, so a reload would be visible as the saved text — the cancel must not read it.
+      await control(fixture.url, '/control/pause', fixture.token, 'POST', 'gone');
+      const fs = new NodeArtifactFs(fixture.root);
+      const loaded = await readProject(fs, { now: OPENED });
+      const landing = loaded.state.documents.get(LANDING);
+      if (landing === undefined) throw new Error('the fixture project holds no landing document');
+      landing.body = APP_SAVED_BODY;
+      await writeProject(fs, loaded.state, { now: new Date(OPENED.getTime() + 60_000) });
+
+      expect(await control(fixture.url, '/control/cancel', fixture.token, 'POST', 'gone')).toEqual({ status: 200, body: { paused: false } });
+      expect(fixture.gate?.paused()).toBe(false);
+      // Nothing was adopted: the server still answers from the project it opened, exactly as before the pause.
+      expect(await read()).toContain(LANDING_BODY);
+      expect(await read()).not.toContain(APP_SAVED_BODY);
+    } finally {
+      await client.close();
+      await fixture.close();
+    }
+  });
+
   it('answers from what the app saved while the server ran, once the save has resumed it', async () => {
     await start(true);
     const client = await connectClient(fixture.url, fixture.token);

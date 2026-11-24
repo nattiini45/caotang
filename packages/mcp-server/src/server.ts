@@ -49,9 +49,11 @@ import { registerCaotangTools, type ToolRuntime } from './tools.js';
 import type { ProjectSession } from './session.js';
 import { MCP_PATH, MODERN_PROTOCOL_VERSION, VERSION } from './version.js';
 
-/** The two control paths a desktop app posts to while it saves. They are never part of the MCP surface. */
+/** The control paths a desktop app posts to while it saves. They are never part of the MCP surface. */
 export const CONTROL_PAUSE = '/control/pause';
 export const CONTROL_RESUME = '/control/resume';
+/** A save that stopped waiting for its pause: the pause is let go and nothing is read, because no save of it is coming. */
+export const CONTROL_CANCEL = '/control/cancel';
 
 /** The header a control call names its pause in, so a resume can let go of a pause that lands after it. */
 export const CONTROL_LEASE_HEADER = 'x-caotang-pause';
@@ -237,11 +239,11 @@ async function readBody(req: IncomingMessage): Promise<string> {
 
 /**
  * The pause a desktop app asks for while it saves (gate.ts, desktop.md §The project's own MCP server): `POST /control/pause` stops a
- * write from starting and answers only once the writes already admitted have finished, `POST /control/resume` lets them start again and
- * answers at once, and both answer the pause as it now stands. The token is the same one the MCP endpoint takes, so only the app that
- * holds it can pause a server it started. Both calls may name the pause in `X-Caotang-Pause`, so the resume that ends a pause can arrive
- * before it and cancel it (gate.ts): an app that stops waiting for its pause sends that resume, and it must let go even when the pause it
- * belongs to is still in flight.
+ * write from starting and answers only once the writes already admitted have finished, `POST /control/resume` lets them start again,
+ * `POST /control/cancel` is a save that gave up and lets its pause go, and all three answer the pause as it now stands. The token is the
+ * same one the MCP endpoint takes, so only the app that holds it can pause a server it started. Every call may name the pause in
+ * `X-Caotang-Pause`, so a resume or a cancel can arrive before its pause and cancel it (gate.ts): a save that stopped waiting sends the
+ * cancel, and it must let go even when the pause it belongs to is still in flight.
  *
  * A resume that lifts the last pause is the end of a save, so the folder is read again before it is answered, with the pause standing
  * for its length: what the save wrote is what every later request is answered from, and no write can start in the middle of that read.
@@ -264,6 +266,12 @@ async function answerControl(req: IncomingMessage, res: ServerResponse, path: st
   const lease = pauseLeaseOf(req);
   if (path === CONTROL_PAUSE) {
     sendJson(res, 200, await gate.pause(lease));
+    return;
+  }
+  if (path === CONTROL_CANCEL) {
+    // The app gave up waiting for this pause, so no save of it is coming: the pause is let go and the folder is not read again — there is
+    // nothing of the app's to adopt, and that read would queue behind the very write the pause was waiting for.
+    sendJson(res, 200, gate.resume(lease));
     return;
   }
   const state = gate.resume(lease);
@@ -305,7 +313,7 @@ async function answer(
   if (!http.guards.origin(req, res)) return;
 
   const path = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
-  if (path === CONTROL_PAUSE || path === CONTROL_RESUME) {
+  if (path === CONTROL_PAUSE || path === CONTROL_RESUME || path === CONTROL_CANCEL) {
     await answerControl(req, res, path, options);
     return;
   }

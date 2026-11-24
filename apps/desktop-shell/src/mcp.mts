@@ -9,10 +9,10 @@
  * before it saves. The window both could lose a change in is the instant between the app's digest check and its rename, so the app
  * pauses the server for the length of a save: `pause` posts to the server's `/control/pause`, a write tool is refused while it
  * stands, and the answer comes only once the writes already running have finished; `resume` lifts it when the save is done. Each pause
- * is named by a lease both calls carry, so a save that stops waiting for its pause can send the resume that lets it go even when that
- * pause has not been processed yet — the server cancels the lease, and the pause that lands after it never stands. The resume is also
- * the moment the server reads the folder again: it answers only after the copy it holds is the folder the save left, so a host that
- * reads next is not answered from the project as it was before the save.
+ * is named by a lease every call carries, so a save that stops waiting for its pause can send the cancel that lets it go even when that
+ * pause has not been processed yet — the server forgets the lease, and the pause that lands after it never stands. Only the resume that
+ * ends a save reads the folder again, and it answers only after the copy it holds is the folder the save left, so a host that reads next
+ * is not answered from the project as it was before the save; a cancel reads nothing, because no save of it happened.
  *
  * A folder id, never a path, is what the page names: the grant list every folder channel uses resolves it, so the page cannot point
  * this server at a directory the writer never opened.
@@ -123,7 +123,7 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
    * asked for, so only that case is owed the other half of the pair. `failed` never reached the server, or was refused there, so it
    * changed nothing.
    */
-  const postControl = async (running: McpHostStatus, what: 'pause' | 'resume', lease?: string): Promise<'ok' | 'unanswered' | 'failed'> => {
+  const postControl = async (running: McpHostStatus, what: 'pause' | 'resume' | 'cancel', lease?: string): Promise<'ok' | 'unanswered' | 'failed'> => {
     if (running.url === undefined || running.token === undefined) return 'failed';
     const base = running.url.replace(/\/mcp$/u, '');
     const controller = new AbortController();
@@ -260,12 +260,12 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
     if (taken === 'ok') return { ok: true, value: status };
     // A pause this app stopped waiting for is one the server may have raised anyway — it answers only once the writes already running
     // have finished, and a slow one outlasts this wait. This save is about to be refused and will not send the resume that ends a
-    // pause, so that resume goes now, naming the same lease: the server lets that lease go whether the pause has been processed yet or
-    // is still to come. A call that never reached the server was never taken, and a resume then would lift a different save's pause, so
-    // it sends nothing. The digest check is the guarantee either way.
+    // pause, so a cancel goes now, naming the same lease: the server lets that lease go whether the pause has been processed yet or is
+    // still to come, and reads nothing, because no save of this pause happened. A call that never reached the server was never taken,
+    // and a cancel then would lift a different save's pause, so it sends nothing. The digest check is the guarantee either way.
     const raised = lease;
     lease = undefined;
-    if (taken === 'unanswered' && (await postControl(status, 'resume', raised)) !== 'ok') await stopUnpaused(STOPPED_UNPAUSED);
+    if (taken === 'unanswered' && (await postControl(status, 'cancel', raised)) !== 'ok') await stopUnpaused(STOPPED_UNPAUSED);
     pauses = Math.max(0, pauses - 1);
     return { ok: false, refusal: 'failed' };
   });
