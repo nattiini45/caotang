@@ -16,7 +16,7 @@ import { sweepHistory } from './history-store.js';
 import { desktopEgress } from './native-egress.js';
 import { openDesktopKeys } from './native-vault.js';
 import { APP_KEYS, openAppDb, setActiveAppDb, type AppDb } from './app-db.js';
-import { McpApp } from './mcp.js';
+import { McpApp, serverOrigin } from './mcp.js';
 import { SaveChannel } from './save-channel.js';
 import { studioHost } from './studio-host.js';
 import { ProviderService } from './providers.js';
@@ -145,19 +145,9 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
   // where a browser could not read it (desktop.md). Published addresses come from the profiles themselves, read before each
   // call, so a profile saved a moment ago is reachable on its first request.
   const egress = desktopEgress();
-  // A key from an earlier build moves in for the address its profile names; a profile that is gone leaves its key where it is,
-  // because a host that cannot bind a key could never send it (native-vault.ts, #864).
-  const persisted = ((await db?.get<readonly { id: string; baseUrl?: string }[]>(APP_KEYS.profiles)) ?? []);
-  const profileOrigins = new Map<string, string>();
-  for (const record of persisted) {
-    if (typeof record.baseUrl !== 'string') continue;
-    try {
-      profileOrigins.set(record.id, originOf(record.baseUrl));
-    } catch {
-      // An address that does not parse names no origin, so its key is not moved.
-    }
-  }
-  const keys = await openDesktopKeys(factory, profileOrigins);
+  // A key from an earlier build moves in, or is placed, for the address its own record names; a key whose record is gone stays
+  // where it is, because a host that cannot bind a key could never send it (native-vault.ts, #864).
+  const keys = await openDesktopKeys(factory, await migrationOrigins(db, initial.mcp));
   const { service, notices: providerNotices } = await ProviderService.open({
     db,
     vault: factory,
@@ -230,6 +220,44 @@ function egressTargets(profiles: readonly ProfileView[], mcp: McpSettings): Nati
     add(server.url, local);
   }
   return targets;
+}
+
+/** A profile record as an earlier save left it: the id a key is stored under, and the endpoint its address comes from. */
+interface PersistedProfile {
+  readonly id?: unknown;
+  readonly baseUrl?: unknown;
+}
+
+/**
+ * The address every stored credential belongs to: a provider profile's endpoint origin, and each MCP server's own URL origin for
+ * its bearer token. Read before the keychain opens, so a key an earlier build stored can be given the one address its record
+ * names. This is auxiliary data for that migration, so a read that fails — or a record that is not a list — names nothing:
+ * the keys it would have placed stay denied, and the app opens normally.
+ */
+export async function migrationOrigins(db: Pick<AppDb, 'get'> | null, mcp: McpSettings): Promise<Map<string, string>> {
+  const origins = new Map<string, string>();
+  if (db !== null) {
+    let stored: unknown;
+    try {
+      stored = await db.get<unknown>(APP_KEYS.profiles);
+    } catch {
+      stored = undefined;
+    }
+    for (const record of Array.isArray(stored) ? stored as readonly PersistedProfile[] : []) {
+      if (record === null || typeof record !== 'object') continue;
+      if (typeof record.id !== 'string' || typeof record.baseUrl !== 'string') continue;
+      try {
+        origins.set(record.id, originOf(record.baseUrl));
+      } catch {
+        // An address that does not parse names no origin, so its key is not placed.
+      }
+    }
+  }
+  for (const server of mcp.servers) {
+    if (server.auth.kind !== 'bearer') continue;
+    origins.set(server.auth.tokenRef, serverOrigin(server.url));
+  }
+  return origins;
 }
 
 function errorText(error: unknown): string {

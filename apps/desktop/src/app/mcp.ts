@@ -50,8 +50,11 @@ export interface McpSettingsPort {
 }
 
 /** The part of the key store the MCP client uses: a token is put, read, checked and removed under its reference. */
-/** The address a server's own URL names: where its bearer token may be sent, and nothing else. */
-function serverOrigin(url: string): string {
+/**
+ * The address a server's own URL names: where its bearer token may be sent, and nothing else. A URL that does not parse names
+ * an address nothing reaches, so the token it would bind is denied rather than sent anywhere.
+ */
+export function serverOrigin(url: string): string {
   try {
     return new URL(url).origin;
   } catch {
