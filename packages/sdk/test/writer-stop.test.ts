@@ -15,8 +15,19 @@ describe('the folder writer stop', () => {
         { type: 'drift', cause: 'changed a document', saved: false },
         { type: 'drift', cause: 'changed the manifest after saving', saved: true },
         { type: 'partial', recovery: 'read the timeline again' },
+        { type: 'reload' },
       ],
     })).toEqual([]);
+  });
+
+  it('reopens every stopped state when the folder is read again', () => {
+    for (const state of [
+      { kind: 'drift', cause: 'changed a document' } as const,
+      { kind: 'saved-drift', cause: 'changed the manifest after saving' } as const,
+      { kind: 'partial', recovery: 'read the timeline again' } as const,
+    ]) {
+      expect(writerStopMachine.step(state, { type: 'reload' })).toEqual({ kind: 'open' });
+    }
   });
 
   it('keeps the first stop cause when a timeline write reports partial', () => {
