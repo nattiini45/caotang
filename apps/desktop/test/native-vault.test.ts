@@ -23,9 +23,9 @@ interface Scripted {
 
 /**
  * The main process as the page sees it: the channels, over a Map, with the address rule the shell keeps — a second `put` for
- * another address is refused, a replacement moves it, and `bind` only fills a missing one.
+ * another address is refused and a replacement moves it.
  */
-function scriptedVault(options: { available?: boolean; failPut?: boolean; failBind?: boolean } = {}): Scripted & { bridge: NonNullable<Window['caotangDesktop']>['vault'] } {
+function scriptedVault(options: { available?: boolean; failPut?: boolean } = {}): Scripted & { bridge: NonNullable<Window['caotangDesktop']>['vault'] } {
   const held = new Map<string, { apiKey: string; customHeaders?: Record<string, string> }>();
   const bindings = new Map<string, string>();
   const calls: string[] = [];
@@ -51,12 +51,6 @@ function scriptedVault(options: { available?: boolean; failPut?: boolean; failBi
         if (options.failPut === true) return refused;
         bindings.set(id, origin);
         held.set(id, payload);
-        return ok(null);
-      },
-      bind: (id, origin) => {
-        calls.push(`bind:${id}`);
-        if (options.failBind === true) return refused;
-        if (held.has(id) && !bindings.has(id)) bindings.set(id, origin);
         return ok(null);
       },
       remove: (id) => { calls.push(`remove:${id}`); held.delete(id); bindings.delete(id); return ok(null); },
@@ -161,35 +155,5 @@ describe('the keys an earlier version sealed in this browser', () => {
     withBridge(scripted.bridge);
     expect(await openDesktopKeys(factory as unknown as IDBFactory, originsOfEveryKey())).toMatchObject({ kind: 'keychain', moved: 0, failed: false });
     expect(scripted.held.size).toBe(0);
-  });
-});
-
-describe('the keys an earlier version left in the keychain', () => {
-  it('gives a held key the address its own record names, so it is not denied after the upgrade', async () => {
-    const scripted = scriptedVault();
-    // A key the keychain held before the addresses were kept: present, and belonging nowhere.
-    scripted.held.set(ID, { apiKey: KEY });
-    withBridge(scripted.bridge);
-    expect(await openDesktopKeys(null, originsOfEveryKey())).toMatchObject({ kind: 'keychain', moved: 0, failed: false });
-    expect(scripted.bindings.get(ID)).toBe(ORIGIN);
-    expect(scripted.calls).toContain(`bind:${ID}`);
-  });
-
-  it('leaves a key with no record of where it belongs unbound rather than guessing an address', async () => {
-    const scripted = scriptedVault();
-    scripted.held.set('prv_NOBODYHOME', { apiKey: KEY });
-    withBridge(scripted.bridge);
-    await openDesktopKeys(null, new Map([[ID, ORIGIN]]));
-    // Nothing named this id's address, so nothing was recorded for it: a key with no address is refused, not sent anywhere.
-    expect(scripted.bindings.has('prv_NOBODYHOME')).toBe(false);
-    expect(scripted.calls).not.toContain('bind:prv_NOBODYHOME');
-  });
-
-  it('opens anyway when the keychain will not record an address, and says the move failed for a browser key', async () => {
-    const scripted = scriptedVault({ failBind: true });
-    scripted.held.set(ID, { apiKey: KEY });
-    withBridge(scripted.bridge);
-    expect(await openDesktopKeys(null, originsOfEveryKey())).toMatchObject({ kind: 'keychain', moved: 0, failed: false });
-    expect(scripted.bindings.has(ID)).toBe(false);
   });
 });

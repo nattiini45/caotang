@@ -21,10 +21,10 @@ import { attachKeys, checkNativeEgress, nativeEgressTargets, pumpResponse, creat
 import { net, ipcMain } from 'electron';
 import type { WebContents } from 'electron';
 
+import type { BoundKeyVault } from '@caotang/gateway/keys/bound-vault';
+
 import type { EgressChunk, EgressEnd, EgressError, EgressHead, EgressReply } from './egress-contract.cjs';
 import { fromStudioFrame } from './ipc-guard.mjs';
-import type { KeyBindings } from './bindings.mjs';
-import type { KeyVault } from './vault.mjs';
 
 class EgressRefusal extends Error {
   constructor(readonly reason: EgressError) {
@@ -58,7 +58,7 @@ function reply<T>(run: () => T | Promise<T>): Promise<EgressReply<T>> {
     }));
 }
 
-export function registerEgressIpc(entryUrl: string, vault: KeyVault, bindings: KeyBindings): void {
+export function registerEgressIpc(entryUrl: string, keys: BoundKeyVault): void {
   let targets: ReturnType<typeof nativeEgressTargets> = new Map();
   /** The addresses the page is configured for, and the two facts about each the page may state: `local` marks a server on this machine. */
   let allowed: { origin: string; local: boolean }[] = [];
@@ -121,29 +121,27 @@ export function registerEgressIpc(entryUrl: string, vault: KeyVault, bindings: K
     sender.on('render-process-gone', () => { stopAll(sender); });
   }
 
-  /**
-   * The request with its handles swapped for the secrets they name, and the secrets in that order for scrubbing. A configured
-   * key the vault does not hold is refused rather than sent as a handle, which the provider would report as a bad key.
-   */
   /** The allowlist as the rule reads it: what the page may reach, and the ids the bindings have put at each address. */
   function withKeys(): ReturnType<typeof nativeEgressTargets> {
-    return nativeEgressTargets(allowed.map((entry) => ({ ...entry, keys: bindings.keysFor(entry.origin) })));
+    return nativeEgressTargets(allowed.map((entry) => ({ ...entry, keys: keys.keysFor(entry.origin) })));
   }
 
-  async function attach(request: { url: string; headers: Readonly<Record<string, string>>; keys: readonly string[] }): Promise<{
+  /**
+   * The request with its handles swapped for the secrets they name, and the secrets in that order for scrubbing. The secrets
+   * are read where a write cannot move them: the vault answers only while each handle's id is bound to this address, and a
+   * replacement hides its id until the new secret is in place. A key the vault does not hold, or that belongs to another
+   * address, is refused rather than sent as a handle, which the provider would report as a bad key.
+   */
+  async function attach(origin: string, request: { url: string; headers: Readonly<Record<string, string>>; keys: readonly string[] }): Promise<{
     url: string;
     headers: Record<string, string>;
     secrets: readonly string[];
   }> {
     if (request.keys.length === 0) return { url: request.url, headers: { ...request.headers }, secrets: [] };
+    const held = await keys.readFor(origin, request.keys);
+    if (held === undefined) throw new EgressRefusal('denied');
     const secrets = new Map<string, string>();
-    for (const id of request.keys) {
-      const payload = await vault.read(id);
-      // A key the app configured but the keychain does not hold is not a key: refusing beats sending the handle, which the
-      // provider would report as a bad key and the writer would read as a wrong key rather than a missing one.
-      if (payload === undefined) throw new EgressRefusal('denied');
-      secrets.set(id, payload.apiKey);
-    }
+    for (const [id, payload] of held) secrets.set(id, payload.apiKey);
     const attached = attachKeys(request, secrets);
     return { url: attached.url, headers: attached.headers, secrets: attached.values };
   }
@@ -173,7 +171,7 @@ export function registerEgressIpc(entryUrl: string, vault: KeyVault, bindings: K
     targets = withKeys();
     const checked = checkNativeEgress(targets, spec);
     if (!checked.ok) throw new EgressRefusal(checked.refusal);
-    const keyed = await attach(checked.request);
+    const keyed = await attach(new URL(checked.request.url).origin, checked.request);
 
     const controller = new AbortController();
     const stream: Stream = { controller, sender: event.sender };

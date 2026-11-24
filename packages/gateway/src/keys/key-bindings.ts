@@ -43,7 +43,7 @@ const VERSION = 1;
 
 /** Opens the pairings an earlier run recorded. A file that will not parse reads as empty, which denies every key it named. */
 export async function openKeyBindings(host: KeyBindingsHost): Promise<KeyBindings> {
-  const bound = parse(await host.read());
+  let bound = parse(await host.read());
   let writes: Promise<unknown> = Promise.resolve();
 
   /** One write at a time: two saves racing would each write the map they read, and the later would drop the earlier. */
@@ -52,7 +52,15 @@ export async function openKeyBindings(host: KeyBindingsHost): Promise<KeyBinding
     writes = pending.then(() => undefined, () => undefined);
     return pending;
   };
-  const save = (): Promise<void> => host.write(JSON.stringify({ version: VERSION, bindings: Object.fromEntries(bound) }));
+  /**
+   * Writes the whole map and only then takes it as the one in force: a file that could not be written leaves every answer as it
+   * was, so the memory and the file never disagree about where a key may be sent. Only a caller already inside `serialize` may
+   * use this, or two writes could pass each other.
+   */
+  const commit = async (next: Map<string, string>): Promise<void> => {
+    await host.write(JSON.stringify({ version: VERSION, bindings: Object.fromEntries(next) }));
+    bound = next;
+  };
 
   return {
     originOf: (id) => bound.get(id),
@@ -61,18 +69,17 @@ export async function openKeyBindings(host: KeyBindingsHost): Promise<KeyBinding
       const held = bound.get(id);
       if (held === origin) return;
       if (held !== undefined) throw new KeyBoundElsewhere(id, held);
-      bound.set(id, origin);
-      await save();
+      await commit(new Map(bound).set(id, origin));
     }),
     rebind: (id, origin) => serialize(async () => {
       if (bound.get(id) === origin) return;
-      bound.set(id, origin);
-      await save();
+      await commit(new Map(bound).set(id, origin));
     }),
     forget: (id) => serialize(async () => {
       if (!bound.has(id)) return;
-      bound.delete(id);
-      await save();
+      const next = new Map(bound);
+      next.delete(id);
+      await commit(next);
     }),
   };
 }

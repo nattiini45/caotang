@@ -5,6 +5,8 @@ import { pathToFileURL } from 'node:url';
 
 import { app, BrowserWindow, net, protocol, screen, session } from 'electron';
 
+import { openBoundKeyVault } from '@caotang/gateway/keys/bound-vault';
+
 import { openKeyBindings } from './bindings.mjs';
 import { registerEgressIpc } from './egress.mjs';
 import { registerFolderIpc } from './folders.mjs';
@@ -162,10 +164,11 @@ async function start(): Promise<void> {
   const folders = await registerFolderIpc(app.getPath('userData'), ENTRY, { ownWriter: () => host.mcp?.writerPid() });
   const vault = await openKeyVault(app.getPath('userData'));
   // Which address each stored key belongs to lives with the vault, in this process: the page may use a key, and may not say
-  // where it goes (bindings.mts, #864).
+  // where it goes (bindings.mts, #864). Both channel sets share one vault, so a request and a save take turns through it.
   const bindings = await openKeyBindings(app.getPath('userData'));
-  registerVaultIpc(ENTRY, vault, bindings);
-  registerEgressIpc(ENTRY, vault, bindings);
+  const keys = openBoundKeyVault(vault, bindings);
+  registerVaultIpc(ENTRY, keys);
+  registerEgressIpc(ENTRY, keys);
   // The project's own MCP server: the bundle beside this one, the folder grant the writer already gave, and the pause a save takes.
   host.mcp = registerMcpIpc({ entryUrl: ENTRY, bundle: resolve(import.meta.dirname, 'mcp/caotang-mcp.mjs'), rootOf: (id) => folders.rootOf(id) });
   os = registerOsIpc({

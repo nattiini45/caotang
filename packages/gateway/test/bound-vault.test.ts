@@ -85,16 +85,80 @@ describe('a key belongs to one address', () => {
     await bound.put(ID, { apiKey: KEY }, A);
     await bound.remove(ID);
     expect(bindings.originOf(ID)).toBeUndefined();
-    // Nothing is stored, so nothing is bound while the key is gone.
-    expect(await bound.bind(ID, B)).toBe(false);
+    // Nothing is stored, so nothing may be sent with the id while the key is gone.
+    expect(await bound.readFor(A, [ID])).toBeUndefined();
 
     await bound.restore(ID);
     expect((await os.read(ID))?.apiKey).toBe('sk-first');
     expect(bindings.originOf(ID)).toBe(A);
     expect(bindings.keysFor(B)).toEqual([]);
-    // A restored key is placed, so the upgrade path cannot move it either.
-    expect(await bound.bind(ID, B)).toBe(false);
+    expect((await bound.readFor(A, [ID]))?.get(ID)?.apiKey).toBe('sk-first');
+    // The restored key belongs to A, so a request to B is answered with nothing rather than the older secret.
+    expect(await bound.readFor(B, [ID])).toBeUndefined();
+  });
+
+  it('hides a key being replaced, so no request is answered with the older secret at the new address', async () => {
+    let reached!: () => void;
+    const started = new Promise<void>((resolve) => { reached = resolve; });
+    let release!: () => void;
+    const sealing = new Promise<void>((resolve) => { release = resolve; });
+    let seals = 0;
+    const slow = await vault({
+      seal: async (plain) => {
+        seals += 1;
+        // The first seal is the key being stored; the second is the replacement, and only that one is held open.
+        if (seals === 2) {
+          reached();
+          await sealing;
+        }
+        return `sealed:${Buffer.from(plain, 'utf8').toString('base64')}`;
+      },
+    });
+    await slow.bound.put(ID, { apiKey: 'sk-old' }, A);
+    const replacing = slow.bound.putReplacement(ID, { apiKey: 'sk-new' }, B);
+    // Halfway through the replacement: the id is bound to neither address, so a request to either one is refused rather than
+    // answered with the key that was stored for the other.
+    await started;
+    expect(slow.bindings.keysFor(A)).toEqual([]);
+    expect(slow.bindings.keysFor(B)).toEqual([]);
+
+    release();
+    await replacing;
+    expect(slow.bindings.originOf(ID)).toBe(B);
+    expect((await slow.bound.readFor(B, [ID]))?.get(ID)?.apiKey).toBe('sk-new');
+    expect(await slow.bound.readFor(A, [ID])).toBeUndefined();
+  });
+
+  it('puts the key and its address back when the replacement cannot be placed', async () => {
+    const saved: { text: string | undefined } = { text: undefined };
+    let writes = 0;
+    const bindings = await openKeyBindings({
+      read: async () => saved.text,
+      // The replacement's first write hides the id, and the second cannot be written: the transaction must undo itself.
+      write: async (text) => {
+        writes += 1;
+        if (writes === 3) throw new Error('the bindings file could not be written');
+        saved.text = text;
+      },
+    });
+    const os = await openOsVault(host());
+    const bound = openBoundKeyVault(os, bindings);
+    await bound.put(ID, { apiKey: 'sk-old' }, A);
+    await expect(bound.putReplacement(ID, { apiKey: 'sk-new' }, B)).rejects.toThrow(/could not be written/u);
+    // The replaced key is back, with the address it was entered for, and the address the writer moved to carries nothing.
+    expect((await os.read(ID))?.apiKey).toBe('sk-old');
     expect(bindings.originOf(ID)).toBe(A);
+    expect(await bound.readFor(B, [ID])).toBeUndefined();
+    expect((await bound.readFor(A, [ID]))?.get(ID)?.apiKey).toBe('sk-old');
+  });
+
+  it('refuses to read a key for an address other than the one it is bound to', async () => {
+    const { bound, bindings } = await vault();
+    await bound.put(ID, { apiKey: KEY }, A);
+    expect(bindings.keysFor(A)).toEqual([ID]);
+    expect(bindings.keysFor(B)).toEqual([]);
+    expect(await bound.readFor(B, [ID])).toBeUndefined();
+    expect(await bound.readFor(A, ['prv_NOTHINGSTORED'])).toBeUndefined();
   });
 
   it('undoes a headers edit with the key and its address intact', async () => {
@@ -115,23 +179,20 @@ describe('a key belongs to one address', () => {
   });
 });
 
-describe('the upgrade for a key stored before the pairings existed', () => {
-  it('gives a held key the address its profile names, once', async () => {
+describe('a key stored before the addresses were kept', () => {
+  it('stays denied until the writer enters it again for the address they mean', async () => {
     const { os, bound, bindings } = await vault();
     // What an earlier build left: the secret in the vault, and no address anywhere.
     await os.put(ID, { apiKey: KEY });
-    expect(await bound.bind(ID, A)).toBe(true);
-    expect(bindings.originOf(ID)).toBe(A);
-    expect(bindings.keysFor(A)).toEqual([ID]);
-    // A placed key is an ordinary key: the upgrade cannot move it afterwards.
-    expect(await bound.bind(ID, B)).toBe(false);
-    expect(bindings.originOf(ID)).toBe(A);
-  });
-
-  it('places nothing for an id the vault does not hold', async () => {
-    const { bound, bindings } = await vault();
-    expect(await bound.bind(ID, A)).toBe(false);
     expect(bindings.originOf(ID)).toBeUndefined();
+    // Nothing a page can call places it: an unaddressed key is refused at every address rather than open to a new one.
+    expect(await bound.readFor(A, [ID])).toBeUndefined();
+    expect(bindings.keysFor(A)).toEqual([]);
+
+    // The writer enteres the key again for the endpoint the profile names, which is what gives it an address.
+    await bound.put(ID, { apiKey: KEY }, A);
+    expect(bindings.originOf(ID)).toBe(A);
+    expect((await bound.readFor(A, [ID]))?.get(ID)?.apiKey).toBe(KEY);
   });
 });
 

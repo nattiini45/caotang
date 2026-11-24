@@ -122,26 +122,8 @@ async function migrate(factory: IDBFactory, store: KeyStore, origins: ReadonlyMa
 }
 
 /**
- * Records the address of every key an earlier build stored in the keychain before the addresses were kept. Such a key is held
- * with no binding, so the shell denies every request for it; the profile's own endpoint names where it belongs, and that is the
- * only address it gets. A key whose profile is gone is not in `origins` and stays denied, which is the safe direction.
- */
-async function bindStored(api: NonNullable<ReturnType<typeof bridge>>, origins: ReadonlyMap<string, string>): Promise<void> {
-  for (const [id, origin] of origins) {
-    try {
-      unwrap(await api.bind(id, origin));
-    } catch (error) {
-      // A key the shell will not place stays where it is; the caller's notice names the profile, and entering the key again
-      // stores it for the address the profile names now.
-      console.warn(`Caotang could not record the address for the key ${id}.`, errorText(error));
-    }
-  }
-}
-
-/**
- * Opens what the desktop app has for keys, giving the keychain's older keys their addresses and moving this browser's sealed
- * keys into it once. Never throws: a keychain that cannot be used answers `unavailable`, and the caller keeps the browser's
- * vault with a notice that says so.
+ * Opens what the desktop app has for keys, moving this browser's sealed keys into the keychain once. Never throws: a keychain
+ * that cannot be used answers `unavailable`, and the caller keeps the browser's vault with a notice that says so.
  */
 export async function openDesktopKeys(factory: IDBFactory | null, origins: ReadonlyMap<string, string>): Promise<DesktopKeys> {
   const api = bridge();
@@ -153,9 +135,6 @@ export async function openDesktopKeys(factory: IDBFactory | null, origins: Reado
     console.warn('Caotang could not ask the operating system for a keychain.', errorText(error));
   }
   if (!available) return { kind: 'unavailable' };
-  // Before this browser's keys move in, so an id the keychain already holds is placed first and a moved key binds under the
-  // same rule as one stored now.
-  await bindStored(api, origins);
   const store = nativeKeyStore(vaultPort(api));
   if (factory === null) return { kind: 'keychain', store, moved: 0, failed: false };
   const { moved, failed } = await migrate(factory, store, origins);

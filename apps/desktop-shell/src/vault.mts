@@ -19,9 +19,8 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { NodeArtifactFs } from '@caotang/artifact-fs-node';
-import { openBoundKeyVault } from '@caotang/gateway/keys/bound-vault';
+import type { BoundKeyVault } from '@caotang/gateway/keys/bound-vault';
 import { KeyBoundElsewhere } from '@caotang/gateway/keys/key-bindings';
-import type { KeyBindings } from '@caotang/gateway/keys/key-bindings';
 import { keyOrigin } from '@caotang/gateway/keys/key-origin';
 import { openOsVault, VAULT_ID, type OsKeyVault } from '@caotang/gateway/keys/os-vault';
 import { ipcMain, safeStorage } from 'electron';
@@ -74,10 +73,7 @@ export async function openKeyVault(profile: string, sealer: Sealer = electronSea
 class InvalidCall extends Error {}
 
 /** The channels the page may call, and the answers it gets. Nothing here reads a secret back to the page. */
-export function registerVaultIpc(entryUrl: string, vault: KeyVault, bindings: KeyBindings): void {
-  // Every call that stores, removes or puts back a key goes through the rule that holds its address beside its sealed entry
-  // (bound-vault.ts); this file is the channels and the argument checks around it.
-  const keys = openBoundKeyVault(vault, bindings);
+export function registerVaultIpc(entryUrl: string, keys: BoundKeyVault): void {
   const reply = <T,>(run: () => T | Promise<T>): Promise<VaultReply<T>> => Promise.resolve()
     .then(run)
     .then((value): VaultReply<T> => ({ ok: true, value }), (error: unknown): VaultReply<T> => {
@@ -140,7 +136,7 @@ export function registerVaultIpc(entryUrl: string, vault: KeyVault, bindings: Ke
 
   ipcMain.handle('vault:available', (event): Promise<VaultReply<boolean>> => reply(async () => {
     if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
-    return vault.available();
+    return keys.available();
   }));
 
   ipcMain.handle('vault:put', (event, rawId: unknown, rawPayload: unknown, rawOrigin: unknown): Promise<VaultReply<null>> => reply(async () => {
@@ -159,14 +155,6 @@ export function registerVaultIpc(entryUrl: string, vault: KeyVault, bindings: Ke
   ipcMain.handle('vault:putReplacement', (event, rawId: unknown, rawPayload: unknown, rawOrigin: unknown): Promise<VaultReply<null>> => reply(async () => {
     if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
     await keys.putReplacement(idOf(rawId), payloadOf(rawPayload), originOf(rawOrigin));
-    return null;
-  }));
-
-  // The upgrade for keys stored before the pairings existed: an id the vault already holds and nothing has placed yet gets the
-  // address its profile names. It can never move a key that already has one, and a key whose profile is gone keeps none.
-  ipcMain.handle('vault:bind', (event, rawId: unknown, rawOrigin: unknown): Promise<VaultReply<null>> => reply(async () => {
-    if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
-    await keys.bind(idOf(rawId), originOf(rawOrigin));
     return null;
   }));
 

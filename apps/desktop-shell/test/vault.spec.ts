@@ -40,7 +40,7 @@ test('the page can store a secret and can never read one back', async () => {
       return vault === undefined ? null : Object.keys(vault).sort();
     });
     // There is no `read`, `get` or `reveal` here, and adding one is the change this test exists to refuse.
-    expect(surface).toEqual(['available', 'bind', 'has', 'headers', 'put', 'putHeaders', 'putReplacement', 'remove', 'restore', 'revision']);
+    expect(surface).toEqual(['available', 'has', 'headers', 'put', 'putHeaders', 'putReplacement', 'remove', 'restore', 'revision']);
 
     // A machine with a keychain stores and reports; a machine without one refuses, and says so rather than pretending.
     const available = await page.evaluate(() => window.caotangDesktop!.vault.available());

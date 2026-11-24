@@ -203,7 +203,7 @@ one file in the app profile, `native-key-vault.json`, holding one sealed entry p
 ([`os-vault.ts`](../../packages/gateway/src/keys/os-vault.ts) is the vault, and the rule it keeps).
 
 **The page may store, check, revise, restore and remove; it may never read.** The preload's `vault` channels are
-`available`, `put`, `putReplacement`, `bind`, `remove`, `has`, `revision`, `restore` and `headers` — there is no `read`, `get` or
+`available`, `put`, `putReplacement`, `remove`, `has`, `revision`, `restore` and `headers` — there is no `read`, `get` or
 `reveal` among them, and the shell suite asserts that list. A key is written by the form that took it; from then on the page
 learns only whether one is there, which revision it is at, and the extra header values the writer typed beside it, never the key
 itself.
@@ -215,7 +215,9 @@ every request from the pairings, so a page can name a key's id inside a request 
 A `put` for an id bound to another address is refused rather than rebinding it, and a key the page has no address for is denied
 rather than sent. The one replacement that moves an address is `putReplacement`, which carries the key the writer typed again
 for an endpoint they changed: it replaces the secret as it moves the pairing, so no secret already stored is ever pointed at a
-new address. The address is a bare origin, https anywhere and plain http only on this computer, which is the one non-https
+new address. A key nothing has placed — one stored before these pairings existed — stays denied, and the one act that gives it
+an address is the writer entering it again for the endpoint the profile names; no page call can assign an address to a secret
+it did not enter. The address is a bare origin, https anywhere and plain http only on this computer, which is the one non-https
 address the port reaches (`key-origin.ts`).
 
 **A key reaches a request as a handle that becomes a secret.** The page's key store answers `reveal` with
@@ -233,8 +235,9 @@ secret attached to that call as they stream back, across chunk boundaries, befor
 to, and `restore` writes both back, so the MCP client's "store the new token, then update the server, and put the old one back if
 that update is refused" works with a store that cannot read: the undo is the vault's, not the page's. Restoring an address as
 well as a secret is what keeps an undo from carrying the older key to the address the newer one was entered for, and a removal
-that is put back returns the key at the address the writer stored it for. `bound-vault.ts` is that rule, and the repository's
-gate tests it without Electron.
+that is put back returns the key at the address the writer stored it for. A request reads its secret in the same turn a write
+takes, and a replacement hides its id until the new secret is sealed and placed, so no request is answered with the older key
+at the address the writer just moved to. `bound-vault.ts` is that rule, and the repository's gate tests it without Electron.
 
 **Migration writes, verifies, deletes.** On first open with a keychain, each key an earlier build sealed in this browser's
 IndexedDB vault is opened by the store that already holds it, written to the keychain, read back by the main process before it
@@ -244,11 +247,12 @@ as though nothing were missing. A key moves (or, for MCP, a bearer token moves) 
 provider profile's endpoint origin, or an MCP server's own URL origin for the token its settings reference. A credential whose
 record is gone, or whose address does not parse, is left where it is and stays denied.
 
-**A key the keychain already held is given its address (#864).** Keys stored before the pairings existed have no address, so the
-port would deny every request that named one. Before the browser's keys move in, the page passes the same record-derived
-origins to `bind`, which records one only for an id the vault holds and that has no address yet: it fills a gap and can never
-move a key that is already placed, and an id nothing names stays denied. The settings database is read for this as auxiliary
-migration data, so a read that fails names no addresses and startup continues.
+**A key the keychain already held has no address, and stays denied (#864).** Keys stored before the pairings existed carry no
+address, so the port refuses every request that names one; there is no call that gives an existing secret an address, because
+the page supplies both the id and the address, which is the pairing this design keeps out of the page. The writer enters the key
+again for the endpoint the profile names, and Settings names the profile without a usable key. No shipped build has such keys.
+The settings database is read for the migration as auxiliary data, so a read that fails names no addresses and startup
+continues; the provider store then keeps the records it could not read rather than replacing them with the demo profile.
 
 **Without a keychain the browser's vault stays, and says so.** `safeStorage` on Linux falls back to a built-in key that is the
 same on every machine, which is obfuscation rather than encryption; the vault treats `basic_text` and `unknown` backends as no
