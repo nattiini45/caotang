@@ -30,6 +30,7 @@ const bridge: DesktopBridge = {
   vault: {
     available: () => ipcRenderer.invoke('vault:available'),
     put: (id, payload) => ipcRenderer.invoke('vault:put', id, payload),
+    putHeaders: (id, headers) => ipcRenderer.invoke('vault:putHeaders', id, headers),
     remove: (id) => ipcRenderer.invoke('vault:remove', id),
     has: (id) => ipcRenderer.invoke('vault:has', id),
     revision: (id) => ipcRenderer.invoke('vault:revision', id),
