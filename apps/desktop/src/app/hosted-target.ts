@@ -31,7 +31,8 @@ export type HostedSaveState =
  * server did not answer at all.
  */
 export type HostedReplay =
-  | { readonly kind: 'sent'; readonly count: number }
+  /** `paths` is what the server took, so the queue forgets exactly those and keeps anything newer it took on meanwhile. */
+  | { readonly kind: 'sent'; readonly count: number; readonly paths: readonly string[] }
   | { readonly kind: 'conflict'; readonly paths: readonly string[] }
   | { readonly kind: 'unavailable' };
 
@@ -46,6 +47,11 @@ export interface HostedQueuePort {
   replay(): Promise<HostedReplay>;
   /** Forgets these paths, or every path when none are named. */
   forget(paths?: readonly string[]): void;
+  /**
+   * Takes the account's current version of these paths as the one this device's held words were written against. Called only on the
+   * writer's own answer — "keep this device's text" — because an automatic replay must still refuse a path another device moved.
+   */
+  rebase(paths: readonly string[]): void;
   /** The paths held now. */
   held(): readonly string[];
   /** Where the rollback marks go after a commit or a refresh, so a replayed server state is refused on the next open. */
@@ -272,6 +278,9 @@ export class HostedTarget {
     this.queue?.marks();
     this.#reread = this.#fromQueue || state === undefined;
     if (this.#reread || state === undefined) {
+      // The writer's answer is the whole point of this call: the words the queue holds are now held against the version the refresh
+      // just read, or the replay would refuse them exactly as it did before the writer was asked.
+      if (this.queue !== null) this.queue.rebase(this.queue.held());
       this.#settle(await (this.queue?.replay() ?? this.#commitHeld()));
       return this.#state;
     }
@@ -318,7 +327,7 @@ export class HostedTarget {
     try {
       const changes = this.#conflict;
       await this.fs.commitChanges(changes);
-      return { kind: 'sent', count: changes.length };
+      return { kind: 'sent', count: changes.length, paths: changes.map((change) => change.path) };
     } catch {
       return { kind: 'unavailable' };
     }
@@ -326,7 +335,9 @@ export class HostedTarget {
 
   #settle(outcome: HostedReplay): void {
     if (outcome.kind === 'sent') {
-      this.queue?.forget();
+      // Only what the server took is forgotten: a save that went unavailable while this replay was on its way added its own paths to
+      // the queue, and those are still unsent.
+      this.queue?.forget(outcome.paths);
       this.queue?.marks();
       this.#conflict = [];
       this.#set({ kind: 'idle' });

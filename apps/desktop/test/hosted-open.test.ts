@@ -4,7 +4,7 @@
  * project each time rather than a second copy of itself whose id the next save would write into the account's manifest.
  */
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { MemoryArtifactFs, MemoryIndexedDb, openRuntimeStore, writeProject, type RuntimeStore } from '@caotang/store';
+import { MemoryArtifactFs, MemoryIndexedDb, openRuntimeStore, removeNode, writeProject, type ProjectState, type RuntimeStore } from '@caotang/store';
 
 import { openHostedProject, type Opened } from '../src/app/lifecycle.js';
 import { forgetHostedTarget, HostedTarget, hostedTargetFor, type HostedQueuePort, type HostedReplay } from '../src/app/hosted-target.js';
@@ -39,7 +39,7 @@ afterEach(async () => {
 });
 
 /** A queue that holds one scene's words and replays them into the same filesystem the open reads. */
-function queueHolding(fs: MemoryArtifactFs, replayedBody: string | undefined, outcome: HostedReplay = { kind: 'sent', count: 1 }): HostedQueuePort {
+function queueHolding(fs: MemoryArtifactFs, replayedBody: string | undefined, outcome: HostedReplay = { kind: 'sent', count: 1, paths: [`docs/${IDS.sceneA}.md`] }): HostedQueuePort {
   const held = new Set([`docs/${IDS.sceneA}.md`]);
   return {
     hold: (changes) => {
@@ -58,6 +58,7 @@ function queueHolding(fs: MemoryArtifactFs, replayedBody: string | undefined, ou
       if (paths === undefined) held.clear();
       else for (const path of paths) held.delete(path);
     },
+    rebase: (paths) => { for (const path of paths) held.add(path); },
     held: () => [...held],
     marks: () => {},
   };
@@ -113,6 +114,38 @@ it('opens the same project again under its own id, not as a copy of itself', asy
   expect(second.session.projectId).toBe(BOOK.manifest.project.id);
   expect(second.copiedFrom).toBeNull();
   expect(second.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
+});
+
+/** The account's project with one node's kind changed, and the browser's copy holding a different body for it. */
+async function diverged(setup: (state: ProjectState) => void): Promise<Opened> {
+  const first = await open();
+  setup(first.session.state);
+  await first.session.persistence.settle();
+  await first.session.closeSafely();
+  opened = opened.filter((one) => one !== first);
+  return await open();
+}
+
+it('holds a screenplay’s words at the file its kind gives them, not at a .md it does not use', async () => {
+  const second = await diverged((state) => {
+    const node = state.manifest.tree.find((candidate) => candidate.id === IDS.sceneA);
+    if (node !== undefined) node.kind = 'screenplay';
+    state.documents.get(IDS.sceneA)!.body = 'INT. HARBOUR - NIGHT';
+  });
+  const held = lastTarget?.queue?.held() ?? [];
+  expect(second.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
+  expect(held).toContain(`docs/${IDS.sceneA}.fountain`);
+  expect(held).not.toContain(`docs/${IDS.sceneA}.md`);
+});
+
+it('holds a page this browser deleted as a deletion, so the writer can keep it gone', async () => {
+  await diverged((state) => { removeNode(state, IDS.sceneB); });
+  expect(lastTarget?.queue?.held()).toContain(`docs/${IDS.sceneB}.md`);
+});
+
+it('asks about the book’s own settings when the browser’s manifest differs, not only its pages', async () => {
+  await diverged((state) => { state.manifest.project.name = 'The Lighthouse'; });
+  expect(lastTarget?.queue?.held()).toContain('caotang.json');
 });
 
 it('asks about words a browser copy holds and the account does not, instead of picking one of them silently', async () => {

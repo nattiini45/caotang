@@ -14,7 +14,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import type { ProjectSession } from '../src/app/session.js';
 import { HostedSaveNotice } from '../src/components/HostedSaveNotice.js';
-import { forgetHostedTarget, HostedTarget, rememberHostedTarget, type HostedQueuePort } from '../src/app/hosted-target.js';
+import { forgetHostedTarget, HostedTarget, rememberHostedTarget, type HostedQueuePort, type HostedReplay } from '../src/app/hosted-target.js';
 import { activateEnglish } from '../src/i18n/runtime.js';
 
 const DOC = 'n_LIGHTHOUSE';
@@ -37,18 +37,16 @@ function target(outcome: unknown, queue: HostedQueuePort | null = null): HostedT
 }
 
 /** A queue an earlier tab left: it holds `held`, and a replay answers `answer`. */
-function queue(held: readonly string[], answer = { kind: 'sent' as const, count: 1 }): HostedQueuePort {
+function queue(held: readonly string[], answer: HostedReplay = { kind: 'sent', count: 1, paths: [...held] }): HostedQueuePort {
   const paths = new Set(held);
   return {
     hold: () => undefined,
-    replay: async () => {
-      if (answer.kind === 'sent') paths.clear();
-      return answer;
-    },
+    replay: async () => answer,
     forget: (forgotten?: readonly string[]) => {
       if (forgotten === undefined) paths.clear();
       else for (const path of forgotten) paths.delete(path);
     },
+    rebase: () => undefined,
     held: () => [...paths],
     marks: () => undefined,
   };

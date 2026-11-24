@@ -81,11 +81,13 @@ export async function deviceQueue(source: HostedProjectSource, fs: EncryptedRemo
       const moved = edits.paths.filter((path) => base.get(path) !== undefined && base.get(path) !== fs.versionOf(path));
       if (moved.length > 0) return { kind: 'conflict', paths: moved };
       try {
+        // What this replay took, so the queue keeps anything that arrived while it was on its way.
+        const took = edits.paths;
         const count = await replayPending(fs, edits);
-        for (const path of edits.paths) base.delete(path);
+        for (const path of took) base.delete(path);
         keep();
         keepMarks(source, fs);
-        return { kind: 'sent', count };
+        return { kind: 'sent', count, paths: took };
       } catch (error) {
         // A refusal leaves the queue as it was; which refusal it was is the writer's next question, not this one's error.
         if (error instanceof Error && 'paths' in error) {
@@ -102,6 +104,12 @@ export async function deviceQueue(source: HostedProjectSource, fs: EncryptedRemo
       keep();
     },
     held: () => edits.paths,
+    // The writer's own answer to the question: the version the refresh just read becomes the one these words were written against,
+    // so the replay that follows is measured against the account as it stands rather than against the version that was refused.
+    rebase: (paths) => {
+      for (const path of paths) base.set(path, fs.versionOf(path));
+      keep();
+    },
     marks: () => keepMarks(source, fs),
   };
 }

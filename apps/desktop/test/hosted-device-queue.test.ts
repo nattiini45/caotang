@@ -45,7 +45,7 @@ describe('the queue a hosted project keeps on this device', () => {
     const queue = await deviceQueue(SOURCE, one.fs as unknown as EncryptedRemoteArtifactFs);
     queue.hold([{ path: 'docs/a.md', bytes: new Uint8Array([1]) }]);
 
-    expect(await queue.replay()).toEqual({ kind: 'sent', count: 1 });
+    expect(await queue.replay()).toEqual({ kind: 'sent', count: 1, paths: ['docs/a.md'] });
     expect(one.committed).toEqual([['docs/a.md']]);
     expect(queue.held()).toEqual([]);
   });

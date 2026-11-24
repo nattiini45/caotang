@@ -52,6 +52,7 @@ import {
   exportProjectZip,
   FolderDriftError,
   importProjectZip,
+  isBodyFileName,
   isBodyType,
   listProjectIds,
   ManifestUnreadableError,
@@ -1273,21 +1274,25 @@ function differingDocumentIds(mine: ProjectState, theirs: ProjectState): string[
 }
 
 /**
- * Those documents as the queue holds them: the text as this browser shows it, at the path the project format gives it. A document
- * this copy holds no file for — one a load declined because its bytes are not UTF-8 — has no text to hold either, so it is left out
- * and the account's version stands for it.
+ * Those documents as the queue holds them: the text as this browser shows it, at the path the project format gives it — which is the
+ * codex's own file for a screenplay (`.fountain`) and an Ink knot (`.ink`), not the `.md` every document used to have, so the body is
+ * found by the name the copy actually wrote. A document the account holds and this copy does not is held as a deletion (`bytes: null`),
+ * because the writer's copy is the one the question is about. A document this copy holds no file for at all — a load declined it
+ * because its bytes are not UTF-8 — has no text to hold either, and the account's version stands for it.
  */
-async function heldDocumentChanges(state: ProjectState, ids: readonly string[]): Promise<RemoteChange[]> {
+async function heldDocumentChanges(state: ProjectState, ids: readonly string[], onAccount: ReadonlySet<string>): Promise<RemoteChange[]> {
   const copy = new MemoryArtifactFs();
   await writeProject(copy, copyState(state), { now: new Date(), copyFor: 'internal' });
+  const names = await copy.listFiles(DOCS_DIR);
   const changes: RemoteChange[] = [];
   for (const id of ids) {
-    const path = `${DOCS_DIR}/${id}.md`;
-    try {
-      changes.push({ path, bytes: await copy.readBytes(path) });
-    } catch {
+    const name = names.find((candidate) => candidate.startsWith(`${id}.`) && isBodyFileName(candidate));
+    if (name !== undefined) {
+      changes.push({ path: `${DOCS_DIR}/${name}`, bytes: await copy.readBytes(`${DOCS_DIR}/${name}`) });
       continue;
     }
+    const onAccountName = [...onAccount].find((candidate) => candidate.startsWith(`${id}.`) && isBodyFileName(candidate));
+    if (onAccountName !== undefined) changes.push({ path: `${DOCS_DIR}/${onAccountName}`, bytes: null });
   }
   return changes;
 }
@@ -1325,7 +1330,14 @@ export async function openHostedProject(
     // should keep — the same question a save raises when another device moved the files. "Keep mine" replays the held words; the
     // account's version stands if the writer leaves it. Opening the browser's copy silently instead would be this device's words
     // winning without the writer ever seeing they were at odds with the account.
-    const held = await heldDocumentChanges(cached, differingDocumentIds(cached, loaded.state));
+    const held = await heldDocumentChanges(cached, differingDocumentIds(cached, loaded.state), new Set(await target.fs.listFiles(DOCS_DIR)));
+    // The manifest is the writer's own settings as much as the book — the title, the tree, the codex entries — so a copy whose manifest
+    // differs from the account's is part of the same question rather than something the account's version may simply replace.
+    if (manifestTextOf(cached, cached.manifest.project.modifiedAt) !== manifestTextOf(loaded.state, cached.manifest.project.modifiedAt)) {
+      const manifest = new MemoryArtifactFs();
+      await writeProject(manifest, copyState(cached), { now: new Date(), copyFor: 'internal' });
+      held.push({ path: MANIFEST_FILE, bytes: await manifest.readBytes(MANIFEST_FILE) });
+    }
     if (held.length === 0) {
       // Nothing here can be held (a copy whose words this browser cannot read), so the copy opens as it stands rather than being
       // removed with no way back.
