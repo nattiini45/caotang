@@ -8,16 +8,21 @@ import { keyHandle, nativeKeyStore, type NativeKeyVault } from '../src/index.js'
 import type { KeyPayload } from '../src/keys/key-store.js';
 
 /** A vault that behaves like the main process's: it holds payloads, and answers revisions the way a sealed record does. */
-function vault(): NativeKeyVault & { readonly held: Map<string, KeyPayload>; readonly undos: string[] } {
+const ORIGIN = 'https://api.example.com';
+
+function vault(): NativeKeyVault & { readonly held: Map<string, KeyPayload>; readonly undos: string[]; readonly pairings: Map<string, string> } {
   const held = new Map<string, KeyPayload>();
+  const pairings = new Map<string, string>();
   const undos: string[] = [];
   let saved: Map<string, KeyPayload> = new Map();
   return {
     held,
     undos,
+    pairings,
     available: async () => true,
-    async put(id, payload) {
+    async put(id, payload, origin) {
       saved = new Map(held);
+      pairings.set(id, origin);
       held.set(id, payload);
     },
     async headers(id) {
@@ -47,7 +52,7 @@ const KEY = 'sk-live-0123456789abcdef';
 describe('a key the host holds', () => {
   it('answers a stored key with a handle, never with the key', async () => {
     const store = nativeKeyStore(vault());
-    await store.put(ID, KEY);
+    await store.put(ID, KEY, ORIGIN);
     expect(await store.has(ID)).toBe(true);
     expect(await store.reveal(ID)).toBe(keyHandle(ID));
     expect(JSON.stringify(await store.revealPayload(ID))).not.toContain(KEY);
@@ -63,26 +68,26 @@ describe('a key the host holds', () => {
 
   it('gives the page the extra header values it typed, and still not the key', async () => {
     const store = nativeKeyStore(vault());
-    await store.putPayload(ID, { apiKey: KEY, customHeaders: { 'x-workspace': 'w1' } });
+    await store.putPayload(ID, { apiKey: KEY, customHeaders: { 'x-workspace': 'w1' } }, ORIGIN);
     const payload = await store.revealPayload(ID);
     expect(payload).toEqual({ apiKey: keyHandle(ID), customHeaders: { 'x-workspace': 'w1' } });
   });
 
   it('remaps a handle at a new id, because the handle is the id and not the key', async () => {
     const store = nativeKeyStore(vault());
-    await store.put(ID, KEY);
+    await store.put(ID, KEY, ORIGIN);
     const handle = await store.reveal(ID);
     if (handle === undefined) throw new Error('the store revealed no handle for a key it holds');
-    await store.put('prv_ZZZZZZZZZZ', handle);
+    await store.put('prv_ZZZZZZZZZZ', handle, ORIGIN);
     expect(await store.reveal('prv_ZZZZZZZZZZ')).toBe(keyHandle('prv_ZZZZZZZZZZ'));
   });
 
   it('revises when the key changes, and refuses an approval that names the old one', async () => {
     const held = vault();
     const store = nativeKeyStore(held);
-    await store.put(ID, KEY);
+    await store.put(ID, KEY, ORIGIN);
     const revision = await store.credentialRevision(ID);
-    await store.put(ID, 'sk-live-second');
+    await store.put(ID, 'sk-live-second', ORIGIN);
     expect(await store.credentialRevision(ID)).not.toBe(revision);
     await expect(store.revealPayload(ID, revision)).rejects.toThrow(/approved provider credentials changed/);
     expect(await store.revealPayload(ID, await store.credentialRevision(ID))).toBeDefined();
@@ -91,8 +96,8 @@ describe('a key the host holds', () => {
   it('can put back what a failed replace overwrote, without ever reading the key', async () => {
     const held = vault();
     const store = nativeKeyStore(held);
-    await store.put(TOKEN, 'old-token');
-    await store.put(TOKEN, 'new-token');
+    await store.put(TOKEN, 'old-token', ORIGIN);
+    await store.put(TOKEN, 'new-token', ORIGIN);
     expect(held.held.get(TOKEN)?.apiKey).toBe('new-token');
     await store.restore!(TOKEN);
     expect(held.undos).toEqual([TOKEN]);
@@ -102,7 +107,7 @@ describe('a key the host holds', () => {
   it('removes a key, and then answers nothing for it', async () => {
     const held = vault();
     const store = nativeKeyStore(held);
-    await store.put(ID, KEY);
+    await store.put(ID, KEY, ORIGIN);
     await store.remove(ID);
     expect(held.held.has(ID)).toBe(false);
     expect(await store.reveal(ID)).toBeUndefined();

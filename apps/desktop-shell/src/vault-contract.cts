@@ -20,7 +20,7 @@ export interface VaultPayload {
 export interface KeyVaultBridge {
   /** Whether this machine has a keychain the app can use. False means the browser's own vault stays in use. */
   available(): Promise<VaultReply<boolean>>;
-  put(id: string, payload: VaultPayload): Promise<VaultReply<null>>;
+  put(id: string, payload: VaultPayload, origin: string): Promise<VaultReply<null>>;
   remove(id: string): Promise<VaultReply<null>>;
   has(id: string): Promise<VaultReply<boolean>>;
   /** A digest of what is stored under `id`, so a caller can tell one save from the next. */

@@ -47,7 +47,7 @@ test('the page can store a secret and can never read one back', async () => {
     expect(available.ok).toBe(true);
     if (available.ok && available.value) {
       const id = 'prv_ABCDEFGHJK';
-      const put = await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'sk-live-0123456789abcdef' }), id);
+      const put = await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'sk-live-0123456789abcdef' }, 'https://api.example.com'), id);
       expect(put).toEqual({ ok: true, value: null });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.has(id), id)).toEqual({ ok: true, value: true });
       const revision = await page.evaluate((id) => window.caotangDesktop!.vault.revision(id), id);
@@ -57,7 +57,7 @@ test('the page can store a secret and can never read one back', async () => {
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.remove(id), id)).toEqual({ ok: true, value: null });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.has(id), id)).toEqual({ ok: true, value: false });
     } else {
-      expect(await page.evaluate(() => window.caotangDesktop!.vault.put('prv_ABCDEFGHJK', { apiKey: 'sk-live-x' })))
+      expect(await page.evaluate(() => window.caotangDesktop!.vault.put('prv_ABCDEFGHJK', { apiKey: 'sk-live-x' }, 'https://api.example.com')))
         .toEqual({ ok: false, error: 'unavailable' });
     }
   } finally {
@@ -79,7 +79,7 @@ test('a key survives the app closing, and the file it sits in holds no plain tex
     await expect(page.getByRole('textbox', { name: 'Project name' })).toBeVisible();
     const available = await page.evaluate(() => window.caotangDesktop!.vault.available());
     test.skip(!(available.ok && available.value), 'this machine has no keychain, so the fallback is the path it exercises');
-    const stored = await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'sk-relaunch-secret', customHeaders: { 'x-workspace': 'w1' } }), id);
+    const stored = await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'sk-relaunch-secret', customHeaders: { 'x-workspace': 'w1' } }, 'https://api.example.com'), id);
     expect(stored).toEqual({ ok: true, value: null });
     const file = await readFile(join(profile, 'native-key-vault.json'), 'utf8');
     expect(file).not.toContain('sk-relaunch-secret');

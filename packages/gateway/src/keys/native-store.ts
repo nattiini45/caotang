@@ -22,8 +22,8 @@ import type { KeyPayload, KeyStore } from './key-store.js';
 export interface NativeKeyVault {
   /** Whether the operating system's keychain can be used at all. False means the browser's WebCrypto vault is in use. */
   available(): Promise<boolean>;
-  /** Stores the payload under `id`, and answers only once the host has read it back. */
-  put(id: string, payload: KeyPayload): Promise<void>;
+  /** Stores the payload under `id` for one address, and answers only once the host has read it back. */
+  put(id: string, payload: KeyPayload, origin: string): Promise<void>;
   /** The extra header values stored with `id`: never the key. */
   headers(id: string): Promise<Readonly<Record<string, string>> | undefined>;
   /** A value that changes whenever the stored payload does, for a caller comparing approvals. */
@@ -37,12 +37,12 @@ export interface NativeKeyVault {
 /** What `reveal` answers for a stored key: a handle, never the key. */
 export function nativeKeyStore(vault: NativeKeyVault): KeyStore {
   return {
-    async put(id, apiKey) {
-      await vault.put(id, { apiKey });
+    async put(id, apiKey, origin) {
+      await vault.put(id, { apiKey }, origin);
     },
 
-    async putPayload(id, payload) {
-      await vault.put(id, payload);
+    async putPayload(id, payload, origin) {
+      await vault.put(id, payload, origin);
     },
 
     async reveal(id) {

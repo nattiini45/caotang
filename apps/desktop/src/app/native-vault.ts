@@ -50,9 +50,10 @@ function unwrap<T>(reply: VaultReply<T>): T {
 function vaultPort(api: NonNullable<ReturnType<typeof bridge>>): NativeKeyVault {
   return {
     available: async () => unwrap(await api.available()),
-    put: async (id, payload) => {
+    put: async (id, payload, origin) => {
       const stored: VaultPayload = { apiKey: payload.apiKey, ...(payload.customHeaders === undefined ? {} : { customHeaders: payload.customHeaders }) };
-      unwrap(await api.put(id, stored));
+      // The address the key is for is part of storing it: the shell records it, and a page cannot change it afterwards (#864).
+      unwrap(await api.put(id, stored, origin));
     },
     headers: async (id) => {
       // A call that failed answers no headers, and saying "none" would read as a key stored without any: the store's answer is
@@ -76,7 +77,7 @@ function vaultPort(api: NonNullable<ReturnType<typeof bridge>>): NativeKeyVault 
  * How many keys moved out of this browser's vault into the keychain. Every entry the old store can open is written, read back
  * and then deleted; an entry it cannot open is counted as left rather than taken.
  */
-async function migrate(factory: IDBFactory, store: KeyStore): Promise<{ moved: number; failed: boolean }> {
+async function migrate(factory: IDBFactory, store: KeyStore, originOf: (id: string) => string | undefined): Promise<{ moved: number; failed: boolean }> {
   let moved = 0;
   let failed = false;
   let legacy: KeyStore;
@@ -91,7 +92,11 @@ async function migrate(factory: IDBFactory, store: KeyStore): Promise<{ moved: n
       const payload = await legacy.revealPayload(id);
       // A key that cannot be opened here is not a key: leaving it alone keeps the browser's copy as the record of it.
       if (payload === undefined) continue;
-      await store.putPayload(id, payload);
+      // The profile's own address, which the caller supplies: a key that cannot name one is not moved, because a host that
+      // cannot bind it could never send it.
+      const origin = originOf(id);
+      if (origin === undefined) continue;
+      await store.putPayload(id, payload, origin);
       if (!await store.has(id)) {
         failed = true;
         continue;
@@ -110,7 +115,7 @@ async function migrate(factory: IDBFactory, store: KeyStore): Promise<{ moved: n
  * Opens what the desktop app has for keys, moving this browser's sealed keys into the keychain once. Never throws: a keychain
  * that cannot be used answers `unavailable`, and the caller keeps the browser's vault with a notice that says so.
  */
-export async function openDesktopKeys(factory: IDBFactory | null): Promise<DesktopKeys> {
+export async function openDesktopKeys(factory: IDBFactory | null, originOf: (id: string) => string | undefined): Promise<DesktopKeys> {
   const api = bridge();
   if (api === undefined) return { kind: 'none' };
   let available = false;
@@ -122,6 +127,6 @@ export async function openDesktopKeys(factory: IDBFactory | null): Promise<Deskt
   if (!available) return { kind: 'unavailable' };
   const store = nativeKeyStore(vaultPort(api));
   if (factory === null) return { kind: 'keychain', store, moved: 0, failed: false };
-  const { moved, failed } = await migrate(factory, store);
+  const { moved, failed } = await migrate(factory, store, originOf);
   return { kind: 'keychain', store, moved, failed };
 }

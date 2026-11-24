@@ -52,21 +52,24 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** Every key these tests know is for one address; a key whose profile is gone is covered by its own case. */
+const originOfTestKey = (): string => 'https://api.example.com';
+
 describe('a page in the desktop app', () => {
   it('has no key store when the machine has no keychain, and says so', async () => {
     withBridge(scriptedVault({ available: false }).bridge);
-    expect(await openDesktopKeys(null)).toEqual({ kind: 'unavailable' });
+    expect(await openDesktopKeys(null, originOfTestKey)).toEqual({ kind: 'unavailable' });
   });
 
   it('has no key store at all in a browser', async () => {
     withBridge(undefined);
-    expect(await openDesktopKeys(null)).toEqual({ kind: 'none' });
+    expect(await openDesktopKeys(null, originOfTestKey)).toEqual({ kind: 'none' });
   });
 
   it('answers a stored key with a handle, and never with the key', async () => {
     const scripted = scriptedVault();
     withBridge(scripted.bridge);
-    const opened = await openDesktopKeys(null);
+    const opened = await openDesktopKeys(null, originOfTestKey);
     expect(opened.kind).toBe('keychain');
     if (opened.kind !== 'keychain') return;
     await opened.store.put(ID, KEY);
@@ -81,7 +84,7 @@ describe('a page in the desktop app', () => {
   it('keeps the extra header values the writer typed beside the key', async () => {
     const scripted = scriptedVault();
     withBridge(scripted.bridge);
-    const opened = await openDesktopKeys(null);
+    const opened = await openDesktopKeys(null, originOfTestKey);
     if (opened.kind !== 'keychain') throw new Error('expected the keychain');
     await opened.store.putPayload(ID, { apiKey: KEY, customHeaders: { 'x-workspace': 'w1' } });
     expect(await opened.store.revealPayload(ID)).toEqual({ apiKey: keyHandle(ID), customHeaders: { 'x-workspace': 'w1' } });
@@ -89,7 +92,7 @@ describe('a page in the desktop app', () => {
 
   it('cannot store anything when the keychain refuses, and does not pretend a key is there', async () => {
     withBridge(scriptedVault({ failPut: true }).bridge);
-    const opened = await openDesktopKeys(null);
+    const opened = await openDesktopKeys(null, originOfTestKey);
     if (opened.kind !== 'keychain') throw new Error('expected the keychain');
     await expect(opened.store.put(ID, KEY)).rejects.toThrow(/keychain did not answer/u);
     expect(await opened.store.has(ID)).toBe(false);
@@ -105,7 +108,7 @@ describe('the keys an earlier version sealed in this browser', () => {
 
     const scripted = scriptedVault();
     withBridge(scripted.bridge);
-    const opened = await openDesktopKeys(factory as unknown as IDBFactory);
+    const opened = await openDesktopKeys(factory as unknown as IDBFactory, originOfTestKey);
     expect(opened).toMatchObject({ kind: 'keychain', moved: 2, failed: false });
     expect(scripted.held.get(ID)?.apiKey).toBe(KEY);
     expect(scripted.held.get('mcp:one')?.apiKey).toBe('fixture-token');
@@ -120,7 +123,7 @@ describe('the keys an earlier version sealed in this browser', () => {
     await legacy.put(ID, KEY);
 
     withBridge(scriptedVault({ failPut: true }).bridge);
-    const opened = await openDesktopKeys(factory as unknown as IDBFactory);
+    const opened = await openDesktopKeys(factory as unknown as IDBFactory, originOfTestKey);
     expect(opened).toMatchObject({ kind: 'keychain', moved: 0, failed: true });
     // A key that did not arrive is still in the browser, so the next open tries again rather than losing it.
     expect(await legacy.reveal(ID)).toBe(KEY);
@@ -130,7 +133,7 @@ describe('the keys an earlier version sealed in this browser', () => {
     const factory = new MemoryIndexedDb();
     const scripted = scriptedVault();
     withBridge(scripted.bridge);
-    expect(await openDesktopKeys(factory as unknown as IDBFactory)).toMatchObject({ kind: 'keychain', moved: 0, failed: false });
+    expect(await openDesktopKeys(factory as unknown as IDBFactory, originOfTestKey)).toMatchObject({ kind: 'keychain', moved: 0, failed: false });
     expect(scripted.held.size).toBe(0);
   });
 });

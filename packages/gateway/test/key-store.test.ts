@@ -31,7 +31,7 @@ function containsBytes(haystack: Uint8Array, needle: Uint8Array): boolean {
 describe('AES-GCM key store on WebCrypto', () => {
   it('round-trips a key: what is put is what reveal returns', async () => {
     const store = createKeyStore(createMemoryVaultPort());
-    await store.put('prv_AAAAAAAAAA', KEY);
+    await store.put('prv_AAAAAAAAAA', KEY, 'https://api.example.com');
     expect(await store.reveal('prv_AAAAAAAAAA')).toBe(KEY);
     expect(await store.has('prv_AAAAAAAAAA')).toBe(true);
   });
@@ -39,7 +39,7 @@ describe('AES-GCM key store on WebCrypto', () => {
   it('reveals nothing for an id it never stored, and nothing after removal', async () => {
     const store = createKeyStore(createMemoryVaultPort());
     expect(await store.reveal('prv_BBBBBBBBBB')).toBeUndefined();
-    await store.put('prv_BBBBBBBBBB', KEY);
+    await store.put('prv_BBBBBBBBBB', KEY, 'https://api.example.com');
     await store.remove('prv_BBBBBBBBBB');
     expect(await store.reveal('prv_BBBBBBBBBB')).toBeUndefined();
     expect(await store.has('prv_BBBBBBBBBB')).toBe(false);
@@ -48,7 +48,7 @@ describe('AES-GCM key store on WebCrypto', () => {
   it('generates the wrapping key non-extractable, so script cannot export it', async () => {
     const port = createMemoryVaultPort();
     const store = createKeyStore(port);
-    await store.put('prv_CCCCCCCCCC', KEY);
+    await store.put('prv_CCCCCCCCCC', KEY, 'https://api.example.com');
     const wrapping = await port.getWrappingKey();
     expect(wrapping).toBeDefined();
     expect(wrapping!.extractable).toBe(false);
@@ -59,7 +59,7 @@ describe('AES-GCM key store on WebCrypto', () => {
   it('stores ciphertext that contains neither the key text nor its bytes', async () => {
     const port = createMemoryVaultPort();
     const store = createKeyStore(port);
-    await store.put('prv_DDDDDDDDDD', KEY);
+    await store.put('prv_DDDDDDDDDD', KEY, 'https://api.example.com');
     const entry = await port.getEntry('prv_DDDDDDDDDD');
     expect(entry).toBeDefined();
     expect(containsBytes(entry!.ciphertext, bytesOf(KEY))).toBe(false);
@@ -73,7 +73,7 @@ describe('AES-GCM key store on WebCrypto', () => {
   it('keeps custom header values out of the ciphertext too', async () => {
     const port = createMemoryVaultPort();
     const store = createKeyStore(port);
-    await store.putPayload('prv_DDDDDDDDDD', { apiKey: KEY, customHeaders: { 'x-proxy-secret': 'hunter2-value' } });
+    await store.putPayload('prv_DDDDDDDDDD', { apiKey: KEY, customHeaders: { 'x-proxy-secret': 'hunter2-value' } }, 'https://api.example.com');
     const entry = await port.getEntry('prv_DDDDDDDDDD');
     expect(containsBytes(entry!.ciphertext, bytesOf('hunter2-value'))).toBe(false);
     expect(containsBytes(entry!.ciphertext, bytesOf('x-proxy-secret'))).toBe(false);
@@ -82,9 +82,9 @@ describe('AES-GCM key store on WebCrypto', () => {
   it('seals the same key differently each time, because every seal takes a fresh IV', async () => {
     const port = createMemoryVaultPort();
     const store = createKeyStore(port);
-    await store.put('prv_EEEEEEEEEE', KEY);
+    await store.put('prv_EEEEEEEEEE', KEY, 'https://api.example.com');
     const first = await port.getEntry('prv_EEEEEEEEEE');
-    await store.put('prv_EEEEEEEEEE', KEY);
+    await store.put('prv_EEEEEEEEEE', KEY, 'https://api.example.com');
     const second = await port.getEntry('prv_EEEEEEEEEE');
     expect(Buffer.from(first!.iv).equals(Buffer.from(second!.iv))).toBe(false);
     expect(Buffer.from(first!.ciphertext).equals(Buffer.from(second!.ciphertext))).toBe(false);
@@ -94,7 +94,7 @@ describe('AES-GCM key store on WebCrypto', () => {
   it('refuses to open an entry moved to another profile, because the profile id is authenticated', async () => {
     const port = createMemoryVaultPort();
     const store = createKeyStore(port);
-    await store.put('prv_FFFFFFFFFF', KEY);
+    await store.put('prv_FFFFFFFFFF', KEY, 'https://api.example.com');
     const stolen = await port.getEntry('prv_FFFFFFFFFF');
     await port.putEntry('prv_GGGGGGGGGG', stolen!);
     expect(await store.reveal('prv_GGGGGGGGGG')).toBeUndefined();
@@ -104,7 +104,7 @@ describe('AES-GCM key store on WebCrypto', () => {
   it('returns nothing for a corrupted entry rather than a partial key', async () => {
     const port = createMemoryVaultPort();
     const store = createKeyStore(port);
-    await store.put('prv_HHHHHHHHHH', KEY);
+    await store.put('prv_HHHHHHHHHH', KEY, 'https://api.example.com');
     const entry = await port.getEntry('prv_HHHHHHHHHH');
     const flipped = new Uint8Array(entry!.ciphertext);
     flipped[0] = (flipped[0] ?? 0) ^ 0xff;
@@ -114,7 +114,7 @@ describe('AES-GCM key store on WebCrypto', () => {
 
   it('returns nothing when the wrapping key is gone, as after a cleared site-data store', async () => {
     const port = createMemoryVaultPort();
-    await createKeyStore(port).put('prv_IIIIIIIIII', KEY);
+    await createKeyStore(port).put('prv_IIIIIIIIII', KEY, 'https://api.example.com');
     const replacement = createKeyStore(createMemoryVaultPort());
     // A fresh port has no wrapping key, but it also has no entry, so copy the entry across.
     const entry = await port.getEntry('prv_IIIIIIIIII');
@@ -127,7 +127,7 @@ describe('AES-GCM key store on WebCrypto', () => {
   it('shares one wrapping key between two saves that race, so neither entry is stranded', async () => {
     const port = createMemoryVaultPort();
     const store = createKeyStore(port);
-    await Promise.all([store.put('prv_JJJJJJJJJJ', 'sk-first-key-111111'), store.put('prv_KKKKKKKKKK', 'sk-second-key-22222')]);
+    await Promise.all([store.put('prv_JJJJJJJJJJ', 'sk-first-key-111111', 'https://api.example.com'), store.put('prv_KKKKKKKKKK', 'sk-second-key-22222', 'https://api.example.com')]);
     expect(await store.reveal('prv_JJJJJJJJJJ')).toBe('sk-first-key-111111');
     expect(await store.reveal('prv_KKKKKKKKKK')).toBe('sk-second-key-22222');
   });
@@ -145,8 +145,8 @@ describe('AES-GCM key store on WebCrypto', () => {
     };
     const store = createKeyStore(port);
 
-    await expect(store.put('prv_RRRRRRRRRR', KEY)).rejects.toThrow('the vault is briefly unavailable');
-    await expect(store.put('prv_RRRRRRRRRR', KEY)).resolves.toBeUndefined();
+    await expect(store.put('prv_RRRRRRRRRR', KEY, 'https://api.example.com')).rejects.toThrow('the vault is briefly unavailable');
+    await expect(store.put('prv_RRRRRRRRRR', KEY, 'https://api.example.com')).resolves.toBeUndefined();
     expect(await store.reveal('prv_RRRRRRRRRR')).toBe(KEY);
     // One lookup per failed-or-fresh access, none cached across the failure: the two saves
     // (first throws, second succeeds) plus the reveal — which opens the entry through
@@ -158,14 +158,14 @@ describe('AES-GCM key store on WebCrypto', () => {
     const port = createMemoryVaultPort();
     const tabA = createKeyStore(port);
     const tabB = createKeyStore(port);
-    await Promise.all([tabA.put('prv_PPPPPPPPPP', 'sk-tab-a-key-111111'), tabB.put('prv_QQQQQQQQQQ', 'sk-tab-b-key-222222')]);
+    await Promise.all([tabA.put('prv_PPPPPPPPPP', 'sk-tab-a-key-111111', 'https://api.example.com'), tabB.put('prv_QQQQQQQQQQ', 'sk-tab-b-key-222222', 'https://api.example.com')]);
     expect(await tabB.reveal('prv_PPPPPPPPPP')).toBe('sk-tab-a-key-111111');
     expect(await tabA.reveal('prv_QQQQQQQQQQ')).toBe('sk-tab-b-key-222222');
   });
 
   it('round-trips a v2 payload: the key and its sealed custom headers', async () => {
     const store = createKeyStore(createMemoryVaultPort());
-    await store.putPayload('prv_TTTTTTTTTT', { apiKey: KEY, customHeaders: { 'x-team': 'blue-42' } });
+    await store.putPayload('prv_TTTTTTTTTT', { apiKey: KEY, customHeaders: { 'x-team': 'blue-42' } }, 'https://api.example.com');
     expect(await store.revealPayload('prv_TTTTTTTTTT')).toEqual({ apiKey: KEY, customHeaders: { 'x-team': 'blue-42' } });
     // The string seam reads the key half, unchanged — the shape MCP's token store relies on.
     expect(await store.reveal('prv_TTTTTTTTTT')).toBe(KEY);
@@ -175,7 +175,7 @@ describe('AES-GCM key store on WebCrypto', () => {
     const port = createMemoryVaultPort();
     const store = createKeyStore(port);
     // Plant a genuine v1 entry: the bare key bytes, sealed the way the pre-payload store sealed them.
-    await store.put('prv_V111111111', KEY); // establishes the wrapping key
+    await store.put('prv_V111111111', KEY, 'https://api.example.com'); // establishes the wrapping key
     const wrapping = (await port.getWrappingKey())!;
     const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
     const sealed = await globalThis.crypto.subtle.encrypt(
@@ -200,7 +200,7 @@ describe('AES-GCM key store on WebCrypto', () => {
 
   it('reads a v1 MCP token unchanged: put a bare string, reveal gives the string back', async () => {
     const store = createKeyStore(createMemoryVaultPort());
-    await store.put('mcp:test-ref', 'mcp-token-value-1');
+    await store.put('mcp:test-ref', 'mcp-token-value-1', 'https://api.example.com');
     expect(await store.reveal('mcp:test-ref')).toBe('mcp-token-value-1');
   });
 
@@ -208,7 +208,7 @@ describe('AES-GCM key store on WebCrypto', () => {
     const spies = [vi.spyOn(console, 'log'), vi.spyOn(console, 'warn'), vi.spyOn(console, 'error'), vi.spyOn(console, 'info')];
     try {
       const store = createKeyStore(createMemoryVaultPort());
-      await store.put('prv_LLLLLLLLLL', KEY);
+      await store.put('prv_LLLLLLLLLL', KEY, 'https://api.example.com');
       await store.reveal('prv_LLLLLLLLLL');
       for (const spy of spies) {
         for (const call of spy.mock.calls) expect(JSON.stringify(call)).not.toContain(KEY);
@@ -223,7 +223,7 @@ describe('IndexedDB key vault (browser binding, headless)', () => {
   it('keeps the wrapping key and the entries across a reopen, which is what a reload is', async () => {
     const factory = new MemoryIndexedDb();
     const first = createKeyStore(createIndexedDbVaultPort({ factory }));
-    await first.put('prv_MMMMMMMMMM', KEY);
+    await first.put('prv_MMMMMMMMMM', KEY, 'https://api.example.com');
 
     // A new port over the same database is what a reloaded page gets.
     const reloaded = createKeyStore(createIndexedDbVaultPort({ factory }));
@@ -235,7 +235,7 @@ describe('IndexedDB key vault (browser binding, headless)', () => {
     const factory = new MemoryIndexedDb();
     const tabA = createKeyStore(createIndexedDbVaultPort({ factory }));
     const tabB = createKeyStore(createIndexedDbVaultPort({ factory }));
-    await Promise.all([tabA.put('prv_RRRRRRRRRR', 'sk-idb-a-key-111111'), tabB.put('prv_SSSSSSSSSS', 'sk-idb-b-key-222222')]);
+    await Promise.all([tabA.put('prv_RRRRRRRRRR', 'sk-idb-a-key-111111', 'https://api.example.com'), tabB.put('prv_SSSSSSSSSS', 'sk-idb-b-key-222222', 'https://api.example.com')]);
 
     const reloaded = createKeyStore(createIndexedDbVaultPort({ factory }));
     expect(await reloaded.reveal('prv_RRRRRRRRRR')).toBe('sk-idb-a-key-111111');
@@ -245,7 +245,7 @@ describe('IndexedDB key vault (browser binding, headless)', () => {
   it('stores the wrapping key as a non-extractable CryptoKey, unchanged by the trip through IndexedDB', async () => {
     const factory = new MemoryIndexedDb();
     const port: KeyVaultPort = createIndexedDbVaultPort({ factory });
-    await createKeyStore(port).put('prv_NNNNNNNNNN', KEY);
+    await createKeyStore(port).put('prv_NNNNNNNNNN', KEY, 'https://api.example.com');
     const stored = await port.getWrappingKey();
     expect(stored).toBeDefined();
     expect(stored!.extractable).toBe(false);
@@ -256,7 +256,7 @@ describe('IndexedDB key vault (browser binding, headless)', () => {
     const factory = new MemoryIndexedDb();
     const port = createIndexedDbVaultPort({ factory });
     const store = createKeyStore(port);
-    await store.put('prv_OOOOOOOOOO', KEY);
+    await store.put('prv_OOOOOOOOOO', KEY, 'https://api.example.com');
     await store.remove('prv_OOOOOOOOOO');
     expect(await port.getEntry('prv_OOOOOOOOOO')).toBeUndefined();
   });

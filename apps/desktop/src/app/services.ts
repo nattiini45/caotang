@@ -145,7 +145,19 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
   // where a browser could not read it (desktop.md). Published addresses come from the profiles themselves, read before each
   // call, so a profile saved a moment ago is reachable on its first request.
   const egress = desktopEgress();
-  const keys = await openDesktopKeys(factory);
+  // A key from an earlier build moves in for the address its profile names; a profile that is gone leaves its key where it is,
+  // because a host that cannot bind a key could never send it (native-vault.ts, #864).
+  const persisted = ((await db?.get<readonly { id: string; baseUrl?: string }[]>(APP_KEYS.profiles)) ?? []);
+  const profileOrigins = new Map<string, string>();
+  for (const record of persisted) {
+    if (typeof record.baseUrl !== 'string') continue;
+    try {
+      profileOrigins.set(record.id, originOf(record.baseUrl));
+    } catch {
+      // An address that does not parse names no origin, so its key is not moved.
+    }
+  }
+  const keys = await openDesktopKeys(factory, (id) => profileOrigins.get(id));
   const { service, notices: providerNotices } = await ProviderService.open({
     db,
     vault: factory,
@@ -196,15 +208,17 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
 function egressTargets(profiles: readonly ProfileView[], mcp: McpSettings): NativeEgressTarget[] {
   const targets: NativeEgressTarget[] = [];
   /** A record whose address does not parse cannot be reached anyway; the form that saved it reported the address. */
-  const add = (url: string, keys: readonly string[], local = false): void => {
+  // The page says which addresses the app is configured for, and nothing about keys: the shell reads each key's address from
+  // the binding it recorded when the writer stored it (#864).
+  const add = (url: string, local = false): void => {
     try {
-      targets.push({ origin: originOf(url), keys, ...(local ? { local } : {}) });
+      targets.push({ origin: originOf(url), ...(local ? { local } : {}) });
     } catch {
       // A record whose address does not parse is not an address, so it adds nothing to the list.
     }
   };
   for (const profile of profiles) {
-    if (profile.kind !== 'mock') add(profile.baseUrl, [profile.id]);
+    if (profile.kind !== 'mock') add(profile.baseUrl);
   }
   for (const server of mcp.servers) {
     let local = false;
@@ -213,7 +227,7 @@ function egressTargets(profiles: readonly ProfileView[], mcp: McpSettings): Nati
     } catch {
       continue;
     }
-    add(server.url, server.auth.kind === 'bearer' ? [server.auth.tokenRef] : [], local);
+    add(server.url, local);
   }
   return targets;
 }

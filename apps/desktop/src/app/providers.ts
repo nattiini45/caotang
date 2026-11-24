@@ -335,7 +335,8 @@ export class ProviderService {
         // it cannot open is not a key at all, so the account's copy repairs it, which is what this seam exists for.
         for (const restored of await host.restore(origins)) {
           const local = await keys.revealPayload(restored.profileId);
-          if (local === undefined) await keys.putPayload(restored.profileId, restored.payload);
+          // Stored for the address this profile names, which is the pairing a key stored before the bindings existed needs.
+          if (local === undefined) await keys.putPayload(restored.profileId, restored.payload, restored.origin);
         }
       } catch {
         // A host that cannot supply its keys leaves those profiles without one, and the restore below names each of them.
