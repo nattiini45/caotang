@@ -442,7 +442,7 @@ export class ProviderService {
   /** Reads the stored profiles, usage and log back into the services. Each part is independent: one failing keeps the rest. */
   private async restore(db: AppDb, notices: string[], pin: (id: string | null) => void): Promise<void> {
     try {
-      const stored = (await db.get<PersistedProfile[]>(APP_KEYS.profiles)) ?? [];
+      const stored = await this.readProfiles(db);
       let activeId: string | null = null;
       for (const record of stored) {
         try {
@@ -508,6 +508,27 @@ export class ProviderService {
     }
   }
 
+  /**
+   * The stored profiles, read twice before the session gives up on them: a transaction that aborts at start-up is usually
+   * momentary, and one retry is what keeps a saved list from being treated as unreadable for the whole session.
+   */
+  private async readProfiles(db: AppDb): Promise<PersistedProfile[]> {
+    try {
+      return (await db.get<PersistedProfile[]>(APP_KEYS.profiles)) ?? [];
+    } catch {
+      return (await db.get<PersistedProfile[]>(APP_KEYS.profiles)) ?? [];
+    }
+  }
+
+  /**
+   * Refuses a change to the saved profiles in a session that could not read them. The write would be skipped and the change
+   * reported as saved, and a removal would take a key out of the vault for a profile that comes back on the next open.
+   */
+  private refuseWhileUnreadable(): void {
+    if (!this.profilesUnreadable) return;
+    throw new ProfileError('invalid', t`Caotang could not read your saved provider settings when it opened, so they cannot be changed in this session. Close Caotang and open it again.`);
+  }
+
   /** Every profile, oldest first, without keys. A provider still being set up is not one yet. */
   list(): ProfileView[] {
     return this.profiles.list().filter((profile) => !this.drafts.has(profile.id));
@@ -563,6 +584,7 @@ export class ProviderService {
    * the saved profile and reports why, so the writer can correct the URL or the key where they are.
    */
   async addProfile(input: NewProfile): Promise<SaveOutcome> {
+    this.refuseWhileUnreadable();
     const view = await this.profiles.create(input);
     const probe = view.kind === 'endpoint' ? await this.probeModels(view.id, true) : { models: undefined, error: undefined, failure: undefined };
     await this.persist();
@@ -576,6 +598,7 @@ export class ProviderService {
 
   /** Edits a profile. Changing its endpoint, key or model runs the list-models probe again, as adding one does. */
   async editProfile(id: string, patch: ProfilePatch): Promise<SaveOutcome> {
+    this.refuseWhileUnreadable();
     const before = this.profiles.get(id);
     const view = await this.profiles.update(id, patch);
     const probe =
@@ -624,6 +647,7 @@ export class ProviderService {
    * `list()` and from storage until {@link finishSetup}; a failure removes it again, so a bad key leaves nothing behind.
    */
   async beginSetup(input: SetupInput): Promise<SetupDiscovery> {
+    this.refuseWhileUnreadable();
     const preset = presetFor(input.preset);
     if (preset === undefined || preset.id === 'mock') throw new SetupError({ kind: 'invalid', message: t`Choose one of the providers.` });
     const name = this.freeName(preset.name);
@@ -676,6 +700,7 @@ export class ProviderService {
    * the task roles, because they all send through this one key (provider-gateway §2, "One connection, many models").
    */
   async finishSetup(draftId: string, models: readonly string[], overrides: Pick<ProfilePatch, 'params' | 'temperature' | 'pricePer1k'> = {}): Promise<{ view: ProfileView; note?: string }> {
+    this.refuseWhileUnreadable();
     if (!this.drafts.has(draftId)) throw new Error(t`This setup is no longer open.`);
     const [model] = models;
     if (model === undefined) throw new Error(t`Choose at least one model for this provider.`);
@@ -708,6 +733,7 @@ export class ProviderService {
 
   /** Removes a profile and its key. The active profile moves to another one, or the demo profile is made again. */
   async remove(id: string): Promise<void> {
+    this.refuseWhileUnreadable();
     await this.profiles.remove(id);
     if (this.list().length === 0) {
       await this.profiles.create({ name: DEMO_PROFILE_NAME, kind: 'mock', isActive: true });

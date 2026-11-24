@@ -237,7 +237,9 @@ that update is refused" works with a store that cannot read: the undo is the vau
 well as a secret is what keeps an undo from carrying the older key to the address the newer one was entered for, and a removal
 that is put back returns the key at the address the writer stored it for. A request reads its secret in the same turn a write
 takes, and a replacement hides its id until the new secret is sealed and placed, so no request is answered with the older key
-at the address the writer just moved to. `bound-vault.ts` is that rule, and the repository's gate tests it without Electron.
+at the address the writer just moved to. The remembered address is written only once the binding and the vault's own write have
+both been attempted and is put back when either fails, so a refused write can never leave `restore` pairing an older secret with
+a later address. `bound-vault.ts` is that rule, and the repository's gate tests it without Electron.
 
 **Migration writes, verifies, deletes.** On first open with a keychain, each key an earlier build sealed in this browser's
 IndexedDB vault is opened by the store that already holds it, written to the keychain, read back by the main process before it
@@ -252,7 +254,9 @@ address, so the port refuses every request that names one; there is no call that
 the page supplies both the id and the address, which is the pairing this design keeps out of the page. The writer enters the key
 again for the endpoint the profile names, and Settings names the profile without a usable key. No shipped build has such keys.
 The settings database is read for the migration as auxiliary data, so a read that fails names no addresses and startup
-continues; the provider store then keeps the records it could not read rather than replacing them with the demo profile.
+continues; the provider store reads the profile list twice before it gives up, and a session that still could not read it keeps
+those records rather than replacing them with the demo profile. Adding, editing or removing a profile in that session is refused
+in words, because a change that could not be written must not be reported as saved.
 
 **Without a keychain the browser's vault stays, and says so.** `safeStorage` on Linux falls back to a built-in key that is the
 same on every machine, which is obfuscation rather than encryption; the vault treats `basic_text` and `unknown` backends as no
