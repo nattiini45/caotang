@@ -1302,6 +1302,12 @@ export async function openHostedProject(
   store: RuntimeStore,
   source: HostedProjectSource,
   openTarget: (source: HostedProjectSource) => Promise<HostedTarget> = openHostedTarget,
+  /**
+   * This open is the session catching up after a send the writer chose (hosted.md §7.2, the `stale` state), not a project being opened. The
+   * account now holds their words and everything else, so its version takes this browser's place without the divergent-copy question: asking
+   * here would offer to send the copy that was read before the send, which is exactly what the send replaced.
+   */
+  catchingUp = false,
 ): Promise<Opened> {
   const target = await openTarget(source);
   // Nothing the queue holds is sent here: opening a project reads it, and the writer is told what is still on this device with the one
@@ -1340,17 +1346,19 @@ export async function openHostedProject(
     // should keep — the same question a save raises when another device moved the files. "Keep mine" replays the held words; the
     // account's version stands if the writer leaves it. Opening the browser's copy silently instead would be this device's words
     // winning without the writer ever seeing they were at odds with the account.
-    const held = await heldDocumentChanges(cached, differingDocumentIds(cached, loaded.state), new Set(await target.fs.listFiles(DOCS_DIR)));
+    const held = catchingUp
+      ? []
+      : await heldDocumentChanges(cached, differingDocumentIds(cached, loaded.state), new Set(await target.fs.listFiles(DOCS_DIR)));
     // The manifest is the writer's own settings as much as the book — the title, the tree, the codex entries — so a copy whose manifest
     // differs from the account's is part of the same question rather than something the account's version may simply replace.
-    if (manifestTextOf(cached, cached.manifest.project.modifiedAt) !== manifestTextOf(loaded.state, cached.manifest.project.modifiedAt)) {
+    if (!catchingUp && manifestTextOf(cached, cached.manifest.project.modifiedAt) !== manifestTextOf(loaded.state, cached.manifest.project.modifiedAt)) {
       const manifest = new MemoryArtifactFs();
       await writeProject(manifest, copyState(cached), { now: new Date(), copyFor: 'internal' });
       held.push({ path: MANIFEST_FILE, bytes: await manifest.readBytes(MANIFEST_FILE) });
     }
     if (held.length === 0) {
-      // Nothing here can be held (a copy whose words this browser cannot read), so the copy opens as it stands rather than being
-      // removed with no way back.
+      // Catching up after a send, or nothing here can be held (a copy whose words this browser cannot read): the account's version takes the
+      // copy's place under this page's lease, which keeps everything keyed by the project's id, and nothing is asked.
       opened = await openStored(store, projectId, null, { notices: noticesOf(loaded.notices), droppedFields: droppedFieldsOf(loaded.notices), folderLog: accountLog }, pictures);
     } else {
       target.queue?.hold(held);

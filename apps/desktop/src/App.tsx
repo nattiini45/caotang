@@ -170,7 +170,9 @@ export function App(): ReactNode {
         hostedTargetFor(previous.projectId)?.detach();
         await previous.closeSafely().catch(() => undefined);
       }
-      const opened = await openHostedProject(boot.kind === 'ready' ? boot.store : store, source);
+      // This is the session catching up after a send the writer chose (hosted.md §7.2), not a project being opened, so the account's
+      // version takes this browser's place without asking about the copy that was read before the send.
+      const opened = await openHostedProject(boot.kind === 'ready' ? boot.store : store, source, undefined, true);
       if (token !== serial.current) {
         await opened.session.closeSafely().catch(() => undefined);
         forgetHostedTarget(opened.session.projectId);

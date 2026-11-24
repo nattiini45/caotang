@@ -40,8 +40,8 @@ afterEach(async () => {
 });
 
 /** A queue that holds one scene's words and replays them into the same filesystem the open reads. */
-function queueHolding(fs: MemoryArtifactFs, replayedBody: string | undefined, outcome: HostedReplay = { kind: 'sent', count: 1 }): HostedQueuePort {
-  const held = new Set([`docs/${IDS.sceneA}.md`]);
+function queueHolding(fs: MemoryArtifactFs, replayedBody: string | undefined, outcome: HostedReplay = { kind: 'sent', count: 1 }, starts: readonly string[] = [`docs/${IDS.sceneA}.md`]): HostedQueuePort {
+  const held = new Set(starts);
   return {
     hold: (changes) => {
       for (const change of changes) held.add(change.path);
@@ -65,10 +65,10 @@ function queueHolding(fs: MemoryArtifactFs, replayedBody: string | undefined, ou
   };
 }
 
-async function targetFor(replayedBody: string | undefined, outcome?: HostedReplay): Promise<HostedTarget> {
+async function targetFor(replayedBody: string | undefined, outcome?: HostedReplay, starts?: readonly string[]): Promise<HostedTarget> {
   const fs = new MemoryArtifactFs();
   await writeProject(fs, BOOK);
-  const queue = queueHolding(fs, replayedBody, outcome);
+  const queue = queueHolding(fs, replayedBody, outcome, starts);
   // The adapter under this file is a memory one: what these tests ask of it is reads, and a re-read after a refusal.
   Object.assign(fs, { refresh: async () => undefined });
   return new HostedTarget(
@@ -175,6 +175,22 @@ it('keeps this browser’s task data when the same book is opened again', async 
   } finally {
     setActiveAppDb(null);
   }
+});
+
+it('takes the account’s version when the session is catching up after a send, without asking about the older copy', async () => {
+  const first = await open();
+  // The writer typed here and it reached the account through the send that followed: the browser's copy is what that send replaced.
+  first.session.state.documents.get(IDS.sceneA)!.body = 'Five words, written offline';
+  await first.session.persistence.settle();
+  await first.session.closeSafely();
+  opened = opened.filter((one) => one !== first);
+
+  const target = await targetFor('Five words, written offline', undefined, []);
+  const result = await openHostedProject(store, SOURCE, async () => target, true);
+  opened.push(result);
+  expect(result.session.state.documents.get(IDS.sceneA)?.body).toBe('Five words, written offline');
+  // No question, and nothing of the copy read before the send is offered back.
+  expect(target.state()).toEqual({ kind: 'idle' });
 });
 
 it('asks about words a browser copy holds and the account does not, instead of picking one of them silently', async () => {
