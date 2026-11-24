@@ -551,6 +551,7 @@ Playwright `toHaveScreenshot` in a `visual` project, run only in CI in the pinne
 
 - **Classic lock-in (M1):** the projects screen, the workspace with the binder, an open scene, the inspector and the agent drawer, the corkboard, the Codex, Findings and Activity tabs, Settings › Appearance, the Export dialog and the narrow layout at 390 by 844, light and dark. Threshold: zero pixels. Taken before any token work, and unchanged by every pull request of this epic except where Settings › Appearance gains its new radio (re-baselined once, in M1).
 - **Modern (M4 onwards):** 1,440 by 900, light and dark, glass and reduced transparency: Write, Board, Codex, Scene info, the sidebar open and pinned, the agent window, the palette, **⋯**, a toast, focus mode; and the narrow Modern layout at 390 by 844.
+- **A capture taken after the window changes size waits for the layout it moved to.** Below 960 px Modern's panels and their stylesheet are a chunk of their own, fetched when the narrow layout first needs them (§13); until it arrives, the boundary around them draws "Loading the binder…" as a capsule at the foot of the page, over the tab bar. The narrow captures therefore wait for `modern-drawer`, the first thing the chunk renders, which enters the page in the same commit that takes the capsule away (#881).
 
 ## 16. Rollout
 
