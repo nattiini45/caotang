@@ -17540,11 +17540,6 @@ msgstr ""
 msgid "Read the user guide"
 msgstr ""
 
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-#~ msgid "Read them"
-#~ msgstr ""
-
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.sessionHistory.content"
@@ -20185,11 +20180,6 @@ msgstr ""
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "Send none"
 msgstr ""
-
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-#~ msgid "Send them to your account"
-#~ msgstr ""
 
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
 #: apps/desktop/src/components/AgentQueue.tsx
@@ -25105,11 +25095,6 @@ msgstr ""
 msgid "These changed on another device: {files}"
 msgstr ""
 
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-#~ msgid "These changes are on this device. Your account does not have them yet."
-#~ msgstr ""
-
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "These checks use your Background provider. They can send text from this step."
@@ -28004,11 +27989,6 @@ msgstr ""
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "You need to approve the rewrite yourself, even in Auto mode."
 msgstr ""
-
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-#~ msgid "Your account has changes this book has not read yet."
-#~ msgstr ""
 
 #. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
