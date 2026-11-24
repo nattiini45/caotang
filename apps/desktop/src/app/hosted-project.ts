@@ -32,32 +32,57 @@ function keepMarks(source: HostedProjectSource, fs: EncryptedRemoteArtifactFs): 
 }
 
 /**
- * The queue this project keeps on this device: the adapter's own text, kept under the account's scope. It exists whether or not an
- * earlier tab left anything, because the first save the server does not take has to be held somewhere. A text this build cannot
- * read is dropped rather than failing the open, because a project that opens is worth more than a queue nobody can send.
+ * The queue this project keeps on this device: the adapter's own edits and the account version each was written against, kept under
+ * the account's scope. It exists whether or not an earlier tab left anything, because the first save the server does not take has to
+ * be held somewhere. A text this build cannot read is dropped rather than failing the open, because a project that opens is worth
+ * more than a queue nobody can send.
  */
-async function deviceQueue(source: HostedProjectSource, fs: EncryptedRemoteArtifactFs): Promise<HostedQueuePort> {
+export async function deviceQueue(source: HostedProjectSource, fs: EncryptedRemoteArtifactFs): Promise<HostedQueuePort> {
   const kept = loadHostedQueue(source.projectId);
   const { PendingEdits, replayPending } = await import('@caotang/remote-store');
   let edits: PendingEdits = new PendingEdits();
-  if (kept !== null) {
+  /**
+   * The version each held path had when this device last read the account: an edit is only the latest one if the file has not
+   * moved since. Without it a replay would write an older edit on top of another device's newer one, because the adapter can only
+   * tell that a path moved since *this* device read the index, and a reload always reads it fresh.
+   */
+  const base = new Map<string, number>();
+  const load = (text: string | null): void => {
+    if (text === null) return;
     try {
-      edits = PendingEdits.parse(kept);
+      const raw: unknown = JSON.parse(text);
+      const keptEdits = typeof raw === 'object' && raw !== null && 'edits' in raw ? raw.edits : undefined;
+      if (typeof keptEdits !== 'string') throw new Error('no edits');
+      edits = PendingEdits.parse(keptEdits);
+      const rows = typeof raw === 'object' && raw !== null && 'base' in raw ? raw.base : undefined;
+      if (Array.isArray(rows)) {
+        for (const row of rows) {
+          if (Array.isArray(row) && typeof row[0] === 'string' && Number.isSafeInteger(row[1])) base.set(row[0], row[1] as number);
+        }
+      }
     } catch {
+      edits = new PendingEdits();
+      base.clear();
       saveHostedQueue(source.projectId, null);
     }
-  }
+  };
+  load(kept);
   const keep = (): void => {
-    saveHostedQueue(source.projectId, edits.isEmpty ? null : edits.serialize());
+    saveHostedQueue(source.projectId, edits.isEmpty ? null : JSON.stringify({ format: 1, edits: edits.serialize(), base: [...base] }));
   };
   return {
     hold: (changes) => {
+      // The versions are read before the save that failed, so they are the ones this device's edit was written against.
+      for (const change of changes) if (!base.has(change.path)) base.set(change.path, fs.versionOf(change.path));
       edits.stageAll(changes);
       keep();
     },
     replay: async (): Promise<HostedReplay> => {
+      const moved = edits.paths.filter((path) => base.get(path) !== undefined && base.get(path) !== fs.versionOf(path));
+      if (moved.length > 0) return { kind: 'conflict', paths: moved };
       try {
         const count = await replayPending(fs, edits);
+        for (const path of edits.paths) base.delete(path);
         keep();
         keepMarks(source, fs);
         return { kind: 'sent', count };
@@ -72,6 +97,8 @@ async function deviceQueue(source: HostedProjectSource, fs: EncryptedRemoteArtif
     },
     forget: (paths?: readonly string[]) => {
       edits.clear(paths);
+      if (paths === undefined) base.clear();
+      else for (const path of paths) base.delete(path);
       keep();
     },
     held: () => edits.paths,

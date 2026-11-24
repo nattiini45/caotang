@@ -140,7 +140,12 @@ export function App(): ReactNode {
       setSaveToFolder(null);
       setSession(null);
       setStartIntent(null);
-      if (previous !== null) await previous.closeSafely().catch(() => undefined);
+      if (previous !== null) {
+        // The session being replaced still holds the version read before the answer: its close settles the browser save, and a target
+        // still attached would commit that older state over the words the answer just replayed.
+        hostedTargetFor(previous.projectId)?.detach();
+        await previous.closeSafely().catch(() => undefined);
+      }
       const opened = await openHostedProject(boot.kind === 'ready' ? boot.store : store, source);
       if (token !== serial.current) {
         await opened.session.closeSafely().catch(() => undefined);

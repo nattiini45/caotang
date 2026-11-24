@@ -67,6 +67,8 @@ async function targetFor(replayedBody: string, outcome?: HostedReplay): Promise<
   const fs = new MemoryArtifactFs();
   await writeProject(fs, BOOK);
   const queue = queueHolding(fs, replayedBody, outcome);
+  // The adapter under this file is a memory one: what these tests ask of it is reads, and a re-read after a refusal.
+  Object.assign(fs, { refresh: async () => undefined });
   return new HostedTarget(
     SOURCE.projectId,
     fs as never,

@@ -231,12 +231,21 @@ export class HostedTarget {
   /**
    * Sends what an earlier tab could not, before the project is read. A replay that lands means the account now holds the
    * writer's words and the session that follows reads them; one that does not leaves the queue exactly as it was.
+   *
+   * A refusal re-reads the account before returning, because the read that follows is what the writer will see: without it a
+   * conflict would open the project on an index this device already knows is behind. A re-read that fails throws instead, since
+   * the alternative is opening a stale book.
    */
   async replayHeld(): Promise<HostedReplay | null> {
     if (this.queue === null || this.queue.held().length === 0) return null;
     const outcome = await this.queue.replay();
-    if (outcome.kind === 'sent') this.#settle(outcome);
-    else if (outcome.kind === 'conflict') {
+    if (outcome.kind === 'sent') {
+      this.#settle(outcome);
+      return outcome;
+    }
+    await this.fs.refresh();
+    this.queue.marks();
+    if (outcome.kind === 'conflict') {
       this.#fromQueue = true;
       this.#set({ kind: 'conflict', paths: outcome.paths });
     } else this.#set({ kind: 'unsaved' });
