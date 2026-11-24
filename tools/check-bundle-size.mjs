@@ -80,6 +80,11 @@ export const BUDGET = {
     // shell, #329 the plain-text reader, #320 footnotes in the editor) is in the entry, beside #322's own review fixes. The cap is that
     // plus about 1%, rounded up to the thousand.
     index: 1_250_000,
+    // The project store: 695.7 kB raw, 212.5 kB gzip, every view that loads first reads it. It is one chunk because the chunks that load
+    // on use (the exporter, the hosted open) read it too, and the default splitting carved it into a chunk per module for them, at 2.6 kB
+    // gzip more in the first load than the hosted path itself weighs. Splitting it again means paying that back. The cap is the
+    // measurement plus about 1%.
+    'vendor-store': 702_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
   // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.
@@ -197,12 +202,15 @@ export const BUDGET = {
   // the write-verify-delete migration the app runs as it opens, and the Settings sentence that says which store holds the keys. All
   // of it is read by `openAppServices` before the first paint, so there was no chunk to move it to; the pages that only a form needs
   // were already on use. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
-  // The hosted save target (hosted.md §7.2): 1,130.2 kB gzip measured on CI, 4.2 kB over the ceiling that tree set. Named: the save
-  // notice's states and the one action each offers, and their English text in the entry catalogue, which every screen reads before its
-  // first paint. The target itself is not here: `HostedTarget` and the queue port sit behind the host's dynamic import, and the registry
-  // the app asks for a project's target was split into its own module for exactly that reason (one place to look a target up, no reason
-  // to load the class for it). The ceiling is the measurement plus about 1%, rounded up to the thousand. [delegated 2026-11-24]
-  initialGzip: 1_142_000,
+  // The hosted save target (hosted.md §7.2) never grows the first load: the adapter, the target and the queue, the open and the notice
+  // are four chunks fetched when a host hands a project over, so the 1,122.6 kB gzip measured here is 2.6 kB under the 1,125.2 kB the
+  // main it branched from measured, and the cap stays at main's. What pays for it is the project store pinned to one chunk
+  // (`vendor-store`): shared by the entry and those hosted chunks, the default splitting carves it into a chunk per module, which cost
+  // 2.6 kB gzip more than the whole hosted path weighs. Tried and rejected: the open staying in `lifecycle` rather than its own module
+  // (1,127.8 kB, because the hosted chunks share the store either way), and the hosted open importing the store dynamically
+  // (1,161.8 kB: a dynamic import of a barrel pulls its whole re-export graph into shared chunks). The notice's English text is in the
+  // entry catalogue as every screen's is, 0.7 kB of that chunk.
+  initialGzip: 1_126_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -344,13 +352,13 @@ export const BUDGET = {
   // ceiling that tree set, again the entry chunk. Named: the GET rule, the mapped-loopback predicate, the no-body head a page answers
   // without a stream, and the guard that ties a chunk to the call still holding its id. The ceiling is the measurement rounded up to
   // the thousand. [delegated 2026-11-23]
-  // The hosted save target and its queue (hosted.md §7.2): 9,081.1 kB measured on CI, 36.1 kB over the ceiling that tree set. Named: the
-  // state machine's tables and their comments do not ship, so what is counted is the class, the queue port's contract, the open's hold
-  // and question for a divergent browser cache, and the notice. Every part of it is reached only when a host hands a project over: the
-  // adapter, the target and the queue are one lazy chunk behind that dynamic import, and the registry split keeps the class out of the
-  // first load. Trimming further would mean leaving a state without its transition. The ceiling is the measurement plus about 1%,
-  // rounded up to the thousand. [delegated 2026-11-24]
-  totalJs: 9_173_000,
+  // The hosted save target and its queue (hosted.md §7.2): 9,072.4 kB measured, 27.7 kB over the 9,044.7 kB the main it branched from
+  // measured. Named: the target's state table and its transitions, the device queue's replay, rebase, hold and marks, the open's
+  // divergent-copy question, the registry the app looks a target up in, and the notice with its three states. None of it can load with
+  // the first page — it is behind the host's dynamic import — so this is what the feature weighs in the download, not what it costs a
+  // writer's first paint. Trimmed as far as it goes: the queue's port, the separate registry module and the notice behind
+  // `LazyBoundary` are all that is left in the chunks that load first. The ceiling is the measurement plus 1 kB.
+  totalJs: 9_073_400,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

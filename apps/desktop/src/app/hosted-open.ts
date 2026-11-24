@@ -22,19 +22,7 @@ import {
   type ProjectState,
   type RuntimeStore,
 } from '@caotang/store';
-import {
-  adopt,
-  droppedFieldsOf,
-  folderSessionsOf,
-  leaseFor,
-  linesNotHeld,
-  manifestTextOf,
-  noticesOf,
-  openStored,
-  removeProject,
-  sameBook,
-  type Opened,
-} from './lifecycle.js';
+import type { Opened } from './lifecycle.js';
 import { copyState } from './persistence-plan.js';
 import { installHostedTarget } from './hosted-target-registry.js';
 import type { HostedTarget } from './hosted-target.js';
@@ -100,6 +88,8 @@ export async function openHostedProject(
    */
   catchingUp = false,
 ): Promise<Opened> {
+  const { adopt, droppedFieldsOf, folderSessionsOf, leaseFor, linesNotHeld, manifestTextOf, noticesOf, openStored, removeProject, sameBook } =
+    await import('./lifecycle.js');
   const target = await openTarget(source);
   // Nothing the queue holds is sent here: opening a project reads it, and the writer is told what is still on this device with the one
   // action that would send it (hosted.md §7.2). An open that replayed on its own would write to the account without being asked.
