@@ -217,6 +217,12 @@ export interface ProjectSession {
   /** Writes the project folder from the current state, after any write queued before it. */
   persist(): Promise<void>;
   /**
+   * Reads the folder again and takes it as this session's copy: what the app that shares this folder saved while the server ran
+   * (desktop.md §The project's own MCP server, "Two writers, one pause"). A host subscribed to the project's changes is told to read it
+   * again when the folder held anything this copy did not. Returns whether it did.
+   */
+  reload(): Promise<boolean>;
+  /**
    * Checks the folder against what this session holds, before a confirmed write is asked for. A change the save would refuse stops the writes
    * here, as the save would stop them, so `check` refuses the call and the host is not asked about it. Queued behind any write in flight.
    */
@@ -487,6 +493,16 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       timeline: (options) => folder.timeline(options),
       timelineCsv: (options) => folder.timelineCsv(options),
       persist: () => folder.persist(),
+      async reload() {
+        const changed = await folder.reload();
+        if (!changed) return false;
+        // The stopped writer a drift was announced for is open again, so a later change stops the writes and is announced on its own.
+        announcedStop = undefined;
+        // The folder changed under a host that asked to be told: its resources are the project as the server holds it now, so it reads
+        // them again. This is not a drift — the writes are open — so the notice is the plain one a write's change gets.
+        changes.emit({ updated: [], listChanged: true });
+        return true;
+      },
       async verifyFolder() {
         await folder.verifyFolder();
         sayDrift();

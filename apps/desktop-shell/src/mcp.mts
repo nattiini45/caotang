@@ -10,7 +10,9 @@
  * pauses the server for the length of a save: `pause` posts to the server's `/control/pause`, a write tool is refused while it
  * stands, and the answer comes only once the writes already running have finished; `resume` lifts it when the save is done. Each pause
  * is named by a lease both calls carry, so a save that stops waiting for its pause can send the resume that lets it go even when that
- * pause has not been processed yet — the server cancels the lease, and the pause that lands after it never stands.
+ * pause has not been processed yet — the server cancels the lease, and the pause that lands after it never stands. The resume is also
+ * the moment the server reads the folder again: it answers only after the copy it holds is the folder the save left, so a host that
+ * reads next is not answered from the project as it was before the save.
  *
  * A folder id, never a path, is what the page names: the grant list every folder channel uses resolves it, so the page cannot point
  * this server at a directory the writer never opened.
@@ -38,6 +40,13 @@ const READY_TIMEOUT_MS = 20_000;
 
 /** How long a pause or a resume may take before the save stops waiting for it. */
 const PAUSE_TIMEOUT_MS = 2_000;
+
+/**
+ * How long the resume that ends a save may take. It is longer than a pause because the resume is also where the server reads the
+ * folder again (session.ts `reload`, desktop.md): the work is bounded by the project's size, not by a round trip, and a server that
+ * is still reading a large project must not be reported as dead.
+ */
+const RESUME_TIMEOUT_MS = 20_000;
 
 const ENDPOINT = /^caotang-mcp: MCP endpoint (http:\/\/127\.0\.0\.1:\d+\/mcp)$/u;
 
@@ -118,9 +127,11 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
     if (running.url === undefined || running.token === undefined) return 'failed';
     const base = running.url.replace(/\/mcp$/u, '');
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), PAUSE_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), what === 'pause' ? PAUSE_TIMEOUT_MS : RESUME_TIMEOUT_MS);
     try {
       // A server that does not answer must not hold a save: the app's digest check is the guarantee, and this is the window it closes.
+      // The resume waits longer: it is answered after the server has read the folder again, so the next read a host makes is answered
+      // from what this save wrote.
       const response = await fetch(`${base}/control/${what}`, {
         method: 'POST',
         headers: { authorization: `Bearer ${running.token}`, ...(lease === undefined ? {} : { [CONTROL_LEASE_HEADER]: lease }) },

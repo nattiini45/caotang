@@ -648,10 +648,14 @@ Initial: `open`. Final: none.
 | State | Event | Targets |
 | --- | --- | --- |
 | `drift` | `partial` | `drift` |
+| `drift` | `reload` | `open` |
 | `open` | `drift` | `drift`, `saved-drift` |
 | `open` | `partial` | `partial` |
+| `open` | `reload` | `open` |
 | `partial` | `partial` | `partial` |
+| `partial` | `reload` | `open` |
 | `saved-drift` | `partial` | `saved-drift` |
+| `saved-drift` | `reload` | `open` |
 
 ## sprint.timer
 

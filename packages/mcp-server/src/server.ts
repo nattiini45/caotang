@@ -192,6 +192,12 @@ export interface HttpServerOptions {
    * started has no partner to coordinate with, and nothing to pause for.
    */
   readonly gate?: WriteGate;
+  /**
+   * Called when the last pause lifts, before the resume is answered and with the pause standing for its length: the app has just saved
+   * the folder this server holds, so the server reads it again (session.ts `reload`) and the next request is answered from what the
+   * save wrote. Absent on a server whose runtime has no project to read (a degraded one), where a save is not coordinated either.
+   */
+  readonly reloaded?: () => Promise<unknown>;
   /** The limit and idle time of the 2025-era connections, and the clock they read. Tests set them; a host does not. */
   readonly legacySessions?: LegacySessionOptions;
   /** How long a confirmation waits on a 2025-era connection. Defaults to {@linkcode LEGACY_ROUND_TIMEOUT_MS}; a test shortens it. */
@@ -236,6 +242,10 @@ async function readBody(req: IncomingMessage): Promise<string> {
  * holds it can pause a server it started. Both calls may name the pause in `X-Caotang-Pause`, so the resume that ends a pause can arrive
  * before it and cancel it (gate.ts): an app that stops waiting for its pause sends that resume, and it must let go even when the pause it
  * belongs to is still in flight.
+ *
+ * A resume that lifts the last pause is the end of a save, so the folder is read again before it is answered, with the pause standing
+ * for its length: what the save wrote is what every later request is answered from, and no write can start in the middle of that read.
+ * A resume with a pause still standing answers at once — the folder is still being saved.
  */
 async function answerControl(req: IncomingMessage, res: ServerResponse, path: string, options: HttpServerOptions): Promise<void> {
   if (!bearerAccepted(req.headers.authorization, options.token)) {
@@ -252,7 +262,29 @@ async function answerControl(req: IncomingMessage, res: ServerResponse, path: st
     return;
   }
   const lease = pauseLeaseOf(req);
-  sendJson(res, 200, path === CONTROL_PAUSE ? await gate.pause(lease) : gate.resume(lease));
+  if (path === CONTROL_PAUSE) {
+    sendJson(res, 200, await gate.pause(lease));
+    return;
+  }
+  const state = gate.resume(lease);
+  // A folder this server cannot read again leaves its copy as it was, and says so on stderr: the resume is still the app's to have,
+  // because the save itself is on disk and a refused resume would stop a server that is answering.
+  if (!state.paused) {
+    // The save is over, but the folder is about to be read: the pause stands across the read too, so a write tool cannot start in the
+    // middle of the copy being adopted — it would change the project this server is about to replace, and its save would then write the
+    // adopted copy and lose it. Its refusal is the pause's own words: ask again once the save has finished. This pause is raised, not
+    // waited for: a write already running is the save's own work finishing, and the lift below settles the promise either way.
+    const held = gate.pause();
+    try {
+      await options.reloaded?.();
+    } catch {
+      // The reload reports what it could not read itself (folder.ts), and the app's save is on disk either way.
+    } finally {
+      gate.resume();
+    }
+    await held;
+  }
+  sendJson(res, 200, state);
 }
 
 /** The lease a control call names, or `undefined` for a call that names none: an over-long or empty value names no pause. */

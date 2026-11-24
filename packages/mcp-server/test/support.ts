@@ -174,7 +174,11 @@ export async function startFixture(options: {
   });
   const token = testToken();
   const gate = options.gate === true ? createWriteGate() : typeof options.gate === 'object' ? options.gate : undefined;
-  const server = await startHttpServer(createToolRuntime(session), { port: 0, token, ...(gate === undefined ? {} : { gate }) });
+  const server = await startHttpServer(createToolRuntime(session), {
+    port: 0,
+    token,
+    ...(gate === undefined ? {} : { gate, reloaded: () => session.reload() }),
+  });
   return {
     root,
     session,

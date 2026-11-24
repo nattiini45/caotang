@@ -302,6 +302,25 @@ again. Without that refusal the save would run while a server that may still acc
 this pause exists to prevent; the digest check would still catch a file it changed, but the promise is about what the server cannot
 start, not only about what it already did.
 
+**The resume that ends a save is when the server reads the folder again.** The server holds the project it read when it opened, plus a
+digest of every document and codex file it read, so a save by the app would otherwise leave it answering from the project as it was —
+and its next write tool would find the app's files against that old baseline and stop its own writes for good. So the last resume of a
+save reads the folder again before it is answered (`folder.reload` in `@caotang/sdk`, through the folder's own queue): the manifest
+text is the check that anything was written, because every save rewrites `caotang.json`; the documents are digested before the project
+is read, as at open; the state the server already holds is given the loaded project's fields, so its tools, resources and exporter see
+the new project; and the digests and `coherence.json` it checks its saves against become the folder's. A host subscribed to the
+project's changes is told to read them again, and the server's own writes start again checked against what the save left. Nothing is
+written by the read, and the app's save is never lost: a write of the server's queued before the reload is saved first, and a write
+refused because the app changed a file stays refused and names it.
+
+A read that arrives while a save is in flight is still answered at once, from the project the server holds, as the pause promises: the
+pause is about writes, and the save is only adopted when the app says it is done. A resume that lifts a pause another save still holds
+answers at once, because the folder is still being written. The pause stands across the server's own read as well, so a write tool that
+arrives in that moment is refused with the save's own words and can be asked again; a write that did start before the pause was
+refused at the app's digest check and names the file, exactly as before. The app gives the resume a longer wait than the pause (20 s
+against 2 s in `mcp.mts`), since it now includes the folder's read and is bounded by the project's size rather than by a round trip; a
+resume the server does not answer at all is still reported as the server being stopped rather than left refusing.
+
 **The app's own server's lock is not another writer's.** The server holds `.caotang-mcp.lock` for its whole run, so the checks that
 refuse a locked folder would otherwise refuse every save. Two places tell the app's own server from another program's by the process
 the lock body records: the folder channel (`folders.mts`) compares the lock's pid with the pid of the child it forked, and the save's
