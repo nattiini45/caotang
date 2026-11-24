@@ -110,9 +110,12 @@ export function desktopEgress(): DesktopEgress | undefined {
 
 /** One call through the main process: its head from the reply, its body from the chunks that follow it. */
 async function throughPort(api: NativeEgressBridge, sinks: Map<string, Sink>, target: URL, init: RequestInit): Promise<Response> {
-  // A call whose signal is already aborted was stopped before it started: nothing goes to the main process, because a request
-  // that arrives is a request that was made, and one the writer cancelled must not reach a provider at all.
-  if (init.signal?.aborted === true) throw unreachable('aborted');
+  // Whether the caller has stopped the call. Asked of the signal every time rather than once, because the answer changes while
+  // this function waits: a request that arrives is a request that was made, and one the writer cancelled must not reach a
+  // provider at all.
+  const stopped = (): boolean => init.signal?.aborted === true;
+  // A call whose signal is already aborted was stopped before it started, so nothing goes to the main process for it.
+  if (stopped()) throw unreachable('aborted');
   const id = crypto.randomUUID();
   const body = typeof init.body === 'string' ? init.body : undefined;
   // The gateway sends JSON text and the MCP client sends JSON text or nothing: a stream or a buffer is not a shape the
@@ -154,7 +157,10 @@ async function throughPort(api: NativeEgressBridge, sinks: Map<string, Sink>, ta
   if (!reply.ok) {
     sinks.delete(id);
     init.signal?.removeEventListener('abort', onAbort);
-    const failure = unreachable(reply.error);
+    // The caller's own signal decides what it hears once it has been stopped: a refusal that reached the main process before the
+    // cancellation did is not the reason the call ended, and a caller that asked to stop would otherwise be told why the key it
+    // had just walked away from would not open (#869).
+    const failure = unreachable(stopped() ? 'aborted' : reply.error);
     control?.error(failure);
     throw failure;
   }

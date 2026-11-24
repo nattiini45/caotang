@@ -83,19 +83,29 @@ goes stops every call it started — as does a reload or a navigation of the stu
 made them behind. Chunks and ends are keyed to the stream that is still in the map for their id, so a stopped call's
 remaining body reaches nobody.
 
+**A call is claimed before its key is opened.** Opening one is asynchronous — the operating system decrypts the seal (§The
+keychain) — so the call is registered as stoppable first and the request is checked again after the secret arrives and before
+it opens: a cancel that lands during that wait finds the call and stops it, and one that lands a moment late still keeps the
+request from leaving. A call stopped while its key was being opened is answered as `aborted`, never as whatever the key did on
+its way out, and a decryption nobody waits for any more is still handled rather than left as a rejection with no owner.
+Claimed after the wait, the cancel found no call to stop and was answered as though the call had never been made, and then
+the request went out for a writer who had already stopped it (#869).
+
 **What the page sees.** The preload bridge is version 3 and exposes `net` beside `folders`: `configure`, `start`, `abort`,
 `onChunk`, `onEnd`. Every call is checked for the studio's own top frame at `app://caotang/`, so a child frame or another
 origin cannot use the port. A request's shape is checked before any socket opens, and `invalid` covers what the network stack would otherwise refuse on
 the way out: a header that names the connection, a body on a `GET`, a method the app never sends. A call stopped before it
-started is not made at all, and one stopped while its head was still arriving is reported as `aborted` rather than as a dead
-network. A refusal names its reason (`invalid`, `denied`, `too-large`, `unavailable`, `aborted`), and the
+started is not made at all, and one stopped while its key was being opened or while its head was still arriving is reported as
+`aborted` rather than as a dead network or as a key that would not open. A refusal names its reason (`invalid`, `denied`,
+`too-large`, `unavailable`, `aborted`), and the
 page turns it into the failure the gateway already knows how to explain, so a refused address reads as an address the app
 does not connect to rather than as a dead network.
 
 The rule is tested by the repository's gate
-([`native-egress.test.ts`](../../packages/gateway/test/native-egress.test.ts)) and the port by a launched app
+([`native-egress.test.ts`](../../packages/gateway/test/native-egress.test.ts)), the port by a launched app
 ([`egress.spec.ts`](../../apps/desktop-shell/test/egress.spec.ts)), which configures one origin and proves every other
-address is refused after it.
+address is refused after it, and its cancellation by a check with its own slot (`egress-cancel.test.ts`, beside it), because
+a vault that opens slowly is not something a runner with no keychain can be given.
 
 ## Native menus (#407)
 
@@ -325,6 +335,25 @@ writes: a save the verdict refuses never reaches it.
 folder's own lock refusal, so the writer is asked before anything is written and can save anyway. Without that, the save would run
 while a server that may still accept writes holds the same folder, which is the one thing this pause exists to prevent; the digest
 check would still catch a file it changed, but the promise is about what the server cannot start, not only about what it already did.
+
+**The resume that ends a save is when the server reads the folder again.** The server holds the project it read when it opened, plus a
+digest of every document and codex file it read, so a save by the app would otherwise leave it answering from the project as it was —
+and its next write tool would find the app's files against that old baseline and stop its own writes for good. So the last resume of a
+save reads the folder again before it is answered (`folder.reload` in `@caotang/sdk`, through the folder's own queue): the manifest
+text is the check that anything was written, because every save rewrites `caotang.json`; the documents are digested before the project
+is read, as at open; the state the server already holds is given the loaded project's fields, so its tools, resources and exporter see
+the new project; and the digests and `coherence.json` it checks its saves against become the folder's. A host subscribed to the
+project's changes is told to read them again, and the server's own writes start again checked against what the save left. Nothing is
+written by the read, and the app's save is never lost: a write of the server's queued before the reload is saved first, and a write
+refused because the app changed a file stays refused and names it.
+
+A read that arrives while a save is in flight is still answered at once, from the project the server holds, as the pause promises: the
+pause is about writes, and the save is only adopted when the app says it is done. A resume that lifts a pause another save still holds
+answers at once, because the folder is still being written. The pause stands across the server's own read as well, so a write tool that
+arrives in that moment is refused with the save's own words and can be asked again; a write that did start before the pause was
+refused at the app's digest check and names the file, exactly as before. The app gives the resume a longer wait than the pause (20 s
+against 2 s in `mcp.mts`), since it now includes the folder's read and is bounded by the project's size rather than by a round trip; a
+resume the server does not answer at all is still reported as the server being stopped rather than left refusing.
 
 **The app's own server's lock is not another writer's.** The server holds `.caotang-mcp.lock` for its whole run, so the checks that
 refuse a locked folder would otherwise refuse every save. Two places tell the app's own server from another program's by the process
