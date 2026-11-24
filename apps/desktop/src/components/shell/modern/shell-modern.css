@@ -155,19 +155,11 @@
   color: var(--on-glass);
 }
 
-/* ---- Ornaments: glass capsules half over the page's edges (§6, §8.1), centred over the page area (modernLayout, #306). ----
-   Centred on whole pixels: the centre of the page area, then back by half the ornament's own width, each rounded to the pixel
-   grid. `inline-size` is max-content, so half that width is fractional whenever the labels are (the title capsule's name is),
-   and an auto margin used to land the capsule on a fraction of a pixel. Text on a fraction of a pixel has two possible
-   rasters — its exact sub-pixel phase, or the integer-snapped one a frame commits when the text run is painted in a layer of
-   its own — and which one a frame gets depends on the compositing, not on the layout. That is what made the German sidebar
-   count snapshot flake (#644): the same layout, 836 pixels apart. On the grid, both rasters are the same image. */
+/* ---- Ornaments: glass capsules half over the page's edges (§6, §8.1), centred over the page area (modernLayout, #306). ---- */
 :root[data-shell='modern'] .modern-ornament {
   position: absolute;
-  inset-inline-start: round(nearest, calc(var(--area-start) + (100% - var(--area-start) - var(--area-end)) / 2), 1px);
-  inset-inline-end: auto;
-  margin-inline: 0;
-  translate: round(nearest, calc(var(--dir, 1) * -50%), 1px);
+  inset-inline: var(--area-start) var(--area-end);
+  margin-inline: auto;
   inline-size: max-content;
   max-inline-size: calc(100% - var(--area-start) - var(--area-end) - 2 * var(--page-gutter));
   display: flex;
@@ -182,6 +174,21 @@
 
 :root[data-shell='modern'] .modern-ornament.is-top {
   inset-block-start: calc(var(--page-top) - var(--radius-ornament));
+}
+
+/* Centred on whole pixels (§8.1). The capsule is as wide as its content, so half that width is a fraction whenever the labels
+   are (the title capsule's name is), and an auto margin lands it on a fraction of a pixel. Text on a fraction of a pixel has two
+   possible rasters — its exact sub-pixel phase, or the integer-snapped one a frame commits when the text run is painted in a layer
+   of its own — and which one a frame gets depends on the compositing, not on the layout; that is what made the German sidebar
+   count snapshot flake (#644), 836 pixels apart with identical geometry. Rounded, both rasters are one image. The narrow layout
+   below 960 px keeps its own placement: there the ornaments are full-width bars with integer insets, not centred capsules. */
+@media (min-width: 960px) {
+  :root[data-shell='modern'] .modern-ornament {
+    inset-inline-start: round(nearest, calc(var(--area-start) + (100% - var(--area-start) - var(--area-end)) / 2), 1px);
+    inset-inline-end: auto;
+    margin-inline: 0;
+    translate: round(nearest, calc(var(--dir, 1) * -50%), 1px);
+  }
 }
 
 :root[data-shell='modern'] .document-mode-outlet {
