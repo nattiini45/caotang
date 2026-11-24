@@ -12,25 +12,18 @@ import { createWriteGate, type WriteGate } from '../src/index.js';
 import { connectClient, LANDING, resultJson, startFixture, type Fixture } from './support.js';
 
 /** One control call, as the app makes it: a POST with the token, and the answer read as JSON. */
-async function control(
-  url: string,
-  path: string,
-  token: string | undefined,
-  method = 'POST',
-  signal?: AbortSignal,
-): Promise<{ status: number; body: Record<string, unknown> }> {
+async function control(url: string, path: string, token: string | undefined, method = 'POST'): Promise<{ status: number; body: Record<string, unknown> }> {
   const base = url.replace(/\/mcp$/, '');
   const response = await fetch(`${base}${path}`, {
     method,
     headers: token === undefined ? {} : { authorization: `Bearer ${token}` },
-    ...(signal === undefined ? {} : { signal }),
   });
   return { status: response.status, body: (await response.json()) as Record<string, unknown> };
 }
 
 /** Lets every continuation queued so far run, so a pause that answered at once would have answered by now. */
-async function settle(ms = 10): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
+async function settle(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 10));
 }
 
 /** Waits until a request has reached the server and changed what the condition reads. */
@@ -288,31 +281,27 @@ describe('a pause waits for the writes already running', () => {
     }
   });
 
-  it('lifts a pause whose answer the app gave up on, so the folder is not left paused', async () => {
+  it('takes the resume a save that gave up on its pause sends, so nothing is left standing', async () => {
     const { gate, held } = holdingGate();
-    fixture = await startFixture({ label: 'control-abandoned', allowWrites: true, seed: true, gate });
+    fixture = await startFixture({ label: 'control-handshake', allowWrites: true, seed: true, gate });
     const client = await connectClient(fixture.url, fixture.token);
     try {
       await client.callTool({ name: 'meta.set', arguments: { targets: [LANDING], status: 'final' } });
       expect(held).toHaveLength(1);
 
-      // The app's own wait is shorter than a slow write: it drops the connection, saves nothing and sends no resume.
-      const controller = new AbortController();
-      const answer = control(fixture.url, '/control/pause', fixture.token, 'POST', controller.signal).catch(() => undefined);
+      // A slow write keeps the pause draining, and the save stops waiting for its answer, so it sends the resume itself (mcp.mts).
+      const paused = control(fixture.url, '/control/pause', fixture.token);
       await until(() => gate.paused());
-      controller.abort();
-      await settle(50);
+      expect(await control(fixture.url, '/control/resume', fixture.token)).toEqual({ status: 200, body: { paused: false } });
+      expect(gate.paused()).toBe(false);
+      expect(held).toHaveLength(1);
+
+      // The pause that was draining still answers, with the instant it raised, and the count it took is gone: the folder is not left
+      // paused once the write it waited for has finished.
       held[0]?.();
-
-      // The pause the server could not deliver is lifted, so the folder is free for the next save instead of paused until a restart.
-      await until(() => !gate.paused());
-      expect(await answer).toBeUndefined();
-
-      // The next save's pause is its own: raised, answered, and lifted by its own resume.
-      expect(await control(fixture.url, '/control/pause', fixture.token)).toEqual({
-        status: 200,
-        body: { paused: true, since: '2026-11-23T10:00:00.000Z' },
-      });
+      expect(await paused).toEqual({ status: 200, body: { paused: true, since: '2026-11-23T10:00:00.000Z' } });
+      expect(gate.paused()).toBe(false);
+      expect(await control(fixture.url, '/control/pause', fixture.token)).toEqual({ status: 200, body: { paused: true, since: '2026-11-23T10:00:00.000Z' } });
       await control(fixture.url, '/control/resume', fixture.token);
       expect(gate.paused()).toBe(false);
     } finally {

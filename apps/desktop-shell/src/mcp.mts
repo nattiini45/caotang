@@ -8,7 +8,8 @@
  * **The app and the server are one coordinated writer.** Both write the same folder, and the server's own lock makes the app ask
  * before it saves. The window both could lose a change in is the instant between the app's digest check and its rename, so the app
  * pauses the server for the length of a save: `pause` posts to the server's `/control/pause`, a write tool is refused while it
- * stands, and the answer comes only once the writes already running have finished; `resume` lifts it when the save is done.
+ * stands, and the answer comes only once the writes already running have finished; `resume` lifts it when the save is done. A pause
+ * this app stops waiting for is one the server may still hold, so that save sends the resume it would otherwise never send.
  *
  * A folder id, never a path, is what the page names: the grant list every folder channel uses resolves it, so the page cannot point
  * this server at a directory the writer never opened.
@@ -28,10 +29,13 @@ export const STARTED_UNPAUSED = 'The server started while Caotang was saving and
 /** What the block says when the server had to be restarted because it did not answer the resume that ends a save. */
 export const RESTARTED_AFTER_RESUME = 'The server did not answer while Caotang finished saving, so it was stopped. Start it again.';
 
+/** What the block says when a server that would not answer a pause, or the resume that lets go of one, was stopped instead. */
+export const STOPPED_UNPAUSED = 'The server stopped answering while Caotang was saving, so it was stopped. Start it again.';
+
 /** How long a start waits for the server to say it is ready before the app calls it failed. */
 const READY_TIMEOUT_MS = 20_000;
 
-/** How long a pause or a resume may take before the save goes ahead without it. */
+/** How long a pause or a resume may take before the save stops waiting for it. */
 const PAUSE_TIMEOUT_MS = 2_000;
 
 const ENDPOINT = /^caotang-mcp: MCP endpoint (http:\/\/127\.0\.0\.1:\d+\/mcp)$/u;
@@ -99,21 +103,38 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
     stopping = false;
   };
 
-  /** Posts one control call to a running server: the pause that stands between the app's check and its rename, and its end. */
-  const postControl = async (running: McpHostStatus, what: 'pause' | 'resume'): Promise<boolean> => {
-    if (running.url === undefined || running.token === undefined) return false;
+  /**
+   * What a control call got. `unanswered` is a call this app sent and then stopped waiting for: the server may be holding what it was
+   * asked for, so only that case is owed the other half of the pair. `failed` never reached the server, or was refused there, so it
+   * changed nothing.
+   */
+  const postControl = async (running: McpHostStatus, what: 'pause' | 'resume'): Promise<'ok' | 'unanswered' | 'failed'> => {
+    if (running.url === undefined || running.token === undefined) return 'failed';
     const base = running.url.replace(/\/mcp$/u, '');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), PAUSE_TIMEOUT_MS);
     try {
       // A server that does not answer must not hold a save: the app's digest check is the guarantee, and this is the window it closes.
       const response = await fetch(`${base}/control/${what}`, {
         method: 'POST',
         headers: { authorization: `Bearer ${running.token}` },
-        signal: AbortSignal.timeout(PAUSE_TIMEOUT_MS),
+        signal: controller.signal,
       });
-      return response.ok;
+      return response.ok ? 'ok' : 'failed';
     } catch {
-      return false;
+      // This app gave up on an answer that was owed, not a call that never got there.
+      return controller.signal.aborted ? 'unanswered' : 'failed';
+    } finally {
+      clearTimeout(timer);
     }
+  };
+
+  /** A server that will not take a resume is stopped rather than left holding the folder: the next start takes a fresh child. */
+  const stopUnpaused = async (detail: string): Promise<void> => {
+    const folderId = status.folderId;
+    const allowWrites = status.allowWrites === true;
+    await stopChild();
+    publish({ state: 'stopped', ...(folderId === undefined ? {} : { folderId }), allowWrites, detail });
   };
 
   /**
@@ -181,7 +202,7 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
     // A save that began before this start is still saving, so the child is paused before the page hears about it — and if it cannot be
     // paused, it is stopped rather than published: a server reachable in the middle of a save is the one thing this pause exists to
     // prevent, and there is no state for "running, but writes land during a save".
-    if (pauses > 0 && !(await postControl(running, 'pause'))) {
+    if (pauses > 0 && (await postControl(running, 'pause')) !== 'ok') {
       await stopChild();
       publish({ state: 'failed', refusal: 'failed', folderId, detail: STARTED_UNPAUSED });
       return { ok: false, refusal: 'failed', detail: STARTED_UNPAUSED };
@@ -217,9 +238,14 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
   const pause = (): Promise<McpHostReply<McpHostStatus>> => serial(async () => {
     pauses += 1;
     if (pauses > 1 || status.state !== 'running') return { ok: true, value: status };
-    if (await postControl(status, 'pause')) return { ok: true, value: status };
-    // A pause the server never took is not owed a resume: this save's own lease goes back, and no other save's does. The digest check
-    // is the guarantee either way.
+    const taken = await postControl(status, 'pause');
+    if (taken === 'ok') return { ok: true, value: status };
+    // A pause this app stopped waiting for is one the server may have raised anyway — it answers only once the writes already running
+    // have finished, and a slow one outlasts this wait. This save is about to be refused and will not send the resume that ends a
+    // pause, so that resume goes now: otherwise the folder stays paused, refusing every write, until the server restarts. A call that
+    // never reached the server was never taken, and a resume then would lift a different save's pause, so it sends nothing. The digest
+    // check is the guarantee either way.
+    if (taken === 'unanswered' && (await postControl(status, 'resume')) !== 'ok') await stopUnpaused(STOPPED_UNPAUSED);
     pauses = Math.max(0, pauses - 1);
     return { ok: false, refusal: 'failed' };
   });
@@ -228,11 +254,8 @@ export function registerMcpIpc(options: McpHostOptions): McpHost {
   const resume = (): Promise<McpHostReply<McpHostStatus>> => serial(async () => {
     pauses = Math.max(0, pauses - 1);
     if (pauses > 0 || status.state !== 'running') return { ok: true, value: status };
-    if (await postControl(status, 'resume')) return { ok: true, value: status };
-    const folderId = status.folderId;
-    const allowWrites = status.allowWrites === true;
-    await stopChild();
-    publish({ state: 'stopped', ...(folderId === undefined ? {} : { folderId }), allowWrites, detail: RESTARTED_AFTER_RESUME });
+    if ((await postControl(status, 'resume')) === 'ok') return { ok: true, value: status };
+    await stopUnpaused(RESTARTED_AFTER_RESUME);
     return { ok: true, value: status };
   });
 
