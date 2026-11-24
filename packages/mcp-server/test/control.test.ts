@@ -404,6 +404,32 @@ describe('a pause waits for the writes already running', () => {
     }
   });
 
+  it('holds a pause for a scan the server saves, because it appends to the coherence file', async () => {
+    const { gate, held } = holdingGate();
+    fixture = await startFixture({ label: 'control-scan', allowWrites: true, seed: true, gate });
+    const client = await connectClient(fixture.url, fixture.token);
+    try {
+      // A read tool whose answer reaches coherence.json: admitted, so a pause waits for it instead of answering over it.
+      await client.callTool({ name: 'coherence.scan', arguments: {} });
+      expect(held).toHaveLength(1);
+      const paused = control(fixture.url, '/control/pause', fixture.token, 'POST', 'save-one');
+      await until(() => gate.paused());
+      await settle();
+      held[0]?.();
+      expect(await paused).toEqual({ status: 200, body: { paused: true, since: '2026-11-23T10:00:00.000Z' } });
+      // And while it stands, the same scan is refused with the save's own words rather than writing the file.
+      const refused = (await client.callTool({ name: 'coherence.scan', arguments: {} })) as { isError?: boolean; content?: { text?: string }[] };
+      expect(refused.isError).toBe(true);
+      expect(String(refused.content?.[0]?.text)).toMatch(/Caotang for desktop is saving to this folder/);
+      await control(fixture.url, '/control/resume', fixture.token, 'POST', 'save-one');
+      expect(gate.paused()).toBe(false);
+    } finally {
+      for (const release of held) release();
+      await client.close();
+      await fixture.close();
+    }
+  });
+
   it('lets go of a pause whose resume reached the server before it did', async () => {
     fixture = await startFixture({ label: 'control-late', allowWrites: true, seed: true, gate: true });
     const client = await connectClient(fixture.url, fixture.token);

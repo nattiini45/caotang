@@ -285,7 +285,9 @@ no save of it is coming. The endpoints exist on every HTTP server this package s
 uses them; a server started without a gate answers `404` and says nothing coordinates a save with it.
 
 What the pause does and does not guarantee: a write tool that has not started is refused rather than queued, so nothing lands after
-the save; the pause is a barrier, so a write the server had already admitted finishes first — the pause answers only once every such
+the save; so is `coherence.scan`, the one read whose answer the server appends to `coherence.json`, because its run reaches the same
+folder a write does — and a read-only server, which saves nothing for it, still answers it; the pause is a barrier, so a write the
+server had already admitted finishes first — the pause answers only once every such
 write has released, and a folder with none in flight answers at once, so a save into a free folder never waits. A save therefore never
 runs while the server is still persisting a file, and the app's digest check — the one `writeProject` makes for each file before it
 replaces it, and `changedDuringSave` after — stays the backstop for a change from anywhere else, naming the file to the writer instead

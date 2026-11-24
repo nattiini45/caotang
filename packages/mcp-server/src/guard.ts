@@ -29,8 +29,9 @@ export interface GuardPolicy {
    */
   readonly degraded?: (name: string) => CommandError | undefined;
   /**
-   * Set on a server a desktop app started: whether that app is saving to the folder right now (gate.ts). A write tool is refused
-   * rather than queued, because the app is about to write the same files and a write that waits would land after its save.
+   * Set on a server a desktop app started: whether that app is saving to the folder right now (gate.ts). A write tool — and a read whose
+   * answer the server saves into the folder, `coherence.scan` — is refused rather than queued, because the app is about to write the same
+   * files and a write that waits would land after its save.
    */
   readonly paused?: () => boolean;
 }
@@ -112,6 +113,33 @@ export function writeToolCall(message: unknown): { readonly name: string; readon
   return { name, risk: meta.risk };
 }
 
+/**
+ * The tools whose answer a server that may write saves into the folder even though the tool only reads: `coherence.scan` appends its run
+ * and findings to `coherence.json` (session.ts `persistCoherence`), so a pause has to hold it as it holds a write. A read-only server
+ * writes nothing for it and is never paused by it.
+ */
+const PERSISTING_READS: ReadonlySet<string> = new Set(['coherence.scan']);
+
+/**
+ * The call a pause holds, or `undefined` when the request carries none: a write tool, and on a server that may write also a read whose
+ * answer that server saves into the folder. A batch carries one when any call inside it does.
+ */
+export function folderWrite(message: unknown, allowWrites: boolean): { readonly name: string } | undefined {
+  if (Array.isArray(message)) {
+    for (const item of message) {
+      const call = folderWrite(item, allowWrites);
+      if (call !== undefined) return call;
+    }
+    return undefined;
+  }
+  const write = writeToolCall(message);
+  if (write !== undefined) return { name: write.name };
+  if (!allowWrites || !isRecord(message) || message['method'] !== 'tools/call') return undefined;
+  const params = isRecord(message['params']) ? message['params'] : {};
+  const name = typeof params['name'] === 'string' ? params['name'] : '';
+  return PERSISTING_READS.has(name) ? { name } : undefined;
+}
+
 /** The refusal for a write tool the app's save has paused the server in the middle of. */
 function pausedError(name: string): CommandError {
   return {
@@ -138,9 +166,10 @@ export function guardMessage(message: unknown, policy: GuardPolicy): RefusalResp
   const stopped = policy.degraded?.(name);
   if (stopped !== undefined) return refusalResponse(id, stopped);
 
-  const meta = writeToolCall(message);
-  if (meta !== undefined && !policy.allowWrites) return refusalResponse(id, readOnlyError(meta.name, meta.risk));
-  if (meta !== undefined && policy.paused?.() === true) return refusalResponse(id, pausedError(meta.name));
+  const write = writeToolCall(message);
+  if (write !== undefined && !policy.allowWrites) return refusalResponse(id, readOnlyError(write.name, write.risk));
+  const held = folderWrite(message, policy.allowWrites);
+  if (held !== undefined && policy.paused?.() === true) return refusalResponse(id, pausedError(held.name));
   return undefined;
 }
 

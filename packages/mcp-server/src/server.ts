@@ -38,7 +38,7 @@ import { bearerAccepted } from './auth.js';
 import { createConfirmLedger, createRoundCodec } from './confirm.js';
 import type { WriteGate } from './gate.js';
 import { createReplayCache } from './replay.js';
-import { guardBatch, guardMessage, writeToolCall, type GuardPolicy, type RefusalResponse } from './guard.js';
+import { folderWrite, guardBatch, guardMessage, type GuardPolicy, type RefusalResponse } from './guard.js';
 import { LegacySessions, type LegacySessionOptions } from './legacy-sessions.js';
 import { degradedInstructions, guardDegraded, registerRecoveryTools, type DegradedSession, type RecoveryRuntime } from './recovery.js';
 import { registerPictureTools } from './pictures.js';
@@ -357,7 +357,7 @@ async function answer(
   // however this request ends — an answer, a refusal, a deadline, a thrown error — and a request that carries no write admits
   // nothing, so a read never holds a pause.
   const gate = options.gate;
-  const release = gate !== undefined && req.method === 'POST' && writeToolCall(parsed) !== undefined ? gate.admit() : undefined;
+  const release = gate !== undefined && req.method === 'POST' && folderWrite(parsed, policy.allowWrites) !== undefined ? gate.admit() : undefined;
   try {
     await serveRequest(req, res, runtime, options, http, parsed);
   } finally {
