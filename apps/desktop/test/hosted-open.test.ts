@@ -191,3 +191,26 @@ it('asks about words a browser copy holds and the account does not, instead of p
   expect(lastTarget?.queue?.held()).toContain(path);
   expect(hostedTargetFor(SOURCE.projectId)?.state()).toEqual({ kind: 'conflict', paths: [path] });
 });
+
+it('keeps this browser’s task data when the same book is opened again', async () => {
+  // The writer's recurring tasks are this browser's, keyed by the project's id: replacing the copy must not sweep them away for a
+  // difference the book does not have.
+  const rows = new Map<string, unknown>([[`task:${BOOK.manifest.project.id}:task_one`, { id: 'task_one' }]]);
+  const db = {
+    get: async (key: string) => rows.get(key) as never,
+    put: async (key: string, value: unknown) => { rows.set(key, value); },
+    list: async (prefix: string) => [...rows.keys()].filter((key) => key.startsWith(prefix)).sort().map((key) => ({ key, value: rows.get(key) })),
+    delete: async (key: string) => { rows.delete(key); },
+    close: () => undefined,
+  };
+  setActiveAppDb(db as never);
+  try {
+    const first = await open();
+    await first.session.closeSafely();
+    opened = opened.filter((one) => one !== first);
+    await open();
+    expect([...rows.keys()]).toEqual([`task:${BOOK.manifest.project.id}:task_one`]);
+  } finally {
+    setActiveAppDb(null);
+  }
+});
