@@ -27,6 +27,12 @@ for (const kind of ['screenplay', 'dialogue'] as const) {
     await expect(page).toHaveScreenshot(`modern-light-glass-document-${kind}.png`, { animations: 'disabled', caret: 'hide', mask: [page.locator('time'), page.getByTestId('save-state')], maxDiffPixels: 0 });
     if (kind === 'screenplay') {
       await page.setViewportSize({ width: 390, height: 844 });
+      // The narrow layout's panels are a chunk of their own, fetched below 960 px and not before (modern-shell.tsx, §13), so a window
+      // narrowed after it opened holds "Loading the binder…" over the bottom ornament until that chunk arrives: an opaque capsule at the
+      // foot of the page, drawn by the boundary around the panels. A capture taken inside that window holds the capsule's pixels instead
+      // of the tab bar's (#881). The drawer is the first thing the chunk renders, so its being in the page is the narrow layout having
+      // arrived; the capsule goes in the same commit.
+      await expect(page.getByTestId('modern-drawer')).toBeAttached();
       await expect(page).toHaveScreenshot('modern-light-glass-document-screenplay-narrow.png', { animations: 'disabled', caret: 'hide', mask: [page.locator('time'), page.getByTestId('save-state')], maxDiffPixels: 0 });
     }
   });
