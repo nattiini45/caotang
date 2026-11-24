@@ -44,6 +44,20 @@ describe('guardMessage', () => {
     expect(guardMessage('not even an object', { allowWrites: false })).toBeUndefined();
   });
 
+  it('refuses while paused a read whose answer the server saves into the folder, on a server that may write', () => {
+    const paused = { allowWrites: true, paused: () => true };
+    const refused = guardMessage(call('coherence.scan'), paused);
+    expect(refused?.result.structuredContent.error.code).toBe('permission-denied');
+    expect(refused?.result.structuredContent.error.message).toContain('Caotang for desktop is saving to this folder');
+    // A read that writes nothing is never refused by the pause, on either server.
+    expect(guardMessage(call('project.overview'), paused)).toBeUndefined();
+    expect(guardMessage(call('doc.read'), paused)).toBeUndefined();
+    // A read-only server writes nothing for the scan, so a pause does not hold it there.
+    expect(guardMessage(call('coherence.scan'), { allowWrites: false, paused: () => true })).toBeUndefined();
+    // And the scan is not a write tool: unpaused, a read-only server still answers it.
+    expect(guardMessage(call('coherence.scan'), { allowWrites: false })).toBeUndefined();
+  });
+
   it('answers with the request id, so the response pairs with its request', () => {
     expect(guardMessage(call('project.deleteNode', 'abc'), { allowWrites: true })?.id).toBe('abc');
   });

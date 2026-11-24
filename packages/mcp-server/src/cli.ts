@@ -269,8 +269,15 @@ export async function runCli(argv: readonly string[], io: RunIo): Promise<number
     }
 
     // The gate is what lets a desktop app that started this server pause it while it saves (gate.ts, desktop.md): a server a host
-    // started from a terminal has the endpoints too, and no one to use them.
-    const server: RunningHttpServer = await startHttpServer(runtime, { port: options.port, token: token.token, gate: createWriteGate() });
+    // started from a terminal has the endpoints too, and no one to use them. The resume that ends a save reads the folder again, so a
+    // save the app made while this server ran is what the next request is answered from, and the writes check against it.
+    const project = isDegraded(session) ? undefined : session;
+    const server: RunningHttpServer = await startHttpServer(runtime, {
+      port: options.port,
+      token: token.token,
+      gate: createWriteGate(),
+      ...(project === undefined ? {} : { reloaded: () => project.reload() }),
+    });
     for (const line of linesOf(server.url)) io.stderr(`${line}\n`);
     io.stderr(`caotang-mcp: control ${server.url.replace(MCP_PATH, CONTROL_PAUSE)} answers a pause while a save runs\n`);
     io.stderr('caotang-mcp: ready\n');

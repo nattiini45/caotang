@@ -68,7 +68,7 @@ import {
 import type { CommandError, CommandRegistry } from '@caotang/bus';
 import type { TimelineModel } from '@caotang/timeline';
 
-import { holdCoherence, openCoherence } from './coherence-file.js';
+import { holdCoherence, openCoherence, type CoherenceHold, type OpenedCoherence } from './coherence-file.js';
 import { acquireProjectLock, type ProjectLock } from './lock.js';
 import { byteArtifactsOver, NodeArtifactFs } from './node-fs.js';
 import { timelineCsvOf, timelineModelOf, type TimelineReadOptions } from './timeline.js';
@@ -323,6 +323,18 @@ export interface OpenFolder {
   /** Writes the project folder from the current state, after any write queued before it. */
   persist(): Promise<void>;
   /**
+   * Reads the folder again and takes it as this copy's: what the app that shares it (or another program) saved while this session ran.
+   * The manifest text is the check that anything was saved, so a folder whose manifest this session last wrote is read no further.
+   * Otherwise the documents are digested before the project is read, as at open, the state every holder of this session already has is
+   * given the loaded project's own fields, and the manifest text, digests and `coherence.json` this session checks its saves against
+   * become the folder's. A stopped writer reopens: the stop was "read the folder again before writing", and this is that read.
+   *
+   * Nothing is written, and a folder that cannot be read leaves this session exactly as it was (its next save's check stops the writes
+   * in its own words). Returns whether the folder held anything this copy did not. Queued behind any save in flight, so a write that
+   * already changed the folder is read back rather than overtaken.
+   */
+  reload(): Promise<boolean>;
+  /**
    * One approved timeline batch, written as the two files it changes (timeline.md §9.2): the manifest for a move, `coherence.json`
    * for a scene's declaration, with a per-scene merge of the folder's own copy and a read-back of what the disk now holds. `applied`
    * installs the batch in the session's copy and returns what the harness answered; it runs on the folder's queue, after the
@@ -372,18 +384,21 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
     // A file that cannot be read has no digest and is not written (openCoherence holds it unwritable), and it never stops the open.
     const coherenceDigest = await digestAt(fs, COHERENCE_FILE).catch(() => undefined);
     const coherence = await openCoherence(fs, state, voice);
-    const notices = [...loaded.notices, ...coherence.notices];
-    const coherenceHold = holdCoherence({
-      fs,
-      state,
-      opened: coherence,
-      allowWrites: options.writeCoherence,
-      digestAtOpen: coherenceDigest,
-      digest: () => digestAt(fs, COHERENCE_FILE),
-      notices,
-      report: options.report,
-      voice,
-    });
+    const notices: LoadNotice[] = [...loaded.notices, ...coherence.notices];
+    // The writer of coherence.json against the file as it was read here or last saved, with the digest taken before the read.
+    const holdCoherenceFile = (opened: OpenedCoherence, digestAtOpen: string | undefined): CoherenceHold =>
+      holdCoherence({
+        fs,
+        state,
+        opened,
+        allowWrites: options.writeCoherence,
+        digestAtOpen,
+        digest: () => digestAt(fs, COHERENCE_FILE),
+        notices,
+        report: options.report,
+        voice,
+      });
+    let coherenceHold: CoherenceHold = holdCoherenceFile(coherence, coherenceDigest);
     // The body nodes this copy named when it was last loaded or saved: one that has since left the tree is a document the session deleted.
     let heldBodies = bodyNodeIdsOf(state);
     // The titles the copy held at the same time, so a file a later edit or deletion took out of the state is still named in words.
@@ -739,6 +754,42 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
           if (writer.kind !== 'open') return;
           const cause = await driftCause();
           if (cause !== undefined) markChanged(cause);
+        }),
+      reload: () =>
+        enqueue(async (): Promise<boolean> => {
+          // A save this host coordinated with rewrites caotang.json whatever else it changes (`writeProject` stamps
+          // `project.modifiedAt`), so the manifest text this copy last wrote is the whole check that there is anything to read again.
+          const text = await manifestOnDisk(fs);
+          if (text === undefined) return false;
+          if (text === saved && writer.kind === 'open') return false;
+          let digests: Map<string, string>;
+          let loaded: Awaited<ReturnType<typeof readProject>>;
+          try {
+            // Digested before the project is read, as at open: a change made while it is read is one the next save sees.
+            digests = await folderDigests(fs);
+            loaded = await readProject(fs, { now: now(), manifestText: text });
+          } catch (error) {
+            options.report(
+              `${voice.program}: notice: the project could not be read again after it was saved elsewhere (${errorNameOf(error)}), ` +
+                `so this copy is unchanged and its next write is refused, naming the file that changed. ${voice.reload}`,
+            );
+            return false;
+          }
+          // Every holder of this session — the harness, the exporter, the tools — already has this state object, so the folder's project
+          // is written into it rather than put in place of it.
+          Object.assign(state, loaded.state);
+          saved = text;
+          held = digests;
+          heldBodies = bodyNodeIdsOf(state);
+          heldTitles = projectFileTitles(state);
+          writer = writerStopMachine.step(writer, { type: 'reload' });
+          notices.push(...loaded.notices);
+          const digest = await digestAt(fs, COHERENCE_FILE).catch(() => undefined);
+          const opened = await openCoherence(fs, state, voice);
+          notices.push(...opened.notices);
+          coherenceHold = holdCoherenceFile(opened, digest);
+          assetRecords = await heldAssetsOf(fs);
+          return true;
         }),
       async close() {
         await exporter.idle();
