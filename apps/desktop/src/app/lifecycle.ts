@@ -1344,7 +1344,7 @@ export async function openHostedProject(
   }
   // The target is kept for the session and follows every save this browser finishes, carrying the project's pictures with the files
   // that name them, and knowing what this device held so a save removes only what it deleted itself.
-  target.rememberOpened(opened.session.state.documents.keys(), Object.keys(await opened.session.assets.snapshot()));
+  await target.rememberOpened(opened.session.state.documents.keys(), await opened.session.assets.snapshot());
   rememberHostedTarget(target);
   target.attach({
     state: opened.session.state,
