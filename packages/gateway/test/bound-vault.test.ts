@@ -179,6 +179,60 @@ describe('a key belongs to one address', () => {
     expect((await bound.readFor(A, [ID]))?.get(ID)?.apiKey).toBe('sk-old');
   });
 
+  it('stores a first key while the id has no address, so an interrupted save cannot place an older secret', async () => {
+    const saved: { text: string | undefined } = { text: undefined };
+    const bindings = await openKeyBindings({ read: async () => saved.text, write: async (text) => { saved.text = text; } });
+    let failSeal = false;
+    let seenAtSeal: string | undefined;
+    const os = await openOsVault(host({
+      seal: async (plain) => {
+        if (failSeal) {
+          // What the address record says while the new secret is being sealed: nothing may be sent with the id yet.
+          seenAtSeal = bindings.originOf(ID);
+          throw new Error('the seal failed');
+        }
+        return `sealed:${Buffer.from(plain, 'utf8').toString('base64')}`;
+      },
+    }));
+    const bound = openBoundKeyVault(os, bindings);
+    // A secret an earlier build left with no address, and the writer entering the key again for their endpoint.
+    await os.put(ID, { apiKey: 'sk-legacy' });
+    failSeal = true;
+    await expect(bound.put(ID, { apiKey: 'sk-entered-again' }, A)).rejects.toThrow(/the seal failed/u);
+
+    expect(seenAtSeal).toBeUndefined();
+    expect(bindings.originOf(ID)).toBeUndefined();
+    // The older secret is exactly where it was, and neither secret can be sent anywhere.
+    expect((await os.read(ID))?.apiKey).toBe('sk-legacy');
+    expect(await bound.readFor(A, [ID])).toBeUndefined();
+  });
+
+  it('puts back the right secret when a write after a replacement fails, so restore cannot send a B secret to A', async () => {
+    const saved: { value: string | undefined } = { value: undefined };
+    let failNext = false;
+    const v = await vault({
+      read: async () => saved.value,
+      write: async (text) => {
+        if (failNext) {
+          failNext = false;
+          throw new Error('the vault file could not be written');
+        }
+        saved.value = text;
+      },
+    });
+    await v.bound.put(ID, { apiKey: 'sk-at-a' }, A);
+    await v.bound.putReplacement(ID, { apiKey: 'sk-at-b' }, B);
+
+    // A save for the address the key now has, whose write fails after the vault recorded what it would put back.
+    failNext = true;
+    await expect(v.bound.put(ID, { apiKey: 'sk-at-c' }, B)).rejects.toThrow(/the vault file could not be written/u);
+    await v.bound.restore(ID);
+    // The undo still names the key the replacement replaced, and the address it was entered for.
+    expect((await v.os.read(ID))?.apiKey).toBe('sk-at-a');
+    expect(v.bindings.originOf(ID)).toBe(A);
+    expect(await v.bound.readFor(B, [ID])).toBeUndefined();
+  });
+
   it('keeps the undo history aligned when a write is refused, so restore cannot pair an older secret with a later address', async () => {
     const { os, bound, bindings } = await vault();
     await bound.put(ID, { apiKey: 'sk-at-a' }, A);

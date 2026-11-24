@@ -161,6 +161,28 @@ describe('undoing a store', () => {
     expect(await vault.has(TOKEN)).toBe(false);
   });
 
+  it('leaves the undo as it was when a store fails, so a later restore puts back what that undo named', async () => {
+    const held = host();
+    let failNext = false;
+    const vault = await openOsVault({
+      ...held,
+      write: async (text) => {
+        if (failNext) {
+          failNext = false;
+          throw new Error('the file could not be written');
+        }
+        held.file.text = text;
+      },
+    });
+    await vault.put(TOKEN, { apiKey: 'one' });
+    await vault.put(TOKEN, { apiKey: 'two' });
+    failNext = true;
+    await expect(vault.put(TOKEN, { apiKey: 'three' })).rejects.toThrow(/could not be written/u);
+    // The failed store is not the one the undo names: putting back returns the value the last stored write replaced.
+    await vault.restore(TOKEN);
+    expect((await vault.read(TOKEN))?.apiKey).toBe('one');
+  });
+
   it('answers that there is nothing to put back when nothing was stored', async () => {
     const vault = await openOsVault(host());
     await expect(vault.restore(ID)).rejects.toThrow(/nothing to put back/u);

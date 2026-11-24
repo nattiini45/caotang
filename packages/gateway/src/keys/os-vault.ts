@@ -127,14 +127,27 @@ export async function openOsVault(host: OsVaultHost): Promise<OsKeyVault> {
     if (!await host.available()) throw new Error('The operating system keychain is not available.');
     const sealed = await host.seal(JSON.stringify(payload));
     const before = entries;
+    const previous = undo.has(id) ? { had: true as const, value: undo.get(id) } : { had: false as const };
+    /** A write that did not happen leaves the undo describing the last one that did. */
+    const restoreUndo = (): void => {
+      if (previous.had) undo.set(id, previous.value);
+      else undo.delete(id);
+    };
     undo.set(id, before[id]);
-    await write({ ...before, [id]: sealed });
-    // A key is stored when it can be read back, not when the file said so: reading it again is the one operation that proves
-    // the seal, the file and the opener all work for what was just written, and a failure puts the earlier file back.
-    const match = await open(id);
-    if (!samePayload(match, payload)) {
-      await write(before);
-      throw new Error('The key did not survive being stored, so it was not kept.');
+    try {
+      await write({ ...before, [id]: sealed });
+      // A key is stored when it can be read back, not when the file said so: reading it again is the one operation that proves
+      // the seal, the file and the opener all work for what was just written, and a failure puts the earlier file back.
+      const match = await open(id);
+      if (!samePayload(match, payload)) {
+        await write(before);
+        throw new Error('The key did not survive being stored, so it was not kept.');
+      }
+    } catch (error) {
+      // A caller that pairs each stored key with an address keeps its own record of what this undo names; a failed write that
+      // left a new undo entry behind would let the two disagree about the address of the secret it would put back.
+      restoreUndo();
+      throw error;
     }
   };
 

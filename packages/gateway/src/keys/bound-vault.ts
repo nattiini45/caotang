@@ -3,7 +3,8 @@
  *
  * `os-vault.ts` knows how to seal one value, read it back, put it back and remove it. This file is the rule above it: a secret
  * belongs to the address the writer entered it for, and only three calls may change that pairing. `put` stores a key for an
- * address and refuses one already bound elsewhere, so a page cannot point a saved key at an address of its own choosing.
+ * address and refuses one already bound elsewhere, so a page cannot point a saved key at an address of its own choosing. The
+ * address is written after the secret, never before it, so an interruption can only leave a key with no address.
  * `putReplacement` is the writer's own key typed again for an endpoint they changed, which takes the new address with it.
  * `remove` frees the id. A key nothing has placed — one stored before these pairings existed — stays denied; the writer enters
  * it again for the address they mean, which is the one act that gives a secret an address.
@@ -17,7 +18,7 @@
  * id until the new secret is sealed and placed, and no request is answered with the older secret at the new endpoint.
  */
 
-import type { KeyBindings } from './key-bindings.js';
+import { KeyBoundElsewhere, type KeyBindings } from './key-bindings.js';
 import type { OsKeyVault, OsVaultPayload } from './os-vault.js';
 
 export interface BoundKeyVault {
@@ -72,23 +73,23 @@ export function openBoundKeyVault(vault: OsKeyVault, bindings: KeyBindings): Bou
    */
   const write = (id: string, payload: OsVaultPayload, origin: string, replace: boolean): Promise<void> => serialize(async () => {
     const previous = bindings.originOf(id);
+    // An id bound elsewhere is refused before the vault is touched; only the writer's own replacement may move one.
+    if (!replace && previous !== undefined && previous !== origin) throw new KeyBoundElsewhere(id, previous);
+
     const recorded = undo.has(id) ? { had: true as const, origin: undo.get(id) } : { had: false as const };
-    /** Puts the undo record back the way the vault's own undo still describes it. */
+    /** Puts the undo record back the way the vault's own undo describes it after a write that did not happen. */
     const restoreRecord = (): void => {
       if (recorded.had) undo.set(id, recorded.origin);
       else undo.delete(id);
     };
 
-    if (!replace) {
-      // An id bound elsewhere is refused here, before the vault is touched. The same address is a no-op.
-      await bindings.bind(id, origin);
-    } else if (previous !== undefined) {
-      // A replacement hides the id for the whole write: a request made while the new secret is being sealed is refused, rather
-      // than answered with the older secret at the address the writer just moved to. The id is placed again only once the seal
-      // holds, and an unplaced key is denied, never sent somewhere.
-      await bindings.forget(id);
-    }
+    // A replacement hides the id for the whole write: a request made while the new secret is being sealed is refused, rather than
+    // answered with the older secret at the address the writer just moved to. An id with no address is already hidden.
+    if (replace && previous !== undefined) await bindings.forget(id);
 
+    // The secret is stored while the id is unbound or already at this address, and the address is written only after the seal
+    // holds. No interruption — a refused binding, a failed seal, or the process stopping between the two — can leave an older
+    // secret paired with an address the writer did not enter it for: an id that was not placed is denied.
     undo.set(id, previous);
     try {
       await vault.put(id, payload);
@@ -97,20 +98,22 @@ export function openBoundKeyVault(vault: OsKeyVault, bindings: KeyBindings): Bou
       restoreRecord();
       throw error;
     }
+    if (!replace && previous === origin) return;
 
-    if (!replace) return;
     try {
       await bindings.bind(id, origin);
     } catch (error) {
-      // The new secret is sealed but its address could not be written: put back the key this replaced and the address it had,
-      // so a failed replacement leaves the writer where they were. If even that fails, the id stays hidden and denied.
-      try {
-        await vault.restore(id);
-        undo.delete(id);
-        await setAddress(id, previous);
-      } catch {
-        // Nothing is sent with an id that has no address.
-        undo.set(id, previous);
+      // The new secret is stored and its address could not be written. A replacement puts back the key it replaced, so the
+      // writer keeps the one that was working; a first save leaves the new key unbound and denied, to be entered again.
+      if (replace && previous !== undefined) {
+        try {
+          await vault.restore(id);
+          undo.delete(id);
+          await setAddress(id, previous);
+        } catch {
+          // Nothing is sent with an id that has no address.
+          undo.set(id, previous);
+        }
       }
       throw error;
     }
