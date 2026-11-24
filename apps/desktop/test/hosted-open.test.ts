@@ -89,13 +89,19 @@ async function open(body?: string, outcome?: HostedReplay): Promise<Opened> {
   return result;
 }
 
-it('opens the words an earlier tab queued instead of the account’s older version', async () => {
-  expect((await open('Five words, written offline')).session.state.documents.get(IDS.sceneA)?.body).toBe('Five words, written offline');
+it('opens the account’s version and says the queued words are still on this device', async () => {
+  // Nothing is sent by an open (hosted.md §7.2): the account's book is what opens, and the writer is told what is still here with the
+  // one action that would send it.
+  const result = await open('Five words, written offline');
+  expect(result.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
+  expect(lastTarget?.state()).toEqual({ kind: 'unsaved', paths: [`docs/${IDS.sceneA}.md`] });
+  expect(lastTarget?.queue?.held()).toContain(`docs/${IDS.sceneA}.md`);
 });
 
-it('opens the account’s version when the replayed words lose to another device, and keeps them queued', async () => {
+it('opens the account’s version while the queue holds words, whatever the queue would answer', async () => {
   const result = await open('Five words, written offline', { kind: 'conflict', paths: [`docs/${IDS.sceneA}.md`] });
   expect(result.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
+  expect(lastTarget?.state()).toEqual({ kind: 'unsaved', paths: [`docs/${IDS.sceneA}.md`] });
 });
 
 it('opens the account’s project under its own id', async () => {
@@ -136,7 +142,6 @@ it('holds a screenplay’s words at the file its kind gives them, not at a .md i
   const held = lastTarget?.queue?.held() ?? [];
   expect(second.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
   expect(held).toContain(`docs/${IDS.sceneA}.fountain`);
-  expect(held).not.toContain(`docs/${IDS.sceneA}.md`);
 });
 
 it('holds a page this browser deleted as a deletion, so the writer can keep it gone', async () => {

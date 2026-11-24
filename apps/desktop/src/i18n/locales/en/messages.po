@@ -17535,6 +17535,11 @@ msgstr "Read the timeline again"
 msgid "Read the user guide"
 msgstr "Read the user guide"
 
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Read them"
+msgstr "Read them"
+
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.sessionHistory.content"
@@ -19436,11 +19441,6 @@ msgstr "Save to folder"
 msgid "Save to the folder?"
 msgstr "Save to the folder?"
 
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "Save to your account again"
-msgstr "Save to your account again"
-
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Save token"
@@ -20180,6 +20180,11 @@ msgstr "Send it to"
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "Send none"
 msgstr "Send none"
+
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Send them to your account"
+msgstr "Send them to your account"
 
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
 #: apps/desktop/src/components/AgentQueue.tsx
@@ -25090,6 +25095,11 @@ msgstr "These apply to the whole container. The default speaker fills the speake
 msgid "These changed on another device: {files}"
 msgstr "These changed on another device: {files}"
 
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "These changes are on this device. Your account does not have them yet."
+msgstr "These changes are on this device. Your account does not have them yet."
+
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "These checks use your Background provider. They can send text from this step."
@@ -25233,11 +25243,6 @@ msgstr "This browser has no IndexedDB, so provider settings and usage are kept f
 #: apps/desktop/src/components/PictureStorageMeter.tsx
 msgid "This browser has not promised to keep these pictures. Attach a folder, or export a bundle, for a copy of them that stays yours."
 msgstr "This browser has not promised to keep these pictures. Attach a folder, or export a bundle, for a copy of them that stays yours."
-
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "This browser has your latest words. Your account does not have them yet."
-msgstr "This browser has your latest words. Your account does not have them yet."
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
@@ -27987,6 +27992,11 @@ msgstr "You made {manualEdits}. Keep {keepThem} with the new rule?"
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "You need to approve the rewrite yourself, even in Auto mode."
 msgstr "You need to approve the rewrite yourself, even in Auto mode."
+
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Your account has changes this book has not read yet."
+msgstr "Your account has changes this book has not read yet."
 
 #. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
 #: apps/desktop/src/components/HostedSaveNotice.tsx

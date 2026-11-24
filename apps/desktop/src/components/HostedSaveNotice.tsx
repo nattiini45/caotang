@@ -7,8 +7,8 @@
  * device's version (theirs stays as the version this save replaced), or leave it for now, with the account still holding the
  * other device's version and this device's words only here.
  */
-/* lingui-set comment="Interpolated values: files is the documents that changed on the other device, named and joined into one clause." */
 
+/* lingui-set comment="Interpolated values: files is the documents that changed on the other device, named and joined into one clause." */
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
@@ -55,15 +55,25 @@ export function HostedSaveNotice({
   if (target === null || state.kind === 'idle' || state.kind === 'saving') return null;
 
   if (state.kind === 'unsaved') {
+    // Nothing here is sent on its own: the words are safe on this device and the account gets them when the writer says so.
     return <p className="status-line" role="status">
-      <span><Trans>This browser has your latest words. Your account does not have them yet.</Trans></span>
+      <span><Trans>These changes are on this device. Your account does not have them yet.</Trans></span>
       <button type="button" className="button" onClick={() => {
-        void target.save(session.state).then(() => {
-          // A queue this retry finally sent means the account now holds words the session in front of the writer does not.
+        void target.sendQueued().then(() => {
+          // What was sent is on the account and not yet in this book: it is read again so the writer sees what others will.
           if (target.rereadNeeded) onReopenAccount?.();
         });
       }}>
-        <Trans>Save to your account again</Trans>
+        <Trans>Send them to your account</Trans>
+      </button>
+    </p>;
+  }
+
+  if (state.kind === 'stale') {
+    return <p className="status-line" role="status">
+      <span><Trans>Your account has changes this book has not read yet.</Trans></span>
+      <button type="button" className="button" onClick={() => onReopenAccount?.()}>
+        <Trans>Read them</Trans>
       </button>
     </p>;
   }
@@ -87,8 +97,8 @@ export function HostedSaveNotice({
         label: t`Keep this device’s text`,
         onChoose: () => {
           void target.keepMine(session.state).then(() => {
-            // The answer replayed an earlier tab's queued words: the account now holds them and the book in front of the writer
-            // still shows the version this device read first.
+            // The answer sent an earlier tab's queued words: the account now holds them and the book in front of the writer still
+            // shows the version this device read first.
             if (target.rereadNeeded) onReopenAccount?.();
           });
         },

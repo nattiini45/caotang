@@ -101,12 +101,14 @@ it('says nothing while a save is idle', async () => {
   expect(host.innerHTML).toBe('');
 });
 
-it('says the account is behind this browser when the server does not take the save', async () => {
+it('says the changes are on this device when the server does not take the save, and sends them only when asked', async () => {
   const one = target({ kind: 'unavailable', changes: [] });
   await render(one);
   await act(async () => one.save(state));
-  expect(shown()).toContain('This browser has your latest words.');
-  expect(button('Save to your account again')).toBeTruthy();
+  expect(shown()).toContain('These changes are on this device.');
+  expect(button('Send them to your account')).toBeTruthy();
+  // Nothing has been sent: the button is the writer's choice, not an automatic retry.
+  expect(committed.length).toBe(0);
 });
 
 it('names the documents another device changed by their titles, never by their file names', async () => {
@@ -144,14 +146,13 @@ it('leaves it for now, and holds that answer until the writer asks again', async
   expect(shown()).toContain('Another device saved these first');
 });
 
-it('reads the account again when this device’s text wins over an earlier tab’s queued words', async () => {
+it('reads the account again once a send the writer chose puts words on it', async () => {
   const reopen = vi.fn();
-  // The conflict is the one an earlier tab's queue raised at open, so the words are the queue's and not this session's state.
-  const one = target({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }, queue([PATH], [{ kind: 'conflict', paths: [PATH] }, { kind: 'sent', count: 1 }]));
+  const one = target({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }, queue([PATH]));
   await render(one, reopen);
-  await act(async () => one.replayHeld());
-  expect(shown()).toContain('Another device saved these first');
-  await act(async () => button('Keep this device’s text').click());
+  // The open found words the account does not have: they are here, and the writer sends them.
+  await act(async () => one.heldAtOpen());
+  await act(async () => button('Send them to your account').click());
   await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
   expect(reopen).toHaveBeenCalledOnce();
 });

@@ -1304,9 +1304,8 @@ export async function openHostedProject(
   openTarget: (source: HostedProjectSource) => Promise<HostedTarget> = openHostedTarget,
 ): Promise<Opened> {
   const target = await openTarget(source);
-  // Words an earlier tab could not deliver go first, so the project that opens is the one the writer wrote: a replay that lands
-  // leaves the account holding them, and one another device got to first leaves the queue where it is and asks in the workspace.
-  await target.replayHeld();
+  // Nothing the queue holds is sent here: opening a project reads it, and the writer is told what is still on this device with the one
+  // action that would send it (hosted.md §7.2). An open that replayed on its own would write to the account without being asked.
   const loaded = await readProject(target.fs);
   // The project's pictures travel with it: the copy this browser keeps is what a later save is measured on, so a picture left
   // behind here would be a picture the next save prunes from the account.
@@ -1371,6 +1370,8 @@ export async function openHostedProject(
   // one the writer still has to send, and a baseline taken from the copy would make the next save skip exactly that.
   await target.rememberOpened(opened.session.state.documents.keys(), pictures);
   installHostedTarget(target);
+  // Words a save could not deliver are the writer's to send: the target says they are here, and the notice offers the action.
+  target.heldAtOpen();
   target.attach({
     state: opened.session.state,
     persistence: opened.session.persistence,
