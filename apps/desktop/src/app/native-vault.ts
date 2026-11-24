@@ -24,11 +24,15 @@ import { t } from '@lingui/core/macro';
 import type { VaultPayload, VaultReply } from '../../../desktop-shell/src/vault-contract.cjs';
 import { scopedStoreName } from './storage-scope.js';
 
-/** The keychain, when this page runs in the desktop shell and the machine has one. */
+/**
+ * The keychain, when this page runs in the desktop shell and the machine has one. Version 6 is the first whose vault answers what
+ * an entry holds, which is how a headers-only entry reveals its empty key rather than a handle (#868); an older shell keeps the
+ * browser's vault instead, which stores such a payload as it stands.
+ */
 function bridge(): NonNullable<Window['caotangDesktop']>['vault'] | undefined {
   if (typeof window === 'undefined') return undefined;
   const desktop = window.caotangDesktop;
-  return desktop !== undefined && desktop.version >= 4 ? desktop.vault : undefined;
+  return desktop !== undefined && desktop.version >= 6 ? desktop.vault : undefined;
 }
 
 /** What the desktop app has for keys. `none` is a browser, where the WebCrypto vault is the whole answer. */
@@ -57,6 +61,7 @@ function vaultPort(api: NonNullable<ReturnType<typeof bridge>>): NativeKeyVault 
     putHeaders: async (id, headers) => {
       unwrap(await api.putHeaders(id, headers));
     },
+    keyState: async (id) => unwrap(await api.keyState(id)),
     headers: async (id) => {
       // A call that failed answers no headers, and saying "none" would read as a key stored without any: the store's answer is
       // "not known", which is an error, not silence.
