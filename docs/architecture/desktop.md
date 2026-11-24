@@ -219,7 +219,8 @@ redaction, which scrubs the values it sent and it sent a handle, would not see i
 secret attached to that call as they stream back, across chunk boundaries, before the page receives one. The pass reads the
 answer once, longest secret first, and never reads what it wrote: `[redacted]` is not candidate text, which it has to be when a
 key is a single character — one that is also part of the word replacing it — or the pass would find its own output and grow
-without end (#870). The same rule applies to a header value and a reason phrase, which are scrubbed as strings.
+without end (#870). That holds across a chunk boundary too: what is held back for the next chunk is the provider's own bytes,
+never a replacement already written (#877). The same rule applies to a header value and a reason phrase, which are scrubbed as strings.
 
 **A failed replacement can be undone without a read.** `put` remembers the sealed value it replaced, and `restore` writes it
 back, so the MCP client's "store the new token, then update the server, and put the old one back if that update is refused"

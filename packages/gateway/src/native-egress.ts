@@ -342,49 +342,67 @@ export function redactSecrets(text: string, secrets: readonly string[]): string 
  * back; this is what keeps "a key never reaches a log" true once the key lives here.
  *
  * Bytes are matched as bytes, so a multi-byte character split across two chunks is unaffected. The tail of each chunk is held
- * back by one byte less than the longest secret, because a secret can start there and finish in the next chunk.
+ * back by one byte less than the longest secret, because a secret can start there and finish in the next chunk — and what is
+ * held is the provider's own bytes, never a replacement this pass wrote. A replacement goes straight to the sink: kept in the
+ * buffer, the next chunk would read the marker as candidate text, redact it into itself and pass on an answer nobody sent
+ * (#870, #877).
  */
 export function createSecretScrubber(secrets: readonly string[], sink: EgressSink): { write(bytes: Uint8Array): void; end(): void } {
-  // Longest first, so a secret that carries a shorter one's text goes as a whole, and one pass, so what a replacement writes is
-  // never searched again: a one-character key is inside `[redacted]`, and a second look at it would never finish (#870).
+  // Longest first, so a secret that carries a shorter one's text goes as a whole.
   const encoded = [...new Set(secrets.filter((secret) => secret.length > 0))]
     .map((secret) => new TextEncoder().encode(secret))
     .sort((one, other) => other.byteLength - one.byteLength);
   if (encoded.length === 0) return { write: sink, end: () => undefined };
   const hold = Math.max(...encoded.map((secret) => secret.byteLength)) - 1;
+  /** The provider's own bytes that are not decided yet, and nothing else. */
   let pending = new Uint8Array(0);
 
-  const startsAt = (needle: Uint8Array, at: number): boolean => {
-    if (at + needle.byteLength > pending.byteLength) return false;
+  const startsAt = (buffer: Uint8Array, needle: Uint8Array, at: number): boolean => {
+    if (at + needle.byteLength > buffer.byteLength) return false;
     for (let offset = 0; offset < needle.byteLength; offset += 1) {
-      if (pending[at + offset] !== needle[offset]) return false;
+      if (buffer[at + offset] !== needle[offset]) return false;
     }
     return true;
   };
 
-  const replace = (): void => {
+  /**
+   * The answer up to `upTo`, each secret replaced once in one left-to-right pass, and the position a later chunk picks up at.
+   * `upTo` is the last place a secret can start and still finish inside `buffer`, so nothing before it is waiting for the next
+   * chunk; a secret that starts earlier and reaches past it is complete and is answered here.
+   */
+  const decide = (buffer: Uint8Array, upTo: number): { parts: Uint8Array[]; at: number } => {
     const parts: Uint8Array[] = [];
     let from = 0;
     let at = 0;
-    while (at < pending.byteLength) {
-      const secret = encoded.find((candidate) => startsAt(candidate, at));
+    while (at < upTo) {
+      const secret = encoded.find((candidate) => startsAt(buffer, candidate, at));
       if (secret === undefined) {
         at += 1;
         continue;
       }
-      parts.push(pending.subarray(from, at), REDACTED);
+      parts.push(buffer.subarray(from, at), REDACTED);
       at += secret.byteLength;
       from = at;
     }
+    if (from < at) parts.push(buffer.subarray(from, at));
+    return { parts, at };
+  };
+
+  /** One message per chunk for the page, whatever number of pieces the pass made of it. */
+  const emit = (parts: readonly Uint8Array[]): void => {
+    const only = parts.length === 1 ? parts[0] : undefined;
+    if (only !== undefined) {
+      sink(only);
+      return;
+    }
     if (parts.length === 0) return;
-    parts.push(pending.subarray(from));
-    const next = new Uint8Array(parts.reduce((total, part) => total + part.byteLength, 0));
+    const out = new Uint8Array(parts.reduce((total, part) => total + part.byteLength, 0));
     let offset = 0;
     for (const part of parts) {
-      next.set(part, offset);
+      out.set(part, offset);
       offset += part.byteLength;
     }
-    pending = next;
+    sink(out);
   };
 
   return {
@@ -392,16 +410,14 @@ export function createSecretScrubber(secrets: readonly string[], sink: EgressSin
       const joined = new Uint8Array(pending.byteLength + bytes.byteLength);
       joined.set(pending);
       joined.set(bytes, pending.byteLength);
-      pending = joined;
-      replace();
-      if (pending.byteLength <= hold) return;
-      const kept = pending.byteLength - hold;
-      sink(pending.subarray(0, kept));
-      pending = pending.slice(kept);
+      const decided = decide(joined, Math.max(0, joined.byteLength - hold));
+      pending = joined.slice(decided.at);
+      emit(decided.parts);
     },
     end() {
-      if (pending.byteLength > 0) sink(pending);
+      const decided = decide(pending, pending.byteLength);
       pending = new Uint8Array(0);
+      emit(decided.parts);
     },
   };
 }

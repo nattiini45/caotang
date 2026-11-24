@@ -50,4 +50,10 @@ describe('scrubbing an answer', () => {
     expect(scrubbed(['abcd1234', 'sk-abcd1234'], ['the key sk-abcd1234 was not accepted']))
       .toBe('the key [redacted] was not accepted');
   });
+
+  it('reads only the provider’s own bytes, never the marker it already wrote', () => {
+    // The long secret is what makes the scrubber hold bytes back between chunks; the one-character one is what the markers are
+    // full of. Held-back bytes must stay raw input, or the next chunk re-reads a marker and redacts it into itself.
+    expect(scrubbed(['long-key-11', 'a'], ['xxxxxbanana', 'zzz'])).toBe('xxxxxb[redacted]n[redacted]n[redacted]zzz');
+  });
 });
