@@ -152,6 +152,21 @@ describe('a key belongs to one address', () => {
     expect((await bound.readFor(A, [ID]))?.get(ID)?.apiKey).toBe('sk-old');
   });
 
+  it('keeps the undo history aligned when a write is refused, so restore cannot pair an older secret with a later address', async () => {
+    const { os, bound, bindings } = await vault();
+    await bound.put(ID, { apiKey: 'sk-at-a' }, A);
+    await bound.putReplacement(ID, { apiKey: 'sk-at-b' }, B);
+    // A write for the address the key has left is refused and changes nothing about where the undo points.
+    await expect(bound.put(ID, { apiKey: 'sk-refused' }, A)).rejects.toBeInstanceOf(KeyBoundElsewhere);
+    expect(bindings.originOf(ID)).toBe(B);
+
+    await bound.restore(ID);
+    // The key the replacement replaced comes back at the address it was stored for, never at the one the refused write named.
+    expect((await os.read(ID))?.apiKey).toBe('sk-at-a');
+    expect(bindings.originOf(ID)).toBe(A);
+    expect(await bound.readFor(B, [ID])).toBeUndefined();
+  });
+
   it('refuses to read a key for an address other than the one it is bound to', async () => {
     const { bound, bindings } = await vault();
     await bound.put(ID, { apiKey: KEY }, A);

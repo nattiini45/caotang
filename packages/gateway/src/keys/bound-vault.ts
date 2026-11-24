@@ -61,45 +61,56 @@ export function openBoundKeyVault(vault: OsKeyVault, bindings: KeyBindings): Bou
   };
 
   /**
-   * A write that may change the address, and the undo of both halves. A binding that cannot be made leaves the vault
-   * untouched; a seal that fails puts the address back, so a key that was not stored never leaves its id pointing somewhere
-   * the writer did not enter it for. The undo record stays, because it is the state the vault's own undo returns to.
+   * A write that may change the address, and the undo of both halves. A binding that cannot be made leaves the vault untouched
+   * and the undo record as it was; a seal that fails puts the address back, so a key that was not stored never leaves its id
+   * pointing somewhere the writer did not enter it for.
+   *
+   * **The undo record never runs ahead of the vault's.** The vault records its own undo inside `put`, so the address this
+   * session remembers for that undo is written only once the binding and the vault's write have both been attempted, and is put
+   * back whenever the write fails. A rejected write that left a later address in this map would let `restore` pair an older
+   * secret with an address the writer never entered it for.
    */
   const write = (id: string, payload: OsVaultPayload, origin: string, replace: boolean): Promise<void> => serialize(async () => {
     const previous = bindings.originOf(id);
-    undo.set(id, previous);
+    const recorded = undo.has(id) ? { had: true as const, origin: undo.get(id) } : { had: false as const };
+    /** Puts the undo record back the way the vault's own undo still describes it. */
+    const restoreRecord = (): void => {
+      if (recorded.had) undo.set(id, recorded.origin);
+      else undo.delete(id);
+    };
+
     if (!replace) {
       // An id bound elsewhere is refused here, before the vault is touched. The same address is a no-op.
       await bindings.bind(id, origin);
-      try {
-        await vault.put(id, payload);
-      } catch (error) {
-        await setAddress(id, previous);
-        throw error;
-      }
-      return;
+    } else if (previous !== undefined) {
+      // A replacement hides the id for the whole write: a request made while the new secret is being sealed is refused, rather
+      // than answered with the older secret at the address the writer just moved to. The id is placed again only once the seal
+      // holds, and an unplaced key is denied, never sent somewhere.
+      await bindings.forget(id);
     }
-    // A replacement hides the id for the whole write: a request made while the new secret is being sealed is refused, rather
-    // than answered with the older secret at the address the writer just moved to. The id is placed again only once the seal
-    // holds, and an unplaced key is denied, never sent somewhere.
-    if (previous !== undefined) await bindings.forget(id);
+
+    undo.set(id, previous);
     try {
       await vault.put(id, payload);
     } catch (error) {
       await setAddress(id, previous);
+      restoreRecord();
       throw error;
     }
+
+    if (!replace) return;
     try {
       await bindings.bind(id, origin);
     } catch (error) {
       // The new secret is sealed but its address could not be written: put back the key this replaced and the address it had,
       // so a failed replacement leaves the writer where they were. If even that fails, the id stays hidden and denied.
-      undo.delete(id);
       try {
         await vault.restore(id);
+        undo.delete(id);
         await setAddress(id, previous);
       } catch {
         // Nothing is sent with an id that has no address.
+        undo.set(id, previous);
       }
       throw error;
     }
