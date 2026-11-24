@@ -67,12 +67,16 @@
           "hash": "ab9a11a2",
           "anchor": "makros"
         },
+        "caotang-for-desktop": {
+          "hash": "0f28392d",
+          "anchor": "caotang-für-desktop"
+        },
         "using-caotang-on-a-phone-or-tablet": {
           "hash": "34b31ae7",
           "anchor": "caotang-auf-einem-telefon-oder-tablet-verwenden"
         },
         "settings": {
-          "hash": "e5ca84be",
+          "hash": "eabf628a",
           "anchor": "einstellungen"
         },
         "keyboard": {
@@ -84,7 +88,7 @@
           "anchor": "eigene-texte-in-einem-ki-werkzeug-anhängen"
         },
         "bringing-existing-writing-in-through-the-mcp-server": {
-          "hash": "0e9af41a",
+          "hash": "e7e96b17",
           "anchor": "vorhandene-texte-über-den-mcp-server-hereinholen"
         },
         "installing-the-mcp-bundle": {

@@ -86,6 +86,8 @@ An unresolved document conflict keeps its recovery guidance even if a later prod
 - **MCP & tools.** Settings can connect external [Model Context Protocol](https://modelcontextprotocol.io) servers over Streamable HTTP. Each server's tool list is reviewed before its tools are used, and a tool can be switched off. The agent calls an enabled tool at once only when its server is trusted for reads and the tool is read-only. Any other call waits for your approval.
 - **Caotang as an MCP server.** Other AI tools can read a project folder, attach its documents, notes, codex and story timeline as resources, and run prompts that carry the context Caotang gathers for a scene. With writes allowed, they can change it, and each change that asks is confirmed in the host. See [Caotang as an MCP server](#caotang-as-an-mcp-server).
 
+**Caotang for desktop.** The same studio in a window of its own, on the browser version the app ships: your projects are folders you choose, provider keys and MCP tokens are sealed by your computer's keychain and the page never reads one back, the app makes the provider request itself so a provider a browser cannot reach answers, the app can serve the open project over MCP with a token it makes, and it has native menus, `caotang://project/<id>` links, the operating system's Save dialog for a compile, your computer's timezone and a tray that keeps a scheduled run going while the window is closed. [docs/USER-GUIDE.md](docs/USER-GUIDE.md#caotang-for-desktop) says what changes once you are in it, [docs/INSTALL.md](docs/INSTALL.md) installs it, and [SECURITY.md](SECURITY.md) is the one page on what keeps a project, a key and a token where they belong.
+
 Not in this build yet: a published release. The desktop app is packaged from a tagged commit in CI as unsigned Windows, macOS and Linux packages with checksums ([docs/INSTALL.md](docs/INSTALL.md)), and until a tag is cut the [Electron development shell](apps/desktop-shell/README.md) runs the web build from source. [docs/USER-GUIDE.md](docs/USER-GUIDE.md#what-is-not-in-this-build-yet) lists what is still missing, and [docs/ROADMAP.md](docs/ROADMAP.md) has the order.
 
 MCP server cards in **Settings › MCP & tools** show **Connecting** while a connection is checked and **Failed** with one translated alert when it cannot connect. Choose **Connect** to retry; saved server settings are unchanged.
@@ -378,7 +380,7 @@ The agent can also run from a Node script, a CLI or CI, against a project folder
 - [docs/architecture/](docs/architecture/): one spec per module. [agent-harness.md](docs/architecture/agent-harness.md) covers the agent's tools, and [extensibility.md](docs/architecture/extensibility.md) covers the MCP client and server.
 - [docs/ROADMAP.md](docs/ROADMAP.md): what is built, what is being built, and what comes later.
 - [docs/decisions.md](docs/decisions.md): the standing decisions, one line each, with who decided.
-- [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md): how to contribute, and how to report a vulnerability.
+- [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md): how to contribute, the security model for the browser and desktop builds, and how to report a vulnerability.
 
 ## How Caotang is built
 
