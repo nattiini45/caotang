@@ -6,13 +6,16 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { readProject, writeProject } from '@caotang/store';
 import { describe, expect, it } from 'vitest';
 
-import { createWriteGate } from '../src/index.js';
-import { connectClient, LANDING, resultJson, startFixture, type Fixture } from './support.js';
+import { NodeArtifactFs, createWriteGate } from '../src/index.js';
+import { connectClient, LANDING, LANDING_BODY, OPENED, resultJson, startFixture, type Fixture } from './support.js';
 
-/** One control call, as the app makes it: a POST with the token, and the answer read as JSON. */
-async function control(url: string, path: string, token: string | undefined, method = 'POST'): Promise<{ status: number; body: Record<string, unknown> }> {
+/** The text the app's own save writes into the landing document, after the server opened it. */
+const APP_SAVED_BODY = 'The ferry was early, for once.';
+
+/** One control call, as the app makes it: a POST with the token, and the answer read as JSON. */async function control(url: string, path: string, token: string | undefined, method = 'POST'): Promise<{ status: number; body: Record<string, unknown> }> {
   const base = url.replace(/\/mcp$/, '');
   const response = await fetch(`${base}${path}`, {
     method,
@@ -119,6 +122,35 @@ describe('the control endpoints', () => {
       const written = (await write()) as { isError?: boolean };
       expect(written.isError).toBeUndefined();
       expect(manifest()).not.toBe(before);
+    } finally {
+      await client.close();
+      await fixture.close();
+    }
+  });
+
+  it('answers from what the app saved while the server ran, once the save has resumed it', async () => {
+    await start(true);
+    const client = await connectClient(fixture.url, fixture.token);
+    try {
+      const read = async (): Promise<string> =>
+        JSON.stringify(resultJson(await client.callTool({ name: 'doc.read', arguments: { doc: LANDING, response_format: 'detailed' } })));
+      expect(await read()).toContain(LANDING_BODY);
+
+      // A save as the app makes it: the pause first, the folder written through the store, the resume after the last file. The
+      // server holds the project open the whole time, so what it answers afterwards is what this save must have reached it.
+      await control(fixture.url, '/control/pause', fixture.token);
+      const fs = new NodeArtifactFs(fixture.root);
+      const loaded = await readProject(fs, { now: OPENED });
+      const landing = loaded.state.documents.get(LANDING);
+      if (landing === undefined) throw new Error('the fixture project holds no landing document');
+      landing.body = APP_SAVED_BODY;
+      await writeProject(fs, loaded.state, { now: new Date(OPENED.getTime() + 60_000) });
+      await control(fixture.url, '/control/resume', fixture.token);
+
+      expect(await read()).toContain(APP_SAVED_BODY);
+      // And the save does not stop the server's own writes: they check against the folder the app left, not the one it opened.
+      const written = (await client.callTool({ name: 'meta.set', arguments: { targets: [LANDING], status: 'final' } })) as { isError?: boolean };
+      expect(written.isError).toBeUndefined();
     } finally {
       await client.close();
       await fixture.close();
