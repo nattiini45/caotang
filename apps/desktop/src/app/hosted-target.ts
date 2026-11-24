@@ -151,9 +151,14 @@ export class HostedTarget {
   attach(session: HostedSaveSession): () => void {
     this.detach();
     this.#assets = session.assets ?? null;
+    // A save has landed at the moment the browser's own save leaves `writing` and is `idle` again: that transition is the only one that
+    // says this browser's copy and the state agree, and it is what the account is committed from.
+    let writing = session.persistence.getStatus() === 'writing';
     const stop = session.persistence.subscribe(() => {
-      if (session.persistence.getStatus() !== 'saved') return;
-      void this.save(session.state);
+      const status = session.persistence.getStatus();
+      const landed = writing && status === 'idle';
+      writing = status === 'writing';
+      if (landed) void this.save(session.state);
     });
     this.#detached = stop;
     return () => {

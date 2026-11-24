@@ -29,8 +29,11 @@ function session(current: ProjectState) {
         getStatus: () => status,
       },
     } as HostedSaveSession,
+    /** The browser's own save, as `persistence-model.ts` reports it: `writing` on the way, `idle` when it landed. */
     saved(): void {
-      status = 'saved';
+      status = 'writing';
+      for (const listener of listeners) listener();
+      status = 'idle';
       for (const listener of listeners) listener();
     },
   };
@@ -106,6 +109,18 @@ describe('idle', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(saves.length).toBe(1);
     expect(saving.state()).toEqual({ kind: 'idle' });
+  });
+
+  it('commits on the browser save landing, not on every status it passes through', async () => {
+    // The status a landed save leaves behind is `idle`; there is no `saved`. A subscription that waited for one would never commit, and
+    // one that fired on every change would commit twice for one save.
+    const { saving, saves } = target();
+    const project = state();
+    const owner = session(project);
+    saving.attach(owner.session);
+    owner.saved();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(saves.length).toBe(1);
   });
 
   it('an open that finds words in the queue says they are here, and sends nothing', async () => {
