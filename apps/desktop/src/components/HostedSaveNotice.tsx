@@ -1,7 +1,7 @@
 /**
  * What the writer is owed to know about the account's copy of a hosted project — hosted.md §7, §11. A save that lands says
- * nothing; a save the server did not take says the account is behind; and a save another device committed first asks the same
- * "files changed" question a folder save asks, naming the documents and writing nothing over them.
+ * nothing; a save the account did not take says so and offers to try again with the words still in this tab; and a save another
+ * device committed first asks the same "files changed" question a folder save asks, naming the documents and writing nothing over them.
  *
  * The question has two answers and both are the writer's: keep this device's text, which writes it on top of the other
  * device's version (theirs stays as the version this save replaced), or leave it for now, with the account still holding the
@@ -40,14 +40,7 @@ function nameOf(path: string, session: ProjectSession): string {
   return path;
 }
 
-export function HostedSaveNotice({
-  session,
-  onReopenAccount,
-}: {
-  readonly session: ProjectSession;
-  /** Reads the account again after this device's text won over another device's: only a conflict met at open needs it. */
-  readonly onReopenAccount?: (() => void) | undefined;
-}): ReactNode {
+export function HostedSaveNotice({ session }: { readonly session: ProjectSession }): ReactNode {
   const target = hostedTargetFor(session.projectId);
   const subscribe = useCallback((listener: () => void) => (target === null ? NOTHING : target.subscribe(listener)), [target]);
   const state = useSyncExternalStore(subscribe, () => target?.state() ?? IDLE);
@@ -56,25 +49,12 @@ export function HostedSaveNotice({
   if (target === null || state.kind === 'idle' || state.kind === 'saving') return null;
 
   if (state.kind === 'unsaved') {
-    // Nothing here is sent on its own: the words are safe on this device and the account gets them when the writer says so.
+    // Nothing here is sent on its own, and nothing is kept for the next visit either: the words are in this tab, and trying again
+    // writes the book as it stands then.
     return <p className="status-line" role="status">
-      <span><Trans>These changes are on this device. Your account does not have them yet.</Trans></span>
-      <button type="button" className="button" onClick={() => {
-        void target.sendQueued().then(() => {
-          // What was sent is on the account and not yet in this book: it is read again so the writer sees what others will.
-          if (target.rereadNeeded) onReopenAccount?.();
-        });
-      }}>
-        <Trans>Send them to your account</Trans>
-      </button>
-    </p>;
-  }
-
-  if (state.kind === 'stale') {
-    return <p className="status-line" role="status">
-      <span><Trans>Your account has changes this book has not read yet.</Trans></span>
-      <button type="button" className="button" onClick={() => onReopenAccount?.()}>
-        <Trans>Read them</Trans>
+      <span><Trans>Not saved to your account.</Trans></span>
+      <button type="button" className="button" onClick={() => { void target.save(session.state); }}>
+        <Trans>Try again</Trans>
       </button>
     </p>;
   }
@@ -96,13 +76,7 @@ export function HostedSaveNotice({
     choices={[
       {
         label: t`Keep this device’s text`,
-        onChoose: () => {
-          void target.keepMine(session.state).then(() => {
-            // The answer sent an earlier tab's queued words: the account now holds them and the book in front of the writer still
-            // shows the version this device read first.
-            if (target.rereadNeeded) onReopenAccount?.();
-          });
-        },
+        onChoose: () => { void target.keepMine(session.state); },
       },
       { label: t`Leave it for now`, onChoose: () => setPutOff(key) },
     ]}

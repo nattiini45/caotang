@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generateProjectKey, type SecretKey } from '@caotang/crypto';
 import { addDocument, createEmptyManifest, createProjectState, DOCS_DIR, MANIFEST_FILE, type ProjectState } from '@caotang/store';
-import { EncryptedRemoteArtifactFs, saveProjectToAccount, stageProjectForAccount } from '../src/index.js';
+import { EncryptedRemoteArtifactFs, saveProjectToAccount } from '../src/index.js';
 import { FakeBlobServer } from './fake-blob-server.js';
 
 const PROJECT_ID = 'p_LIGHTHOUSE';
@@ -82,23 +82,6 @@ describe('a project save into the account', () => {
     } finally {
       delete (fs as { commitChanges?: unknown }).commitChanges;
     }
-  });
-});
-
-describe('a save staged and thrown away', () => {
-  it('names what the save would write without writing any of it', async () => {
-    // The words a writer types while a question about the account stands are held in the queue, and the queue holds what the save
-    // would have sent: staging it is that list, and nothing reaches the account.
-    const server = new FakeBlobServer();
-    const key = generateProjectKey();
-    const fs = await device(server, key);
-
-    const changes = await stageProjectForAccount(fs, project('Staged.'));
-    expect(changes.map((change) => change.path)).toContain(`${DOCS_DIR}/n_3W8RN2TQ6C.md`);
-    expect(server.dump()).toEqual([]);
-
-    const reader = await device(server, key);
-    expect(await reader.exists(`${DOCS_DIR}/n_3W8RN2TQ6C.md`)).toBe(false);
   });
 });
 

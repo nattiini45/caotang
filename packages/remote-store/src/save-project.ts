@@ -65,27 +65,6 @@ async function stageAssets(save: BatchedSave, fs: EncryptedRemoteArtifactFs, ass
 }
 
 /**
- * What `state` would put on the account, without putting it there: the same staged save, read as its file list and then thrown away.
- * A writer can keep working while a question about the account stands (hosted.md §7.2), and those words have to be held somewhere
- * before the next open takes the account's version over this browser's copy.
- */
-export async function stageProjectForAccount(
-  fs: EncryptedRemoteArtifactFs,
-  state: ProjectState,
-  options: WriteOptions & { readonly removed?: readonly string[]; readonly assets?: SaveAssets } = {},
-): Promise<RemoteChange[]> {
-  const save = new BatchedSave(fs);
-  try {
-    const { removed: _removed, assets, ...writeOptions } = options;
-    await writeProject(save, state, { ...writeOptions, pruneDocumentIds: [...(options.removed ?? [])] });
-    if (assets !== undefined) await stageAssets(save, fs, assets);
-    return save.changes();
-  } finally {
-    save.discard();
-  }
-}
-
-/**
  * Writes `state` to the account as one commit. `removed` is the documents this device deleted while the session was open, and it is
  * the only source of a removal: the account's own listing holds other devices' documents too, and a save that pruned what it did not
  * hold would delete work it never saw.

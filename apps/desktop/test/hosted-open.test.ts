@@ -1,7 +1,7 @@
 /**
  * What a hosted open does with the two copies it could confuse (hosted.md §7): the account's project is the project, and the browser's
  * copy of it is a cache that is refreshed in place — under the same id, keeping the records this browser keys by that id — whatever the
- * two hold. The only device-local state a hosted project has is the queue of saves the account has not taken, and an open sends nothing.
+ * two hold. An open asks nothing and sends nothing.
  */
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryArtifactFs, MemoryIndexedDb, openRuntimeStore, writeProject, type ProjectState, type RuntimeStore } from '@caotang/store';
@@ -9,8 +9,8 @@ import { MemoryArtifactFs, MemoryIndexedDb, openRuntimeStore, writeProject, type
 import { setActiveAppDb } from '../src/app/app-db.js';
 import { type Opened } from '../src/app/lifecycle.js';
 import { openHostedProject } from '../src/app/hosted-open.js';
-import { HostedTarget, type HostedQueuePort, type HostedReplay } from '../src/app/hosted-target.js';
-import { forgetHostedTarget, hostedTargetFor } from '../src/app/hosted-target-registry.js';
+import { HostedTarget } from '../src/app/hosted-target.js';
+import { forgetHostedTarget } from '../src/app/hosted-target-registry.js';
 import type { HostedProjectSource } from '../src/app/studio-host.js';
 import { IDS, project } from '../../../e2e/unit/fixtures.js';
 
@@ -44,53 +44,21 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-/**
- * A queue that counts what it is asked: an open holds nothing and sends nothing, so a test that found a `send` here would have found the
- * app writing to the account without the writer asking.
- */
-function queue(startingWith: readonly string[] = []): HostedQueuePort & { calls: string[] } {
-  const held = new Set(startingWith);
-  const calls: string[] = [];
-  return {
-    calls,
-    hold: (changes) => {
-      calls.push(`hold:${changes.map((change) => change.path).join(',')}`);
-      for (const change of changes) held.add(change.path);
-    },
-    replay: async (): Promise<HostedReplay> => {
-      calls.push('send');
-      held.clear();
-      return { kind: 'sent', count: 1 };
-    },
-    forget: (paths) => {
-      calls.push(`forget:${paths === undefined ? 'all' : paths.join(',')}`);
-      if (paths === undefined) held.clear();
-      else for (const path of paths) held.delete(path);
-    },
-    rebase: (paths) => calls.push(`rebase:${paths.join(',')}`),
-    held: () => [...held],
-    marks: () => calls.push('marks'),
-  };
-}
-
-/** The account as the app reaches it: one project, its pictures, and the queue this device keeps. */
-async function targetFor(state: ProjectState = BOOK, holding: readonly string[] = []): Promise<HostedTarget & { port: ReturnType<typeof queue> }> {
+/** The account as the app reaches it: one project and its pictures. */
+async function targetFor(state: ProjectState = BOOK): Promise<HostedTarget> {
   const fs = new MemoryArtifactFs();
   await writeProject(fs, state);
   await fs.writeBytesAtomic(COVER, new Uint8Array([7, 7, 7]));
   Object.assign(fs, { refresh: async () => undefined });
-  const port = queue(holding);
-  const target = new HostedTarget(
+  return new HostedTarget(
     SOURCE.projectId,
     fs as never,
     (async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } })) as never,
-    port,
   );
-  return Object.assign(target, { port });
 }
 
-async function open(state: ProjectState = BOOK, holding: readonly string[] = []): Promise<Opened> {
-  const target = await targetFor(state, holding);
+async function open(state: ProjectState = BOOK): Promise<Opened> {
+  const target = await targetFor(state);
   lastTarget = target;
   const result = await openHostedProject(store, SOURCE, async () => target);
   opened.push(result);
@@ -136,7 +104,7 @@ it('takes the account’s words over this browser’s copy without asking, becau
   const second = await open();
   expect(second.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
   expect(lastTarget?.state()).toEqual({ kind: 'idle' });
-  expect(lastTarget?.port.held()).toEqual([]);
+  expect(lastTarget?.state()).toEqual({ kind: 'idle' });
 });
 
 it('opens the account’s kind change as the account’s own, with nothing of the copy left to compete with it', async () => {
@@ -147,7 +115,7 @@ it('opens the account’s kind change as the account’s own, with nothing of th
   const second = await open(asScreenplay());
   expect(second.session.state.documents.get(IDS.sceneA)?.body).toBe('INT. HARBOUR - NIGHT');
   expect(second.session.state.manifest.tree.find((node) => node.id === IDS.sceneA)?.kind).toBe('screenplay');
-  expect(lastTarget?.port.held()).toEqual([]);
+  expect(lastTarget?.state()).toEqual({ kind: 'idle' });
 });
 
 it('keeps every record this browser keys by the project’s id when the account’s words replace the copy’s', async () => {
@@ -174,16 +142,4 @@ it('keeps every record this browser keys by the project’s id when the account�
   } finally {
     setActiveAppDb(null);
   }
-});
-
-it('says the words a save could not deliver are still here, and sends nothing on its own', async () => {
-  const path = `docs/${IDS.sceneA}.md`;
-  const result = await open(BOOK, [path]);
-
-  // The account's book opens, and the queue is left exactly as the last session left it: an open that replayed on its own would write to
-  // the account without the writer asking.
-  expect(result.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
-  expect(hostedTargetFor(SOURCE.projectId)?.state()).toEqual({ kind: 'unsaved', paths: [path] });
-  expect(lastTarget?.port.held()).toEqual([path]);
-  expect(lastTarget?.port.calls.filter((call) => call === 'send')).toEqual([]);
 });

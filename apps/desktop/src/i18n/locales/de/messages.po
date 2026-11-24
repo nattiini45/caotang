@@ -15175,6 +15175,10 @@ msgstr "Noch nicht im Browser-Speicher gespeichert. Ihre Wörter sind in diesem 
 msgid "Not saved to the project folder. Check the folder, or export a backup before leaving."
 msgstr "Nicht im Projektordner gespeichert. Prüfe den Ordner oder exportiere vor dem Verlassen eine Sicherung."
 
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Not saved to your account."
+msgstr "Nicht in Ihrem Konto gespeichert."
+
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 #: apps/desktop/src/media/screenplay-model.ts
@@ -17537,8 +17541,8 @@ msgstr "Benutzerhandbuch lesen"
 
 #. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "Read them"
-msgstr "Lesen"
+#~ msgid "Read them"
+#~ msgstr "Lesen"
 
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -20183,8 +20187,8 @@ msgstr "Keine senden"
 
 #. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "Send them to your account"
-msgstr "An Ihr Konto senden"
+#~ msgid "Send them to your account"
+#~ msgstr "An Ihr Konto senden"
 
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
 #: apps/desktop/src/components/AgentQueue.tsx
@@ -25102,8 +25106,8 @@ msgstr "Diese Dateien wurden auf einem anderen Gerät geändert: {files}"
 
 #. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "These changes are on this device. Your account does not have them yet."
-msgstr "Diese Änderungen liegen auf diesem Gerät. Ihr Konto hat sie noch nicht."
+#~ msgid "These changes are on this device. Your account does not have them yet."
+#~ msgstr "Diese Änderungen liegen auf diesem Gerät. Ihr Konto hat sie noch nicht."
 
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -26435,9 +26439,11 @@ msgstr "Für Lesezugriffe vertraut. Lässt Nur-Lese-Tools ohne Nachfrage laufen,
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: file is the imported file name; reason is the import failure message
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
 #. Interpolated values: subject
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
 #: apps/desktop/src/components/AgentSessions.tsx
+#: apps/desktop/src/components/HostedSaveNotice.tsx
 #: apps/desktop/src/components/InkGate.tsx
 #: apps/desktop/src/components/lazy-view.tsx
 #: apps/desktop/src/components/Settings.tsx
@@ -28000,8 +28006,8 @@ msgstr "Geben Sie die Änderung selbst frei, auch im Auto-Modus."
 
 #. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "Your account has changes this book has not read yet."
-msgstr "Ihr Konto enthält Änderungen, die dieses Buch noch nicht gelesen hat."
+#~ msgid "Your account has changes this book has not read yet."
+#~ msgstr "Ihr Konto enthält Änderungen, die dieses Buch noch nicht gelesen hat."
 
 #. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
 #: apps/desktop/src/components/HostedSaveNotice.tsx

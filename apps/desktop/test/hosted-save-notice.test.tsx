@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 /**
- * The account's copy of a hosted project, as the writer is told about it (hosted.md §7, §11): a save the server did not take
- * says the account is behind; a save another device committed first asks the "files changed" question and names the documents
+ * The account's copy of a hosted project, as the writer is told about it (hosted.md §7, §11): a save the account did not take says it
+ * was not saved and offers to try again; a save another device committed first asks the "files changed" question and names the documents
  * by their titles rather than their file names; and both answers work — keep this device's text, or leave it for now.
  */
 import { act } from 'react';
@@ -14,7 +14,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import type { ProjectSession } from '../src/app/session.js';
 import { HostedSaveNotice } from '../src/components/HostedSaveNotice.js';
-import { HostedTarget, type HostedQueuePort, type HostedReplay } from '../src/app/hosted-target.js';
+import { HostedTarget } from '../src/app/hosted-target.js';
 import { forgetHostedTarget, installHostedTarget } from '../src/app/hosted-target-registry.js';
 import { activateEnglish } from '../src/i18n/runtime.js';
 
@@ -27,37 +27,20 @@ let state: ProjectState;
 let session: ProjectSession;
 let committed: unknown[][];
 
-function target(outcome: unknown, queue: HostedQueuePort | null = null): HostedTarget {
+function target(outcome: unknown): HostedTarget {
   const fs = {
     refresh: async () => undefined,
     commitChanges: async (changes: unknown[]) => {
       committed.push(changes);
     },
   };
-  return new HostedTarget('p_lighthouse', fs as never, (async () => outcome) as never, queue);
+  return new HostedTarget('p_lighthouse', fs as never, (async () => outcome) as never);
 }
 
-/** A queue an earlier tab left: it holds `held`, and a replay answers `answer`. */
-function queue(held: readonly string[], answer: HostedReplay | readonly HostedReplay[] = { kind: 'sent', count: 1 }): HostedQueuePort {
-  const paths = new Set(held);
-  const answers = Array.isArray(answer) ? [...answer] : null;
-  return {
-    hold: () => undefined,
-    replay: async () => (answers === null ? (answer as HostedReplay) : (answers.shift() ?? { kind: 'conflict', paths: [...paths] })),
-    forget: (forgotten?: readonly string[]) => {
-      if (forgotten === undefined) paths.clear();
-      else for (const path of forgotten) paths.delete(path);
-    },
-    rebase: () => undefined,
-    held: () => [...paths],
-    marks: () => undefined,
-  };
-}
-
-async function render(one: HostedTarget, onReopenAccount?: () => void): Promise<void> {
+async function render(one: HostedTarget): Promise<void> {
   installHostedTarget(one);
   await act(async () => root.render(
-    <I18nProvider i18n={i18n}><HostedSaveNotice session={session} onReopenAccount={onReopenAccount} /></I18nProvider>,
+    <I18nProvider i18n={i18n}><HostedSaveNotice session={session} /></I18nProvider>,
   ));
 }
 
@@ -102,14 +85,19 @@ it('says nothing while a save is idle', async () => {
   expect(host.innerHTML).toBe('');
 });
 
-it('says the changes are on this device when the server does not take the save, and sends them only when asked', async () => {
-  const one = target({ kind: 'unavailable', changes: [] });
+it('says the book was not saved to the account, and tries again only when the writer asks', async () => {
+  const outcomes: unknown[] = [{ kind: 'unavailable', changes: [] }, { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }];
+  const one = new HostedTarget('p_lighthouse', { refresh: async () => undefined } as never, (async () => outcomes.shift()) as never);
   await render(one);
   await act(async () => one.save(state));
-  expect(shown()).toContain('These changes are on this device.');
-  expect(button('Send them to your account')).toBeTruthy();
-  // Nothing has been sent: the button is the writer's choice, not an automatic retry.
-  expect(committed.length).toBe(0);
+  expect(shown()).toContain('Not saved to your account.');
+  expect(one.state()).toEqual({ kind: 'unsaved' });
+
+  await act(async () => button('Try again').click());
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  // The words were never anywhere but this tab, and trying again writes the book as it stands now.
+  expect(one.state()).toEqual({ kind: 'idle' });
+  expect(host.innerHTML).toBe('');
 });
 
 it('names the documents another device changed by their titles, never by their file names', async () => {
@@ -145,25 +133,4 @@ it('leaves it for now, and holds that answer until the writer asks again', async
   expect(committed).toEqual([]);
   await act(async () => button('Ask me again').click());
   expect(shown()).toContain('Another device saved these first');
-});
-
-it('reads the account again once a send the writer chose puts words on it', async () => {
-  const reopen = vi.fn();
-  const one = target({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }, queue([PATH]));
-  await render(one, reopen);
-  // The open found words the account does not have: they are here, and the writer sends them.
-  await act(async () => one.heldAtOpen());
-  await act(async () => button('Send them to your account').click());
-  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
-  expect(reopen).toHaveBeenCalledOnce();
-});
-
-it('leaves the open book alone when this session’s own save conflicted, because its text is what was read', async () => {
-  const reopen = vi.fn();
-  const one = target({ kind: 'conflict', paths: [PATH], changes: [{ path: PATH, kind: 'modified' }] });
-  await render(one, reopen);
-  await act(async () => one.save(state));
-  await act(async () => button('Keep this device’s text').click());
-  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
-  expect(reopen).not.toHaveBeenCalled();
 });

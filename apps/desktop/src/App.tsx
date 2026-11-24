@@ -159,45 +159,6 @@ export function App(): ReactNode {
   };
 
   /**
-   * Reads the account's version of the open project again, after the writer kept this device's text over another device's: the
-   * replay wrote their words to the account, so the book in front of them is read from it rather than left on the version this
-   * device read before the answer.
-   */
-  const reopenAccount = (): void => {
-    const source = hostedProject();
-    if (source === null) return;
-    serial.current += 1;
-    const token = serial.current;
-    void openInTurn(async () => {
-      const previous = current.current;
-      current.current = null;
-      setNotice(null);
-      setSaveToFolder(null);
-      setSession(null);
-      setStartIntent(null);
-      if (previous !== null) {
-        // The session being replaced still holds the version read before the answer: its close settles the browser save, and a target
-        // still attached would commit that older state over the words the answer just replayed.
-        hostedTargetFor(previous.projectId)?.detach();
-        await previous.closeSafely().catch(() => undefined);
-      }
-      // The reopen after a send the writer chose (hosted.md §7.2): the account always holds the newer words now, and an open takes its
-      // version over this browser's copy whatever the copy still holds.
-      const opened = await openFromAccount(boot.kind === 'ready' ? boot.store : store, source);
-      if (token !== serial.current) {
-        await opened.session.closeSafely().catch(() => undefined);
-        forgetHostedTarget(opened.session.projectId);
-        return;
-      }
-      hostedOpen.current = opened.session.projectId;
-      show(opened);
-    }).catch((error: unknown) => {
-      if (token !== serial.current) return;
-      setNotice(couldNotOpen(error));
-    });
-  };
-
-  /**
    * Ends a session. A writing session that could not be recorded is said, not dropped in silence. A hosted project's target stops
    * following this browser's saves once the session has closed, so a settle that arrives afterwards cannot write to the account
    * from a session nobody is looking at.
@@ -310,7 +271,6 @@ export function App(): ReactNode {
         startIntent={startIntent}
         saveToFolder={saveToFolder}
         onReopenFolder={reopenFolder}
-        onReopenAccount={reopenAccount}
       />
     );
   }

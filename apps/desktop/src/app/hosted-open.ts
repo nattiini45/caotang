@@ -78,8 +78,6 @@ export async function openHostedProject(
   // that name them, and knowing what the account held at this open so a save removes only what this device deleted itself.
   target.rememberOpened(opened.session.state.documents.keys(), pictures);
   installHostedTarget(target);
-  // Words a save could not deliver are the writer's to send: the target says they are here, and the notice offers the action.
-  target.heldAtOpen();
   target.attach({
     state: opened.session.state,
     persistence: opened.session.persistence,

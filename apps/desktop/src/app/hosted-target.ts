@@ -1,16 +1,16 @@
 /**
- * The account as a session's save target — hosted.md §5, §7, §11. A hosted project's home is the account, so every save the
- * app makes to this browser is followed by one commit to the account; the browser copy is the working copy, and the account
- * is where the project lives.
+ * The account as a session's save target — hosted.md §5, §7, §11. A hosted project's home is the account, so every save the app makes
+ * to this browser is followed by one commit to the account; the browser copy is the working copy, and the account is where the project
+ * lives.
  *
- * What the writer is owed: a save that lands says nothing, a save the server did not take says so, a save another device got
- * first stops and names the files, and nothing at all is sent to the account without the writer choosing it. The states and the
- * events that move between them are a table in hosted.md §7.2; every transition is tested, the illegal ones included, and the
- * methods here are the transitions in that table. Nothing in this module holds a queue or a clock of its own: the queue is the
- * device's (`HostedQueuePort`), and nothing is replayed unless a writer's action asks for it.
+ * What the writer is owed: a save that lands says nothing, a save the account did not take says so and offers to try again with the words
+ * still in this tab, and a save another device got first stops and names the files. Nothing is ever sent without a browser save behind it.
+ * The states and the events that move between them are a table in hosted.md §7.2; every transition is tested, the illegal ones included,
+ * and the methods here are the transitions in that table. This is v1: there is no device queue, so a save that cannot reach the account
+ * stays in the tab it was typed in and is retried only when the writer asks.
  */
-import type { EncryptedRemoteArtifactFs, HostedSaveOutcome, RemoteChange, SaveAssets } from '@caotang/remote-store';
-import type { ProjectState, WriteReport } from '@caotang/store';
+import type { EncryptedRemoteArtifactFs, HostedSaveOutcome, SaveAssets } from '@caotang/remote-store';
+import type { ProjectState } from '@caotang/store';
 
 /** What a save carries besides the state: the paths this device deleted, and the pictures as it holds them. */
 export interface SaveOptions {
@@ -23,49 +23,15 @@ export interface SaveOptions {
  *
  * - `idle`: nothing outstanding. An ordinary save commits.
  * - `saving`: a commit of this device's words is in flight.
- * - `unsaved`: these paths are on this device and not on the account, because the server could not be reached. Nothing is sent
- *   until the writer asks (`sendQueued`).
- * - `conflict`: these paths moved on the account, and this device's words are held. Nothing is written and nothing is sent until
- *   the writer answers (`keepMine` or the deferral the notice keeps itself).
- * - `stale`: the account holds words this session has not read yet, because a send the writer asked for landed. A save from here
- *   would write the older book over them, so the session is reopened first.
+ * - `unsaved`: the account does not have this book. The words are in this tab, and the notice offers to try again.
+ * - `conflict`: these paths moved on the account. Nothing is written until the writer answers (`keepMine` or the deferral the notice
+ *   keeps itself).
  */
 export type HostedSaveState =
   | { readonly kind: 'idle' }
   | { readonly kind: 'saving' }
-  | { readonly kind: 'unsaved'; readonly paths: readonly string[] }
-  | { readonly kind: 'conflict'; readonly paths: readonly string[] }
-  | { readonly kind: 'stale' };
-
-/**
- * What a send of the held words did: the server took them, another device moved one of them first, or the server did not answer.
- */
-export type HostedReplay =
-  | { readonly kind: 'sent'; readonly count: number }
-  | { readonly kind: 'conflict'; readonly paths: readonly string[] }
-  | { readonly kind: 'unavailable' };
-
-/**
- * The queue and the marks, as the target uses them. Built by the module that holds the adapter, so this one imports the package
- * only as types and `caotang.app`'s graph never reaches it.
- */
-export interface HostedQueuePort {
-  /** Holds what a save could not deliver, so a reload sends it instead of losing it. */
-  hold(changes: readonly RemoteChange[]): void;
-  /** Sends everything held, in one commit. A refusal changes nothing and keeps the queue as it was. */
-  replay(): Promise<HostedReplay>;
-  /** Forgets these paths, or every path when none are named. */
-  forget(paths?: readonly string[]): void;
-  /**
-   * Takes the account's current version of these paths as the one this device's held words were written against. Called only on the
-   * writer's own answer — "keep this device's text" — and only for the paths they were shown.
-   */
-  rebase(paths: readonly string[]): void;
-  /** The paths held now. */
-  held(): readonly string[];
-  /** Where the rollback marks go after a commit or a refresh, so a replayed server state is refused on the next open. */
-  marks(): void;
-}
+  | { readonly kind: 'unsaved' }
+  | { readonly kind: 'conflict'; readonly paths: readonly string[] };
 
 /** The session as this target uses it: the state to save, the browser save, and the pictures that travel with it. */
 export interface HostedSaveSession {
@@ -105,20 +71,12 @@ export class HostedTarget {
   readonly #knownAssets = new Set<string>();
   /** The paths the writer was shown for the open question: their answer covers those and no others. */
   #asked: readonly string[] = [];
-  /** Whether the open question came from this session's own save, which is answered by saving the state again, or from the queue. */
-  #fromSave = false;
 
   constructor(
     readonly projectId: string,
     readonly fs: EncryptedRemoteArtifactFs,
     /** The whole-project save, bound by the module that holds the adapter so this one imports no package at run time. */
     readonly saveState: (state: ProjectState, options?: SaveOptions) => Promise<HostedSaveOutcome>,
-    readonly queue: HostedQueuePort | null = null,
-    /**
-     * The same save, staged and thrown away: what the state would put on the account. A question about the account does not stop the
-     * writer working, and their words have to be held before the next open takes the account's version over this browser's copy.
-     */
-    readonly stageState: ((state: ProjectState, options?: SaveOptions) => Promise<readonly RemoteChange[]>) | null = null,
   ) {}
 
   state(): HostedSaveState {
@@ -130,14 +88,6 @@ export class HostedTarget {
     return () => {
       this.#listeners.delete(listener);
     };
-  }
-
-  /**
-   * Whether the book in front of the writer has to be read from the account again: a send they asked for landed, and this session
-   * still holds the version read before it.
-   */
-  get rereadNeeded(): boolean {
-    return this.#state.kind === 'stale';
   }
 
   /**
@@ -174,37 +124,13 @@ export class HostedTarget {
     for (const id of documents) this.#knownDocuments.add(id);
     this.#knownAssets.clear();
     for (const path of Object.keys(assets)) this.#knownAssets.add(path);
-    // A fresh open is the session catching up: the account's words are in front of the writer now.
-    if (this.#state.kind === 'stale') this.#set({ kind: 'idle' });
-  }
-
-  /**
-   * The queue as the open found it: this device's words that never reached the account. They are not sent here — the writer is told
-   * and chooses — so the state says they are here and nothing else happens until they do.
-   */
-  heldAtOpen(): void {
-    const paths = this.queue?.held() ?? [];
-    if (paths.length > 0 && this.#state.kind === 'idle') this.#set({ kind: 'unsaved', paths });
   }
 
   /** Commits this session's state to the account. A second call while one is running runs once more after it. */
   async save(state: ProjectState): Promise<void> {
-    // A send that landed before the session caught up writes nothing: the older book would go over what the send just put there.
-    if (this.#state.kind === 'stale') return;
-    if (this.#state.kind === 'conflict') {
-      // The question is not the writer's only business: they can keep writing while it stands, and those words are held in the queue so
-      // the next open does not take the account's version over them. Nothing is written to the account, and the question stays open.
-      if (this.queue !== null && this.stageState !== null) {
-        const held = (await this.#assets?.()) ?? null;
-        const staged = await this.stageState(state, {
-          removed: [...this.#knownDocuments].filter((id) => !state.documents.has(id)),
-          assets: held === null ? undefined : { files: held, removed: [...this.#knownAssets].filter((path) => !(path in held)) },
-        });
-        this.queue.hold(staged);
-      }
-      this.#set({ kind: 'conflict', paths: this.#asked });
-      return;
-    }
+    // A question outranks a save: nothing is written over the other device's version while the writer is being asked. Their newer words
+    // stay in this tab, and answering the question writes the book as it stands then.
+    if (this.#state.kind === 'conflict') return;
     const running = this.#running;
     if (running !== null) {
       this.#again = true;
@@ -224,72 +150,25 @@ export class HostedTarget {
   }
 
   /**
-   * The writer's "send them to my account", for words a save could not deliver because the server was unreachable. The only path from
-   * `unsaved` back to `idle`, and the only place a queue is sent without a question being answered.
-   */
-  async sendQueued(): Promise<HostedSaveState> {
-    if (this.#state.kind !== 'unsaved' || this.queue === null) return this.#state;
-    // Nothing held is nothing to send: a send that went ahead would report a landing and reopen the session for words that never left.
-    if (this.queue.held().length === 0) {
-      this.#set({ kind: 'idle' });
-      return this.#state;
-    }
-    this.#set({ kind: 'saving' });
-    await this.fs.refresh();
-    this.queue.marks();
-    const outcome = await this.queue.replay();
-    this.#settleSend(outcome);
-    return this.#state;
-  }
-
-  /**
-   * The writer chose this device's text. For a conflict this session's own save raised, the state it read is the answer: the adapter
-   * re-reads the other device's index and the whole save runs again against it. For a conflict about the queue there is no state to
-   * save — those words are the held paths — so the queue is sent instead, with the shown paths rebased onto the version just read.
-   *
-   * Their documents are not lost either way: they stay as the version this device's save replaced, which is what the account's version
-   * history is for.
+   * The writer chose this device's text. The state it read is the answer: the adapter re-reads the other device's index and the whole
+   * save runs again against it. Nothing is lost either way — their version stays as the version this device's save replaced, which is
+   * what the account's version history is for.
    */
   async keepMine(state?: ProjectState): Promise<HostedSaveState> {
     if (this.#state.kind !== 'conflict') return this.#state;
     await this.fs.refresh();
-    this.queue?.marks();
-    // The answer to this session's own save is the state it read, saved again on top of the other device's version. A question about
-    // the queue has no state to save — those words are the held paths — so the queue is sent instead.
-    const queueOnly = !this.#fromSave;
-    this.#set({ kind: 'saving' });
-    if (queueOnly) {
-      if (this.queue === null) {
-        // Nothing to send and no state it read: the question stands, because nothing was written over either copy.
-        this.#set({ kind: 'conflict', paths: this.#asked });
-        return this.#state;
-      }
-      this.queue.rebase(this.#asked);
-      this.#settleSend(await this.queue.replay());
-      return this.#state;
-    }
-    this.#asked = [];
-    this.#fromSave = false;
-    // A question from this session's own save always has the state it read beside it, and saving it again on top of the version the
-    // refresh just read is the answer. A conflict that arrived without one (a caller that asked for this answer with nothing to save)
-    // keeps its question rather than sending words nobody staged.
+    // A conflict always has the state its save read beside it; one that arrived without it keeps its question rather than writing a book
+    // nobody staged.
     if (state === undefined) {
       this.#set({ kind: 'conflict', paths: this.#asked });
       return this.#state;
     }
+    // The question is answered, so the state is no longer `conflict`: a save from `conflict` is refused, and this one is the writer's
+    // answer, run against the version the refresh just read.
+    this.#asked = [];
+    this.#set({ kind: 'saving' });
     await this.save(state);
     return this.#state;
-  }
-
-  /**
-   * Asks the writer which text the account should keep, for paths whose words this device holds and the account does not. The words are
-   * in the queue by the time this is called, so "keep mine" sends them and leaving them keeps the account's version.
-   */
-  raiseConflict(paths: readonly string[]): void {
-    if (this.#state.kind === 'stale' || this.#state.kind === 'saving') return;
-    this.#asked = paths;
-    this.#fromSave = false;
-    this.#set({ kind: 'conflict', paths });
   }
 
   async #commit(state: ProjectState): Promise<void> {
@@ -308,26 +187,26 @@ export class HostedTarget {
         assets: held === null ? undefined : { files: held, removed: removedPictures },
       });
     } catch {
-      // The save never got far enough to stage anything, so there is nothing to hold: the state still says the account is behind this
-      // browser, because saying nothing would leave the writer believing it saved.
-      this.#set({ kind: 'unsaved', paths: [] });
+      // The save threw before it could say anything: the account does not have this book, and saying so is all this tab owes — the words
+      // are in front of the writer, and the notice offers to try again.
+      this.#set({ kind: 'unsaved' });
       return;
     }
     if (outcome.kind === 'written') {
-      this.#landed(docs, held, outcome.report);
+      this.#landed(docs, held);
       return;
     }
-    if (outcome.kind === 'failed') {
-      // A save that failed rather than being refused: nothing reached the account, so the words it staged are held and queued instead of
-      // dropped, and the writer is told they are here with the one action that would send them.
-      this.#hold(outcome.changes);
+    if (outcome.kind === 'conflict') {
+      this.#asked = outcome.paths;
+      this.#set({ kind: 'conflict', paths: outcome.paths });
       return;
     }
-    this.#hold(outcome.changes, outcome.kind === 'conflict' ? outcome.paths : undefined, true);
+    // The server did not answer, or the save failed after staging: either way nothing reached the account, and the writer is told.
+    this.#set({ kind: 'unsaved' });
   }
 
-  /** A written save: the account now holds this state, so what this device has seen and what the queue still owes are measured on it. */
-  #landed(docs: ReadonlySet<string>, held: Readonly<Record<string, Uint8Array>> | null, report: WriteReport): void {
+  /** A written save: the account now holds this state, so what this device has seen of the account is what it holds. */
+  #landed(docs: ReadonlySet<string>, held: Readonly<Record<string, Uint8Array>> | null): void {
     this.#asked = [];
     this.#knownDocuments.clear();
     for (const id of docs) this.#knownDocuments.add(id);
@@ -335,42 +214,7 @@ export class HostedTarget {
       this.#knownAssets.clear();
       for (const path of Object.keys(held)) this.#knownAssets.add(path);
     }
-    // This save carried these paths at the state they hold now, so a queued edit of any of them is older than what landed: the files
-    // the report wrote and pruned, and the pictures, which are staged outside the report and so are named here.
-    this.queue?.forget([...report.written, ...report.pruned, ...(held === null ? [] : Object.keys(held))]);
-    this.queue?.marks();
     this.#set({ kind: 'idle' });
-  }
-
-  /** A save or a send the account did not take: the queue keeps the words and the state says which question is open. */
-  #hold(changes: readonly RemoteChange[], paths?: readonly string[], fromSave = false): void {
-    this.queue?.hold(changes);
-    if (paths === undefined) {
-      this.#asked = [];
-      this.#fromSave = false;
-      this.#set({ kind: 'unsaved', paths: changes.map((change) => change.path) });
-      return;
-    }
-    this.#asked = paths;
-    this.#fromSave = fromSave;
-    this.#set({ kind: 'conflict', paths });
-  }
-
-  /** What a send of the held words settled: the account holds them (and the session is behind), a question is up, or nothing moved. */
-  #settleSend(outcome: HostedReplay): void {
-    if (outcome.kind === 'sent') {
-      this.#asked = [];
-      this.queue?.marks();
-      this.#set({ kind: 'stale' });
-      return;
-    }
-    if (outcome.kind === 'conflict') {
-      this.#asked = outcome.paths;
-      this.#fromSave = false;
-      this.#set({ kind: 'conflict', paths: outcome.paths });
-      return;
-    }
-    this.#set({ kind: 'unsaved', paths: this.queue?.held() ?? [] });
   }
 
   #set(next: HostedSaveState): void {
