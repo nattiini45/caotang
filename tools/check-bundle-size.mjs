@@ -339,7 +339,15 @@ export const BUDGET = {
   // ceiling that tree set, again the entry chunk. Named: the GET rule, the mapped-loopback predicate, the no-body head a page answers
   // without a stream, and the guard that ties a chunk to the call still holding its id. The ceiling is the measurement rounded up to
   // the thousand. [delegated 2026-11-23]
-  totalJs: 9_045_000,
+  // A stored key's address (#864), measured on the merge of main aa9e9695, which carries the headers-only payload (#868): 9,046.9 kB,
+  // 1.9 kB over the ceiling that tree set — and that tree measured 9,045.1 kB on its own, already 0.1 kB over it. Named: the page's
+  // side of the address rule (each key's address travelling with the put, the migration naming the address of the record it moves,
+  // and the session that refuses to write a profile list it could not read), plus #868's payload parser and key-state channel beside
+  // it, and one catalogue sentence. Optimisations tried and not available: the vault's own rules are main-process code and are not in
+  // this bundle; the two start-up passes over the profile and MCP records that name origins cannot share one function without a new
+  // module for a saving of a few hundred bytes, and every remaining addition is read before the first paint, so none of it can move to
+  // a lazy chunk. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-24]
+  totalJs: 9_047_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
