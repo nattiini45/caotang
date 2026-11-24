@@ -306,6 +306,26 @@ describe('the queue a hosted project keeps on this device', () => {
     expect(one.calls.filter((call) => call.startsWith('forget'))).toEqual([]);
   });
 
+  it('answers only for the paths the writer was shown, so a path they never saw still asks', async () => {
+    const one = queue(['docs/a.md', 'docs/b.md'], () => ({ kind: 'conflict', paths: ['docs/a.md'] }));
+    const saving = withQueue(one.port, (async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } })) as never);
+    await saving.replayHeld();
+    expect(saving.state()).toEqual({ kind: 'conflict', paths: ['docs/a.md'] });
+    await saving.keepMine();
+    // The shown path is rebased; the second one keeps the version it was held against, so a replay that finds it moved still asks.
+    expect(one.calls).toContain('rebase:docs/a.md');
+    expect(one.calls).not.toContain('rebase:docs/a.md,docs/b.md');
+  });
+
+  it('does not ask for a re-read when the answer did not reach the account', async () => {
+    const one = queue(['docs/a.md'], () => ({ kind: 'conflict', paths: ['docs/a.md'] }));
+    const saving = withQueue(one.port, (async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } })) as never);
+    await saving.replayHeld();
+    // The replay refuses again: the queue is still the newest copy, so the book in front of the writer must not be replaced by it.
+    expect(await saving.keepMine()).toEqual({ kind: 'conflict', paths: ['docs/a.md'] });
+    expect(saving.rereadNeeded).toBe(false);
+  });
+
   it('replays the paths the writer just answered for, measured against the version the refresh read', async () => {
     const one = queue(['docs/a.md'], () => ({ kind: 'conflict', paths: ['docs/a.md'] }));
     const saving = withQueue(one.port, (async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } })) as never);

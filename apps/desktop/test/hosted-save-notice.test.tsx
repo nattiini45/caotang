@@ -37,11 +37,12 @@ function target(outcome: unknown, queue: HostedQueuePort | null = null): HostedT
 }
 
 /** A queue an earlier tab left: it holds `held`, and a replay answers `answer`. */
-function queue(held: readonly string[], answer: HostedReplay = { kind: 'sent', count: 1 }): HostedQueuePort {
+function queue(held: readonly string[], answer: HostedReplay | readonly HostedReplay[] = { kind: 'sent', count: 1 }): HostedQueuePort {
   const paths = new Set(held);
+  const answers = Array.isArray(answer) ? [...answer] : null;
   return {
     hold: () => undefined,
-    replay: async () => answer,
+    replay: async () => (answers === null ? (answer as HostedReplay) : (answers.shift() ?? { kind: 'conflict', paths: [...paths] })),
     forget: (forgotten?: readonly string[]) => {
       if (forgotten === undefined) paths.clear();
       else for (const path of forgotten) paths.delete(path);
@@ -146,7 +147,7 @@ it('leaves it for now, and holds that answer until the writer asks again', async
 it('reads the account again when this device’s text wins over an earlier tab’s queued words', async () => {
   const reopen = vi.fn();
   // The conflict is the one an earlier tab's queue raised at open, so the words are the queue's and not this session's state.
-  const one = target({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }, queue([PATH], { kind: 'conflict', paths: [PATH] }));
+  const one = target({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } }, queue([PATH], [{ kind: 'conflict', paths: [PATH] }, { kind: 'sent', count: 1 }]));
   await render(one, reopen);
   await act(async () => one.replayHeld());
   expect(shown()).toContain('Another device saved these first');

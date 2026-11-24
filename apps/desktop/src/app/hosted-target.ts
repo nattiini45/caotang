@@ -93,6 +93,8 @@ export class HostedTarget {
   readonly #assetsAt = new Map<string, { readonly digest: string; readonly version: number }>();
   /** The conflict the writer is answering came from the queue at open rather than from this session's own save. */
   #fromQueue = false;
+  /** The paths the writer was actually asked about, so their answer covers those and no others. */
+  #asked: readonly string[] = [];
   /** Set by {@link keepMine} when its answer replayed the queue instead of this session's state. */
   #reread = false;
   /**
@@ -193,8 +195,15 @@ export class HostedTarget {
   }
 
   async #commit(state: ProjectState): Promise<void> {
+    // A queue conflict the writer has answered but whose replay did not land: the held words are still the newer ones, so the save that
+    // would write this session's older state sends them again instead.
+    if (this.#fromQueue && this.queue !== null) {
+      this.#settle(await this.queue.replay());
+      return;
+    }
     this.#fromQueue = false;
     this.#reread = false;
+    this.#asked = [];
     this.#set({ kind: 'saving' });
     const docs = new Set(state.documents.keys());
     const removed = [...this.#knownDocuments].filter((id) => !docs.has(id));
@@ -234,6 +243,7 @@ export class HostedTarget {
       // The staged bytes are the answer's to replay: "keep mine" sends this device's pictures on top of the other device's version.
       this.queue?.hold(moved);
       this.#conflict = moved;
+      this.#asked = moved.map((change) => change.path);
       this.#set({ kind: 'conflict', paths: moved.map((change) => change.path) });
       return;
     }
@@ -270,6 +280,7 @@ export class HostedTarget {
     } else {
       this.queue?.hold(outcome.changes);
       this.#conflict = outcome.changes;
+      this.#asked = outcome.paths;
       this.#set({ kind: 'conflict', paths: outcome.paths });
     }
   }
@@ -289,12 +300,17 @@ export class HostedTarget {
     // A picture's conflict is answered by staging its bytes once against the version just read, or the save would ask again for the
     // same reason it asked the first time.
     for (const change of this.#conflict) if (change.path.startsWith('assets/')) this.#answered.add(change.path);
-    this.#reread = this.#fromQueue || state === undefined;
-    if (state === undefined || this.#reread) {
-      // The writer's answer is the whole point of this call: the words the queue holds are now held against the version the refresh
-      // just read, or the replay would refuse them exactly as it did before the writer was asked.
-      if (this.queue !== null) this.queue.rebase(this.queue.held());
-      this.#settle(await (this.queue?.replay() ?? this.#commitHeld()));
+    const fromQueue = this.#fromQueue || state === undefined;
+    this.#reread = false;
+    if (fromQueue) {
+      // The writer's answer covers the paths they were shown, and only those: rebasing the whole queue would silently accept a move on a
+      // path nobody asked about, and the replay must still raise its own question for that one.
+      if (this.queue !== null) this.queue.rebase(this.#asked);
+      const outcome = await (this.queue?.replay() ?? this.#commitHeld());
+      // The book in front of the writer is read again only once the account really holds their words: an answer that did not land leaves
+      // the queue as the newest copy, and reopening would replace it with this session's older state.
+      this.#reread = outcome.kind === 'sent';
+      this.#settle(outcome);
       return this.#state;
     }
     await this.save(state);
@@ -308,6 +324,7 @@ export class HostedTarget {
    */
   raiseConflict(paths: readonly string[]): void {
     this.#fromQueue = true;
+    this.#asked = paths;
     this.#set({ kind: 'conflict', paths });
   }
 
@@ -330,6 +347,7 @@ export class HostedTarget {
     this.queue.marks();
     if (outcome.kind === 'conflict') {
       this.#fromQueue = true;
+      this.#asked = outcome.paths;
       this.#set({ kind: 'conflict', paths: outcome.paths });
     } else this.#set({ kind: 'unsaved' });
     return outcome;
