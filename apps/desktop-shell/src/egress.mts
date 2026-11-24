@@ -21,7 +21,7 @@ import { attachKeys, checkNativeEgress, nativeEgressTargets, pumpResponse, creat
 import { net, ipcMain } from 'electron';
 import type { WebContents } from 'electron';
 
-import type { BoundKeyVault } from '@caotang/gateway/keys/bound-vault';
+import type { OsKeyVault } from '@caotang/gateway/keys/os-vault';
 
 import type { EgressChunk, EgressEnd, EgressError, EgressHead, EgressReply } from './egress-contract.cjs';
 import { fromStudioFrame } from './ipc-guard.mjs';
@@ -58,7 +58,7 @@ function reply<T>(run: () => T | Promise<T>): Promise<EgressReply<T>> {
     }));
 }
 
-export function registerEgressIpc(entryUrl: string, keys: BoundKeyVault): void {
+export function registerEgressIpc(entryUrl: string, keys: OsKeyVault): void {
   let targets: ReturnType<typeof nativeEgressTargets> = new Map();
   /** The addresses the page is configured for, and the two facts about each the page may state: `local` marks a server on this machine. */
   let allowed: { origin: string; local: boolean }[] = [];
@@ -121,16 +121,16 @@ export function registerEgressIpc(entryUrl: string, keys: BoundKeyVault): void {
     sender.on('render-process-gone', () => { stopAll(sender); });
   }
 
-  /** The allowlist as the rule reads it: what the page may reach, and the ids the bindings have put at each address. */
+  /** The allowlist as the rule reads it: what the page may reach, and the ids the vault has stored for each address. */
   function withKeys(): ReturnType<typeof nativeEgressTargets> {
     return nativeEgressTargets(allowed.map((entry) => ({ ...entry, keys: keys.keysFor(entry.origin) })));
   }
 
   /**
    * The request with its handles swapped for the secrets they name, and the secrets in that order for scrubbing. The secrets
-   * are read where a write cannot move them: the vault answers only while each handle's id is bound to this address, and a
-   * replacement hides its id until the new secret is in place. A key the vault does not hold, or that belongs to another
-   * address, is refused rather than sent as a handle, which the provider would report as a bad key.
+   * are read where a write cannot move them: the vault answers only for ids stored at this address, and a key and its address
+   * are replaced in one write. A key the vault does not hold, or that belongs to another address, is refused rather than sent
+   * as a handle, which the provider would report as a bad key.
    */
   async function attach(origin: string, request: { url: string; headers: Readonly<Record<string, string>>; keys: readonly string[] }): Promise<{
     url: string;
@@ -149,7 +149,7 @@ export function registerEgressIpc(entryUrl: string, keys: BoundKeyVault): void {
   ipcMain.handle('net:configure', (event, entries: unknown): Promise<EgressReply<null>> => reply(() => {
     if (!fromStudioFrame(event, entryUrl)) throw new EgressRefusal('invalid');
     // The page says which addresses the app is configured for, and nothing about keys: which key a request may carry is read
-    // from the bindings the main process recorded when the writer stored it (#864). A page that named a key here could point a
+    // from the address the vault stored with it when the writer entered it (#864). A page that named a key here could point a
     // saved key at an address of its own choosing, which is the thing the handle exists to prevent.
     allowed = [];
     for (const entry of Array.isArray(entries) ? entries : []) {

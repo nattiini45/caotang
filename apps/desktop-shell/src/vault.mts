@@ -6,9 +6,10 @@
  * delete, check for, revise and put back one; it may never read one. A secret leaves this file only into a request the port is
  * about to send, to an address the app configured for that key.
  *
- * The vault's own rules — one file of sealed entries, a write read back before it is reported, a replace that can be put back,
- * writes serialised — live in [`@caotang/gateway/keys/os-vault`](../../../packages/gateway/src/keys/os-vault.ts) and are tested
- * there. This file brings the seal, the file and the channels.
+ * The vault's own rules — one file of entries, each the sealed secret and the address it was entered for, committed in one
+ * write and read back before it is reported, a replace that can be put back, writes serialised — live in
+ * [`@caotang/gateway/keys/os-vault`](../../../packages/gateway/src/keys/os-vault.ts) and are tested there. This file brings the
+ * seal, the file and the channels.
  *
  * **Linux without a keyring is not a keychain.** Chromium falls back to a built-in key that is the same on every machine, which
  * is obfuscation rather than encryption; the vault reports itself unavailable there, and the app keeps the browser's WebCrypto
@@ -19,10 +20,8 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { NodeArtifactFs } from '@caotang/artifact-fs-node';
-import type { BoundKeyVault } from '@caotang/gateway/keys/bound-vault';
-import { KeyBoundElsewhere } from '@caotang/gateway/keys/key-bindings';
 import { keyOrigin } from '@caotang/gateway/keys/key-origin';
-import { openOsVault, VAULT_ID, type OsKeyVault } from '@caotang/gateway/keys/os-vault';
+import { KeyBoundElsewhere, openOsVault, VAULT_ID, type OsKeyVault } from '@caotang/gateway/keys/os-vault';
 import { ipcMain, safeStorage } from 'electron';
 
 import { fromStudioFrame } from './ipc-guard.mjs';
@@ -73,7 +72,7 @@ export async function openKeyVault(profile: string, sealer: Sealer = electronSea
 class InvalidCall extends Error {}
 
 /** The channels the page may call, and the answers it gets. Nothing here reads a secret back to the page. */
-export function registerVaultIpc(entryUrl: string, keys: BoundKeyVault): void {
+export function registerVaultIpc(entryUrl: string, keys: KeyVault): void {
   const reply = <T,>(run: () => T | Promise<T>): Promise<VaultReply<T>> => Promise.resolve()
     .then(run)
     .then((value): VaultReply<T> => ({ ok: true, value }), (error: unknown): VaultReply<T> => {
@@ -143,9 +142,9 @@ export function registerVaultIpc(entryUrl: string, keys: BoundKeyVault): void {
     if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
     const id = idOf(rawId);
     const payload = payloadOf(rawPayload);
-    // The address the key was typed for is part of storing it, and it is recorded before the secret: a key that cannot be bound
-    // is a key nothing may send, rather than a key a page could point anywhere (#864). An id already bound elsewhere is refused
-    // here; the writer's own replacement key for a changed endpoint goes through its own call below.
+    // The address the key was typed for is part of storing it: the vault writes the sealed secret and the address in the same
+    // turn, so a key is never stored without one and never has one without its key (#864). An id already stored for another
+    // address is refused here; the writer's own replacement key for an endpoint they moved goes through its own call below.
     await keys.put(id, payload, originOf(rawOrigin));
     return null;
   }));
