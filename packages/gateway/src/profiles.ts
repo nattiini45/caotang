@@ -544,7 +544,11 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
             keyRemoved = true;
           } else {
             written = { apiKey: key, ...(headers === undefined ? {} : { customHeaders: headers }) };
-            await keys.putPayload(id, written, originOf(fields.baseUrl));
+            const origin = originOf(fields.baseUrl);
+            // The key the writer entered again is for the endpoint they just named, so it takes the new address with it. A
+            // key that stays where it was is only ever stored for the address it already belongs to (#864).
+            if (originMoved && patch.apiKey !== undefined) await keys.putPayloadForNewOrigin(id, written, origin);
+            else await keys.putPayload(id, written, origin);
           }
           hasKey = key !== '';
           keyChanged = true;

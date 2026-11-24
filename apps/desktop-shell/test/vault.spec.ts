@@ -40,7 +40,7 @@ test('the page can store a secret and can never read one back', async () => {
       return vault === undefined ? null : Object.keys(vault).sort();
     });
     // There is no `read`, `get` or `reveal` here, and adding one is the change this test exists to refuse.
-    expect(surface).toEqual(['available', 'has', 'headers', 'put', 'putHeaders', 'remove', 'restore', 'revision']);
+    expect(surface).toEqual(['available', 'bind', 'has', 'headers', 'put', 'putHeaders', 'putReplacement', 'remove', 'restore', 'revision']);
 
     // A machine with a keychain stores and reports; a machine without one refuses, and says so rather than pretending.
     const available = await page.evaluate(() => window.caotangDesktop!.vault.available());
@@ -61,8 +61,23 @@ test('the page can store a secret and can never read one back', async () => {
       const afterHeaders = await page.evaluate((id) => window.caotangDesktop!.vault.revision(id), id);
       expect(afterHeaders.ok && afterHeaders.value).not.toBe(beforeHeaders);
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.restore(id), id)).toEqual({ ok: true, value: null });
+      // A key already placed for an address cannot be stored for another one: the page cannot move a saved key (#864).
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'sk-second' }, 'https://other.example'), id))
+        .toEqual({ ok: false, error: 'invalid' });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.remove(id), id)).toEqual({ ok: true, value: null });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.has(id), id)).toEqual({ ok: true, value: false });
+      // Removing frees the id, so the writer's next save may take it for the address they entered for it.
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'sk-third' }, 'https://other.example'), id))
+        .toEqual({ ok: true, value: null });
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.remove(id), id)).toEqual({ ok: true, value: null });
+
+      // A bearer token for a server on this computer belongs to a plain-http loopback address; a public host may not be one.
+      const token = 'mcp:ABCDEFGHJK';
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'local-token' }, 'http://127.0.0.1:3845'), token))
+        .toEqual({ ok: true, value: null });
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'public-token' }, 'http://api.example.com'), 'mcp:LLLLLLLLLL'))
+        .toEqual({ ok: false, error: 'invalid' });
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.remove(id), token)).toEqual({ ok: true, value: null });
     } else {
       expect(await page.evaluate(() => window.caotangDesktop!.vault.put('prv_ABCDEFGHJK', { apiKey: 'sk-live-x' }, 'https://api.example.com')))
         .toEqual({ ok: false, error: 'unavailable' });

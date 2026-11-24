@@ -157,7 +157,7 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
       // An address that does not parse names no origin, so its key is not moved.
     }
   }
-  const keys = await openDesktopKeys(factory, (id) => profileOrigins.get(id));
+  const keys = await openDesktopKeys(factory, profileOrigins);
   const { service, notices: providerNotices } = await ProviderService.open({
     db,
     vault: factory,

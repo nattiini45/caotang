@@ -2,8 +2,8 @@
  * Where the app keeps provider keys and MCP tokens — [desktop.md §The keychain](../../../docs/architecture/desktop.md#the-keychain-404).
  *
  * In the desktop shell the main process holds them in the operating system's keychain, and this module is the page's side of
- * that: a {@link KeyStore} whose every answer is a handle rather than a secret, and the one-time move of the keys an earlier
- * version sealed in this browser's IndexedDB.
+ * that: a {@link KeyStore} whose every answer is a handle rather than a secret, the one-time move of the keys an earlier version
+ * sealed in this browser's IndexedDB, and the address each of those keys (or one the keychain already held) belongs to.
  *
  * **The migration writes, verifies, deletes.** Each sealed key is opened with the store that already holds it, written to the
  * keychain, read back by the main process before it is reported stored, checked once more, and only then removed from the
@@ -28,7 +28,9 @@ import { scopedStoreName } from './storage-scope.js';
 function bridge(): NonNullable<Window['caotangDesktop']>['vault'] | undefined {
   if (typeof window === 'undefined') return undefined;
   const desktop = window.caotangDesktop;
-  return desktop !== undefined && desktop.version >= 4 ? desktop.vault : undefined;
+  // Version 6 added the calls that record which address a key belongs to; an older shell, which records none, would deny every
+  // key, so the browser's vault stays in use there rather than half of this one.
+  return desktop !== undefined && desktop.version >= 6 ? desktop.vault : undefined;
 }
 
 /** What the desktop app has for keys. `none` is a browser, where the WebCrypto vault is the whole answer. */
@@ -55,6 +57,11 @@ function vaultPort(api: NonNullable<ReturnType<typeof bridge>>): NativeKeyVault 
       // The address the key is for is part of storing it: the shell records it, and a page cannot change it afterwards (#864).
       unwrap(await api.put(id, stored, origin));
     },
+    putReplacement: async (id, payload, origin) => {
+      const stored: VaultPayload = { apiKey: payload.apiKey, ...(payload.customHeaders === undefined ? {} : { customHeaders: payload.customHeaders }) };
+      // The writer's own key, entered again for the endpoint they moved: the shell moves the address with it.
+      unwrap(await api.putReplacement(id, stored, origin));
+    },
     putHeaders: async (id, headers) => {
       unwrap(await api.putHeaders(id, headers));
     },
@@ -80,7 +87,7 @@ function vaultPort(api: NonNullable<ReturnType<typeof bridge>>): NativeKeyVault 
  * How many keys moved out of this browser's vault into the keychain. Every entry the old store can open is written, read back
  * and then deleted; an entry it cannot open is counted as left rather than taken.
  */
-async function migrate(factory: IDBFactory, store: KeyStore, originOf: (id: string) => string | undefined): Promise<{ moved: number; failed: boolean }> {
+async function migrate(factory: IDBFactory, store: KeyStore, origins: ReadonlyMap<string, string>): Promise<{ moved: number; failed: boolean }> {
   let moved = 0;
   let failed = false;
   let legacy: KeyStore;
@@ -97,7 +104,7 @@ async function migrate(factory: IDBFactory, store: KeyStore, originOf: (id: stri
       if (payload === undefined) continue;
       // The profile's own address, which the caller supplies: a key that cannot name one is not moved, because a host that
       // cannot bind it could never send it.
-      const origin = originOf(id);
+      const origin = origins.get(id);
       if (origin === undefined) continue;
       await store.putPayload(id, payload, origin);
       if (!await store.has(id)) {
@@ -115,10 +122,28 @@ async function migrate(factory: IDBFactory, store: KeyStore, originOf: (id: stri
 }
 
 /**
- * Opens what the desktop app has for keys, moving this browser's sealed keys into the keychain once. Never throws: a keychain
- * that cannot be used answers `unavailable`, and the caller keeps the browser's vault with a notice that says so.
+ * Records the address of every key an earlier build stored in the keychain before the addresses were kept. Such a key is held
+ * with no binding, so the shell denies every request for it; the profile's own endpoint names where it belongs, and that is the
+ * only address it gets. A key whose profile is gone is not in `origins` and stays denied, which is the safe direction.
  */
-export async function openDesktopKeys(factory: IDBFactory | null, originOf: (id: string) => string | undefined): Promise<DesktopKeys> {
+async function bindStored(api: NonNullable<ReturnType<typeof bridge>>, origins: ReadonlyMap<string, string>): Promise<void> {
+  for (const [id, origin] of origins) {
+    try {
+      unwrap(await api.bind(id, origin));
+    } catch (error) {
+      // A key the shell will not place stays where it is; the caller's notice names the profile, and entering the key again
+      // stores it for the address the profile names now.
+      console.warn(`Caotang could not record the address for the key ${id}.`, errorText(error));
+    }
+  }
+}
+
+/**
+ * Opens what the desktop app has for keys, giving the keychain's older keys their addresses and moving this browser's sealed
+ * keys into it once. Never throws: a keychain that cannot be used answers `unavailable`, and the caller keeps the browser's
+ * vault with a notice that says so.
+ */
+export async function openDesktopKeys(factory: IDBFactory | null, origins: ReadonlyMap<string, string>): Promise<DesktopKeys> {
   const api = bridge();
   if (api === undefined) return { kind: 'none' };
   let available = false;
@@ -128,8 +153,11 @@ export async function openDesktopKeys(factory: IDBFactory | null, originOf: (id:
     console.warn('Caotang could not ask the operating system for a keychain.', errorText(error));
   }
   if (!available) return { kind: 'unavailable' };
+  // Before this browser's keys move in, so an id the keychain already holds is placed first and a moved key binds under the
+  // same rule as one stored now.
+  await bindStored(api, origins);
   const store = nativeKeyStore(vaultPort(api));
   if (factory === null) return { kind: 'keychain', store, moved: 0, failed: false };
-  const { moved, failed } = await migrate(factory, store, originOf);
+  const { moved, failed } = await migrate(factory, store, origins);
   return { kind: 'keychain', store, moved, failed };
 }

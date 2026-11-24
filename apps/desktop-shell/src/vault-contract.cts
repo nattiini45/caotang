@@ -22,6 +22,16 @@ export interface KeyVaultBridge {
   available(): Promise<VaultReply<boolean>>;
   put(id: string, payload: VaultPayload, origin: string): Promise<VaultReply<null>>;
   /**
+   * Stores the key a writer typed again for an endpoint they moved. The address moves with the key, and only this call may
+   * move one: a key the page did not enter for the new address is refused (#864).
+   */
+  putReplacement(id: string, payload: VaultPayload, origin: string): Promise<VaultReply<null>>;
+  /**
+   * Gives a key the vault already holds and that has no address yet the one its profile names. This is the upgrade for keys
+   * stored before the pairings existed, and it never moves a key that already has an address.
+   */
+  bind(id: string, origin: string): Promise<VaultReply<null>>;
+  /**
    * Replaces the extra headers of a stored key and keeps its secret. What an edit that changes only the headers calls, because the
    * key it read is a handle and storing that handle would overwrite the key (#863).
    */

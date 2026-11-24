@@ -12,6 +12,9 @@
     "./loopback": "./src/loopback.ts",
     "./mock": "./src/mock/index.ts",
     "./native-egress": "./src/native-egress.ts",
+    "./keys/bound-vault": "./src/keys/bound-vault.ts",
+    "./keys/key-bindings": "./src/keys/key-bindings.ts",
+    "./keys/key-origin": "./src/keys/key-origin.ts",
     "./keys/os-vault": "./src/keys/os-vault.ts"
   },
   "dependencies": {

@@ -24,6 +24,8 @@ export interface NativeKeyVault {
   available(): Promise<boolean>;
   /** Stores the payload under `id` for one address, and answers only once the host has read it back. */
   put(id: string, payload: KeyPayload, origin: string): Promise<void>;
+  /** Stores the key the writer typed again for an endpoint they changed, and moves the id's address with it. */
+  putReplacement(id: string, payload: KeyPayload, origin: string): Promise<void>;
   /**
    * Replaces the extra header values stored with `id` and keeps the key it already holds. This is what a headers-only edit uses:
    * the page hands back the payload it was given, whose key is the handle, and sealing that handle over the real key would destroy
@@ -57,6 +59,13 @@ export function nativeKeyStore(vault: NativeKeyVault): KeyStore {
         return;
       }
       await vault.put(id, payload, origin);
+    },
+
+    async putPayloadForNewOrigin(id, payload, origin) {
+      // Moving an id to a new address needs a secret the writer typed for it. A handle names the secret already stored, so the
+      // stored key has no new address to move to, and sealing the handle would destroy it.
+      if (payload.apiKey === keyHandle(id)) throw new Error('A key handle is not a secret. Enter the key again for the new endpoint.');
+      await vault.putReplacement(id, payload, origin);
     },
 
     async reveal(id) {

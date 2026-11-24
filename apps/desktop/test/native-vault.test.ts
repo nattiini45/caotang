@@ -16,26 +16,50 @@ const KEY = 'sk-live-0123456789abcdef';
 
 interface Scripted {
   readonly held: Map<string, { apiKey: string; customHeaders?: Record<string, string> }>;
+  /** The address each held key belongs to: what the shell records, and what a request may carry a key to. */
+  readonly bindings: Map<string, string>;
   readonly calls: string[];
 }
 
-/** The main process as the page sees it: the six channels, over a Map, with an answer for whether a keychain exists. */
-function scriptedVault(options: { available?: boolean; failPut?: boolean } = {}): Scripted & { bridge: NonNullable<Window['caotangDesktop']>['vault'] } {
+/**
+ * The main process as the page sees it: the channels, over a Map, with the address rule the shell keeps — a second `put` for
+ * another address is refused, a replacement moves it, and `bind` only fills a missing one.
+ */
+function scriptedVault(options: { available?: boolean; failPut?: boolean; failBind?: boolean } = {}): Scripted & { bridge: NonNullable<Window['caotangDesktop']>['vault'] } {
   const held = new Map<string, { apiKey: string; customHeaders?: Record<string, string> }>();
+  const bindings = new Map<string, string>();
   const calls: string[] = [];
   const ok = <T,>(value: T) => Promise.resolve({ ok: true as const, value });
+  const refused = Promise.resolve({ ok: false as const, error: 'unavailable' as const });
   return {
     held,
+    bindings,
     calls,
     bridge: {
       available: () => { calls.push('available'); return ok(options.available ?? true); },
-      put: (id, payload) => {
+      put: (id, payload, origin) => {
         calls.push(`put:${id}`);
-        if (options.failPut === true) return Promise.resolve({ ok: false as const, error: 'unavailable' as const });
+        if (options.failPut === true) return refused;
+        const bound = bindings.get(id);
+        if (bound !== undefined && bound !== origin) return Promise.resolve({ ok: false as const, error: 'invalid' as const });
+        bindings.set(id, origin);
         held.set(id, payload);
         return ok(null);
       },
-      remove: (id) => { calls.push(`remove:${id}`); held.delete(id); return ok(null); },
+      putReplacement: (id, payload, origin) => {
+        calls.push(`putReplacement:${id}`);
+        if (options.failPut === true) return refused;
+        bindings.set(id, origin);
+        held.set(id, payload);
+        return ok(null);
+      },
+      bind: (id, origin) => {
+        calls.push(`bind:${id}`);
+        if (options.failBind === true) return refused;
+        if (held.has(id) && !bindings.has(id)) bindings.set(id, origin);
+        return ok(null);
+      },
+      remove: (id) => { calls.push(`remove:${id}`); held.delete(id); bindings.delete(id); return ok(null); },
       has: (id) => { calls.push(`has:${id}`); return ok(held.has(id)); },
       revision: (id) => ok(`rev-${held.get(id)?.apiKey ?? 'empty'}`),
       restore: (id) => { calls.push(`restore:${id}`); return ok(null); },
@@ -45,7 +69,7 @@ function scriptedVault(options: { available?: boolean; failPut?: boolean } = {})
 }
 
 function withBridge(vault: NonNullable<Window['caotangDesktop']>['vault'] | undefined): void {
-  vi.stubGlobal('window', vault === undefined ? {} : { caotangDesktop: { version: 4, vault } });
+  vi.stubGlobal('window', vault === undefined ? {} : { caotangDesktop: { version: 6, vault } });
 }
 
 afterEach(() => {
@@ -53,27 +77,29 @@ afterEach(() => {
 });
 
 /** Every key these tests know is for one address; a key whose profile is gone is covered by its own case. */
-const originOfTestKey = (): string => 'https://api.example.com';
+const ORIGIN = 'https://api.example.com';
+const originsOfEveryKey = (): Map<string, string> => new Map([[ID, ORIGIN], ['mcp:one', 'https://mcp.example.com']]);
 
 describe('a page in the desktop app', () => {
   it('has no key store when the machine has no keychain, and says so', async () => {
     withBridge(scriptedVault({ available: false }).bridge);
-    expect(await openDesktopKeys(null, originOfTestKey)).toEqual({ kind: 'unavailable' });
+    expect(await openDesktopKeys(null, originsOfEveryKey())).toEqual({ kind: 'unavailable' });
   });
 
   it('has no key store at all in a browser', async () => {
     withBridge(undefined);
-    expect(await openDesktopKeys(null, originOfTestKey)).toEqual({ kind: 'none' });
+    expect(await openDesktopKeys(null, originsOfEveryKey())).toEqual({ kind: 'none' });
   });
 
   it('answers a stored key with a handle, and never with the key', async () => {
     const scripted = scriptedVault();
     withBridge(scripted.bridge);
-    const opened = await openDesktopKeys(null, originOfTestKey);
+    const opened = await openDesktopKeys(null, originsOfEveryKey());
     expect(opened.kind).toBe('keychain');
     if (opened.kind !== 'keychain') return;
-    await opened.store.put(ID, KEY);
+    await opened.store.put(ID, KEY, ORIGIN);
     expect(scripted.held.get(ID)?.apiKey).toBe(KEY);
+    expect(scripted.bindings.get(ID)).toBe(ORIGIN);
     expect(await opened.store.reveal(ID)).toBe(keyHandle(ID));
     expect(JSON.stringify(await opened.store.revealPayload(ID))).not.toContain(KEY);
     expect(await opened.store.has(ID)).toBe(true);
@@ -84,17 +110,17 @@ describe('a page in the desktop app', () => {
   it('keeps the extra header values the writer typed beside the key', async () => {
     const scripted = scriptedVault();
     withBridge(scripted.bridge);
-    const opened = await openDesktopKeys(null, originOfTestKey);
+    const opened = await openDesktopKeys(null, originsOfEveryKey());
     if (opened.kind !== 'keychain') throw new Error('expected the keychain');
-    await opened.store.putPayload(ID, { apiKey: KEY, customHeaders: { 'x-workspace': 'w1' } });
+    await opened.store.putPayload(ID, { apiKey: KEY, customHeaders: { 'x-workspace': 'w1' } }, ORIGIN);
     expect(await opened.store.revealPayload(ID)).toEqual({ apiKey: keyHandle(ID), customHeaders: { 'x-workspace': 'w1' } });
   });
 
   it('cannot store anything when the keychain refuses, and does not pretend a key is there', async () => {
     withBridge(scriptedVault({ failPut: true }).bridge);
-    const opened = await openDesktopKeys(null, originOfTestKey);
+    const opened = await openDesktopKeys(null, originsOfEveryKey());
     if (opened.kind !== 'keychain') throw new Error('expected the keychain');
-    await expect(opened.store.put(ID, KEY)).rejects.toThrow(/keychain did not answer/u);
+    await expect(opened.store.put(ID, KEY, ORIGIN)).rejects.toThrow(/keychain did not answer/u);
     expect(await opened.store.has(ID)).toBe(false);
   });
 });
@@ -108,7 +134,7 @@ describe('the keys an earlier version sealed in this browser', () => {
 
     const scripted = scriptedVault();
     withBridge(scripted.bridge);
-    const opened = await openDesktopKeys(factory as unknown as IDBFactory, originOfTestKey);
+    const opened = await openDesktopKeys(factory as unknown as IDBFactory, originsOfEveryKey());
     expect(opened).toMatchObject({ kind: 'keychain', moved: 2, failed: false });
     expect(scripted.held.get(ID)?.apiKey).toBe(KEY);
     expect(scripted.held.get('mcp:one')?.apiKey).toBe('fixture-token');
@@ -123,7 +149,7 @@ describe('the keys an earlier version sealed in this browser', () => {
     await legacy.put(ID, KEY);
 
     withBridge(scriptedVault({ failPut: true }).bridge);
-    const opened = await openDesktopKeys(factory as unknown as IDBFactory, originOfTestKey);
+    const opened = await openDesktopKeys(factory as unknown as IDBFactory, originsOfEveryKey());
     expect(opened).toMatchObject({ kind: 'keychain', moved: 0, failed: true });
     // A key that did not arrive is still in the browser, so the next open tries again rather than losing it.
     expect(await legacy.reveal(ID)).toBe(KEY);
@@ -133,7 +159,37 @@ describe('the keys an earlier version sealed in this browser', () => {
     const factory = new MemoryIndexedDb();
     const scripted = scriptedVault();
     withBridge(scripted.bridge);
-    expect(await openDesktopKeys(factory as unknown as IDBFactory, originOfTestKey)).toMatchObject({ kind: 'keychain', moved: 0, failed: false });
+    expect(await openDesktopKeys(factory as unknown as IDBFactory, originsOfEveryKey())).toMatchObject({ kind: 'keychain', moved: 0, failed: false });
     expect(scripted.held.size).toBe(0);
+  });
+});
+
+describe('the keys an earlier version left in the keychain', () => {
+  it('gives a held key the address its own record names, so it is not denied after the upgrade', async () => {
+    const scripted = scriptedVault();
+    // A key the keychain held before the addresses were kept: present, and belonging nowhere.
+    scripted.held.set(ID, { apiKey: KEY });
+    withBridge(scripted.bridge);
+    expect(await openDesktopKeys(null, originsOfEveryKey())).toMatchObject({ kind: 'keychain', moved: 0, failed: false });
+    expect(scripted.bindings.get(ID)).toBe(ORIGIN);
+    expect(scripted.calls).toContain(`bind:${ID}`);
+  });
+
+  it('leaves a key with no record of where it belongs unbound rather than guessing an address', async () => {
+    const scripted = scriptedVault();
+    scripted.held.set('prv_NOBODYHOME', { apiKey: KEY });
+    withBridge(scripted.bridge);
+    await openDesktopKeys(null, new Map([[ID, ORIGIN]]));
+    // Nothing named this id's address, so nothing was recorded for it: a key with no address is refused, not sent anywhere.
+    expect(scripted.bindings.has('prv_NOBODYHOME')).toBe(false);
+    expect(scripted.calls).not.toContain('bind:prv_NOBODYHOME');
+  });
+
+  it('opens anyway when the keychain will not record an address, and says the move failed for a browser key', async () => {
+    const scripted = scriptedVault({ failBind: true });
+    scripted.held.set(ID, { apiKey: KEY });
+    withBridge(scripted.bridge);
+    expect(await openDesktopKeys(null, originsOfEveryKey())).toMatchObject({ kind: 'keychain', moved: 0, failed: false });
+    expect(scripted.bindings.has(ID)).toBe(false);
   });
 });

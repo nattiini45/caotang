@@ -21,6 +21,13 @@ function vault(): NativeKeyVault & { readonly held: Map<string, KeyPayload>; rea
     pairings,
     available: async () => true,
     async put(id, payload, origin) {
+      const bound = pairings.get(id);
+      if (bound !== undefined && bound !== origin) throw new Error(`The key ${id} belongs to ${bound}.`);
+      saved = new Map(held);
+      pairings.set(id, origin);
+      held.set(id, payload);
+    },
+    async putReplacement(id, payload, origin) {
       saved = new Map(held);
       pairings.set(id, origin);
       held.set(id, payload);
