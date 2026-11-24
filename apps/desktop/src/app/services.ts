@@ -5,7 +5,8 @@
  */
 
 import { t } from '@lingui/core/macro';
-import type { WireFactory } from '@caotang/mcp-client';
+import { originOf } from '@caotang/gateway';
+import type { McpSettings, WireFactory } from '@caotang/mcp-client';
 
 /* lingui-set comment="Interpolated values: error" */
 
