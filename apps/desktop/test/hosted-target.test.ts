@@ -328,6 +328,23 @@ describe('the queue a hosted project keeps on this device', () => {
     expect(saving.rereadNeeded).toBe(false);
   });
 
+  it('asks before deleting a picture another device saved over', async () => {
+    let coverVersion = 1;
+    const one = queue([]);
+    const saving = new HostedTarget('p_lighthouse',
+      { versionOf: (path: string) => (path === 'assets/c_2K4Q9WJ1TT.png' ? coverVersion : 0) } as never,
+      (async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } })) as never,
+      one.port);
+    const project = state();
+    saving.attach({ ...session(project), assets: async () => ({}) });
+    await saving.rememberOpened(project.documents.keys(), { 'assets/c_2K4Q9WJ1TT.png': new Uint8Array([1]) });
+    coverVersion = 2;
+    await saving.save(project);
+    // The writer deleted the cover, but the account's version is not the one they deleted: nothing is pruned and they are asked.
+    expect(saving.state()).toEqual({ kind: 'conflict', paths: ['assets/c_2K4Q9WJ1TT.png'] });
+    expect(one.port.held()).toEqual(['assets/c_2K4Q9WJ1TT.png']);
+  });
+
   it('settles a picture it carried, so the account does not offer it as a conflict against itself', async () => {
     const one = queue(['assets/c_2K4Q9WJ1TT.png']);
     const saving = withQueue(one.port, (async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } })) as never);
@@ -377,7 +394,11 @@ describe('the queue a hosted project keeps on this device', () => {
     expect(saves).toEqual([]);
     expect(saving.state()).toEqual({ kind: 'idle' });
     expect(saving.rereadNeeded).toBe(true);
-    // Once it landed, the next save is an ordinary one again.
+    // The account holds words this session has not read, so a save from here writes nothing at all until the book is read again.
+    await saving.save(state());
+    expect(saves).toEqual([]);
+    // Which is what the reopen does: the session catches up and saves are ordinary again.
+    await saving.rememberOpened(state().documents.keys(), {});
     await saving.save(state());
     expect(saves.length).toBe(1);
   });

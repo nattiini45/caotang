@@ -95,6 +95,11 @@ export class HostedTarget {
   #fromQueue = false;
   /** The paths the writer was actually asked about, so their answer covers those and no others. */
   #asked: readonly string[] = [];
+  /**
+   * The account holds words this session's state does not: a replay landed, and the book in front of the writer has not caught up. No
+   * save may write while that is true, or the older state would go over exactly what the replay just sent.
+   */
+  #stale = false;
   /** Set by {@link keepMine} when its answer replayed the queue instead of this session's state. */
   #reread = false;
   /**
@@ -160,6 +165,9 @@ export class HostedTarget {
    * that pruned it would delete work it never saw.
    */
   async rememberOpened(documents: Iterable<string>, assets: Readonly<Record<string, Uint8Array>>): Promise<void> {
+    // A fresh open is the session catching up with the account: whatever a replay put there is in front of the writer now.
+    this.#stale = false;
+    this.#reread = false;
     for (const id of documents) this.#knownDocuments.add(id);
     this.#knownAssets.clear();
     this.#assetsAt.clear();
@@ -195,14 +203,20 @@ export class HostedTarget {
   }
 
   async #commit(state: ProjectState): Promise<void> {
+    // The account holds words this session has not read yet: a save from here would write its older state over them, so the book has to
+    // be read again first — which the notice asks for whenever `rereadNeeded` is set.
+    if (this.#stale) return;
     // A queue conflict the writer has answered but whose replay did not land: the held words are still the newer ones, so the save that
     // would write this session's older state sends them again instead.
     if (this.#fromQueue && this.queue !== null) {
       const outcome = await this.queue.replay();
       // Once the account really holds them, this target is a save target again and the session in front of the writer is the one that
       // has to be read again; a replay that did not land leaves the queue as the newest copy and keeps sending it.
-      this.#reread = outcome.kind === 'sent';
-      if (outcome.kind === 'sent') this.#fromQueue = false;
+      if (outcome.kind === 'sent') {
+        this.#fromQueue = false;
+        this.#stale = true;
+        this.#reread = true;
+      }
       this.#settle(outcome);
       return;
     }
@@ -243,6 +257,20 @@ export class HostedTarget {
       }
       files[path] = bytes;
       digests.set(path, digest);
+    }
+    // A picture this device deleted is only this device's to delete if the account has not moved it since: another device's newer
+    // version is not what the writer removed, and pruning it would drop work they never saw.
+    const movedDeletions: RemoteChange[] = [];
+    for (const path of removedAssets) {
+      const at = this.#assetsAt.get(path);
+      if (at !== undefined && at.version !== this.#versionOf(path)) movedDeletions.push({ path, bytes: null });
+    }
+    if (movedDeletions.length > 0) {
+      this.queue?.hold(movedDeletions);
+      this.#conflict = movedDeletions;
+      this.#asked = movedDeletions.map((change) => change.path);
+      this.#set({ kind: 'conflict', paths: this.#asked });
+      return;
     }
     if (moved.length > 0) {
       // The staged bytes are the answer's to replay: "keep mine" sends this device's pictures on top of the other device's version.
