@@ -7,7 +7,7 @@ The [development shell](../../apps/desktop-shell/README.md) in [epic #16](https:
 
 - Serve the build from the fixed origin `app://caotang/`; keep that origin stable because Chromium keys storage to it. Register the scheme before Electron is ready as standard, secure and Fetch/CORS-capable. Do not bypass CSP. Serve only built assets from a fixed directory, reject other hosts and paths outside that directory, and do not start a loopback server.
 - The renderer is sandboxed and context-isolated, with Node integration off and Chromium web security on. It never navigates to remote pages or creates arbitrary windows. Serve a CSP header alongside the unchanged HTML meta policy: scripts, styles and Workers are same-origin; no inline script, eval, embedded frames, objects or form submission. Deny framing with `frame-ancestors 'none'` in the header, where Chromium enforces it. Renderer data requests remain subject to Chromium's network rules, except the provider calls the main process makes for it (below); the keychain is still to come (#404).
-- The typed preload bridge exposes `window.caotangDesktop.version` and three namespaces under it: `folders` (the folder calls below), `net` (the provider port below) and `os` (the menu commands, the deep link's answer, the Save dialog, the system timezone and the window's tray state). The version is 3, and a page reads it before it reads a namespace, so a page and a shell from different builds each see only what both have. There is no generic Electron or IPC API. Only the studio URL can receive Electron permission for sanitized clipboard writes. Other permission requests, including browser file handles, are denied. Packaged-binary fuses and ASAR integrity belong to #401, not the unpacked smoke launcher.
+- The typed preload bridge exposes `window.caotangDesktop.version` and three namespaces under it: `folders` (the folder calls below), `net` (the provider port below) and `os` (the menu commands, the deep link's answer, the Save dialog, the system timezone and the window's tray state). The version is 6, and a page reads it before it reads a namespace, so a page and a shell from different builds each see only what both have. There is no generic Electron or IPC API. Only the studio URL can receive Electron permission for sanitized clipboard writes. Other permission requests, including browser file handles, are denied. Packaged-binary fuses and ASAR integrity belong to #401, not the unpacked smoke launcher.
 - The renderer is sandboxed and context-isolated, with Node integration off and Chromium web security on. It never navigates to remote pages or creates arbitrary windows. Serve a CSP header alongside the unchanged HTML meta policy: scripts, styles and Workers are same-origin; no inline script, eval, embedded frames, objects or form submission. Deny framing with `frame-ancestors 'none'` in the header, where Chromium enforces it. Renderer data requests remain subject to Chromium's network rules, except the provider and MCP calls the main process makes for it; keys and tokens live in the main process and the page never reads one.
 - The typed preload bridge exposes `window.caotangDesktop.version`, the narrow folder calls below and the provider port below. There is no generic Electron or IPC API. Only the studio URL can receive Electron permission for sanitized clipboard writes. Other permission requests, including browser file handles, are denied. Packaged-binary fuses and ASAR integrity belong to #401, not the unpacked smoke launcher.
 - Each Electron profile allows one instance. It restores the last normal window dimensions and maximized state, not the screen position, so changing monitors does not reopen the window off-screen.
@@ -56,21 +56,24 @@ browser's verdict for a preset the app can use. Nothing above the transport chan
 `fetch`.
 
 **The port is not a general fetcher.** [`native-egress.ts`](../../packages/gateway/src/native-egress.ts) is the rule, with no
-Electron and no network in it: https to an origin the app configured, never this computer, no credentials in the address, a
-method a model call or a listing uses, at most 32 headers and 32 KiB of them, a 24 MiB request body, and a response counted
-as it streams with a 64 MiB cap. A header that names the connection rather than the request (`host`, `content-length`,
+Electron and no network in it: https to an origin the app configured, this computer only through a `local` entry, no
+credentials in the address, a method a model call or a listing uses, at most 32 headers and 32 KiB of them, a 24 MiB request
+body, and a response counted as it streams with a 64 MiB cap. A header that names the connection rather than the request (`host`, `content-length`,
 `transfer-encoding` and the like) is refused, and a header value carrying a line break with it. A redirect is never followed:
 the status goes back to the page, which already refuses a 3xx with what it means, because following one would make the
 allowlist a starting point rather than a rule.
 
 **The origins come from the app, read before each call.** The page publishes the origin of every provider profile from the
 profile store at the moment of a request — not at start-up — so a profile saved a second ago is reachable on its first call.
-A profile that does not parse, is not https, or is this computer contributes nothing; "this computer" is judged by text, so
-`127.0.0.1`, `localhost`, `[::1]`, any `*.localhost` name and an IPv4-mapped spelling such as `[::ffff:127.0.0.1]` are all the
-same machine. The local model presets therefore keep
-the browser's path exactly as they are today: decisions.md keeps loopback out of the native port, so Ollama, LM Studio and
-`llama-server` are called from the page, with the Local Network Access prompt and the product's own CORS advice. A connected
-MCP server's URL joins the list when MCP calls move onto the port with the keychain (#404), not before.
+A profile that does not parse, or that names a plain-http address which is not on this computer, contributes nothing; every
+other profile is an https origin, and one on this computer is a `local` entry, the same kind a local MCP server is. "This
+computer" is judged by text and by the local presets' own rule (`isLocalBase`), so `127.0.0.1`, `localhost`, `[::1]` and an
+IPv4-mapped spelling such as `[::ffff:127.0.0.1]` are the same machine while a `*.localhost` name is not: a local entry is the
+one kind the port may reach over plain http, so it is the narrowest reading. Ollama, LM Studio and `llama-server` are therefore
+called by the main process, which is what lets a server that asks for a key receive it: the keychain holds the key and only the
+main process can read it, so a page request carries `caotang-key:<id>` and the host swaps it for the secret at that loopback
+origin. Those servers keep the browser's Local Network Access prompt and the product's CORS advice only in the browser build.
+A connected MCP server's URL is published the same way, a local server as a `local` entry with its bearer token (#404).
 
 **Streaming.** The reply to a call is its status, its reason and its headers; the body follows as chunks on one channel
 keyed by the request's own id, so a model's server-sent events reach the page as they are written rather than after the
@@ -91,7 +94,7 @@ its way out, and a decryption nobody waits for any more is still handled rather 
 Claimed after the wait, the cancel found no call to stop and was answered as though the call had never been made, and then
 the request went out for a writer who had already stopped it (#869).
 
-**What the page sees.** The preload bridge is version 3 and exposes `net` beside `folders`: `configure`, `start`, `abort`,
+**What the page sees.** The preload bridge is version 6 and exposes `net` beside `folders`: `configure`, `start`, `abort`,
 `onChunk`, `onEnd`. Every call is checked for the studio's own top frame at `app://caotang/`, so a child frame or another
 origin cannot use the port. A request's shape is checked before any socket opens, and `invalid` covers what the network stack would otherwise refuse on
 the way out: a header that names the connection, a body on a `GET`, a method the app never sends. A call stopped before it
@@ -213,9 +216,10 @@ one file in the app profile, `native-key-vault.json`, holding one sealed entry p
 ([`os-vault.ts`](../../packages/gateway/src/keys/os-vault.ts) is the vault, and the rule it keeps).
 
 **The page may store, check, revise, restore and remove; it may never read.** The preload's `vault` channels are
-`available`, `put`, `remove`, `has`, `revision`, `restore` and `headers` — there is no `read`, `get` or `reveal` among them, and
-the shell suite asserts that list. A key is written by the form that took it; from then on the page learns only whether one is
-there, which revision it is at, and the extra header values the writer typed beside it, never the key itself.
+`available`, `put`, `putHeaders`, `remove`, `has`, `revision`, `restore`, `headers` and `keyState` — there is no `read`, `get` or
+`reveal` among them, and the shell suite asserts that list. A key is written by the form that took it; from then on the page learns
+only whether one is there, whether the entry holds a key at all, which revision it is at, and the extra header values the writer
+typed beside it, never the key itself.
 
 **A key reaches a request as a handle that becomes a secret.** The page's key store answers `reveal` with
 `caotang-key:<id>`, and the adapter that knows a provider's protocol writes that handle where the key would go — in
@@ -223,6 +227,15 @@ there, which revision it is at, and the extra header values the writer typed bes
 the handle is swapped for the secret from the keychain, but only for an address that key was configured for: a handle at any
 other origin is refused as `denied` rather than sent. So a script in the page can use a stored key while the app is open, and
 cannot take one away — which is the difference the browser vault cannot offer (provider-gateway §7).
+
+**A key may be empty when the profile authenticates with its headers alone.** The generic endpoint preset reaches a service that
+wants its own headers rather than a bearer key, and a profile saved that way reaches the vault as `{ apiKey: '', customHeaders }`
+with at least one header beside the empty key. The vault accepts that payload, because a profile with no bearer key is still a
+profile; it refuses one that holds neither a key nor a header, since there would be nothing to seal. The empty key stays an empty
+key: `keyState` answers whether an id holds nothing, a key, or headers alone, and `reveal` and `revealPayload` answer `''` for the
+last rather than a handle, because a handle names a secret and there is none — so a call made from such a profile carries its own
+headers and no key at all. That is the shape the browser's WebCrypto vault already stores, so a headers-only profile reads the same
+in both stores (#868).
 
 **A provider that echoes a key cannot put one in the log.** The secret is attached in the main process, so the page's own
 redaction, which scrubs the values it sent and it sent a handle, would not see it. The answer's bytes are scrubbed of every
@@ -239,19 +252,21 @@ works with a store that cannot read: the undo is the vault's, not the page's.
 **Migration writes, verifies, deletes.** On first open with a keychain, each key an earlier build sealed in this browser's
 IndexedDB vault is opened by the store that already holds it, written to the keychain, read back by the main process before it
 is reported stored, checked once more, and only then removed from the browser. An entry the browser's store cannot open is left
-where it is. A machine where the move stops part-way keeps every key it did not move, and the app says so rather than opening
-as though nothing were missing.
+where it is. An entry that holds only headers moves like any other key, under its own id, so the profile whose origin it belongs to
+keeps it. A machine where the move stops part-way keeps every key it did not move, and the app says so rather than opening as
+though nothing were missing.
 
 **Without a keychain the browser's vault stays, and says so.** `safeStorage` on Linux falls back to a built-in key that is the
 same on every machine, which is obfuscation rather than encryption; the vault treats `basic_text` and `unknown` backends as no
 keychain at all. There, the WebCrypto vault of provider-gateway §7 keeps the keys, and Settings says the keys are in this
 browser rather than in the computer's keychain, as does the notice at start-up.
 
-**An MCP server on this computer is the one local address the port reaches.** A bearer token held by the main process cannot be
-attached by the page, so MCP HTTP goes through the same port; a server whose address is a loopback literal is the one entry
-allowed plain http
-([native-egress.ts](../../packages/gateway/src/native-egress.ts)). A provider profile is never such an entry, so a local model
-server keeps the browser's path exactly as it was.
+**A server on this computer is a local entry, and a key it asks for arrives.** A credential held by the main process cannot be
+attached by the page, so MCP HTTP goes through the same port, and so does a provider profile whose address is a loopback literal
+([native-egress.ts](../../packages/gateway/src/native-egress.ts)). Such an entry is the only kind allowed plain http, and the
+port refuses plain http to any other address even when an entry says `local`; a profile elsewhere is published as an https
+origin. Without this, a local model server that asks for a key was sent `caotang-key:<id>` as its bearer token and answered an
+authentication failure (#867).
 
 **The two calls answer different shapes.** On the pinned Electron, `safeStorage.encryptStringAsync` resolves the sealed bytes and
 `decryptStringAsync` resolves a record whose `result` is the plain text; a host that unwraps one like the other stores a value its

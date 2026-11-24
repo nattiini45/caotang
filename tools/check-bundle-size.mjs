@@ -339,14 +339,13 @@ export const BUDGET = {
   // ceiling that tree set, again the entry chunk. Named: the GET rule, the mapped-loopback predicate, the no-body head a page answers
   // without a stream, and the guard that ties a chunk to the call still holding its id. The ceiling is the measurement rounded up to
   // the thousand. [delegated 2026-11-23]
-  // The pixel-grid ornament rule (#644), measured on CI for the merge of main that carries the coordinated-save barrier and the folder
-  // reload (#865, #866) and redaction (#877): 9,045.1 kB, which the ceiling those merges inherited had already lost the room for —
-  // this branch's own build measures 9,044,982 bytes locally for the same 263 chunks with the same names and sizes as CI's, so it
-  // added no JavaScript and the last of the room went to main's merges. Optimisations tried: none applies, the change is one
-  // stylesheet rule and the narrow scoping kept it out of the narrow layout's own sheet; what the ceiling gains here is the
-  // build-to-build variance of about 150 bytes that a ceiling 18 bytes above its measurement leaves no room for. The ceiling is the
-  // measurement rounded up to the thousand. [delegated 2026-11-24]
-  totalJs: 9_046_000,
+  // The loopback provider target (#867), measured on CI at 9,045.0 kB: the target list moved into native-egress.ts with the
+  // `local` flag a profile on this computer now carries, and the setup form draws one paragraph fewer in the desktop build.
+  // Optimisations checked: the list cannot be a lazy chunk, because `openAppServices` publishes it at start-up and reads it again
+  // before every call, so a dynamic import would only trade these bytes for a chunk that must load before the first request; the
+  // loopback test reuses the gateway's `isLocalBase` rather than a second predicate; nothing is duplicated and no dependency,
+  // stylesheet or chunk was added. The ceiling is the measurement plus about 1%, as CONTRIBUTING's rule sets. [bundle-raise rule 2026-11-24]
+  totalJs: 9_136_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
@@ -413,13 +412,13 @@ export const BUDGET = {
   // Navigation (#474): 34,502 bytes measured (+1,600 on main's 32,902: Modern's chunk +6.8 kB raw and its stylesheet +1.0 kB raw; Classic's
   // first load itself grew 1,309 bytes gzip for new-menu.ts in the entry). The allowance is that plus about 1%. Raising an owner-recorded
   // allowance: see the PR.
-  // The storage banner's own row (#735) and the merges since (#580/#578's rule, then #865/#866/#877): 36,144 bytes measured, and the
-  // ornament rule (#644) takes it to 36,499 with 274 bytes of stylesheet (the media query that puts a centred capsule's inline start on
-  // the pixel grid; no JS moves, and the narrow layout keeps its own placement). Optimisations tried and kept: the rule is one media
-  // query over the existing selector for the existing element, its four declarations are each load-bearing (the rounded start, the
-  // released end, the zeroed margin and the rounded half width), and the narrow scoping is what keeps it out of the narrow sheet, so
-  // nothing could be dropped or moved to an on-use chunk. The allowance is the measurement rounded up to the thousand, because a
-  // ceiling 1 byte above its measurement fails on the next machine.
+  // The storage banner's own row (#735) and the merges since (#580/#578's rule, then #865/#866/#877 and #867's loopback target):
+  // 36,144 bytes measured, and the ornament rule (#644) takes it to 36,502 on the merge with main 24a3878c, with 274 bytes of
+  // stylesheet (the media query that puts a centred capsule's inline start on the pixel grid; no JS moves, and the narrow layout keeps
+  // its own placement). Optimisations tried and kept: the rule is one media query over the existing selector for the existing element,
+  // its four declarations are each load-bearing (the rounded start, the released end, the zeroed margin and the rounded half width), and
+  // the narrow scoping is what keeps it out of the narrow sheet, so nothing could be dropped or moved to an on-use chunk. The allowance
+  // is the measurement rounded up to the thousand, because a ceiling 2 bytes above its measurement fails on the next machine.
   modernFirstLoadDelta: 37_000,
 };
 

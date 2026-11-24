@@ -40,7 +40,7 @@ test('the page can store a secret and can never read one back', async () => {
       return vault === undefined ? null : Object.keys(vault).sort();
     });
     // There is no `read`, `get` or `reveal` here, and adding one is the change this test exists to refuse.
-    expect(surface).toEqual(['available', 'has', 'headers', 'put', 'putHeaders', 'remove', 'restore', 'revision']);
+    expect(surface).toEqual(['available', 'has', 'headers', 'keyState', 'put', 'putHeaders', 'remove', 'restore', 'revision']);
 
     // A machine with a keychain stores and reports; a machine without one refuses, and says so rather than pretending.
     const available = await page.evaluate(() => window.caotangDesktop!.vault.available());
@@ -50,6 +50,7 @@ test('the page can store a secret and can never read one back', async () => {
       const put = await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'sk-live-0123456789abcdef' }), id);
       expect(put).toEqual({ ok: true, value: null });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.has(id), id)).toEqual({ ok: true, value: true });
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.keyState(id), id)).toEqual({ ok: true, value: 'key' });
       const revision = await page.evaluate((id) => window.caotangDesktop!.vault.revision(id), id);
       expect(revision.ok && revision.value).toMatch(/^[0-9a-f]{64}$/);
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.headers(id), id)).toEqual({ ok: true, value: {} });
@@ -63,6 +64,14 @@ test('the page can store a secret and can never read one back', async () => {
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.restore(id), id)).toEqual({ ok: true, value: null });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.remove(id), id)).toEqual({ ok: true, value: null });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.has(id), id)).toEqual({ ok: true, value: false });
+      // A profile that authenticates with its own headers alone stores an empty key (#868): the payload is accepted, and the
+      // entry says so, so the page can answer it with `''` instead of a handle that would name a secret there is none of.
+      const headersOnly = 'prv_HEADERSONE';
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: '', customHeaders: { 'x-team': 'made-up' } }), headersOnly))
+        .toEqual({ ok: true, value: null });
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.keyState(id), headersOnly)).toEqual({ ok: true, value: 'empty' });
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: '' }), headersOnly)).toEqual({ ok: false, error: 'invalid' });
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.remove(id), headersOnly)).toEqual({ ok: true, value: null });
     } else {
       expect(await page.evaluate(() => window.caotangDesktop!.vault.put('prv_ABCDEFGHJK', { apiKey: 'sk-live-x' })))
         .toEqual({ ok: false, error: 'unavailable' });
