@@ -20,6 +20,32 @@ export type HostedSaveState =
   /** Another device committed first: these documents moved, and nothing was written over them. */
   | { readonly kind: 'conflict'; readonly paths: readonly string[] };
 
+/**
+ * What happened to a replay of the held queue: the server took every path, another device moved one of them first, or the
+ * server did not answer at all.
+ */
+export type HostedReplay =
+  | { readonly kind: 'sent'; readonly count: number }
+  | { readonly kind: 'conflict'; readonly paths: readonly string[] }
+  | { readonly kind: 'unavailable' };
+
+/**
+ * The queue and the marks, as the target uses them. Built by the module that holds the adapter, so this one imports the package
+ * only as types and `caotang.app`'s graph never reaches it.
+ */
+export interface HostedQueuePort {
+  /** Holds what a save could not deliver, so a reload sends it instead of losing it. */
+  hold(changes: readonly RemoteChange[]): void;
+  /** Sends everything held, in one commit. A refusal changes nothing and keeps the queue. */
+  replay(): Promise<HostedReplay>;
+  /** Forgets everything held, once the account has it or a whole save has superseded it. */
+  forget(): void;
+  /** The paths held now. */
+  held(): readonly string[];
+  /** Where the marks go after a commit or a refresh, so a replayed server state is refused on the next open. */
+  marks(): void;
+}
+
 /** The session as this target uses it: the state to save, and the browser save that says when this browser's copy is current. */
 export interface HostedSaveSession {
   readonly state: ProjectState;
@@ -42,7 +68,21 @@ export class HostedTarget {
     readonly fs: EncryptedRemoteArtifactFs,
     /** The whole-project save, bound by the module that holds the adapter so this one imports no package at run time. */
     readonly saveState: (state: ProjectState) => Promise<HostedSaveOutcome>,
-  ) {}
+    readonly queue: HostedQueuePort | null = null,
+  ) {
+    // Whether this target met a queue when it was built: the writer's words from an earlier tab, waiting for the server.
+    this.#heldAtBuild = queue?.held() ?? [];
+  }
+
+  /**
+   * A conflict answered from here means the account's own version is what the book now shows, so the session has to read the
+   * account again once the writer's text wins.
+   */
+  get fromHeldQueue(): boolean {
+    return this.#heldAtBuild.length > 0;
+  }
+
+  readonly #heldAtBuild: readonly string[];
 
   state(): HostedSaveState {
     return this.#state;
@@ -79,10 +119,15 @@ export class HostedTarget {
       const outcome = await this.saveState(state);
       if (outcome.kind === 'written') {
         this.#conflict = [];
+        // A whole save carries every path this device holds, so anything the queue was keeping is older than what just landed.
+        this.queue?.forget();
+        this.queue?.marks();
         this.#set({ kind: 'idle' });
       } else if (outcome.kind === 'unavailable') {
+        this.queue?.hold(outcome.changes);
         this.#set({ kind: 'unsaved' });
       } else {
+        this.queue?.hold(outcome.changes);
         this.#conflict = outcome.changes;
         this.#set({ kind: 'conflict', paths: outcome.paths });
       }
@@ -105,14 +150,45 @@ export class HostedTarget {
    */
   async keepMine(): Promise<HostedSaveState> {
     await this.fs.refresh();
+    this.#settle(await (this.queue?.replay() ?? this.#commitHeld()));
+    return this.#state;
+  }
+
+  /**
+   * Sends what an earlier tab could not, before the project is read. A replay that lands means the account now holds the
+   * writer's words and the session that follows reads them; one that does not leaves the queue exactly as it was.
+   */
+  async replayHeld(): Promise<HostedReplay | null> {
+    if (this.queue === null || this.queue.held().length === 0) return null;
+    const outcome = await this.queue.replay();
+    if (outcome.kind === 'sent') this.#settle(outcome);
+    else if (outcome.kind === 'conflict') this.#set({ kind: 'conflict', paths: outcome.paths });
+    else this.#set({ kind: 'unsaved' });
+    return outcome;
+  }
+
+  /** The answer to a conflict when the target holds no queue (a session opened without the adapter's queue). */
+  async #commitHeld(): Promise<HostedReplay> {
     try {
-      await this.fs.commitChanges(this.#conflict);
+      const changes = this.#conflict;
+      await this.fs.commitChanges(changes);
+      return { kind: 'sent', count: changes.length };
+    } catch {
+      return { kind: 'unavailable' };
+    }
+  }
+
+  #settle(outcome: HostedReplay): void {
+    if (outcome.kind === 'sent') {
+      this.queue?.forget();
+      this.queue?.marks();
       this.#conflict = [];
       this.#set({ kind: 'idle' });
-    } catch {
+    } else if (outcome.kind === 'conflict') {
+      this.#set({ kind: 'conflict', paths: outcome.paths });
+    } else {
       this.#set({ kind: 'unsaved' });
     }
-    return this.#state;
   }
 
   #set(next: HostedSaveState): void {

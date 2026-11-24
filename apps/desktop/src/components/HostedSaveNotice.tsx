@@ -39,7 +39,14 @@ function nameOf(path: string, session: ProjectSession): string {
   return path;
 }
 
-export function HostedSaveNotice({ session }: { readonly session: ProjectSession }): ReactNode {
+export function HostedSaveNotice({
+  session,
+  onReopenAccount,
+}: {
+  readonly session: ProjectSession;
+  /** Reads the account again after this device's text won over another device's: only a conflict met at open needs it. */
+  readonly onReopenAccount?: (() => void) | undefined;
+}): ReactNode {
   const target = hostedTargetFor(session.projectId);
   const subscribe = useCallback((listener: () => void) => (target === null ? NOTHING : target.subscribe(listener)), [target]);
   const state = useSyncExternalStore(subscribe, () => target?.state() ?? IDLE);
@@ -71,7 +78,16 @@ export function HostedSaveNotice({ session }: { readonly session: ProjectSession
     open
     title={t`Another device saved these first`}
     choices={[
-      { label: t`Keep this device’s text`, onChoose: () => void target.keepMine() },
+      {
+        label: t`Keep this device’s text`,
+        onChoose: () => {
+          void target.keepMine().then(() => {
+            // A conflict met while an earlier tab's queue was replayed: the account now holds these words, and the book in front
+            // of the writer still shows the version this device read first.
+            if (target.fromHeldQueue) onReopenAccount?.();
+          });
+        },
+      },
       { label: t`Leave it for now`, onChoose: () => setPutOff(key) },
     ]}
     onCancel={() => setPutOff(key)}

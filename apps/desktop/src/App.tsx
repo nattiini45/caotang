@@ -122,6 +122,34 @@ export function App(): ReactNode {
     });
   };
 
+  /**
+   * Reads the account's version of the open project again, after the writer kept this device's text over another device's: the
+   * replay wrote their words to the account, so the book in front of them is read from it rather than left on the version this
+   * device read before the answer.
+   */
+  const reopenAccount = (): void => {
+    const source = hostedProject();
+    if (source === null) return;
+    serial.current += 1;
+    const token = serial.current;
+    void openInTurn(async () => {
+      const previous = current.current;
+      current.current = null;
+      setNotice(null);
+      setSaveToFolder(null);
+      setSession(null);
+      setStartIntent(null);
+      if (previous !== null) await previous.closeSafely().catch(() => undefined);
+      const opened = await openHostedProject(boot.kind === 'ready' ? boot.store : store, source);
+      if (token !== serial.current) return;
+      hostedOpen.current = opened.session.projectId;
+      show(opened);
+    }).catch((error: unknown) => {
+      if (token !== serial.current) return;
+      setNotice(couldNotOpen(error));
+    });
+  };
+
   /** Ends a session. A writing session that could not be recorded is said, not dropped in silence. */
   const closeSession = (leaving: ProjectSession): void => {
     void leaving.closeSafely().catch((error: unknown) => {
@@ -176,7 +204,7 @@ export function App(): ReactNode {
       show(opened);
     }).catch((error: unknown) => {
       if (token !== serial.current) return;
-      setNotice(t`The project could not be opened: ${{ error: error instanceof Error ? error.message : String(error) }}`);
+      setNotice(couldNotOpen(error));
     });
     // The store is ready once, and the handed project is followed: `handed` is the revision this effect answers to.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -217,11 +245,17 @@ export function App(): ReactNode {
         startIntent={startIntent}
         saveToFolder={saveToFolder}
         onReopenFolder={reopenFolder}
+        onReopenAccount={reopenAccount}
       />
     );
   }
   const notices = [...services.notices, ...(shownNotice === null ? [] : [shownNotice])];
   return <Home store={store} services={services} onOpened={show} onRunDemo={runDemo} demoOpening={demoState.kind === 'opening'} notices={notices} />;
+}
+
+/** The sentence a hosted opening that failed is said with: one place, so its translator comment stays one place too. */
+function couldNotOpen(error: unknown): string {
+  return t`The project could not be opened: ${{ error: error instanceof Error ? error.message : String(error) }}`;
 }
 
 /**

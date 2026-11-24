@@ -160,6 +160,11 @@ export interface WorkspaceProps {
   readonly saveToFolder?: DirectoryHandleLike | null;
   /** Reloads the open project folder's own version, after the folder changed outside Caotang (App `reopenFolder`). */
   readonly onReopenFolder: (folder: DirectoryHandleLike) => void;
+  /**
+   * Reads a hosted project's account version again, after the writer kept this device's text over another device's (App
+   * `reopenAccount`). Absent for a project that lives in this browser or a folder.
+   */
+  readonly onReopenAccount?: () => void;
 }
 
 export function Workspace({
@@ -171,6 +176,7 @@ export function Workspace({
   startIntent = null,
   saveToFolder: pendingFolder = null,
   onReopenFolder,
+  onReopenAccount,
 }: WorkspaceProps): ReactNode {
   useSession(session);
   const { state, view } = session;
@@ -1202,7 +1208,7 @@ export function Workspace({
           </div>
         ) : null}
         {/* The account's copy of a hosted project: a save it did not take, or the question another device's save asks. */}
-        <HostedSaveNotice session={session} />
+        <HostedSaveNotice session={session} onReopenAccount={onReopenAccount} />
         {message !== null || folderSaving ? (
           <div className={`status-line is-${message?.tone ?? 'info'}`} role={message?.tone === 'error' ? 'alert' : 'status'} data-state={folderSaving ? 'saving' : undefined}>
             <span>

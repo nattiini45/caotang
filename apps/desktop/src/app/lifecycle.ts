@@ -1264,6 +1264,9 @@ export async function openHostedProject(
   openTarget: (source: HostedProjectSource) => Promise<HostedTarget> = openHostedTarget,
 ): Promise<Opened> {
   const target = await openTarget(source);
+  // Words an earlier tab could not deliver go first, so the project that opens is the one the writer wrote: a replay that lands
+  // leaves the account holding them, and one another device got to first leaves the queue where it is and asks in the workspace.
+  await target.replayHeld();
   const loaded = await readProject(target.fs);
   // The project's pictures travel with it: the copy this browser keeps is what a later save is measured on, so a picture left
   // behind here would be a picture the next save prunes from the account.

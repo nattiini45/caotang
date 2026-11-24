@@ -14,7 +14,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import type { ProjectSession } from '../src/app/session.js';
 import { HostedSaveNotice } from '../src/components/HostedSaveNotice.js';
-import { forgetHostedTarget, HostedTarget, rememberHostedTarget } from '../src/app/hosted-target.js';
+import { forgetHostedTarget, HostedTarget, rememberHostedTarget, type HostedQueuePort } from '../src/app/hosted-target.js';
 import { activateEnglish } from '../src/i18n/runtime.js';
 
 const DOC = 'n_LIGHTHOUSE';
@@ -26,19 +26,36 @@ let state: ProjectState;
 let session: ProjectSession;
 let committed: unknown[][];
 
-function target(outcome: unknown): HostedTarget {
+function target(outcome: unknown, queue: HostedQueuePort | null = null): HostedTarget {
   const fs = {
     refresh: async () => undefined,
     commitChanges: async (changes: unknown[]) => {
       committed.push(changes);
     },
   };
-  return new HostedTarget('p_lighthouse', fs as never, (async () => outcome) as never);
+  return new HostedTarget('p_lighthouse', fs as never, (async () => outcome) as never, queue);
 }
 
-async function render(one: HostedTarget): Promise<void> {
+/** A queue an earlier tab left: it holds `held`, and a replay answers `answer`. */
+function queue(held: readonly string[], answer = { kind: 'sent' as const, count: 1 }): HostedQueuePort {
+  const paths = new Set(held);
+  return {
+    hold: () => undefined,
+    replay: async () => {
+      if (answer.kind === 'sent') paths.clear();
+      return answer;
+    },
+    forget: () => paths.clear(),
+    held: () => [...paths],
+    marks: () => undefined,
+  };
+}
+
+async function render(one: HostedTarget, onReopenAccount?: () => void): Promise<void> {
   rememberHostedTarget(one);
-  await act(async () => root.render(<I18nProvider i18n={i18n}><HostedSaveNotice session={session} /></I18nProvider>));
+  await act(async () => root.render(
+    <I18nProvider i18n={i18n}><HostedSaveNotice session={session} onReopenAccount={onReopenAccount} /></I18nProvider>,
+  ));
 }
 
 beforeEach(() => {
@@ -118,4 +135,28 @@ it('leaves it for now, and holds that answer until the writer asks again', async
   expect(committed).toEqual([]);
   await act(async () => button('Ask me again').click());
   expect(shown()).toContain('Another device saved these first');
+});
+
+it('reads the account again when this device’s text wins over an earlier tab’s queued words', async () => {
+  const reopen = vi.fn();
+  const one = target(
+    { kind: 'conflict', paths: [PATH], changes: [{ path: PATH, kind: 'modified' }] },
+    queue([PATH]),
+  );
+  await render(one, reopen);
+  await act(async () => one.save(state));
+  expect(shown()).toContain('Another device saved these first');
+  await act(async () => button('Keep this device’s text').click());
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  expect(reopen).toHaveBeenCalledOnce();
+});
+
+it('leaves the open book alone when this session’s own save conflicted, because its text is what was read', async () => {
+  const reopen = vi.fn();
+  const one = target({ kind: 'conflict', paths: [PATH], changes: [{ path: PATH, kind: 'modified' }] });
+  await render(one, reopen);
+  await act(async () => one.save(state));
+  await act(async () => button('Keep this device’s text').click());
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  expect(reopen).not.toHaveBeenCalled();
 });
