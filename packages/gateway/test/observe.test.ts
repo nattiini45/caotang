@@ -74,7 +74,7 @@ describe('private, route-bound requests', () => {
     expect(route).toBeDefined();
     if (route === undefined) return;
     const credentialRevision = await h.gateway.credentialRevision(profile.id);
-    const replace = () => h.keys.putPayload(profile.id, { apiKey: KEY, customHeaders: { 'x-tenant': 'different-tenant' } });
+    const replace = () => h.keys.putPayload(profile.id, { apiKey: KEY, customHeaders: { 'x-tenant': 'different-tenant' } }, 'https://api.example.com');
     const events: GatewayTraceEvent[] = [];
     const gateway = createGateway({
       profiles: h.profiles, fetch: h.net.fn, clock: h.clock, observe: (event) => events.push(event),

@@ -34,10 +34,11 @@ class EgressRefusal extends Error {
 type Stream = { readonly controller: AbortController; readonly sender: WebContents };
 
 /**
- * What the port needs of the keychain: the secret one handle names, and nothing else. Reading it is asynchronous — the
- * operating system opens the seal — and that await is the one a cancellation has to survive.
+ * What the port needs of the keychain: the ids it has stored for one address, and the secrets they name for a request to that
+ * address. Reading is asynchronous — the operating system opens the seal — and that await is the one a cancellation has to
+ * survive.
  */
-export type KeyReader = Pick<KeyVault, 'read'>;
+export type KeyReader = Pick<KeyVault, 'keysFor' | 'readFor'>;
 
 /** A request with its handles swapped for the secrets they name, and those secrets in the order to scrub them. */
 interface AttachedRequest {
@@ -72,6 +73,8 @@ function reply<T>(run: () => T | Promise<T>): Promise<EgressReply<T>> {
 
 export function registerEgressIpc(entryUrl: string, vault: KeyReader): void {
   let targets: ReturnType<typeof nativeEgressTargets> = new Map();
+  /** The addresses the page is configured for, and the two facts about each the page may state: `local` marks a server on this machine. */
+  let allowed: { origin: string; local: boolean }[] = [];
   const streams = new Map<string, Stream>();
   const watched = new Set<number>();
 
@@ -131,27 +134,40 @@ export function registerEgressIpc(entryUrl: string, vault: KeyReader): void {
     sender.on('render-process-gone', () => { stopAll(sender); });
   }
 
+  /** The allowlist as the rule reads it: what the page may reach, and the ids the vault has stored for each address. */
+  function withKeys(): ReturnType<typeof nativeEgressTargets> {
+    return nativeEgressTargets(allowed.map((entry) => ({ ...entry, keys: vault.keysFor(entry.origin) })));
+  }
+
   /**
-   * The request with its handles swapped for the secrets they name, and the secrets in that order for scrubbing. A configured
-   * key the vault does not hold is refused rather than sent as a handle, which the provider would report as a bad key.
+   * The request with its handles swapped for the secrets they name, and the secrets in that order for scrubbing. The secrets
+   * are read where a write cannot move them: the vault answers only for ids it stored for this address, and a key and its
+   * address are replaced in one write. A key the vault does not hold, or that belongs to another address, is refused rather
+   * than sent as a handle, which the provider would report as a bad key.
    */
   async function attach(request: { url: string; headers: Readonly<Record<string, string>>; keys: readonly string[] }): Promise<AttachedRequest> {
     if (request.keys.length === 0) return { url: request.url, headers: { ...request.headers }, secrets: [] };
+    const held = await vault.readFor(new URL(request.url).origin, request.keys);
+    if (held === undefined) throw new EgressRefusal('denied');
     const secrets = new Map<string, string>();
-    for (const id of request.keys) {
-      const payload = await vault.read(id);
-      // A key the app configured but the keychain does not hold is not a key: refusing beats sending the handle, which the
-      // provider would report as a bad key and the writer would read as a wrong key rather than a missing one.
-      if (payload === undefined) throw new EgressRefusal('denied');
-      secrets.set(id, payload.apiKey);
-    }
+    for (const [id, payload] of held) secrets.set(id, payload.apiKey);
     const attached = attachKeys(request, secrets);
     return { url: attached.url, headers: attached.headers, secrets: attached.values };
   }
 
   ipcMain.handle('net:configure', (event, entries: unknown): Promise<EgressReply<null>> => reply(() => {
     if (!fromStudioFrame(event, entryUrl)) throw new EgressRefusal('invalid');
-    targets = nativeEgressTargets(Array.isArray(entries) ? entries : []);
+    // The page says which addresses the app is configured for, and nothing about keys: which key a request may carry is read
+    // from the address the vault stored with it when the writer entered it (#864). A page that named a key here could point a
+    // saved key at an address of its own choosing, which is the thing the handle exists to prevent.
+    allowed = [];
+    for (const entry of Array.isArray(entries) ? entries : []) {
+      if (entry === null || typeof entry !== 'object') continue;
+      const candidate = entry as { origin?: unknown; local?: unknown };
+      if (typeof candidate.origin !== 'string') continue;
+      allowed.push({ origin: candidate.origin, local: candidate.local === true });
+    }
+    targets = withKeys();
     return null;
   }));
 
@@ -160,6 +176,8 @@ export function registerEgressIpc(entryUrl: string, vault: KeyReader): void {
     const id = spec !== null && typeof spec === 'object' ? (spec as { id?: unknown }).id : undefined;
     if (typeof id !== 'string' || !/^[A-Za-z0-9-]{8,64}$/u.test(id)) throw new EgressRefusal('invalid');
     if (streams.has(id)) throw new EgressRefusal('invalid');
+    // Rebuilt per call, so a key stored a moment ago can be used on its first request and a removed one is gone at once.
+    targets = withKeys();
     const checked = checkNativeEgress(targets, spec);
     if (!checked.ok) throw new EgressRefusal(checked.refusal);
     // The call is claimed before its key is opened, not after. Opening one is asynchronous, and a page that cancels during that

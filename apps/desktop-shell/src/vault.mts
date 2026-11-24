@@ -6,9 +6,10 @@
  * delete, check for, revise and put back one; it may never read one. A secret leaves this file only into a request the port is
  * about to send, to an address the app configured for that key.
  *
- * The vault's own rules — one file of sealed entries, a write read back before it is reported, a replace that can be put back,
- * writes serialised — live in [`@caotang/gateway/keys/os-vault`](../../../packages/gateway/src/keys/os-vault.ts) and are tested
- * there. This file brings the seal, the file and the channels.
+ * The vault's own rules — one file of entries, each the sealed secret and the address it was entered for, committed in one
+ * write and read back before it is reported, a replace that can be put back, writes serialised — live in
+ * [`@caotang/gateway/keys/os-vault`](../../../packages/gateway/src/keys/os-vault.ts) and are tested there. This file brings the
+ * seal, the file and the channels.
  *
  * **Linux without a keyring is not a keychain.** Chromium falls back to a built-in key that is the same on every machine, which
  * is obfuscation rather than encryption; the vault reports itself unavailable there, and the app keeps the browser's WebCrypto
@@ -19,7 +20,8 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { NodeArtifactFs } from '@caotang/artifact-fs-node';
-import { openOsVault, VAULT_ID, type OsKeyVault } from '@caotang/gateway/keys/os-vault';
+import { keyOrigin } from '@caotang/gateway/keys/key-origin';
+import { KeyBoundElsewhere, openOsVault, VAULT_ID, type OsKeyVault } from '@caotang/gateway/keys/os-vault';
 import { parseVaultHeaders, parseVaultPayload } from '@caotang/gateway/keys/vault-payload';
 import { ipcMain, safeStorage } from 'electron';
 
@@ -81,6 +83,9 @@ export function registerVaultIpc(entryUrl: string, vault: KeyVault, ipc: VaultIp
       // A refusal is the shape the page can show: an argument the page got wrong says so, and a machine without a keychain is
       // the one reason a well-formed call fails on purpose.
       if (error instanceof InvalidCall) return { ok: false, error: 'invalid' };
+      // An id the keychain already holds for another address says so: the page can tell the writer which key to enter again,
+      // where a keychain that would not answer would send them looking for a broken keychain instead (#879).
+      if (error instanceof KeyBoundElsewhere) return { ok: false, error: 'bound' };
       if (!(error instanceof Error)) throw error;
       return { ok: false, error: 'unavailable' };
     });
@@ -97,6 +102,17 @@ export function registerVaultIpc(entryUrl: string, vault: KeyVault, ipc: VaultIp
     return payload;
   };
 
+  /**
+   * The origin a key is stored for: what the binding records, and the only address the id may ever be sent to. https anywhere,
+   * and plain http only on this computer, which is the one non-https address the native port reaches and a local MCP server's
+   * own (key-origin.ts, native-egress.ts).
+   */
+  const originOf = (raw: unknown): string => {
+    const origin = typeof raw === 'string' ? keyOrigin(raw) : undefined;
+    if (origin === undefined) throw new InvalidCall('invalid');
+    return origin;
+  };
+
   /** The extra headers a page may hand back: text under a name, both bounded. Nothing here is a secret. */
   const headersOf = (raw: unknown): Readonly<Record<string, string>> => {
     const headers = parseVaultHeaders(raw);
@@ -109,9 +125,22 @@ export function registerVaultIpc(entryUrl: string, vault: KeyVault, ipc: VaultIp
     return vault.available();
   }));
 
-  ipc.handle('vault:put', (event, rawId: unknown, rawPayload: unknown): Promise<VaultReply<null>> => reply(async () => {
+  ipc.handle('vault:put', (event, rawId: unknown, rawPayload: unknown, rawOrigin: unknown): Promise<VaultReply<null>> => reply(async () => {
     if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
-    await vault.put(idOf(rawId), payloadOf(rawPayload));
+    const id = idOf(rawId);
+    const payload = payloadOf(rawPayload);
+    // The address the key was typed for is part of storing it: the vault writes the sealed secret and the address in the same
+    // turn, so a key is never stored without one and never has one without its key (#864). An id already stored for another
+    // address is refused here; the writer's own replacement key for an endpoint they moved goes through its own call below.
+    await vault.put(id, payload, originOf(rawOrigin));
+    return null;
+  }));
+
+  // The key a writer typed again for an endpoint they moved: the one write that may take a new address, and only because it
+  // carries a secret they entered for it rather than the handle of the key already stored.
+  ipc.handle('vault:putReplacement', (event, rawId: unknown, rawPayload: unknown, rawOrigin: unknown): Promise<VaultReply<null>> => reply(async () => {
+    if (!fromStudioFrame(event, entryUrl)) throw new InvalidCall('invalid');
+    await vault.putReplacement(idOf(rawId), payloadOf(rawPayload), originOf(rawOrigin));
     return null;
   }));
 
