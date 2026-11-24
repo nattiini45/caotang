@@ -141,7 +141,7 @@ export async function picturesOnProjectFs(fs: ArtifactFs): Promise<Record<string
  */
 export async function openHostedTarget(source: HostedProjectSource): Promise<HostedTarget> {
   const fs = await openRemoteProject(source);
-  const { saveProjectToAccount } = await import('@caotang/remote-store');
+  const { saveProjectToAccount, stageProjectForAccount } = await import('@caotang/remote-store');
   const queue = await deviceQueue(source, fs);
   keepMarks(source, fs);
   return new HostedTarget(
@@ -149,5 +149,6 @@ export async function openHostedTarget(source: HostedProjectSource): Promise<Hos
     fs,
     (state, options) => saveProjectToAccount(fs, state, { removed: options?.removed, assets: options?.assets }),
     queue,
+    (state, options) => stageProjectForAccount(fs, state, { removed: options?.removed, assets: options?.assets }),
   );
 }

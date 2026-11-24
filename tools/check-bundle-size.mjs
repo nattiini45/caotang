@@ -203,7 +203,7 @@ export const BUDGET = {
   // of it is read by `openAppServices` before the first paint, so there was no chunk to move it to; the pages that only a form needs
   // were already on use. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   // The hosted save target (hosted.md §7.2) never grows the first load: the adapter, the target and the queue, the open and the notice
-  // are four chunks fetched when a host hands a project over, so the 1,122.4 kB gzip measured here is 2.8 kB under the 1,125.2 kB the
+  // are four chunks fetched when a host hands a project over, so the 1,122.5 kB gzip measured here is 2.7 kB under the 1,125.2 kB the
   // main it branched from measured, and the cap stays at main's. What pays for it is the project store pinned to one chunk
   // (`vendor-store`): shared by the entry and those hosted chunks, the default splitting carves it into a chunk per module, which cost
   // 2.6 kB gzip more than the whole hosted path weighs. Tried and rejected: the open staying in `lifecycle` rather than its own module
@@ -352,7 +352,7 @@ export const BUDGET = {
   // ceiling that tree set, again the entry chunk. Named: the GET rule, the mapped-loopback predicate, the no-body head a page answers
   // without a stream, and the guard that ties a chunk to the call still holding its id. The ceiling is the measurement rounded up to
   // the thousand. [delegated 2026-11-23]
-  // The hosted save target and its queue (hosted.md §7.2): 9,069.8 kB measured, 25.1 kB over the 9,044.7 kB the main it branched from
+  // The hosted save target and its queue (hosted.md §7.2): 9,070.5 kB measured, 25.8 kB over the 9,044.7 kB the main it branched from
   // measured. Named: the target's state table and its transitions, the device queue's replay, rebase, hold and marks, the open's
   // divergent-copy question, the registry the app looks a target up in, and the notice with its three states. None of it can load with
   // the first page — it is behind the host's dynamic import — so this is what the feature weighs in the download, not what it costs a

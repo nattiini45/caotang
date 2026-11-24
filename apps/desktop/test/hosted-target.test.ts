@@ -71,7 +71,12 @@ type Answer =
   | { kind: 'throw' };
 
 /** A target whose account save answers from a list, the last answer repeating. */
-function target(answers: Answer[] = [{ kind: 'written' }], port: HostedQueuePort | null = null, versions: Record<string, number> = {}) {
+function target(
+  answers: Answer[] = [{ kind: 'written' }],
+  port: HostedQueuePort | null = null,
+  versions: Record<string, number> = {},
+  staged: readonly string[] = ['docs/a.md'],
+) {
   const saves: unknown[] = [];
   const last = (): Answer => answers.length > 1 ? answers.shift()! : answers[0]!;
   const saving = new HostedTarget('p_lighthouse', {
@@ -87,7 +92,7 @@ function target(answers: Answer[] = [{ kind: 'written' }], port: HostedQueuePort
     const changes = (answer.kind === 'failed' ? answer.changes : answer.changes ?? []).map((path) => ({ path, bytes: new Uint8Array([1]) }));
     if (answer.kind === 'failed') return { kind: 'failed', error: new Error('refused'), changes };
     return { kind: 'unavailable', changes };
-  }) as never, port);
+  }) as never, port, async () => staged.map((path) => ({ path, bytes: new Uint8Array([1]) })));
   return { saving, saves };
 }
 
@@ -239,6 +244,21 @@ describe('conflict', () => {
     const before = saves.length;
     await saving.save(project);
     expect(saves.length).toBe(before);
+    expect(saving.state()).toEqual({ kind: 'conflict', paths: ['docs/a.md'] });
+  });
+
+  it('a save while the question stands holds the writer’s words in the queue instead of losing them to the next open', async () => {
+    // "Leave it for now" leaves the writer working: those saves are refused to the account, and their words go to the queue, because
+    // the account's version takes this browser's copy over at the next open.
+    const one = queue([]);
+    const { saving, saves } = target([{ kind: 'conflict', paths: ['docs/a.md'] }], one.port, {}, ['docs/b.md']);
+    await saving.save(state());
+    expect(saving.state()).toEqual({ kind: 'conflict', paths: ['docs/a.md'] });
+
+    await saving.save(state());
+    expect(saves.length).toBe(1);
+    // The refused path is still there from the question, and the words written since join it.
+    expect(one.port.held()).toEqual(['docs/a.md', 'docs/b.md']);
     expect(saving.state()).toEqual({ kind: 'conflict', paths: ['docs/a.md'] });
   });
 

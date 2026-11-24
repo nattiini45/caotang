@@ -114,6 +114,11 @@ export class HostedTarget {
     /** The whole-project save, bound by the module that holds the adapter so this one imports no package at run time. */
     readonly saveState: (state: ProjectState, options?: SaveOptions) => Promise<HostedSaveOutcome>,
     readonly queue: HostedQueuePort | null = null,
+    /**
+     * The same save, staged and thrown away: what the state would put on the account. A question about the account does not stop the
+     * writer working, and their words have to be held before the next open takes the account's version over this browser's copy.
+     */
+    readonly stageState: ((state: ProjectState, options?: SaveOptions) => Promise<readonly RemoteChange[]>) | null = null,
   ) {}
 
   state(): HostedSaveState {
@@ -184,9 +189,22 @@ export class HostedTarget {
 
   /** Commits this session's state to the account. A second call while one is running runs once more after it. */
   async save(state: ProjectState): Promise<void> {
-    // Only a target with nothing outstanding saves: a question, a send that landed before the session caught up, and a commit already
-    // in flight are all states where writing this state would say something the writer has not settled.
-    if (this.#state.kind === 'conflict' || this.#state.kind === 'stale') return;
+    // A send that landed before the session caught up writes nothing: the older book would go over what the send just put there.
+    if (this.#state.kind === 'stale') return;
+    if (this.#state.kind === 'conflict') {
+      // The question is not the writer's only business: they can keep writing while it stands, and those words are held in the queue so
+      // the next open does not take the account's version over them. Nothing is written to the account, and the question stays open.
+      if (this.queue !== null && this.stageState !== null) {
+        const held = (await this.#assets?.()) ?? null;
+        const staged = await this.stageState(state, {
+          removed: [...this.#knownDocuments].filter((id) => !state.documents.has(id)),
+          assets: held === null ? undefined : { files: held, removed: [...this.#knownAssets].filter((path) => !(path in held)) },
+        });
+        this.queue.hold(staged);
+      }
+      this.#set({ kind: 'conflict', paths: this.#asked });
+      return;
+    }
     const running = this.#running;
     if (running !== null) {
       this.#again = true;

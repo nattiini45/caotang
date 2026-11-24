@@ -207,7 +207,7 @@ An open writes the account's version into this browser's copy in place, under th
 | `unsaved` | the browser finished a save | `saving` | the whole state is committed, which supersedes the queue for the paths it carries |
 | `conflict` | the writer keeps this device's text | `saving` → `idle` or `stale` | only the paths they were shown are rebased and sent; a refusal keeps the question |
 | `conflict` | the writer leaves it | `conflict` | nothing is written and nothing is sent |
-| `conflict` | the browser finished a save | `conflict` | refused: a question outranks a save |
+| `conflict` | the browser finished a save | `conflict` | refused to the account — a question outranks a save — and its words are held in the queue, because the writer keeps writing while the question stands and the next open takes the account's version over this browser's copy |
 | `stale` | the session is opened again | `idle` | the account's words are in front of the writer |
 | `stale` | a save, a send, or a question | `stale` | refused: the older book would go over what the send just put there |
 
