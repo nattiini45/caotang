@@ -38,7 +38,7 @@ import { bearerAccepted } from './auth.js';
 import { createConfirmLedger, createRoundCodec } from './confirm.js';
 import type { WriteGate } from './gate.js';
 import { createReplayCache } from './replay.js';
-import { guardBatch, guardMessage, type GuardPolicy, type RefusalResponse } from './guard.js';
+import { folderWrite, guardBatch, guardMessage, type GuardPolicy, type RefusalResponse } from './guard.js';
 import { LegacySessions, type LegacySessionOptions } from './legacy-sessions.js';
 import { degradedInstructions, guardDegraded, registerRecoveryTools, type DegradedSession, type RecoveryRuntime } from './recovery.js';
 import { registerPictureTools } from './pictures.js';
@@ -49,9 +49,17 @@ import { registerCaotangTools, type ToolRuntime } from './tools.js';
 import type { ProjectSession } from './session.js';
 import { MCP_PATH, MODERN_PROTOCOL_VERSION, VERSION } from './version.js';
 
-/** The two control paths a desktop app posts to while it saves. They are never part of the MCP surface. */
+/** The control paths a desktop app posts to while it saves. They are never part of the MCP surface. */
 export const CONTROL_PAUSE = '/control/pause';
 export const CONTROL_RESUME = '/control/resume';
+/** A save that stopped waiting for its pause: the pause is let go and nothing is read, because no save of it is coming. */
+export const CONTROL_CANCEL = '/control/cancel';
+
+/** The header a control call names its pause in, so a resume can let go of a pause that lands after it. */
+export const CONTROL_LEASE_HEADER = 'x-caotang-pause';
+
+/** The longest lease a control call may name. A longer value names no pause, which counts as a call that names none. */
+const MAX_LEASE_LENGTH = 128;
 
 /** The most body a POST may carry. The SDK's own default is the same 4 MiB. */
 export const MAX_BODY_BYTES = 4 * 1024 * 1024;
@@ -229,11 +237,13 @@ async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-/** One request, from the guards to the SDK's handler. See the module comment for the order. */
 /**
- * The pause a desktop app asks for while it saves (gate.ts, desktop.md §The project's own MCP server): `POST /control/pause` stops
- * a write from starting, `POST /control/resume` lets them start again, and both answer the pause as it now stands. The token is the
- * same one the MCP endpoint takes, so only the app that holds it can pause a server it started.
+ * The pause a desktop app asks for while it saves (gate.ts, desktop.md §The project's own MCP server): `POST /control/pause` stops a
+ * write from starting and answers only once the writes already admitted have finished, `POST /control/resume` lets them start again,
+ * `POST /control/cancel` is a save that gave up and lets its pause go, and all three answer the pause as it now stands. The token is the
+ * same one the MCP endpoint takes, so only the app that holds it can pause a server it started. Every call may name the pause in
+ * `X-Caotang-Pause`, so a resume or a cancel can arrive before its pause and cancel it (gate.ts): a save that stopped waiting sends the
+ * cancel, and it must let go even when the pause it belongs to is still in flight.
  *
  * A resume that lifts the last pause is the end of a save, so the folder is read again before it is answered, with the pause standing
  * for its length: what the save wrote is what every later request is answered from, and no write can start in the middle of that read.
@@ -253,18 +263,26 @@ async function answerControl(req: IncomingMessage, res: ServerResponse, path: st
     sendJson(res, 405, { error: `${path} takes POST` }, { Allow: 'POST' });
     return;
   }
+  const lease = pauseLeaseOf(req);
   if (path === CONTROL_PAUSE) {
-    sendJson(res, 200, gate.pause());
+    sendJson(res, 200, await gate.pause(lease));
     return;
   }
-  const state = gate.resume();
+  if (path === CONTROL_CANCEL) {
+    // The app gave up waiting for this pause, so no save of it is coming: the pause is let go and the folder is not read again — there is
+    // nothing of the app's to adopt, and that read would queue behind the very write the pause was waiting for.
+    sendJson(res, 200, gate.resume(lease));
+    return;
+  }
+  const state = gate.resume(lease);
   // A folder this server cannot read again leaves its copy as it was, and says so on stderr: the resume is still the app's to have,
   // because the save itself is on disk and a refused resume would stop a server that is answering.
   if (!state.paused) {
     // The save is over, but the folder is about to be read: the pause stands across the read too, so a write tool cannot start in the
     // middle of the copy being adopted — it would change the project this server is about to replace, and its save would then write the
-    // adopted copy and lose it. Its refusal is the pause's own words: ask again once the save has finished.
-    gate.pause();
+    // adopted copy and lose it. Its refusal is the pause's own words: ask again once the save has finished. This pause is raised, not
+    // waited for: a write already running is the save's own work finishing, and the lift below settles the promise either way.
+    const held = gate.pause();
     try {
       await options.reloaded?.();
     } catch {
@@ -272,10 +290,18 @@ async function answerControl(req: IncomingMessage, res: ServerResponse, path: st
     } finally {
       gate.resume();
     }
+    await held;
   }
   sendJson(res, 200, state);
 }
 
+/** The lease a control call names, or `undefined` for a call that names none: an over-long or empty value names no pause. */
+function pauseLeaseOf(req: IncomingMessage): string | undefined {
+  const value = req.headers[CONTROL_LEASE_HEADER];
+  return typeof value === 'string' && value.length > 0 && value.length <= MAX_LEASE_LENGTH ? value : undefined;
+}
+
+/** One request, from the guards to the SDK's handler: what is admitted, and what is served. See the module comment for the order. */
 async function answer(
   req: IncomingMessage,
   res: ServerResponse,
@@ -287,7 +313,7 @@ async function answer(
   if (!http.guards.origin(req, res)) return;
 
   const path = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
-  if (path === CONTROL_PAUSE || path === CONTROL_RESUME) {
+  if (path === CONTROL_PAUSE || path === CONTROL_RESUME || path === CONTROL_CANCEL) {
     await answerControl(req, res, path, options);
     return;
   }
@@ -326,6 +352,28 @@ async function answer(
     }
   }
 
+  // A write the guards let through is admitted here, so a pause asked for now waits for it instead of letting the app save over it.
+  // The guard read the pause in this same turn, so a write cannot slip in behind a pause raised between the two. The release runs
+  // however this request ends — an answer, a refusal, a deadline, a thrown error — and a request that carries no write admits
+  // nothing, so a read never holds a pause.
+  const gate = options.gate;
+  const release = gate !== undefined && req.method === 'POST' && folderWrite(parsed, policy.allowWrites) !== undefined ? gate.admit() : undefined;
+  try {
+    await serveRequest(req, res, runtime, options, http, parsed);
+  } finally {
+    release?.();
+  }
+}
+
+/** A guarded MCP request, served: a 2025-era connection's own server, a first `initialize`, or the handler for one request. */
+async function serveRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  runtime: ServerRuntime,
+  options: HttpServerOptions,
+  http: HttpSurface,
+  parsed: unknown,
+): Promise<void> {
   // A request that names a session belongs to a 2025-era connection, and only that connection can answer it.
   const session = req.headers['mcp-session-id'];
   if (typeof session === 'string') {

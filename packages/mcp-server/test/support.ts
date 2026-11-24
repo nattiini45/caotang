@@ -145,8 +145,11 @@ export async function startFixture(options: {
   readonly shotImage?: string;
   /** With `seed`: export recipes saved in the project before it is opened. */
   readonly recipes?: readonly ExportRecipe[];
-  /** Give the server the gate a desktop app pauses it with (gate.ts), so the control endpoints answer. */
-  readonly gate?: boolean;
+  /**
+   * Give the server the gate a desktop app pauses it with (gate.ts), so the control endpoints answer. `true` is a real gate; a gate
+   * lets a test watch what the server admits, so it can hold a write in flight across a pause.
+   */
+  readonly gate?: boolean | WriteGate;
 }): Promise<Fixture> {
   const root = tempDir(options.label);
   if (options.seed === true && options.writing === true) {
@@ -170,7 +173,7 @@ export async function startFixture(options: {
     allowWrites: options.allowWrites,
   });
   const token = testToken();
-  const gate = options.gate === true ? createWriteGate() : undefined;
+  const gate = options.gate === true ? createWriteGate() : typeof options.gate === 'object' ? options.gate : undefined;
   const server = await startHttpServer(createToolRuntime(session), {
     port: 0,
     token,

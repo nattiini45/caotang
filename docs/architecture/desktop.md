@@ -288,24 +288,37 @@ read-only with a copy button beside the address and a **Copy the configuration**
 holds the lock for its whole run, and the app saves many times while it does. So the app pauses the server for the length of a save.
 `pauseProjectServer` posts `POST /control/pause` with the same bearer token before the first file the save writes and
 `resumeProjectServer` posts `POST /control/resume` after the last, and the guard refuses a write tool while the pause stands, with a refusal that says the app is
-saving and that a read is never refused. The endpoints exist on every HTTP server this package starts, including one a terminal
-started, where nobody uses them; a server started without a gate answers `404` and says nothing coordinates a save with it.
+saving and that a read is never refused. Every control call names the pause in `X-Caotang-Pause`, a lease of the app's own making, so
+a resume or a cancel lets go of that pause and no other — even when the pause has not reached the server yet, which is the case a save
+that stopped waiting for its answer is in. `POST /control/cancel` is that save's call: it lets the pause go and reads nothing, because
+no save of it is coming. The endpoints exist on every HTTP server this package starts, including one a terminal started, where nobody
+uses them; a server started without a gate answers `404` and says nothing coordinates a save with it.
 
 What the pause does and does not guarantee: a write tool that has not started is refused rather than queued, so nothing lands after
-the save; a write that is already running when the pause arrives finishes, and the app's digest check — the one `writeProject` makes
-for each file before it replaces it, and `changedDuringSave` after — refuses that file and names it to the writer instead of replacing
-it. That is "reported, not lost", the same guarantee the folder guard gives without a server. The pause is taken only for a save that
-writes: a save the verdict refuses never reaches it.
+the save; so is `coherence.scan`, the one read whose answer the server appends to `coherence.json`, because its run reaches the same
+folder a write does — and a read-only server, which saves nothing for it, still answers it; the pause is a barrier, so a write the
+server had already admitted finishes first — the pause answers only once every such
+write has released, and a folder with none in flight answers at once, so a save into a free folder never waits. A save therefore never
+runs while the server is still persisting a file, and the app's digest check — the one `writeProject` makes for each file before it
+replaces it, and `changedDuringSave` after — stays the backstop for a change from anywhere else, naming the file to the writer instead
+of replacing it. That is "reported, not lost", the same guarantee the folder guard gives without a server. The pause is taken only for
+a save that writes: a save the verdict refuses never reaches it.
 
 **A pause that cannot be confirmed stops the save.** With a server holding this folder, a save whose pause did not answer takes the
-folder's own lock refusal, so the writer is asked before anything is written and can save anyway. Without that, the save would run
-while a server that may still accept writes holds the same folder, which is the one thing this pause exists to prevent; the digest
-check would still catch a file it changed, but the promise is about what the server cannot start, not only about what it already did.
+folder's own lock refusal, so the writer is asked before anything is written and can save anyway. A pause that is draining a long write
+can take that write's own time, and one that outlasts the app's wait gets the same answer: the save stops and the writer is asked,
+rather than written beside a server that may still be writing. A pause the app stopped waiting for is let go by the app: it posts the
+cancel it would otherwise never send, naming the same lease, so a pause is only ever held by a save that is still running and the folder
+does not stay paused until the server restarts. A server that has already seen the cancel and not yet the pause cancels that lease, so
+the pause that lands afterwards does not stand either. A server that answers neither the pause nor that resume is stopped, and the app
+tells the writer to start it again. Without that refusal the save would run while a server that may still accept writes holds the same
+folder, which is the one thing this pause exists to prevent; the digest check would still catch a file it changed, but the promise is
+about what the server cannot start, not only about what it already did.
 
 **The resume that ends a save is when the server reads the folder again.** The server holds the project it read when it opened, plus a
 digest of every document and codex file it read, so a save by the app would otherwise leave it answering from the project as it was —
 and its next write tool would find the app's files against that old baseline and stop its own writes for good. So the last resume of a
-save reads the folder again before it is answered (`folder.reload` in `@caotang/sdk`, through the folder's own queue): the manifest
+save reads the folder again before it is answered — a cancel never does, since it is the save that never happened (`folder.reload` in `@caotang/sdk`, through the folder's own queue): the manifest
 text is the check that anything was written, because every save rewrites `caotang.json`; the documents are digested before the project
 is read, as at open; the state the server already holds is given the loaded project's fields, so its tools, resources and exporter see
 the new project; and the digests and `coherence.json` it checks its saves against become the folder's. A host subscribed to the
