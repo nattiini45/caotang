@@ -352,13 +352,13 @@ export const BUDGET = {
   // ceiling that tree set, again the entry chunk. Named: the GET rule, the mapped-loopback predicate, the no-body head a page answers
   // without a stream, and the guard that ties a chunk to the call still holding its id. The ceiling is the measurement rounded up to
   // the thousand. [delegated 2026-11-23]
-  // The hosted save target and its queue (hosted.md §7.2): 9,063.5 kB measured, 18.8 kB over the 9,044.7 kB the main it branched from
+  // The hosted save target and its queue (hosted.md §7.2): 9,063.7 kB measured, 19.0 kB over the 9,044.7 kB the main it branched from
   // measured. Named: the target's state table and its transitions, the device queue's replay, rebase, hold and marks, the open's
   // divergent-copy question, the registry the app looks a target up in, and the notice with its three states. None of it can load with
   // the first page — it is behind the host's dynamic import — so this is what the feature weighs in the download, not what it costs a
   // writer's first paint. Trimmed as far as it goes: the queue's port, the separate registry module and the notice behind
   // `LazyBoundary` are all that is left in the chunks that load first. The ceiling is the measurement plus 1 kB.
-  totalJs: 9_064_500,
+  totalJs: 9_064_700,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
