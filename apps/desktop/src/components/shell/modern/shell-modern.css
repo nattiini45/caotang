@@ -155,11 +155,19 @@
   color: var(--on-glass);
 }
 
-/* ---- Ornaments: glass capsules half over the page's edges (§6, §8.1), centred over the page area (modernLayout, #306). ---- */
+/* ---- Ornaments: glass capsules half over the page's edges (§6, §8.1), centred over the page area (modernLayout, #306). ----
+   Centred on whole pixels: the centre of the page area, then back by half the ornament's own width, each rounded to the pixel
+   grid. `inline-size` is max-content, so half that width is fractional whenever the labels are (the title capsule's name is),
+   and an auto margin used to land the capsule on a fraction of a pixel. Text on a fraction of a pixel has two possible
+   rasters — its exact sub-pixel phase, or the integer-snapped one a frame commits when the text run is painted in a layer of
+   its own — and which one a frame gets depends on the compositing, not on the layout. That is what made the German sidebar
+   count snapshot flake (#644): the same layout, 836 pixels apart. On the grid, both rasters are the same image. */
 :root[data-shell='modern'] .modern-ornament {
   position: absolute;
-  inset-inline: var(--area-start) var(--area-end);
-  margin-inline: auto;
+  inset-inline-start: round(nearest, calc(var(--area-start) + (100% - var(--area-start) - var(--area-end)) / 2), 1px);
+  inset-inline-end: auto;
+  margin-inline: 0;
+  translate: round(nearest, calc(var(--dir, 1) * -50%), 1px);
   inline-size: max-content;
   max-inline-size: calc(100% - var(--area-start) - var(--area-end) - 2 * var(--page-gutter));
   display: flex;
