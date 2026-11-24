@@ -22,7 +22,12 @@ export type HostedSaveOutcome =
    */
   | { readonly kind: 'conflict'; readonly paths: readonly string[]; readonly changes: readonly RemoteChange[] }
   /** The server did not answer: nothing was written, and `changes` is the save for the caller to queue. */
-  | { readonly kind: 'unavailable'; readonly changes: readonly RemoteChange[] };
+  | { readonly kind: 'unavailable'; readonly changes: readonly RemoteChange[] }
+  /**
+   * The save itself failed — a refusal this module has no name for, a blob that would not authenticate, a state it would not
+   * write. Nothing was written either, so `changes` is what this device staged, for the caller to queue rather than lose.
+   */
+  | { readonly kind: 'failed'; readonly error: unknown; readonly changes: readonly RemoteChange[] };
 
 /** `assets/` in a project: the pictures, the cover among them (project-format §2). */
 const ASSETS_DIR = 'assets';
@@ -83,6 +88,6 @@ export async function saveProjectToAccount(
     save.discard();
     if (error instanceof RemoteConflictError) return { kind: 'conflict', paths: error.paths, changes };
     if (error instanceof RemoteUnavailableError) return { kind: 'unavailable', changes };
-    throw error;
+    return { kind: 'failed', error, changes };
   }
 }

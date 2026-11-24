@@ -73,6 +73,22 @@ describe('the queue a hosted project keeps on this device', () => {
     expect(await reloaded.replay()).toEqual({ kind: 'conflict', paths: ['docs/a.md'] });
   });
 
+  it('forgets a held edit only once the account has moved past the version it was staged against', async () => {
+    // A save that wrote the path leaves the account at a newer version than the one the held edit was staged against, so that edit is
+    // older than what landed and goes. An edit staged after that save carries the version it wrote, and is newer than the save: it stays.
+    const one = account({ 'docs/a.md': 2 });
+    const queue = await deviceQueue(SOURCE, one.fs as unknown as EncryptedRemoteArtifactFs);
+    queue.hold([{ path: 'docs/a.md', bytes: new Uint8Array([1]) }]);
+
+    one.versions['docs/a.md'] = 3;
+    queue.forget(['docs/a.md']);
+    expect(queue.held()).toEqual([]);
+
+    queue.hold([{ path: 'docs/a.md', bytes: new Uint8Array([2]) }]);
+    queue.forget(['docs/a.md']);
+    expect(queue.held()).toEqual(['docs/a.md']);
+  });
+
   it('drops a queue text this build cannot read rather than failing the open', async () => {
     saveHostedQueue(SOURCE.projectId, 'not what this build wrote');
     const one = account({});

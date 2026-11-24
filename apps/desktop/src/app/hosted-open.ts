@@ -88,7 +88,7 @@ export async function openHostedProject(
    */
   catchingUp = false,
 ): Promise<Opened> {
-  const { adopt, droppedFieldsOf, folderSessionsOf, leaseFor, linesNotHeld, manifestTextOf, noticesOf, openStored, removeProject, sameBook } =
+  const { adopt, droppedFieldsOf, folderSessionsOf, leaseFor, linesNotHeld, manifestTextOf, noticesOf, openStored, sameBook } =
     await import('./lifecycle.js');
   const target = await openTarget(source);
   // Nothing the queue holds is sent here: opening a project reads it, and the writer is told what is still on this device with the one
@@ -106,14 +106,32 @@ export async function openHostedProject(
   let opened: Opened;
   if (cached === null) {
     opened = await adopt(store, loaded.state, accountLog, noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
-  } else if (sameBook(cached, loaded.state)) {
-    // The same book on both sides: the account's version takes the browser's place under the same id, with the writing history of both.
-    // It is written over the copy rather than replacing it, because the copy is more than its manuscript: the writer's recurring tasks,
-    // their run history and the consents they gave are this browser's, keyed by the project's id, and removing the project to make room
-    // would drop them for a difference the book does not have.
+  } else {
+    // The account's version takes the browser's place under the same id, with the writing history of both. It is written over the copy
+    // rather than replacing it, because the copy is more than its manuscript: the writer's recurring tasks, their run history, the
+    // consents they gave and the skills they pinned are this browser's, keyed by the project's id, and removing the project to make room
+    // would drop them for a difference the book may not even have.
+    const same = sameBook(cached, loaded.state);
+    // The browser's copy holds words the account does not: those documents are held in the device queue as this device's version, the
+    // account's copy opens in their place, and the writer is asked which text the account should keep (hosted.md §7.2). "Keep mine"
+    // replays the held words; the account's version stands if the writer leaves it. An open that is catching up after a send the writer
+    // chose holds nothing: the account now has their words, and asking would offer the version the send just replaced.
+    const held = same || catchingUp
+      ? []
+      : await heldDocumentChanges(cached, differingDocumentIds(cached, loaded.state), new Set(await target.fs.listFiles(DOCS_DIR)));
+    // The manifest is the writer's own settings as much as the book — the title, the tree, the codex entries — so a copy whose manifest
+    // differs from the account's is part of the same question rather than something the account's version may simply replace.
+    if (!same && !catchingUp && manifestTextOf(cached, cached.manifest.project.modifiedAt) !== manifestTextOf(loaded.state, cached.manifest.project.modifiedAt)) {
+      const manifest = new MemoryArtifactFs();
+      await writeProject(manifest, copyState(cached), { now: new Date(), copyFor: 'internal' });
+      held.push({ path: MANIFEST_FILE, bytes: await manifest.readBytes(MANIFEST_FILE) });
+    }
+    target.queue?.hold(held);
     const keptLog = await readSessions(store, projectId);
     // The copy is written only while this page holds the project: another tab with it open would be writing the same rows, and the
     // lease is what says the writer is here rather than there. It is given back before the project is opened, which takes its own.
+    // The state written is the account's, never the copy's: a reopen that opened the copy as it stood before a send would put the words
+    // that send replaced back in front of the writer, and the next save would write them to the account.
     const writing = await leaseFor(projectId);
     try {
       await writeProjectState(store, loaded.state, { now: new Date() });
@@ -121,31 +139,7 @@ export async function openHostedProject(
       writing.release();
     }
     opened = await openStored(store, projectId, null, { notices: noticesOf(loaded.notices), droppedFields: droppedFieldsOf(loaded.notices), folderLog: [...accountLog, ...linesNotHeld(keptLog, accountLog)] }, pictures);
-  } else {
-    // The browser's copy holds words the account does not. Nothing is written over either of them: those documents are held in the
-    // device queue as this device's version, the account's copy opens in their place, and the writer is asked which text the account
-    // should keep — the same question a save raises when another device moved the files. "Keep mine" replays the held words; the
-    // account's version stands if the writer leaves it. Opening the browser's copy silently instead would be this device's words
-    // winning without the writer ever seeing they were at odds with the account.
-    const held = catchingUp
-      ? []
-      : await heldDocumentChanges(cached, differingDocumentIds(cached, loaded.state), new Set(await target.fs.listFiles(DOCS_DIR)));
-    // The manifest is the writer's own settings as much as the book — the title, the tree, the codex entries — so a copy whose manifest
-    // differs from the account's is part of the same question rather than something the account's version may simply replace.
-    if (!catchingUp && manifestTextOf(cached, cached.manifest.project.modifiedAt) !== manifestTextOf(loaded.state, cached.manifest.project.modifiedAt)) {
-      const manifest = new MemoryArtifactFs();
-      await writeProject(manifest, copyState(cached), { now: new Date(), copyFor: 'internal' });
-      held.push({ path: MANIFEST_FILE, bytes: await manifest.readBytes(MANIFEST_FILE) });
-    }
-    if (held.length === 0) {
-      // Catching up after a send, or nothing here can be held (a copy whose words this browser cannot read): the account's version takes the
-      // copy's place under this page's lease, which keeps everything keyed by the project's id, and nothing is asked.
-      opened = await openStored(store, projectId, null, { notices: noticesOf(loaded.notices), droppedFields: droppedFieldsOf(loaded.notices), folderLog: accountLog }, pictures);
-    } else {
-      target.queue?.hold(held);
-      const keptLog = await readSessions(store, projectId);
-      await removeProject(store, projectId);
-      opened = await adopt(store, loaded.state, [...accountLog, ...linesNotHeld(keptLog, accountLog)], noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
+    if (held.length > 0) {
       // A conflict the queue's own replay raised is already naming what it could not send; these paths join it, because both are this
       // device's words against the account's and both need the same answer.
       const asked = target.state();

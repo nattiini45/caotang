@@ -99,9 +99,18 @@ export async function deviceQueue(source: HostedProjectSource, fs: EncryptedRemo
       }
     },
     forget: (paths?: readonly string[]) => {
-      edits.clear(paths);
-      if (paths === undefined) base.clear();
-      else for (const path of paths) base.delete(path);
+      if (paths === undefined) {
+        edits.clear();
+        base.clear();
+        keep();
+        return;
+      }
+      // A path is only settled while the account has not moved it since the words were staged: a save that wrote the path leaves the
+      // account at a newer version than the one the edit was staged against, and an edit staged after that save — against the version
+      // it wrote — is newer than the save and stays queued for the next send.
+      const settled = paths.filter((path) => base.get(path) !== undefined && base.get(path) !== fs.versionOf(path));
+      edits.clear(settled);
+      for (const path of settled) base.delete(path);
       keep();
     },
     held: () => edits.paths,

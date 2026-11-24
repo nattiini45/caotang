@@ -178,20 +178,51 @@ it('keeps this browser’s task data when the same book is opened again', async 
   }
 });
 
+it('keeps this browser’s task data when the account’s copy holds different words', async () => {
+  // The account's version takes the browser's place under the project's id whether the two are the same book or not: the writer's
+  // recurring tasks, their run history and their consents are keyed by that id, and asking about the words is no reason to drop them.
+  const rows = new Map<string, unknown>([[`task:${BOOK.manifest.project.id}:task_one`, { id: 'task_one' }]]);
+  const db = {
+    get: async (key: string) => rows.get(key) as never,
+    put: async (key: string, value: unknown) => { rows.set(key, value); },
+    list: async (prefix: string) => [...rows.keys()].filter((key) => key.startsWith(prefix)).sort().map((key) => ({ key, value: rows.get(key) })),
+    delete: async (key: string) => { rows.delete(key); },
+    close: () => undefined,
+  };
+  setActiveAppDb(db as never);
+  try {
+    const first = await open();
+    first.session.state.documents.get(IDS.sceneA)!.body = 'Five words, written offline';
+    await first.session.persistence.settle();
+    await first.session.closeSafely();
+    opened = opened.filter((one) => one !== first);
+    await open();
+    expect([...rows.keys()]).toEqual([`task:${BOOK.manifest.project.id}:task_one`]);
+    // The words are the question, and they are asked about rather than written over either copy.
+    expect(lastTarget?.state().kind).toBe('conflict');
+  } finally {
+    setActiveAppDb(null);
+  }
+});
+
 it('takes the account’s version when the session is catching up after a send, without asking about the older copy', async () => {
   const first = await open();
-  // The writer typed here and it reached the account through the send that followed: the browser's copy is what that send replaced.
+  // The writer typed here and it reached the account through the send that followed, which is the words the account now holds: the
+  // browser's copy is what that send replaced, so opening it again would put the replaced text in front of the writer.
   first.session.state.documents.get(IDS.sceneA)!.body = 'Five words, written offline';
   await first.session.persistence.settle();
   await first.session.closeSafely();
   opened = opened.filter((one) => one !== first);
 
-  const target = await targetFor('Five words, written offline', undefined, []);
+  // The send the writer chose ran before the session catches up, so the account holds the words it carried.
+  const target = await targetFor('Six words, and the send added one', undefined, []);
+  expect((await target.queue!.replay()).kind).toBe('sent');
   const result = await openHostedProject(store, SOURCE, async () => target, true);
   opened.push(result);
-  expect(result.session.state.documents.get(IDS.sceneA)?.body).toBe('Five words, written offline');
+  expect(result.session.state.documents.get(IDS.sceneA)?.body).toBe('Six words, and the send added one');
   // No question, and nothing of the copy read before the send is offered back.
   expect(target.state()).toEqual({ kind: 'idle' });
+  expect(target.queue?.held()).toEqual([]);
 });
 
 it('asks about words a browser copy holds and the account does not, instead of picking one of them silently', async () => {

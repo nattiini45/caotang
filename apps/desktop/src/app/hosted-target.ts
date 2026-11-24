@@ -10,7 +10,7 @@
  * device's (`HostedQueuePort`), and nothing is replayed unless a writer's action asks for it.
  */
 import type { EncryptedRemoteArtifactFs, HostedSaveOutcome, RemoteChange, SaveAssets } from '@caotang/remote-store';
-import type { ProjectState } from '@caotang/store';
+import type { ProjectState, WriteReport } from '@caotang/store';
 
 /** What a save carries besides the state: the paths this device deleted, and the pictures as it holds them. */
 export interface SaveOptions {
@@ -222,6 +222,11 @@ export class HostedTarget {
    */
   async sendQueued(): Promise<HostedSaveState> {
     if (this.#state.kind !== 'unsaved' || this.queue === null) return this.#state;
+    // Nothing held is nothing to send: a send that went ahead would report a landing and reopen the session for words that never left.
+    if (this.queue.held().length === 0) {
+      this.#set({ kind: 'idle' });
+      return this.#state;
+    }
     this.#set({ kind: 'saving' });
     await this.fs.refresh();
     this.queue.marks();
@@ -297,13 +302,19 @@ export class HostedTarget {
         assets: pictures.files === null ? undefined : { files: pictures.files, removed: pictures.removed },
       });
     } catch {
-      // A refusal this target has no answer of its own for — a full account, a lease taken in between, a blob that failed to
-      // authenticate — is still the account being behind this browser, and saying nothing would leave the writer believing it saved.
+      // The save never got far enough to stage anything, so there is nothing to hold: the state still says the account is behind this
+      // browser, because saying nothing would leave the writer believing it saved.
       this.#set({ kind: 'unsaved', paths: [] });
       return;
     }
     if (outcome.kind === 'written') {
-      this.#landed(docs, pictures);
+      this.#landed(docs, outcome.report, pictures);
+      return;
+    }
+    if (outcome.kind === 'failed') {
+      // A save that failed rather than being refused: nothing reached the account, so the words it staged are held and queued instead of
+      // dropped, and the writer is told they are here with the one action that would send them.
+      this.#hold(outcome.changes);
       return;
     }
     this.#hold(outcome.changes, outcome.kind === 'conflict' ? outcome.paths : undefined, true);
@@ -352,7 +363,7 @@ export class HostedTarget {
   }
 
   /** A written save: the account now holds this state, so the baselines and the queue are measured against it. */
-  #landed(docs: ReadonlySet<string>, pictures: PictureChanges): void {
+  #landed(docs: ReadonlySet<string>, report: WriteReport, pictures: PictureChanges): void {
     this.#question = [];
     this.#asked = [];
     this.#knownDocuments.clear();
@@ -367,9 +378,9 @@ export class HostedTarget {
       this.#knownAssets.delete(path);
       this.#assetsAt.delete(path);
     }
-    // This save carried these paths at the state they hold now, so a queued edit of any of them is older than what landed. The pictures
-    // are staged outside the report, so the paths they were sent at are named here too.
-    this.queue?.forget([...Object.keys(pictures.files ?? {}), ...pictures.removed]);
+    // This save carried these paths at the state they hold now, so a queued edit of any of them is older than what landed: the files
+    // the report wrote and pruned, and the pictures, which are staged outside the report and so are named here.
+    this.queue?.forget([...report.written, ...report.pruned, ...Object.keys(pictures.files ?? {}), ...pictures.removed]);
     this.queue?.marks();
     this.#set({ kind: 'idle' });
   }

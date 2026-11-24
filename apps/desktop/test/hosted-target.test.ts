@@ -63,7 +63,12 @@ function queue(initial: readonly string[], answer: HostedReplay | (() => HostedR
   return { port, calls, held };
 }
 
-type Answer = { kind: 'written' } | { kind: 'conflict'; paths: string[] } | { kind: 'unavailable' } | { kind: 'throw' };
+type Answer =
+  | { kind: 'written'; written?: string[]; pruned?: string[] }
+  | { kind: 'conflict'; paths: string[] }
+  | { kind: 'unavailable'; changes?: string[] }
+  | { kind: 'failed'; changes: string[] }
+  | { kind: 'throw' };
 
 /** A target whose account save answers from a list, the last answer repeating. */
 function target(answers: Answer[] = [{ kind: 'written' }], port: HostedQueuePort | null = null, versions: Record<string, number> = {}) {
@@ -77,9 +82,11 @@ function target(answers: Answer[] = [{ kind: 'written' }], port: HostedQueuePort
     saves.push(options);
     const answer = last();
     if (answer.kind === 'throw') throw new Error('refused');
-    if (answer.kind === 'written') return { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } };
+    if (answer.kind === 'written') return { kind: 'written', report: { written: answer.written ?? [], rotated: [], dropped: [], pruned: answer.pruned ?? [] } };
     if (answer.kind === 'conflict') return { kind: 'conflict', paths: answer.paths, changes: answer.paths.map((path) => ({ path, bytes: new Uint8Array([1]) })) };
-    return { kind: 'unavailable', changes: [] };
+    const changes = (answer.kind === 'failed' ? answer.changes : answer.changes ?? []).map((path) => ({ path, bytes: new Uint8Array([1]) }));
+    if (answer.kind === 'failed') return { kind: 'failed', error: new Error('refused'), changes };
+    return { kind: 'unavailable', changes };
   }) as never, port);
   return { saving, saves };
 }
@@ -119,6 +126,17 @@ describe('saving', () => {
     // Nothing is sent on its own: the state says these words are here, and the writer decides when the account gets them.
     expect(saving.state()).toEqual({ kind: 'unsaved', paths: [] });
     expect(one.calls.filter((call) => call === 'send')).toEqual([]);
+  });
+
+  it('a save that failed after staging the words holds them in the queue instead of losing them', async () => {
+    const one = queue([]);
+    const { saving } = target([{ kind: 'failed', changes: ['docs/a.md'] }], one.port);
+    await saving.save(state());
+    // The words the account never took are this device's, so they are queued and named; nothing is sent on its own.
+    expect(saving.state()).toEqual({ kind: 'unsaved', paths: ['docs/a.md'] });
+    expect(one.calls).toEqual(['hold:docs/a.md']);
+    expect(await saving.sendQueued()).toEqual({ kind: 'stale' });
+    expect(one.calls.filter((call) => call === 'send').length).toBe(1);
   });
 
   it('a path another device moved goes into the queue and is asked about, with nothing written', async () => {
@@ -162,6 +180,26 @@ describe('unsaved', () => {
     await saving.save(state());
     expect(saves.length).toBe(1);
     expect(saving.state()).toEqual({ kind: 'idle' });
+  });
+
+  it('a save forgets every document path it wrote or pruned, not only the pictures it sent', async () => {
+    // A queued edit of a file this save wrote is older than what landed, and leaving it queued would let the next send put that older
+    // text back over the account's (hosted.md §7.2). A path the save did not carry is somebody else's and stays queued.
+    const one = queue(['docs/a.md', 'caotang.json', 'codex/x.md', 'docs/b.md']);
+    const { saving } = target([{ kind: 'written', written: ['docs/a.md', 'caotang.json'], pruned: ['codex/x.md'] }], one.port);
+    saving.heldAtOpen();
+    await saving.save(state());
+    expect(one.port.held()).toEqual(['docs/b.md']);
+  });
+
+  it('a send with nothing held goes back to idle instead of reopening the session for words that never left', async () => {
+    const one = queue(['docs/a.md']);
+    const { saving } = target([{ kind: 'written' }], one.port);
+    saving.heldAtOpen();
+    one.port.forget(['docs/a.md']);
+    expect(await saving.sendQueued()).toEqual({ kind: 'idle' });
+    expect(one.calls.filter((call) => call === 'send')).toEqual([]);
+    expect(saving.rereadNeeded).toBe(false);
   });
 });
 

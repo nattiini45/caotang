@@ -65,6 +65,24 @@ describe('a project save into the account', () => {
     if (outcome.kind !== 'unavailable') throw new Error('expected the save to wait');
     expect(outcome.changes.map((change) => change.path)).toContain(`${DOCS_DIR}/n_3W8RN2TQ6C.md`);
   });
+
+  it('hands the staged words back when the commit itself fails, rather than losing them', async () => {
+    // A refusal with no name of its own — a full account, an index that would not take the swap — is not the server being away, so the
+    // save cannot answer `unavailable`; the caller still gets what this device staged, because nothing reached the account.
+    const server = new FakeBlobServer();
+    const key = generateProjectKey();
+    const fs = await device(server, key);
+    const refused = async (): Promise<void> => { throw new Error('the index would not take it'); };
+    fs.commitChanges = refused;
+    try {
+      const outcome = await saveProjectToAccount(fs, project('Staged.'));
+      expect(outcome.kind).toBe('failed');
+      if (outcome.kind !== 'failed') throw new Error('expected the save to fail');
+      expect(outcome.changes.map((change) => change.path)).toContain(`${DOCS_DIR}/n_3W8RN2TQ6C.md`);
+    } finally {
+      delete (fs as { commitChanges?: unknown }).commitChanges;
+    }
+  });
 });
 
 describe('a project’s pictures travel with the save that names them', () => {
