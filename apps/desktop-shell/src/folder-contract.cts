@@ -41,12 +41,12 @@ export interface NativeFolderBridge {
 
 /**
  * Everything the desktop shell exposes to the studio. `folders` arrived with version 2, `os` and the provider port with version 3,
- * the vault with 4 and the project's own server with 5: a page reads the version before it reads a member, so an older shell and a
- * newer studio each see only what both have.
+ * the vault with 4, the project's own server with 5 and the vault's key state with 6: a page reads the version before it reads a
+ * member, so an older shell and a newer studio each see only what both have.
  */
 
 export interface DesktopBridge {
-  readonly version: 5;
+  readonly version: 6;
   readonly folders: NativeFolderBridge;
   readonly os: NativeOsBridge;
   /** Provider and MCP calls made by the main process, where no CORS preflight applies. */

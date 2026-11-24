@@ -68,7 +68,7 @@ export {
   type ReplayCache,
   type ReplayEntry,
 } from './replay.js';
-export { guardBatch, guardMessage, hardDeniedError, refusalResponse, type GuardPolicy, type RefusalResponse } from './guard.js';
+export { folderWrite, guardBatch, guardMessage, hardDeniedError, refusalResponse, type GuardPolicy, type RefusalResponse } from './guard.js';
 export { advertisedInput, advertisedOutput, registerCaotangTools, resultEnvelope, toCallResult, type ToolRuntime } from './tools.js';
 export {
   MESSAGE_MAX_BYTES,
@@ -86,6 +86,8 @@ export {
 } from './pictures.js';
 export { ASSETS_URI, RESOURCE_MAX_BYTES, TIMELINE_CSV_URI, TIMELINE_URI, assetUri, registerCaotangResources } from './resources.js';
 export {
+  CONTROL_CANCEL,
+  CONTROL_LEASE_HEADER,
   CONTROL_PAUSE,
   CONTROL_RESUME,
   LEGACY_ROUND_TIMEOUT_MS,
