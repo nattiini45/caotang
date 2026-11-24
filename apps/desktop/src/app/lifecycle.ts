@@ -918,7 +918,7 @@ function emptyReport(): WriteReport {
  * on the manifest (`project.modifiedAt`) is left out: a folder save stamps it on the copy it writes and not on the project this browser
  * keeps, so after any save the two differ there and nowhere else.
  */
-export function sameBook(stored: ProjectState, folder: ProjectState): boolean {
+function sameBook(stored: ProjectState, folder: ProjectState): boolean {
   if (manifestTextOf(stored, folder.manifest.project.modifiedAt) !== manifestTextOf(folder, folder.manifest.project.modifiedAt)) return false;
   if (stored.documents.size !== folder.documents.size) return false;
   for (const [id, record] of stored.documents) {
@@ -933,7 +933,7 @@ export function sameBook(stored: ProjectState, folder: ProjectState): boolean {
  * (read.ts), so a folder's copy never carries the stored copy's; and the serializer keeps each node's keys in the order the object was made
  * in, which a project made in this browser and the same project read from its folder do not share, so the keys are sorted.
  */
-export function manifestTextOf(state: ProjectState, stamp: string): string {
+function manifestTextOf(state: ProjectState, stamp: string): string {
   const manifest = { ...state.manifest, project: { ...state.manifest.project, modifiedAt: stamp } };
   const parsed = JSON.parse(serializeManifest(manifest, PRODUCTION_FORMAT)) as Record<string, unknown>;
   delete parsed.derived;

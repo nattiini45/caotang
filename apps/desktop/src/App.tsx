@@ -44,9 +44,9 @@ export interface StartIntent {
  * Opening a project the host gives us. The hosted modules are fetched here and nowhere else, so the first load of `caotang.app` and of the
  * folder app carries none of them (hosted.md §2).
  */
-async function openFromAccount(store: RuntimeStore, source: HostedProjectSource, catchingUp = false): Promise<Opened> {
+async function openFromAccount(store: RuntimeStore, source: HostedProjectSource): Promise<Opened> {
   const { openHostedProject } = await import('./app/hosted-open.js');
-  return await openHostedProject(store, source, undefined, catchingUp);
+  return await openHostedProject(store, source);
 }
 
 export function App(): ReactNode {
@@ -181,9 +181,9 @@ export function App(): ReactNode {
         hostedTargetFor(previous.projectId)?.detach();
         await previous.closeSafely().catch(() => undefined);
       }
-      // This is the session catching up after a send the writer chose (hosted.md §7.2), not a project being opened, so the account's
-      // version takes this browser's place without asking about the copy that was read before the send.
-      const opened = await openFromAccount(boot.kind === 'ready' ? boot.store : store, source, true);
+      // The reopen after a send the writer chose (hosted.md §7.2): the account always holds the newer words now, and an open takes its
+      // version over this browser's copy whatever the copy still holds.
+      const opened = await openFromAccount(boot.kind === 'ready' ? boot.store : store, source);
       if (token !== serial.current) {
         await opened.session.closeSafely().catch(() => undefined);
         forgetHostedTarget(opened.session.projectId);

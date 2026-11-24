@@ -82,14 +82,11 @@ export interface HostedSaveSession {
   assets?(): Promise<Readonly<Record<string, Uint8Array>>>;
 }
 
-/** The pictures this device changed against the account, and the ones it deleted, as one save carries them. */
-interface PictureChanges {
-  readonly files: Record<string, Uint8Array> | null;
-  readonly digests: Map<string, string>;
-  readonly removed: readonly string[];
-  /** Pictures that changed here while the account moved too, and pictures deleted here that the account has since rewritten. */
-  readonly moved: readonly RemoteChange[];
-}
+/**
+ * The registry's three calls, re-exported here so a caller that holds a target does not have to know that looking one up is a separate
+ * module: the registry is separate only so `caotang.app`'s first load carries a `Map` and not this class (hosted.md §2).
+ */
+export { forgetHostedTarget, hostedTargetFor, installHostedTarget } from './hosted-target-registry.js';
 
 export class HostedTarget {
   #state: HostedSaveState = { kind: 'idle' };
@@ -99,22 +96,17 @@ export class HostedTarget {
   #detached: (() => void) | null = null;
   /** The attached session's pictures, so a save carries them with the files that name them. */
   #assets: (() => Promise<Readonly<Record<string, Uint8Array>>>) | null = null;
-  /** The documents and pictures this device last saw the account hold, so a deletion is one it made rather than one it missed. */
+  /**
+   * The documents and pictures the account held when this session opened it, so a path that is gone now is a deletion this device made
+   * rather than one it never saw. Nothing else is remembered per file: a save carries every file at the version it read, and the
+   * adapter's own version check is what tells us another device moved one.
+   */
   readonly #knownDocuments = new Set<string>();
   readonly #knownAssets = new Set<string>();
-  /**
-   * Each picture as this device last agreed with the account: the digest of the bytes and the account version they are. A save stages
-   * only what changed here against that baseline, so a picture another device wrote after this one opened is never written back from
-   * this browser's older snapshot.
-   */
-  readonly #assetsAt = new Map<string, { readonly digest: string; readonly version: number }>();
-  /** The changes the current question is about, and the paths the writer was shown: their answer covers those and no others. */
-  #question: readonly RemoteChange[] = [];
+  /** The paths the writer was shown for the open question: their answer covers those and no others. */
   #asked: readonly string[] = [];
   /** Whether the open question came from this session's own save, which is answered by saving the state again, or from the queue. */
   #fromSave = false;
-  /** Pictures the writer has just answered for, so the answer's bytes or deletion go through once instead of asking again. */
-  readonly #answered = new Set<string>();
 
   constructor(
     readonly projectId: string,
@@ -168,18 +160,15 @@ export class HostedTarget {
   }
 
   /**
-   * What the session opened with: the documents and pictures this device held when the account's project reached it. A path here that
-   * the state no longer holds is a deletion this device made; a path that is not here belongs to another device, and a save that pruned
-   * it would delete work it never saw. Called by a fresh open, which is also how a session catches up with the account.
+   * What the session opened with: the documents and pictures the account holds. A path here that the state no longer holds is a deletion
+   * this device made; a path that is not here belongs to another device, and a save that pruned it would delete work it never saw. Called
+   * by a fresh open, which is also how a session catches up with the account.
    */
-  async rememberOpened(documents: Iterable<string>, assets: Readonly<Record<string, Uint8Array>>): Promise<void> {
+  rememberOpened(documents: Iterable<string>, assets: Readonly<Record<string, Uint8Array>>): void {
+    this.#knownDocuments.clear();
     for (const id of documents) this.#knownDocuments.add(id);
     this.#knownAssets.clear();
-    this.#assetsAt.clear();
-    for (const [path, bytes] of Object.entries(assets)) {
-      this.#knownAssets.add(path);
-      this.#assetsAt.set(path, { digest: await digestOf(bytes), version: this.#versionOf(path) });
-    }
+    for (const path of Object.keys(assets)) this.#knownAssets.add(path);
     // A fresh open is the session catching up: the account's words are in front of the writer now.
     if (this.#state.kind === 'stale') this.#set({ kind: 'idle' });
   }
@@ -247,25 +236,30 @@ export class HostedTarget {
     if (this.#state.kind !== 'conflict') return this.#state;
     await this.fs.refresh();
     this.queue?.marks();
-    // A picture the writer has answered for goes through once: its bytes, or its deletion, on top of the version just read. Without
-    // this the same question would come back for the same reason it was first asked.
-    for (const change of this.#question) if (change.path.startsWith('assets/')) this.#answered.add(change.path);
     // The answer to this session's own save is the state it read, saved again on top of the other device's version. A question about
     // the queue has no state to save — those words are the held paths — so the queue is sent instead.
     const queueOnly = !this.#fromSave;
     this.#set({ kind: 'saving' });
     if (queueOnly) {
-      if (this.queue !== null) this.queue.rebase(this.#asked);
-      this.#settleSend(await (this.queue?.replay() ?? this.#commitChanges()));
+      if (this.queue === null) {
+        // Nothing to send and no state it read: the question stands, because nothing was written over either copy.
+        this.#set({ kind: 'conflict', paths: this.#asked });
+        return this.#state;
+      }
+      this.queue.rebase(this.#asked);
+      this.#settleSend(await this.queue.replay());
       return this.#state;
     }
-    this.#question = [];
     this.#asked = [];
     this.#fromSave = false;
-    // A question from this session's own save always has the state it read beside it; a conflict that arrived without one (a caller that
-    // asked for this answer with nothing to save) falls back to sending the staged changes.
-    if (state === undefined) this.#settleSend(await (this.queue?.replay() ?? this.#commitChanges()));
-    else await this.save(state);
+    // A question from this session's own save always has the state it read beside it, and saving it again on top of the version the
+    // refresh just read is the answer. A conflict that arrived without one (a caller that asked for this answer with nothing to save)
+    // keeps its question rather than sending words nobody staged.
+    if (state === undefined) {
+      this.#set({ kind: 'conflict', paths: this.#asked });
+      return this.#state;
+    }
+    await this.save(state);
     return this.#state;
   }
 
@@ -280,26 +274,20 @@ export class HostedTarget {
     this.#set({ kind: 'conflict', paths });
   }
 
-  /** The account's version of a path, as the adapter last read it. */
-  #versionOf(path: string): number {
-    return this.fs.versionOf(path);
-  }
-
   async #commit(state: ProjectState): Promise<void> {
     this.#set({ kind: 'saving' });
     const docs = new Set(state.documents.keys());
     const removed = [...this.#knownDocuments].filter((id) => !docs.has(id));
-    const pictures = await this.#pictureChanges();
-    if (pictures.moved.length > 0) {
-      // A picture that changed on both sides is the same question a document raises, and nothing is written until it is answered.
-      this.#hold(pictures.moved, pictures.moved.map((change) => change.path), true);
-      return;
-    }
+    // The pictures are files like any other: the save carries the ones this device holds, and the ones it deleted while the session was
+    // open are named here the way a document's deletion is. A picture another device moved is refused by the same version check that
+    // refuses a document, and asked about with the same question, so there is nothing here that knows what a picture is.
+    const held = (await this.#assets?.()) ?? null;
+    const removedPictures = held === null ? [] : [...this.#knownAssets].filter((path) => !(path in held));
     let outcome: HostedSaveOutcome;
     try {
       outcome = await this.saveState(state, {
         removed,
-        assets: pictures.files === null ? undefined : { files: pictures.files, removed: pictures.removed },
+        assets: held === null ? undefined : { files: held, removed: removedPictures },
       });
     } catch {
       // The save never got far enough to stage anything, so there is nothing to hold: the state still says the account is behind this
@@ -308,7 +296,7 @@ export class HostedTarget {
       return;
     }
     if (outcome.kind === 'written') {
-      this.#landed(docs, outcome.report, pictures);
+      this.#landed(docs, held, outcome.report);
       return;
     }
     if (outcome.kind === 'failed') {
@@ -320,67 +308,18 @@ export class HostedTarget {
     this.#hold(outcome.changes, outcome.kind === 'conflict' ? outcome.paths : undefined, true);
   }
 
-  /** The pictures this save carries: the ones this device changed, the deletions it made, and the ones another device moved too. */
-  async #pictureChanges(): Promise<PictureChanges> {
-    const held: Readonly<Record<string, Uint8Array>> | null = (await this.#assets?.()) ?? null;
-    if (held === null) return { files: null, digests: new Map(), removed: [], moved: [] };
-    const kept = new Set(Object.keys(held));
-    const files: Record<string, Uint8Array> = {};
-    const digests = new Map<string, string>();
-    const moved: RemoteChange[] = [];
-    for (const [path, bytes] of Object.entries(held)) {
-      const digest = await digestOf(bytes);
-      const at = this.#assetsAt.get(path);
-      if (at !== undefined && at.digest === digest) {
-        digests.set(path, digest);
-        continue;
-      }
-      if (this.#answered.delete(path)) {
-        files[path] = bytes;
-        digests.set(path, digest);
-        continue;
-      }
-      if ((at === undefined && this.#versionOf(path) !== 0) || (at !== undefined && at.version !== this.#versionOf(path))) {
-        moved.push({ path, bytes });
-        continue;
-      }
-      files[path] = bytes;
-      digests.set(path, digest);
-    }
-    // A picture this device deleted is only its to delete if the account has not moved it since: another device's newer version is not
-    // what the writer removed.
-    const removed: string[] = [];
-    for (const path of [...this.#knownAssets].filter((candidate) => !kept.has(candidate))) {
-      if (this.#answered.delete(path)) {
-        removed.push(path);
-        continue;
-      }
-      const at = this.#assetsAt.get(path);
-      if (at !== undefined && at.version !== this.#versionOf(path)) moved.push({ path, bytes: null });
-      else removed.push(path);
-    }
-    return { files, digests, removed, moved };
-  }
-
-  /** A written save: the account now holds this state, so the baselines and the queue are measured against it. */
-  #landed(docs: ReadonlySet<string>, report: WriteReport, pictures: PictureChanges): void {
-    this.#question = [];
+  /** A written save: the account now holds this state, so what this device has seen and what the queue still owes are measured on it. */
+  #landed(docs: ReadonlySet<string>, held: Readonly<Record<string, Uint8Array>> | null, report: WriteReport): void {
     this.#asked = [];
     this.#knownDocuments.clear();
     for (const id of docs) this.#knownDocuments.add(id);
-    this.#knownAssets.clear();
-    for (const path of [...this.#assetsAt.keys(), ...Object.keys(pictures.files ?? {})]) this.#knownAssets.add(path);
-    for (const path of Object.keys(pictures.files ?? {})) {
-      this.#knownAssets.add(path);
-      this.#assetsAt.set(path, { digest: pictures.digests.get(path)!, version: this.#versionOf(path) });
-    }
-    for (const path of pictures.removed) {
-      this.#knownAssets.delete(path);
-      this.#assetsAt.delete(path);
+    if (held !== null) {
+      this.#knownAssets.clear();
+      for (const path of Object.keys(held)) this.#knownAssets.add(path);
     }
     // This save carried these paths at the state they hold now, so a queued edit of any of them is older than what landed: the files
     // the report wrote and pruned, and the pictures, which are staged outside the report and so are named here.
-    this.queue?.forget([...report.written, ...report.pruned, ...Object.keys(pictures.files ?? {}), ...pictures.removed]);
+    this.queue?.forget([...report.written, ...report.pruned, ...(held === null ? [] : Object.keys(held))]);
     this.queue?.marks();
     this.#set({ kind: 'idle' });
   }
@@ -389,13 +328,11 @@ export class HostedTarget {
   #hold(changes: readonly RemoteChange[], paths?: readonly string[], fromSave = false): void {
     this.queue?.hold(changes);
     if (paths === undefined) {
-      this.#question = [];
       this.#asked = [];
       this.#fromSave = false;
       this.#set({ kind: 'unsaved', paths: changes.map((change) => change.path) });
       return;
     }
-    this.#question = changes;
     this.#asked = paths;
     this.#fromSave = fromSave;
     this.#set({ kind: 'conflict', paths });
@@ -404,14 +341,12 @@ export class HostedTarget {
   /** What a send of the held words settled: the account holds them (and the session is behind), a question is up, or nothing moved. */
   #settleSend(outcome: HostedReplay): void {
     if (outcome.kind === 'sent') {
-      this.#question = [];
       this.#asked = [];
       this.queue?.marks();
       this.#set({ kind: 'stale' });
       return;
     }
     if (outcome.kind === 'conflict') {
-      this.#question = [];
       this.#asked = outcome.paths;
       this.#fromSave = false;
       this.#set({ kind: 'conflict', paths: outcome.paths });
@@ -420,31 +355,8 @@ export class HostedTarget {
     this.#set({ kind: 'unsaved', paths: this.queue?.held() ?? [] });
   }
 
-  /** The answer when the target holds no queue (a session opened without the adapter's queue). */
-  async #commitChanges(): Promise<HostedReplay> {
-    try {
-      const changes = this.#question;
-      await this.fs.commitChanges(changes);
-      return { kind: 'sent', count: changes.length };
-    } catch {
-      return { kind: 'unavailable' };
-    }
-  }
-
   #set(next: HostedSaveState): void {
     this.#state = next;
     for (const listener of this.#listeners) listener();
   }
 }
-
-/** A picture's bytes as one string, so a save can tell this device's change from another device's. */
-async function digestOf(bytes: Uint8Array): Promise<string> {
-  // A copy of its own: the bytes may come from a snapshot whose buffer the browser also holds, and `subtle.digest` wants an
-  // `ArrayBuffer` it can read without sharing.
-  const copy = new Uint8Array(bytes.length);
-  copy.set(bytes);
-  const digest = await crypto.subtle.digest('SHA-256', copy);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-export { forgetHostedTarget, hostedTargetFor, installHostedTarget } from './hosted-target-registry.js';

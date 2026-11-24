@@ -259,7 +259,7 @@ describe('stale', () => {
     await saving.sendQueued();
     expect(saving.state()).toEqual({ kind: 'stale' });
     // The session catching up is what a fresh open does.
-    await saving.rememberOpened(state().documents.keys(), {});
+    saving.rememberOpened(state().documents.keys(), {});
     expect(saving.state()).toEqual({ kind: 'idle' });
   });
 
@@ -312,57 +312,28 @@ describe('events a state refuses', () => {
 });
 
 describe('what a save carries', () => {
-  it('only the pictures this device changed, and the ones it deleted', async () => {
+  it('carries every picture the session holds, and the ones it deleted while the session was open', async () => {
+    // Pictures are files like any other: the save carries what the session has, names what it deleted, and the adapter's own version
+    // check is what refuses a picture another device moved. Nothing here treats a picture differently from a document.
     const { saving, saves } = target([{ kind: 'written' }]);
     const project = state();
-    const untouched = new Uint8Array([7]);
-    const before = new Uint8Array([8]);
-    saving.attach({ ...session(project).session, assets: async () => ({ [COVER]: untouched, 'assets/c_5RB7XQ2MNN.png': new Uint8Array([9]) }) });
-    await saving.rememberOpened(project.documents.keys(), { [COVER]: untouched, 'assets/c_5RB7XQ2MNN.png': before, 'assets/c_GONE.png': new Uint8Array([3]) });
+    const held = { [COVER]: new Uint8Array([7]), 'assets/c_5RB7XQ2MNN.png': new Uint8Array([9]) };
+    saving.attach({ ...session(project).session, assets: async () => held });
+    saving.rememberOpened(project.documents.keys(), { ...held, 'assets/c_GONE.png': new Uint8Array([3]) });
     await saving.save(project);
-    expect(saves).toEqual([{ removed: [], assets: { files: { 'assets/c_5RB7XQ2MNN.png': new Uint8Array([9]) }, removed: ['assets/c_GONE.png'] } }]);
+    expect(saves).toEqual([{ removed: [], assets: { files: held, removed: ['assets/c_GONE.png'] } }]);
   });
 
-  it('asks about a picture this device changed while another device changed it too', async () => {
+  it('asks about a picture another device moved, with the same question a document gets', async () => {
     const one = queue([]);
-    const versions: Record<string, number> = { [COVER]: 1 };
-    const { saving, saves } = target([{ kind: 'written' }], one.port, versions);
+    const { saving, saves } = target([{ kind: 'conflict', paths: [COVER] }], one.port);
     const project = state();
     saving.attach({ ...session(project).session, assets: async () => ({ [COVER]: new Uint8Array([2]) }) });
-    await saving.rememberOpened(project.documents.keys(), { [COVER]: new Uint8Array([1]) });
-    versions[COVER] = 2;
+    saving.rememberOpened(project.documents.keys(), { [COVER]: new Uint8Array([1]) });
     await saving.save(project);
     expect(saving.state()).toEqual({ kind: 'conflict', paths: [COVER] });
-    expect(saves).toEqual([]);
+    expect(saves.length).toBe(1);
     expect(one.port.held()).toEqual([COVER]);
-  });
-
-  it('asks before deleting a picture another device saved over', async () => {
-    const one = queue([]);
-    const versions: Record<string, number> = { [COVER]: 1 };
-    const { saving, saves } = target([{ kind: 'written' }], one.port, versions);
-    const project = state();
-    saving.attach({ ...session(project).session, assets: async () => ({}) });
-    await saving.rememberOpened(project.documents.keys(), { [COVER]: new Uint8Array([1]) });
-    versions[COVER] = 2;
-    await saving.save(project);
-    expect(saving.state()).toEqual({ kind: 'conflict', paths: [COVER] });
-    expect(saves).toEqual([]);
-  });
-
-  it('carries an answered deletion through instead of asking again', async () => {
-    const one = queue([]);
-    const versions: Record<string, number> = { [COVER]: 1 };
-    const { saving, saves } = target([{ kind: 'written' }, { kind: 'written' }], one.port, versions);
-    const project = state();
-    saving.attach({ ...session(project).session, assets: async () => ({}) });
-    await saving.rememberOpened(project.documents.keys(), { [COVER]: new Uint8Array([1]) });
-    versions[COVER] = 2;
-    await saving.save(project);
-    expect(saving.state()).toEqual({ kind: 'conflict', paths: [COVER] });
-    await saving.keepMine(project);
-    expect(saving.state()).toEqual({ kind: 'idle' });
-    expect(saves.at(-1)).toEqual({ removed: [], assets: { files: {}, removed: [COVER] } });
   });
 
   it('settles the pictures it carried, so the account does not offer them back as a conflict', async () => {
@@ -370,7 +341,7 @@ describe('what a save carries', () => {
     const { saving } = target([{ kind: 'written' }], one.port);
     const project = state();
     saving.attach({ ...session(project).session, assets: async () => ({ [COVER]: new Uint8Array([5]) }) });
-    await saving.rememberOpened(project.documents.keys(), {});
+    saving.rememberOpened(project.documents.keys(), {});
     await saving.save(project);
     expect(one.calls).toContain(`forget:${COVER}`);
   });

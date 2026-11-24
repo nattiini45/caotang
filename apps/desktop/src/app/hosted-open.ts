@@ -6,24 +6,16 @@
  * Nothing here is a bus command, as nothing in lifecycle is: opening a project reads it.
  */
 
-import type { RemoteChange } from '@caotang/remote-store';
 import {
-  DOCS_DIR,
-  MANIFEST_FILE,
-  MemoryArtifactFs,
-  isBodyFileName,
   listProjectIds,
   readProject,
   readProjectState,
   readSessions,
-  writeProject,
   writeProjectState,
   type ArtifactFs,
-  type ProjectState,
   type RuntimeStore,
 } from '@caotang/store';
 import type { Opened } from './lifecycle.js';
-import { copyState } from './persistence-plan.js';
 import { installHostedTarget } from './hosted-target-registry.js';
 import type { HostedTarget } from './hosted-target.js';
 import type { HostedProjectSource } from './studio-host.js';
@@ -43,59 +35,18 @@ async function picturesOnHostedFs(fs: ArtifactFs): Promise<Record<string, Uint8A
   return await picturesOnProjectFs(fs);
 }
 
-/**
- * The documents one state holds whose text the other does not: a page this device wrote that the account has never seen, a page the
- * account has that this device deleted, or a page both hold at different words. Their ids, so the text can be read from the copy
- * that has it.
- */
-function differingDocumentIds(mine: ProjectState, theirs: ProjectState): string[] {
-  const ids = new Set([...mine.documents.keys(), ...theirs.documents.keys()]);
-  return [...ids].filter((id) => mine.documents.get(id)?.body !== theirs.documents.get(id)?.body);
-}
-
-/**
- * Those documents as the queue holds them: the text as this browser shows it, at the path the project format gives it — which is the
- * codex's own file for a screenplay (`.fountain`) and an Ink knot (`.ink`), not the `.md` every document used to have, so the body is
- * found by the name the copy actually wrote. A document the account holds and this copy does not is held as a deletion (`bytes: null`),
- * because the writer's copy is the one the question is about. A document this copy holds no file for at all — a load declined it
- * because its bytes are not UTF-8 — has no text to hold either, and the account's version stands for it.
- */
-async function heldDocumentChanges(state: ProjectState, ids: readonly string[], onAccount: ReadonlySet<string>): Promise<RemoteChange[]> {
-  const copy = new MemoryArtifactFs();
-  await writeProject(copy, copyState(state), { now: new Date(), copyFor: 'internal' });
-  const names = await copy.listFiles(DOCS_DIR);
-  const changes: RemoteChange[] = [];
-  for (const id of ids) {
-    const name = names.find((candidate) => candidate.startsWith(`${id}.`) && isBodyFileName(candidate));
-    if (name !== undefined) {
-      changes.push({ path: `${DOCS_DIR}/${name}`, bytes: await copy.readBytes(`${DOCS_DIR}/${name}`) });
-      continue;
-    }
-    const onAccountName = [...onAccount].find((candidate) => candidate.startsWith(`${id}.`) && isBodyFileName(candidate));
-    if (onAccountName !== undefined) changes.push({ path: `${DOCS_DIR}/${onAccountName}`, bytes: null });
-  }
-  return changes;
-}
-
 export async function openHostedProject(
   store: RuntimeStore,
   source: HostedProjectSource,
   openTarget: (source: HostedProjectSource) => Promise<HostedTarget> = openHostedTargetLater,
-  /**
-   * This open is the session catching up after a send the writer chose (hosted.md §7.2, the `stale` state), not a project being opened. The
-   * account now holds their words and everything else, so its version takes this browser's place without the divergent-copy question: asking
-   * here would offer to send the copy that was read before the send, which is exactly what the send replaced.
-   */
-  catchingUp = false,
 ): Promise<Opened> {
-  const { adopt, droppedFieldsOf, folderSessionsOf, leaseFor, linesNotHeld, manifestTextOf, noticesOf, openStored, sameBook } =
-    await import('./lifecycle.js');
+  const { adopt, droppedFieldsOf, folderSessionsOf, leaseFor, linesNotHeld, noticesOf, openStored } = await import('./lifecycle.js');
   const target = await openTarget(source);
   // Nothing the queue holds is sent here: opening a project reads it, and the writer is told what is still on this device with the one
   // action that would send it (hosted.md §7.2). An open that replayed on its own would write to the account without being asked.
   const loaded = await readProject(target.fs);
-  // The project's pictures travel with it: the copy this browser keeps is what a later save is measured on, so a picture left
-  // behind here would be a picture the next save prunes from the account.
+  // The project's pictures travel with it as files among the others: the copy this browser keeps is what the session shows and what a
+  // save carries, so a picture the account has and this open left behind would be a picture missing from the writer's page.
   const pictures = await picturesOnHostedFs(target.fs);
   // The account is this project's home, so the browser's copy of it is a cache rather than a second project: the account's version
   // takes its place under the same id, with the writing history of both. Adopting it the way a folder open does would see a copy
@@ -107,31 +58,14 @@ export async function openHostedProject(
   if (cached === null) {
     opened = await adopt(store, loaded.state, accountLog, noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
   } else {
-    // The account's version takes the browser's place under the same id, with the writing history of both. It is written over the copy
-    // rather than replacing it, because the copy is more than its manuscript: the writer's recurring tasks, their run history, the
-    // consents they gave and the skills they pinned are this browser's, keyed by the project's id, and removing the project to make room
-    // would drop them for a difference the book may not even have.
-    const same = sameBook(cached, loaded.state);
-    // The browser's copy holds words the account does not: those documents are held in the device queue as this device's version, the
-    // account's copy opens in their place, and the writer is asked which text the account should keep (hosted.md §7.2). "Keep mine"
-    // replays the held words; the account's version stands if the writer leaves it. An open that is catching up after a send the writer
-    // chose holds nothing: the account now has their words, and asking would offer the version the send just replaced.
-    const held = same || catchingUp
-      ? []
-      : await heldDocumentChanges(cached, differingDocumentIds(cached, loaded.state), new Set(await target.fs.listFiles(DOCS_DIR)));
-    // The manifest is the writer's own settings as much as the book — the title, the tree, the codex entries — so a copy whose manifest
-    // differs from the account's is part of the same question rather than something the account's version may simply replace.
-    if (!same && !catchingUp && manifestTextOf(cached, cached.manifest.project.modifiedAt) !== manifestTextOf(loaded.state, cached.manifest.project.modifiedAt)) {
-      const manifest = new MemoryArtifactFs();
-      await writeProject(manifest, copyState(cached), { now: new Date(), copyFor: 'internal' });
-      held.push({ path: MANIFEST_FILE, bytes: await manifest.readBytes(MANIFEST_FILE) });
-    }
-    target.queue?.hold(held);
+    // The account's version always wins, and it is written over the browser's copy rather than replacing it: the copy is more than its
+    // manuscript — the writer's recurring tasks, their run history, the consents they gave and the skills they pinned are keyed by the
+    // project's id — so removing the project to make room would drop them. Nothing of the copy is compared with the account and nothing
+    // here asks a question: the only device-local state a hosted project has is the queue of saves the account has not taken, and that is
+    // untouched by an open.
     const keptLog = await readSessions(store, projectId);
     // The copy is written only while this page holds the project: another tab with it open would be writing the same rows, and the
     // lease is what says the writer is here rather than there. It is given back before the project is opened, which takes its own.
-    // The state written is the account's, never the copy's: a reopen that opened the copy as it stood before a send would put the words
-    // that send replaced back in front of the writer, and the next save would write them to the account.
     const writing = await leaseFor(projectId);
     try {
       await writeProjectState(store, loaded.state, { now: new Date() });
@@ -139,19 +73,10 @@ export async function openHostedProject(
       writing.release();
     }
     opened = await openStored(store, projectId, null, { notices: noticesOf(loaded.notices), droppedFields: droppedFieldsOf(loaded.notices), folderLog: [...accountLog, ...linesNotHeld(keptLog, accountLog)] }, pictures);
-    if (held.length > 0) {
-      // A conflict the queue's own replay raised is already naming what it could not send; these paths join it, because both are this
-      // device's words against the account's and both need the same answer.
-      const asked = target.state();
-      const paths = held.map((change) => change.path);
-      target.raiseConflict(asked.kind === 'conflict' ? [...new Set([...asked.paths, ...paths])] : paths);
-    }
   }
   // The target is kept for the session and follows every save this browser finishes, carrying the project's pictures with the files
-  // that name them, and knowing what this device held so a save removes only what it deleted itself.
-  // The baseline is the account's pictures, not the browser's copy of them: a picture this browser holds and the account does not is
-  // one the writer still has to send, and a baseline taken from the copy would make the next save skip exactly that.
-  await target.rememberOpened(opened.session.state.documents.keys(), pictures);
+  // that name them, and knowing what the account held at this open so a save removes only what this device deleted itself.
+  target.rememberOpened(opened.session.state.documents.keys(), pictures);
   installHostedTarget(target);
   // Words a save could not deliver are the writer's to send: the target says they are here, and the notice offers the action.
   target.heldAtOpen();

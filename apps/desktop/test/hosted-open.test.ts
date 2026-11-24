@@ -1,20 +1,22 @@
 /**
- * What a hosted open does with the words that were not delivered and with the browser's own copy (hosted.md §7, §11). The words
- * an earlier tab could not send reach the project the writer opens, and opening the same account project twice is the same
- * project each time rather than a second copy of itself whose id the next save would write into the account's manifest.
+ * What a hosted open does with the two copies it could confuse (hosted.md §7): the account's project is the project, and the browser's
+ * copy of it is a cache that is refreshed in place — under the same id, keeping the records this browser keys by that id — whatever the
+ * two hold. The only device-local state a hosted project has is the queue of saves the account has not taken, and an open sends nothing.
  */
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { MemoryArtifactFs, MemoryIndexedDb, openRuntimeStore, removeNode, writeProject, type ProjectState, type RuntimeStore } from '@caotang/store';
+import { MemoryArtifactFs, MemoryIndexedDb, openRuntimeStore, writeProject, type ProjectState, type RuntimeStore } from '@caotang/store';
 
 import { setActiveAppDb } from '../src/app/app-db.js';
 import { type Opened } from '../src/app/lifecycle.js';
 import { openHostedProject } from '../src/app/hosted-open.js';
-import { forgetHostedTarget, HostedTarget, hostedTargetFor, type HostedQueuePort, type HostedReplay } from '../src/app/hosted-target.js';
+import { HostedTarget, type HostedQueuePort, type HostedReplay } from '../src/app/hosted-target.js';
+import { forgetHostedTarget, hostedTargetFor } from '../src/app/hosted-target-registry.js';
 import type { HostedProjectSource } from '../src/app/studio-host.js';
 import { IDS, project } from '../../../e2e/unit/fixtures.js';
 
 /** One project for the whole file: a fixture built twice makes a second project id, and these tests are about one project. */
 const BOOK = project();
+const COVER = `assets/p_2K4Q9WJ1TT.png`;
 
 const SOURCE: HostedProjectSource = {
   projectId: 'p_fixture',
@@ -25,12 +27,14 @@ const SOURCE: HostedProjectSource = {
 
 let store: RuntimeStore;
 let opened: Opened[];
+let lastTarget: HostedTarget | null = null;
 
 beforeEach(async () => {
   vi.stubGlobal('document', new EventTarget());
   vi.stubGlobal('window', new EventTarget());
   store = await openRuntimeStore(new MemoryIndexedDb());
   opened = [];
+  lastTarget = null;
 });
 
 afterEach(async () => {
@@ -40,147 +44,115 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-/** A queue that holds one scene's words and replays them into the same filesystem the open reads. */
-function queueHolding(fs: MemoryArtifactFs, replayedBody: string | undefined, outcome: HostedReplay = { kind: 'sent', count: 1 }, starts: readonly string[] = [`docs/${IDS.sceneA}.md`]): HostedQueuePort {
-  const held = new Set(starts);
+/**
+ * A queue that counts what it is asked: an open holds nothing and sends nothing, so a test that found a `send` here would have found the
+ * app writing to the account without the writer asking.
+ */
+function queue(startingWith: readonly string[] = []): HostedQueuePort & { calls: string[] } {
+  const held = new Set(startingWith);
+  const calls: string[] = [];
   return {
+    calls,
     hold: (changes) => {
+      calls.push(`hold:${changes.map((change) => change.path).join(',')}`);
       for (const change of changes) held.add(change.path);
     },
-    replay: async () => {
-      if (outcome.kind !== 'sent') return outcome;
-      const state = project();
-      state.manifest.project = BOOK.manifest.project;
-      if (replayedBody !== undefined) state.documents.get(IDS.sceneA)!.body = replayedBody;
-      await writeProject(fs, state);
+    replay: async (): Promise<HostedReplay> => {
+      calls.push('send');
       held.clear();
-      return outcome;
+      return { kind: 'sent', count: 1 };
     },
     forget: (paths) => {
+      calls.push(`forget:${paths === undefined ? 'all' : paths.join(',')}`);
       if (paths === undefined) held.clear();
       else for (const path of paths) held.delete(path);
     },
-    rebase: (paths) => { for (const path of paths) held.add(path); },
+    rebase: (paths) => calls.push(`rebase:${paths.join(',')}`),
     held: () => [...held],
-    marks: () => {},
+    marks: () => calls.push('marks'),
   };
 }
 
-async function targetFor(replayedBody: string | undefined, outcome?: HostedReplay, starts?: readonly string[]): Promise<HostedTarget> {
+/** The account as the app reaches it: one project, its pictures, and the queue this device keeps. */
+async function targetFor(state: ProjectState = BOOK, holding: readonly string[] = []): Promise<HostedTarget & { port: ReturnType<typeof queue> }> {
   const fs = new MemoryArtifactFs();
-  await writeProject(fs, BOOK);
-  const queue = queueHolding(fs, replayedBody, outcome, starts);
-  // The adapter under this file is a memory one: what these tests ask of it is reads, and a re-read after a refusal.
+  await writeProject(fs, state);
+  await fs.writeBytesAtomic(COVER, new Uint8Array([7, 7, 7]));
   Object.assign(fs, { refresh: async () => undefined });
-  return new HostedTarget(
+  const port = queue(holding);
+  const target = new HostedTarget(
     SOURCE.projectId,
     fs as never,
     (async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } })) as never,
-    queue,
+    port,
   );
+  return Object.assign(target, { port });
 }
 
-/** Opens through the lifecycle, closing whatever it opened when the test ends. The target is kept for the assertions on it. */
-let lastTarget: HostedTarget | null = null;
-async function open(body?: string, outcome?: HostedReplay): Promise<Opened> {
-  const target = await targetFor(body, outcome);
+async function open(state: ProjectState = BOOK, holding: readonly string[] = []): Promise<Opened> {
+  const target = await targetFor(state, holding);
   lastTarget = target;
   const result = await openHostedProject(store, SOURCE, async () => target);
   opened.push(result);
   return result;
 }
 
-it('opens the account’s version and says the queued words are still on this device', async () => {
-  // Nothing is sent by an open (hosted.md §7.2): the account's book is what opens, and the writer is told what is still here with the
-  // one action that would send it.
-  const result = await open('Five words, written offline');
+/** The account's project with one document's kind changed, as another device's save would leave it. */
+function asScreenplay(): ProjectState {
+  const state = project();
+  const node = state.manifest.tree.find((candidate) => candidate.id === IDS.sceneA);
+  if (node !== undefined) node.kind = 'screenplay';
+  state.documents.get(IDS.sceneA)!.body = 'INT. HARBOUR - NIGHT';
+  return state;
+}
+
+it('opens the account’s project under its own id, with its pictures', async () => {
+  const result = await open();
+  expect(result.session.projectId).toBe(BOOK.manifest.project.id);
+  expect(result.copiedFrom).toBeNull();
   expect(result.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
-  expect(lastTarget?.state()).toEqual({ kind: 'unsaved', paths: [`docs/${IDS.sceneA}.md`] });
-  expect(lastTarget?.queue?.held()).toContain(`docs/${IDS.sceneA}.md`);
+  expect(Object.keys(await result.session.assets.snapshot())).toContain(COVER);
 });
 
-it('opens the account’s version while the queue holds words, whatever the queue would answer', async () => {
-  const result = await open('Five words, written offline', { kind: 'conflict', paths: [`docs/${IDS.sceneA}.md`] });
-  expect(result.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
-  expect(lastTarget?.state()).toEqual({ kind: 'unsaved', paths: [`docs/${IDS.sceneA}.md`] });
-});
-
-it('opens the account’s project under its own id', async () => {
-  const first = await open('Four little words here');
-  expect(first.session.projectId).toBe(BOOK.manifest.project.id);
-  expect(first.copiedFrom).toBeNull();
-});
-
-it('opens the same project again under its own id, not as a copy of itself', async () => {
-  const first = await open('Four little words here');
-  expect(first.session.projectId).toBe(BOOK.manifest.project.id);
+it('opens the same project again in place, not as a second copy of itself whose id it would save into the account', async () => {
+  const first = await open();
   await first.session.closeSafely();
   opened = opened.filter((one) => one !== first);
 
-  // The two copies are the same book, so the account's version takes the browser's place under the same id.
-  const second = await open('Four little words here');
+  const second = await open();
   expect(second.session.projectId).toBe(BOOK.manifest.project.id);
   expect(second.copiedFrom).toBeNull();
-  expect(second.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
 });
 
-/** The account's project with one node's kind changed, and the browser's copy holding a different body for it. */
-async function diverged(setup: (state: ProjectState) => void): Promise<Opened> {
+it('takes the account’s words over this browser’s copy without asking, because the account is where the project lives', async () => {
   const first = await open();
-  setup(first.session.state);
+  first.session.state.documents.get(IDS.sceneA)!.body = 'Five words, written offline';
   await first.session.persistence.settle();
   await first.session.closeSafely();
   opened = opened.filter((one) => one !== first);
-  return await open();
-}
 
-it('holds a screenplay’s words at the file its kind gives them, not at a .md it does not use', async () => {
-  const second = await diverged((state) => {
-    const node = state.manifest.tree.find((candidate) => candidate.id === IDS.sceneA);
-    if (node !== undefined) node.kind = 'screenplay';
-    state.documents.get(IDS.sceneA)!.body = 'INT. HARBOUR - NIGHT';
-  });
-  const held = lastTarget?.queue?.held() ?? [];
+  // The account never took those words, and it is not asked about them: an unsent change is the queue's business, and this one never
+  // reached it, so the account's text is what the writer sees.
+  const second = await open();
   expect(second.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
-  expect(held).toContain(`docs/${IDS.sceneA}.fountain`);
+  expect(lastTarget?.state()).toEqual({ kind: 'idle' });
+  expect(lastTarget?.port.held()).toEqual([]);
 });
 
-it('holds a page this browser deleted as a deletion, so the writer can keep it gone', async () => {
-  await diverged((state) => { removeNode(state, IDS.sceneB); });
-  expect(lastTarget?.queue?.held()).toContain(`docs/${IDS.sceneB}.md`);
+it('opens the account’s kind change as the account’s own, with nothing of the copy left to compete with it', async () => {
+  const first = await open();
+  await first.session.closeSafely();
+  opened = opened.filter((one) => one !== first);
+
+  const second = await open(asScreenplay());
+  expect(second.session.state.documents.get(IDS.sceneA)?.body).toBe('INT. HARBOUR - NIGHT');
+  expect(second.session.state.manifest.tree.find((node) => node.id === IDS.sceneA)?.kind).toBe('screenplay');
+  expect(lastTarget?.port.held()).toEqual([]);
 });
 
-it('asks about the book’s own settings when the browser’s manifest differs, not only its pages', async () => {
-  await diverged((state) => { state.manifest.project.name = 'The Lighthouse'; });
-  expect(lastTarget?.queue?.held()).toContain('caotang.json');
-});
-
-it('keeps this browser’s task data when the same book is opened again', async () => {
-  // The writer's recurring tasks are this browser's, keyed by the project's id: replacing the copy must not sweep them away for a
-  // difference the book does not have.
-  const rows = new Map<string, unknown>([[`task:${BOOK.manifest.project.id}:task_one`, { id: 'task_one' }]]);
-  const db = {
-    get: async (key: string) => rows.get(key) as never,
-    put: async (key: string, value: unknown) => { rows.set(key, value); },
-    list: async (prefix: string) => [...rows.keys()].filter((key) => key.startsWith(prefix)).sort().map((key) => ({ key, value: rows.get(key) })),
-    delete: async (key: string) => { rows.delete(key); },
-    close: () => undefined,
-  };
-  setActiveAppDb(db as never);
-  try {
-    const first = await open();
-    await first.session.closeSafely();
-    opened = opened.filter((one) => one !== first);
-    await open();
-    expect([...rows.keys()]).toEqual([`task:${BOOK.manifest.project.id}:task_one`]);
-  } finally {
-    setActiveAppDb(null);
-  }
-});
-
-it('keeps this browser’s task data when the account’s copy holds different words', async () => {
-  // The account's version takes the browser's place under the project's id whether the two are the same book or not: the writer's
-  // recurring tasks, their run history and their consents are keyed by that id, and asking about the words is no reason to drop them.
+it('keeps every record this browser keys by the project’s id when the account’s words replace the copy’s', async () => {
+  // The writer's recurring tasks, their run history, the consents they gave and the skills they pinned are this browser's, keyed by the
+  // project's id: refreshing the copy must not sweep them away.
   const rows = new Map<string, unknown>([[`task:${BOOK.manifest.project.id}:task_one`, { id: 'task_one' }]]);
   const db = {
     get: async (key: string) => rows.get(key) as never,
@@ -196,74 +168,22 @@ it('keeps this browser’s task data when the account’s copy holds different w
     await first.session.persistence.settle();
     await first.session.closeSafely();
     opened = opened.filter((one) => one !== first);
+
     await open();
     expect([...rows.keys()]).toEqual([`task:${BOOK.manifest.project.id}:task_one`]);
-    // The words are the question, and they are asked about rather than written over either copy.
-    expect(lastTarget?.state().kind).toBe('conflict');
   } finally {
     setActiveAppDb(null);
   }
 });
 
-it('takes the account’s version when the session is catching up after a send, without asking about the older copy', async () => {
-  const first = await open();
-  // The writer typed here and it reached the account through the send that followed, which is the words the account now holds: the
-  // browser's copy is what that send replaced, so opening it again would put the replaced text in front of the writer.
-  first.session.state.documents.get(IDS.sceneA)!.body = 'Five words, written offline';
-  await first.session.persistence.settle();
-  await first.session.closeSafely();
-  opened = opened.filter((one) => one !== first);
-
-  // The send the writer chose ran before the session catches up, so the account holds the words it carried.
-  const target = await targetFor('Six words, and the send added one', undefined, []);
-  expect((await target.queue!.replay()).kind).toBe('sent');
-  const result = await openHostedProject(store, SOURCE, async () => target, true);
-  opened.push(result);
-  expect(result.session.state.documents.get(IDS.sceneA)?.body).toBe('Six words, and the send added one');
-  // No question, and nothing of the copy read before the send is offered back.
-  expect(target.state()).toEqual({ kind: 'idle' });
-  expect(target.queue?.held()).toEqual([]);
-});
-
-it('asks about words a browser copy holds and the account does not, instead of picking one of them silently', async () => {
-  const first = await open();
-  // The writer typed here and the browser kept it; the account never got it.
-  first.session.state.documents.get(IDS.sceneA)!.body = 'Five words, written offline';
-  await first.session.persistence.settle();
-  await first.session.closeSafely();
-  opened = opened.filter((one) => one !== first);
-
-  // The account's version opens, the browser's differing text is held as this device's version, and the writer is asked which one the
-  // account should keep.
-  const second = await open();
+it('says the words a save could not deliver are still here, and sends nothing on its own', async () => {
   const path = `docs/${IDS.sceneA}.md`;
-  expect(second.session.projectId).toBe(BOOK.manifest.project.id);
-  expect(second.copiedFrom).toBeNull();
-  expect(second.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
-  expect(lastTarget?.state()).toEqual({ kind: 'conflict', paths: [path] });
-  expect(lastTarget?.queue?.held()).toContain(path);
-  expect(hostedTargetFor(SOURCE.projectId)?.state()).toEqual({ kind: 'conflict', paths: [path] });
-});
+  const result = await open(BOOK, [path]);
 
-it('keeps this browser’s task data when the same book is opened again', async () => {
-  // The writer's recurring tasks are this browser's, keyed by the project's id: replacing the copy must not sweep them away for a
-  // difference the book does not have.
-  const rows = new Map<string, unknown>([[`task:${BOOK.manifest.project.id}:task_one`, { id: 'task_one' }]]);
-  const db = {
-    get: async (key: string) => rows.get(key) as never,
-    put: async (key: string, value: unknown) => { rows.set(key, value); },
-    list: async (prefix: string) => [...rows.keys()].filter((key) => key.startsWith(prefix)).sort().map((key) => ({ key, value: rows.get(key) })),
-    delete: async (key: string) => { rows.delete(key); },
-    close: () => undefined,
-  };
-  setActiveAppDb(db as never);
-  try {
-    const first = await open();
-    await first.session.closeSafely();
-    opened = opened.filter((one) => one !== first);
-    await open();
-    expect([...rows.keys()]).toEqual([`task:${BOOK.manifest.project.id}:task_one`]);
-  } finally {
-    setActiveAppDb(null);
-  }
+  // The account's book opens, and the queue is left exactly as the last session left it: an open that replayed on its own would write to
+  // the account without the writer asking.
+  expect(result.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
+  expect(hostedTargetFor(SOURCE.projectId)?.state()).toEqual({ kind: 'unsaved', paths: [path] });
+  expect(lastTarget?.port.held()).toEqual([path]);
+  expect(lastTarget?.port.calls.filter((call) => call === 'send')).toEqual([]);
 });
