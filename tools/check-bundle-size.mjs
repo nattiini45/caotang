@@ -209,7 +209,7 @@ export const BUDGET = {
   // were already on use. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   // 1,123,700 on the merge of main deb99b57 (#404's keychain, #844's host key, #853's Windows schedule). [delegated 2026-11-23]
   // 1,124,900 on the merge of main 4e21e4f7 (#850's open-project MCP server, #854's native port hardening). [delegated 2026-11-24]
-  initialGzip: 1_125_000,
+  initialGzip: 1_126_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).

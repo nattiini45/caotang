@@ -1,7 +1,8 @@
 /**
- * The writer's session target and its progress (goals-progress §2.1 and §3). "Today" is the device's local calendar day
- * (goals-progress A3), and progress is the words of every session that ended today, across the writer's projects, plus
- * the sitting that is open now. Nothing here is stored: the sessions log is the history, and this is a read of it.
+ * The writer's session target and its progress (goals-progress §2.1 and §3). "Today" is the writer's own calendar day
+ * (goals-progress A3): the desktop shell's operating-system zone when it reports one, and the device's local day otherwise, which
+ * is the only honest reading a browser has. Progress is the words of every session that ended today, across the writer's projects,
+ * plus the sitting that is open now. Nothing here is stored: the sessions log is the history, and this is a read of it.
  */
 /* lingui-set comment="Interpolated values: count, target, words" */
 
@@ -12,17 +13,37 @@ import { listProjectIds, readSessions, RuntimeStoreStaleError, type RuntimeStore
 
 import { formatterLocale } from '../i18n/format-locale.js';
 
-/** The local calendar day of an ISO instant, or `null` when the instant does not parse. */
-export function localDayOfIso(iso: string): string | null {
+/**
+ * The calendar day of an instant in `zone`, or the device's own day when no zone was given. The zone is the shell's read of the
+ * operating system (desktop.md §The system timezone), so a desktop whose renderer does not agree with the platform still counts
+ * the day the writer is living in; the browser passes none and keeps its local day.
+ */
+export function dayKeyIn(zone: string | undefined, ms: number): string {
+  if (zone === undefined) return localDayKey(ms);
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(ms));
+    const at = (type: Intl.DateTimeFormatPartTypes): string => parts.find((part) => part.type === type)?.value ?? '';
+    const year = at('year');
+    const month = at('month');
+    const day = at('day');
+    return year === '' || month === '' || day === '' ? localDayKey(ms) : `${year}-${month}-${day}`;
+  } catch {
+    // A zone the platform does not know is not a day at all: the device's own is what the writer sees on their clock.
+    return localDayKey(ms);
+  }
+}
+
+/** The calendar day of an ISO instant, or `null` when the instant does not parse. */
+export function localDayOfIso(iso: string, zone?: string): string | null {
   const ms = Date.parse(iso);
-  return Number.isNaN(ms) ? null : localDayKey(ms);
+  return Number.isNaN(ms) ? null : dayKeyIn(zone, ms);
 }
 
 /** The words of the sessions that ended on `day`. A session that ended earlier is history, not today's progress. */
-export function wordsWrittenOn(records: readonly SessionRecord[], day: string): number {
+export function wordsWrittenOn(records: readonly SessionRecord[], day: string, zone?: string): number {
   let total = 0;
   for (const record of records) {
-    if (localDayOfIso(record.endedAt) === day) total += record.wordsWritten;
+    if (localDayOfIso(record.endedAt, zone) === day) total += record.wordsWritten;
   }
   return total;
 }
@@ -34,12 +55,12 @@ export function wordsWrittenOn(records: readonly SessionRecord[], day: string): 
 const lastTotalByDay = new Map<string, number>();
 
 /** Today's words across every project in this browser, read from each project's sessions. */
-export async function wordsWrittenToday(store: RuntimeStore, now: number): Promise<number> {
-  const day = localDayKey(now);
+export async function wordsWrittenToday(store: RuntimeStore, now: number, zone?: string): Promise<number> {
+  const day = dayKeyIn(zone, now);
   let total = 0;
   try {
     for (const projectId of await listProjectIds(store)) {
-      total += wordsWrittenOn(await readSessions(store, projectId), day);
+      total += wordsWrittenOn(await readSessions(store, projectId), day, zone);
     }
   } catch (error) {
     if (!(error instanceof RuntimeStoreStaleError)) throw error;

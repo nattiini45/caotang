@@ -23,6 +23,8 @@ import { browserStorage, clearUnsentCopy } from '../app/unsent-copy.js';
 import { encodingAskerFor, type EncodingDecision } from '../app/encoding-review.js';
 import { homeOpenMachine } from '../app/home-open-flow.js';
 import { forgetNativeFolder, listNativeFolders, nativeFolderId, nativeFoldersAvailable, pickNativeFolder } from '../app/native-folders.js';
+import { nativeRefusalSentence, onNativeCommand, takeNativeCommands } from '../app/native-os.js';
+import type { NativeCommand } from '../../../desktop-shell/src/os-contract.cjs';
 import {
   answerFolderDiffers,
   completeEncodingReview,
@@ -124,6 +126,8 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
   const [name, setName] = useState('');
   const [busy, setBusy] = useState<{ readonly action: HomeAction; readonly control: string | null } | null>(null);
   const inFlight = useRef(false);
+  /** The new project's name field, which the File menu's New project puts the cursor in. */
+  const nameInput = useRef<HTMLInputElement>(null);
   const blocked = busy !== null || demoOpening;
   const busyAction = busy?.action ?? (demoOpening ? 'openingProject' : null);
   const opening = (action: HomeAction, control: string): boolean => busy?.action === action && busy.control === control;
@@ -377,6 +381,61 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
   };
 
   /**
+   * A folder a link or the operating system named, opened by the id the shell granted it (desktop.md §Deep links and folder
+   * handoff). The grant is in the recent list the shell keeps, so the handle is found there.
+   */
+  const openNativeById = (id: string): void => {
+    void listNativeFolders().then((items) => {
+      const folder = items.find((item) => nativeFolderId(item) === id);
+      if (folder === undefined) {
+        setNotice(nativeRefusalSentence('link-unknown'));
+        return;
+      }
+      void run('openingFolder', async () => settleOpen(await openFolder(store, folder)));
+    }, (failure: unknown) => setError(failedText('openingFolder', errorText(failure))));
+  };
+
+  /**
+   * What the native menu, a `caotang://` link or the operating system asked for while the projects list is showing (desktop.md
+   * §Native menus, §Deep links and folder handoff). The workspace answers the actions that need a project; this answers the
+   * ones that need none, and the two sentences an answer starts with.
+   */
+  const nativeCommand = (command: NativeCommand): void => {
+    switch (command.kind) {
+      case 'new-project':
+        nameInput.current?.focus();
+        return;
+      case 'open-folder':
+        openFolderAction();
+        return;
+      case 'open-project':
+        openNativeById(command.folder.id);
+        return;
+      case 'settings':
+        // Settings is open here too, so the menu's item means something on this screen as well.
+        setSettings('providers');
+        return;
+      case 'refused':
+        setNotice(nativeRefusalSentence(command.reason));
+        return;
+      default:
+        return;
+    }
+  };
+  // One subscription for the life of the screen, and the commands that arrived before it: a link that launched the app is in that
+  // queue. The handler is read through a ref, updated after each render, so the subscription does not have to be remade.
+  const nativeHandler = useRef<(command: NativeCommand) => void>(() => undefined);
+  useEffect(() => {
+    nativeHandler.current = nativeCommand;
+  });
+  useEffect(() => {
+    void takeNativeCommands().then((commands) => {
+      for (const command of commands) nativeHandler.current(command);
+    });
+    return onNativeCommand((command) => nativeHandler.current(command));
+  }, []);
+
+  /**
    * The writer accepted the recovery: the recovered project is written as the new manifest, then opened. A folder the check refuses
    * writes nothing, and the dialog stays open with the reason; a lock the writer has now answered is passed on as answered.
    */
@@ -461,6 +520,7 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
           <label>
             <span><Trans>Project name</Trans></span>
             <input
+              ref={nameInput}
               type="text"
               value={name}
               maxLength={120}
