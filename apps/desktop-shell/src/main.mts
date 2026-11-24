@@ -159,9 +159,11 @@ async function start(): Promise<void> {
   // the folder grant they own: this box holds its handle, and the check reads it when a file is written, long after both are set up.
   const host: { mcp?: McpHost } = {};
   const folders = await registerFolderIpc(app.getPath('userData'), ENTRY, { ownWriter: () => host.mcp?.writerPid() });
-  const vault = await openKeyVault(app.getPath('userData'));
-  registerVaultIpc(ENTRY, vault);
-  registerEgressIpc(ENTRY, vault);
+  const keys = await openKeyVault(app.getPath('userData'));
+  // Each stored key's address is part of the vault's own record, written with the secret in one turn, so the page may use a key
+  // and can never say where one goes (#864). Both channel sets share the one vault, and a request and a save take turns through it.
+  registerVaultIpc(ENTRY, keys);
+  registerEgressIpc(ENTRY, keys);
   // The project's own MCP server: the bundle beside this one, the folder grant the writer already gave, and the pause a save takes.
   host.mcp = registerMcpIpc({ entryUrl: ENTRY, bundle: resolve(import.meta.dirname, 'mcp/caotang-mcp.mjs'), rootOf: (id) => folders.rootOf(id) });
   os = registerOsIpc({

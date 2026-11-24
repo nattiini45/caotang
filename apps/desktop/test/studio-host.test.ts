@@ -29,7 +29,7 @@ describe('the studio host seam', () => {
       vault: null,
       host: {
         keyChanged: (profileId, change) => seen.push({ profileId, change }),
-        restore: async () => [{ profileId: 'prv_0000000001', payload: { apiKey: 'sk-restored' } }],
+        restore: async () => [{ profileId: 'prv_0000000001', payload: { apiKey: 'sk-restored' }, origin: 'https://a.example' }],
       },
     });
     expect(seen).toEqual([]);

@@ -40,14 +40,14 @@ test('the page can store a secret and can never read one back', async () => {
       return vault === undefined ? null : Object.keys(vault).sort();
     });
     // There is no `read`, `get` or `reveal` here, and adding one is the change this test exists to refuse.
-    expect(surface).toEqual(['available', 'has', 'headers', 'keyState', 'put', 'putHeaders', 'remove', 'restore', 'revision']);
+    expect(surface).toEqual(['available', 'has', 'headers', 'keyState', 'put', 'putHeaders', 'putReplacement', 'remove', 'restore', 'revision']);
 
     // A machine with a keychain stores and reports; a machine without one refuses, and says so rather than pretending.
     const available = await page.evaluate(() => window.caotangDesktop!.vault.available());
     expect(available.ok).toBe(true);
     if (available.ok && available.value) {
       const id = 'prv_ABCDEFGHJK';
-      const put = await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'sk-live-0123456789abcdef' }), id);
+      const put = await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'sk-live-0123456789abcdef' }, 'https://api.example.com'), id);
       expect(put).toEqual({ ok: true, value: null });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.has(id), id)).toEqual({ ok: true, value: true });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.keyState(id), id)).toEqual({ ok: true, value: 'key' });
@@ -62,18 +62,36 @@ test('the page can store a secret and can never read one back', async () => {
       const afterHeaders = await page.evaluate((id) => window.caotangDesktop!.vault.revision(id), id);
       expect(afterHeaders.ok && afterHeaders.value).not.toBe(beforeHeaders);
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.restore(id), id)).toEqual({ ok: true, value: null });
+      // A key already placed for an address cannot be stored for another one: the page cannot move a saved key (#864), and the
+      // answer says which refusal it is, so the writer is told to enter the key again rather than that the keychain failed (#879).
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'sk-second' }, 'https://other.example'), id))
+        .toEqual({ ok: false, error: 'bound' });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.remove(id), id)).toEqual({ ok: true, value: null });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.has(id), id)).toEqual({ ok: true, value: false });
-      // A profile that authenticates with its own headers alone stores an empty key (#868): the payload is accepted, and the
-      // entry says so, so the page can answer it with `''` instead of a handle that would name a secret there is none of.
+      // Removing frees the id, so the writer's next save may take it for the address they entered for it.
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'sk-third' }, 'https://other.example'), id))
+        .toEqual({ ok: true, value: null });
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.remove(id), id)).toEqual({ ok: true, value: null });
+
+      // A bearer token for a server on this computer belongs to a plain-http loopback address; a public host may not be one.
+      const token = 'mcp:ABCDEFGHJK';
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'local-token' }, 'http://127.0.0.1:3845'), token))
+        .toEqual({ ok: true, value: null });
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'public-token' }, 'http://api.example.com'), 'mcp:LLLLLLLLLL'))
+        .toEqual({ ok: false, error: 'invalid' });
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.remove(id), token)).toEqual({ ok: true, value: null });
+
+      // A profile that authenticates with its own headers alone stores an empty key (#868): the payload is accepted, at the
+      // address it was stored for, and the entry says so, so the page can answer it with `''` instead of a handle that would
+      // name a secret there is none of.
       const headersOnly = 'prv_HEADERSONE';
-      expect(await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: '', customHeaders: { 'x-team': 'made-up' } }), headersOnly))
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: '', customHeaders: { 'x-team': 'made-up' } }, 'https://api.example.com'), headersOnly))
         .toEqual({ ok: true, value: null });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.keyState(id), headersOnly)).toEqual({ ok: true, value: 'empty' });
-      expect(await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: '' }), headersOnly)).toEqual({ ok: false, error: 'invalid' });
+      expect(await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: '' }, 'https://api.example.com'), headersOnly)).toEqual({ ok: false, error: 'invalid' });
       expect(await page.evaluate((id) => window.caotangDesktop!.vault.remove(id), headersOnly)).toEqual({ ok: true, value: null });
     } else {
-      expect(await page.evaluate(() => window.caotangDesktop!.vault.put('prv_ABCDEFGHJK', { apiKey: 'sk-live-x' })))
+      expect(await page.evaluate(() => window.caotangDesktop!.vault.put('prv_ABCDEFGHJK', { apiKey: 'sk-live-x' }, 'https://api.example.com')))
         .toEqual({ ok: false, error: 'unavailable' });
     }
   } finally {
@@ -95,7 +113,7 @@ test('a key survives the app closing, and the file it sits in holds no plain tex
     await expect(page.getByRole('textbox', { name: 'Project name' })).toBeVisible();
     const available = await page.evaluate(() => window.caotangDesktop!.vault.available());
     test.skip(!(available.ok && available.value), 'this machine has no keychain, so the fallback is the path it exercises');
-    const stored = await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'sk-relaunch-secret', customHeaders: { 'x-workspace': 'w1' } }), id);
+    const stored = await page.evaluate((id) => window.caotangDesktop!.vault.put(id, { apiKey: 'sk-relaunch-secret', customHeaders: { 'x-workspace': 'w1' } }, 'https://api.example.com'), id);
     expect(stored).toEqual({ ok: true, value: null });
     const file = await readFile(join(profile, 'native-key-vault.json'), 'utf8');
     expect(file).not.toContain('sk-relaunch-secret');

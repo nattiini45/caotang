@@ -216,6 +216,11 @@ export class ProviderService {
   private readonly roleState: { current: RoleSettings | undefined };
   readonly saves = new SaveChannel('settings');
   private usageReadFailure: string | null = null;
+  /**
+   * Whether the stored profile records could not be read at open. While that holds, no write may put this session's list over
+   * records it never saw: a transient read failure must not cost the writer their profiles.
+   */
+  private profilesUnreadable = false;
   private verificationAttempt = 0;
   private readonly drafts = new Set<string>();
   private readonly verificationListeners = new Set<() => void>();
@@ -335,7 +340,8 @@ export class ProviderService {
         // it cannot open is not a key at all, so the account's copy repairs it, which is what this seam exists for.
         for (const restored of await host.restore(origins)) {
           const local = await keys.revealPayload(restored.profileId);
-          if (local === undefined) await keys.putPayload(restored.profileId, restored.payload);
+          // Stored for the address this profile names, which is the pairing a key stored before the bindings existed needs.
+          if (local === undefined) await keys.putPayload(restored.profileId, restored.payload, restored.origin);
         }
       } catch {
         // A host that cannot supply its keys leaves those profiles without one, and the restore below names each of them.
@@ -426,7 +432,8 @@ export class ProviderService {
     installing = false;
     if (profiles.list().length === 0) {
       await profiles.create({ name: DEMO_PROFILE_NAME, kind: 'mock', isActive: true });
-      await service.persist();
+      // A demo profile this session could not know is new is not written over the records that could not be read.
+      if (!service.profilesUnreadable) await service.persist();
     }
     ledger.subscribe(() => { void service.persist(); });
     return { service, notices };
@@ -435,7 +442,7 @@ export class ProviderService {
   /** Reads the stored profiles, usage and log back into the services. Each part is independent: one failing keeps the rest. */
   private async restore(db: AppDb, notices: string[], pin: (id: string | null) => void): Promise<void> {
     try {
-      const stored = (await db.get<PersistedProfile[]>(APP_KEYS.profiles)) ?? [];
+      const stored = await this.readProfiles(db);
       let activeId: string | null = null;
       for (const record of stored) {
         try {
@@ -480,6 +487,7 @@ export class ProviderService {
       if (activeId !== null) this.profiles.activate(activeId);
     } catch (error) {
       const reason = displayText(error);
+      this.profilesUnreadable = true;
       notices.push(t`Your provider profiles could not be read: ${{ error: reason }}`);
     }
 
@@ -498,6 +506,27 @@ export class ProviderService {
       const reason = displayText(error);
       notices.push(t`The request log could not be read: ${{ error: reason }}`);
     }
+  }
+
+  /**
+   * The stored profiles, read twice before the session gives up on them: a transaction that aborts at start-up is usually
+   * momentary, and one retry is what keeps a saved list from being treated as unreadable for the whole session.
+   */
+  private async readProfiles(db: AppDb): Promise<PersistedProfile[]> {
+    try {
+      return (await db.get<PersistedProfile[]>(APP_KEYS.profiles)) ?? [];
+    } catch {
+      return (await db.get<PersistedProfile[]>(APP_KEYS.profiles)) ?? [];
+    }
+  }
+
+  /**
+   * Refuses a change to the saved profiles in a session that could not read them. The write would be skipped and the change
+   * reported as saved, and a removal would take a key out of the vault for a profile that comes back on the next open.
+   */
+  private refuseWhileUnreadable(): void {
+    if (!this.profilesUnreadable) return;
+    throw new ProfileError('invalid', t`Caotang could not read your saved provider settings when it opened, so they cannot be changed in this session. Close Caotang and open it again.`);
   }
 
   /** Every profile, oldest first, without keys. A provider still being set up is not one yet. */
@@ -534,9 +563,13 @@ export class ProviderService {
   private async write(): Promise<string | null> {
     if (this.db === null) return null;
     try {
-      await this.db.put(APP_KEYS.profiles, this.list().map((profile) => profile.verification?.kind === 'checking'
-        ? { ...profile, verification: readVerification(profile.verification) }
-        : profile));
+      // The list here is what this session could restore; when the stored records could not be read, it is missing every one of
+      // them, so writing it would replace them for good.
+      if (!this.profilesUnreadable) {
+        await this.db.put(APP_KEYS.profiles, this.list().map((profile) => profile.verification?.kind === 'checking'
+          ? { ...profile, verification: readVerification(profile.verification) }
+          : profile));
+      }
       if (this.usageReadFailure === null) await this.db.put(APP_KEYS.usage, this.ledger.snapshot());
       await this.db.put(APP_KEYS.requests, this.requests.entries().slice(-REQUEST_LOG_KEEP));
       return this.usageReadFailure;
@@ -551,6 +584,7 @@ export class ProviderService {
    * the saved profile and reports why, so the writer can correct the URL or the key where they are.
    */
   async addProfile(input: NewProfile): Promise<SaveOutcome> {
+    this.refuseWhileUnreadable();
     const view = await this.profiles.create(input);
     const probe = view.kind === 'endpoint' ? await this.probeModels(view.id, true) : { models: undefined, error: undefined, failure: undefined };
     await this.persist();
@@ -564,6 +598,7 @@ export class ProviderService {
 
   /** Edits a profile. Changing its endpoint, key or model runs the list-models probe again, as adding one does. */
   async editProfile(id: string, patch: ProfilePatch): Promise<SaveOutcome> {
+    this.refuseWhileUnreadable();
     const before = this.profiles.get(id);
     const view = await this.profiles.update(id, patch);
     const probe =
@@ -612,6 +647,7 @@ export class ProviderService {
    * `list()` and from storage until {@link finishSetup}; a failure removes it again, so a bad key leaves nothing behind.
    */
   async beginSetup(input: SetupInput): Promise<SetupDiscovery> {
+    this.refuseWhileUnreadable();
     const preset = presetFor(input.preset);
     if (preset === undefined || preset.id === 'mock') throw new SetupError({ kind: 'invalid', message: t`Choose one of the providers.` });
     const name = this.freeName(preset.name);
@@ -664,6 +700,7 @@ export class ProviderService {
    * the task roles, because they all send through this one key (provider-gateway §2, "One connection, many models").
    */
   async finishSetup(draftId: string, models: readonly string[], overrides: Pick<ProfilePatch, 'params' | 'temperature' | 'pricePer1k'> = {}): Promise<{ view: ProfileView; note?: string }> {
+    this.refuseWhileUnreadable();
     if (!this.drafts.has(draftId)) throw new Error(t`This setup is no longer open.`);
     const [model] = models;
     if (model === undefined) throw new Error(t`Choose at least one model for this provider.`);
@@ -696,6 +733,7 @@ export class ProviderService {
 
   /** Removes a profile and its key. The active profile moves to another one, or the demo profile is made again. */
   async remove(id: string): Promise<void> {
+    this.refuseWhileUnreadable();
     await this.profiles.remove(id);
     if (this.list().length === 0) {
       await this.profiles.create({ name: DEMO_PROFILE_NAME, kind: 'mock', isActive: true });

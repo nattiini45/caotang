@@ -2,8 +2,8 @@
  * Where the app keeps provider keys and MCP tokens — [desktop.md §The keychain](../../../docs/architecture/desktop.md#the-keychain-404).
  *
  * In the desktop shell the main process holds them in the operating system's keychain, and this module is the page's side of
- * that: a {@link KeyStore} whose every answer is a handle rather than a secret, and the one-time move of the keys an earlier
- * version sealed in this browser's IndexedDB.
+ * that: a {@link KeyStore} whose every answer is a handle rather than a secret, the one-time move of the keys an earlier version
+ * sealed in this browser's IndexedDB, and the address each of those keys (or one the keychain already held) belongs to.
  *
  * **The migration writes, verifies, deletes.** Each sealed key is opened with the store that already holds it, written to the
  * keychain, read back by the main process before it is reported stored, checked once more, and only then removed from the
@@ -25,9 +25,9 @@ import type { VaultPayload, VaultReply } from '../../../desktop-shell/src/vault-
 import { scopedStoreName } from './storage-scope.js';
 
 /**
- * The keychain, when this page runs in the desktop shell and the machine has one. Version 6 is the first whose vault answers what
- * an entry holds, which is how a headers-only entry reveals its empty key rather than a handle (#868); an older shell keeps the
- * browser's vault instead, which stores such a payload as it stands.
+ * The keychain, when this page runs in the desktop shell and the machine has one. Version 6 is the first whose vault records the
+ * address a key is stored for and answers what an entry holds, which is how a headers-only entry reveals its empty key rather
+ * than a handle (#864, #868); an older shell records neither and keeps the browser's vault instead.
  */
 function bridge(): NonNullable<Window['caotangDesktop']>['vault'] | undefined {
   if (typeof window === 'undefined') return undefined;
@@ -45,8 +45,16 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** A key this computer holds for another address: the one refusal the writer can act on, and not a keychain that failed. */
+export class KeyStoredElsewhere extends Error {
+  constructor() {
+    super(t`This computer keeps a key for another address under this reference. Enter the key again for this address.`);
+  }
+}
+
 function unwrap<T>(reply: VaultReply<T>): T {
   if (reply.ok) return reply.value;
+  if (reply.error === 'bound') throw new KeyStoredElsewhere();
   throw new Error('The operating system keychain did not answer.');
 }
 
@@ -54,9 +62,15 @@ function unwrap<T>(reply: VaultReply<T>): T {
 function vaultPort(api: NonNullable<ReturnType<typeof bridge>>): NativeKeyVault {
   return {
     available: async () => unwrap(await api.available()),
-    put: async (id, payload) => {
+    put: async (id, payload, origin) => {
       const stored: VaultPayload = { apiKey: payload.apiKey, ...(payload.customHeaders === undefined ? {} : { customHeaders: payload.customHeaders }) };
-      unwrap(await api.put(id, stored));
+      // The address the key is for is part of storing it: the shell records it, and a page cannot change it afterwards (#864).
+      unwrap(await api.put(id, stored, origin));
+    },
+    putReplacement: async (id, payload, origin) => {
+      const stored: VaultPayload = { apiKey: payload.apiKey, ...(payload.customHeaders === undefined ? {} : { customHeaders: payload.customHeaders }) };
+      // The writer's own key, entered again for the endpoint they moved: the shell moves the address with it.
+      unwrap(await api.putReplacement(id, stored, origin));
     },
     putHeaders: async (id, headers) => {
       unwrap(await api.putHeaders(id, headers));
@@ -84,7 +98,7 @@ function vaultPort(api: NonNullable<ReturnType<typeof bridge>>): NativeKeyVault 
  * How many keys moved out of this browser's vault into the keychain. Every entry the old store can open is written, read back
  * and then deleted; an entry it cannot open is counted as left rather than taken.
  */
-async function migrate(factory: IDBFactory, store: KeyStore): Promise<{ moved: number; failed: boolean }> {
+async function migrate(factory: IDBFactory, store: KeyStore, origins: ReadonlyMap<string, string>): Promise<{ moved: number; failed: boolean }> {
   let moved = 0;
   let failed = false;
   let legacy: KeyStore;
@@ -99,7 +113,11 @@ async function migrate(factory: IDBFactory, store: KeyStore): Promise<{ moved: n
       const payload = await legacy.revealPayload(id);
       // A key that cannot be opened here is not a key: leaving it alone keeps the browser's copy as the record of it.
       if (payload === undefined) continue;
-      await store.putPayload(id, payload);
+      // The profile's own address, which the caller supplies: a key that cannot name one is not moved, because a host that
+      // cannot bind it could never send it.
+      const origin = origins.get(id);
+      if (origin === undefined) continue;
+      await store.putPayload(id, payload, origin);
       if (!await store.has(id)) {
         failed = true;
         continue;
@@ -118,7 +136,7 @@ async function migrate(factory: IDBFactory, store: KeyStore): Promise<{ moved: n
  * Opens what the desktop app has for keys, moving this browser's sealed keys into the keychain once. Never throws: a keychain
  * that cannot be used answers `unavailable`, and the caller keeps the browser's vault with a notice that says so.
  */
-export async function openDesktopKeys(factory: IDBFactory | null): Promise<DesktopKeys> {
+export async function openDesktopKeys(factory: IDBFactory | null, origins: ReadonlyMap<string, string>): Promise<DesktopKeys> {
   const api = bridge();
   if (api === undefined) return { kind: 'none' };
   let available = false;
@@ -130,6 +148,6 @@ export async function openDesktopKeys(factory: IDBFactory | null): Promise<Deskt
   if (!available) return { kind: 'unavailable' };
   const store = nativeKeyStore(vaultPort(api));
   if (factory === null) return { kind: 'keychain', store, moved: 0, failed: false };
-  const { moved, failed } = await migrate(factory, store);
+  const { moved, failed } = await migrate(factory, store, origins);
   return { kind: 'keychain', store, moved, failed };
 }
