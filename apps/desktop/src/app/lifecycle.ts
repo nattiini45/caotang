@@ -958,7 +958,8 @@ function sortedJson(value: unknown): string {
 async function openStored(
   store: RuntimeStore,
   projectId: string,
-  folder: DirectoryHandleLike,
+  /** The folder this copy lives in, or `null` for a project whose home is not a folder (a hosted project's account). */
+  folder: DirectoryHandleLike | null,
   load: { readonly notices: readonly string[]; readonly droppedFields: readonly string[]; readonly folderLog: readonly SessionRecord[] },
   assets: Readonly<Record<string, Uint8Array>>,
   artifactState?: ProjectState,
@@ -984,11 +985,13 @@ async function openStored(
     if (artifactState === undefined) await carryFolderSessions(store, projectId, load.folderLog);
     await session.assets.loadAll(assets);
     const noticesOut = [...load.notices];
-    try {
-      await session.attachFolder(folder);
-    } catch (error) {
-      if (artifactState !== undefined) throw error;
-      noticesOut.push(exportsKeptHere(error));
+    if (folder !== null) {
+      try {
+        await session.attachFolder(folder);
+      } catch (error) {
+        if (artifactState !== undefined) throw error;
+        noticesOut.push(exportsKeptHere(error));
+      }
     }
     await settleForOpen(session);
     noticesOut.push(...imageDropNotice(session), ...hookNotice(session));
@@ -1276,17 +1279,28 @@ export async function openHostedProject(
   // already in this browser and make a second project, whose id the next save would write into the account's manifest.
   const accountLog = await folderSessionsOf(target.fs);
   const projectId = loaded.state.manifest.project.id;
-  const cached = (await listProjectIds(store)).includes(projectId);
-  const keptLog = cached ? await readSessions(store, projectId) : [];
-  if (cached) await removeProject(store, projectId);
-  const opened = await adopt(store, loaded.state, [...accountLog, ...linesNotHeld(keptLog, accountLog)], noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
+  const cached = (await listProjectIds(store)).includes(projectId) ? await readProjectState(store, projectId) : null;
+  let opened: Opened;
+  if (cached === null) {
+    opened = await adopt(store, loaded.state, accountLog, noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
+  } else if (sameBook(cached, loaded.state)) {
+    // The same book on both sides: the account's version takes the browser's place under the same id, with the writing history of both.
+    const keptLog = await readSessions(store, projectId);
+    await removeProject(store, projectId);
+    opened = await adopt(store, loaded.state, [...accountLog, ...linesNotHeld(keptLog, accountLog)], noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
+  } else {
+    // The browser's copy holds words the account does not: it opens as it stands, with the account as its save target, so those
+    // words reach the account through the save (and its question, if another device moved them first) instead of being deleted here.
+    opened = await openStored(store, projectId, null, { notices: noticesOf(loaded.notices), droppedFields: droppedFieldsOf(loaded.notices), folderLog: accountLog }, pictures);
+  }
   // The target is kept for the session and follows every save this browser finishes, carrying the project's pictures with the files
-  // that name them.
+  // that name them, and knowing what this device held so a save removes only what it deleted itself.
+  target.rememberOpened(opened.session.state.documents.keys(), Object.keys(await opened.session.assets.snapshot()));
   rememberHostedTarget(target);
   target.attach({
     state: opened.session.state,
     persistence: opened.session.persistence,
-    assets: async () => ({ files: await opened.session.assets.snapshot(), complete: opened.session.assets.listingAuthoritative() }),
+    assets: () => opened.session.assets.snapshot(),
   });
   return opened;
 }

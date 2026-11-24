@@ -142,16 +142,49 @@ describe('the answer to a conflict this session’s own save raised', () => {
     expect(committed).toEqual([]);
   });
 
-  it('sends the project’s pictures with the save that names them', async () => {
+  it('sends the project’s pictures with the save that names them, and nothing it did not see deleted', async () => {
     const seen: unknown[] = [];
-    const saving = target(async (_state, assets) => {
-      seen.push(assets);
+    const saving = target(async (_state, options) => {
+      seen.push(options);
       return { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } };
     });
-    const one = { files: { 'assets/c_2K4Q9WJ1TT.png': new Uint8Array([7]) }, complete: true };
-    saving.attach({ ...session(state()), assets: async () => one });
-    await saving.save(state());
-    expect(seen).toEqual([one]);
+    const files = { 'assets/c_2K4Q9WJ1TT.png': new Uint8Array([7]) };
+    saving.attach({ ...session(state()), assets: async () => files });
+    const project = state();
+    saving.rememberOpened(project.documents.keys(), Object.keys(files));
+    await saving.save(project);
+    // Nothing was deleted on this device, so the save removes nothing: another device's picture is not this one's to delete.
+    expect(seen).toEqual([{ removed: [], assets: { files, removed: [] } }]);
+  });
+
+  it('names the documents and pictures this device deleted since it opened', async () => {
+    const seen: unknown[] = [];
+    const saving = target(async (_state, options) => {
+      seen.push(options);
+      return { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } };
+    });
+    const project = state();
+    saving.attach({ ...session(project), assets: async () => ({}) });
+    saving.rememberOpened(['n_old', ...project.documents.keys()], ['assets/c_2K4Q9WJ1TT.png']);
+    await saving.save(project);
+    expect(seen).toEqual([{ removed: ['n_old'], assets: { files: {}, removed: ['assets/c_2K4Q9WJ1TT.png'] } }]);
+  });
+
+  it('forgets what the account holds once a save lands, so the next deletion is measured against it', async () => {
+    const seen: unknown[] = [];
+    const saving = target(async (_state, options) => {
+      seen.push(options);
+      return { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } };
+    });
+    const project = state();
+    saving.attach({ ...session(project), assets: async () => ({}) });
+    saving.rememberOpened(['n_old'], []);
+    await saving.save(project);
+    await saving.save(project);
+    expect(seen).toEqual([
+      { removed: ['n_old'], assets: { files: {}, removed: [] } },
+      { removed: [], assets: { files: {}, removed: [] } },
+    ]);
   });
 });
 

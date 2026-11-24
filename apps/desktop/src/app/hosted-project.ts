@@ -99,5 +99,10 @@ export async function openHostedTarget(source: HostedProjectSource): Promise<Hos
   const { saveProjectToAccount } = await import('@caotang/remote-store');
   const queue = await deviceQueue(source, fs);
   keepMarks(source, fs);
-  return new HostedTarget(source.projectId, fs, (state, assets) => saveProjectToAccount(fs, state, { assets }), queue);
+  return new HostedTarget(
+    source.projectId,
+    fs,
+    (state, options) => saveProjectToAccount(fs, state, { removed: options?.removed, assets: options?.assets }),
+    queue,
+  );
 }

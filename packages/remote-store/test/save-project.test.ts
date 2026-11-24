@@ -76,7 +76,7 @@ describe('a project’s pictures travel with the save that names them', () => {
     const fs = await device(server, key);
     const bytes = new Uint8Array([7, 7, 7]);
 
-    expect((await saveProjectToAccount(fs, project('With a cover.'), { assets: { files: { [COVER]: bytes }, complete: true } })).kind).toBe('written');
+    expect((await saveProjectToAccount(fs, project('With a cover.'), { assets: { files: { [COVER]: bytes } } })).kind).toBe('written');
 
     const reader = await device(server, key);
     expect(await reader.readBytes(COVER)).toEqual(bytes);
@@ -87,32 +87,35 @@ describe('a project’s pictures travel with the save that names them', () => {
     const key = generateProjectKey();
     const fs = await device(server, key);
     const bytes = new Uint8Array([7, 7, 7]);
-    await saveProjectToAccount(fs, project('With a cover.'), { assets: { files: { [COVER]: bytes }, complete: true } });
+    await saveProjectToAccount(fs, project('With a cover.'), { assets: { files: { [COVER]: bytes } } });
 
-    const second = await saveProjectToAccount(fs, project('With a cover, edited.'), { assets: { files: { [COVER]: bytes }, complete: true } });
+    const second = await saveProjectToAccount(fs, project('With a cover, edited.'), { assets: { files: { [COVER]: bytes } } });
     expect(second.kind).toBe('written');
     // The picture was not staged again: the paths this save wrote are the project's files, not the unchanged picture.
     expect(second.kind === 'written' ? second.report.written : []).not.toContain(COVER);
   });
 
-  it('removes a picture the account holds when this device’s listing is the project’s whole assets/', async () => {
+  it('removes the picture this device says it deleted, and only that one', async () => {
     const server = new FakeBlobServer();
     const key = generateProjectKey();
     const fs = await device(server, key);
-    await saveProjectToAccount(fs, project('With a cover.'), { assets: { files: { [COVER]: new Uint8Array([7]) }, complete: true } });
+    const THEIRS = 'assets/c_9W1ZK4Q7MM.png';
+    await saveProjectToAccount(fs, project('With two covers.'), { assets: { files: { [COVER]: new Uint8Array([7]), [THEIRS]: new Uint8Array([9]) } } });
 
-    await saveProjectToAccount(fs, project('Without a cover.'), { assets: { files: {}, complete: true } });
+    await saveProjectToAccount(fs, project('Without mine.'), { assets: { files: {}, removed: [COVER] } });
     const reader = await device(server, key);
     expect(await reader.exists(COVER)).toBe(false);
+    // The other device's picture is not this save's to remove: it was never in this device's list of deletions.
+    expect(await reader.exists(THEIRS)).toBe(true);
   });
 
-  it('keeps what the account holds when this device cannot say its listing is complete', async () => {
+  it('keeps every picture the account holds when this device deleted none', async () => {
     const server = new FakeBlobServer();
     const key = generateProjectKey();
     const fs = await device(server, key);
-    await saveProjectToAccount(fs, project('With a cover.'), { assets: { files: { [COVER]: new Uint8Array([7]) }, complete: true } });
+    await saveProjectToAccount(fs, project('With a cover.'), { assets: { files: { [COVER]: new Uint8Array([7]) } } });
 
-    await saveProjectToAccount(fs, project('A browser with no asset store.'), { assets: { files: {}, complete: false } });
+    await saveProjectToAccount(fs, project('A browser with no asset store.'), { assets: { files: {} } });
     const reader = await device(server, key);
     expect(await reader.exists(COVER)).toBe(true);
   });

@@ -11,6 +11,12 @@
 import type { EncryptedRemoteArtifactFs, HostedSaveOutcome, RemoteChange, SaveAssets } from '@caotang/remote-store';
 import type { ProjectState } from '@caotang/store';
 
+/** What a save carries besides the state: the paths this device deleted, and the pictures as it holds them. */
+export interface SaveOptions {
+  readonly removed?: readonly string[];
+  readonly assets?: SaveAssets;
+}
+
 /** What the writer is owed to know about the account's copy. */
 export type HostedSaveState =
   | { readonly kind: 'idle' }
@@ -55,10 +61,10 @@ export interface HostedSaveSession {
     getStatus(): string;
   };
   /**
-   * Every picture the project holds, and whether that is all of `assets/`. They travel in the same batch as the files, because the
-   * state that names a picture and the picture are one save: a cover the account never gets is a cover the next device cannot show.
+   * Every picture the project holds. They travel in the same batch as the files, because the state that names a picture and the
+   * picture are one save: a cover the account never gets is a cover the next device cannot show.
    */
-  assets?(): Promise<SaveAssets>;
+  assets?(): Promise<Readonly<Record<string, Uint8Array>>>;
 }
 
 export class HostedTarget {
@@ -69,7 +75,10 @@ export class HostedTarget {
   #again = false;
   #detached: (() => void) | null = null;
   /** The attached session's pictures, so a save carries them with the files that name them. */
-  #assets: (() => Promise<SaveAssets>) | null = null;
+  #assets: (() => Promise<Readonly<Record<string, Uint8Array>>>) | null = null;
+  /** The documents and pictures this device last saw the account hold, so a deletion is one it made rather than one it missed. */
+  readonly #knownDocuments = new Set<string>();
+  readonly #knownAssets = new Set<string>();
   /** The conflict the writer is answering came from the queue at open rather than from this session's own save. */
   #fromQueue = false;
   /** Set by {@link keepMine} when its answer replayed the queue instead of this session's state. */
@@ -79,7 +88,7 @@ export class HostedTarget {
     readonly projectId: string,
     readonly fs: EncryptedRemoteArtifactFs,
     /** The whole-project save, bound by the module that holds the adapter so this one imports no package at run time. */
-    readonly saveState: (state: ProjectState, assets?: SaveAssets) => Promise<HostedSaveOutcome>,
+    readonly saveState: (state: ProjectState, options?: SaveOptions) => Promise<HostedSaveOutcome>,
     readonly queue: HostedQueuePort | null = null,
   ) {}
 
@@ -126,6 +135,16 @@ export class HostedTarget {
     return this.#reread;
   }
 
+  /**
+   * What the session opened with: the documents and pictures this device held when the account's project reached it. A path here
+   * that the state no longer holds is a deletion this device made; a path that is not here belongs to another device, and a save
+   * that pruned it would delete work it never saw.
+   */
+  rememberOpened(documents: Iterable<string>, assets: Iterable<string>): void {
+    for (const id of documents) this.#knownDocuments.add(id);
+    for (const path of assets) this.#knownAssets.add(path);
+  }
+
   /** Commits this session's state to the account. A second call while one is running runs once more after it. */
   async save(state: ProjectState): Promise<void> {
     const running = this.#running;
@@ -150,9 +169,14 @@ export class HostedTarget {
     this.#fromQueue = false;
     this.#reread = false;
     this.#set({ kind: 'saving' });
+    const docs = new Set(state.documents.keys());
+    const removed = [...this.#knownDocuments].filter((id) => !docs.has(id));
+    const files = (await this.#assets?.()) ?? null;
+    const kept = files === null ? null : new Set(Object.keys(files));
+    const removedAssets = kept === null ? [] : [...this.#knownAssets].filter((path) => !kept.has(path));
     let outcome: HostedSaveOutcome;
     try {
-      outcome = await this.saveState(state, await this.#assets?.());
+      outcome = await this.saveState(state, { removed, assets: files === null ? undefined : { files, removed: removedAssets } });
     } catch {
       // A refusal this target has no answer of its own for — a full account, a lease taken in between, a blob that failed to
       // authenticate — is still the account being behind this browser, and saying nothing would leave the writer believing it
@@ -162,6 +186,11 @@ export class HostedTarget {
     }
     if (outcome.kind === 'written') {
       this.#conflict = [];
+      // The account now holds this state: what it holds is the record the next deletion is measured against.
+      this.#knownDocuments.clear();
+      for (const id of docs) this.#knownDocuments.add(id);
+      this.#knownAssets.clear();
+      for (const path of kept ?? []) this.#knownAssets.add(path);
       // This save carried these paths at the state they hold now, so a queued edit of any of them is older than what landed. One
       // it did not carry stays queued: the queue is a record of what the account has not taken, and a save that happened to skip a
       // path says nothing about it.
