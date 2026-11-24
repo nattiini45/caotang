@@ -111,7 +111,7 @@ import { folderArtifactFs, folderIsEmpty, isSameFolder, type DirectoryHandleLike
 import type { RemoteChange } from '@caotang/remote-store';
 import type { HostedProjectSource } from './studio-host.js';
 import { openHostedTarget, picturesOnProjectFs } from './hosted-project.js';
-import { rememberHostedTarget, type HostedTarget } from './hosted-target.js';
+import { installHostedTarget, type HostedTarget } from './hosted-target.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
 import {
   copiedFromOf,
@@ -1325,7 +1325,14 @@ export async function openHostedProject(
     // their run history and the consents they gave are this browser's, keyed by the project's id, and removing the project to make room
     // would drop them for a difference the book does not have.
     const keptLog = await readSessions(store, projectId);
-    await writeProjectState(store, loaded.state, { now: new Date() });
+    // The copy is written only while this page holds the project: another tab with it open would be writing the same rows, and the
+    // lease is what says the writer is here rather than there. It is given back before the project is opened, which takes its own.
+    const writing = await leaseFor(projectId);
+    try {
+      await writeProjectState(store, loaded.state, { now: new Date() });
+    } finally {
+      writing.release();
+    }
     opened = await openStored(store, projectId, null, { notices: noticesOf(loaded.notices), droppedFields: droppedFieldsOf(loaded.notices), folderLog: [...accountLog, ...linesNotHeld(keptLog, accountLog)] }, pictures);
   } else {
     // The browser's copy holds words the account does not. Nothing is written over either of them: those documents are held in the
@@ -1360,7 +1367,7 @@ export async function openHostedProject(
   // The target is kept for the session and follows every save this browser finishes, carrying the project's pictures with the files
   // that name them, and knowing what this device held so a save removes only what it deleted itself.
   await target.rememberOpened(opened.session.state.documents.keys(), await opened.session.assets.snapshot());
-  rememberHostedTarget(target);
+  installHostedTarget(target);
   target.attach({
     state: opened.session.state,
     persistence: opened.session.persistence,

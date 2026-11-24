@@ -50,6 +50,29 @@ function holdingQueue(): { port: HostedQueuePort; held(): string[] } {
 }
 
 describe('the account as a session’s save target', () => {
+  it('writes the picture the writer answered for, instead of asking the same question again', async () => {
+    const seen: { assets?: { files: Record<string, Uint8Array> } }[] = [];
+    let coverVersion = 1;
+    const coverage = new Uint8Array([1]);
+    const mine = new Uint8Array([2]);
+    const saving = new HostedTarget('p_lighthouse', {
+      refresh: async () => { coverVersion = 2; },
+      versionOf: (path: string) => (path === 'assets/c_2K4Q9WJ1TT.png' ? coverVersion : 0),
+    } as never, (async (_state, options) => {
+      seen.push(options as never);
+      return { kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } };
+    }) as never);
+    const project = state();
+    saving.attach({ ...session(project), assets: async () => ({ 'assets/c_2K4Q9WJ1TT.png': mine }) });
+    await saving.rememberOpened(project.documents.keys(), { 'assets/c_2K4Q9WJ1TT.png': coverage });
+    coverVersion = 2;
+    await saving.save(project);
+    expect(saving.state()).toEqual({ kind: 'conflict', paths: ['assets/c_2K4Q9WJ1TT.png'] });
+
+    expect(await saving.keepMine(project)).toEqual({ kind: 'idle' });
+    // The refresh moved the account's version, and the writer's bytes went on top of it once rather than asking the same question.
+    expect(seen).toEqual([{ removed: [], assets: { files: { 'assets/c_2K4Q9WJ1TT.png': mine }, removed: [] } }]);
+  });
   it('saves after each save this browser finishes, and says nothing when it lands', async () => {
     const project = state();
     const owner = session(project);

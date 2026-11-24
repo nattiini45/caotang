@@ -95,6 +95,11 @@ export class HostedTarget {
   #fromQueue = false;
   /** Set by {@link keepMine} when its answer replayed the queue instead of this session's state. */
   #reread = false;
+  /**
+   * Pictures the writer has just answered for: their bytes are written on top of the account's version the refresh read, once, and
+   * the adapter's own commit still refuses them if a third device moves them in between.
+   */
+  readonly #answered = new Set<string>();
 
   constructor(
     readonly projectId: string,
@@ -209,6 +214,13 @@ export class HostedTarget {
         digests.set(path, digest);
         continue;
       }
+      // The writer already answered for this picture: their bytes go on top of the version the refresh read, and this one save does
+      // not raise the same question again.
+      if (this.#answered.delete(path)) {
+        files[path] = bytes;
+        digests.set(path, digest);
+        continue;
+      }
       // Changed here while the account moved too (or arrived from another device this one never read): that is the same question a
       // document raises, and nothing is written until the writer answers it.
       if ((at === undefined && this.#versionOf(path) !== 0) || (at !== undefined && at.version !== this.#versionOf(path))) {
@@ -274,8 +286,11 @@ export class HostedTarget {
   async keepMine(state?: ProjectState): Promise<HostedSaveState> {
     await this.fs.refresh();
     this.queue?.marks();
+    // A picture's conflict is answered by staging its bytes once against the version just read, or the save would ask again for the
+    // same reason it asked the first time.
+    for (const change of this.#conflict) if (change.path.startsWith('assets/')) this.#answered.add(change.path);
     this.#reread = this.#fromQueue || state === undefined;
-    if (this.#reread || state === undefined) {
+    if (state === undefined || this.#reread) {
       // The writer's answer is the whole point of this call: the words the queue holds are now held against the version the refresh
       // just read, or the replay would refuse them exactly as it did before the writer was asked.
       if (this.queue !== null) this.queue.rebase(this.queue.held());
@@ -362,6 +377,16 @@ async function digestOf(bytes: Uint8Array): Promise<string> {
 }
 
 const targets = new Map<string, HostedTarget>();
+
+/**
+ * Installs a target for the project it saves, replacing any earlier one: a session still closing must not commit its older state over
+ * the project the writer has just opened, so the target it was followed by stops listening first.
+ */
+export function installHostedTarget(target: HostedTarget): void {
+  const stale = targets.get(target.projectId);
+  if (stale !== undefined && stale !== target) stale.detach();
+  targets.set(target.projectId, target);
+}
 
 /** Keeps a hosted project's target for as long as it is open, so the workspace can show what the account holds. */
 export function rememberHostedTarget(target: HostedTarget): void {
