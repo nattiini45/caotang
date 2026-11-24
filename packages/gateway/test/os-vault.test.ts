@@ -397,6 +397,15 @@ describe('the ids a vault holds', () => {
     for (const id of ['prv_ABCDEFGHJK', 'mcp:abc-1_2.3', 'plain']) expect(VAULT_ID.test(id), id).toBe(true);
     for (const id of ['', '../escape', 'a/b', 'a\\b', 'x'.repeat(129)]) expect(VAULT_ID.test(id), id).toBe(false);
   });
+
+  it('reads no entry for a name that could not be a vault id, whatever a file says', async () => {
+    const sealed = `sealed:${Buffer.from(JSON.stringify({ apiKey: KEY }), 'utf8').toString('base64')}`;
+    const vault = await openOsVault(host({
+      read: async () => JSON.stringify({ version: 2, entries: { '../escape': { sealed, origin: A }, [ID]: { sealed, origin: A } } }),
+    }));
+    expect(vault.keysFor(A)).toEqual([ID]);
+    expect(vault.originOf('../escape')).toBeUndefined();
+  });
 });
 
 describe('a key stored before the addresses were kept', () => {
