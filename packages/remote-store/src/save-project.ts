@@ -8,7 +8,7 @@
  * that cannot reach the server at all is `unavailable`, and holding it for later is the queue's business, not this
  * function's.
  */
-import { DOCS_DIR, writeProject, type ProjectState, type WriteOptions, type WriteReport } from '@caotang/store';
+import { writeProject, type ProjectState, type WriteOptions, type WriteReport } from '@caotang/store';
 import { BatchedSave } from './batched-save.js';
 import type { EncryptedRemoteArtifactFs, RemoteChange } from './encrypted-remote-fs.js';
 import { RemoteUnavailableError } from './blob-store.js';
@@ -59,15 +59,10 @@ async function stageAssets(save: BatchedSave, fs: EncryptedRemoteArtifactFs, ass
   }
 }
 
-/** The project's documents on the account, as ids, from the listing the adapter holds. */
-async function documentIdsOnAccount(fs: EncryptedRemoteArtifactFs): Promise<readonly string[]> {
-  const names = await fs.listFiles(DOCS_DIR);
-  return names.map((name) => name.slice(0, name.lastIndexOf('.'))).filter((id) => id !== '');
-}
-
 /**
- * Writes `state` to the account as one commit. `removed` are the documents this device deleted; the rest are read from the
- * account's own listing, so a document another device wrote is never pruned just because this copy does not hold it.
+ * Writes `state` to the account as one commit. `removed` is the documents this device deleted while the session was open, and it is
+ * the only source of a removal: the account's own listing holds other devices' documents too, and a save that pruned what it did not
+ * hold would delete work it never saw.
  */
 export async function saveProjectToAccount(
   fs: EncryptedRemoteArtifactFs,
@@ -76,9 +71,7 @@ export async function saveProjectToAccount(
 ): Promise<HostedSaveOutcome> {
   const save = new BatchedSave(fs);
   try {
-    const onAccount = await documentIdsOnAccount(fs);
-    const kept = new Set(state.documents.keys());
-    const removed = new Set([...(options.removed ?? []), ...onAccount.filter((id) => !kept.has(id))]);
+    const removed = options.removed ?? [];
     const { removed: _removed, assets, ...writeOptions } = options;
     const report = await writeProject(save, state, { ...writeOptions, pruneDocumentIds: [...removed] });
     if (assets !== undefined) await stageAssets(save, fs, assets);
