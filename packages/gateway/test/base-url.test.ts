@@ -135,6 +135,8 @@ describe('normalizeLocalBaseUrl — a local model server, on this computer only'
     ['http://127.255.255.254:1234/v1', 'http://127.255.255.254:1234/v1'],
     // The URL parser writes a short form out in full, so what is stored is the literal address.
     ['http://127.1:1234/v1', 'http://127.0.0.1:1234/v1'],
+    // The same address in its IPv4-mapped IPv6 spelling: this computer, so a local model server here is a local base.
+    ['http://[::ffff:127.0.0.1]:11434/v1', 'http://[::ffff:7f00:1]:11434/v1'],
     ['https://127.0.0.1:8443/v1', 'https://127.0.0.1:8443/v1'],
   ])('accepts %s as %s', (input, expected) => {
     expect(normalizeLocalBaseUrl(input)).toBe(expected);
@@ -150,7 +152,6 @@ describe('normalizeLocalBaseUrl — a local model server, on this computer only'
     ['a public host over https', 'https://api.openai.com/v1'],
     ['an unspecified address', 'http://0.0.0.0:11434/v1'],
     ['a trailing-dot name', 'http://localhost.:11434/v1'],
-    ['an IPv4-mapped IPv6 address', 'http://[::ffff:7f00:1]:11434/v1'],
   ])('refuses %s and says why', (_name, input) => {
     const error = localRejects(input);
     expect(error.field).toBe('baseUrl');

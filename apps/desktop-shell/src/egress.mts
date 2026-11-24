@@ -73,30 +73,49 @@ export function registerEgressIpc(entryUrl: string, vault: KeyVault): void {
    * to be said.
    */
   async function pump(id: string, stream: Stream, response: Response, secrets: readonly string[]): Promise<void> {
-    const scrubber = createSecretScrubber(secrets, (bytes) => send(stream, 'net:chunk', { id, bytes }));
+    // Only the stream this id currently names is answered: a call the page stopped, or one whose page went, has left the map, and a
+    // later call that took the id would otherwise receive the abandoned body's remaining chunks. The scrubber writes through the
+    // same guard, so a secret cannot reach a call that is no longer this one either.
+    const alive = (): boolean => streams.get(id) === stream;
+    const scrubber = createSecretScrubber(secrets, (bytes) => { if (alive()) send(stream, 'net:chunk', { id, bytes }); });
     const outcome = await pumpResponse(response, (bytes) => scrubber.write(bytes));
     if (outcome !== 'unavailable' || !stream.controller.signal.aborted) scrubber.end();
+    // A call the page stopped ends through `abort`, which has already said so; a page that went hears nothing at all. Sending an end
+    // for either would be a message about a request nobody is listening for.
+    if (!alive()) return;
     streams.delete(id);
     if (outcome === 'too-large') stream.controller.abort();
-    // A call the page stopped ends through `abort`, which has already said so; sending a second end would be a message about
-    // a request the page is no longer listening for.
     if (outcome === 'ended') send(stream, 'net:end', { id });
     else if (outcome === 'too-large') send(stream, 'net:end', { id, error: 'too-large' });
     else if (!stream.controller.signal.aborted) send(stream, 'net:end', { id, error: 'unavailable' });
   }
 
-  /** One listener per page: a page that goes stops every call it started, so nothing keeps reading for a window that is gone. */
+  /** Stops every call one page started: its sinks are gone, so nothing here keeps reading for a document that no longer exists. */
+  function stopAll(sender: WebContents): void {
+    for (const [id, stream] of streams) {
+      if (stream.sender !== sender) continue;
+      streams.delete(id);
+      stream.controller.abort();
+    }
+  }
+
+  /**
+   * One set of listeners per page. A page stops its calls when it is destroyed, and also when a reload or a navigation
+   * replaces it: the document that made them is gone while the `WebContents` lives on, and the reads it left behind would
+   * otherwise run to their end for nobody. A sub-frame's navigation is not this: the studio's own frame is the one that made
+   * the calls.
+   */
   function watch(sender: WebContents): void {
     if (watched.has(sender.id)) return;
     watched.add(sender.id);
     sender.once('destroyed', () => {
       watched.delete(sender.id);
-      for (const [id, stream] of streams) {
-        if (stream.sender !== sender) continue;
-        streams.delete(id);
-        stream.controller.abort();
-      }
+      stopAll(sender);
     });
+    sender.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+      if (isMainFrame && !isInPlace) stopAll(sender);
+    });
+    sender.on('render-process-gone', () => { stopAll(sender); });
   }
 
   /**
@@ -153,6 +172,9 @@ export function registerEgressIpc(entryUrl: string, vault: KeyVault): void {
       });
     } catch (error) {
       streams.delete(id);
+      // A call the page stopped while the head was still arriving is an abort, whatever the network stack made of it on the
+      // way out: the page asked for one thing and would otherwise be told the network was unreachable.
+      if (controller.signal.aborted) throw new EgressRefusal('aborted');
       throw error;
     }
     if (controller.signal.aborted) {

@@ -192,7 +192,7 @@ export function Settings({
             {section === 'writing' ? <WritingSection services={services} /> : null}
             {section === 'hooks' ? <HookSettings session={session} services={services} /> : null}
             {section === 'coherence' ? <CoherenceSection services={services} /> : null}
-            {section === 'mcp' ? narrow ? <OpenOnDesktop feature="mcp" /> : <McpSection mcp={services.mcp} /> : null}
+            {section === 'mcp' ? narrow ? <OpenOnDesktop feature="mcp" /> : <McpSection mcp={services.mcp} session={session} /> : null}
             {section === 'appearance' ? <AppearanceSection services={services} /> : null}
             {section === 'data' ? <DataSection services={services} session={session} store={store} storage={storage} /> : null}
           </div>

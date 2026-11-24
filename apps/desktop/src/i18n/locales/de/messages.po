@@ -3775,8 +3775,8 @@ msgstr "In diesem Ordner ist während des Speicherns durch Caotang eine Sperrdat
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
-msgid "A lock file in this folder says that another program, such as the Caotang MCP server, may be using it. Saving now can overwrite what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?"
-msgstr "Eine Sperrdatei in diesem Ordner besagt, dass ein anderes Programm, etwa der Caotang-MCP-Server, ihn möglicherweise verwendet. Wenn Sie jetzt speichern, kann das überschreiben, was dieses Programm geschrieben hat. Wenn kein solches Programm läuft, wurde die Sperre hinterlassen, als eines geschlossen wurde. Trotzdem speichern?"
+msgid "A lock file in this folder says that another program, such as the Caotang MCP server, may be using it, or that server could not be paused for this save. Saving now can overwrite what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?"
+msgstr "Eine Sperrdatei in diesem Ordner sagt, dass ein anderes Programm – etwa der Caotang-MCP-Server – ihn womöglich nutzt, oder dieser Server ließ sich für dieses Speichern nicht anhalten. Wenn du jetzt speicherst, kannst du überschreiben, was dieses Programm geschrieben hat. Läuft kein solches Programm, blieb die Sperre von einem beendeten zurück. Trotzdem speichern?"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -3914,6 +3914,10 @@ msgstr "Eine Preisschätzung ist nicht verfügbar. Für diese Modellaufrufe kön
 #: apps/desktop/src/app/providers.ts
 msgid "A price needs both the prompt price and the reply price, per 1,000 tokens. Fill both, or leave both empty."
 msgstr "Ein Preis braucht sowohl den Prompt-Preis als auch den Antwort-Preis, pro 1.000 Token. Füllen Sie beides aus oder lassen Sie beides leer."
+
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "A program on this computer — Claude Desktop, a script, any MCP host — can read this project while the server runs, and nothing leaves the computer."
+msgstr "Ein Programm auf diesem Computer – Claude Desktop, ein Skript, jeder MCP-Host – kann dieses Projekt lesen, solange der Server läuft, und nichts verlässt den Computer."
 
 #. Recurring tasks' notices. Interpolated values: name and names are task names, count is a number of tasks, problem and error are refusal and failure messages, skipped is a list of check names, at is a local time such as 09:00, day is a weekday name that already arrives translated, steps is a plan's step count.
 #: apps/desktop/src/app/recurring-tasks.ts
@@ -4743,6 +4747,7 @@ msgstr "Wird zu den Notizen von „{doc}“ hinzugefügt"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/ProjectServer.tsx
 #: apps/desktop/src/components/Settings.tsx
 msgid "Address"
 msgstr "Adresse"
@@ -4988,6 +4993,10 @@ msgstr "Alle Züge in diesem Tab"
 msgid "Allow automatic starts"
 msgstr "Automatische Starts erlauben"
 
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "Allow changes"
+msgstr "Änderungen erlauben"
+
 #. Agent rules settings. Interpolated values: text is the rule's own words.
 #: apps/desktop/src/components/AgentRulesSettings.tsx
 msgid "Allow never overrides Plan, read-only access, a mode’s restrictions or a turn marked as untrusted. External writes and tools that change agent memory or instructions still need your approval. Rules from projects, imports, MCP servers or the agent cannot grant approval."
@@ -5177,6 +5186,10 @@ msgstr "Ein anderes Programm hat diese Dateien im Ordner geändert, während Cao
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Another program changed this folder after Caotang read it, so nothing was written: {files}. Close this, then open the folder again to see its current copy."
 msgstr "Ein anderes Programm hat diesen Ordner geändert, nachdem Caotang ihn gelesen hat, daher wurde nichts geschrieben: {files}. Schließen Sie dies und öffnen Sie den Ordner erneut, um seine aktuelle Kopie zu sehen."
+
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "Another program is already using this folder, such as an MCP server you started yourself. Stop it, then start this one."
+msgstr "Ein anderes Programm nutzt diesen Ordner bereits, etwa ein MCP-Server, den du selbst gestartet hast. Beende es und starte dann diesen."
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
@@ -8101,9 +8114,25 @@ msgstr "Gespräche können Manuskriptauszüge und Modellausgaben enthalten. Sie 
 msgid "Convert it — the file is rewritten as text Caotang can read, and its original bytes are kept at <0/>."
 msgstr "Konvertieren – die Datei wird als Text neu geschrieben, den Caotang lesen kann, und ihre ursprünglichen Bytes werden unter <0/> aufbewahrt."
 
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "Copied. Paste it into the program that should read this project."
+msgstr "Kopiert. Füge es in das Programm ein, das dieses Projekt lesen soll."
+
 #: apps/desktop/src/components/RunHistory.tsx
 msgid "Copies contain conversation and manuscript text, not restore points. They are never read to resume a run. Turning this off or discarding a browser log does not delete existing folder copies."
 msgstr "Kopien enthalten Gesprächs- und Manuskripttext, aber keine Wiederherstellungspunkte. Sie werden nie zum Fortsetzen eines Durchlaufs gelesen. Das Deaktivieren oder Verwerfen eines Browserprotokolls löscht keine vorhandenen Ordnerkopien."
+
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "Copy the address"
+msgstr "Adresse kopieren"
+
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "Copy the configuration"
+msgstr "Konfiguration kopieren"
+
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "Copy the token"
+msgstr "Token kopieren"
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -15151,6 +15180,10 @@ msgstr "Nicht richtig? Anbieter wählen"
 msgid "Not run. The hook is disabled or its matcher does not match this input."
 msgstr "Nicht ausgeführt. Der Hook ist deaktiviert oder seine Filter passen nicht zu dieser Eingabe."
 
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "Not running"
+msgstr "Läuft nicht"
+
 #. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
 msgid "Not saved to browser storage yet. Your words are safe in this tab and are written again on the next change."
@@ -15479,6 +15512,10 @@ msgstr "In den Einstellungen ausgeschaltet"
 msgid "Off, underlined text is kept without its underline."
 msgstr "Aus: Unterstrichener Text wird ohne Unterstreichung behalten."
 
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "Off. A host can read this project and change nothing."
+msgstr "Aus. Ein Host kann dieses Projekt lesen und nichts ändern."
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Off. No server is contacted, and no external tool is offered to the agent."
@@ -15506,6 +15543,10 @@ msgstr "An"
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "On (strict: true)"
 msgstr "An (strict: true)"
+
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "On. A host may change this project: it writes the same files you do, and a write that would replace text you have not saved is refused instead."
+msgstr "An. Ein Host darf dieses Projekt ändern: Er schreibt dieselben Dateien wie du, und eine Änderung, die Text ersetzen würde, den du noch nicht gespeichert hast, wird stattdessen abgelehnt."
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
@@ -19123,6 +19164,7 @@ msgstr "läuft"
 
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
+#: apps/desktop/src/components/ProjectServer.tsx
 msgid "Running"
 msgstr "Läuft"
 
@@ -21006,6 +21048,10 @@ msgstr "Sprint-Timer"
 msgid "SRT cue coordinates left out: a script has no screen position. First: {sample}"
 msgstr "SRT-Cue-Koordinaten außen vor: ein Skript hat keine Bildschirmposition. Zuerst: {sample}"
 
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "Start"
+msgstr "Starten"
+
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Start a new session"
@@ -21053,6 +21099,10 @@ msgstr "begann {startMs} ms nach Start und dauerte {durationMs} ms"
 #: apps/desktop/src/app/trace-model.ts
 msgid "started {startMs} ms in, still running"
 msgstr "begann {startMs} ms nach Start, läuft noch"
+
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "Starting…"
+msgstr "Startet …"
 
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -21256,6 +21306,7 @@ msgstr "Zusammenfügen"
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/BinderFooter.tsx
+#: apps/desktop/src/components/ProjectServer.tsx
 msgid "Stop"
 msgstr "Stopp"
 
@@ -21307,6 +21358,7 @@ msgstr "gestoppt"
 
 #. Agent status sentences. Interpolated values: progress, total and cached are counts, call is a call number, cause is a reason.
 #: apps/desktop/src/app/agent-model.ts
+#: apps/desktop/src/components/ProjectServer.tsx
 msgid "Stopped"
 msgstr "Gestoppt"
 
@@ -22170,6 +22222,10 @@ msgstr "Der 1. (die Standardeinstellung)"
 msgid "The action did not finish: {reason}"
 msgstr "Die Aktion wurde nicht abgeschlossen: {reason}"
 
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "The address an MCP host connects to"
+msgstr "Die Adresse, mit der ein MCP-Host sich verbindet"
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "The address segment"
@@ -22747,6 +22803,10 @@ msgstr "Das Gespräch konnte nicht gespeichert werden: {reason}. Lassen Sie dies
 #: apps/desktop/src/app/agent.ts
 msgid "The conversation could not be saved: {reason}. The run log is still available in Activity. Try again before closing this project."
 msgstr "Das Gespräch konnte nicht gespeichert werden: {reason}. Das Laufprotokoll ist weiterhin unter Aktivität verfügbar. Versuchen Sie es erneut, bevor Sie dieses Projekt schließen."
+
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "The copy was refused here. Select the text and copy it by hand."
+msgstr "Das Kopieren wurde hier abgelehnt. Markiere den Text und kopiere ihn von Hand."
 
 #. Modern interface: the stage and the page.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
@@ -24468,10 +24528,18 @@ msgstr "Der Server sagt: "
 msgid "The server sent a tool list Caotang could not read. Ask its administrator to check the tool list, then choose Connect again."
 msgstr "Der Server hat eine Werkzeugliste gesendet, die Caotang nicht lesen konnte. Bitten Sie den Betreiber, die Werkzeugliste zu prüfen, und wählen Sie dann erneut Verbinden."
 
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "The server stopped before it was ready. Start it again."
+msgstr "Der Server hat angehalten, bevor er bereit war. Starte ihn erneut."
+
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #: apps/desktop/src/app/mcp-model.ts
 msgid "The server took too long to answer. Choose Connect to try again."
 msgstr "Der Server hat zu lange für eine Antwort gebraucht. Wählen Sie Verbinden, um es erneut zu versuchen."
+
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "The server’s program is missing from this copy of the app. Install Caotang for desktop again."
+msgstr "Das Programm des Servers fehlt in dieser Kopie der App. Installiere Caotang für Desktop erneut."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -24723,6 +24791,10 @@ msgstr "Die Zeitachse auf Querformatseiten, die Sie drucken können, ein Teil pr
 #: apps/desktop/src/app/mcp.ts
 msgid "the token is empty — enter the token the server gave you"
 msgstr "das Token ist leer — geben Sie das Token ein, das der Server Ihnen gegeben hat"
+
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "The token the address takes"
+msgstr "Das Token, das die Adresse verlangt"
 
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #: apps/desktop/src/app/mcp-model.ts
@@ -25546,6 +25618,10 @@ msgstr "Dieses Projekt hat keine Aufgabendatei zum Speichern."
 msgid "This project has reached its hook limit. Delete a hook before adding another."
 msgstr "Dieses Projekt hat die Höchstzahl an Hooks erreicht. Löschen Sie einen Hook, bevor Sie einen weiteren hinzufügen."
 
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "This project is not in a folder yet. Save it to a folder to serve it."
+msgstr "Dieses Projekt liegt noch in keinem Ordner. Speichere es in einem Ordner, um es bereitzustellen."
+
 #: apps/desktop/src/components/StaleTabNotice.tsx
 msgid "This project is open in another tab"
 msgstr "Dieses Projekt ist in einem anderen Tab geöffnet"
@@ -25578,6 +25654,10 @@ msgstr "Die Anweisungen und der Notizindex dieses Projekts senden {sent} der {al
 #: apps/desktop/src/app/picture-notices.ts
 msgid "This project’s pictures take about {size}, and this browser cannot save to a folder. Export a bundle for a copy of them that does not depend on the browser."
 msgstr "Die Bilder dieses Projekts belegen etwa {size}, und dieser Browser kann nicht in einem Ordner speichern. Exportieren Sie ein Bundle, um eine Kopie zu erhalten, die nicht vom Browser abhängt."
+
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "This project’s server"
+msgstr "Der Server dieses Projekts"
 
 #. Interpolated values: model, name, provider, total
 #: apps/desktop/src/components/ProviderSetup.tsx
@@ -26116,6 +26196,10 @@ msgstr "Heute"
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Today’s target is met."
 msgstr "Das heutige Ziel ist erreicht."
+
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "Token"
+msgstr "Token"
 
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -27460,6 +27544,10 @@ msgstr "Welche Liste bearbeitet werden soll"
 #: apps/desktop/src/components/ProviderSetup.tsx
 msgid "Which provider is this key from?"
 msgstr "Von welchem Anbieter stammt dieser Schlüssel?"
+
+#: apps/desktop/src/components/ProjectServer.tsx
+msgid "While Caotang saves, the server is paused and refuses writes, so a save and a host’s change never replace each other."
+msgstr "Während Caotang speichert, ist der Server pausiert und lehnt Schreibvorgänge ab, damit ein Speichern und eine Änderung eines Hosts einander nie ersetzen."
 
 #. Interpolated values: bytes, folder, max, name, path, problem, size, taken
 #: apps/desktop/src/app/skills-model.ts
