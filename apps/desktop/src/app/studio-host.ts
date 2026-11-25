@@ -47,18 +47,36 @@ export interface HostedProjectSource {
 
 let host: StudioHost | null = null;
 let handedProject: HostedProjectSource | null = null;
+let revision = 0;
+const listeners = new Set<() => void>();
 
 /**
  * Names the project a hosted frame opens. The host sets this before the studio boots and clears it on a lock, so a frame
- * that outlives a sign-out opens nothing from the account after it.
+ * that outlives a sign-out opens nothing from the account after it — and an open still in flight is cancelled by the change,
+ * because the frame subscribes rather than reading once.
  */
 export function setHostedProject(next: HostedProjectSource | null): void {
   handedProject = next;
+  revision += 1;
+  for (const listener of listeners) listener();
 }
 
 /** The project the host handed this frame, or null for the app's own opens. */
 export function hostedProject(): HostedProjectSource | null {
   return handedProject;
+}
+
+/** Whichever project the host hands over, and each lock that clears it, is a change the frame can follow. */
+export function subscribeHostedProject(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/** A number that changes when the handed project does, for `useSyncExternalStore`. */
+export function hostedProjectRevision(): number {
+  return revision;
 }
 
 /** Sets the host before the app boots; passing null clears it, which a host does when it signs out. */

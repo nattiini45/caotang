@@ -80,6 +80,11 @@ export const BUDGET = {
     // shell, #329 the plain-text reader, #320 footnotes in the editor) is in the entry, beside #322's own review fixes. The cap is that
     // plus about 1%, rounded up to the thousand.
     index: 1_250_000,
+    // The project store: 695.7 kB raw, 212.5 kB gzip, every view that loads first reads it. It is one chunk because the chunks that load
+    // on use (the exporter, the hosted open) read it too, and the default splitting carved it into a chunk per module for them, at 2.6 kB
+    // gzip more in the first load than the hosted path itself weighs. Splitting it again means paying that back. The cap is the
+    // measurement plus about 1%.
+    'vendor-store': 702_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
   // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.
@@ -211,6 +216,14 @@ export const BUDGET = {
   // 1,124,900 on the merge of main 4e21e4f7 (#850's open-project MCP server, #854's native port hardening). [delegated 2026-11-24]
   // 1,126,700 on the merge of main c41a695d (#871's headers-only key edit). [delegated 2026-11-24]
   // 1,127,400 on the merge of main c7fa6727. [delegated 2026-11-24]
+  // The hosted save target (hosted.md §7.2) never grows the first load: the adapter, the target and the queue, the open and the notice
+  // are four chunks fetched when a host hands a project over, so the 1,122.5 kB gzip measured here is 2.7 kB under the 1,125.2 kB the
+  // main it branched from measured, and the cap stays at main's. What pays for it is the project store pinned to one chunk
+  // (`vendor-store`): shared by the entry and those hosted chunks, the default splitting carves it into a chunk per module, which cost
+  // 2.6 kB gzip more than the whole hosted path weighs. Tried and rejected: the open staying in `lifecycle` rather than its own module
+  // (1,127.8 kB, because the hosted chunks share the store either way), and the hosted open importing the store dynamically
+  // (1,161.8 kB: a dynamic import of a barrel pulls its whole re-export graph into shared chunks). The notice's English text is in the
+  // entry catalogue as every screen's is, 0.7 kB of that chunk.
   initialGzip: 1_128_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
