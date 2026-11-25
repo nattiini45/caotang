@@ -99,11 +99,19 @@ const MARKDOWN_PACKAGES = new Set([
 ]);
 const MARKDOWN_PREFIXES = ['micromark', 'mdast-util-', 'remark-', 'unist-', 'vfile', 'character-entities'];
 
-/** The vendor chunk a module goes in: React, the editor (tiptap and ProseMirror), or the Markdown pipeline. Everything else is left to the default. */
+/**
+ * The vendor chunk a module goes in: React, the editor (tiptap and ProseMirror), the Markdown pipeline, or the project store. Everything
+ * else is left to the default.
+ */
 function vendorChunkOf(id: string): string | null {
   const path = id.replaceAll('\\', '/');
   // Keep the source catalogue in its own cacheable chunk instead of hiding it inside a shared app chunk.
   if (path.endsWith('/src/i18n/locales/en/messages.po')) return 'locale-en';
+  // The store is read by every view that loads first and shared with the chunks that load on use (the exported project, the hosted
+  // open). Left to the default splitting it is carved into a chunk per module, because a lazy chunk that needs one reader and the entry
+  // that needs the rest no longer share a boundary: the chunks it splits into cost the first load 2.6 kB gzip more than the hosted path
+  // itself weighs. One chunk keeps its hash stable across releases too, which is what a store this size is worth caching on.
+  if (/[\\/]packages[\\/]store[\\/]src[\\/]/.test(path)) return 'vendor-store';
   const name = packageOf(id);
   if (name === undefined) return null;
   if (name === 'react' || name === 'react-dom' || name === 'scheduler') return 'vendor-react';

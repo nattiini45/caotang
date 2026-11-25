@@ -107,8 +107,6 @@ import { folderFileDiff, type FolderDiffLine } from './folder-diff.js';
 import { applyEncodingDecisions, encodingResultLines, type EncodingDecision } from './encoding-review.js';
 import { changedDuringSave, pruneFolderBackups, watchSave } from './folder-guard.js';
 import { folderArtifactFs, folderIsEmpty, isSameFolder, type DirectoryHandleLike } from './fs-access.js';
-import type { HostedProjectSource } from './studio-host.js';
-import { openRemoteProject, picturesOnProjectFs } from './hosted-project.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
 import {
   copiedFromOf,
@@ -178,7 +176,7 @@ export function setSessionDefaults(next: SessionDefaults): void {
 }
 
 /** The project's lease, or the refusal: another tab has the project open. */
-async function leaseFor(projectId: string): Promise<ProjectLease> {
+export async function leaseFor(projectId: string): Promise<ProjectLease> {
   const lease = await acquireProjectLease(projectId);
   if (lease === null) throw new ProjectOpenElsewhereError(projectId);
   // The lease is recorded as this page's until it is given back, so the projects list does not take a project this page is still closing
@@ -708,7 +706,7 @@ async function bundleOf(
  * is written in full on the first pass (its shadow is `null`), and the session log the
  * bundle carried is appended line by line, so history survives the import.
  */
-async function adopt(
+export async function adopt(
   store: RuntimeStore,
   state: ProjectState,
   sessions: readonly SessionRecord[],
@@ -841,7 +839,7 @@ function deletedSince(copy: FolderBaseline, state: ProjectState): string[] {
  * The fields a load noticed that a save drops (`LoadNotice.droppedField`), by name, in the order the file names them. The open says these
  * and nothing else is dropped, so no other notice is counted as one.
  */
-function droppedFieldsOf(notices: readonly LoadNotice[]): string[] {
+export function droppedFieldsOf(notices: readonly LoadNotice[]): string[] {
   return notices.flatMap((notice) => (notice.droppedField === undefined ? [] : [notice.droppedField]));
 }
 
@@ -855,7 +853,7 @@ function exportsKeptHere(error: unknown): string {
  * The notices a load raised that are not dropped fields, as the lines the writer reads: each one's own sentence (`LoadNotice.say`), and a
  * count of those that have none, whose messages name paths, ids or spec sections (`openNoticeLines`).
  */
-function noticesOf(notices: readonly LoadNotice[]): string[] {
+export function noticesOf(notices: readonly LoadNotice[]): string[] {
   return openNoticeLines(notices.filter((notice) => notice.droppedField === undefined));
 }
 
@@ -863,7 +861,7 @@ function noticesOf(notices: readonly LoadNotice[]): string[] {
  * The session log a folder holds (project-format §4), or none when the folder has no `sessions.jsonl`. A line the parser cannot read is
  * counted by it and left out here, as a bundle's log is read (zip.ts), so one damaged line does not refuse the open.
  */
-async function folderSessionsOf(fs: ArtifactFs): Promise<SessionRecord[]> {
+export async function folderSessionsOf(fs: ArtifactFs): Promise<SessionRecord[]> {
   if (!(await fs.exists(SESSIONS_FILE))) return [];
   return parseSessionsLog(await fs.read(SESSIONS_FILE)).records;
 }
@@ -882,7 +880,7 @@ function sessionLineKey(line: SessionRecord): string {
  * The held lines are counted by key, so the check is linear in the two logs: it runs at every folder open and save, and a log grows with
  * the writer's history.
  */
-function linesNotHeld(lines: readonly SessionRecord[], held: readonly SessionRecord[]): SessionRecord[] {
+export function linesNotHeld(lines: readonly SessionRecord[], held: readonly SessionRecord[]): SessionRecord[] {
   const unanswered = new Map<string, number>();
   for (const line of held) {
     const key = sessionLineKey(line);
@@ -955,10 +953,11 @@ function sortedJson(value: unknown): string {
  * findings, and the pictures the folder holds. A project another tab holds is refused with `ProjectOpenElsewhereError`, as the projects list
  * refuses it: the folder is not opened again as a second copy of a book that tab already has open.
  */
-async function openStored(
+export async function openStored(
   store: RuntimeStore,
   projectId: string,
-  folder: DirectoryHandleLike,
+  /** The folder this copy lives in, or `null` for a project whose home is not a folder (a hosted project's account). */
+  folder: DirectoryHandleLike | null,
   load: { readonly notices: readonly string[]; readonly droppedFields: readonly string[]; readonly folderLog: readonly SessionRecord[] },
   assets: Readonly<Record<string, Uint8Array>>,
   artifactState?: ProjectState,
@@ -984,11 +983,13 @@ async function openStored(
     if (artifactState === undefined) await carryFolderSessions(store, projectId, load.folderLog);
     await session.assets.loadAll(assets);
     const noticesOut = [...load.notices];
-    try {
-      await session.attachFolder(folder);
-    } catch (error) {
-      if (artifactState !== undefined) throw error;
-      noticesOut.push(exportsKeptHere(error));
+    if (folder !== null) {
+      try {
+        await session.attachFolder(folder);
+      } catch (error) {
+        if (artifactState !== undefined) throw error;
+        noticesOut.push(exportsKeptHere(error));
+      }
     }
     await settleForOpen(session);
     noticesOut.push(...imageDropNotice(session), ...hookNotice(session));
@@ -1258,19 +1259,6 @@ export interface FolderDiffers {
  * imports nothing from `@caotang/remote-store` and makes no call beyond the provider until then. `open` is injectable so a
  * test can drive the adoption with a fake remote rather than a server.
  */
-export async function openHostedProject(
-  store: RuntimeStore,
-  source: HostedProjectSource,
-  open: (source: HostedProjectSource) => Promise<ArtifactFs> = openRemoteProject,
-): Promise<Opened> {
-  const fs = await open(source);
-  const loaded = await readProject(fs);
-  // The project's pictures travel with it: the copy this browser keeps is what a later save is measured on, so a picture left
-  // behind here would be a picture the next save prunes from the account.
-  const pictures = await picturesOnProjectFs(fs);
-  return await adopt(store, loaded.state, await folderSessionsOf(fs), noticesOf(loaded.notices), droppedFieldsOf(loaded.notices), null, pictures);
-}
-
 /**
  * Opens a folder whose version differs from this browser's, the way the writer chose (`FolderDiffersAnswer`):
  * - `use-folder`: this browser's copy is removed and the folder's version takes its place, under the same id, with the writing history of

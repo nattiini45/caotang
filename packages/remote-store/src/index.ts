@@ -29,3 +29,6 @@ export {
 export { RemoteConflictError, RemoteIntegrityError, RemoteQuotaExceededError } from './errors.js';
 export { PendingEdits, replayPending, saveOrQueue, type SaveOutcome } from './pending-edits.js';
 export { BatchedSave } from './batched-save.js';
+/** The device's rollback memory is the app's to keep and hand back with the adapter (hosted.md §7), so it travels with it. */
+export { HighWaterMarks } from '@caotang/crypto';
+export { saveProjectToAccount, type HostedSaveOutcome, type SaveAssets } from './save-project.js';
