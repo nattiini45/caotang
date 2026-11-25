@@ -19,8 +19,8 @@ import { RTF_OPTIONS, rtfErrorText, rtfPreviewSource, rtfSizeRefusal } from '../
 import { epubPreviewSource } from '../src/import-preview/epub-source.js';
 import { ao3PreviewSource } from '../src/import-preview/ao3-source.js';
 import { kankaPreviewSource } from '../src/import-preview/kanka-source.js';
-import { docxPreviewSource } from '../src/import-preview/docx-source.js';
 import { odtPreviewSource } from '../src/import-preview/odt-source.js';
+import { docxPreviewSource } from '../src/import-preview/docx-source.js';
 import { rawZip } from '../../../packages/import-read/test/zip-fixtures.js';
 import {
   SPLIT_CHIPS,
@@ -513,6 +513,27 @@ describe('the sources', () => {
     source.dispose?.();
   });
 
+  it('a Kanka campaign with no events or gallery still offers a Campaign index, so the tree is never empty', async () => {
+    const kankaEntity = (id: number, name: string): string =>
+      JSON.stringify({ id, name, entity: { id, name, type: 'Cartographer', entry: '<p>A note.</p>', is_private: false, image_path: '', entityTags: [], relationships: [], posts: [], entityAttributes: [], reminders: [] } });
+    const zip = rawZip([
+      { name: 'info.json', data: enc(JSON.stringify({ kanka_version: '2.1.4' })) },
+      { name: 'campaign.json', data: enc(JSON.stringify({ name: 'Quiet Quarter' })) },
+      { name: 'characters/elena_11.json', data: enc(kankaEntity(11, 'Elena')) },
+    ]);
+    const source = kankaPreviewSource('campaign.zip', zip);
+    await source.load?.(() => {}, new AbortController().signal);
+    const plan = source.plan(initialSettings(source.chips(), source.options()), NO_OVERRIDES);
+    expect(plan.tree.map((node) => [node.title, node.place])).toEqual([['Campaign index', 'research']]);
+    const commit = buildCommit(
+      { plan, edits: NO_EDITS, destination: 'manuscript', mapping: {}, statuses: [], labels: [], statusAnswers: {}, labelAnswers: {}, codexRows: source.codexRows?.() ?? [], codexAnswers: {}, codexHeld: [], pictures: [] },
+      PREVIEW_HELPERS,
+    );
+    expect(commit.params.nodes).toHaveLength(1);
+    expect(commit.params.codex?.entries.map((entry) => entry.name)).toEqual(['Elena']);
+    source.dispose?.();
+  });
+
   it('a Word file offers its tracked changes as a chip, and rejecting them re-reads the text', async () => {
     const W_NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
     const styles = `<?xml version="1.0"?><w:styles ${W_NS}><w:style w:styleId="Heading1"><w:name w:val="heading 1"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style></w:styles>`;
@@ -542,6 +563,52 @@ describe('the sources', () => {
     source.dispose?.();
   });
 
+
+  it('a source keeps the document while only rule chips change', () => {
+    let reads = 0;
+    const source = splitterPreviewSource({
+      fileName: 'book.txt',
+      read: () => {
+        reads += 1;
+        return { doc: BOOK };
+      },
+      readKey: () => 'one',
+    });
+    const settings = initialSettings(source.chips(), source.options());
+    source.plan(settings, NO_OVERRIDES);
+    source.plan({ ...settings, chips: { ...settings.chips, [SPLIT_CHIPS.chapters]: 'none' } }, NO_OVERRIDES);
+    expect(reads).toBe(1);
+    expect(source.report?.(source.plan(settings, NO_OVERRIDES))[0]?.label).toBe('What the splitter noticed');
+    expect(lossOf({ code: 'comment' })).toEqual({ message: 'A comment was not kept.' });
+  });
+
+  it('words every reason, flag and notice, and offers a join for a short chapter a split starts', () => {
+    expect(reasonText({ source: 'style', styleName: 'Chapter Title' })).toBe('style “Chapter Title”');
+    expect(reasonText({ source: 'pattern', family: 'chapter-word', score: 5 })).toBe('a “Chapter” line');
+    expect(reasonText({ source: 'unit', unit: 'ch2.xhtml' })).toBe('a new file “ch2.xhtml”');
+    expect(reasonText({ source: 'pagebreak' })).toBe('page break');
+    expect(reasonText({ source: 'empty-run', count: 3 })).toBe('3 empty lines');
+    expect(reasonText({ source: 'manual' })).toBe('your split');
+
+    const result = split(BOOK);
+    const tree = treeOf(result);
+    const nodes = new Map(tree.map((node) => [node.id, node]));
+    const markers = planOfSplit(result, []).markers;
+    const second = tree[2];
+    const short = flagOf({ code: 'chapter-short', nodeId: second?.id ?? '', words: 9 }, nodes, markers);
+    expect(short.message).toBe('“Chapter 2: Salt” is short: 9 words.');
+    expect(short.fix).toEqual({ label: 'Join it to the chapter before', overrides: { noSplit: [second?.startBlock] } });
+    expect(flagOf({ code: 'number-gap', nodeId: second?.id ?? '', expected: 2, found: 4 }, nodes, markers).message).toBe('Chapter 2 was expected at “Chapter 2: Salt”, which says 4.');
+    expect(flagOf({ code: 'mixed-families', families: ['chapter-word', 'number'] }, nodes, markers).message).toBe('Chapters are found by more than one kind of line: a “Chapter” line, a number line.');
+    expect(flagOf({ code: 'running-header', text: 'THE KEEPER', count: 12 }, nodes, markers).fix).toBeUndefined();
+
+    expect(noticeText({ code: 'toc-skipped', lines: 4 }, result, nodes)).toBe('A table of contents (4 lines) is left out.');
+    expect(noticeText({ code: 'front-matter', destination: 'research', words: 1200 }, result, nodes)).toBe('The text before chapter 1 (1,200 words) goes to Research.');
+    expect(noticeText({ code: 'back-matter', destination: 'skip', words: 4, title: 'Acknowledgements' }, result, nodes)).toBe('“Acknowledgements” (4 words) is back matter and is left out.');
+    expect(noticeText({ code: 'no-chapters' }, result, nodes)).toContain('No chapters were found');
+    expect(noticeText({ code: 'unreferenced-notes', footnotes: [{ blockIndex: 1, label: '1' }], comments: [] }, result, nodes)).toBe('1 footnote, comment or deletion has no place in the text and cannot be kept.');
+  });
+
   it('an OpenDocument file offers its tracked changes as a chip, and rejecting them re-reads the text', async () => {
     const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:dc="http://purl.org/dc/elements/1.1/"';
     const regions = '<text:tracked-changes><text:changed-region text:id="i1"><text:insertion/></text:changed-region><text:changed-region text:id="d1"><text:deletion><text:p>left at dawn</text:p></text:deletion></text:changed-region></text:tracked-changes>';
@@ -568,23 +635,5 @@ describe('the sources', () => {
     expect(JSON.stringify(rejected.blocks)).toContain('left at dawn');
     expect(JSON.stringify(rejected.blocks)).not.toContain('came at noon');
     source.dispose?.();
-  });
-
-  it('a source keeps the document while only rule chips change', () => {
-    let reads = 0;
-    const source = splitterPreviewSource({
-      fileName: 'book.txt',
-      read: () => {
-        reads += 1;
-        return { doc: BOOK };
-      },
-      readKey: () => 'one',
-    });
-    const settings = initialSettings(source.chips(), source.options());
-    source.plan(settings, NO_OVERRIDES);
-    source.plan({ ...settings, chips: { ...settings.chips, [SPLIT_CHIPS.chapters]: 'none' } }, NO_OVERRIDES);
-    expect(reads).toBe(1);
-    expect(source.report?.(source.plan(settings, NO_OVERRIDES))[0]?.label).toBe('What the splitter noticed');
-    expect(lossOf({ code: 'comment' })).toEqual({ message: 'A comment was not kept.' });
   });
 });

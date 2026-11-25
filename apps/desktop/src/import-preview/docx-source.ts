@@ -21,12 +21,6 @@ import { splitterPreviewSource } from './splitter-source.js';
 export const DOCX_CHIPS = { tracked: 'docx-tracked' } as const;
 export const DOCX_OPTIONS = { underline: 'underline-italic', comments: 'comments', pictures: 'pictures' } as const;
 
-/** Why a file of this size is not read at all, before its bytes are loaded; undefined when the reader takes it. */
-export function docxSizeRefusal(fileName: string, size: number, maxBytes: number): string | undefined {
-  if (size <= maxBytes) return undefined;
-  return t`${{ file: fileName }} is too large to import as a Word file (${{ limit: formatCount(Math.round(maxBytes / (1024 * 1024))) }} MB max).`;
-}
-
 /** Why the reader stopped, in words. */
 export function docxErrorText(error: DocxError): string {
   switch (error.kind) {
@@ -61,12 +55,10 @@ export function docxPreviewSource(fileName: string, bytes: Uint8Array): ImportPr
   const openReq: ReaderOpen = { kind: 'open', reader: 'docx', bytes };
   const reads = new Map<string, DocxImport>();
   let current: DocxImport | null = null;
-  let lastSettings: PreviewSettings | null = null;
 
   const readAs = async (settings: PreviewSettings, signal: AbortSignal): Promise<DocxImport> => {
     const key = keyOf(settings);
     const held = reads.get(key);
-    lastSettings = settings;
     if (held !== undefined) {
       current = held;
       return held;
@@ -153,11 +145,7 @@ export function docxPreviewSource(fileName: string, bytes: Uint8Array): ImportPr
     const emf = dropped.emf;
     const svg = dropped.svg;
     const toc = dropped.toc;
-    if (underline > 0) {
-      removed.push(lastSettings?.options[DOCX_OPTIONS.underline] === false
-        ? plural(underline, { one: '# underlined run was kept without its underline', other: '# underlined runs were kept without their underline' })
-        : plural(underline, { one: '# underlined run was read as italics', other: '# underlined runs were read as italics' }));
-    }
+    if (underline > 0) removed.push(plural(underline, { one: '# underlined run was read as italics', other: '# underlined runs were read as italics' }));
     if (smallCaps > 0) removed.push(plural(smallCaps, { one: '# small-caps run lost its capitals', other: '# small-caps runs lost their capitals' }));
     if (fonts > 0) removed.push(plural(fonts, { one: '# font choice was not kept', other: '# font choices were not kept' }));
     if (colours > 0) removed.push(plural(colours, { one: '# colour or highlight was not kept', other: '# colours or highlights were not kept' }));
@@ -165,8 +153,6 @@ export function docxPreviewSource(fileName: string, bytes: Uint8Array): ImportPr
     if (unsafeLinks > 0) removed.push(plural(unsafeLinks, { one: '# unsafe link kept its text only', other: '# unsafe links kept their text only' }));
     if (textBoxes > 0) removed.push(plural(textBoxes, { one: '# text box was read as a paragraph', other: '# text boxes were read as paragraphs' }));
     if (emf > 0) removed.push(plural(emf, { one: '# Windows metafile picture (EMF or WMF) was left out', other: '# Windows metafile pictures (EMF or WMF) were left out' }));
-    const otherPictures = dropped.otherPictures;
-    if (otherPictures > 0) removed.push(plural(otherPictures, { one: '# picture in a format Caotang does not keep was left out', other: '# pictures in formats Caotang does not keep were left out' }));
     if (svg > 0) removed.push(plural(svg, { one: '# SVG picture was refused, because it can carry script', other: '# SVG pictures were refused, because they can carry script' }));
     if (toc > 0) removed.push(plural(toc, { one: '# line of the generated contents was kept out of the chapters', other: '# lines of the generated contents were kept out of the chapters' }));
     if (removed.length > 0) lists.push({ heading: t`Word`, label: t`What the import removed`, lines: removed });

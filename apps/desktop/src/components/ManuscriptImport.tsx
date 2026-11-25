@@ -155,6 +155,36 @@ export function ManuscriptImportActions(): ReactNode {
     }
   };
 
+  const openKanka = async (file: File): Promise<void> => {
+    try {
+      const { kankaPreviewSource } = await import('../import-preview/kanka-source.js');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      openImportPreview({ source: kankaPreviewSource(file.name, bytes) });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
+  const openDocx = async (file: File): Promise<void> => {
+    try {
+      const { docxPreviewSource } = await import('../import-preview/docx-source.js');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      openImportPreview({ source: docxPreviewSource(file.name, bytes) });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
+  const openOdt = async (file: File): Promise<void> => {
+    try {
+      const { odtPreviewSource } = await import('../import-preview/odt-source.js');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      openImportPreview({ source: odtPreviewSource(file.name, bytes) });
+    } catch (failure) {
+      failed(file, failure);
+    }
+  };
+
   const openAo3 = async (file: File): Promise<void> => {
     try {
       const { ao3PreviewSource, ao3SizeRefusal } = await import('../import-preview/ao3-source.js');
@@ -168,49 +198,6 @@ export function ManuscriptImportActions(): ReactNode {
       }
       const bytes = new Uint8Array(await file.arrayBuffer());
       openImportPreview({ source: ao3PreviewSource(file.name, bytes) });
-    } catch (failure) {
-      failed(file, failure);
-    }
-  };
-
-  const openKanka = async (file: File): Promise<void> => {
-    try {
-      const { kankaPreviewSource } = await import('../import-preview/kanka-source.js');
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      openImportPreview({ source: kankaPreviewSource(file.name, bytes) });
-    } catch (failure) {
-      failed(file, failure);
-    }
-  };
-
-  const openDocx = async (file: File): Promise<void> => {
-    try {
-      const { docxPreviewSource, docxSizeRefusal } = await import('../import-preview/docx-source.js');
-      const { ARCHIVE_LIMITS } = await import('@caotang/import-read/zip');
-      const refusal = docxSizeRefusal(file.name, file.size, ARCHIVE_LIMITS.maxArchiveBytes);
-      if (refusal !== undefined) {
-        report({ text: refusal, tone: 'error' });
-        return;
-      }
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      openImportPreview({ source: docxPreviewSource(file.name, bytes) });
-    } catch (failure) {
-      failed(file, failure);
-    }
-  };
-
-  const openOdt = async (file: File): Promise<void> => {
-    try {
-      const { odtPreviewSource, odtSizeRefusal } = await import('../import-preview/odt-source.js');
-      const { MAX_TEXT_BYTES } = await import('@caotang/import-read/text');
-      const { ARCHIVE_LIMITS } = await import('@caotang/import-read/zip');
-      const refusal = odtSizeRefusal(file.name, file.size, /\.fodt$/i.test(file.name) ? MAX_TEXT_BYTES : ARCHIVE_LIMITS.maxArchiveBytes);
-      if (refusal !== undefined) {
-        report({ text: refusal, tone: 'error' });
-        return;
-      }
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      openImportPreview({ source: odtPreviewSource(file.name, bytes) });
     } catch (failure) {
       failed(file, failure);
     }

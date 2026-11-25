@@ -1723,11 +1723,6 @@ msgstr "{file} hat keine Passage zu importieren. Eine Twee-Geschichte legt für 
 msgid "{file} holds no timed cue, so there is nothing to import. A captions file needs lines like \"00:00:01,000 --> 00:00:04,000\"."
 msgstr "{file} enthält keinen Cue mit einer Zeit, also gibt es nichts zu importieren. Eine Untertiteldatei braucht Zeilen wie „00:00:01,000 --> 00:00:04,000“."
 
-#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
-#: apps/desktop/src/import-preview/docx-source.ts
-msgid "{file} is too large to import as a Word file ({limit} MB max)."
-msgstr "{file} ist zu groß für den Word-Import (max. {limit} MB)."
-
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #: apps/desktop/src/import-preview/ao3-source.ts
 msgid "{file} is too large to import as an AO3 download ({limit} MB max)."
@@ -2299,11 +2294,6 @@ msgstr "{other, plural, one {# Bild in einem Format, das Caotang nicht behält, 
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "{otherFiles, plural, one {# other file.} other {# other files.}}"
 msgstr "{otherFiles, plural, one {# andere Datei.} other {# andere Dateien.}}"
-
-#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
-#: apps/desktop/src/import-preview/docx-source.ts
-msgid "{otherPictures, plural, one {# picture in a format Caotang does not keep was left out} other {# pictures in formats Caotang does not keep were left out}}"
-msgstr "{otherPictures, plural, one {# Bild in einem Format, das Caotang nicht übernimmt, wurde ausgelassen} other {# Bilder in Formaten, die Caotang nicht übernimmt, wurden ausgelassen}}"
 
 #. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportProofView.tsx
@@ -3123,8 +3113,6 @@ msgid "{turns, plural, one {Summary requested for # earlier turn.} other {Summar
 msgstr "{turns, plural, one {Zusammenfassung für # früheren Gesprächsschritt angefordert.} other {Zusammenfassung für # frühere Gesprächsschritte angefordert.}}"
 
 #. The OpenDocument import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
-#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
-#: apps/desktop/src/import-preview/docx-source.ts
 #: apps/desktop/src/import-preview/odt-source.ts
 msgid "{underline, plural, one {# underlined run was kept without its underline} other {# underlined runs were kept without their underline}}"
 msgstr "{underline, plural, one {# Unterstreichung wurde ohne Unterstrich übernommen} other {# Unterstreichungen wurden ohne Unterstrich übernommen}}"

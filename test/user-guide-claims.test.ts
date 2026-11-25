@@ -894,6 +894,7 @@ describe('the captions import (#287)', () => {
     expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **Word importieren…** liest ein Word-`.docx`-Manuskript');
   });
 
+
   it('the OpenDocument import: the guide’s claims match the reader, the button and the spec', () => {
     expect(guide).toContain('- **Import OpenDocument…** reads a LibreOffice or OpenOffice `.odt` text file, or a flat `.fodt`');
     expect(guide).toContain('The outline levels the document itself carries become chapters');
@@ -909,5 +910,4 @@ describe('the captions import (#287)', () => {
     expect(changelog).toContain('**Import OpenDocument.**');
     expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **OpenDocument importieren…** liest eine LibreOffice-');
   });
-
 });

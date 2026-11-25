@@ -41,9 +41,7 @@ marked `toc` and counted; the splitter leaves it out.
 `w:t` is text (`xml:space="preserve"` keeps its spaces), `w:tab` a tab, `w:br` a line break, `w:br w:type="page"` a page break.
 Bold, italic and strike become Markdown; **underline becomes italics** by default and is counted (option: off). Small caps, fonts,
 colours, highlighting and indents are dropped and counted. `w:hyperlink` keeps its text and, when the target passes the safe-href
-rule (http, https, mailto or relative), its link; a `javascript:` target keeps the text only and is counted. Text that would read
-as Markdown — `*`, `\\`, a leading `#` or list marker, and the rest of the dialect — is escaped, so prose stays prose. A text box
-(`w:txbxContent`, inside a drawing or an `mc:AlternateContent`) is read as a paragraph, counted and reported.
+rule (http, https, mailto or relative), its link; a `javascript:` target keeps the text only and is counted.
 
 Lists: a paragraph with `w:numPr` becomes `- ` or `1. ` by its level's format, indented two spaces per level. A quote style
 (`Quote`, `Block Text`, `Intense Quote`) becomes `> `.
@@ -56,7 +54,7 @@ Lists: a paragraph with `w:numPr` becomes `- ` or `1. ` by its level's format, i
 |---|---|
 | **accept** (default) | insertions kept, deletions dropped; both counted |
 | **reject** | insertions dropped, deletions kept; both counted |
-| **keep** | insertions kept, deletions on the document's `deletions` table, listed in the notes of the scene that holds them |
+| **keep** | insertions kept, deletions listed in the notes of the scene that holds them |
 
 `w:moveFrom` / `w:moveTo` follow the same rule. A paragraph mark that was inserted or deleted (`w:rPr/w:ins` inside `w:pPr`) does
 not merge or split paragraphs: the reader keeps the paragraph as it stands and counts it.

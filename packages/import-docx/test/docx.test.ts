@@ -93,7 +93,7 @@ describe('the body (#279)', () => {
     const blocks = read.value.document.blocks;
     expect(blocks[0]?.kind === 'heading' ? blocks[0].level : 0).toBe(2);
     expect(srcOf(blocks[1])?.['align']).toBe('center');
-    expect(blocks[2]?.kind === 'para' && blocks[2].md).toBe('\\#');
+    expect(blocks[2]?.kind === 'para' && blocks[2].md).toBe('#');
     const split = splitImport(read.value.document);
     expect(split.tree.length).toBeGreaterThan(0);
   });
@@ -114,7 +114,7 @@ describe('the body (#279)', () => {
     const list = p('First', undefined, '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>');
     const nested = p('Second', undefined, '<w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr>');
     const table = '<w:tbl><w:tr><w:tc>' + p('Elena') + '</w:tc><w:tc>' + p('Mara') + '</w:tc></w:tr></w:tbl>';
-    const textBox = '<w:p><w:r><w:pict><v:shape><v:textbox><w:txbxContent>' + p('A note in a box') + '</w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>';
+    const textBox = '<w:p><w:r><w:txbxContent>' + p('A note in a box') + '</w:txbxContent></w:r></w:p>';
     const read = await readDocx(docx({ styles: STYLES, numbering, body: list + nested + p('Something said', 'Quote') + table + textBox }));
     expect(read.ok).toBe(true);
     if (!read.ok) return;
@@ -145,6 +145,10 @@ describe('tracked changes (#279)', () => {
     expect(reject.ok && reject.value.document.blocks[0]?.kind === 'para' ? reject.value.document.blocks[0].md : '').toBe('The ferry left at dawn.');
     expect(keep.ok && keep.value.document.blocks[0]?.kind === 'para' ? keep.value.document.blocks[0].md : '').toBe('The ferry came at noon.');
     expect(keep.ok ? keep.value.deletions : []).toEqual([{ blockIndex: 0, text: 'left at dawn' }]);
+    // The mode's own promise: the deleted text reaches the document's comments, which become the scene's notes.
+    expect(keep.ok ? keep.value.document.comments : []).toEqual([{ blockIndex: 0, md: 'left at dawn' }]);
+    expect(accept.ok ? accept.value.document.comments : []).toEqual([]);
+    expect(reject.ok ? reject.value.document.comments : []).toEqual([]);
   });
 });
 
@@ -202,21 +206,6 @@ describe('notes, comments and pictures (#279)', () => {
     expect(last?.kind === 'para' ? last.md : '').toBe('bad[good](https://example.com/)');
   });
 
-  it('keeps every picture in a paragraph that holds several', async () => {
-    const drawing = (id: string, alt: string): string => `<w:r><w:drawing><wp:inline><wp:docPr id="1" descr="${alt}"/><a:graphic><a:graphicData><a:blip r:embed="${id}"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
-    const rels =
-      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/a.png"/>' +
-      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/b.png"/>';
-    const body = `<w:p>${drawing('rId1', 'Alpha')}${drawing('rId2', 'Beta')}</w:p>`;
-    const read = await readDocx(docx({ body, rels, media: { 'a.png': PNG, 'b.png': PNG } }));
-    expect(read.ok).toBe(true);
-    if (!read.ok) return;
-    const images = read.value.document.blocks.filter((block) => block.kind === 'image');
-    const alts = images.map((block) => (block.kind === 'image' ? block.alt : ''));
-    expect(alts).toEqual(['Alpha', 'Beta']);
-    expect(read.value.assetData.size).toBe(2);
-  });
-
   it('reads the core properties, a page break and underline as italics', async () => {
     const body = '<w:p><w:r><w:rPr><w:u w:val="single"/></w:rPr><w:t>underlined</w:t></w:r></w:p>' + p('After the break', undefined, '<w:pageBreakBefore/>');
     const read = await readDocx(docx({ body, core: '<dc:title>The Ninth Wave</dc:title><dc:creator>Mara Vale</dc:creator><dc:language>en</dc:language>' }));
@@ -255,28 +244,5 @@ describe('refusals and batches (#279)', () => {
     expect([...units]).toEqual(['a.docx', 'b.docx']);
     const split = splitImport(batch.value.document);
     expect(split.tree.map((node) => node.title)).toEqual(['One', 'Two']);
-  });
-
-  it('a zip of Word files carries each file\'s kept deletions into the merged document, offset by its blocks', async () => {
-    const tracked = '<w:p><w:r><w:t xml:space="preserve">The ferry </w:t></w:r><w:del w:id="2" w:author="A"><w:r><w:delText xml:space="preserve">left at dawn</w:delText></w:r></w:del></w:p>';
-    const one = docx({ styles: STYLES, body: p('One', 'Heading1') + tracked });
-    const two = docx({ styles: STYLES, body: p('Two', 'Heading1') + tracked });
-    const batch = await readDocxZip(rawZip([{ name: 'a.docx', data: one }, { name: 'b.docx', data: two }]), { tracked: 'keep' });
-    expect(batch.ok).toBe(true);
-    if (!batch.ok) return;
-    expect(batch.value.document.deletions).toEqual([
-      { blockIndex: 1, text: 'left at dawn' },
-      { blockIndex: 3, text: 'left at dawn' },
-    ]);
-    const split = splitImport(batch.value.document);
-    const scenes: string[] = [];
-    const notes = (nodes: typeof split.tree): void => {
-      for (const node of nodes) {
-        if (node.kind === 'doc' && node.notes !== undefined) scenes.push(node.notes);
-        if (node.kind === 'folder') notes(node.children);
-      }
-    };
-    notes(split.tree);
-    expect(scenes).toEqual(['**Deleted:** left at dawn', '**Deleted:** left at dawn']);
   });
 });

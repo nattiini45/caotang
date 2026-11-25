@@ -19,8 +19,8 @@ import type { HtmlResult } from '@caotang/import-html';
 import type { EpubResult } from '@caotang/import-epub';
 import type { Ao3Result } from '@caotang/import-ao3';
 import type { DocxOptions, DocxResult } from '@caotang/import-docx';
-import type { KankaLabels, KankaResult } from '@caotang/import-kanka';
 import type { OdtOptions, OdtResult } from '@caotang/import-odt';
+import type { KankaLabels, KankaResult } from '@caotang/import-kanka';
 import type { DecodableEncoding } from '@caotang/store/encoding';
 
 /** Opens a reader with its input. The bytes (or folder files) are transferred to the Worker and cached there. */
@@ -109,7 +109,6 @@ export function resultTransferList(result: ReaderResult): Transferable[] {
   else if (result.kind === 'epub' && result.result.ok) pictures = result.result.value.assetData.values();
   else if (result.kind === 'ao3' && result.result.ok) pictures = result.result.value.assetData.values();
   else if (result.kind === 'docx' && result.result.ok) pictures = result.result.value.assetData.values();
-  else if (result.kind === 'odt' && result.result.ok) pictures = result.result.value.assetData.values();
   else if (result.kind === 'kanka' && result.result.ok) pictures = result.result.value.assetData.values();
   else return [];
   const seen = new Set<ArrayBuffer>();

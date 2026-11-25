@@ -5,7 +5,6 @@
  */
 
 import type { ImportAsset, ImportBlock, ImportComment, ImportDocument, ImportFootnote, LossWarning, Signals } from '@caotang/import-core';
-import { escapeInline, escapeLineStarts } from '@caotang/import-core';
 import { attr, readXml, textOf, type XmlElement } from '@caotang/import-read/xml';
 import { openZip, type ImportArchive } from '@caotang/import-read/zip';
 
@@ -66,8 +65,6 @@ export interface DocxDropped {
   emf: number;
   /** SVG pictures, refused by the registry's rule. */
   svg: number;
-  /** Pictures in a format the registry does not keep. */
-  otherPictures: number;
   /** Paragraphs of a generated table of contents, kept out of the chapters. */
   toc: number;
 }
@@ -93,7 +90,7 @@ export type DocxError =
 
 export type DocxResult = { ok: true; value: DocxImport } | { ok: false; error: DocxError };
 
-const EMPTY_DROPPED: DocxDropped = { underline: 0, smallCaps: 0, fonts: 0, colours: 0, highlighting: 0, indents: 0, unsafeLinks: 0, textBoxes: 0, emf: 0, svg: 0, otherPictures: 0, toc: 0 };
+const EMPTY_DROPPED: DocxDropped = { underline: 0, smallCaps: 0, fonts: 0, colours: 0, highlighting: 0, indents: 0, unsafeLinks: 0, textBoxes: 0, emf: 0, svg: 0, toc: 0 };
 const EMPTY_CHANGES: DocxChanges = { insertions: 0, deletions: 0, moves: 0, paragraphMarks: 0 };
 
 const PICTURE = /\.(png|jpe?g|gif|webp)$/i;
@@ -217,7 +214,7 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
         }
         if (part.type !== 'element') continue;
         const name = part.ns === W ? part.local : '';
-        if (name === 't' || name === 'delText') text += escapeInline(textOf(part));
+        if (name === 't' || name === 'delText') text += textOf(part);
         else if (name === 'tab') text += '\t';
         else if (name === 'br') {
           if (attr(part, 'type', W) === 'page') state.pageBreakInRuns = true;
@@ -246,15 +243,12 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
             state.commentList.push({ blockIndex: state.blocks.length, md: `${quote}${note.md}${who === '' ? '' : `\n\n— ${who}`}` });
           }
           state.openComments.delete(id);
-        } else {
-          const box = name === 'txbxContent' ? part : descendants(part, 'txbxContent')[0];
-          if (box !== undefined) {
-            state.dropped.textBoxes += 1;
-            state.losses.push({ code: 'text-box', message: 'A text box was read as a paragraph.', blockIndex: state.blocks.length });
-            for (const paragraph of kids(box, 'p')) text += renderRuns(paragraph, state, inherited, deleting);
-          } else if (name === 'drawing' || name === 'pict' || name === 'object') {
-            text += imageOf(part, state);
-          }
+        } else if (name === 'drawing' || name === 'pict' || name === 'object') {
+          text += imageOf(part, state);
+        } else if (name === 'txbxContent') {
+          state.dropped.textBoxes += 1;
+          state.losses.push({ code: 'text-box', message: 'A text box was read as a paragraph.', blockIndex: state.blocks.length });
+          for (const paragraph of kids(part, 'p')) text += renderRuns(paragraph, state, inherited, deleting);
         }
       }
       out += deleting ? '' : emphasise(text, { ...style, bold: style.bold || inherited.bold, italic: style.italic || inherited.italic, caps: style.caps || inherited.caps }, state.options.underlineAs);
@@ -274,7 +268,12 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
       if (state.options.tracked === 'accept') continue;
       const text = renderRuns(child, state, inherited, false);
       if (state.options.tracked === 'keep') {
-        if (text.trim() !== '') state.deletions.push({ blockIndex: state.blocks.length, text });
+        if (text.trim() !== '') {
+          state.deletions.push({ blockIndex: state.blocks.length, text });
+          // "Accept, and list what was deleted" means the scene's notes carry it: the comment list is the channel
+          // the splitter already turns into the owning chunk's notes.
+          state.commentList.push({ blockIndex: state.blocks.length, md: text });
+        }
         continue;
       }
       out += text;
@@ -327,16 +326,12 @@ function imageOf(element: XmlElement, state: WalkState): string {
     state.losses.push({ code: 'image-unreadable', message: 'A Windows metafile picture (EMF or WMF) was left out.', blockIndex: state.blocks.length });
     return '';
   }
-  if (!PICTURE.test(rel.target)) {
-    state.dropped.otherPictures += 1;
-    state.losses.push({ code: 'image-unreadable', message: 'A picture in a format Caotang does not keep was left out.', blockIndex: state.blocks.length });
-    return '';
-  }
+  if (!PICTURE.test(rel.target)) return '';
   const ref = `${state.options.refPrefix}${(state.imageIndex += 1)}`;
   state.assets.push({ ref, name: rel.target.slice(rel.target.lastIndexOf('/') + 1) });
   state.imageTargets.set(ref, rel.target);
   if (!state.options.images) return '';
-  return `![${escapeInline(alt)}](${ref})`;
+  return `![${alt}](${ref})`;
 }
 
 /** A paragraph's own properties: its style, its numbering, its breaks. */
@@ -443,8 +438,6 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
 
   const paragraph = (element: XmlElement): void => {
     const sizeStart = state.sizes.length;
-    const commentsBefore = state.commentList.length;
-    const deletionsBefore = state.deletions.length;
     state.pageBreakInRuns = false;
     const md = renderRuns(element, state, PLAIN, false).replace(/[ \t]+/g, ' ').trim();
     const own = state.sizes.slice(sizeStart).sort((a, b) => a - b);
@@ -461,23 +454,13 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
       return;
     }
     const withEmpty: Signals = emptyRun === 0 ? signals : { ...signals, emptyBefore: emptyRun };
-    if ((pageBreak || state.pageBreakInRuns) && state.blocks.length > 0) {
-      push({ kind: 'pagebreak' });
-      const here = state.blocks.length;
-      for (let i = commentsBefore; i < state.commentList.length; i++) {
-        const note = state.commentList[i];
-        if (note !== undefined && note.blockIndex === here - 1) state.commentList[i] = { ...note, blockIndex: here };
-      }
-      for (let i = deletionsBefore; i < state.deletions.length; i++) {
-        const deletion = state.deletions[i];
-        if (deletion !== undefined && deletion.blockIndex === here - 1) state.deletions[i] = { ...deletion, blockIndex: here };
-      }
-    }
+    if ((pageBreak || state.pageBreakInRuns) && state.blocks.length > 0) push({ kind: 'pagebreak' });
     const images = descendants(element, 'blip').length + descendants(element, 'imagedata').length;
     if (images > 0 && md.replace(/!\[[^\]]*\]\([^)]*\)/g, '').trim() === '') {
-      const refs = [...md.matchAll(/!\[([^\]]*)\]\(([^)]*)\)/g)];
-      if (refs.length > 0) {
-        for (const m of refs) push({ kind: 'image', assetRef: m[2] ?? '', alt: m[1] ?? '' });
+      const ref = state.assets[state.assets.length - 1]?.ref;
+      const alt = /!\[([^\]]*)\]/.exec(md)?.[1] ?? '';
+      if (ref !== undefined) {
+        push({ kind: 'image', assetRef: ref, alt });
         return;
       }
     }
@@ -485,8 +468,7 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
       push({ kind: 'heading', level: heading, text: md.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1'), md: `${'#'.repeat(heading)} ${md}`, src: withEmpty });
       return;
     }
-    const safe = escapeLineStarts(md);
-    const body = list !== null ? `${list}${safe}` : quote ? `> ${safe.replace(/\n/g, '\n> ')}` : safe;
+    const body = list !== null ? `${list}${md}` : quote ? `> ${md}` : md;
     push({ kind: 'para', md: body, text: md, src: withEmpty });
   };
 
@@ -496,8 +478,7 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
     for (const row of rows) {
       const cells = kids(row, 'tc').map((cell) => kids(cell, 'p').map((p) => renderRuns(p, state, PLAIN, false).trim()).filter((text) => text !== '').join(' '));
       const md = cells.filter((cell) => cell !== '').join(' — ');
-      const safe = escapeLineStarts(md);
-      if (md !== '') push({ kind: 'para', md: safe, text: md, src: { ...(state.options.unit === undefined ? {} : { sourceUnit: state.options.unit }) } });
+      if (md !== '') push({ kind: 'para', md, text: md, src: { ...(state.options.unit === undefined ? {} : { sourceUnit: state.options.unit }) } });
     }
   };
 
@@ -558,7 +539,6 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
     blocks: state.blocks,
     footnotes: state.notes,
     comments: state.commentList,
-    deletions: state.deletions,
     assets: state.assets.filter((asset) => assetData.has(asset.ref)),
     losses: state.losses,
     metadata: {
@@ -603,7 +583,7 @@ export async function readDocxZip(bytes: Uint8Array, options: DocxOptions = {}):
   if (files.length === 0) return { ok: false, error: { kind: 'not-docx' } };
 
   const merged: DocxImport = {
-    document: { blocks: [], footnotes: [], comments: [], deletions: [], assets: [], losses: [], metadata: {} },
+    document: { blocks: [], footnotes: [], comments: [], assets: [], losses: [], metadata: {} },
     title: '',
     author: '',
     language: '',
@@ -624,7 +604,6 @@ export async function readDocxZip(bytes: Uint8Array, options: DocxOptions = {}):
     merged.document.blocks.push(...read.value.document.blocks);
     merged.document.footnotes?.push(...(read.value.document.footnotes ?? []).map((note) => ({ ...note, blockIndex: note.blockIndex + offset })));
     merged.document.comments?.push(...(read.value.document.comments ?? []).map((note) => ({ ...note, blockIndex: note.blockIndex + offset })));
-    merged.document.deletions?.push(...(read.value.document.deletions ?? []).map((deletion) => ({ ...deletion, blockIndex: deletion.blockIndex + offset })));
     merged.document.assets?.push(...(read.value.document.assets ?? []));
     merged.document.losses?.push(...(read.value.document.losses ?? []).map((loss) => ({ ...loss, ...(loss.blockIndex === undefined ? {} : { blockIndex: loss.blockIndex + offset }) })));
     for (const [ref, data] of read.value.assetData) merged.assetData.set(ref, data);
