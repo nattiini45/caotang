@@ -18,6 +18,7 @@ import type { RtfImport } from '@caotang/import-rtf';
 import type { HtmlResult } from '@caotang/import-html';
 import type { EpubResult } from '@caotang/import-epub';
 import type { Ao3Result } from '@caotang/import-ao3';
+import type { DocxOptions, DocxResult } from '@caotang/import-docx';
 import type { KankaLabels, KankaResult } from '@caotang/import-kanka';
 import type { DecodableEncoding } from '@caotang/store/encoding';
 
@@ -34,7 +35,8 @@ export type ReaderOpen =
   | { readonly kind: 'open'; readonly reader: 'highland'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'epub'; readonly bytes: Uint8Array }
   | { readonly kind: 'open'; readonly reader: 'ao3'; readonly bytes: Uint8Array; readonly fileName: string }
-  | { readonly kind: 'open'; readonly reader: 'kanka'; readonly bytes: Uint8Array };
+  | { readonly kind: 'open'; readonly reader: 'kanka'; readonly bytes: Uint8Array }
+  | { readonly kind: 'open'; readonly reader: 'docx'; readonly bytes: Uint8Array };
 
 /** Reads the cached input again with these options. A text read decodes and builds blocks; an RTF read parses. */
 export type ReaderRead =
@@ -46,7 +48,8 @@ export type ReaderRead =
   | { readonly kind: 'read'; readonly reader: 'highland'; readonly fileName?: string }
   | { readonly kind: 'read'; readonly reader: 'epub' }
   | { readonly kind: 'read'; readonly reader: 'ao3' }
-  | { readonly kind: 'read'; readonly reader: 'kanka'; readonly labels?: KankaLabels };
+  | { readonly kind: 'read'; readonly reader: 'kanka'; readonly labels?: KankaLabels }
+  | { readonly kind: 'read'; readonly reader: 'docx'; readonly options?: DocxOptions };
 
 /** An RTF or `.rtfd` read's result, with its error flattened to a code and a message so it survives the clone. */
 export type SerializableRtfResult =
@@ -63,7 +66,8 @@ export type ReaderResult =
   | { readonly kind: 'highland'; readonly result: HighlandResult }
   | { readonly kind: 'epub'; readonly result: EpubResult }
   | { readonly kind: 'ao3'; readonly result: Ao3Result }
-  | { readonly kind: 'kanka'; readonly result: KankaResult };
+  | { readonly kind: 'kanka'; readonly result: KankaResult }
+  | { readonly kind: 'docx'; readonly result: DocxResult };
 
 /**
  * A captions read: the decode's own answer and the parse of its text, or the decode's refusal unchanged (the encoding ask, the size
@@ -100,6 +104,7 @@ export function resultTransferList(result: ReaderResult): Transferable[] {
   else if (result.kind === 'html' && result.result.ok) pictures = result.result.value.assetData.values();
   else if (result.kind === 'epub' && result.result.ok) pictures = result.result.value.assetData.values();
   else if (result.kind === 'ao3' && result.result.ok) pictures = result.result.value.assetData.values();
+  else if (result.kind === 'docx' && result.result.ok) pictures = result.result.value.assetData.values();
   else if (result.kind === 'kanka' && result.result.ok) pictures = result.result.value.assetData.values();
   else return [];
   const seen = new Set<ArrayBuffer>();

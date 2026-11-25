@@ -180,6 +180,15 @@ export const BUDGET = {
   // compiled English catalogue's twenty HTML messages (+1,392 raw), which must precede first paint (i18n.md §3.3), and the entry's
   // loader for the command; the XHTML walker, the reader, its preview source and the Worker stay on use. The ceiling is the
   // measurement rounded up to the thousand. [delegated 2026-11-22]
+  // The EPUB import (#296) on the merge of #299's branch into main: 1,116,362 bytes gzip measured, +863 over the ceiling
+  // #299's measurement set. Named: the compiled English catalogue's EPUB messages, which must precede first paint
+  // (i18n.md §3.3), and the entry's loader for the command; the reader, the preview source and the Worker stay on use. The
+  // ceiling is the measurement rounded up to the thousand. [delegated 2026-11-22]
+  // The Kanka import (#293) on the merge of #297's branch: 1,118,072 bytes gzip measured, +1,072 over the
+  // ceiling the merged tree sat under; 1,118,949 on the merge of main aec90b9b which also carries the Word
+  // import's catalogue messages. Named: the compiled English catalogue's Kanka messages, which must
+  // precede first paint (i18n.md §3.3); the reader, the preview source and the Worker stay on use. The
+  // ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   // The EPUB import (#296) and one connection holding many models (#824), measured together on the merge of main aec90b9b:
   // 1,117,621 bytes gzip. Named: the compiled English catalogue's new EPUB messages and the models step's and picker's, which
   // must precede first paint (i18n.md §3.3), the entry's loader for the EPUB command, and the role write the picker makes. The
@@ -196,12 +205,20 @@ export const BUDGET = {
   // available to move any of it: `openAppServices` reads the transport and the key store while the app boots, before the first
   // paint, so a dynamic import would only trade these bytes for a chunk that must load before the first request. The ceiling is the
   // measurement rounded up to the thousand. [delegated 2026-11-23]
+  // The Word import (#279) on the merge of main 7e303a1d, which carries the AO3 import and the model picker: 1,120,296
+  // bytes gzip measured. Named: the compiled English catalogue's Kanka and Word messages, which must precede first paint
+  // (i18n.md §3.3); the readers, the preview sources and the Worker stay on use. The ceiling is the measurement
+  // rounded up to the thousand. [delegated 2026-11-23]
+  // 1,121,600 measured on the merge of main aa653891 (#405's transport, #842's hosted list, #848's index swap). [delegated 2026-11-23]
   // The keychain (#404), built and measured again on the merge of main aa653891, which carries #405: 1,122.2 kB gzip, 1.2 kB over
   // the ceiling that tree set. Named: the vault's
   // rules and the sealed record they write, the six channels the preload answers and the handle a request carries in place of a key,
   // the write-verify-delete migration the app runs as it opens, and the Settings sentence that says which store holds the keys. All
   // of it is read by `openAppServices` before the first paint, so there was no chunk to move it to; the pages that only a form needs
   // were already on use. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  // 1,123,100 on the merge of main deb99b57 (#404's keychain, #844's host key, #853's Windows schedule). [delegated 2026-11-23]
+  // 1,124,200 on the merge of main 4e21e4f7 (#850's open-project MCP server, #854's native port hardening). [delegated 2026-11-24]
+  // 1,126,100 on the merge of main c41a695d (#871's headers-only key edit). [delegated 2026-11-24]
   // The hosted save target (hosted.md §7.2) never grows the first load: the adapter, the target and the queue, the open and the notice
   // are four chunks fetched when a host hands a project over, so the 1,122.5 kB gzip measured here is 2.7 kB under the 1,125.2 kB the
   // main it branched from measured, and the cap stays at main's. What pays for it is the project store pinned to one chunk
@@ -331,6 +348,12 @@ export const BUDGET = {
   // first: the picker sits in the already lazy Agent panel and its stylesheet on its own chunk, its model and level names were
   // measured out of the entry, and no dependency was added. The ceiling is the measurement plus under 1 kB. [delegated
   // 2026-11-22]
+  // The Kanka import (#293) on the merge of #297's branch: 9,008,325 bytes measured, +23,543 over the merged #297
+  // tree; 9,008,341 on the merge of main aec90b9b. Named: the @caotang/import-kanka reader and its preview source, all on-use chunks, and the German Kanka
+  // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  // The Word import (#279) on the merge of #293's branch: 9,035,664 bytes measured, +27,339 over the merged #293
+  // tree; 9,035,665 on the merge of main aec90b9b. Named: the @caotang/import-docx reader and its preview source, all on-use chunks, and the German Word
+  // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   // The AO3 import (#297) on the merge of #296's branch: 8,984,782 bytes measured, +17,525 over the merged #296
   // tree. Measured again on the merge of main aec90b9b, which carries the merged EPUB import: 8,984,862 bytes.
   // Named: the @caotang/import-ao3 adapter and its preview source, all on-use chunks, and the German AO3
@@ -339,19 +362,26 @@ export const BUDGET = {
   // picker (#824): 8,994,369 bytes. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
   // The Kanka import (#293) on the merge of main 7e303a1d: 9,018,273 bytes measured, +23,904 over that tree's ceiling.
   // Named: the @caotang/import-kanka reader and its preview source, all on-use chunks, and the German Kanka strings in the
-  // de catalogue. Measured again at 9,019,400 bytes at the review-answers head. The ceiling is the measurement rounded up
+  // de catalogue. Measured again at 9,019,400 bytes at the review-answers head. [delegated 2026-11-23]
+  // The Word import (#279) on the merge of main 7e303a1d, which carries the merged AO3 import: 9,045,172 bytes
+  // measured; 9,046,800 on the merge of the Kanka review answers. Named: the @caotang/import-docx reader and its preview
+  // source, all on-use chunks, and the German Word strings in the de catalogue. The ceiling is the measurement rounded up
   // to the thousand. [delegated 2026-11-23]
   // The desktop app's own provider transport (#405): 9,022.5 kB measured on CI, 2.5 kB over that ceiling, all of it the entry chunk
   // (every other chunk is the same size to the tenth of a kilobyte). What is named above applies: the transport, its refusals and
   // the wiring that reaches it from Settings. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  // 9,049,800 on the merge of main aa653891. [delegated 2026-11-23]
   // The keychain (#404): 9,027.9 kB measured on the merge of main aa653891, 4.9 kB over that tree's ceiling, again the entry
   // chunk. The vault, the channels' contract and the migration are named above. The ceiling is the measurement rounded up to the
   // thousand.
   // [delegated 2026-11-23]
+  // 9,055,300 on the merge of main deb99b57. [delegated 2026-11-23]
   // The native port's hardening (#854), measured on the merge of main deb99b57, which carries the keychain: 9,028.4 kB, 0.4 kB over the
   // ceiling that tree set, again the entry chunk. Named: the GET rule, the mapped-loopback predicate, the no-body head a page answers
   // without a stream, and the guard that ties a chunk to the call still holding its id. The ceiling is the measurement rounded up to
   // the thousand. [delegated 2026-11-23]
+  // 9,065,000 on the merge of main 4e21e4f7. [delegated 2026-11-24]
+  // 9,072,100 on the merge of main c41a695d. [delegated 2026-11-24]
   // The loopback provider target (#867), measured on CI at 9,045.0 kB: the target list moved into native-egress.ts with the
   // `local` flag a profile on this computer now carries, and the setup form draws one paragraph fewer in the desktop build.
   // Optimisations checked: the list cannot be a lazy chunk, because `openAppServices` publishes it at start-up and reads it again

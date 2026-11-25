@@ -43,6 +43,7 @@
     "@caotang/import-ao3": "workspace:*",
     "@caotang/import-captions": "workspace:*",
     "@caotang/import-core": "workspace:*",
+    "@caotang/import-docx": "workspace:*",
     "@caotang/import-epub": "workspace:*",
     "@caotang/import-highland": "workspace:*",
     "@caotang/import-html": "workspace:*",

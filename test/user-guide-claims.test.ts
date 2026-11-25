@@ -589,7 +589,6 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(read('apps/desktop/src/components/shell/modern/focus-mode.tsx')).toContain('Leave focus mode');
   });
 
-
   it('names the permission modes and their controls in the words the panel and Settings show', () => {
     const panel = read('apps/desktop/src/components/AgentPanel.tsx');
     const settings = read('apps/desktop/src/components/AgentModeSettings.tsx');
@@ -730,7 +729,7 @@ describe('the import preview (#267)', () => {
     expect(read('apps/desktop/src/components/TweeImportDialog.tsx')).toContain('tweePreviewSource(');
     expect(guide).toContain('- **The import preview.** An import that brings in a whole book shows it first as a proposed binder beside its text');
     expect(guide).toContain('one **Undo** takes all of it back, pictures and codex entries included');
-    expect(guide).toContain('**Import Twee**, **Import Inklewriter**, **Import Highland**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import captions…**, **Import HTML…**, **Import EPUB…**, **Import AO3…** and **Import Kanka…** open it.');
+    expect(guide).toContain('**Import Twee**, **Import Inklewriter**, **Import Highland**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import captions…**, **Import Word…**, **Import HTML…**, **Import EPUB…**, **Import AO3…** and **Import Kanka…** open it.');
     expect(guide).toContain('**Import Inklewriter** reads an Inklewriter story export');
     expect(read('apps/desktop/src/components/ScriptImport.tsx')).toContain('inklewriterPreviewSource');
     expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
@@ -766,7 +765,7 @@ describe('the import preview (#267)', () => {
     expect(manuscript).toContain('htmlZipPreviewSource');
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<ManuscriptImportActions />');
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, captions, HTML, EPUB, AO3 and Kanka imports open the preview');
+    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, captions, Word, HTML, EPUB, AO3 and Kanka imports open the preview');
     expect(notYet).not.toContain('There is no **Import RTF** command yet');
     expect(changelog).toContain('**One import preview for every structured import.**');
     expect(read('docs/architecture/import-preview.md')).toContain('## 5. The commit: `binder.importTree`');
@@ -876,6 +875,23 @@ describe('the captions import (#287)', () => {
     expect(changelog).toContain('**Import Kanka.**');
     expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **Kanka importieren…** liest einen **JSON**-Kampagnen-Export');
   });
-
+  it('the Word import: the guide’s claims match the reader, the button and the spec', () => {
+    expect(guide).toContain('- **Import Word…** reads a Word `.docx` manuscript');
+    expect(guide).toContain('accept them (the default), reject them, or accept and list what was deleted');
+    expect(guide).toContain('A generated table of contents never becomes chapters');
+    expect(guide).toContain('An old `.doc` file cannot be read');
+    const manuscript = read('apps/desktop/src/components/ManuscriptImport.tsx');
+    expect(manuscript).toContain("await import('../import-preview/docx-source.js')");
+    expect(manuscript).toContain('docxPreviewSource(file.name, bytes)');
+    const source = read('apps/desktop/src/import-preview/docx-source.ts');
+    expect(source).toContain("tracked: 'docx-tracked'");
+    expect(source).toContain("{ value: 'reject', label: t`Reject them` }");
+    const reader = read('packages/import-docx/src/reader.ts');
+    expect(reader).toContain("tracked: options.tracked ?? 'accept'");
+    expect(reader).toContain('readDocxZip');
+    expect(read('docs/architecture/import-docx.md')).toContain('## 4. Tracked changes, notes and comments');
+    expect(changelog).toContain('**Import Word.**');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **Word importieren…** liest ein Word-`.docx`-Manuskript');
+  });
 
 });
