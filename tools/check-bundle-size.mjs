@@ -224,7 +224,7 @@ export const BUDGET = {
   // (1,127.8 kB, because the hosted chunks share the store either way), and the hosted open importing the store dynamically
   // (1,161.8 kB: a dynamic import of a barrel pulls its whole re-export graph into shared chunks). The notice's English text is in the
   // entry catalogue as every screen's is, 0.7 kB of that chunk.
-  initialGzip: 1_128_000,
+  initialGzip: 1_126_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
