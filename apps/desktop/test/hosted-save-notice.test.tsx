@@ -34,7 +34,9 @@ function target(outcome: unknown, queue: HostedQueuePort | null = null): HostedT
       committed.push(changes);
     },
   };
-  return new HostedTarget('p_lighthouse', fs as never, (async () => outcome) as never, queue);
+  // The staging the app always builds beside a save: the words this device would have put on the account.
+  const stage = async (): Promise<{ path: string; bytes: Uint8Array | null }[]> => [{ path: PATH, bytes: new Uint8Array([1]) }];
+  return new HostedTarget('p_lighthouse', fs as never, (async () => outcome) as never, queue, stage as never);
 }
 
 /** A queue an earlier tab left: it holds `held`, and a replay answers `answer`. */
@@ -42,7 +44,7 @@ function queue(held: readonly string[], answer: HostedReplay | readonly HostedRe
   const paths = new Set(held);
   const answers = Array.isArray(answer) ? [...answer] : null;
   return {
-    hold: () => undefined,
+    hold: () => true,
     replay: async () => (answers === null ? (answer as HostedReplay) : (answers.shift() ?? { kind: 'conflict', paths: [...paths] })),
     forget: (forgotten?: readonly string[]) => {
       if (forgotten === undefined) paths.clear();
@@ -51,6 +53,7 @@ function queue(held: readonly string[], answer: HostedReplay | readonly HostedRe
     rebase: () => undefined,
     held: () => [...paths],
     marks: () => undefined,
+    settle: async () => paths.size > 0,
   };
 }
 
@@ -103,13 +106,23 @@ it('says nothing while a save is idle', async () => {
 });
 
 it('says the changes are on this device when the server does not take the save, and sends them only when asked', async () => {
-  const one = target({ kind: 'unavailable', changes: [] });
+  const one = target({ kind: 'unavailable', changes: [] }, queue([]));
   await render(one);
   await act(async () => one.save(state));
   expect(shown()).toContain('These changes are on this device.');
   expect(button('Send them to your account')).toBeTruthy();
   // Nothing has been sent: the button is the writer's choice, not an automatic retry.
   expect(committed.length).toBe(0);
+});
+
+it('says the words are only in this tab when the queue could not be written, and still offers the send', async () => {
+  // A blocked or full store takes nothing: "on this device" would be the one sentence that costs the writer their work.
+  const one = target({ kind: 'unavailable', changes: [] }, { ...queue([]), hold: () => false });
+  await render(one);
+  await act(async () => one.save(state));
+  expect(shown()).toContain('These changes are only in this browser tab, and closing it loses them.');
+  expect(shown()).not.toContain('These changes are on this device.');
+  expect(button('Send them to your account')).toBeTruthy();
 });
 
 it('names the documents another device changed by their titles, never by their file names', async () => {

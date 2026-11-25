@@ -274,8 +274,10 @@ export class EncryptedRemoteArtifactFs implements ArtifactFs {
    * older edit compares this with what it recorded to tell whether another device moved the file in between.
    */
   versionOf(path: string): number {
-    const entry = this.#manifest.files.get(path);
-    return entry === undefined || entry.deleted ? 0 : entry.version;
+    // A tombstone keeps its version. A path another device created and then deleted is a movement even though it is absent again, and
+    // reporting zero would let an edit staged while the path was missing look untouched — its base would match and a replay would revive
+    // a file the other device deleted.
+    return this.#manifest.files.get(path)?.version ?? 0;
   }
 
   async listFiles(dir: string): Promise<string[]> {

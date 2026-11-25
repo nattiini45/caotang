@@ -70,6 +70,7 @@ function queue(startingWith: readonly string[] = []): HostedQueuePort & { calls:
     rebase: (paths) => calls.push(`rebase:${paths.join(',')}`),
     held: () => [...held],
     marks: () => calls.push('marks'),
+    settle: async () => held.size > 0,
   };
 }
 
@@ -183,7 +184,7 @@ it('says the words a save could not deliver are still here, and sends nothing on
   // The account's book opens, and the queue is left exactly as the last session left it: an open that replayed on its own would write to
   // the account without the writer asking.
   expect(result.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
-  expect(hostedTargetFor(SOURCE.projectId)?.state()).toEqual({ kind: 'unsaved', paths: [path] });
+  expect(hostedTargetFor(SOURCE.projectId)?.state()).toEqual({ kind: 'unsaved', paths: [path], persisted: true });
   expect(lastTarget?.port.held()).toEqual([path]);
   expect(lastTarget?.port.calls.filter((call) => call === 'send')).toEqual([]);
 });

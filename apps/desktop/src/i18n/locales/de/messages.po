@@ -25231,6 +25231,11 @@ msgstr "Diese Dateien wurden auf einem anderen Gerät geändert: {files}"
 msgid "These changes are on this device. Your account does not have them yet."
 msgstr "Diese Änderungen liegen auf diesem Gerät. Ihr Konto hat sie noch nicht."
 
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "These changes are only in this browser tab, and closing it loses them. Your account does not have them yet."
+msgstr "Diese Änderungen liegen nur in diesem Browser-Tab, und beim Schließen gehen sie verloren. Ihr Konto hat sie noch nicht.""
+
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "These checks use your Background provider. They can send text from this step."
@@ -25493,6 +25498,11 @@ msgstr "Dies löscht das Gespräch und seine Laufprotokolle, sofern keine andere
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "This derivation links the script to the book."
 msgstr "Diese Ableitung verknüpft das Skript mit dem Buch."
+
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "This device could not keep a copy of your words, so leaving this for now keeps them only in this browser tab."
+msgstr "Dieses Gerät konnte keine Kopie Ihrer Wörter anlegen. Wenn Sie es jetzt liegen lassen, bleiben sie nur in diesem Browser-Tab.""
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
@@ -28169,6 +28179,11 @@ msgstr "Geben Sie die Änderung selbst frei, auch im Auto-Modus."
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Your account has changes this book has not read yet."
 msgstr "Ihr Konto enthält Änderungen, die dieses Buch noch nicht gelesen hat."
+
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Your account keeps the other device’s version. This device’s words are only in this browser tab, and closing it loses them."
+msgstr "Auf Ihrem Konto bleibt die Version des anderen Geräts. Die Wörter dieses Geräts liegen nur in diesem Browser-Tab, und beim Schließen gehen sie verloren.""
 
 #. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
 #: apps/desktop/src/components/HostedSaveNotice.tsx

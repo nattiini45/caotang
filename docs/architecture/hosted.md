@@ -190,6 +190,12 @@ In code, `RemoteBlobStore` (`get`, `put` with a precondition, `delete`, `list`) 
 
 `removed` is exactly what this device deleted while the session was open. A save never infers a deletion from the account's listing: another device's document is on that listing too, and a save that pruned it would delete work it never saw. A picture is measured the same way and by the same record: a path the account held at open and the session no longer has is a picture this device deleted, and it is named as a removal. Nothing infers a picture's deletion from the account's listing either, and a picture another device moved is refused by the adapter's version check and asked about like a document.
 
+The words a save could not deliver are **staged beside the attempt, not taken from it**. A save stops where it could not read or write, so what a failed attempt has staged can be half a save — the documents of a manifest that never landed, a deletion the write path never reached, a picture never staged — and queueing that would tell the writer their work is safe while the account keeps a project the queue can only partly restore. So the held words are built by writing the whole state into a copy in memory and naming every file it carries: the documents and codex files, the manifest, the pictures as the session holds them, and the files this device deleted, each as an explicit removal. Nothing in that staging reads the account's blobs, so it is complete exactly when the words are.
+
+A deletion is named from the **account's own listing**, which the adapter answers from the index it read at open and not from the server: the id names the document and only the account knows which body file it holds (`docs/<id>.md`, `.fountain`, `.ink`). That is the one account fact a save may need, and it costs no request — a save that cannot reach the server, and a question waiting to be answered, both still say what they deleted.
+
+The same listing starts the copy, both `docs/` and `codex/`, and it does two things. A document the account holds and this device **cannot read** — its bytes are not UTF-8, the load declined it, and the state carries the node with no text (`declinedDocFiles`) — is a file the write path finds and leaves exactly as it is, which is what a save against the account does with it; without the listing an internal copy writes the empty placeholder the browser shows for that document, and sending that would put nothing over the writer's own file. And a document or a codex entry this device deleted is a file the copy can see, so the write path prunes it and its removal is among the staged changes; without the listing the account kept the file, and the next open imported it as an orphan — undoing the deletion.
+
 ### 7.2 The target's states, and the events that move between them
 
 A hosted session's save target is one small state machine.
@@ -201,11 +207,12 @@ An open writes the account's version into this browser's copy in place, under th
 | `idle` | the browser finished a save | `saving` | one commit of this state reaches the account |
 | `idle` | an open finds words in the queue | `unsaved` | nothing is sent; the workspace says they are here |
 | `saving` | the server took the commit | `idle` | what this device has seen and what the queue still owes are measured on what landed |
-| `saving` | the server did not answer, or the save failed after staging its words | `unsaved` | the words are held in the queue |
+| `saving` | the server did not answer, or the save failed | `unsaved` | the words this save would have written are staged here and held in the queue; the attempt's own half-staged save is never what is queued (§7.1) |
 | `saving` | another device moved a path | `conflict` | nothing is written; the words are held and the paths named |
-| `unsaved` | the writer sends them | `saving` → `idle` or `stale` | the queue goes in one commit; landing leaves the session stale. A queue that holds nothing goes to `idle` and sends nothing |
+| `unsaved` | the writer sends them | `saving` → `stale` | the queue goes in one commit; landing leaves the session stale |
+| `unsaved` | the send cannot reach the account even to read it, or the queue holds nothing | `unsaved` | nothing was sent, so the account does not have these words: they stay held, the action stays there, and the answer about where they are does not change — what the queue could not write before a send it cannot write during it, and a queue holding nothing is in this tab only |
 | `unsaved` | the browser finished a save | `saving` | the whole state is committed, which supersedes the queue for the paths it carries |
-| `conflict` | the writer keeps this device's text | `saving` → `idle` or `stale` | only the paths they were shown are rebased and sent; a refusal keeps the question |
+| `conflict` | the writer keeps this device's text | `saving` → `idle` or `stale` | only the paths they were shown are rebased and sent; a refusal keeps the question. An account that cannot be read leaves the question exactly as it was, paths included |
 | `conflict` | the writer leaves it | `conflict` | nothing is written and nothing is sent |
 | `conflict` | the browser finished a save | `conflict` | refused to the account — a question outranks a save — and its words are held in the queue, because the writer keeps writing while the question stands and the next open takes the account's version over this browser's copy |
 | `stale` | the session is opened again | `idle` | the account's words are in front of the writer |
@@ -217,7 +224,13 @@ One write reaches the account at a time, whoever asked for it: a send the writer
 
 The queue has two states of its own — empty and holding — and the same rule applies: it is settled per path by what actually committed, rebased only for the paths the writer was shown, and never cleared on a send that did not land.
 
-A save that lands settles every path it carried, not only the files it is measured on: the report's written and pruned paths go with the pictures the commit staged, because a held edit of a file the account has just taken is older than what landed and a later send of it would put that older text back. Settlement is per version as well as per path: an edit staged against the version the save itself wrote is newer than the save and stays queued. A save that failed after staging its words answers the same way a server that did not answer does: the words go into the queue, the state is `unsaved`, and nothing is sent without the writer.
+A save that lands settles the queued words **the account now holds**, and leaves the rest queued. A queued edit is its own text: an open takes the account's version and adopts nothing, so the session may never have held what the queue holds, and clearing it would lose writing the writer never sent — the one loss nothing can undo. So each held payload is compared with the account's bytes for its path after the save, and settled when they are the same or when the path is gone and the edit was its removal; the documents this save deleted take their queued edits with them, because words for a file the writer removed are not words the account is missing. Everything else stays, and the writer's send is still offered.
+
+The queue's recorded versions are the adapter's, and a **tombstone keeps its version**: a path another device created and then deleted is a movement even though it is absent again, so a version of zero would make an edit staged while the path was missing look untouched and let the next send revive a file another device deleted.
+
+A queue that **cannot be kept** takes the stored one with it, whether it was over the cap or the store refused the write — Web Storage keeps the value it already holds when `setItem` throws, and stores are usually full rather than broken. The words the tab holds are then the newest ones, so the value kept a moment ago is not the latest, and a next open that read it would present older text as this device's current work and send it over the account. A save that failed answers the same way a server that did not answer does: the words go into the queue, the state is `unsaved`, and nothing is sent without the writer.
+
+`unsaved` and `conflict` say whether the queue **reached this device's storage** (`persisted`). A store that is blocked or full takes nothing, and a held save whose words this device could not build holds nothing either; in both cases the words are in this browser tab only, and the notice says so instead of promising a copy a reload would not find. The writer's action stays offered in either case: a send is worth trying while the tab is open, and it is the only thing that can put those words on the account.
 
 ## 8. Provider relay — deferred
 

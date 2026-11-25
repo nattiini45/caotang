@@ -45,13 +45,28 @@ export function saveHostedQueue(projectId: string, text: string | null): boolean
   try {
     const storage = browserStorage();
     if (storage === undefined) return text === null;
+    // A queue that cannot be kept takes the stored one with it: a store that refuses a write, or a value over the cap, leaves the value it
+    // already holds, and that value is older than the words in this tab — a next open would read it and offer to send older text as this
+    // device's current work. Nothing is kept rather than the wrong thing.
+    const drop = (): false => {
+      try {
+        storage.removeItem(hostedQueueKey(projectId));
+      } catch {
+        // A store that will not even forget the old value leaves nothing more this build can do about it.
+      }
+      return false;
+    };
     if (text === null) {
       storage.removeItem(hostedQueueKey(projectId));
       return true;
     }
-    if (text.length > QUEUE_CAP_CHARS) return false;
-    storage.setItem(hostedQueueKey(projectId), text);
-    return true;
+    if (text.length > QUEUE_CAP_CHARS) return drop();
+    try {
+      storage.setItem(hostedQueueKey(projectId), text);
+      return true;
+    } catch {
+      return drop();
+    }
   } catch {
     return false;
   }

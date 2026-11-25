@@ -25231,6 +25231,11 @@ msgstr ""
 msgid "These changes are on this device. Your account does not have them yet."
 msgstr ""
 
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "These changes are only in this browser tab, and closing it loses them. Your account does not have them yet."
+msgstr ""
+
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "These checks use your Background provider. They can send text from this step."
@@ -25492,6 +25497,11 @@ msgstr ""
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "This derivation links the script to the book."
+msgstr ""
+
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "This device could not keep a copy of your words, so leaving this for now keeps them only in this browser tab."
 msgstr ""
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
@@ -28168,6 +28178,11 @@ msgstr ""
 #. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Your account has changes this book has not read yet."
+msgstr ""
+
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Your account keeps the other device’s version. This device’s words are only in this browser tab, and closing it loses them."
 msgstr ""
 
 #. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.

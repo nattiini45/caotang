@@ -56,9 +56,13 @@ export function HostedSaveNotice({
   if (target === null || state.kind === 'idle' || state.kind === 'saving') return null;
 
   if (state.kind === 'unsaved') {
-    // Nothing here is sent on its own: the words are safe on this device and the account gets them when the writer says so.
+    // Nothing here is sent on its own: the account gets these words when the writer says so. What the writer can act on is whether a copy
+    // survived a reload — a full or blocked store leaves them in this tab, and saying "on this device" would be the sentence that costs
+    // them the work.
     return <p className="status-line" role="status">
-      <span><Trans>These changes are on this device. Your account does not have them yet.</Trans></span>
+      <span>{state.persisted
+        ? <Trans>These changes are on this device. Your account does not have them yet.</Trans>
+        : <Trans>These changes are only in this browser tab, and closing it loses them. Your account does not have them yet.</Trans>}</span>
       <button type="button" className="button" onClick={() => {
         void target.sendQueued().then(() => {
           // What was sent is on the account and not yet in this book: it is read again so the writer sees what others will.
@@ -82,7 +86,9 @@ export function HostedSaveNotice({
   const key = state.paths.join('|');
   if (putOff === key) {
     return <p className="status-line" role="status">
-      <span><Trans>Your account keeps the other device’s version. This device’s words stay only in this browser.</Trans></span>
+      <span>{state.persisted
+        ? <Trans>Your account keeps the other device’s version. This device’s words stay only in this browser.</Trans>
+        : <Trans>Your account keeps the other device’s version. This device’s words are only in this browser tab, and closing it loses them.</Trans>}</span>
       <button type="button" className="button is-quiet" onClick={() => setPutOff('')}>
         <Trans>Ask me again</Trans>
       </button>
@@ -114,5 +120,8 @@ export function HostedSaveNotice({
     <p>
       <Trans>Nothing here was written over them. Keep this device’s text to save it on top of their version; their version stays as the one it replaced.</Trans>
     </p>
+    {state.persisted ? null : <p>
+      <Trans>This device could not keep a copy of your words, so leaving this for now keeps them only in this browser tab.</Trans>
+    </p>}
   </ChoiceDialog>;
 }
