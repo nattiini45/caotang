@@ -1,5 +1,8 @@
 import { RemoteIntegrityError } from './errors.js';
 
+const RECEIPT_LIMIT = 128;
+export const isBatchId = (id: unknown): id is string => typeof id === 'string' && /^[0-9a-f]{32}$/.test(id);
+
 export interface FileEntry {
   /** HMAC of the path (crypto `hashPath`); what the sealed file is bound to and the rollback mark is keyed by. */
   readonly hash: string;
@@ -19,15 +22,18 @@ export class Manifest {
     readonly counter = 0,
     readonly files: ReadonlyMap<string, FileEntry> = new Map(),
     readonly dirs: ReadonlySet<string> = new Set(),
+    readonly receipts: readonly string[] = [],
   ) {}
 
-  next(files: Map<string, FileEntry>, dirs: Set<string>): Manifest {
-    return new Manifest(this.counter + 1, files, dirs);
+  next(files: Map<string, FileEntry>, dirs: Set<string>, batchId?: string): Manifest {
+    return new Manifest(this.counter + 1, files, dirs, batchId === undefined ? this.receipts : [...this.receipts, batchId].slice(-RECEIPT_LIMIT));
   }
 
   serialize(): Uint8Array {
     const files = [...this.files].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([path, e]) => [path, e.hash, e.version, e.blob, e.deleted ? 1 : 0]);
-    return new TextEncoder().encode(JSON.stringify({ format: 1, files, dirs: [...this.dirs].sort() }));
+    return new TextEncoder().encode(JSON.stringify({
+      format: 1, files, dirs: [...this.dirs].sort(), ...(this.receipts.length === 0 ? {} : { receipts: this.receipts }),
+    }));
   }
 
   static parse(counter: number, bytes: Uint8Array): Manifest {
@@ -58,6 +64,10 @@ export class Manifest {
       if (typeof dir !== 'string') return fail('the index holds a malformed directory');
       dirs.add(dir);
     }
-    return new Manifest(counter, files, dirs);
+    const receipts = 'receipts' in raw ? raw.receipts : [];
+    if (!Array.isArray(receipts) || receipts.length > RECEIPT_LIMIT || !receipts.every(isBatchId) || new Set(receipts).size !== receipts.length) {
+      return fail('the index holds malformed batch receipts');
+    }
+    return new Manifest(counter, files, dirs, receipts);
   }
 }

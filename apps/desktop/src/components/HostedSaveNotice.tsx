@@ -3,9 +3,7 @@
  * nothing; a save the server did not take says the account is behind; and a save another device committed first asks the same
  * "files changed" question a folder save asks, naming the documents and writing nothing over them.
  *
- * The question has two answers and both are the writer's: keep this device's text, which writes it on top of the other
- * device's version (theirs stays as the version this save replaced), or leave it for now, with the account still holding the
- * other device's version and this device's words only here.
+ * The writer can keep this device's text or leave the account version unchanged.
  */
 
 /* lingui-set comment="Interpolated values: files is the documents that changed on the other device, named and joined into one clause." */
@@ -54,20 +52,18 @@ export function HostedSaveNotice({
   // A question the writer put off stays off for those paths: a new conflict asks anew.
   const [putOff, setPutOff] = useState('');
   if (target === null || state.kind === 'idle' || state.kind === 'saving') return null;
+  const pending = state.kind === 'stale' || state.persisted
+    ? t`Saved here, not to your account.`
+    : t`Closing this tab loses these changes.`;
 
   if (state.kind === 'unsaved') {
     // Nothing here is sent on its own: the account gets these words when the writer says so. What the writer can act on is whether a copy
     // survived a reload — a full or blocked store leaves them in this tab, and saying "on this device" would be the sentence that costs
     // them the work.
     return <p className="status-line" role="status">
-      <span>{state.persisted
-        ? <Trans>These changes are on this device. Your account does not have them yet.</Trans>
-        : <Trans>These changes are only in this browser tab, and closing it loses them. Your account does not have them yet.</Trans>}</span>
+      <span>{pending}</span>
       <button type="button" className="button" onClick={() => {
-        void target.sendQueued().then(() => {
-          // What was sent is on the account and not yet in this book: it is read again so the writer sees what others will.
-          if (target.rereadNeeded) onReopenAccount?.();
-        });
+        void target.sendQueued();
       }}>
         <Trans>Send them to your account</Trans>
       </button>
@@ -76,7 +72,7 @@ export function HostedSaveNotice({
 
   if (state.kind === 'stale') {
     return <p className="status-line" role="status">
-      <span><Trans>Your account has changes this book has not read yet.</Trans></span>
+      <span><Trans>Your account has the changes.</Trans></span>
       <button type="button" className="button" onClick={() => onReopenAccount?.()}>
         <Trans>Read them</Trans>
       </button>
@@ -86,9 +82,7 @@ export function HostedSaveNotice({
   const key = state.paths.join('|');
   if (putOff === key) {
     return <p className="status-line" role="status">
-      <span>{state.persisted
-        ? <Trans>Your account keeps the other device’s version. This device’s words stay only in this browser.</Trans>
-        : <Trans>Your account keeps the other device’s version. This device’s words are only in this browser tab, and closing it loses them.</Trans>}</span>
+      <span>{pending}</span>
       <button type="button" className="button is-quiet" onClick={() => setPutOff('')}>
         <Trans>Ask me again</Trans>
       </button>
@@ -103,11 +97,7 @@ export function HostedSaveNotice({
       {
         label: t`Keep this device’s text`,
         onChoose: () => {
-          void target.keepMine(session.state).then(() => {
-            // The answer sent an earlier tab's queued words: the account now holds them and the book in front of the writer still
-            // shows the version this device read first.
-            if (target.rereadNeeded) onReopenAccount?.();
-          });
+          void target.keepMine();
         },
       },
       { label: t`Leave it for now`, onChoose: () => setPutOff(key) },
@@ -118,10 +108,8 @@ export function HostedSaveNotice({
       <Trans>These changed on another device: {files}</Trans>
     </p>
     <p>
-      <Trans>Nothing here was written over them. Keep this device’s text to save it on top of their version; their version stays as the one it replaced.</Trans>
+      <Trans>This replaces the account files.</Trans>
     </p>
-    {state.persisted ? null : <p>
-      <Trans>This device could not keep a copy of your words, so leaving this for now keeps them only in this browser tab.</Trans>
-    </p>}
+    {state.persisted ? null : <p>{pending}</p>}
   </ChoiceDialog>;
 }

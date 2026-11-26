@@ -1,99 +1,155 @@
 // @vitest-environment jsdom
 
-/**
- * The queue a hosted project keeps, and the one thing only the device can know (hosted.md §7): an edit held while the server was
- * away is only the latest one if the file has not moved since. The adapter can tell that a path moved since *this device read the
- * index*, and a reload always reads it fresh, so the replay itself has to refuse an edit whose file another device has written.
- */
-import { beforeEach, describe, expect, it } from 'vitest';
-import type { EncryptedRemoteArtifactFs } from '@caotang/remote-store';
-
-import { deviceQueue } from '../src/app/hosted-project.js';
+import { beforeEach, expect, it } from 'vitest';
+import { generateProjectKey } from '../../../packages/crypto/src/index.js';
+import { EncryptedRemoteArtifactFs, RemoteUnavailableError, saveProjectToAccount } from '@caotang/remote-store';
+import { addDocument, countBody, createEmptyManifest, createProjectState, readProject } from '@caotang/store';
+import { FakeBlobServer } from '../../../packages/remote-store/test/fake-blob-server.js';
+import { deviceQueue, hostedBaseline } from '../src/app/hosted-project.js';
+import { HostedTarget } from '../src/app/hosted-target.js';
 import { loadHostedQueue, saveHostedQueue } from '../src/app/hosted-queue.js';
-import type { HostedProjectSource } from '../src/app/studio-host.js';
 import { setStorageScope } from '../src/app/storage-scope.js';
 
-const SOURCE: HostedProjectSource = {
-  projectId: 'p_lighthouse',
-  origin: 'https://studio.example',
-  device: 'tab_one',
-  key: {} as never,
-};
-
-/** The account as this device last read it: a version per path, and a commit that records what it was sent. */
-function account(versions: Record<string, number>) {
-  const committed: string[][] = [];
-  const fs = {
-    versionOf: (path: string) => versions[path] ?? 0,
-    highWater: { entries: () => [] as [string, number][] },
-    commitChanges: async (changes: readonly { readonly path: string }[]) => {
-      committed.push(changes.map((change) => change.path));
-      for (const change of changes) versions[change.path] = (versions[change.path] ?? 0) + 1;
-    },
-  };
-  return { fs, committed, versions };
-}
+const PROJECT = 'p_lighthouse';
+const A = 'n_3W8RN2TQ6C';
+const B = 'n_5HQ9ZK2V7B';
+const path = (id: string) => `docs/${id}.md`;
 
 beforeEach(() => {
   localStorage.clear();
   setStorageScope(null);
 });
 
-describe('the queue a hosted project keeps on this device', () => {
-  it('sends an edit whose file has not moved since this device read it', async () => {
-    const one = account({ 'docs/a.md': 2 });
-    const queue = await deviceQueue(SOURCE, one.fs as unknown as EncryptedRemoteArtifactFs);
-    queue.hold([{ path: 'docs/a.md', bytes: new Uint8Array([1]) }]);
+async function devices() {
+  const server = new FakeBlobServer();
+  const key = generateProjectKey();
+  const open = (store = server.client()) => EncryptedRemoteArtifactFs.open({ store, projectId: PROJECT, projectKey: key });
+  const source = { projectId: PROJECT, origin: 'https://studio.example', device: 'test', key: {} as CryptoKey };
+  const seed = await open();
+  const project = createProjectState(createEmptyManifest('The Lighthouse', new Date(0)));
+  for (const id of [A, B]) addDocument(project, { id, parentId: 'manuscript', title: id, body: 'Original', now: new Date(0) });
+  expect((await saveProjectToAccount(seed, project)).kind).toBe('written');
+  const session = async (fs: EncryptedRemoteArtifactFs, scope: string) => {
+    setStorageScope(scope);
+    const { state } = await readProject(fs);
+    const queue = await deviceQueue(source, fs);
+    const target = new HostedTarget(PROJECT, fs, queue, (project, pictures) => hostedBaseline(fs, project, pictures));
+    await target.rememberOpened(state, {});
+    return {
+      target,
+      edit: async (id: string, body: string) => {
+        setStorageScope(scope);
+        state.documents.get(id)!.body = body;
+        state.manifest.tree.find((node) => node.id === id)!.updatedAt = new Date().toISOString();
+        state.manifest.derived.wordCounts[id] = countBody(body).words;
+        await target.save(state);
+      },
+      send: async () => {
+        setStorageScope(scope);
+        return await target.sendQueued();
+      },
+      state,
+    };
+  };
+  const bodies = async () => {
+    const { state } = await readProject(await open());
+    return [state.documents.get(A)?.body, state.documents.get(B)?.body];
+  };
+  return { server, source, open, session, bodies };
+}
 
-    expect(await queue.replay()).toEqual({ kind: 'sent', count: 1 });
-    expect(one.committed).toEqual([['docs/a.md']]);
-    expect(queue.held()).toEqual([]);
-  });
+it('two devices merge disjoint scene edits without queuing the other scene or the manifest', async () => {
+  const { server, open, session, bodies } = await devices();
+  const one = await session(await open(), 'one');
+  const two = await session(await open(), 'two');
 
-  it('refuses an edit whose file another device wrote while this one was away', async () => {
-    const one = account({ 'docs/a.md': 2 });
-    const queue = await deviceQueue(SOURCE, one.fs as unknown as EncryptedRemoteArtifactFs);
-    queue.hold([{ path: 'docs/a.md', bytes: new Uint8Array([1]) }]);
+  server.goOffline();
+  await one.edit(A, 'Written offline');
+  expect(one.target.state()).toEqual({ kind: 'unsaved', paths: [path(A)], persisted: true });
+  server.goOnline();
+  await two.edit(B, 'Written on two');
+  expect(await one.send()).toEqual({ kind: 'stale' });
+  expect(await bodies()).toEqual(['Written offline', 'Written on two']);
+});
 
-    // They wrote it: the account moved on, and this device's held text is the older one.
-    one.versions['docs/a.md'] = 3;
-    expect(await queue.replay()).toEqual({ kind: 'conflict', paths: ['docs/a.md'] });
-    expect(one.committed).toEqual([]);
-    expect(queue.held()).toEqual(['docs/a.md']);
-  });
+it('two devices ask about a same-file conflict and require a new answer when it moves again', async () => {
+  const { server, open, session, bodies } = await devices();
+  const one = await session(await open(), 'one');
+  const two = await session(await open(), 'two');
 
-  it('keeps the versions across a reload, so a reloaded queue refuses the same way', async () => {
-    const one = account({ 'docs/a.md': 2 });
-    const first = await deviceQueue(SOURCE, one.fs as unknown as EncryptedRemoteArtifactFs);
-    first.hold([{ path: 'docs/a.md', bytes: new Uint8Array([1]) }]);
+  server.goOffline();
+  await one.edit(A, 'Written offline');
+  server.goOnline();
+  await two.edit(A, 'Written on two');
+  expect(await one.send()).toEqual({ kind: 'conflict', paths: [path(A)], persisted: true });
+  expect(await bodies()).toEqual(['Written on two', 'Original']);
+  await two.edit(A, 'A newer edit on two');
+  setStorageScope('one');
+  expect(await one.target.keepMine()).toEqual({ kind: 'conflict', paths: [path(A)], persisted: true });
+  expect(await bodies()).toEqual(['A newer edit on two', 'Original']);
+  expect(await one.target.keepMine()).toEqual({ kind: 'stale' });
+  expect(await bodies()).toEqual(['Written offline', 'Original']);
+});
 
-    one.versions['docs/a.md'] = 3;
-    const reloaded = await deviceQueue(SOURCE, one.fs as unknown as EncryptedRemoteArtifactFs);
-    expect(reloaded.held()).toEqual(['docs/a.md']);
-    expect(await reloaded.replay()).toEqual({ kind: 'conflict', paths: ['docs/a.md'] });
-  });
+it('reopening with pending work retains it while staging a new edit against the account baseline', async () => {
+  const { server, open, session, bodies } = await devices();
+  const one = await session(await open(), 'one');
+  const two = await session(await open(), 'two');
+  server.goOffline();
+  await one.edit(A, 'Pending from the earlier tab');
+  server.goOnline();
+  await two.edit(B, 'Written on two');
 
-  it('forgets a held edit only once the account has moved past the version it was staged against', async () => {
-    // A save that wrote the path leaves the account at a newer version than the one the held edit was staged against, so that edit is
-    // older than what landed and goes. An edit staged after that save carries the version it wrote, and is newer than the save: it stays.
-    const one = account({ 'docs/a.md': 2 });
-    const queue = await deviceQueue(SOURCE, one.fs as unknown as EncryptedRemoteArtifactFs);
-    queue.hold([{ path: 'docs/a.md', bytes: new Uint8Array([1]) }]);
+  const reopened = await session(await open(), 'one');
+  expect(reopened.state.documents.get(A)?.body).toBe('Original');
+  expect(reopened.target.state()).toEqual({ kind: 'unsaved', paths: [path(A)], persisted: true });
+  await reopened.edit(B, 'Updated after reopening');
+  expect(reopened.target.state()).toEqual({ kind: 'unsaved', paths: [path(A), path(B)], persisted: true });
+  expect(await bodies()).toEqual(['Original', 'Written on two']);
+  expect(await reopened.send()).toEqual({ kind: 'stale' });
+  expect(await bodies()).toEqual(['Pending from the earlier tab', 'Updated after reopening']);
+});
 
-    one.versions['docs/a.md'] = 3;
-    queue.forget(['docs/a.md']);
-    expect(queue.held()).toEqual([]);
+it('settles an accepted batch by its receipt after a lost reply and another device edit', async () => {
+  const { server, open, session, bodies } = await devices();
+  const store = server.client();
+  const one = await session(await open({
+    ...store,
+    put: async (name, bytes, condition) => {
+      const reply = await store.put(name, bytes, condition);
+      if (name === 'manifest') throw new RemoteUnavailableError();
+      return reply;
+    },
+  }), 'one');
+  await one.edit(A, 'This did land');
+  expect(one.target.state().kind).toBe('unsaved');
+  const two = await session(await open(), 'two');
+  await two.edit(A, 'Written after the lost reply');
 
-    queue.hold([{ path: 'docs/a.md', bytes: new Uint8Array([2]) }]);
-    queue.forget(['docs/a.md']);
-    expect(queue.held()).toEqual(['docs/a.md']);
-  });
+  const reopened = await session(await open(), 'one');
+  expect(reopened.target.state()).toEqual({ kind: 'idle' });
+  expect(loadHostedQueue(PROJECT)).toBeNull();
+  expect(await bodies()).toEqual(['Written after the lost reply', 'Original']);
+});
 
-  it('drops a queue text this build cannot read rather than failing the open', async () => {
-    saveHostedQueue(SOURCE.projectId, 'not what this build wrote');
-    const one = account({});
-    const queue = await deviceQueue(SOURCE, one.fs as unknown as EncryptedRemoteArtifactFs);
-    expect(queue.held()).toEqual([]);
-    expect(loadHostedQueue(SOURCE.projectId)).toBeNull();
-  });
+it('preserves an unverified legacy queue instead of offering to send it or replacing its local copy', async () => {
+  const { source, open } = await devices();
+  const fs = await open();
+  const legacy = '{"format":1,"edits":"old payload"}';
+  saveHostedQueue(PROJECT, legacy);
+  await expect(deviceQueue(source, fs)).rejects.toThrow('unrecognized format');
+  expect(loadHostedQueue(PROJECT)).toBe(legacy);
+});
+
+it('keeps an in-flight device’s queue in its original account scope', async () => {
+  const { server, source, open } = await devices();
+  const fs = await open();
+  setStorageScope('writer-one');
+  const queue = await deviceQueue(source, fs);
+  server.goOffline();
+  setStorageScope('writer-two');
+  queue.stage([{ path: path(A), bytes: new Uint8Array([1]), base: fs.versionOf(path(A)) }]);
+  expect(await queue.send(true)).toEqual({ kind: 'unavailable' });
+  expect(loadHostedQueue(PROJECT)).toBeNull();
+  expect(loadHostedQueue(PROJECT, 'writer-one')).not.toBeNull();
 });

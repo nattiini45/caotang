@@ -7578,6 +7578,11 @@ msgstr "Schließen Sie dieses Projekt, bevor Sie über einen Link ein anderes ö
 msgid "Close window"
 msgstr "Fenster schließen"
 
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Closing this tab loses these changes."
+msgstr "Wenn Sie diesen Tab schließen, gehen diese Änderungen verloren."
+
 #. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
 #. Interpolated values: file is the imported file name; reason is the import failure message
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
@@ -15470,11 +15475,6 @@ msgstr "In diesem Projekt hat sich noch nichts geändert."
 msgid "Nothing has changed yet"
 msgstr "Noch nichts geändert"
 
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "Nothing here was written over them. Keep this device’s text to save it on top of their version; their version stays as the one it replaced."
-msgstr "Hier wurde nichts davon überschrieben. Behalten Sie den Text dieses Geräts, um ihn über die Version des anderen Geräts zu speichern; dessen Version bleibt als die erhalten, die ersetzt wurde."
-
 #. Binder row labels. Interpolated values: access is an access level's name, from is the node the rule was set on, title is a row's title.
 #: apps/desktop/src/components/Binder.tsx
 msgid "Nothing in the binder matches this filter. Clear it to see the whole binder."
@@ -19638,6 +19638,11 @@ msgstr "Gespeicherte Filter"
 msgid "Saved goal checks"
 msgstr "Gespeicherte Zielprüfungen"
 
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Saved here, not to your account."
+msgstr "Hier gespeichert, nicht in Ihrem Konto."
+
 #. calls is the total model-call count saved for this goal.
 #: apps/desktop/src/components/GoalRecovery.tsx
 msgid "Saved model calls: {calls}"
@@ -22371,8 +22376,8 @@ msgstr "Der 1. (die Standardeinstellung)"
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
-msgid "the account’s copy of this project"
-msgstr "die Kopie dieses Projekts in Ihrem Konto"
+msgid "the account copy"
+msgstr "die Kopie im Konto"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
@@ -25226,16 +25231,6 @@ msgstr "Diese gelten für den ganzen Container. Der Standardsprecher füllt die 
 msgid "These changed on another device: {files}"
 msgstr "Diese Dateien wurden auf einem anderen Gerät geändert: {files}"
 
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "These changes are on this device. Your account does not have them yet."
-msgstr "Diese Änderungen liegen auf diesem Gerät. Ihr Konto hat sie noch nicht."
-
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "These changes are only in this browser tab, and closing it loses them. Your account does not have them yet."
-msgstr "Diese Änderungen liegen nur in diesem Browser-Tab, und beim Schließen gehen sie verloren. Ihr Konto hat sie noch nicht.""
-
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "These checks use your Background provider. They can send text from this step."
@@ -25498,11 +25493,6 @@ msgstr "Dies löscht das Gespräch und seine Laufprotokolle, sofern keine andere
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "This derivation links the script to the book."
 msgstr "Diese Ableitung verknüpft das Skript mit dem Buch."
-
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "This device could not keep a copy of your words, so leaving this for now keeps them only in this browser tab."
-msgstr "Dieses Gerät konnte keine Kopie Ihrer Wörter anlegen. Wenn Sie es jetzt liegen lassen, bleiben sie nur in diesem Browser-Tab.""
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
@@ -25869,6 +25859,11 @@ msgstr "Dies entfernt den Eintrag, {descendants, plural, one {das # Element} oth
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This removes the item, the {descendants, plural, one {# item} other {# items}} inside it. You can undo it right after with Ctrl+Z."
 msgstr "Dies entfernt den Eintrag und {descendants, plural, one {das # Element} other {die # Elemente}} darin. Sie können es direkt danach mit Strg+Z rückgängig machen."
+
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "This replaces the account files."
+msgstr "Dadurch werden die Dateien im Konto ersetzt."
 
 #: apps/desktop/src/components/SaveCommand.tsx
 msgid "This request becomes a project skill that only you can invoke. It does not change permissions."
@@ -28177,18 +28172,8 @@ msgstr "Geben Sie die Änderung selbst frei, auch im Auto-Modus."
 
 #. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "Your account has changes this book has not read yet."
-msgstr "Ihr Konto enthält Änderungen, die dieses Buch noch nicht gelesen hat."
-
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "Your account keeps the other device’s version. This device’s words are only in this browser tab, and closing it loses them."
-msgstr "Auf Ihrem Konto bleibt die Version des anderen Geräts. Die Wörter dieses Geräts liegen nur in diesem Browser-Tab, und beim Schließen gehen sie verloren.""
-
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "Your account keeps the other device’s version. This device’s words stay only in this browser."
-msgstr "Auf Ihrem Konto bleibt die Version des anderen Geräts. Die Wörter dieses Geräts bleiben nur in diesem Browser."
+msgid "Your account has the changes."
+msgstr "Die Änderungen sind in Ihrem Konto."
 
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx

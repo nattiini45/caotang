@@ -7578,6 +7578,11 @@ msgstr "Close this project before opening another one from a link."
 msgid "Close window"
 msgstr "Close window"
 
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Closing this tab loses these changes."
+msgstr "Closing this tab loses these changes."
+
 #. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
 #. Interpolated values: file is the imported file name; reason is the import failure message
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
@@ -15470,11 +15475,6 @@ msgstr "Nothing has changed in this project yet."
 msgid "Nothing has changed yet"
 msgstr "Nothing has changed yet"
 
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "Nothing here was written over them. Keep this device’s text to save it on top of their version; their version stays as the one it replaced."
-msgstr "Nothing here was written over them. Keep this device’s text to save it on top of their version; their version stays as the one it replaced."
-
 #. Binder row labels. Interpolated values: access is an access level's name, from is the node the rule was set on, title is a row's title.
 #: apps/desktop/src/components/Binder.tsx
 msgid "Nothing in the binder matches this filter. Clear it to see the whole binder."
@@ -19638,6 +19638,11 @@ msgstr "Saved filters"
 msgid "Saved goal checks"
 msgstr "Saved goal checks"
 
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Saved here, not to your account."
+msgstr "Saved here, not to your account."
+
 #. calls is the total model-call count saved for this goal.
 #: apps/desktop/src/components/GoalRecovery.tsx
 msgid "Saved model calls: {calls}"
@@ -22371,8 +22376,8 @@ msgstr "The 1st (the default)"
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
-msgid "the account’s copy of this project"
-msgstr "the account’s copy of this project"
+msgid "the account copy"
+msgstr "the account copy"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
@@ -25226,16 +25231,6 @@ msgstr "These apply to the whole container. The default speaker fills the speake
 msgid "These changed on another device: {files}"
 msgstr "These changed on another device: {files}"
 
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "These changes are on this device. Your account does not have them yet."
-msgstr "These changes are on this device. Your account does not have them yet."
-
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "These changes are only in this browser tab, and closing it loses them. Your account does not have them yet."
-msgstr "These changes are only in this browser tab, and closing it loses them. Your account does not have them yet."
-
 #. Plan card cautions. Interpolated values: sources are untrusted source names, step is a step number, title and path name a quoted document, hits are flagged excerpts, name is a hook name.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "These checks use your Background provider. They can send text from this step."
@@ -25498,11 +25493,6 @@ msgstr "This deletes the conversation and backing logs that no other session or 
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "This derivation links the script to the book."
 msgstr "This derivation links the script to the book."
-
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "This device could not keep a copy of your words, so leaving this for now keeps them only in this browser tab."
-msgstr "This device could not keep a copy of your words, so leaving this for now keeps them only in this browser tab."
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
@@ -25869,6 +25859,11 @@ msgstr "This removes the item, the {descendants, plural, one {# item} other {# i
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This removes the item, the {descendants, plural, one {# item} other {# items}} inside it. You can undo it right after with Ctrl+Z."
 msgstr "This removes the item, the {descendants, plural, one {# item} other {# items}} inside it. You can undo it right after with Ctrl+Z."
+
+#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "This replaces the account files."
+msgstr "This replaces the account files."
 
 #: apps/desktop/src/components/SaveCommand.tsx
 msgid "This request becomes a project skill that only you can invoke. It does not change permissions."
@@ -28177,18 +28172,8 @@ msgstr "You need to approve the rewrite yourself, even in Auto mode."
 
 #. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "Your account has changes this book has not read yet."
-msgstr "Your account has changes this book has not read yet."
-
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "Your account keeps the other device’s version. This device’s words are only in this browser tab, and closing it loses them."
-msgstr "Your account keeps the other device’s version. This device’s words are only in this browser tab, and closing it loses them."
-
-#. Interpolated values: files is the documents that changed on the other device, named and joined into one clause.
-#: apps/desktop/src/components/HostedSaveNotice.tsx
-msgid "Your account keeps the other device’s version. This device’s words stay only in this browser."
-msgstr "Your account keeps the other device’s version. This device’s words stay only in this browser."
+msgid "Your account has the changes."
+msgstr "Your account has the changes."
 
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #: apps/desktop/src/components/AgentPanel.tsx

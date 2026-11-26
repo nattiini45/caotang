@@ -9,7 +9,7 @@ import { MemoryArtifactFs, MemoryIndexedDb, openRuntimeStore, writeProject, type
 import { setActiveAppDb } from '../src/app/app-db.js';
 import { type Opened } from '../src/app/lifecycle.js';
 import { openHostedProject } from '../src/app/hosted-open.js';
-import { HostedTarget, type HostedQueuePort, type HostedReplay } from '../src/app/hosted-target.js';
+import { HostedTarget, type HostedQueuePort } from '../src/app/hosted-target.js';
 import { forgetHostedTarget, hostedTargetFor } from '../src/app/hosted-target-registry.js';
 import type { HostedProjectSource } from '../src/app/studio-host.js';
 import { IDS, project } from '../../../e2e/unit/fixtures.js';
@@ -53,24 +53,17 @@ function queue(startingWith: readonly string[] = []): HostedQueuePort & { calls:
   const calls: string[] = [];
   return {
     calls,
-    hold: (changes) => {
+    stage: (changes) => {
       calls.push(`hold:${changes.map((change) => change.path).join(',')}`);
       for (const change of changes) held.add(change.path);
     },
-    replay: async (): Promise<HostedReplay> => {
+    send: async () => {
       calls.push('send');
       held.clear();
-      return { kind: 'sent', count: 1 };
+      return { kind: 'accepted', changes: [] };
     },
-    forget: (paths) => {
-      calls.push(`forget:${paths === undefined ? 'all' : paths.join(',')}`);
-      if (paths === undefined) held.clear();
-      else for (const path of paths) held.delete(path);
-    },
-    rebase: (paths) => calls.push(`rebase:${paths.join(',')}`),
     held: () => [...held],
-    marks: () => calls.push('marks'),
-    settle: async () => held.size > 0,
+    persisted: () => true,
   };
 }
 
@@ -84,8 +77,8 @@ async function targetFor(state: ProjectState = BOOK, holding: readonly string[] 
   const target = new HostedTarget(
     SOURCE.projectId,
     fs as never,
-    (async () => ({ kind: 'written', report: { written: [], rotated: [], dropped: [], pruned: [] } })) as never,
     port,
+    async () => ({ changes: async () => [], accepted: () => undefined }),
   );
   return Object.assign(target, { port });
 }

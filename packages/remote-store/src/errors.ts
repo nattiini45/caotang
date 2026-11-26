@@ -6,6 +6,7 @@ export class RemoteConflictError extends Error {
   constructor(
     readonly path: string,
     paths?: readonly string[],
+    readonly versions?: ReadonlyMap<string, number>,
   ) {
     const changed = paths !== undefined && paths.length > 0 ? [...paths] : [path];
     const named = changed.length <= 3 ? changed.join(', ') : `${changed.slice(0, 3).join(', ')} and ${changed.length - 3} more`;
