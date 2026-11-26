@@ -133,6 +133,12 @@ export interface ImportAsset {
   bytes?: number;
 }
 
+/** Deleted text the reader kept aside so the splitter can list it in the owning scene's notes (import-docx.md §4 keep mode). */
+export interface ImportDeletion {
+  blockIndex: number;
+  text: string;
+}
+
 export interface ImportMetadata {
   title?: string;
   author?: string;
@@ -145,6 +151,7 @@ export interface ImportDocument {
   blocks: ImportBlock[];
   footnotes?: ImportFootnote[];
   comments?: ImportComment[];
+  deletions?: ImportDeletion[];
   metadata?: ImportMetadata;
   assets?: ImportAsset[];
   losses?: LossWarning[];

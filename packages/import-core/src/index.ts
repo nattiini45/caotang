@@ -10,6 +10,7 @@ export type {
   ImportAsset,
   ImportBlock,
   ImportComment,
+  ImportDeletion,
   ImportDocument,
   ImportFootnote,
   ImportMetadata,
@@ -41,5 +42,6 @@ export type {
   SplitStats,
 } from './split.js';
 export { splitImport } from './split.js';
+export { escapeInline, escapeLineStarts } from './markdown.js';
 export type { PatternMatch, SpecialKind } from './text.js';
 export { breakMarkerOf, countWords, isShortLine, matchFamily, numberValue, specialOf, stripChapterNumber } from './text.js';

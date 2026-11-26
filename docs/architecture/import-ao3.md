@@ -44,8 +44,8 @@ holding the preface is left out of the chapter list. `<hr>` and symbol lines spl
 
 ## 4. Pictures, safety and limits
 
-A `data:` picture is decoded and an in-zip picture resolved by the EPUB reader; a remote http(s) picture is listed as not downloaded —
-this import has no download switch and makes no request at all. Scripts, styles, iframes and audio/video players are removed and counted, never run.
+A `data:` picture is decoded and an in-zip picture resolved by the EPUB reader; a remote http(s) picture is listed as not downloaded
+unless the writer turns it on (decision 10). Scripts, styles, iframes and audio/video players are removed and counted, never run.
 The zip is opened with the shared caps and zip-bomb guard, the parse runs in the preview's `'self'` Worker with a timeout and the
 dialog's Cancel, and every imported text — bodies, synopses, notes, codex descriptions and the contents' titles — goes through
 `scanImport`, which lists the hits. Nothing is written before **Import**, which commits one `binder.importTree` that one Undo takes

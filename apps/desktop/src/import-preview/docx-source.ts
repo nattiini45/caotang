@@ -21,6 +21,11 @@ import { splitterPreviewSource } from './splitter-source.js';
 export const DOCX_CHIPS = { tracked: 'docx-tracked' } as const;
 export const DOCX_OPTIONS = { underline: 'underline-italic', comments: 'comments', pictures: 'pictures' } as const;
 
+export function docxSizeRefusal(fileName: string, size: number, maxBytes: number): string | undefined {
+  if (size <= maxBytes) return undefined;
+  return t`${{ file: fileName }} is too large to import as a Word file (${{ limit: formatCount(Math.round(maxBytes / (1024 * 1024))) }} MB max).`;
+}
+
 /** Why the reader stopped, in words. */
 export function docxErrorText(error: DocxError): string {
   switch (error.kind) {

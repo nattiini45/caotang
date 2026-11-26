@@ -19,6 +19,7 @@ import { RTF_OPTIONS, rtfErrorText, rtfPreviewSource, rtfSizeRefusal } from '../
 import { epubPreviewSource } from '../src/import-preview/epub-source.js';
 import { ao3PreviewSource } from '../src/import-preview/ao3-source.js';
 import { kankaPreviewSource } from '../src/import-preview/kanka-source.js';
+import { odtPreviewSource } from '../src/import-preview/odt-source.js';
 import { docxPreviewSource } from '../src/import-preview/docx-source.js';
 import { rawZip } from '../../../packages/import-read/test/zip-fixtures.js';
 import {
@@ -266,7 +267,7 @@ describe('SplitResult → plan', () => {
     expect(noticeText({ code: 'front-matter', destination: 'research', words: 1200 }, result, nodes)).toBe('The text before chapter 1 (1,200 words) goes to Research.');
     expect(noticeText({ code: 'back-matter', destination: 'skip', words: 4, title: 'Acknowledgements' }, result, nodes)).toBe('“Acknowledgements” (4 words) is back matter and is left out.');
     expect(noticeText({ code: 'no-chapters' }, result, nodes)).toContain('No chapters were found');
-    expect(noticeText({ code: 'unreferenced-notes', footnotes: [{ blockIndex: 1, label: '1' }], comments: [] }, result, nodes)).toBe('1 footnote or comment has no place in the text and cannot be kept.');
+    expect(noticeText({ code: 'unreferenced-notes', footnotes: [{ blockIndex: 1, label: '1' }], comments: [] }, result, nodes)).toBe('1 footnote, comment or deletion has no place in the text and cannot be kept.');
   });
 
   it('speaks German when the interface does', async () => {
@@ -579,5 +580,60 @@ describe('the sources', () => {
     expect(reads).toBe(1);
     expect(source.report?.(source.plan(settings, NO_OVERRIDES))[0]?.label).toBe('What the splitter noticed');
     expect(lossOf({ code: 'comment' })).toEqual({ message: 'A comment was not kept.' });
+  });
+
+  it('words every reason, flag and notice, and offers a join for a short chapter a split starts', () => {
+    expect(reasonText({ source: 'style', styleName: 'Chapter Title' })).toBe('style “Chapter Title”');
+    expect(reasonText({ source: 'pattern', family: 'chapter-word', score: 5 })).toBe('a “Chapter” line');
+    expect(reasonText({ source: 'unit', unit: 'ch2.xhtml' })).toBe('a new file “ch2.xhtml”');
+    expect(reasonText({ source: 'pagebreak' })).toBe('page break');
+    expect(reasonText({ source: 'empty-run', count: 3 })).toBe('3 empty lines');
+    expect(reasonText({ source: 'manual' })).toBe('your split');
+
+    const result = split(BOOK);
+    const tree = treeOf(result);
+    const nodes = new Map(tree.map((node) => [node.id, node]));
+    const markers = planOfSplit(result, []).markers;
+    const second = tree[2];
+    const short = flagOf({ code: 'chapter-short', nodeId: second?.id ?? '', words: 9 }, nodes, markers);
+    expect(short.message).toBe('“Chapter 2: Salt” is short: 9 words.');
+    expect(short.fix).toEqual({ label: 'Join it to the chapter before', overrides: { noSplit: [second?.startBlock] } });
+    expect(flagOf({ code: 'number-gap', nodeId: second?.id ?? '', expected: 2, found: 4 }, nodes, markers).message).toBe('Chapter 2 was expected at “Chapter 2: Salt”, which says 4.');
+    expect(flagOf({ code: 'mixed-families', families: ['chapter-word', 'number'] }, nodes, markers).message).toBe('Chapters are found by more than one kind of line: a “Chapter” line, a number line.');
+    expect(flagOf({ code: 'running-header', text: 'THE KEEPER', count: 12 }, nodes, markers).fix).toBeUndefined();
+
+    expect(noticeText({ code: 'toc-skipped', lines: 4 }, result, nodes)).toBe('A table of contents (4 lines) is left out.');
+    expect(noticeText({ code: 'front-matter', destination: 'research', words: 1200 }, result, nodes)).toBe('The text before chapter 1 (1,200 words) goes to Research.');
+    expect(noticeText({ code: 'back-matter', destination: 'skip', words: 4, title: 'Acknowledgements' }, result, nodes)).toBe('“Acknowledgements” (4 words) is back matter and is left out.');
+    expect(noticeText({ code: 'no-chapters' }, result, nodes)).toContain('No chapters were found');
+    expect(noticeText({ code: 'unreferenced-notes', footnotes: [{ blockIndex: 1, label: '1' }], comments: [] }, result, nodes)).toBe('1 footnote, comment or deletion has no place in the text and cannot be kept.');
+  });
+
+  it('an OpenDocument file offers its tracked changes as a chip, and rejecting them re-reads the text', async () => {
+    const NS = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:dc="http://purl.org/dc/elements/1.1/"';
+    const regions = '<text:tracked-changes><text:changed-region text:id="i1"><text:insertion/></text:changed-region><text:changed-region text:id="d1"><text:deletion><text:p>left at dawn</text:p></text:deletion></text:changed-region></text:tracked-changes>';
+    const body =
+      '<text:h text:outline-level="1">The Landing</text:h>' +
+      regions +
+      '<text:p>The ferry <text:change-start text:change-id="i1"/>came at noon<text:change-end text:change-id="i1"/><text:change text:change-id="d1"/></text:p>' +
+      '<text:h text:outline-level="1">Salt</text:h><text:p>The letter arrived.</text:p>';
+    const zip = rawZip([
+      { name: 'content.xml', data: enc(`<?xml version="1.0"?><office:document-content ${NS}><office:body><office:text>${body}</office:text></office:body></office:document-content>`) },
+    ]);
+    const source = odtPreviewSource('manuscript.odt', zip);
+    await source.load?.(() => {}, new AbortController().signal);
+    const settings = initialSettings(source.chips(), source.options());
+    expect(source.chips().some((chip) => chip.id === 'odt-tracked')).toBe(true);
+    const accepted = source.plan(settings, NO_OVERRIDES);
+    expect(accepted.tree.map((node) => node.title)).toEqual(['The Landing', 'Salt']);
+    expect(JSON.stringify(accepted.blocks)).toContain('came at noon');
+    expect(source.report?.(accepted)[0]?.lines).toContain('1 insertion was read');
+
+    const rejecting = { ...settings, chips: { ...settings.chips, 'odt-tracked': 'reject' } };
+    await source.prepare?.(rejecting, new AbortController().signal);
+    const rejected = source.plan(rejecting, NO_OVERRIDES);
+    expect(JSON.stringify(rejected.blocks)).toContain('left at dawn');
+    expect(JSON.stringify(rejected.blocks)).not.toContain('came at noon');
+    source.dispose?.();
   });
 });

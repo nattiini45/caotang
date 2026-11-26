@@ -88,6 +88,16 @@ describe('bodies', () => {
     expect(r.stats).toMatchObject({ footnotes: 2, comments: 2 });
   });
 
+  it('deleted text lands in the notes of the scene that owns its block', () => {
+    const doc: ImportDocument = {
+      blocks: [h(1, 'One'), p('A.'), br(), p('B.')],
+      deletions: [{ blockIndex: 3, text: 'the old line' }],
+    };
+    const r = splitImport(doc);
+    expect(scene(r, 0, 1).notes).toBe('**Deleted:** the old line');
+    expect(r.stats).toMatchObject({ deletions: 1, unreferencedDeletions: 0 });
+  });
+
   it('a footnote keyed to the wrong block follows its reference; a comment on an empty block goes with the block before it', () => {
     const doc: ImportDocument = {
       blocks: [h(1, 'One'), p('A.'), h(1, 'Two'), p('B[^7].'), empty(), pb(), p('C.')],
@@ -133,6 +143,7 @@ describe('bodies', () => {
         { blockIndex: 99, label: 'x' },
       ],
       comments: [-1, 1.5],
+      deletions: [],
     });
     expect(r.losses).toEqual([]);
   });
@@ -141,7 +152,7 @@ describe('bodies', () => {
     const labels = { unreferencedNotes: 'Notes sans renvoi', footnote: (l: string) => `Note ${l}` };
     const none = splitImport({ blocks: [empty(), pb()], footnotes: [{ blockIndex: 0, label: '1', md: 'Lost?' }], comments: [{ blockIndex: 0, md: 'Hm.' }] }, undefined, { labels });
     expect(none.stats).toMatchObject({ footnotes: 0, comments: 0, unreferencedFootnotes: 1, unreferencedComments: 1 });
-    expect(none.notices).toContainEqual({ code: 'unreferenced-notes', footnotes: [{ blockIndex: 0, label: '1' }], comments: [0] });
+    expect(none.notices).toContainEqual({ code: 'unreferenced-notes', footnotes: [{ blockIndex: 0, label: '1' }], comments: [0], deletions: [] });
     expect(none.losses).toEqual([
       { code: 'footnote', message: 'Footnotes with no reference and no scene to keep them in.', count: 1 },
       { code: 'comment', message: 'Comments anchored to no text and no scene to keep them in.', count: 1 },

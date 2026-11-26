@@ -1,0 +1,20 @@
+{
+  "name": "@caotang/import-odt",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "The OpenDocument reader for the ODT import (#298): an own reader on the shared zip and XML layer — text:h outline levels, the style chain, lists and quotes, footnotes and endnotes inline, annotations as notes, tracked changes in accept/reject/keep, pictures from the package, tables as paragraphs, and a flat .fodt read without a zip. No DOM, no third-party dependency; runs on the main thread, in a 'self' Worker and in Node.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@caotang/import-core": "workspace:*",
+    "@caotang/import-read": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}
