@@ -2,31 +2,35 @@ import type { EncryptedRemoteArtifactFs, RemoteChange } from '@caotang/remote-st
 import type { ProjectState } from '@caotang/store';
 import type { PersistenceStatus } from './persistence.js';
 
-type BasedChange = RemoteChange & { readonly base: number };
+export type BasedChange = RemoteChange & { readonly base: number };
+type AcceptedChange = BasedChange & { readonly version: number };
 type Pictures = Readonly<Record<string, Uint8Array>>;
 
-export type HostedSaveState =
+export type HostedSaveState = (
   | { readonly kind: 'idle' }
   | { readonly kind: 'saving' }
   | { readonly kind: 'unsaved'; readonly paths: readonly string[]; readonly persisted: boolean }
   | { readonly kind: 'conflict'; readonly paths: readonly string[]; readonly persisted: boolean }
-  | { readonly kind: 'stale' };
+  | { readonly kind: 'stale' }
+) & { readonly waiting?: { readonly paths: readonly string[]; readonly persisted: boolean } };
 
 export type HostedReplay =
-  | { readonly kind: 'accepted'; readonly changes: readonly BasedChange[] }
+  | { readonly kind: 'accepted'; readonly changes: readonly AcceptedChange[] }
   | { readonly kind: 'empty' | 'unavailable' }
   | { readonly kind: 'conflict'; readonly versions: ReadonlyMap<string, number> };
 
 export interface HostedQueuePort {
-  stage(changes: readonly BasedChange[]): void;
+  stage(changes: readonly BasedChange[], unread?: ReadonlyMap<string, number>): void;
   held(): readonly string[];
+  deferred(): readonly string[];
+  opened(): void;
   persisted(): boolean;
   send(refresh: boolean, answer?: ReadonlyMap<string, number>): Promise<HostedReplay>;
 }
 
 interface HostedBaseline {
   changes(state: ProjectState, pictures: Pictures): Promise<readonly BasedChange[]>;
-  accepted(changes: readonly BasedChange[]): void;
+  accepted(changes: readonly AcceptedChange[]): void;
 }
 
 export interface HostedSaveSession {
@@ -50,6 +54,7 @@ export class HostedTarget {
   #asked: ReadonlyMap<string, number> = new Map();
   #stageFailed = false;
   #localPaths = new Set<string>();
+  #unread = new Map<string, number>();
 
   constructor(
     readonly projectId: string,
@@ -69,7 +74,14 @@ export class HostedTarget {
 
   async rememberOpened(state: ProjectState, pictures: Pictures): Promise<void> {
     this.#baseline = await this.baseline(state, pictures);
+    this.queue.opened();
     if (this.queue.held().length > 0) this.#unsaved();
+  }
+
+  canReread(): boolean {
+    return !this.#stageFailed &&
+      (this.#state.kind === 'stale' || this.#state.waiting !== undefined) &&
+      (this.queue.persisted() || (this.queue.held().length === 0 && this.queue.deferred().length === 0));
   }
 
   attach(session: HostedSaveSession): () => void {
@@ -106,7 +118,7 @@ export class HostedTarget {
       let changes: readonly BasedChange[];
       try {
         changes = await this.#baseline.changes(state, (await this.#assets?.()) ?? {});
-        this.queue.stage(changes);
+        this.queue.stage(changes, this.#unread);
         for (const { path } of changes) this.#localPaths.add(path);
         this.#stageFailed = false;
       } catch {
@@ -116,10 +128,14 @@ export class HostedTarget {
         return;
       }
       if (previous.kind === 'conflict') {
-        this.#conflict(this.#asked);
+        const remaining = new Map([...this.#asked].filter(([path]) => this.queue.held().includes(path)));
+        if (remaining.size > 0) this.#conflict(remaining);
+        else this.#unsaved();
       } else if (this.queue.held().length > 0) {
         if (previous.kind === 'idle') await this.#send(false);
         else this.#unsaved();
+      } else if (this.queue.deferred().length > 0) {
+        this.#set({ kind: 'stale' });
       } else if (previous.kind === 'unsaved') {
         this.#set({ kind: 'idle' });
       }
@@ -146,7 +162,11 @@ export class HostedTarget {
     const result = await this.queue.send(refresh, answer);
     if (result.kind === 'accepted') {
       this.#asked = new Map();
-      const local = result.changes.filter(({ path }) => this.#localPaths.delete(path));
+      const local = result.changes.filter(({ path, version }) => {
+        if (this.#localPaths.delete(path)) return true;
+        this.#unread.set(path, version);
+        return false;
+      });
       if (local.length > 0) this.#baseline?.accepted(local);
       this.#set({ kind: refresh ? 'stale' : 'idle' });
     } else if (result.kind === 'conflict') {
@@ -164,7 +184,12 @@ export class HostedTarget {
   }
 
   #unsaved(): void {
-    this.#set({ kind: 'unsaved', paths: this.queue.held(), persisted: !this.#stageFailed && this.queue.persisted() });
+    const paths = this.queue.held();
+    if (paths.length === 0 && !this.#stageFailed) {
+      this.#set({ kind: this.queue.deferred().length > 0 ? 'stale' : 'idle' });
+    } else {
+      this.#set({ kind: 'unsaved', paths, persisted: !this.#stageFailed && this.queue.persisted() });
+    }
   }
 
   async #inTurn<T>(work: () => Promise<T>): Promise<T> {
@@ -174,7 +199,10 @@ export class HostedTarget {
   }
 
   #set(next: HostedSaveState): void {
-    this.#state = next;
+    const paths = this.queue.deferred();
+    this.#state = paths.length === 0 ? next : {
+      ...next, waiting: { paths, persisted: !this.#stageFailed && this.queue.persisted() },
+    };
     for (const listener of this.#listeners) listener();
   }
 }

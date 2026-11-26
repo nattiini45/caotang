@@ -17,16 +17,37 @@ import {
   type RuntimeStore,
 } from '@caotang/store';
 import type { Opened } from './lifecycle.js';
-import { hostedTargetFor, installHostedTarget } from './hosted-target-registry.js';
+import { forgetHostedTarget, hostedTargetFor, installHostedTarget } from './hosted-target-registry.js';
 import type { HostedTarget } from './hosted-target.js';
 import type { HostedProjectSource } from './studio-host.js';
 
-export async function settleHostedReread(session: Opened['session']): Promise<HostedTarget | null> {
-  const target = hostedTargetFor(session.projectId);
-  if (!target) return null;
-  await session.saved();
-  await target.settled();
-  return target.state().kind === 'stale' ? target : null;
+export async function openCurrentHostedProject(
+  store: RuntimeStore,
+  source: HostedProjectSource,
+  current: () => boolean,
+  clear: () => void,
+  show: (opened: Opened) => void,
+  reread?: Opened['session'],
+): Promise<void> {
+  if (!current()) return;
+  if (reread) {
+    const target = hostedTargetFor(reread.projectId);
+    if (!target) return;
+    await reread.saved();
+    await target.settled();
+    if (!current() || !target.canReread()) return;
+    target.detach();
+    clear();
+    await reread.closeSafely().catch(() => undefined);
+    if (!current()) return;
+  }
+  const opened = await openHostedProject(store, source);
+  if (current()) {
+    show(opened);
+    return;
+  }
+  await opened.session.closeSafely().catch(() => undefined);
+  forgetHostedTarget(opened.session.projectId);
 }
 
 /**

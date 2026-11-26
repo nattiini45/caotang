@@ -34,6 +34,8 @@ function target(answers: HostedReplay[] = [accepted], held: readonly string[] = 
   const paths = new Set(held);
   const queue: HostedQueuePort = {
     held: () => [...paths],
+    deferred: () => [],
+    opened: () => undefined,
     persisted: () => durable,
     stage: (changes) => { for (const change of changes) paths.add(change.path); },
     send: async (refresh) => {

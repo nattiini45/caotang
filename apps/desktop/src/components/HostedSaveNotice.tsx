@@ -6,7 +6,7 @@
  * The writer can keep this device's text or leave the account version unchanged.
  */
 
-/* lingui-set comment="Interpolated values: files is the documents that changed on the other device, named and joined into one clause." */
+/* lingui-set comment="Interpolated values: files and waitingFiles are lists of document titles or file names." */
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Trans } from '@lingui/react/macro';
 import { t } from '@lingui/core/macro';
@@ -55,23 +55,32 @@ export function HostedSaveNotice({
   const pending = state.kind === 'stale' || state.persisted
     ? t`Saved here, not to your account.`
     : t`Closing this tab loses these changes.`;
+  const waitingFiles = state.waiting?.paths.map((path) => isolate(nameOf(path, session))).join(', ');
+  const waiting = state.waiting === undefined ? null : (
+    <p className="status-line" role="status">
+      <span><Trans>Read before sending these files: {waitingFiles}</Trans></span>
+      {state.waiting.persisted
+        ? <button type="button" className="button" onClick={() => onReopenAccount?.()}><Trans>Read them</Trans></button>
+        : <span><Trans>Closing this tab loses these changes.</Trans></span>}
+    </p>
+  );
 
   if (state.kind === 'unsaved') {
     // Nothing here is sent on its own: the account gets these words when the writer says so. What the writer can act on is whether a copy
     // survived a reload — a full or blocked store leaves them in this tab, and saying "on this device" would be the sentence that costs
     // them the work.
-    return <p className="status-line" role="status">
+    return <><p className="status-line" role="status">
       <span>{pending}</span>
       <button type="button" className="button" onClick={() => {
         void target.sendQueued();
       }}>
         <Trans>Send them to your account</Trans>
       </button>
-    </p>;
+    </p>{waiting}</>;
   }
 
   if (state.kind === 'stale') {
-    return <p className="status-line" role="status">
+    return waiting ?? <p className="status-line" role="status">
       <span><Trans>Your account has the changes.</Trans></span>
       <button type="button" className="button" onClick={() => onReopenAccount?.()}>
         <Trans>Read them</Trans>
@@ -81,16 +90,16 @@ export function HostedSaveNotice({
 
   const key = state.paths.join('|');
   if (putOff === key) {
-    return <p className="status-line" role="status">
+    return <><p className="status-line" role="status">
       <span>{pending}</span>
       <button type="button" className="button is-quiet" onClick={() => setPutOff('')}>
         <Trans>Ask me again</Trans>
       </button>
-    </p>;
+    </p>{waiting}</>;
   }
 
   const files = state.paths.map((path) => isolate(nameOf(path, session))).join(', ');
-  return <ChoiceDialog
+  return <>{waiting}<ChoiceDialog
     open
     title={t`Another device saved these first`}
     choices={[
@@ -111,5 +120,5 @@ export function HostedSaveNotice({
       <Trans>This replaces the account files.</Trans>
     </p>
     {state.persisted ? null : <p>{pending}</p>}
-  </ChoiceDialog>;
+  </ChoiceDialog></>;
 }

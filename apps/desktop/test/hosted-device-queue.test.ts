@@ -110,6 +110,98 @@ it('reopening with pending work retains it while staging a new edit against the 
   expect(await bodies()).toEqual(['Pending from the earlier tab', 'Updated after reopening']);
 });
 
+it('retains a path’s exact approved version when another path moves, including across reopen', async () => {
+  const { server, open, session, bodies } = await devices();
+  const one = await session(await open(), 'one');
+  const two = await session(await open(), 'two');
+  server.goOffline();
+  await one.edit(A, 'Offline A');
+  await one.edit(B, 'Offline B');
+  server.goOnline();
+  await two.edit(A, 'Account A');
+  expect(await one.send()).toMatchObject({ kind: 'conflict', paths: [path(A)] });
+  await two.edit(B, 'Account B');
+  expect(await one.target.keepMine()).toMatchObject({ kind: 'conflict', paths: [path(B)] });
+  expect(await bodies()).toEqual(['Account A', 'Account B']);
+  const reopened = await session(await open(), 'one');
+  expect(await reopened.send()).toMatchObject({ kind: 'conflict', paths: [path(B)] });
+  await two.edit(A, 'Account A moved again');
+  expect(await reopened.target.keepMine()).toMatchObject({ kind: 'conflict', paths: [path(A)] });
+  expect(await bodies()).toEqual(['Account A moved again', 'Account B']);
+  expect(await reopened.target.keepMine()).toMatchObject({ kind: 'stale' });
+  expect(await bodies()).toEqual(['Offline A', 'Offline B']);
+});
+
+it('holds newer edits to a file sent from an earlier open until read, while sending unrelated edits', async () => {
+  const { server, open, session, bodies } = await devices();
+  const one = await session(await open(), 'one');
+  server.goOffline();
+  await one.edit(A, 'From the earlier tab');
+  server.goOnline();
+  const reopened = await session(await open(), 'one');
+  expect(await reopened.send()).toMatchObject({ kind: 'stale' });
+  expect(reopened.state.documents.get(A)?.body).toBe('Original');
+
+  await reopened.edit(A, 'Written before reading');
+  expect(await reopened.send()).toMatchObject({ kind: 'stale' });
+  expect(reopened.target.canReread()).toBe(true);
+  await reopened.edit(B, 'Unrelated edit');
+  expect(await reopened.send()).toMatchObject({ kind: 'stale' });
+  expect(await bodies()).toEqual(['From the earlier tab', 'Unrelated edit']);
+
+  const read = await session(await open(), 'one');
+  expect(read.state.documents.get(A)?.body).toBe('From the earlier tab');
+  expect(read.target.state()).toEqual({ kind: 'unsaved', paths: [path(A)], persisted: true });
+  expect(await bodies()).toEqual(['From the earlier tab', 'Unrelated edit']);
+  expect(await read.send()).toMatchObject({ kind: 'stale' });
+  expect(await bodies()).toEqual(['Written before reading', 'Unrelated edit']);
+});
+
+it('holds a manifest change with the unread file it changes', async () => {
+  const { server, open, session, bodies } = await devices();
+  const one = await session(await open(), 'one');
+  server.goOffline();
+  await one.edit(A, 'From the earlier tab');
+  server.goOnline();
+  const reopened = await session(await open(), 'one');
+  await reopened.send();
+
+  reopened.state.manifest.tree.find((node) => node.id === A)!.title = 'A revised title';
+  await reopened.edit(A, 'New text and a new title');
+  expect(reopened.target.state()).toMatchObject({
+    kind: 'stale', waiting: { paths: expect.arrayContaining([path(A), 'caotang.json']) },
+  });
+  await reopened.edit(B, 'Unrelated edit');
+  await reopened.send();
+  const account = await open();
+  expect((await readProject(account)).state.manifest.tree.find((node) => node.id === A)?.title).toBe(A);
+  expect(await bodies()).toEqual(['From the earlier tab', 'Unrelated edit']);
+
+  const read = await session(await open(), 'one');
+  await read.send();
+  await account.refresh();
+  expect((await readProject(account)).state.manifest.tree.find((node) => node.id === A)?.title).toBe('A revised title');
+  expect(await bodies()).toEqual(['New text and a new title', 'Unrelated edit']);
+});
+
+it('does not treat reading a newer account version as permission to overwrite it', async () => {
+  const { server, open, session, bodies } = await devices();
+  const one = await session(await open(), 'one');
+  server.goOffline();
+  await one.edit(A, 'From the earlier tab');
+  server.goOnline();
+  const reopened = await session(await open(), 'one');
+  await reopened.send();
+  await reopened.edit(A, 'Written before reading');
+  const two = await session(await open(), 'two');
+  await two.edit(A, 'Written by device two');
+
+  const read = await session(await open(), 'one');
+  expect(read.state.documents.get(A)?.body).toBe('Written by device two');
+  expect(await read.send()).toMatchObject({ kind: 'conflict', paths: [path(A)] });
+  expect(await bodies()).toEqual(['Written by device two', 'Original']);
+});
+
 it('settles an accepted batch by its receipt after a lost reply and another device edit', async () => {
   const { server, open, session, bodies } = await devices();
   const store = server.client();

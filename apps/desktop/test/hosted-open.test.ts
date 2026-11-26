@@ -63,6 +63,8 @@ function queue(startingWith: readonly string[] = []): HostedQueuePort & { calls:
       return { kind: 'accepted', changes: [] };
     },
     held: () => [...held],
+    deferred: () => [],
+    opened: () => undefined,
     persisted: () => true,
   };
 }

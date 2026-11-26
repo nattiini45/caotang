@@ -1031,6 +1031,7 @@ export function Workspace({
   };
 
   const review = session.coherenceReview.snapshot();
+  const hosted = hostedTargetFor(session.projectId) !== null;
   const regions: ShellRegions = {
     documentKind: mediaView !== null && mediaNode !== undefined ? mediaKindOf(mediaNode) : activeDoc === null ? null : 'scene',
     create: { target: newTargetNode?.title ?? null, make: makeNew },
@@ -1254,7 +1255,7 @@ export function Workspace({
         {...(browserFolderPicker ? { onSaveToFolder: saveToFolder } : {})}
       />
     ),
-    status: message === null && !folderSaving && review.kind !== 'running' && folderWatch.changed === null && hostedTargetFor(session.projectId) === null ? null : (
+    status: message === null && !folderSaving && review.kind !== 'running' && folderWatch.changed === null && !hosted ? null : (
       <>
         {review.kind === 'running' ? (
           <div className="status-line" role="status" data-testid="review-status" data-state="running">
@@ -1271,7 +1272,7 @@ export function Workspace({
         ) : null}
         {/* The account's copy of a hosted project: a save it did not take, or the question another device's save asks. Rendered only
             when a host has made this project a hosted one, so an ordinary project never fetches the notice. */}
-        {hostedTargetFor(session.projectId) !== null && <LazyBoundary label={t`the account copy`}>
+        {hosted && <LazyBoundary label={t`the account copy`}>
           <HostedSaveNotice session={session} onReopenAccount={onReopenAccount} />
         </LazyBoundary>}
         {message !== null || folderSaving ? (

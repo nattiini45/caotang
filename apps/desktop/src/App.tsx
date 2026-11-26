@@ -100,31 +100,23 @@ export function App(): ReactNode {
     });
   };
 
+  const clearProject = (): void => {
+    current.current = null;
+    setNotice(null);
+    setSaveToFolder(null);
+    setSession(null);
+    setStartIntent(null);
+  };
+
   const showHosted = (runtime: RuntimeStore, source: HostedProjectSource, reread?: ProjectSession): void => {
     const token = ++serial.current;
     void openInTurn(async () => {
       if (token !== serial.current) return;
-      const { openHostedProject, settleHostedReread } = await import('./app/hosted-open.js');
-      if (token !== serial.current) return;
-      if (reread) {
-        const target = await settleHostedReread(reread);
-        if (!target || token !== serial.current) return;
-        target.detach();
-        current.current = null;
-        setNotice(null);
-        setSession(null);
-        setStartIntent(null);
-        await reread.closeSafely().catch(() => undefined);
-        if (token !== serial.current) return;
-      }
-      const opened = await openHostedProject(runtime, source);
-      if (token !== serial.current) {
-        await opened.session.closeSafely().catch(() => undefined);
-        forgetHostedTarget(opened.session.projectId);
-        return;
-      }
-      hostedOpen.current = opened.session.projectId;
-      show(opened);
+      const { openCurrentHostedProject } = await import('./app/hosted-open.js');
+      await openCurrentHostedProject(runtime, source, () => token === serial.current, clearProject, (opened) => {
+        hostedOpen.current = opened.session.projectId;
+        show(opened);
+      }, reread);
     }).catch((error: unknown) => {
       if (token === serial.current) setNotice(couldNotOpen(error));
     });
@@ -135,11 +127,7 @@ export function App(): ReactNode {
     // Leaving the workspace also retires an opening still in flight, so a folder reopened a moment later does not put a session back
     // in front of a writer who has gone to the projects list.
     serial.current += 1;
-    current.current = null;
-    setNotice(null);
-    setSaveToFolder(null);
-    setSession(null);
-    setStartIntent(null);
+    clearProject();
     // The workspace goes at once, so nothing is typed into a session that is closing. The projects list does not take the lease this
     // close still holds for another tab's (lifecycle `openElsewhere`).
     if (previous !== null) closeSession(previous);
@@ -160,11 +148,7 @@ export function App(): ReactNode {
     // has just put in front of the writer.
     void openInTurn(async () => {
       const previous = current.current;
-      current.current = null;
-      setNotice(null);
-      setSaveToFolder(null);
-      setSession(null);
-      setStartIntent(null);
+      clearProject();
       if (previous !== null) await previous.closeSafely().catch(() => undefined);
       const outcome = await openFolder(store, folder);
       if (token !== serial.current) return;

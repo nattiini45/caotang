@@ -4,20 +4,26 @@ import { HostedTarget, type HostedQueuePort, type HostedReplay, type HostedSaveS
 
 const state = createProjectState(createEmptyManifest('The Lighthouse', new Date(0)));
 const path = 'docs/a.md';
-const change = { path, bytes: new Uint8Array([1]), base: 1 };
+const change = { path, bytes: new Uint8Array([1]), base: 1, version: 2 };
 const conflict: HostedReplay = { kind: 'conflict', versions: new Map([[path, 2]]) };
 
 async function target(pending: readonly string[] = [], durable = true) {
   const held = new Set(pending);
-  const send = vi.fn<HostedQueuePort['send']>(async () => {
-    held.clear();
-    return { kind: 'accepted', changes: [change] };
-  });
+  const deferred = new Set<string>();
+  const send = vi.fn<HostedQueuePort['send']>(async () => ({ kind: 'accepted', changes: [change] }));
   const queue: HostedQueuePort = {
     held: () => [...held],
+    deferred: () => [...deferred],
+    opened: () => undefined,
     persisted: () => durable,
-    stage: (changes) => { for (const one of changes) held.add(one.path); },
-    send,
+    stage: (changes, unread) => {
+      for (const one of changes) (unread?.has(one.path) ? deferred : held).add(one.path);
+    },
+    send: async (...args) => {
+      const result = await send(...args);
+      if (result.kind === 'accepted') held.clear();
+      return result;
+    },
   };
   const accepted = vi.fn();
   const changes = vi.fn(async () => [change]);
@@ -99,5 +105,5 @@ it('a new save during a send is staged after the accepted batch, without replayi
   await Promise.all([sending, writing]);
   expect(send).toHaveBeenCalledTimes(1);
   expect(accepted).not.toHaveBeenCalled();
-  expect(saving.state()).toEqual({ kind: 'unsaved', paths: [path], persisted: true });
+  expect(saving.state()).toEqual({ kind: 'stale', waiting: { paths: [path], persisted: true } });
 });

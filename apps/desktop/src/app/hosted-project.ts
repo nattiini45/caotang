@@ -1,6 +1,6 @@
 import { bodyFile, bodyNamesOf, isBodyType, MemoryArtifactFs, MANIFEST_FILE, serializeManifest, writeProject, type ArtifactFs, type ProjectState } from '@caotang/store';
 import type { EncryptedRemoteArtifactFs, PendingEdits, RemoteChange } from '@caotang/remote-store';
-import { HostedTarget, type HostedQueuePort } from './hosted-target.js';
+import { HostedTarget, type BasedChange, type HostedQueuePort } from './hosted-target.js';
 import { copyState } from './persistence-plan.js';
 import { loadHostedMarks, loadHostedQueue, saveHostedMarks, saveHostedQueue } from './hosted-queue.js';
 import { storageScope } from './storage-scope.js';
@@ -15,24 +15,26 @@ export async function openRemoteProject(source: HostedProjectSource, scope = sto
   return await EncryptedRemoteArtifactFs.open({ store: blob, projectId: source.projectId, projectKey: source.key, highWater });
 }
 
-type BasedChange = RemoteChange & { readonly base: number };
-
 export async function deviceQueue(source: HostedProjectSource, fs: EncryptedRemoteArtifactFs, scope = storageScope()): Promise<HostedQueuePort> {
   const { PendingEdits, RemoteConflictError } = await import('@caotang/remote-store');
   const edits: PendingEdits = new PendingEdits();
   const bases = new Map<string, number>();
+  const deferred = new Set<string>();
   let id: string | null = null;
   let persisted = true;
+  const ready = () => edits.paths.filter((path) => !deferred.has(path));
+  const identify = () => { id = ready().length > 0 ? crypto.randomUUID().replaceAll('-', '') : null; };
   const marks = () => saveHostedMarks(source.projectId, fs.highWater.entries(), scope);
   const keep = () => {
-    persisted = saveHostedQueue(source.projectId, id === null ? null : JSON.stringify({
-      format: 2, id, edits: edits.serialize(), bases: [...bases],
+    persisted = saveHostedQueue(source.projectId, edits.isEmpty ? null : JSON.stringify({
+      format: 2, id, edits: edits.serialize(), bases: [...bases], deferred: [...deferred],
     }), scope);
   };
   const retire = (accepted: string) => {
     if (id !== accepted) return;
-    edits.clear();
-    bases.clear();
+    const sent = ready();
+    edits.clear(sent);
+    for (const path of sent) bases.delete(path);
     id = null;
     keep();
   };
@@ -40,13 +42,21 @@ export async function deviceQueue(source: HostedProjectSource, fs: EncryptedRemo
   if (stored !== null) {
     try {
       const raw = JSON.parse(stored);
-      if (raw?.format !== 2 || typeof raw.id !== 'string' || !/^[0-9a-f]{32}$/.test(raw.id) || typeof raw.edits !== 'string' || !Array.isArray(raw.bases)) throw new Error();
+      if (raw?.format !== 2 || typeof raw.edits !== 'string' || !Array.isArray(raw.bases)) throw new Error();
       const pending = PendingEdits.parse(raw.edits);
       for (const row of raw.bases) {
         if (!Array.isArray(row) || row.length !== 2 || typeof row[0] !== 'string' || !Number.isSafeInteger(row[1]) || row[1] < 0 || bases.has(row[0])) throw new Error();
         bases.set(row[0], row[1]);
       }
       if (pending.isEmpty || bases.size !== pending.size || pending.paths.some((path) => !bases.has(path))) throw new Error();
+      if (raw.deferred !== undefined) {
+        if (!Array.isArray(raw.deferred)) throw new Error();
+        for (const path of raw.deferred) {
+          if (typeof path !== 'string' || !bases.has(path) || deferred.has(path)) throw new Error();
+          deferred.add(path);
+        }
+      }
+      if (pending.size === deferred.size ? raw.id !== null : typeof raw.id !== 'string' || !/^[0-9a-f]{32}$/.test(raw.id)) throw new Error();
       id = raw.id;
       edits.stageAll(pending.changes());
     } catch {
@@ -55,35 +65,59 @@ export async function deviceQueue(source: HostedProjectSource, fs: EncryptedRemo
     if (id !== null && fs.hasAcceptedBatch(id)) retire(id);
   }
   return {
-    held: () => edits.paths,
+    held: ready,
+    deferred: () => [...deferred],
+    opened: () => {
+      if (deferred.size === 0) return;
+      deferred.clear();
+      identify();
+      keep();
+    },
     persisted: () => persisted,
-    stage: (changes: readonly BasedChange[]) => {
+    stage: (changes, unread = new Map<string, number>()) => {
       if (changes.length === 0) return;
-      for (const change of changes) if (!bases.has(change.path)) bases.set(change.path, change.base);
+      const wait = new Set(changes.filter(({ path }) => unread.has(path) || deferred.has(path)).map(({ path }) => path));
+      if (wait.size > 0 && changes.some(({ path }) => path === MANIFEST_FILE)) {
+        for (const { path } of changes) wait.add(path);
+      }
+      const queued = ready();
+      if (queued.includes(MANIFEST_FILE) && queued.some((path) => wait.has(path))) {
+        for (const path of queued) wait.add(path);
+      }
+      const changedReady = changes.some(({ path }) => !wait.has(path)) || queued.some((path) => wait.has(path));
+      for (const { path, base } of changes) if (!bases.has(path)) bases.set(path, unread.get(path) ?? base);
+      for (const path of wait) deferred.add(path);
       edits.stageAll(changes);
-      id = crypto.randomUUID().replaceAll('-', '');
+      if (changedReady) identify();
       keep();
     },
     send: async (refresh, answer) => {
       if (id === null) return { kind: 'empty' };
       try {
+        if (!fs.hasAcceptedBatch(id) && answer !== undefined) {
+          let changed = false;
+          for (const [path, version] of answer) {
+            if (!bases.has(path) || deferred.has(path) || bases.get(path) === version) continue;
+            bases.set(path, version);
+            changed = true;
+          }
+          if (changed) {
+            id = crypto.randomUUID().replaceAll('-', '');
+            keep();
+          }
+        }
         if (refresh) await fs.refresh();
         marks();
-        if (!fs.hasAcceptedBatch(id) && answer !== undefined) {
-          const moved = edits.paths.filter((path) => {
-            const version = fs.versionOf(path);
-            return version !== bases.get(path) && version !== answer.get(path);
-          });
-          if (moved.length > 0) return { kind: 'conflict', versions: new Map(moved.map((path) => [path, fs.versionOf(path)])) };
-          for (const [path, version] of answer) if (bases.has(path)) bases.set(path, version);
-          id = crypto.randomUUID().replaceAll('-', '');
-          keep();
-        }
-        const sent = { id, changes: edits.changes().map((change) => ({ ...change, base: bases.get(change.path)! })) };
+        const sent = { id, changes: edits.changes().filter(({ path }) => !deferred.has(path)).map((change) => ({ ...change, base: bases.get(change.path)! })) };
         await fs.commitEditBatch(sent.id, sent.changes);
+        const changes = await Promise.all(sent.changes.map(async (change) => {
+          const { path, base, bytes } = change;
+          const advanced = bytes !== null || (fs.versionOf(path) === base + 1 && !await fs.exists(path));
+          return { ...change, version: advanced ? base + 1 : base };
+        }));
         retire(sent.id);
         marks();
-        return { kind: 'accepted', changes: sent.changes };
+        return { kind: 'accepted', changes };
       } catch (error) {
         return error instanceof RemoteConflictError && error.versions !== undefined
           ? { kind: 'conflict', versions: error.versions }
@@ -154,8 +188,8 @@ export async function hostedBaseline(
       previous = current;
       return changes;
     },
-    accepted(changes: readonly BasedChange[]): void {
-      for (const { path, bytes, base } of changes) versions.set(path, bytes === null && base === 0 ? 0 : base + 1);
+    accepted(changes: readonly (RemoteChange & { readonly version: number })[]): void {
+      for (const { path, version } of changes) versions.set(path, Math.max(versions.get(path) ?? 0, version));
     },
   };
 }

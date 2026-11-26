@@ -197,6 +197,8 @@ If storage is blocked, full, or the queue exceeds the cap, keep the new batch in
 
 One turn at a time stages or sends. A save with no pending work may try its new batch immediately. Once a batch is held, no later save or open sends it without a writer's action.
 
+An accepted write is not the same as a file the editor has read. If a replay sends a file from an earlier open, that file's later edits wait separately until the writer reads the account copy. Unrelated paths can still be sent, but a save that ties a waiting path to a manifest change waits together. Reopening reads the account without sending either set. It releases the waiting edits for an explicit send, not an automatic overwrite: a later account version still needs approval. If either set exists only in memory, the read cannot replace the open session.
+
 | State | Event | Next | What happens |
 |---|---|---|---|
 | `idle` | a browser save changed files | `saving` | build the local delta, record the batch, then try it once |
@@ -206,9 +208,10 @@ One turn at a time stages or sends. A save with no pending work may try its new 
 | `saving` | the account moved a touched path | `conflict` | retain the batch and show exactly the paths that moved |
 | `unsaved` or `conflict` | the browser saves again | same | include new local changes without sending or borrowing a new base from the account |
 | `unsaved` | the writer sends | `saving` | refresh the index, then try the held batch |
-| `conflict` | the writer keeps this device's text | `saving` | rebase only the paths and versions they were shown; any further movement asks again |
+| `conflict` | the writer keeps this device's text | `saving` | persist approval for only the paths and versions they were shown, even if another path now conflicts; any further movement asks again |
 | `conflict` | the writer leaves it | `conflict` | neither write nor discard anything |
-| `stale` | the writer reads the account again | `idle` | reopen explicitly; any newer local save is staged rather than discarded |
+| `stale` | the browser saves before reading a replayed file | `stale` or `unsaved` | retain newer edits to that file separately; offer to send any unrelated paths |
+| `stale` or `unsaved` | the writer reads the account again | `idle` or `unsaved` | reopen explicitly; any newer local edits remain queued and are never sent by the read |
 
 Two-device tests cover disjoint edits, the same-file conflict, and reopening with pending edits before another local save. Replays also test a lost commit reply and a failed refresh without losing the batch or upgrading its durability.
 
