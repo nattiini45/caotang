@@ -1723,6 +1723,11 @@ msgstr "{file} has no passage to import. A Twee story makes one knot for each pa
 msgid "{file} holds no timed cue, so there is nothing to import. A captions file needs lines like \"00:00:01,000 --> 00:00:04,000\"."
 msgstr "{file} holds no timed cue, so there is nothing to import. A captions file needs lines like \"00:00:01,000 --> 00:00:04,000\"."
 
+#. The Word import. Interpolated values: file (the file's name), count (pictures, changes, notes), size (megabytes)
+#: apps/desktop/src/import-preview/docx-source.ts
+msgid "{file} is too large to import as a Word file ({limit} MB max)."
+msgstr "{file} is too large to import as a Word file ({limit} MB max)."
+
 #. The AO3 import. Interpolated values: file (the file's name), count (pictures, tags, characters), size (megabytes), name (a tag), limit (the keyword limit)
 #: apps/desktop/src/import-preview/ao3-source.ts
 msgid "{file} is too large to import as an AO3 download ({limit} MB max)."
