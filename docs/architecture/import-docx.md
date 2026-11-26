@@ -74,6 +74,8 @@ boxes are listed as a loss with their text kept as a paragraph.
 
 ## 6. Safety and limits
 
+The binder refuses a `.docx` or batch zip above the shared archive size cap before reading the file.
+
 The zip is opened with the shared caps and zip-bomb guard; the XML reader skips DOCTYPEs and never expands entities. The parse runs
 in the preview's `'self'` Worker with a timeout and Cancel. Every imported text goes through `scanImport`. Nothing is written before
 **Import**, which commits one `binder.importTree` that one Undo takes back, pictures included.

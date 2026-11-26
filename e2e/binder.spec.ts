@@ -502,8 +502,14 @@ test('with nothing selected after a load, Tab reaches the tree and the arrow key
   await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
 
   // Tab from the top of the page until a binder row has focus. With no row in the tab order, Tab walks
-  // straight past the tree and this loop runs out.
-  for (let press = 0; press < 40; press += 1) {
+  // straight past the tree and this loop runs out. The bound is counted from the page's own
+  // tabbable controls, so another header or import button never outgrows it.
+  const tabStops = await page.evaluate(
+    () =>
+      [...document.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]')]
+        .filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0).length,
+  );
+  for (let press = 0; press < tabStops + 10; press += 1) {
     if ((await page.evaluate(() => document.activeElement?.getAttribute('role') ?? null)) === 'treeitem') break;
     await page.keyboard.press('Tab');
   }

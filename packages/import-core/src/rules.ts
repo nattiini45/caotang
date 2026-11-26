@@ -122,6 +122,8 @@ export interface SplitLabels {
   unreferencedNotes: string;
   /** A kept footnote in that tail, by its label. */
   footnote: (label: string) => string;
+  /** Deleted text listed in the notes of the scene that holds it, by the kept text. */
+  deletion: (text: string) => string;
 }
 
 export const DEFAULT_LABELS: Readonly<SplitLabels> = Object.freeze({
@@ -131,4 +133,5 @@ export const DEFAULT_LABELS: Readonly<SplitLabels> = Object.freeze({
   scene: (chapterTitle: string, n: number) => `${chapterTitle} · ${n}`,
   unreferencedNotes: 'Unreferenced notes',
   footnote: (label: string) => `Footnote ${label}`,
+  deletion: (text: string) => `**Deleted:** ${text}`,
 });

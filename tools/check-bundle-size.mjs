@@ -199,12 +199,22 @@ export const BUDGET = {
   // measured, +1,796 over the ceiling that tree sat under. Named: the compiled English catalogue's Kanka messages, which must
   // precede first paint (i18n.md §3.3); the reader, the preview source and the Worker stay on use. The ceiling is the
   // measurement rounded up to the thousand. [delegated 2026-11-23]
-  // The desktop app's own provider transport (#405), built and measured on CI: 1,120.7 kB gzip, 0.7 kB over the ceiling this tree
+  // The Word import (#279): 1,120,296 bytes gzip measured on the merge of main 7e303a1d. Named: the compiled English
+  // catalogue's Kanka and Word messages, which must precede first paint (i18n.md §3.3); the readers, the preview sources
+  // and the Worker stay on use. [delegated 2026-11-23]
+  // The OpenDocument import (#298) on the merge of #279's branch: 1,119,286 bytes gzip measured; 1,120,700 on
+  // the merge of main 627aafbd, which carries the Kanka review answers. Named: the compiled English catalogue's
+  // ODT button and error copy beside the Word import's. The ceiling is the measurement rounded up to the
+  // thousand. [delegated 2026-11-23]
+  // 1,121,100 at the second review round — the size-refusal copy on the first-load dialog. [delegated 2026-11-23]
+  // The desktop app's own provider transport (#405), built and measured on CI: 1,120.7 kB gzip, 1.1 kB over the ceiling this tree
+  // The desktop app's own provider transport (#405), built and measured on CI: 1,120.7 kB gzip, 1.1 kB over the ceiling this tree
   // sat under. Named: the transport's rules and the wording of each refusal, the allowlist it reads before every call, and the two
   // Settings and ProviderSetup lines that decide whether a preset a browser cannot read is worth a badge in this app. No chunk was
   // available to move any of it: `openAppServices` reads the transport and the key store while the app boots, before the first
   // paint, so a dynamic import would only trade these bytes for a chunk that must load before the first request. The ceiling is the
   // measurement rounded up to the thousand. [delegated 2026-11-23]
+  // 1,122,300 on the merge of main aa653891 (#405's transport, #842's hosted list, #848's index swap). [delegated 2026-11-23]
   // The Word import (#279) on the merge of main 7e303a1d, which carries the AO3 import and the model picker: 1,120,296
   // bytes gzip measured. Named: the compiled English catalogue's Kanka and Word messages, which must precede first paint
   // (i18n.md §3.3); the readers, the preview sources and the Worker stay on use. The ceiling is the measurement
@@ -216,6 +226,10 @@ export const BUDGET = {
   // the write-verify-delete migration the app runs as it opens, and the Settings sentence that says which store holds the keys. All
   // of it is read by `openAppServices` before the first paint, so there was no chunk to move it to; the pages that only a form needs
   // were already on use. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  // 1,123,700 on the merge of main deb99b57 (#404's keychain, #844's host key, #853's Windows schedule). [delegated 2026-11-23]
+  // 1,124,900 on the merge of main 4e21e4f7 (#850's open-project MCP server, #854's native port hardening). [delegated 2026-11-24]
+  // 1,126,700 on the merge of main c41a695d (#871's headers-only key edit). [delegated 2026-11-24]
+  // 1,127,400 on the merge of main c7fa6727. [delegated 2026-11-24]
   // 1,123,100 on the merge of main deb99b57 (#404's keychain, #844's host key, #853's Windows schedule). [delegated 2026-11-23]
   // 1,124,200 on the merge of main 4e21e4f7 (#850's open-project MCP server, #854's native port hardening). [delegated 2026-11-24]
   // 1,126,100 on the merge of main c41a695d (#871's headers-only key edit). [delegated 2026-11-24]
@@ -363,6 +377,19 @@ export const BUDGET = {
   // The Kanka import (#293) on the merge of main 7e303a1d: 9,018,273 bytes measured, +23,904 over that tree's ceiling.
   // Named: the @caotang/import-kanka reader and its preview source, all on-use chunks, and the German Kanka strings in the
   // de catalogue. Measured again at 9,019,400 bytes at the review-answers head. [delegated 2026-11-23]
+  // The Word import (#279): 9,045,172 bytes measured on the merge of main 7e303a1d; 9,046,800 on the merge of the
+  // Kanka review answers. Named: the @caotang/import-docx reader and its preview source, all on-use chunks, and the
+  // German Word strings in the de catalogue. [delegated 2026-11-23]
+  // The OpenDocument import (#298) on the merge of #279's branch: 9,053,813 bytes measured, +18,149 over the
+  // merged #279 tree; 9,064,300 on the merge of main 627aafbd, which carries the Kanka review answers. Named:
+  // the @caotang/import-odt reader and its preview source, all on-use chunks, and the German OpenDocument
+  // strings in the de catalogue. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  // 9,065,200 measured at the review-answers head on the merge of main d51c0735 — the numbered-list styles,
+  // multi-picture paragraphs and rejected-insertion skips in the two readers. [delegated 2026-11-23]
+  // 9,071,600 at the second review round — the shared Markdown escapers, the deletions channel, the text-box
+  // reaches and the report lines, all on-use chunks. [delegated 2026-11-23]
+  // 9,072,400 at the third — the zip merge's deletions and the anchor shifts. [delegated 2026-11-23]
+  // de catalogue. Measured again at 9,019,400 bytes at the review-answers head. [delegated 2026-11-23]
   // The Word import (#279) on the merge of main 7e303a1d, which carries the merged AO3 import: 9,045,172 bytes
   // measured; 9,046,800 on the merge of the Kanka review answers. Named: the @caotang/import-docx reader and its preview
   // source, all on-use chunks, and the German Word strings in the de catalogue. The ceiling is the measurement rounded up
@@ -370,16 +397,20 @@ export const BUDGET = {
   // The desktop app's own provider transport (#405): 9,022.5 kB measured on CI, 2.5 kB over that ceiling, all of it the entry chunk
   // (every other chunk is the same size to the tenth of a kilobyte). What is named above applies: the transport, its refusals and
   // the wiring that reaches it from Settings. The ceiling is the measurement rounded up to the thousand. [delegated 2026-11-23]
+  // 9,075,500 on the merge of main aa653891. [delegated 2026-11-23]
   // 9,049,800 on the merge of main aa653891. [delegated 2026-11-23]
   // The keychain (#404): 9,027.9 kB measured on the merge of main aa653891, 4.9 kB over that tree's ceiling, again the entry
   // chunk. The vault, the channels' contract and the migration are named above. The ceiling is the measurement rounded up to the
   // thousand.
   // [delegated 2026-11-23]
+  // 9,080,900 on the merge of main deb99b57. [delegated 2026-11-23]
   // 9,055,300 on the merge of main deb99b57. [delegated 2026-11-23]
   // The native port's hardening (#854), measured on the merge of main deb99b57, which carries the keychain: 9,028.4 kB, 0.4 kB over the
   // ceiling that tree set, again the entry chunk. Named: the GET rule, the mapped-loopback predicate, the no-body head a page answers
   // without a stream, and the guard that ties a chunk to the call still holding its id. The ceiling is the measurement rounded up to
   // the thousand. [delegated 2026-11-23]
+  // 9,090,600 on the merge of main 4e21e4f7. [delegated 2026-11-24]
+  // 9,097,700 on the merge of main c41a695d. [delegated 2026-11-24]
   // 9,065,000 on the merge of main 4e21e4f7. [delegated 2026-11-24]
   // 9,072,100 on the merge of main c41a695d. [delegated 2026-11-24]
   // The loopback provider target (#867), measured on CI at 9,045.0 kB: the target list moved into native-egress.ts with the
