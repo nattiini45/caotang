@@ -11014,7 +11014,7 @@ msgstr "Fußnoten"
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Footnotes, comments and deletions with no place in the text ({count}) are kept under “Unreferenced notes” in the notes of “{title}”."
-msgstr "Fußnoten, Kommentare und Löschungen ohne Platz im Text ({count}) werden unter „Verwaiste Anmerkungen“ in den Anmerkungen von „{title}“ aufbewahrt."
+msgstr "Fußnoten, Kommentare und Löschungen ohne Platz im Text ({count}) werden unter „Nicht verknüpfte Anmerkungen“ in den Notizen von „{title}“ aufbewahrt."
 
 #: apps/desktop/src/components/InspectorDialogue.tsx
 msgid "For example en or en-GB"

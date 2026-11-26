@@ -184,13 +184,17 @@ export function ManuscriptImportActions(): ReactNode {
   const openOdt = async (file: File): Promise<void> => {
     try {
       const { odtPreviewSource, odtSizeRefusal } = await import('../import-preview/odt-source.js');
-      const maxBytes = /\.fodt$/i.test(file.name)
-        ? (await import('@caotang/import-read/xml')).XML_LIMITS.maxInput
-        : (await import('@caotang/import-read/zip')).ARCHIVE_LIMITS.maxArchiveBytes;
-      const refusal = odtSizeRefusal(file.name, file.size, maxBytes);
-      if (refusal !== undefined) {
-        report({ text: refusal, tone: 'error' });
-        return;
+      const { XML_LIMITS } = await import('@caotang/import-read/xml');
+      if (file.size > XML_LIMITS.maxInput) {
+        const [first, second] = new Uint8Array(await file.slice(0, 2).arrayBuffer());
+        const maxBytes = first === 0x50 && second === 0x4b
+          ? (await import('@caotang/import-read/zip')).ARCHIVE_LIMITS.maxArchiveBytes
+          : XML_LIMITS.maxInput;
+        const refusal = odtSizeRefusal(file.name, file.size, maxBytes);
+        if (refusal !== undefined) {
+          report({ text: refusal, tone: 'error' });
+          return;
+        }
       }
       const bytes = new Uint8Array(await file.arrayBuffer());
       openImportPreview({ source: odtPreviewSource(file.name, bytes) });

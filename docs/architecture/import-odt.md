@@ -60,7 +60,8 @@ keep mode, listed like any other deletion.
 
 ## 6. Safety and limits
 
-The binder refuses an `.odt` above the shared archive size cap or a `.fodt` above the XML reader's input cap before reading the file.
+Above the XML reader's input cap, the binder reads only the first two bytes to distinguish an archive from flat XML, as the reader
+does. It refuses a file above the applicable cap without reading the rest.
 
 The zip is opened with the shared caps and zip-bomb guard; the XML reader skips DOCTYPEs and never expands entities. The parse runs
 in the preview's `'self'` Worker with a timeout and Cancel. Every imported text goes through `scanImport`. Nothing is written before
