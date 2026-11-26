@@ -43,7 +43,7 @@ export function HostedSaveNotice({
   onReopenAccount,
 }: {
   readonly session: ProjectSession;
-  /** Reads the account again after this device's text won over another device's: only a conflict met at open needs it. */
+  /** Reads the account again after an explicit send. */
   readonly onReopenAccount?: (() => void) | undefined;
 }): ReactNode {
   const target = hostedTargetFor(session.projectId);
@@ -52,18 +52,29 @@ export function HostedSaveNotice({
   // A question the writer put off stays off for those paths: a new conflict asks anew.
   const [putOff, setPutOff] = useState('');
   if (target === null || state.kind === 'idle' || state.kind === 'saving') return null;
+  if (state.stageFailed) return <p className="status-line" role="alert">
+    <span><Trans>Your latest edits aren’t ready to send.</Trans></span>
+    {state.kind !== 'stale' && state.paths.length > 0 && !state.persisted
+      ? <span><Trans>Closing this tab loses these changes.</Trans></span>
+      : null}
+    <button type="button" className="button" onClick={() => { void target.save(session.state); }}><Trans>Try again</Trans></button>
+  </p>;
   const pending = state.kind === 'stale' || state.persisted
     ? t`Saved here, not to your account.`
     : t`Closing this tab loses these changes.`;
+  const read = <button type="button" className="button" onClick={() => onReopenAccount?.()}><Trans>Read them</Trans></button>;
   const waitingFiles = state.waiting?.paths.map((path) => isolate(nameOf(path, session))).join(', ');
   const waiting = state.waiting === undefined ? null : (
     <p className="status-line" role="status">
       <span><Trans>Read before sending these files: {waitingFiles}</Trans></span>
       {state.waiting.persisted
-        ? <button type="button" className="button" onClick={() => onReopenAccount?.()}><Trans>Read them</Trans></button>
+        ? read
         : <span><Trans>Closing this tab loses these changes.</Trans></span>}
     </p>
   );
+  const readFailed = state.readFailed ? <p className="status-line" role="alert">
+    <Trans>Save your edits before reading the account copy.</Trans>
+  </p> : null;
 
   if (state.kind === 'unsaved') {
     // Nothing here is sent on its own: the account gets these words when the writer says so. What the writer can act on is whether a copy
@@ -76,16 +87,15 @@ export function HostedSaveNotice({
       }}>
         <Trans>Send them to your account</Trans>
       </button>
-    </p>{waiting}</>;
+      {state.readOffered && waiting === null ? read : null}
+    </p>{waiting}{readFailed}</>;
   }
 
   if (state.kind === 'stale') {
-    return waiting ?? <p className="status-line" role="status">
+    return <>{waiting ?? <p className="status-line" role="status">
       <span><Trans>Your account has the changes.</Trans></span>
-      <button type="button" className="button" onClick={() => onReopenAccount?.()}>
-        <Trans>Read them</Trans>
-      </button>
-    </p>;
+      {read}
+    </p>}{readFailed}</>;
   }
 
   const key = state.paths.join('|');
@@ -95,11 +105,12 @@ export function HostedSaveNotice({
       <button type="button" className="button is-quiet" onClick={() => setPutOff('')}>
         <Trans>Ask me again</Trans>
       </button>
-    </p>{waiting}</>;
+      {state.readOffered && waiting === null ? read : null}
+    </p>{waiting}{readFailed}</>;
   }
 
   const files = state.paths.map((path) => isolate(nameOf(path, session))).join(', ');
-  return <>{waiting}<ChoiceDialog
+  return <>{waiting}{readFailed}<ChoiceDialog
     open
     title={t`Another device saved these first`}
     choices={[

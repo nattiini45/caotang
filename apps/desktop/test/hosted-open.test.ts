@@ -8,7 +8,7 @@ import { MemoryArtifactFs, MemoryIndexedDb, openRuntimeStore, writeProject, type
 
 import { setActiveAppDb } from '../src/app/app-db.js';
 import { type Opened } from '../src/app/lifecycle.js';
-import { openHostedProject } from '../src/app/hosted-open.js';
+import { openCurrentHostedProject, openHostedProject } from '../src/app/hosted-open.js';
 import { HostedTarget, type HostedQueuePort } from '../src/app/hosted-target.js';
 import { forgetHostedTarget, hostedTargetFor } from '../src/app/hosted-target-registry.js';
 import type { HostedProjectSource } from '../src/app/studio-host.js';
@@ -19,7 +19,7 @@ const BOOK = project();
 const COVER = `assets/p_2K4Q9WJ1TT.png`;
 
 const SOURCE: HostedProjectSource = {
-  projectId: 'p_fixture',
+  projectId: BOOK.manifest.project.id,
   origin: 'https://studio.example',
   device: 'tab_one',
   key: {} as never,
@@ -108,6 +108,18 @@ it('opens the account’s project under its own id, with its pictures', async ()
   expect(result.copiedFrom).toBeNull();
   expect(result.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
   expect(Object.keys(await result.session.assets.snapshot())).toContain(COVER);
+});
+
+it('reports a browser save refusal without closing the open editor', async () => {
+  const { session } = await open(BOOK, ['docs/pending.md']);
+  await lastTarget!.sendQueued();
+  vi.spyOn(session, 'saved').mockRejectedValueOnce(new Error('The project could not be saved'));
+  const clear = vi.fn();
+  const show = vi.fn();
+  await openCurrentHostedProject(store, SOURCE, () => true, clear, show, session);
+  expect(clear).not.toHaveBeenCalled();
+  expect(show).not.toHaveBeenCalled();
+  expect(lastTarget!.state()).toEqual({ kind: 'stale', readFailed: true });
 });
 
 it('opens the same project again in place, not as a second copy of itself whose id it would save into the account', async () => {

@@ -30,14 +30,20 @@ const accepted: HostedReplay = { kind: 'accepted', changes: [] };
 const conflict: HostedReplay = { kind: 'conflict', versions: new Map([[PATH, 2]]) };
 const unavailable: HostedReplay = { kind: 'unavailable' };
 
-function target(answers: HostedReplay[] = [accepted], held: readonly string[] = [], durable = true): HostedTarget {
+function target(answers: HostedReplay[] = [accepted], held: readonly string[] = [], durable = true, failStage = false): HostedTarget {
   const paths = new Set(held);
   const queue: HostedQueuePort = {
     held: () => [...paths],
     deferred: () => [],
     opened: () => undefined,
     persisted: () => durable,
-    stage: (changes) => { for (const change of changes) paths.add(change.path); },
+    stage: (changes) => {
+      if (failStage) {
+        failStage = false;
+        throw new Error('This tab could not prepare the files');
+      }
+      for (const change of changes) paths.add(change.path);
+    },
     send: async (refresh) => {
       sends.push(refresh);
       const result = answers.shift() ?? unavailable;
@@ -157,4 +163,30 @@ it('offers to read the account after an explicit send without reopening automati
   expect(reopen).not.toHaveBeenCalled();
   await act(async () => button('Read them').click());
   expect(reopen).toHaveBeenCalledOnce();
+});
+
+it('keeps the read action available when further edits were durably staged', async () => {
+  const reopen = vi.fn();
+  const one = target([accepted], [PATH]);
+  await render(one, reopen);
+  await act(async () => button('Send them to your account').click());
+  await act(async () => one.save(state));
+  expect(one.canReread()).toBe(true);
+  expect(button('Send them to your account')).toBeTruthy();
+  await act(async () => button('Read them').click());
+  expect(reopen).toHaveBeenCalledOnce();
+  expect(sends).toEqual([true]);
+});
+
+it.each([{ held: [] }, { held: [PATH] }])('offers a local retry after staging fails ($held)', async ({ held }) => {
+  const one = target([accepted], held, true, true);
+  await render(one);
+  await act(async () => one.save(state));
+  expect(one.state()).toMatchObject({ kind: 'unsaved', persisted: true, stageFailed: true });
+  expect(shown()).toContain('Your latest edits aren’t ready to send.');
+  expect(shown()).not.toContain('Send them to your account');
+  expect(shown()).not.toContain('Closing this tab loses these changes.');
+  await act(async () => button('Try again').click());
+  expect(button('Send them to your account')).toBeTruthy();
+  expect(sends).toEqual([]);
 });

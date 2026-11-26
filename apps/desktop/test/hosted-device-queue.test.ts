@@ -2,7 +2,7 @@
 
 import { beforeEach, expect, it } from 'vitest';
 import { generateProjectKey } from '../../../packages/crypto/src/index.js';
-import { EncryptedRemoteArtifactFs, RemoteUnavailableError, saveProjectToAccount } from '@caotang/remote-store';
+import { EncryptedRemoteArtifactFs, PendingEdits, RemoteUnavailableError, saveProjectToAccount } from '@caotang/remote-store';
 import { addDocument, countBody, createEmptyManifest, createProjectState, readProject } from '@caotang/store';
 import { FakeBlobServer } from '../../../packages/remote-store/test/fake-blob-server.js';
 import { deviceQueue, hostedBaseline } from '../src/app/hosted-project.js';
@@ -224,6 +224,69 @@ it('settles an accepted batch by its receipt after a lost reply and another devi
   expect(await bodies()).toEqual(['Written after the lost reply', 'Original']);
 });
 
+it.each([false, true])('keeps the attempted id when newer edits follow a lost reply (reopen: %s)', async (reopen) => {
+  const { server, open, session, bodies } = await devices();
+  const store = server.client();
+  let loseReply = true;
+  const one = await session(await open({
+    ...store,
+    put: async (name, bytes, condition) => {
+      const result = await store.put(name, bytes, condition);
+      if (name === 'manifest' && loseReply) {
+        loseReply = false;
+        throw new RemoteUnavailableError();
+      }
+      return result;
+    },
+  }), 'one');
+  await one.edit(A, 'Accepted before the reply failed');
+  expect(await bodies()).toEqual(['Accepted before the reply failed', 'Original']);
+  const attempted = JSON.parse(loadHostedQueue(PROJECT)!);
+  await one.edit(B, 'New and unrelated');
+  await one.edit(A, 'Continued in the same editor');
+  expect(JSON.parse(loadHostedQueue(PROJECT)!).attempt).toEqual(attempted.attempt);
+  expect(await bodies()).toEqual(['Accepted before the reply failed', 'Original']);
+
+  const writer = reopen ? await session(await open(), 'one') : one;
+  expect(await writer.send()).toMatchObject({ kind: 'stale' });
+  expect(await bodies()).toEqual(['Continued in the same editor', 'New and unrelated']);
+  expect(loadHostedQueue(PROJECT)).toBeNull();
+});
+
+it('waits for a read when a newer edit overlaps an unresolved attempt from another tab', async () => {
+  const { server, open, session, bodies } = await devices();
+  const one = await session(await open(), 'one');
+  server.goOffline();
+  await one.edit(A, 'From the earlier tab');
+  server.goOnline();
+  const reopened = await session(await open(), 'one');
+  await reopened.edit(A, 'Newer text, before reading');
+  await reopened.edit(B, 'Unrelated text');
+  expect(await reopened.send()).toMatchObject({ kind: 'stale', waiting: { paths: [path(A)] } });
+  expect(await bodies()).toEqual(['From the earlier tab', 'Unrelated text']);
+
+  const read = await session(await open(), 'one');
+  expect(read.state.documents.get(A)?.body).toBe('From the earlier tab');
+  expect(await read.send()).toMatchObject({ kind: 'stale' });
+  expect(await bodies()).toEqual(['Newer text, before reading', 'Unrelated text']);
+});
+
+it('retains the newer payload if the attempted write is refused', async () => {
+  const { server, open, session, bodies } = await devices();
+  const one = await session(await open(), 'one');
+  const two = await session(await open(), 'two');
+  server.goOffline();
+  await one.edit(A, 'The first draft');
+  await one.edit(A, 'The newer draft');
+  server.goOnline();
+  await two.edit(A, 'Written by device two');
+
+  expect(await one.send()).toMatchObject({ kind: 'conflict', paths: [path(A)] });
+  expect(await bodies()).toEqual(['Written by device two', 'Original']);
+  expect(await one.target.keepMine()).toMatchObject({ kind: 'stale' });
+  expect(await bodies()).toEqual(['The newer draft', 'Original']);
+});
+
 it('preserves an unverified legacy queue instead of offering to send it or replacing its local copy', async () => {
   const { source, open } = await devices();
   const fs = await open();
@@ -231,6 +294,20 @@ it('preserves an unverified legacy queue instead of offering to send it or repla
   saveHostedQueue(PROJECT, legacy);
   await expect(deviceQueue(source, fs)).rejects.toThrow('unrecognized format');
   expect(loadHostedQueue(PROJECT)).toBe(legacy);
+});
+
+it('keeps the batch identity when opening the earlier verified queue format', async () => {
+  const { source, open } = await devices();
+  const fs = await open();
+  const edits = new PendingEdits();
+  edits.stage(path(A), 'Already accepted');
+  const id = 'a'.repeat(32);
+  const bases = [[path(A), fs.versionOf(path(A))]];
+  saveHostedQueue(PROJECT, JSON.stringify({ format: 2, id, edits: edits.serialize(), bases }));
+  await fs.commitEditBatch(id, edits.changes().map((change) => ({ ...change, base: fs.versionOf(change.path) })));
+  const queue = await deviceQueue(source, fs);
+  expect(queue.held()).toEqual([]);
+  expect(loadHostedQueue(PROJECT)).toBeNull();
 });
 
 it('keeps an in-flight device’s queue in its original account scope', async () => {

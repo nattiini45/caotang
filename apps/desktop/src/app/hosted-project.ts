@@ -20,57 +20,98 @@ export async function deviceQueue(source: HostedProjectSource, fs: EncryptedRemo
   const edits: PendingEdits = new PendingEdits();
   const bases = new Map<string, number>();
   const deferred = new Set<string>();
-  let id: string | null = null;
+  const shown = new Set<string>();
+  type Attempt = { id: string; edits: PendingEdits; bases: Map<string, number>; shown: ReadonlySet<string> };
+  let attempt: Attempt | null = null;
   let persisted = true;
   const ready = () => edits.paths.filter((path) => !deferred.has(path));
-  const identify = () => { id = ready().length > 0 ? crypto.randomUUID().replaceAll('-', '') : null; };
+  const based = (files: PendingEdits, versions: ReadonlyMap<string, number>) =>
+    files.changes().map((change) => ({ ...change, base: versions.get(change.path)! }));
   const marks = () => saveHostedMarks(source.projectId, fs.highWater.entries(), scope);
   const keep = () => {
-    persisted = saveHostedQueue(source.projectId, edits.isEmpty ? null : JSON.stringify({
-      format: 2, id, edits: edits.serialize(), bases: [...bases], deferred: [...deferred],
+    persisted = saveHostedQueue(source.projectId, edits.isEmpty && !attempt ? null : JSON.stringify({
+      format: 3, edits: edits.serialize(), bases: [...bases], deferred: [...deferred],
+      attempt: attempt && { id: attempt.id, edits: attempt.edits.serialize(), bases: [...attempt.bases] },
     }), scope);
   };
-  const retire = (accepted: string) => {
-    if (id !== accepted) return;
-    const sent = ready();
-    edits.clear(sent);
-    for (const path of sent) bases.delete(path);
-    id = null;
+  const settle = async (sent: Attempt, opening: boolean) => {
+    const accepted = await Promise.all(based(sent.edits, sent.bases).map(async (change) => {
+      const { path, base, bytes } = change;
+      const advanced = bytes !== null || (fs.versionOf(path) === base + 1 && !await fs.exists(path));
+      return { ...change, version: advanced ? base + 1 : base, represented: sent.shown.has(path) };
+    }));
+    const previouslyWaiting = deferred.size;
+    for (const { path, version, represented } of accepted) {
+      const base = bases.get(path);
+      if (base === undefined) continue;
+      bases.set(path, Math.max(base, version));
+      if (!opening && !represented) deferred.add(path);
+    }
+    if (deferred.size !== previouslyWaiting && bases.has(MANIFEST_FILE)) {
+      for (const path of edits.paths) deferred.add(path);
+    }
+    attempt = null;
     keep();
+    return accepted;
   };
+  const readChanges = (data: { edits?: unknown; bases?: unknown }) => {
+    if (typeof data.edits !== 'string' || !Array.isArray(data.bases)) throw new Error();
+    const files = PendingEdits.parse(data.edits);
+    const versions = new Map<string, number>();
+    for (const row of data.bases) {
+      if (!Array.isArray(row) || row.length !== 2 || typeof row[0] !== 'string' || !Number.isSafeInteger(row[1]) || row[1] < 0 || versions.has(row[0])) throw new Error();
+      versions.set(row[0], row[1]);
+    }
+    if (versions.size !== files.size || files.paths.some((path) => !versions.has(path))) throw new Error();
+    return { edits: files, bases: versions };
+  };
+  const readPaths = (value: unknown, allowed: ReadonlyMap<string, number>, set: Set<string>) => {
+    if (!Array.isArray(value)) throw new Error();
+    for (const path of value) {
+      if (typeof path !== 'string' || !allowed.has(path) || set.has(path)) throw new Error();
+      set.add(path);
+    }
+  };
+  const isId = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{32}$/.test(value);
   const stored = loadHostedQueue(source.projectId, scope);
   if (stored !== null) {
     try {
       const raw = JSON.parse(stored);
-      if (raw?.format !== 2 || typeof raw.edits !== 'string' || !Array.isArray(raw.bases)) throw new Error();
-      const pending = PendingEdits.parse(raw.edits);
-      for (const row of raw.bases) {
-        if (!Array.isArray(row) || row.length !== 2 || typeof row[0] !== 'string' || !Number.isSafeInteger(row[1]) || row[1] < 0 || bases.has(row[0])) throw new Error();
-        bases.set(row[0], row[1]);
-      }
-      if (pending.isEmpty || bases.size !== pending.size || pending.paths.some((path) => !bases.has(path))) throw new Error();
-      if (raw.deferred !== undefined) {
-        if (!Array.isArray(raw.deferred)) throw new Error();
-        for (const path of raw.deferred) {
-          if (typeof path !== 'string' || !bases.has(path) || deferred.has(path)) throw new Error();
-          deferred.add(path);
+      if (raw?.format !== 2 && raw?.format !== 3) throw new Error();
+      const pending = readChanges(raw);
+      readPaths(raw.deferred ?? [], pending.bases, deferred);
+      if (raw.format === 2) {
+        const files = based(pending.edits, pending.bases).filter(({ path }) => !deferred.has(path));
+        if (files.length > 0) {
+          if (!isId(raw.id)) throw new Error();
+          const sent = new PendingEdits();
+          sent.stageAll(files);
+          attempt = { id: raw.id, edits: sent, bases: new Map(files.map(({ path, base }) => [path, base])), shown: new Set() };
+          pending.edits.clear(sent.paths);
+          for (const path of sent.paths) pending.bases.delete(path);
+        } else if (raw.id !== null) {
+          throw new Error();
         }
+      } else if (raw.attempt !== null) {
+        if (!isId(raw.attempt?.id)) throw new Error();
+        const sent = readChanges(raw.attempt);
+        if (sent.edits.isEmpty) throw new Error();
+        attempt = { id: raw.attempt.id, ...sent, shown: new Set() };
       }
-      if (pending.size === deferred.size ? raw.id !== null : typeof raw.id !== 'string' || !/^[0-9a-f]{32}$/.test(raw.id)) throw new Error();
-      id = raw.id;
-      edits.stageAll(pending.changes());
+      if (!attempt && pending.edits.isEmpty) throw new Error();
+      edits.stageAll(pending.edits.changes());
+      for (const [path, base] of pending.bases) bases.set(path, base);
     } catch {
       throw new Error('The saved changes on this device use an unrecognized format. Keep the local copy rather than reopening this project.');
     }
-    if (id !== null && fs.hasAcceptedBatch(id)) retire(id);
+    if (attempt && fs.hasAcceptedBatch(attempt.id)) await settle(attempt, true);
   }
   return {
-    held: ready,
+    held: () => [...new Set([...(attempt?.edits.paths ?? []), ...ready()])],
     deferred: () => [...deferred],
     opened: () => {
       if (deferred.size === 0) return;
       deferred.clear();
-      identify();
       keep();
     },
     persisted: () => persisted,
@@ -84,44 +125,53 @@ export async function deviceQueue(source: HostedProjectSource, fs: EncryptedRemo
       if (queued.includes(MANIFEST_FILE) && queued.some((path) => wait.has(path))) {
         for (const path of queued) wait.add(path);
       }
-      const changedReady = changes.some(({ path }) => !wait.has(path)) || queued.some((path) => wait.has(path));
-      for (const { path, base } of changes) if (!bases.has(path)) bases.set(path, unread.get(path) ?? base);
+      for (const { path, base } of changes) {
+        if (!bases.has(path)) bases.set(path, unread.get(path) ?? attempt?.bases.get(path) ?? base);
+        shown.add(path);
+      }
       for (const path of wait) deferred.add(path);
       edits.stageAll(changes);
-      if (changedReady) identify();
       keep();
     },
     send: async (refresh, answer) => {
-      if (id === null) return { kind: 'empty' };
-      try {
-        if (!fs.hasAcceptedBatch(id) && answer !== undefined) {
-          let changed = false;
-          for (const [path, version] of answer) {
-            if (!bases.has(path) || deferred.has(path) || bases.get(path) === version) continue;
-            bases.set(path, version);
-            changed = true;
-          }
-          if (changed) {
-            id = crypto.randomUUID().replaceAll('-', '');
-            keep();
-          }
+      if (!attempt) {
+        const files = based(edits, bases).filter(({ path }) => !deferred.has(path));
+        if (files.length === 0) return { kind: 'empty' };
+        const sending = new PendingEdits();
+        sending.stageAll(files);
+        attempt = {
+          id: crypto.randomUUID().replaceAll('-', ''),
+          edits: sending,
+          bases: new Map(files.map(({ path, base }) => [path, answer?.get(path) ?? base])),
+          shown: new Set(sending.paths.filter((path) => shown.has(path))),
+        };
+        edits.clear(sending.paths);
+        for (const path of sending.paths) {
+          bases.delete(path);
+          shown.delete(path);
         }
+        keep();
+      }
+      const sent = attempt;
+      try {
         if (refresh) await fs.refresh();
         marks();
-        const sent = { id, changes: edits.changes().filter(({ path }) => !deferred.has(path)).map((change) => ({ ...change, base: bases.get(change.path)! })) };
-        await fs.commitEditBatch(sent.id, sent.changes);
-        const changes = await Promise.all(sent.changes.map(async (change) => {
-          const { path, base, bytes } = change;
-          const advanced = bytes !== null || (fs.versionOf(path) === base + 1 && !await fs.exists(path));
-          return { ...change, version: advanced ? base + 1 : base };
-        }));
-        retire(sent.id);
+        await fs.commitEditBatch(sent.id, based(sent.edits, sent.bases));
+        const changes = await settle(sent, false);
         marks();
         return { kind: 'accepted', changes };
       } catch (error) {
-        return error instanceof RemoteConflictError && error.versions !== undefined
-          ? { kind: 'conflict', versions: error.versions }
-          : { kind: 'unavailable' };
+        if (!(error instanceof RemoteConflictError) || error.versions === undefined) return { kind: 'unavailable' };
+        for (const change of based(sent.edits, sent.bases)) {
+          if (!bases.has(change.path)) {
+            edits.stageAll([change]);
+            if (sent.shown.has(change.path)) shown.add(change.path);
+          }
+          bases.set(change.path, change.base);
+        }
+        attempt = null;
+        keep();
+        return { kind: 'conflict', versions: error.versions };
       }
     },
   };

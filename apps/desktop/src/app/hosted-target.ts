@@ -3,7 +3,7 @@ import type { ProjectState } from '@caotang/store';
 import type { PersistenceStatus } from './persistence.js';
 
 export type BasedChange = RemoteChange & { readonly base: number };
-type AcceptedChange = BasedChange & { readonly version: number };
+type AcceptedChange = BasedChange & { readonly version: number; readonly represented: boolean };
 type Pictures = Readonly<Record<string, Uint8Array>>;
 
 export type HostedSaveState = (
@@ -12,7 +12,12 @@ export type HostedSaveState = (
   | { readonly kind: 'unsaved'; readonly paths: readonly string[]; readonly persisted: boolean }
   | { readonly kind: 'conflict'; readonly paths: readonly string[]; readonly persisted: boolean }
   | { readonly kind: 'stale' }
-) & { readonly waiting?: { readonly paths: readonly string[]; readonly persisted: boolean } };
+) & {
+  readonly waiting?: { readonly paths: readonly string[]; readonly persisted: boolean };
+  readonly stageFailed?: true;
+  readonly readOffered?: true;
+  readonly readFailed?: true;
+};
 
 export type HostedReplay =
   | { readonly kind: 'accepted'; readonly changes: readonly AcceptedChange[] }
@@ -53,7 +58,7 @@ export class HostedTarget {
   #baseline: HostedBaseline | null = null;
   #asked: ReadonlyMap<string, number> = new Map();
   #stageFailed = false;
-  #localPaths = new Set<string>();
+  #readOffered = false;
   #unread = new Map<string, number>();
 
   constructor(
@@ -80,8 +85,12 @@ export class HostedTarget {
 
   canReread(): boolean {
     return !this.#stageFailed &&
-      (this.#state.kind === 'stale' || this.#state.waiting !== undefined) &&
+      (this.#readOffered || this.#state.waiting !== undefined) &&
       (this.queue.persisted() || (this.queue.held().length === 0 && this.queue.deferred().length === 0));
+  }
+
+  rereadRefused(): void {
+    this.#set({ ...this.#state, readFailed: true });
   }
 
   attach(session: HostedSaveSession): () => void {
@@ -115,11 +124,9 @@ export class HostedTarget {
     await this.#inTurn(async () => {
       if (this.#baseline === null) return;
       const previous = this.#state;
-      let changes: readonly BasedChange[];
       try {
-        changes = await this.#baseline.changes(state, (await this.#assets?.()) ?? {});
+        const changes = await this.#baseline.changes(state, (await this.#assets?.()) ?? {});
         this.queue.stage(changes, this.#unread);
-        for (const { path } of changes) this.#localPaths.add(path);
         this.#stageFailed = false;
       } catch {
         this.#stageFailed = true;
@@ -128,8 +135,9 @@ export class HostedTarget {
         return;
       }
       if (previous.kind === 'conflict') {
-        const remaining = new Map([...this.#asked].filter(([path]) => this.queue.held().includes(path)));
-        if (remaining.size > 0) this.#conflict(remaining);
+        const held = new Set(this.queue.held());
+        const remaining = new Map([...this.#asked].filter(([path]) => held.has(path)));
+        if (remaining.size > 0) this.#conflict(remaining.size === this.#asked.size ? this.#asked : remaining);
         else this.#unsaved();
       } else if (this.queue.held().length > 0) {
         if (previous.kind === 'idle') await this.#send(false);
@@ -159,18 +167,27 @@ export class HostedTarget {
 
   async #send(refresh: boolean, answer?: ReadonlyMap<string, number>): Promise<void> {
     this.#set({ kind: 'saving' });
-    const result = await this.queue.send(refresh, answer);
-    if (result.kind === 'accepted') {
+    let result = await this.queue.send(refresh, answer);
+    while (result.kind === 'accepted') {
       this.#asked = new Map();
-      const local = result.changes.filter(({ path, version }) => {
-        if (this.#localPaths.delete(path)) return true;
+      if (refresh) this.#readOffered = true;
+      const local = result.changes.filter(({ path, version, represented }) => {
+        if (represented) return true;
         this.#unread.set(path, version);
         return false;
       });
       if (local.length > 0) this.#baseline?.accepted(local);
-      this.#set({ kind: refresh ? 'stale' : 'idle' });
-    } else if (result.kind === 'conflict') {
-      this.#conflict(result.versions);
+      if (!refresh || this.queue.held().length === 0) {
+        this.#unsaved();
+        return;
+      }
+      result = await this.queue.send(false);
+    }
+    if (result.kind === 'conflict') {
+      const held = new Set(this.queue.held());
+      const conflicts = new Map([...result.versions].filter(([path]) => held.has(path)));
+      if (conflicts.size > 0) this.#conflict(conflicts);
+      else this.#unsaved();
     } else if (answer !== undefined) {
       this.#conflict(answer);
     } else {
@@ -180,15 +197,15 @@ export class HostedTarget {
 
   #conflict(versions: ReadonlyMap<string, number>): void {
     this.#asked = versions;
-    this.#set({ kind: 'conflict', paths: [...versions.keys()], persisted: !this.#stageFailed && this.queue.persisted() });
+    this.#set({ kind: 'conflict', paths: [...versions.keys()], persisted: this.queue.persisted() });
   }
 
   #unsaved(): void {
     const paths = this.queue.held();
     if (paths.length === 0 && !this.#stageFailed) {
-      this.#set({ kind: this.queue.deferred().length > 0 ? 'stale' : 'idle' });
+      this.#set({ kind: this.#readOffered || this.queue.deferred().length > 0 ? 'stale' : 'idle' });
     } else {
-      this.#set({ kind: 'unsaved', paths, persisted: !this.#stageFailed && this.queue.persisted() });
+      this.#set({ kind: 'unsaved', paths, persisted: this.queue.persisted() });
     }
   }
 
@@ -200,8 +217,12 @@ export class HostedTarget {
 
   #set(next: HostedSaveState): void {
     const paths = this.queue.deferred();
-    this.#state = paths.length === 0 ? next : {
-      ...next, waiting: { paths, persisted: !this.#stageFailed && this.queue.persisted() },
+    this.#state = {
+      ...next,
+      ...(paths.length > 0 && { waiting: { paths, persisted: this.queue.persisted() } }),
+      ...(this.#stageFailed && { stageFailed: true }),
+      ...((next.kind === 'unsaved' || next.kind === 'conflict') && this.#readOffered &&
+        this.queue.persisted() && !this.#stageFailed && { readOffered: true }),
     };
     for (const listener of this.#listeners) listener();
   }

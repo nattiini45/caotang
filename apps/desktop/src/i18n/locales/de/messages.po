@@ -7646,6 +7646,7 @@ msgstr "Fenster schließen"
 
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Closing this tab loses these changes."
 msgstr "Wenn Sie diesen Tab schließen, gehen diese Änderungen verloren."
@@ -17752,7 +17753,6 @@ msgid "Read the user guide"
 msgstr "Benutzerhandbuch lesen"
 
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
-#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Read them"
 msgstr "Lesen"
@@ -19682,6 +19682,11 @@ msgstr "Token speichern"
 #: apps/desktop/src/components/Settings.tsx
 msgid "Save writing settings"
 msgstr "Schreib-Einstellungen speichern"
+
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Save your edits before reading the account copy."
+msgstr "Speichere deine Änderungen, bevor du die Kopie im Konto liest."
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
@@ -26703,9 +26708,11 @@ msgstr "Für Lesezugriffe vertraut. Lässt Nur-Lese-Tools ohne Nachfrage laufen,
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: file is the imported file name; reason is the import failure message
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #. Interpolated values: subject
 #. Interpolated values: title is an isolated writer-supplied intent; count is a turn count; tokens is a formatted recorded token count.
 #: apps/desktop/src/components/AgentSessions.tsx
+#: apps/desktop/src/components/HostedSaveNotice.tsx
 #: apps/desktop/src/components/InkGate.tsx
 #: apps/desktop/src/components/lazy-view.tsx
 #: apps/desktop/src/components/Settings.tsx
@@ -28337,6 +28344,11 @@ msgstr "Ihre Anweisungen an den Agenten"
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Your later changes are in other parts of the project, so this can be taken back on its own and they stay. Restore takes them back too."
 msgstr "Ihre späteren Änderungen liegen in anderen Teilen des Projekts, daher kann dies allein zurückgenommen werden, und sie bleiben. „Wiederherstellen“ nimmt sie mit zurück."
+
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#: apps/desktop/src/components/HostedSaveNotice.tsx
+msgid "Your latest edits aren’t ready to send."
+msgstr "Deine neuesten Änderungen sind noch nicht zum Senden bereit."
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words

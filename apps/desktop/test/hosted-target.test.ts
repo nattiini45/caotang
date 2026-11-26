@@ -4,7 +4,7 @@ import { HostedTarget, type HostedQueuePort, type HostedReplay, type HostedSaveS
 
 const state = createProjectState(createEmptyManifest('The Lighthouse', new Date(0)));
 const path = 'docs/a.md';
-const change = { path, bytes: new Uint8Array([1]), base: 1, version: 2 };
+const change = { path, bytes: new Uint8Array([1]), base: 1, version: 2, represented: true };
 const conflict: HostedReplay = { kind: 'conflict', versions: new Map([[path, 2]]) };
 
 async function target(pending: readonly string[] = [], durable = true) {
@@ -97,7 +97,7 @@ it('a new save during a send is staged after the accepted batch, without replayi
   const waiting = new Promise<void>((resolve) => { finish = resolve; });
   send.mockImplementationOnce(async () => {
     await waiting;
-    return { kind: 'accepted', changes: [change] };
+    return { kind: 'accepted', changes: [{ ...change, represented: false }] };
   });
   const sending = saving.sendQueued();
   const writing = saving.save(state);

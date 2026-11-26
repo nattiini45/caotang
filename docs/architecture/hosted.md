@@ -189,7 +189,9 @@ The device takes a baseline from the project and pictures it opened, and from th
 
 Each queued path keeps the account version its edit was based on. An edit made in the same session can replace its earlier queued payload; a later open starts its baseline from the account, not from the pending payload, so untouched pending edits survive subsequent saves. New genuinely local changes to a path with a pending edit replace that payload without silently approving a different account version. Another device's version cannot be adopted as the base of a pending edit without the writer's explicit answer.
 
-One versioned queue record holds the current batch id, paths, payloads, and base versions for this account and project. Persist it before trying to send. A batch id names an immutable payload and base-version set: changing either makes a new id. The server accepts the batch at the encrypted index swap, in the same transaction as the file writes, and the index keeps the 128 most recent accepted batch ids in an optional receipt list inside the existing encrypted format. An index written before receipts existed reads as an empty list. This lets a retry identify an accepted batch even if the reply was lost. If its receipt is no longer present, a moved path must conflict; do not infer acceptance. Retire only the batch identified by acceptance, never a different local batch, and never infer acceptance from bytes or a version increase. Keep rollback marks as before, after reads and commits.
+One versioned queue record holds staged edits and, when there is one, the exact attempted batch for this account and project. The two-part record (format 3) reads a format 2 batch with its original id. Persist the attempted batch before sending it. New local edits never change its id, paths, payloads or base versions; they wait alongside it. Resolve the attempted batch before sending those edits. A definite conflict returns the attempted paths to the queue, retaining newer local payloads on overlapping paths. An explicit send can settle an earlier attempt and send other eligible work; opening never sends anything.
+
+The account accepts a batch at the encrypted index swap, in the same transaction as the file writes, and the index keeps the 128 most recent accepted batch ids in an optional receipt list. An older index reads as an empty list. This lets a retry identify an accepted batch even if the reply was lost. If its receipt is no longer present, a moved path must conflict; do not infer acceptance from bytes or version movement. On acceptance retire only the attempted batch. Keep each later edit and advance its base to the exact accepted version of its path. If the editor did not show the attempted text, hold that overlapping edit until an explicit account read before offering to send it. A newer version from a different write still conflicts. Keep rollback marks after reads and commits.
 
 If storage is blocked, full, or the queue exceeds the cap, keep the new batch in memory and say that it has not survived a reload. Best-effort invalidate an older stored batch so it is not offered as current. Pending work remains sendable from the open tab. A legacy or unreadable queue is left intact and blocks reopening over the local working copy; its record cannot prove local edit intent.
 
@@ -205,13 +207,16 @@ An accepted write is not the same as a file the editor has read. If a replay sen
 | `idle` | an open finds pending work | `unsaved` | show the account's copy and offer to send the pending work |
 | `saving` | the account accepts the batch | `idle` or `stale` | retire only the accepted id; after an explicit send the account can be read again |
 | `saving` | the account cannot be reached | `unsaved` | retain the same batch and its actual durability |
+| `unsaved` | a save follows an attempted send with no reply | `unsaved` | hold the new local edits without replacing the attempted batch or its receipt id |
 | `saving` | the account moved a touched path | `conflict` | retain the batch and show exactly the paths that moved |
 | `unsaved` or `conflict` | the browser saves again | same | include new local changes without sending or borrowing a new base from the account |
+| any open state | the latest edit could not be staged | `unsaved` or `conflict` | keep earlier queued work and its durability; offer to retry preparing the latest edits rather than to send an older payload |
 | `unsaved` | the writer sends | `saving` | refresh the index, then try the held batch |
 | `conflict` | the writer keeps this device's text | `saving` | persist approval for only the paths and versions they were shown, even if another path now conflicts; any further movement asks again |
 | `conflict` | the writer leaves it | `conflict` | neither write nor discard anything |
 | `stale` | the browser saves before reading a replayed file | `stale` or `unsaved` | retain newer edits to that file separately; offer to send any unrelated paths |
-| `stale` or `unsaved` | the writer reads the account again | `idle` or `unsaved` | reopen explicitly; any newer local edits remain queued and are never sent by the read |
+| after an explicit send, with no unfinished local save and no in-memory-only edits | the writer reads the account again | `idle` or `unsaved` | reopen explicitly; any newer local edits remain queued and are never sent by the read |
+| after an explicit send | the browser save fails during an account read | same | leave the editor open and ask the writer to save before reading |
 
 Two-device tests cover disjoint edits, the same-file conflict, and reopening with pending edits before another local save. Replays also test a lost commit reply and a failed refresh without losing the batch or upgrading its durability.
 

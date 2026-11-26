@@ -33,7 +33,12 @@ export async function openCurrentHostedProject(
   if (reread) {
     const target = hostedTargetFor(reread.projectId);
     if (!target) return;
-    await reread.saved();
+    try {
+      await reread.saved();
+    } catch {
+      if (current()) target.rereadRefused();
+      return;
+    }
     await target.settled();
     if (!current() || !target.canReread()) return;
     target.detach();
