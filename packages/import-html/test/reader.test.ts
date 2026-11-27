@@ -48,6 +48,35 @@ describe('the HTML reader (#299)', () => {
     expect([...read.value.assetData.values()][0]).toEqual(pngOf());
   });
 
+  it('keeps the footnotes the shared walker extracts, out of the prose', () => {
+    const read = readHtmlFile(
+      enc('<html xmlns:epub="http://www.idpf.org/2007/ops"><body><p>A claim<a epub:type="noteref" href="#fn1">1</a>.</p><aside epub:type="footnote" id="fn1">The note itself.</aside></body></html>'),
+      'page.html',
+    );
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.document.blocks[0]?.kind === 'para' ? read.value.document.blocks[0].md : '').toBe('A claim[^1].');
+    expect(read.value.document.blocks).toHaveLength(1);
+    expect(read.value.document.footnotes).toEqual([{ blockIndex: 0, label: '1', md: 'The note itself.' }]);
+  });
+
+  it('keeps footnote labels unique across the pages of a web-page archive', async () => {
+    const pageWithNote = (claim: string, note: string): string =>
+      `<html xmlns:epub="http://www.idpf.org/2007/ops"><body><p>${claim}<a epub:type="noteref" href="#fn1">1</a>.</p><aside epub:type="footnote" id="fn1">${note}</aside></body></html>`;
+    const read = await readHtmlArchive(archiveOf({
+      'one.html': pageWithNote('The first claim', 'The first note.'),
+      'two.html': pageWithNote('The second claim', 'The second note.'),
+    }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const bodies = read.value.document.blocks.map((block) => (block.kind === 'para' ? block.md : ''));
+    expect(bodies).toEqual(['The first claim[^1].', 'The second claim[^2].']);
+    expect(read.value.document.footnotes?.map((note) => [note.label, note.md])).toEqual([
+      ['1', 'The first note.'],
+      ['2', 'The second note.'],
+    ]);
+  });
+
   it('lists a remote image instead of fetching it', () => {
     const read = readHtmlFile(enc('<html><body><p><img src="https://example.com/x.png" alt="x"/></p></body></html>'), 'page.html');
     expect(read.ok).toBe(true);

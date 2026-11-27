@@ -6,6 +6,7 @@
 
 export {
   htmlToBlocks,
+  collectHtmlFootnotes,
   normaliseHtml,
   isSafeLinkTarget,
   type HtmlWalkResult,

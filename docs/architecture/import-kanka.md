@@ -77,8 +77,10 @@ matter placed in Research, so the writer can move them; a campaign export is wor
 ## 5. Pictures, safety and limits
 
 An entity picture or gallery file is read from the zip and comes in through the picture pipeline as `import:kanka-image-<n>`.
-**SVG is refused** with a notice: it can carry script. A remote http(s) picture in an entry is listed as not downloaded unless the
-writer turns it on (decision 10). Scripts, styles, iframes and audio/video players are removed and counted, never run.
+**SVG is refused** with a notice: it can carry script. Any other picture whose bytes the picture store would refuse — the wrong
+format, or over the size cap — is skipped as a named loss and never rejects the rest of the campaign. A remote http(s) picture in
+an entry is listed as not downloaded unless the writer turns it on (decision 10). Scripts, styles, iframes and audio/video players
+are removed and counted, never run.
 
 The zip is opened with the shared caps and zip-bomb guard, the parse runs in the preview's `'self'` Worker with a timeout and the
 dialog's Cancel, and every imported text — page bodies, descriptions, keywords, names — goes through `scanImport`, which lists the

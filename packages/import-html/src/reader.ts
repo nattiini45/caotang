@@ -8,7 +8,7 @@
 import type { ImportDocument, ImportAsset } from '@caotang/import-core';
 import { decodePlainText } from '@caotang/import-read/text';
 import { openZip, isArchiveResidue, type ImportArchive } from '@caotang/import-read/zip';
-import { htmlToBlocks, type HtmlDropped } from './walker.js';
+import { collectHtmlFootnotes, htmlToBlocks, type HtmlDropped } from './walker.js';
 import { dropUnresolvedPictures, pictureRefusal, relativeCandidates, type PictureRefusal } from './pictures.js';
 
 export interface HtmlImport {
@@ -63,7 +63,7 @@ export function readHtmlFile(bytes: Uint8Array, fileName: string): HtmlResult {
 
   const walked = htmlToBlocks(decoded.text);
   if (!walked.ok) return { ok: false, error: { kind: 'not-xml', message: walked.error.message } };
-  const { blocks, losses, images, remoteImages, dropped } = walked.value;
+  const { blocks, losses, images, remoteImages, dropped, noterefs, notes } = walked.value;
 
   const assetData = new Map<string, Uint8Array>();
   const assets: ImportAsset[] = [];
@@ -84,7 +84,7 @@ export function readHtmlFile(bytes: Uint8Array, fileName: string): HtmlResult {
   // A picture with no bytes behind it keeps its alt text and is named, rather than leaving a ref that resolves to nothing.
   const kept = dropUnresolvedPictures(blocks, new Set(assetData.keys()), images, refused);
   const title = titleOf(decoded.text, fileName);
-  const document: ImportDocument = { blocks: kept.blocks, losses: [...losses, ...kept.losses], assets, metadata: { title } };
+  const document: ImportDocument = { blocks: kept.blocks, footnotes: collectHtmlFootnotes(noterefs, notes).footnotes, losses: [...losses, ...kept.losses], assets, metadata: { title } };
   return { ok: true, value: { document, title, assetData, remoteImages, dropped } };
 }
 
@@ -101,6 +101,7 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
   if (paths.length === 0) return { ok: false, error: { kind: 'no-html' } };
 
   const blocks: ImportDocument['blocks'] = [];
+  const footnotes: NonNullable<ImportDocument['footnotes']> = [];
   const losses: NonNullable<ImportDocument['losses']> = [];
   const assetData = new Map<string, Uint8Array>();
   const assets = new Map<string, ImportAsset>();
@@ -109,6 +110,7 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
   const remoteImages: string[] = [];
   const dropped: HtmlDropped = { ...EMPTY_DROPPED };
   let title: string | undefined;
+  let nextNoteLabel = 1;
 
   for (const [pageIndex, path] of paths.entries()) {
     const read = await archive.read(path);
@@ -119,12 +121,15 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
     if (decoded.status === 'too-many-lines') return { ok: false, error: { kind: 'too-many-lines' } };
 
     // Each page has its own image-ref namespace: two pages' pictures must never share a ref.
-    const walked = htmlToBlocks(decoded.text, { unit: path, refPrefix: `import:html-image-${pageIndex}-` });
+    const walked = htmlToBlocks(decoded.text, { unit: path, refPrefix: `import:html-image-${pageIndex}-`, firstNoteLabel: nextNoteLabel });
     if (!walked.ok) return { ok: false, error: { kind: 'not-xml', message: walked.error.message } };
     if (title === undefined) title = titleOf(decoded.text, path);
 
     const offset = blocks.length;
     blocks.push(...walked.value.blocks);
+    const collectedNotes = collectHtmlFootnotes(walked.value.noterefs, walked.value.notes, offset, nextNoteLabel);
+    footnotes.push(...collectedNotes.footnotes);
+    nextNoteLabel = collectedNotes.nextLabel;
     losses.push(...walked.value.losses.map((loss) => ({ ...loss, blockIndex: loss.blockIndex === undefined ? undefined : loss.blockIndex + offset })));
     remoteImages.push(...walked.value.remoteImages);
     dropped.scripts += walked.value.dropped.scripts;
@@ -166,6 +171,6 @@ export async function readHtmlArchive(archive: ImportArchive): Promise<HtmlResul
 
   // Every picture the pages name but the archive does not carry keeps its alt text and is named once for the whole import.
   const kept = dropUnresolvedPictures(blocks, new Set(assetData.keys()), targets, refused);
-  const document: ImportDocument = { blocks: kept.blocks, losses: [...losses, ...kept.losses], assets: [...assets.values()], ...(title === undefined ? {} : { metadata: { title } }) };
+  const document: ImportDocument = { blocks: kept.blocks, footnotes, losses: [...losses, ...kept.losses], assets: [...assets.values()], ...(title === undefined ? {} : { metadata: { title } }) };
   return { ok: true, value: { document, title: title ?? '', assetData, remoteImages, dropped } };
 }
