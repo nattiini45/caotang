@@ -510,7 +510,7 @@ Changes to `tools/check-bundle-size.mjs` (M4): a cap map for named lazy chunks; 
 
 Below 960 px (`NARROW_QUERY`), Modern has its own narrow layout, with the narrow layout's rules (ui-modules §1) unchanged in substance:
 
-The top ornament fills its safe-area allocation. Its title capsule shrinks and ellipsizes without shortening its accessible name, reserving at least 44 px each for New and More even with a 200-character project name (#497). In the bottom bar, Write remains a Tab entry when a different view is selected; Space or Enter selects it and leaves focus on it. Desktop retains the chosen-view-only roving Tab entry (#498).
+The top ornament fills its safe-area allocation. The wide layout's sidebar slide does not animate the narrow ornament's position when resizing into this layout. Its title capsule shrinks and ellipsizes without shortening its accessible name, reserving at least 44 px each for New and More even with a 200-character project name (#497). In the bottom bar, Write remains a Tab entry when a different view is selected; Space or Enter selects it and leaves focus on it. Desktop retains the chosen-view-only roving Tab entry (#498).
 
 Between 960 and 1280 px, an open Binder gives the bottom ornament less room. The five view radios use the same icon, tooltip and accessible name as in the existing compact desktop bar. Ask and Search stack their words under their icons and leave the shortcut in the tooltip. No target shrinks below 44 px or into its neighbor (#505).
 

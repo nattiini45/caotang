@@ -3,6 +3,7 @@
 - 2026-11-23: Document imports carry deleted tracked-change text on the document's `deletions` table and the splitter lists each in the owning scene's notes (import-core.md §2.2, import-docx.md §4, import-odt.md §4); both Office readers escape Markdown metacharacters in prose, check the file's size before reading it, read text boxes wherever Word or ODF can nest them, and count every dropped decoration they name.
 # Decisions
 
+- [delegated 2026-11-27] Modern ornaments follow a sliding sidebar only in the wide layout. Narrow ornaments use their safe-area insets immediately so a resize cannot briefly squeeze the title. [modern-interface.md §13]
 - [delegated 2026-11-27] An account save target owns the writing workspace's save confirmation. Browser-only persistence advice belongs to projects whose only copy is in the browser; pending account edits still say what is on this device and local write failures keep their recovery warning. Modern gives the account notice a row above the page so it cannot cover the document. [hosted.md §7.2; ui-modules.md §5.3; modern-interface.md §8.6]
 - [delegated 2026-11-27] The packaged account connector uses a confirmed HTTPS origin, system-browser approval and an origin-bound native key vault. It does not run remote account code, expose an authenticated general-purpose fetch port or change the public browser build. Opening an existing project is supported; account setup, key changes and project creation stay in the browser. [desktop.md §Account connector; hosted.md §2.8]
 

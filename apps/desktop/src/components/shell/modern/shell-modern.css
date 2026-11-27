@@ -168,8 +168,6 @@
   padding: var(--ornament-pad);
   border-radius: var(--radius-ornament);
   z-index: 2;
-  /* They follow the page when it slides over for an open sidebar (binder-sidebar.css). */
-  transition: inset-inline-start var(--dur-3) var(--ease-spring);
 }
 
 :root[data-shell='modern'] .modern-ornament.is-top {
@@ -188,6 +186,8 @@
     inset-inline-end: auto;
     margin-inline: 0;
     translate: round(nearest, calc(var(--dir, 1) * -50%), 1px);
+    /* They follow the page when it slides over for an open sidebar (binder-sidebar.css). */
+    transition: inset-inline-start var(--dur-3) var(--ease-spring);
   }
 }
 
