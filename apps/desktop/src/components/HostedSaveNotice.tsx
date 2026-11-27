@@ -77,12 +77,13 @@ export function HostedSaveNotice({
   if (target === null || state.kind === 'idle' || state.kind === 'saving') return null;
   const key = state.kind === 'conflict' ? state.paths.join('|') : '';
   const postponed = state.kind === 'conflict' && putOff === key;
+  const askAgain = <Trans>Ask me again</Trans>;
   const recovery = desktop && needsRecovery ? createPortal(<>
     <p className="account-recovery-warning" role="status">{memoryWarning}</p>
     <Button className="button" disabled={state.stageFailed || (state.kind !== 'unsaved' && !postponed)} onClick={() => {
       if (postponed) setPutOff('');
       else void target.sendQueued();
-    }}>{desktop.send}</Button>
+    }}>{postponed ? askAgain : desktop.send}</Button>
     <Button className="button" onClick={() => void target.exportCopy().then((ok) => setExportFailed(!ok))}>{desktop.exportBundle}</Button>
     {exportFailed && <p role="alert">{desktop.exportFailed}</p>}
   </>, desktop.mount) : null;
@@ -125,7 +126,7 @@ export function HostedSaveNotice({
       }}>
         <Trans>Send them to your account</Trans>
       </button> : <button type="button" className="button is-quiet" onClick={() => setPutOff('')}>
-        <Trans>Ask me again</Trans>
+        {askAgain}
       </button>}
       {state.readOffered && waiting === null ? read : null}
     </p>{waiting}{readFailed}</>;
