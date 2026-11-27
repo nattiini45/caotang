@@ -434,13 +434,7 @@ describe('the file', () => {
   });
 });
 
-/**
- * Poppler's pdftotext, where it is installed: the run is skipped otherwise, and for Xpdf's tool of the same name (Git for Windows
- * ships it), which lays glyphs out with spaces of its own and is not the reader this test is about.
- */
 function pdftotext(bytes: Uint8Array): string | null {
-  const banner = spawnSync('pdftotext', ['-v'], { encoding: 'utf8', timeout: 20_000 });
-  if (banner.error !== undefined || !/poppler/i.test(`${banner.stdout}${banner.stderr}`)) return null;
   const dir = mkdtempSync(join(tmpdir(), 'caotang-rtl-'));
   try {
     const file = join(dir, 'file.pdf');
@@ -454,7 +448,11 @@ function pdftotext(bytes: Uint8Array): string | null {
 }
 
 describe('the text a reader extracts', () => {
+  const banner = spawnSync('pdftotext', ['-v'], { encoding: 'utf8', timeout: 20_000 });
+  const hasPoppler = banner.error === undefined && /poppler/i.test(`${banner.stdout}${banner.stderr}`);
+
   it('is the logical text of every word, as pdftotext reads it back (where it is installed)', async () => {
+    if (!hasPoppler) return;
     const source = text(ARABIC, '', HEBREW);
     const blob = await createPdfRenderer(LOADERS).emit(blocksOf(source), { title: 'T' });
     const out = pdftotext(new Uint8Array(await blob.arrayBuffer()));

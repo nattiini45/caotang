@@ -16,10 +16,7 @@ function cookie(id = 'github:101', expires = Date.now() + 60_000): string {
   return `__Host-caotang-session=${payload}.${createHmac('sha256', SECRET).update(payload).digest('base64url')}`;
 }
 
-async function harness() {
-  const runtime = new Miniflare({
-    upstream: ORIGIN,
-    modules: workerModules(`
+const modules = workerModules(`
 export class TestAccountHub extends AccountHub {
   async ageProfile(profile, sweep = true) {
     for (const socket of this.ctx.getWebSockets()) {
@@ -37,7 +34,12 @@ export class TestAccountHub extends AccountHub {
   }
   async nextAlarm() { return this.ctx.storage.getAlarm(); }
 }
-`),
+`);
+
+async function harness() {
+  const runtime = new Miniflare({
+    upstream: ORIGIN,
+    modules,
     compatibilityDate: '2026-07-30',
     bindings: { PUBLIC_ORIGIN: ORIGIN, ALLOWED_GITHUB_LOGINS: 'reader-one', GITHUB_CLIENT_ID: 'mock-client', GITHUB_CLIENT_SECRET: 'mock-secret', SESSION_SECRET: SECRET },
     durableObjects: { ACCOUNT_HUBS: { className: 'TestAccountHub', useSQLite: true } },

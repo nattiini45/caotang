@@ -1,11 +1,11 @@
 /**
- * Windows-1252 decoding that does not depend on the runtime's `TextDecoder`.
+ * Windows-1252 decoding that checks the runtime's `TextDecoder` before using it.
  *
  * Windows-1252 is ISO-8859-1 except for 0x80 to 0x9F, where it holds 27 printable characters (the euro sign, the curly quotes,
  * the dashes) and leaves five codes empty (WHATWG Encoding Standard, index-windows-1252). Node 20.18.3 to 20.19.x and 22.13.0
  * to 22.22.0 decode `windows-1252` (and its `latin1` / `iso-8859-1` labels) as ISO-8859-1, so 0x93 comes out as the C1 control
  * U+0093 instead of “ (nodejs/node#60888, fixed in 22.22.1). The Node 22 floor (22.19) is inside that range, so every
- * Windows-1252 decode in this package goes through the explicit table below and reads the same in Node, Electron and browsers.
+ * Windows-1252 decode in this package uses the explicit table when the native mapping disagrees.
  */
 
 /**
@@ -20,8 +20,19 @@ export const WINDOWS_1252_HIGH: readonly number[] = [
 /** Code units per `String.fromCharCode` call, well under every engine's argument limit. */
 const CHUNK = 8192;
 
+const nativeDecoder = (() => {
+  try {
+    const decoder = new TextDecoder('windows-1252');
+    const probe = Uint8Array.from(WINDOWS_1252_HIGH, (_, i) => 0x80 + i);
+    return decoder.decode(probe) === String.fromCharCode(...WINDOWS_1252_HIGH) ? decoder : undefined;
+  } catch {
+    return undefined;
+  }
+})();
+
 /** Decodes bytes as Windows-1252. Every byte maps to one character, so this never throws (a `fatal` decoder would not either). */
 export function decodeWindows1252(bytes: Uint8Array): string {
+  if (nativeDecoder) return nativeDecoder.decode(bytes);
   const parts: string[] = [];
   const units = new Uint16Array(Math.min(bytes.length, CHUNK));
   for (let start = 0; start < bytes.length; start += CHUNK) {

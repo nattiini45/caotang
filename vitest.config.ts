@@ -1,6 +1,8 @@
 import { lingui } from '@lingui/vite-plugin';
 import { configDefaults, defineConfig } from 'vitest/config';
 
+const verifyWorkers = process.env['CAOTANG_VERIFY_WORKERS'];
+
 export default defineConfig({
   // The same macro transform as the app's build (apps/desktop/vite.config.ts): Lingui's native transform
   // reads lingui.config.ts, compiles a `.po` import to its message catalogue, and turns `msg`/`<Trans>`
@@ -11,6 +13,7 @@ export default defineConfig({
     // Default environment is node: the mock provider must be
     // importable headless, so nothing may silently require a DOM.
     environment: 'node',
+    ...(verifyWorkers ? { maxWorkers: Number(verifyWorkers) } : {}),
     // `test/` is the repo-level suite — guards whose subject is the repository
     // rather than a package. It is listed explicitly because a `packages/*` glob
     // does not match it, and a guard that verify never collects is a guard that

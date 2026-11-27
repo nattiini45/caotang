@@ -6,9 +6,8 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { addDocument, addFolder, createEmptyManifest, createProjectState, writeProject } from '@caotang/store';
-
-import { NodeArtifactFs } from '../src/folder-api.js';
+import { addDocument, addFolder, createEmptyManifest, createProjectState } from '@caotang/store';
+import { writeProjectFixture } from '../../store/test/project-folder-fixture.js';
 
 export const OPENED = new Date('2026-10-08T09:00:00.000Z');
 export const CHAPTER_ONE = 'n_CHAPTR0001';
@@ -38,7 +37,7 @@ export async function seedProject(root: string): Promise<void> {
     origin: 'manual',
     sources: [],
   });
-  await writeProject(new NodeArtifactFs(root), state, { now: OPENED });
+  await writeProjectFixture(root, state, OPENED);
 }
 
 /** Every file under a folder, relative and sorted, with its bytes: the whole observable state of the folder. */

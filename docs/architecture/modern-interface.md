@@ -412,6 +412,8 @@ When the composer shows request context, the conversation body reserves up to 14
 
 **Ask** and **Ctrl+J** (Cmd+J) open and close it; it morphs out of whatever opened it (Ask, a finding's **Fix with agent**, an empty state's agent request, which all go through `runAgentIntent`). The page moves over and recedes slightly (`scale(.985)`, not under reduced motion). It is an `aside` named "Agent", non-modal; it hosts `AgentPanel` with `placement="window"`. Escape inside it keeps Classic's meaning first: with the Intent box empty and a turn running, Escape stops the turn (`agent-stop`, which acts only when the turn is stoppable). Otherwise Escape closes the window and focus returns to **Ask**. A turn keeps running while the window is closed, and **Ask** shows that it is working.
 
+The Intent box accepts keys as the window opens. If `/` or `@` opens its list during the morph, the list follows the box until the window settles.
+
 Built (M8, #309): the window is `AgentPanel placement="window"`, mounted while closed (`hidden`), so a running turn, its Intent draft and the panel's state survive a close; the open state is the workspace's `agentOpen`, which Classic's drawer shares. Ctrl/Cmd+J (`agent-toggle`) is resolved only with `KeyContext.shell: 'modern'`. A draft's ghost bar and the review bar stay on the page (reached by the walk from the demo agent, #313).
 
 ### 8.11 Keyboard map

@@ -164,7 +164,7 @@ export function decodeForPreview(bytes: Uint8Array): DecodedPreview {
 }
 
 /**
- * Decodes as a named encoding, Windows-1252 through its own table ({@link decodeWindows1252}) so the 0x80 to 0x9F block reads
+ * Decodes as a named encoding, Windows-1252 through {@link decodeWindows1252} so the 0x80 to 0x9F block reads
  * the same on every runtime; every other encoding through `TextDecoder`.
  */
 function decodeIn(bytes: Uint8Array, encoding: DecodableEncoding, fatal: boolean): string {

@@ -1,6 +1,6 @@
 /**
- * Windows-1252 decoding through the explicit table (windows-1252.ts), not the runtime's TextDecoder: Node 22.13.0 to 22.22.0
- * decode `windows-1252` as ISO-8859-1 (nodejs/node#60888), and the Node 22 floor sits inside that range.
+ * Windows-1252 must yield the same mapping with a native decoder or the fallback. The Node 22 floor exercises the fallback:
+ * Node 22.13.0 to 22.22.0 decode `windows-1252` as ISO-8859-1 (nodejs/node#60888).
  */
 import { describe, expect, it } from 'vitest';
 import { decodeAs, decodeStrict, decodeWindows1252, WINDOWS_1252_HIGH } from '../src/index.js';

@@ -11,6 +11,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **A Kanka campaign import continues when one picture cannot be stored.** The picture is named in the report and skipped, while the entity, its page and the rest of the campaign still import.
 - **The agent replies in the language you use.** The interface language is the fallback if there is no message from you. Manuscript text still follows the project language.
 - **The Modern agent panel keeps its prompt box and Close control visible.** The conversation scrolls between them, and the page and panel both grow on large displays. In smaller windows, the backup notice has its own space and doesn't sit behind the agent panel.
+- **The agent's command and context list stays beside the Intent box as the Modern panel opens.** You can type while it moves, including in the narrow layout.
 - **The desktop window quits by default.** Keeping Caotang running in the system tray is opt-in in Settings › Appearance. The first time Caotang hides there, it tells you how to reopen or quit.
 - **Removing a provider asks first.** The confirmation names the profile and explains that removing it also deletes its stored key.
 - **Desktop keeps account edits that could not be saved on this device.** Going back or a takeover leaves the editor open so you can export a copy. When you explicitly send after an offline lease expires, the app tries to regain the lease without taking over another device.
