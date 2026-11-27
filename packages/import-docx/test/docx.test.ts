@@ -268,6 +268,25 @@ describe('notes, comments and pictures (#279)', () => {
     expect(heading?.kind === 'heading' ? heading.md : '').toBe('# \\*door\\* \\[name\\](target)');
   });
 
+  it('keeps strike-looking source text literal across Word text fragments', async () => {
+    const fragmented = '<w:p><w:r><w:t>~</w:t><w:t>~deleted~</w:t><w:t>~</w:t></w:r></w:p>';
+    const read = await readDocx(docx({ body: fragmented }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const para = read.value.document.blocks[0];
+    expect(para?.kind === 'para' ? para.md : '').toBe('\\~\\~deleted\\~\\~');
+    expect(para?.kind === 'para' ? para.text : '').toBe('~~deleted~~');
+  });
+
+  it('keeps the boundary between paragraphs flattened out of one text box', async () => {
+    const textBox = `<w:p><w:r><w:txbxContent>${p('First.')}${p('Second.')}</w:txbxContent></w:r></w:p>`;
+    const read = await readDocx(docx({ body: textBox }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const para = read.value.document.blocks[0];
+    expect(para?.kind === 'para' ? para.md : '').toBe('First.\n\nSecond.');
+  });
+
   it('flattens grouped text boxes in document order', async () => {
     const box = (text: string): string => `<w:txbxContent>${p(text)}</w:txbxContent>`;
     const drawing = `<w:p><w:r><w:drawing><wp:inline><a:graphic><a:graphicData>${box('First box')}${box('Second box')}</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
@@ -286,7 +305,7 @@ describe('notes, comments and pictures (#279)', () => {
     expect(read.ok).toBe(true);
     if (!read.ok) return;
     const para = read.value.document.blocks.find((block) => block.kind === 'para');
-    expect(para?.kind === 'para' ? para.text : '').toBe('Outer boxInner box');
+    expect(para?.kind === 'para' ? para.text : '').toBe('Outer box\n\nInner box');
     expect(read.value.dropped.textBoxes).toBe(2);
   });
 

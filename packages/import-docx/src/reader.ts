@@ -5,7 +5,7 @@
  */
 
 import type { ImportAsset, ImportBlock, ImportComment, ImportDocument, ImportFootnote, LossWarning, Signals } from '@caotang/import-core';
-import { escapeInline, escapeLineStarts } from '@caotang/import-core';
+import { escapeLineStarts } from '@caotang/import-core';
 import { attr, readXml, textOf, type XmlElement } from '@caotang/import-read/xml';
 import { openZip, type ImportArchive } from '@caotang/import-read/zip';
 
@@ -26,6 +26,7 @@ import {
   type DocxNote,
   type DocxRel,
   type DocxStyle,
+  escapeDocxInline,
 } from './parts.js';
 
 export type TrackedMode = 'accept' | 'reject' | 'keep';
@@ -203,7 +204,7 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
   let out = '';
   for (const child of element.children) {
     if (child.type === 'text') {
-      out += deleting ? '' : escapeInline(child.text);
+      out += deleting ? '' : escapeDocxInline(child.text);
       continue;
     }
     if (child.type !== 'element') continue;
@@ -216,12 +217,12 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
       let text = '';
       for (const part of child.children) {
         if (part.type === 'text') {
-          text += escapeInline(part.text);
+          text += escapeDocxInline(part.text);
           continue;
         }
         if (part.type !== 'element') continue;
         const name = part.ns === W ? part.local : '';
-        if (name === 't' || name === 'delText') text += escapeInline(textOf(part));
+        if (name === 't' || name === 'delText') text += escapeDocxInline(textOf(part));
         else if (name === 'tab') text += '\t';
         else if (name === 'br') {
           if (attr(part, 'type', W) === 'page') state.pageBreakInRuns = true;
@@ -313,7 +314,7 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
 function textBox(element: XmlElement, state: WalkState, inherited: RunStyle, deleting: boolean): string {
   state.dropped.textBoxes += 1;
   state.losses.push({ code: 'text-box', message: 'A text box was read as a paragraph.', blockIndex: state.blocks.length });
-  return kids(element, 'p').map((paragraph) => renderRuns(paragraph, state, inherited, deleting)).join('');
+  return kids(element, 'p').map((paragraph) => renderRuns(paragraph, state, inherited, deleting)).join('\n\n');
 }
 
 /** Every outermost text box nested anywhere under a drawing, a legacy picture or an object, in document order. */

@@ -75,7 +75,7 @@ its own alt text. A batch gives each file its own ref namespace.
 
 A table becomes one paragraph per row, its cells joined with ` — `, with a `table` loss. Headers and footers are not read. Text
 boxes are listed as a loss with their text kept as a paragraph, whether the box is attached to a run or nested inside a Word
-drawing, VML shape or object. Nested boxes flatten in document order, and a picture inside one is registered only once.
+drawing, VML shape or object. Nested boxes flatten in document order with their paragraph boundaries kept, and a picture inside one is registered only once.
 
 ## 6. Safety and limits
 
