@@ -429,7 +429,7 @@
   }
 }
 
-:root[data-shell='modern'] .modern-toast:empty {
+:root[data-shell='modern'] :is(.modern-toast, .modern-ornament-state):empty {
   display: none;
 }
 

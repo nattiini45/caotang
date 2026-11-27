@@ -118,6 +118,7 @@ export interface OsOptions {
   readonly window: () => BrowserWindow | null;
   /** Shows the one window, opening it if the writer closed it to the tray. */
   readonly show: () => void;
+  readonly openAccount: () => void;
   readonly quit: () => void;
 }
 
@@ -181,7 +182,9 @@ export function registerOsIpc(options: OsOptions): OsIntegration {
     const redraw = first || published?.project !== next.project || JSON.stringify(published?.labels) !== JSON.stringify(next.labels);
     published = next;
     if (redraw) {
-      const template = menuTemplate({ platform: process.platform, labels: next.labels, appName: app.name, project: next.project });
+      const template = menuTemplate({ platform: process.platform, labels: next.labels, appName: app.name, project: next.project,
+        openAccount: options.openAccount, accountLabel: app.getLocale().startsWith('de') ? 'Kontoprojekte…' : 'Account projects…',
+      });
       hang(template);
       Menu.setApplicationMenu(Menu.buildFromTemplate(template));
     }

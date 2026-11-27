@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:account": "vite build --mode native-account",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
@@ -15,6 +16,7 @@
     "@caotang/bus": "workspace:*",
     "@caotang/codex": "workspace:*",
     "@caotang/coherence": "workspace:*",
+    "@caotang/crypto": "workspace:*",
     "@caotang/comic": "workspace:*",
     "@caotang/dialogue": "workspace:*",
     "@caotang/editor": "workspace:*",

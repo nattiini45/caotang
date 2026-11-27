@@ -29,6 +29,8 @@ files:
 extraResources:
   - from: ../desktop/dist
     to: desktop/dist
+  - from: ../desktop/dist-account
+    to: desktop/dist-account
 
 asar: true
 # A native binary cannot be loaded from inside an archive, so it sits unpacked beside it (app.asar.unpacked) where Electron

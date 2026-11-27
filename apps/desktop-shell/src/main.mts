@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 import { app, BrowserWindow, dialog, net, protocol, screen, session } from 'electron';
 
+import { ACCOUNT_ORIGIN, registerAccountWindow } from './account-window.mjs';
 import { registerEgressIpc } from './egress.mjs';
 import { registerFolderIpc } from './folders.mjs';
 import { registerMcpIpc, type McpHost } from './mcp.mjs';
@@ -13,6 +14,7 @@ import { openKeyVault, registerVaultIpc } from './vault.mjs';
 const ORIGIN = 'app://caotang';
 const ENTRY = `${ORIGIN}/`;
 const BUILD = resolve(import.meta.dirname, '../../desktop/dist');
+const ACCOUNT_BUILD = resolve(import.meta.dirname, '../../desktop/dist-account');
 const CSP = [
   "default-src 'self'",
   "script-src 'self'",
@@ -45,22 +47,33 @@ async function serveBuild(): Promise<void> {
   const root = await realpath(BUILD);
   protocol.handle('app', async (request) => {
     const url = new URL(request.url);
-    if (url.host !== 'caotang' || url.username || url.password || request.method !== 'GET') {
+    const account = url.host === 'account';
+    if ((!account && url.host !== 'caotang') || url.username || url.password || request.method !== 'GET') {
       return new Response(null, { status: 404 });
     }
     const path = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
-    if (!/^(?:index\.html|THIRD-PARTY-NOTICES\.md|assets\/[A-Za-z0-9_-][A-Za-z0-9_.-]*)$/.test(path)) {
+    const document = account ? /^(?:account\/index|account\/studio)\.html$/ : /^index\.html$/;
+    if (!document.test(path) && !/^(?:THIRD-PARTY-NOTICES\.md|assets\/[A-Za-z0-9_-][A-Za-z0-9_.-]*)$/.test(path)) {
       return new Response(null, { status: 404 });
     }
     try {
-      const file = await realpath(resolve(root, path));
-      const fromRoot = relative(root, file);
+      const build = account ? await realpath(ACCOUNT_BUILD) : root;
+      const file = await realpath(resolve(build, path));
+      const fromRoot = relative(build, file);
       if (isAbsolute(fromRoot) || fromRoot === '..' || fromRoot.startsWith(`..${sep}`)) {
         return new Response(null, { status: 404 });
       }
       const response = await net.fetch(pathToFileURL(file).href);
       const headers = new Headers(response.headers);
-      headers.set('Content-Security-Policy', CSP);
+      let policy = account
+        ? CSP.replace("connect-src 'self' https: wss: http: ws:", "connect-src 'self'")
+          .replace("frame-src 'none'", path === 'account/index.html' ? "frame-src 'self'" : "frame-src 'none'")
+          .replace("frame-ancestors 'none'", path === 'account/studio.html' ? `frame-ancestors ${ACCOUNT_ORIGIN}` : "frame-ancestors 'none'")
+        : CSP;
+      if (account && /^assets\/kdf-worker-[A-Za-z0-9_-]+\.js$/.test(path)) {
+        policy = policy.replace("script-src 'self'", "script-src 'self' 'wasm-unsafe-eval'");
+      }
+      headers.set('Content-Security-Policy', policy);
       headers.set('X-Content-Type-Options', 'nosniff');
       return new Response(response.body, { status: response.status, headers });
     } catch {
@@ -164,6 +177,7 @@ async function start(): Promise<void> {
   const host: { mcp?: McpHost } = {};
   const folders = await registerFolderIpc(app.getPath('userData'), ENTRY, { ownWriter: () => host.mcp?.writerPid() });
   const keys = await openKeyVault(app.getPath('userData'));
+  const openAccount = await registerAccountWindow();
   // Each stored key's address is part of the vault's own record, written with the secret in one turn, so the page may use a key
   // and can never say where one goes (#864). Both channel sets share the one vault, and a request and a save take turns through it.
   registerVaultIpc(ENTRY, keys);
@@ -176,6 +190,7 @@ async function start(): Promise<void> {
     folders,
     window: () => mainWindow,
     show: showWindow,
+    openAccount,
     quit: () => {
       quitting = true;
       app.quit();

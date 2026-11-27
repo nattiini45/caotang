@@ -10,6 +10,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **The Modern agent panel keeps its prompt box and Close control visible.** Only the conversation scrolls, and the page and panel both grow on large displays. In smaller windows, the backup notice has its own space and doesn't sit behind the agent panel.
 - **The desktop window quits by default.** Keeping Caotang running in the system tray is opt-in in Settings › Appearance. The first time Caotang hides there, it tells you how to reopen or quit.
 - **Removing a provider asks first.** The confirmation names the profile and explains that removing it also deletes its stored key.
+- **The Modern toolbar stays in place when the window becomes narrow.** The wide-window sidebar animation no longer squeezes the project title during the resize.
 
 - **Account projects show their account save state.** When an embedding host opens an account project, the studio says whether its changes reached the account or are still on this device. The browser-only persistence warning is shown only where it applies.
 
@@ -23,6 +24,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Gateway recovery messages follow the interface language (#596).** The fixed text `ProviderError` and `ProfileError` carry — "Key rejected by {host}. Check the profile in Settings.", the profile-validation messages and the local-server guidance — renders in German through the catalogue. The provider's own reply and host-supplied values stay exactly as sent. Extraction only; call logic is unchanged.
 
 ### Added
+
+- **Open account projects in Caotang for desktop.** Enter the address of a compatible account server, approve the connection in your browser and unlock your projects. Choose read-only access or take over editing explicitly. Local projects and the public web build stay unchanged.
 
 - **An embedding shell can open an account project for reading.** The read-only studio shows the account's binder, prose and script source without opening the editor, starting the agent or touching the edits waiting on this browser. The standalone browser app still opens its own local projects as before.
 
