@@ -10,7 +10,9 @@ const ASSETS_DIR = 'assets';
 
 export async function openRemoteProject(source: HostedProjectSource, scope = storageScope()): Promise<EncryptedRemoteArtifactFs> {
   const { EncryptedRemoteArtifactFs, HighWaterMarks, createHttpBlobStore } = await import('@caotang/remote-store');
-  const blob = createHttpBlobStore({ origin: source.origin, projectId: source.projectId, device: source.device });
+  const blob = createHttpBlobStore({ origin: source.origin, projectId: source.projectId, device: source.device,
+    ...(source.fetch === undefined ? {} : { fetch: source.fetch }),
+  });
   const highWater = new HighWaterMarks(loadHostedMarks(source.projectId, scope));
   return await EncryptedRemoteArtifactFs.open({ store: blob, projectId: source.projectId, projectKey: source.key, highWater });
 }

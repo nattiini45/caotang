@@ -2,6 +2,8 @@
 import { webcrypto } from 'node:crypto';
 import { expect, it, vi } from 'vitest';
 import { createHostedProjectReceiver } from '../src/app/hosted-receiver.js';
+import { hostedProject } from '../src/app/studio-host.js';
+import { setStorageScope } from '../src/app/storage-scope.js';
 
 const origin = 'https://account.example';
 
@@ -32,4 +34,21 @@ it('classifies a malformed account, project label, key or mode without booting t
     await expect(frame.receive(account, handoff)).rejects.toMatchObject({ code });
   }
   expect(bootEditor).not.toHaveBeenCalled();
+});
+
+it('lets only the trusted entry supply the account transport and clears it on lock', async () => {
+  const entryFetch = vi.fn<typeof fetch>();
+  const handedFetch = vi.fn<typeof fetch>();
+  const bootEditor = vi.fn();
+  const frame = createHostedProjectReceiver({ origin, root: document.body, bootEditor, fetch: entryFetch });
+  const key = await webcrypto.subtle.importKey('raw', new Uint8Array(32), 'HKDF', false, ['deriveBits']);
+  try {
+    await frame.receive('account-one', { projectId: 'p_example', key, mode: 'edit', device: 'own-device', fetch: handedFetch });
+    expect(hostedProject()).toEqual({ origin, projectId: 'p_example', device: 'own-device', key, fetch: entryFetch });
+    expect(bootEditor).toHaveBeenCalledTimes(1);
+  } finally {
+    frame.lock();
+    setStorageScope(null);
+  }
+  expect(hostedProject()).toBeNull();
 });

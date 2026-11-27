@@ -12,6 +12,7 @@ interface ReceiverOptions {
   readonly origin: string;
   readonly root: HTMLElement;
   readonly language?: string;
+  readonly fetch?: typeof fetch;
   readonly bootEditor: (signal: AbortSignal) => void | Promise<void>;
 }
 
@@ -39,7 +40,7 @@ function projectHandoff(value: unknown): HostedProjectHandoff {
   throw new HostedHandoffError('invalid-mode-or-device');
 }
 
-export function createHostedProjectReceiver({ origin, root, language, bootEditor }: ReceiverOptions) {
+export function createHostedProjectReceiver({ origin, root, language, fetch, bootEditor }: ReceiverOptions) {
   let url: URL;
   try {
     url = new URL(origin);
@@ -59,12 +60,12 @@ export function createHostedProjectReceiver({ origin, root, language, bootEditor
       accepted = project.mode;
       if (project.mode === 'edit') {
         setStorageScope(account);
-        setHostedProject({ origin, projectId: project.projectId, device: project.device, key: project.key });
+        setHostedProject({ origin, projectId: project.projectId, device: project.device, key: project.key, fetch });
         await bootEditor(controller.signal);
       } else {
         const { mountHostedReader } = await import('../hosted-reader/mount.js');
         controller.signal.throwIfAborted();
-        unmountReader = mountHostedReader(root, { account, origin, project, language, signal: controller.signal });
+        unmountReader = mountHostedReader(root, { account, origin, project, language, fetch, signal: controller.signal });
       }
       controller.signal.throwIfAborted();
     },
