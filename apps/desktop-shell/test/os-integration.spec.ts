@@ -270,8 +270,45 @@ test('an opt-in tray shows a notice only on the first hide and keeps the rendere
     }))).toEqual({ width: '8px', buttons: 'none' });
     const preference = settings.getByRole('checkbox', { name: /keep Caotang in the system tray/i });
     await expect(preference).not.toBeChecked();
+    await page.evaluate(() => new Promise<void>((resolve, reject) => {
+      const open = indexedDB.open('caotang-app');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const db = open.result;
+        const lock = db.transaction('kv', 'readwrite');
+        lock.oncomplete = () => db.close();
+        let held = true;
+        document.addEventListener('release-tray-settings', () => { held = false; }, { once: true });
+        const hold = () => {
+          const read = lock.objectStore('kv').get('settings');
+          read.onsuccess = () => {
+            if (held) hold();
+            resolve();
+          };
+        };
+        hold();
+      };
+    }));
     await preference.click();
     await expect(preference).toBeChecked();
+    await preference.click();
+    await expect(preference).not.toBeChecked();
+    await page.evaluate(() => document.dispatchEvent(new Event('release-tray-settings')));
+    await preference.click();
+    await expect(preference).toBeChecked();
+    await expect.poll(() => page.evaluate(() => new Promise<boolean>((resolve, reject) => {
+      const open = indexedDB.open('caotang-app');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const db = open.result;
+        const read = db.transaction('kv').objectStore('kv').get('settings');
+        read.onerror = () => { db.close(); reject(read.error); };
+        read.onsuccess = () => {
+          db.close();
+          resolve(read.result?.value.closeToTray === true);
+        };
+      };
+    }))).toBe(true);
     await settings.getByRole('button', { name: 'Close', exact: true }).click();
     await electron.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());
     const survived = await electron.evaluate(({ BrowserWindow }) => {

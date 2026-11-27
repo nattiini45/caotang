@@ -65,10 +65,11 @@
   color: var(--accent-ink);
 }
 
-.settings-tray-mark svg {
-  display: block;
-  inline-size: 1rem;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
+.settings-tray-choice[data-checked] .settings-tray-mark::after {
+  content: '';
+  inline-size: 0.66rem;
+  block-size: 0.38rem;
+  border: solid currentColor;
+  border-width: 0 0 2px 2px;
+  rotate: -45deg;
 }

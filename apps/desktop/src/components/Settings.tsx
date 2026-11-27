@@ -14,7 +14,7 @@ import { msg, plural, t } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 import { AlertDialog, AlertDialogClose, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from '@ui-sdk/react/alert-dialog';
-import { Checkbox, CheckboxIndicator } from '@ui-sdk/react/checkbox';
+import { Checkbox } from '@ui-sdk/react/checkbox';
 import './settings-controls.css';
 import { isolate } from '@caotang/i18n';
 import {
@@ -1085,6 +1085,8 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
   // move from the row the writer picked.
   const settings = useSyncExternalStore(services.settings.subscribe, services.settings.current);
   const [trayError, setTrayError] = useState<string | null>(null);
+  const [trayChoice, setTrayChoice] = useState<boolean | null>(null);
+  const trayWrite = useRef(0);
   const revision = useSyncExternalStore(subscribeLanguage, languageRevision);
   const [status, setStatus] = useState<
     | { readonly kind: 'idle' }
@@ -1156,15 +1158,20 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
       {canSetCloseToTray() ? (
         <fieldset className="settings-radios settings-tray">
           <legend><Trans>Desktop window</Trans></legend>
-          <Checkbox className="settings-tray-choice" checked={settings.closeToTray} aria-describedby="close-to-tray-help"
+          <Checkbox className="settings-tray-choice" checked={trayChoice ?? settings.closeToTray} aria-describedby="close-to-tray-help"
             onCheckedChange={(value) => {
+              const version = ++trayWrite.current;
+              const closeToTray = value === true;
+              setTrayChoice(closeToTray);
               setTrayError(null);
-              void services.settings.update({ closeToTray: value === true }, { publishAfterSave: true }).then(setTrayError);
+              void services.settings.update({ closeToTray }, { publishAfterSave: true }).then((error) => {
+                if (version !== trayWrite.current) return;
+                setTrayChoice(null);
+                setTrayError(error);
+              });
             }}
           >
-            <span className="settings-tray-mark" aria-hidden="true">
-              <CheckboxIndicator><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7" /></svg></CheckboxIndicator>
-            </span>
+            <span className="settings-tray-mark" aria-hidden="true" />
             <Trans>Keep Caotang in the system tray when I close the window</Trans>
           </Checkbox>
           <p className="muted" id="close-to-tray-help"><Trans>Closing the window quits Caotang unless you turn this on. If the system tray is available, scheduled tasks can still run there.</Trans></p>

@@ -40,9 +40,6 @@ export interface StartIntent {
   readonly serial: number;
 }
 
-const noCloseToTray = (): boolean => false;
-const noSettingsSubscription = (): (() => void) => () => undefined;
-
 export function App(): ReactNode {
   useDisclosureDismissal();
   const boot = useBootPhase();
@@ -81,13 +78,11 @@ export function App(): ReactNode {
   // mean anything, and the tray's line says whether task runs are carrying on.
   const openProject = session === null ? null : session.state.manifest.project.name;
   const settings = boot.kind === 'ready' ? boot.services.settings : undefined;
-  const closeToTray = useSyncExternalStore(
-    settings?.subscribe ?? noSettingsSubscription,
-    settings === undefined ? noCloseToTray : () => settings.current().closeToTray,
-  );
   useEffect(() => {
-    publishNativeState({ project: openProject, closeToTray });
-  }, [openProject, trayHidden, language, closeToTray]);
+    const publish = () => publishNativeState({ project: openProject, closeToTray: settings?.current().closeToTray === true });
+    publish();
+    return settings?.subscribe(publish);
+  }, [openProject, trayHidden, language, settings]);
 
   const show = (opened: Opened): void => {
     const previous = current.current;
