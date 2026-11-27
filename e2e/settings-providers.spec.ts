@@ -56,6 +56,10 @@ test('removing a provider names it and leaves its stored key alone until confirm
   await expect(confirmation).toBeVisible();
   await expect(confirmation.getByRole('button', { name: 'Cancel' })).toBeFocused();
   await expect(confirmation).toHaveAccessibleDescription('This removes the provider profile and its stored key.');
+  expect(await confirmation.evaluate((dialog) => {
+    const box = dialog.getBoundingClientRect();
+    return Math.abs(box.x + box.width / 2 - window.innerWidth / 2) < 2;
+  })).toBe(true);
   await page.keyboard.press('Escape');
   await expect(settings).toBeVisible();
   await expect(trigger).toBeFocused();

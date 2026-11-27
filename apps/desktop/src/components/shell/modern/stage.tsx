@@ -16,15 +16,17 @@ export { geometryProperties, type StageGeometry } from './geometry.js';
 export function Stage({
   geometry,
   sidebar,
+  compactOrnaments,
   children,
 }: {
   geometry?: StageGeometry;
   /** Whether a sidebar takes room at the inline-start edge (until a geometry says how much). */
   sidebar: boolean;
+  compactOrnaments?: boolean;
   children: ReactNode;
 }): ReactNode {
   return (
-    <div className={`modern-stage${sidebar ? ' has-sidebar' : ''}`} data-testid="modern-stage" style={geometryProperties(geometry)}>
+    <div className={`modern-stage${sidebar ? ' has-sidebar' : ''}`} data-testid="modern-stage" data-compact-ornaments={compactOrnaments ? '' : undefined} style={geometryProperties(geometry)}>
       {/* Decorative: drawn once by the stylesheet, fixed, never animated, and hidden from assistive technology (§5.3). */}
       <div className="modern-wallpaper" aria-hidden="true" data-testid="modern-wallpaper" />
       {children}

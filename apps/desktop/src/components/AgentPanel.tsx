@@ -10,6 +10,7 @@
 
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import './request-context.css';
+import './shell/modern/agent-surface.css';
 // The Skills note in this panel's list is styled by the sheet the Skills dialog also uses.
 import './skills-dialog.css';
 import { plural, t } from '@lingui/core/macro';

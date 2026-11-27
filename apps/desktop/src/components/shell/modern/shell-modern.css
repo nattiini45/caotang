@@ -26,6 +26,8 @@
   --page-gutter: 32px;
   --area-start: 0px;
   --area-end: 0px;
+  --notice-start: var(--area-start);
+  --notice-end: var(--area-end);
   --sidebar-w: 300px;
   position: fixed;
   inset: 0;
@@ -267,6 +269,7 @@
   display: inline-flex;
   align-items: center;
   min-inline-size: 0;
+  overflow-wrap: anywhere;
   min-block-size: var(--target-min);
   padding-inline: var(--space-5);
   border-radius: var(--radius-control);
@@ -301,9 +304,9 @@
 
 :root[data-shell='modern'] .modern-title {
   position: relative;
-  flex-shrink: 0.35;
+  flex-shrink: 0;
   gap: var(--space-3);
-  max-inline-size: min(46ch, 52vw);
+  max-inline-size: min(46ch, 48%);
 }
 
 :root[data-shell='modern'] .modern-ornament:has(.modern-save-summary) .modern-title {

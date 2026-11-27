@@ -122,13 +122,15 @@ test.describe('German Modern studio at 150% display scaling', () => {
         const footer = box('.agent-foot');
         const form = box('.agent-foot .agent-intent');
         const nav = box('.modern-ornament.is-bottom');
+        const navChildren = [...document.querySelectorAll('.modern-ornament.is-bottom .modern-capsule')];
         const title = document.querySelector('.modern-title-name');
         const banner = box('[data-testid="storage-banner"]');
         return {
           bannerClear: banner.left >= box('.modern-sidebar').right && (banner.right <= agent.left || banner.bottom <= agent.top),
           titleFits: title !== null && title.scrollWidth <= title.clientWidth + 1,
           footerInside: form.top >= footer.top && form.bottom <= footer.bottom && footer.bottom <= agent.bottom,
-          noNavOverlap: agent.left >= nav.right || agent.bottom <= nav.top,
+          noNavOverlap: (agent.left >= nav.right || agent.bottom <= nav.top)
+            && navChildren.every((control) => control.getBoundingClientRect().right <= nav.right),
           chatWidth: agent.width,
           transcriptHeight: box('.agent-body').height,
           pageWidth: box('.modern-page').width,

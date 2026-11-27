@@ -375,7 +375,7 @@
   /* Where the absolute notice sat: below the top ornament's floating band, centred in the room the page keeps. */
   margin-block-start: calc(var(--page-top) + var(--radius-ornament) + var(--space-6));
   justify-self: center;
-  margin-inline: var(--area-start) var(--notice-end, var(--area-end));
+  margin-inline: var(--notice-start) var(--notice-end);
 }
 
 :root[data-shell='modern'] .modern-stage:has(.notice-row) > .modern-page-area {
@@ -399,9 +399,9 @@
 :root[data-shell='modern'] .modern-notices {
   position: absolute;
   inset-block-start: calc(var(--page-top) + var(--radius-ornament) + var(--space-6));
-  inset-inline: var(--area-start) var(--area-end);
+  inset-inline: var(--notice-start) var(--notice-end);
   margin-inline: auto;
-  inline-size: min(720px, calc(100% - var(--area-start) - var(--notice-end, var(--area-end)) - 2 * var(--page-gutter)));
+  inline-size: min(720px, 100% - var(--notice-start) - var(--notice-end) - 2 * var(--page-gutter));
   display: flex;
   flex-direction: column;
   align-items: center;

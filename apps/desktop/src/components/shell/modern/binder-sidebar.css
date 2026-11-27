@@ -27,6 +27,10 @@
   --area-start: calc(var(--binder-inset) + var(--binder-bar-w) + var(--binder-gap) + var(--binder-sidebar-w));
 }
 
+:root[data-shell='modern'] .modern-stage:has(> .modern-binder.is-open:not(.is-pinned)) {
+  --notice-start: max(var(--area-start), var(--binder-inset) + var(--binder-bar-w) + var(--binder-gap) + var(--binder-sidebar-w));
+}
+
 /* Open but not pinned (#358), above 1,280 px and with nothing docked at the inline-end edge, the page and its ornaments slide over to
    start a gap clear of the sidebar's edge (--binder-clear) when the page keeps its whole --page-w there; the slide is all or nothing
    (the clamp's ×1000 is a step). From 1,280 px down the page narrows beside it instead (below, #364). Everywhere else (the agent
@@ -55,19 +59,31 @@
     --area-start: calc(var(--binder-inset) + var(--binder-bar-w) + var(--binder-gap) + var(--binder-sidebar-w)) !important;
   }
 
-  :root[data-shell='modern'] .modern-binder.is-open ~ .is-bottom .modern-capsule {
-    flex: none;
-    padding-inline: var(--space-2);
+  :root[data-shell='modern'] .modern-binder.is-open ~ .is-bottom {
+    --compact-nav-pad: var(--space-2);
+    --compact-nav-label: none;
   }
+}
 
+:root[data-shell='modern'] [data-compact-ornaments] > .is-bottom {
+  --compact-nav-pad: var(--space-2);
+  --compact-nav-label: none;
+}
+
+:root[data-shell='modern'] .is-bottom .modern-capsule {
+  padding-inline: var(--compact-nav-pad, var(--control-pad-x));
+}
+
+:root[data-shell='modern'] .is-bottom :is(.modern-view .modern-label, .modern-kbd) {
+  display: var(--compact-nav-label, inline);
+}
+
+@media (min-width: 960px) and (max-width: 1280px) {
   :root[data-shell='modern'] .modern-binder.is-open ~ .is-bottom > .modern-capsule {
+    flex: none;
     flex-direction: column;
     gap: var(--space-1);
     font-size: var(--text-xs);
-  }
-
-  :root[data-shell='modern'] .modern-binder.is-open ~ .is-bottom :is(.modern-view .modern-label, .modern-kbd) {
-    display: none;
   }
 }
 

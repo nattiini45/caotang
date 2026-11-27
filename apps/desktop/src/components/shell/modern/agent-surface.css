@@ -1,0 +1,39 @@
+:root[data-shell='modern'] .modern-companion .agent-foot {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  min-block-size: 0;
+  padding: var(--space-2) var(--space-4);
+}
+
+:root[data-shell='modern'] .modern-companion .agent-foot[hidden] {
+  display: none;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-foot .agent-intent {
+  margin: 0;
+  flex: none;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-foot .agent-intent input,
+:root[data-shell='modern'] .modern-companion .agent-foot .button {
+  min-block-size: var(--target-min);
+}
+
+/* The body is a column so Recurring tasks, one folded line, sits under the turns (the drawer keeps it above them). */
+:root[data-shell='modern'] .modern-companion .agent-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  flex: 1 1 0;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4) var(--space-5);
+}
+
+@media (min-width: 1921px) {
+  :root[data-shell='modern'] .modern-companion :is(.agent-body, .agent-report, .agent-turn-head, .agent-stream) {
+    font-size: clamp(1rem, 0.85rem + 0.16vw, 1.25rem);
+  }
+}

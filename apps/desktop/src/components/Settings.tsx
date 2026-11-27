@@ -15,6 +15,7 @@ import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
 import { AlertDialog, AlertDialogClose, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from '@ui-sdk/react/alert-dialog';
 import { Checkbox, CheckboxIndicator } from '@ui-sdk/react/checkbox';
+import './provider-removal.css';
 import { isolate } from '@caotang/i18n';
 import {
   isLocalBase,
@@ -533,10 +534,10 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
         setRemoving(null);
         if (details.returnValue === 'confirm') void run(() => remove(removing));
       }}>
-        <AlertDialogContent className="confirm" finalFocus={() => removeTrigger.current}>
+        <AlertDialogContent className="confirm provider-removal" finalFocus={() => removeTrigger.current}>
           <div className="confirm-body">
             <AlertDialogTitle>{t`Remove provider “${{ profile: isolate(removing?.name ?? '') }}”?`}</AlertDialogTitle>
-            <AlertDialogDescription><Trans>This removes the provider profile and its stored key.</Trans></AlertDialogDescription>
+            <div className="confirm-text"><AlertDialogDescription><Trans>This removes the provider profile and its stored key.</Trans></AlertDialogDescription></div>
             <div className="confirm-actions">
               <AlertDialogClose className="button"><Trans>Cancel</Trans></AlertDialogClose>
               <AlertDialogClose className="button is-danger" value="confirm" data-agent-confirm={t`This removes the provider profile and its stored key.`}>
