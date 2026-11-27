@@ -36,11 +36,15 @@ export async function openCurrentHostedProject(
     try {
       await reread.saved();
     } catch {
-      if (current()) target.rereadRefused();
+      if (current()) target.rereadRefused('save');
       return;
     }
     await target.settled();
-    if (!current() || !target.canReread()) return;
+    if (!current()) return;
+    if (!target.canReread()) {
+      target.rereadRefused(target.state().stageFailed ? 'save' : 'queue');
+      return;
+    }
     target.detach();
     clear();
     await reread.closeSafely().catch(() => undefined);

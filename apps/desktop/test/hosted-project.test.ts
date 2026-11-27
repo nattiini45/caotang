@@ -43,7 +43,7 @@ it('builds only changed files without reading the account, pictures included', a
   const baseline = await hostedBaseline(index([[doc(A), 3], [doc(B), 4], [COVER, 2]]), state, { [COVER]: new Uint8Array([0]) });
   state.documents.get(A)!.body = 'Five words, written offline.';
   const bytes = new Uint8Array([7, 7, 7]);
-  const changes = await baseline.changes(state, { [COVER]: bytes });
+  const { changes } = await baseline.prepare(state, { [COVER]: bytes });
   expect(changes.map(({ path, base }) => [path, base])).toEqual([[doc(A), 3], [COVER, 2]]);
   expect(new TextDecoder().decode(changes[0]?.bytes ?? undefined)).toContain('Five words, written offline.');
   expect(changes[1]?.bytes).toEqual(bytes);
@@ -58,7 +58,7 @@ it('names explicit scene, codex and picture deletions alongside the structural m
   state.documents.delete(A);
   state.manifest.tree = state.manifest.tree.filter((node) => node.id !== A);
   state.manifest.codex = [];
-  const changes = await baseline.changes(state, {});
+  const { changes } = await baseline.prepare(state, {});
   expect(changes.filter((change) => change.bytes === null)).toEqual([
     { path: codexPath, base: 4, bytes: null }, { path: doc(A), base: 3, bytes: null }, { path: COVER, base: 2, bytes: null },
   ]);
@@ -71,7 +71,7 @@ it('leaves unreadable document bytes untouched', async () => {
   state.declinedDocFiles.add(`${A}.md`);
   const baseline = await hostedBaseline(index([[doc(A), 3]]), state, {});
   state.documents.get(B)!.body = 'Revised';
-  expect((await baseline.changes(state, {})).map((change) => change.path)).toEqual([doc(B)]);
+  expect((await baseline.prepare(state, {})).changes.map((change) => change.path)).toEqual([doc(B)]);
 });
 
 it('removes an opened screenplay’s legacy body when the writer deletes that scene', async () => {
@@ -81,5 +81,11 @@ it('removes an opened screenplay’s legacy body when the writer deletes that sc
   const baseline = await hostedBaseline(index([[doc(A), 6]]), state, {});
   state.documents.delete(A);
   state.manifest.tree = state.manifest.tree.filter(({ id }) => id !== A);
-  expect(await baseline.changes(state, {})).toContainEqual({ path: doc(A), base: 6, bytes: null });
+  const first = await baseline.prepare(state, {});
+  const removal = { path: doc(A), base: 6, bytes: null };
+  expect(first.changes).toContainEqual(removal);
+  const retry = await baseline.prepare(state, {});
+  expect(retry.changes).toContainEqual(removal);
+  retry.staged();
+  expect((await baseline.prepare(state, {})).changes).toEqual([]);
 });

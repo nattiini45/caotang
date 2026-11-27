@@ -54,6 +54,7 @@ export function HostedSaveNotice({
   if (target === null || state.kind === 'idle' || state.kind === 'saving') return null;
   if (state.stageFailed) return <p className="status-line" role="alert">
     <span><Trans>Your latest edits aren’t ready to send.</Trans></span>
+    {state.readFailed === 'save' && <span><Trans>Save your edits before reading the account copy.</Trans></span>}
     {state.kind !== 'stale' && state.paths.length > 0 && !state.persisted
       ? <span><Trans>Closing this tab loses these changes.</Trans></span>
       : null}
@@ -64,16 +65,18 @@ export function HostedSaveNotice({
     : t`Closing this tab loses these changes.`;
   const read = <button type="button" className="button" onClick={() => onReopenAccount?.()}><Trans>Read them</Trans></button>;
   const waitingFiles = state.waiting?.paths.map((path) => isolate(nameOf(path, session))).join(', ');
+  const waitingText = <Trans>Read before sending these files: {waitingFiles}</Trans>;
   const waiting = state.waiting === undefined ? null : (
     <p className="status-line" role="status">
-      <span><Trans>Read before sending these files: {waitingFiles}</Trans></span>
+      <span>{waitingText}</span>
       {state.waiting.persisted
         ? read
-        : <span><Trans>Closing this tab loses these changes.</Trans></span>}
+        : state.readFailed !== 'queue' && <span><Trans>Closing this tab loses these changes.</Trans></span>}
     </p>
   );
   const readFailed = state.readFailed ? <p className="status-line" role="alert">
-    <Trans>Save your edits before reading the account copy.</Trans>
+    {state.readFailed === 'save' ? <Trans>Save your edits before reading the account copy.</Trans>
+      : <Trans>Closing this tab loses these changes.</Trans>}
   </p> : null;
 
   if (state.kind === 'unsaved') {
@@ -81,7 +84,7 @@ export function HostedSaveNotice({
     // survived a reload — a full or blocked store leaves them in this tab, and saying "on this device" would be the sentence that costs
     // them the work.
     return <><p className="status-line" role="status">
-      <span>{pending}</span>
+      {state.readFailed !== 'queue' && <span>{pending}</span>}
       <button type="button" className="button" onClick={() => {
         void target.sendQueued();
       }}>
@@ -94,14 +97,14 @@ export function HostedSaveNotice({
   if (state.kind === 'stale') {
     return <>{waiting ?? <p className="status-line" role="status">
       <span><Trans>Your account has the changes.</Trans></span>
-      {read}
+      {state.readFailed !== 'queue' && read}
     </p>}{readFailed}</>;
   }
 
   const key = state.paths.join('|');
   if (putOff === key) {
     return <><p className="status-line" role="status">
-      <span>{pending}</span>
+      {state.readFailed !== 'queue' && <span>{pending}</span>}
       <button type="button" className="button is-quiet" onClick={() => setPutOff('')}>
         <Trans>Ask me again</Trans>
       </button>
@@ -110,7 +113,7 @@ export function HostedSaveNotice({
   }
 
   const files = state.paths.map((path) => isolate(nameOf(path, session))).join(', ');
-  return <>{waiting}{readFailed}<ChoiceDialog
+  return <ChoiceDialog
     open
     title={t`Another device saved these first`}
     choices={[
@@ -121,6 +124,13 @@ export function HostedSaveNotice({
         },
       },
       { label: t`Leave it for now`, onChoose: () => setPutOff(key) },
+      ...(state.waiting?.persisted ? [{
+        label: t`Read them`,
+        onChoose: () => {
+          setPutOff(key);
+          onReopenAccount?.();
+        },
+      }] : []),
     ]}
     onCancel={() => setPutOff(key)}
   >
@@ -131,5 +141,6 @@ export function HostedSaveNotice({
       <Trans>This replaces the account files.</Trans>
     </p>
     {state.persisted ? null : <p>{pending}</p>}
-  </ChoiceDialog></>;
+    {state.waiting && <p>{waitingText}</p>}
+  </ChoiceDialog>;
 }

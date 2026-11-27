@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { beforeEach, expect, it } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import { generateProjectKey } from '../../../packages/crypto/src/index.js';
 import { EncryptedRemoteArtifactFs, PendingEdits, RemoteUnavailableError, saveProjectToAccount } from '@caotang/remote-store';
 import { addDocument, countBody, createEmptyManifest, createProjectState, readProject } from '@caotang/store';
@@ -285,6 +285,19 @@ it('retains the newer payload if the attempted write is refused', async () => {
   expect(await bodies()).toEqual(['Written by device two', 'Original']);
   expect(await one.target.keepMine()).toMatchObject({ kind: 'stale' });
   expect(await bodies()).toEqual(['The newer draft', 'Original']);
+});
+
+it('retries the original delta if the first attempt to stage it failed', async () => {
+  const { open, session, bodies } = await devices();
+  const one = await session(await open(), 'one');
+  vi.spyOn(one.target.queue, 'stage').mockImplementationOnce(() => { throw new Error('Cannot stage yet'); });
+  await one.edit(A, 'Not lost on retry');
+  expect(one.target.state()).toMatchObject({ kind: 'unsaved', paths: [], stageFailed: true });
+  await one.target.save(one.state);
+  expect(one.target.state()).toMatchObject({ kind: 'unsaved', paths: [path(A)] });
+  expect(await bodies()).toEqual(['Original', 'Original']);
+  await one.send();
+  expect(await bodies()).toEqual(['Not lost on retry', 'Original']);
 });
 
 it('preserves an unverified legacy queue instead of offering to send it or replacing its local copy', async () => {

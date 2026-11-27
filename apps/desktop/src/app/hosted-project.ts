@@ -1,4 +1,4 @@
-import { bodyFile, bodyNamesOf, isBodyType, MemoryArtifactFs, MANIFEST_FILE, serializeManifest, writeProject, type ArtifactFs, type ProjectState } from '@caotang/store';
+import { assertContained, bodyFile, bodyNamesOf, isBodyType, MemoryArtifactFs, MANIFEST_FILE, serializeManifest, writeProject, type ArtifactFs, type ProjectState } from '@caotang/store';
 import type { EncryptedRemoteArtifactFs, PendingEdits, RemoteChange } from '@caotang/remote-store';
 import { HostedTarget, type BasedChange, type HostedQueuePort } from './hosted-target.js';
 import { copyState } from './persistence-plan.js';
@@ -117,6 +117,10 @@ export async function deviceQueue(source: HostedProjectSource, fs: EncryptedRemo
     persisted: () => persisted,
     stage: (changes, unread = new Map<string, number>()) => {
       if (changes.length === 0) return;
+      for (const { path } of changes) {
+        assertContained(path);
+        if (path === '') throw new Error('a project file needs a path');
+      }
       const wait = new Set(changes.filter(({ path }) => unread.has(path) || deferred.has(path)).map(({ path }) => path));
       if (wait.size > 0 && changes.some(({ path }) => path === MANIFEST_FILE)) {
         for (const { path } of changes) wait.add(path);
@@ -209,7 +213,7 @@ export async function hostedBaseline(
   }
   const encoder = new TextEncoder();
   return {
-    async changes(state: ProjectState, assets: Readonly<Record<string, Uint8Array>>): Promise<BasedChange[]> {
+    async prepare(state: ProjectState, assets: Readonly<Record<string, Uint8Array>>) {
       const current = await projectFiles(state, assets);
       const changes: BasedChange[] = [];
       for (const [path, bytes] of current) {
@@ -229,14 +233,20 @@ export async function hostedBaseline(
           [...state.declinedCodexFiles].some((name) => path === `codex/${name}`)) continue;
         changes.push({ path, bytes: null, base: versions.get(path) ?? 0 });
       }
+      const replaced = [];
       for (const { path } of [...changes]) {
         const old = legacy.get(path);
         if (old === undefined) continue;
         if (!current.has(old)) changes.push({ path: old, bytes: null, base: versions.get(old) ?? 0 });
-        legacy.delete(path);
+        replaced.push(path);
       }
-      previous = current;
-      return changes;
+      return {
+        changes,
+        staged: () => {
+          previous = current;
+          for (const path of replaced) legacy.delete(path);
+        },
+      };
     },
     accepted(changes: readonly (RemoteChange & { readonly version: number })[]): void {
       for (const { path, version } of changes) versions.set(path, Math.max(versions.get(path) ?? 0, version));

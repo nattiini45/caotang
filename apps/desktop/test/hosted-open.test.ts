@@ -80,7 +80,7 @@ async function targetFor(state: ProjectState = BOOK, holding: readonly string[] 
     SOURCE.projectId,
     fs as never,
     port,
-    async () => ({ changes: async () => [], accepted: () => undefined }),
+    async () => ({ prepare: async () => ({ changes: [], staged: () => undefined }), accepted: () => undefined }),
   );
   return Object.assign(target, { port });
 }
@@ -119,7 +119,23 @@ it('reports a browser save refusal without closing the open editor', async () =>
   await openCurrentHostedProject(store, SOURCE, () => true, clear, show, session);
   expect(clear).not.toHaveBeenCalled();
   expect(show).not.toHaveBeenCalled();
-  expect(lastTarget!.state()).toEqual({ kind: 'stale', readFailed: true });
+  expect(lastTarget!.state()).toEqual({ kind: 'stale', readFailed: 'save' });
+});
+
+it('warns instead of replacing the editor when settling left new work only in memory', async () => {
+  const { session } = await open(BOOK, ['docs/pending.md']);
+  await lastTarget!.sendQueued();
+  const { queue } = lastTarget!;
+  vi.spyOn(queue, 'persisted').mockReturnValue(false);
+  vi.spyOn(session, 'saved').mockImplementationOnce(async () => {
+    queue.stage([{ path: 'docs/waiting.md', base: 1, bytes: new Uint8Array([1]) }]);
+  });
+  const clear = vi.fn();
+  const show = vi.fn();
+  await openCurrentHostedProject(store, SOURCE, () => true, clear, show, session);
+  expect(clear).not.toHaveBeenCalled();
+  expect(show).not.toHaveBeenCalled();
+  expect(lastTarget!.state()).toEqual({ kind: 'stale', readFailed: 'queue' });
 });
 
 it('opens the same project again in place, not as a second copy of itself whose id it would save into the account', async () => {

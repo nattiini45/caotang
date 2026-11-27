@@ -27,7 +27,10 @@ async function target(pending: readonly string[] = [], durable = true) {
   };
   const accepted = vi.fn();
   const changes = vi.fn(async () => [change]);
-  const saving = new HostedTarget('p_lighthouse', {} as never, queue, async () => ({ changes, accepted }));
+  const saving = new HostedTarget('p_lighthouse', {} as never, queue, async () => ({
+    prepare: async () => ({ changes: await changes(), staged: () => undefined }),
+    accepted,
+  }));
   await saving.rememberOpened(state, {});
   return { saving, accepted, changes, send };
 }

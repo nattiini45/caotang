@@ -217,6 +217,9 @@ An accepted write is not the same as a file the editor has read. If a replay sen
 | `stale` | the browser saves before reading a replayed file | `stale` or `unsaved` | retain newer edits to that file separately; offer to send any unrelated paths |
 | after an explicit send, with no unfinished local save and no in-memory-only edits | the writer reads the account again | `idle` or `unsaved` | reopen explicitly; any newer local edits remain queued and are never sent by the read |
 | after an explicit send | the browser save fails during an account read | same | leave the editor open and ask the writer to save before reading |
+| after an explicit send | an account read finds newer work only in memory | same | keep the editor open and warn that closing this tab would lose those edits |
+
+Preparing a save does not advance the local baseline until its delta is staged. A staging failure leaves the same edits available to retry. When a conflict and files waiting for a read are shown together, name the waiting files in the conflict question and offer the read there if it is safe.
 
 Two-device tests cover disjoint edits, the same-file conflict, and reopening with pending edits before another local save. Replays also test a lost commit reply and a failed refresh without losing the batch or upgrading its durability.
 

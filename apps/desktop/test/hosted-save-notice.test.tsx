@@ -52,7 +52,7 @@ function target(answers: HostedReplay[] = [accepted], held: readonly string[] = 
     },
   };
   return new HostedTarget('p_lighthouse', {} as never, queue, async () => ({
-    changes: async () => [{ path: PATH, base: 1, bytes: new Uint8Array([1]) }],
+    prepare: async () => ({ changes: [{ path: PATH, base: 1, bytes: new Uint8Array([1]) }], staged: () => undefined }),
     accepted: () => undefined,
   }));
 }
@@ -176,6 +176,20 @@ it('keeps the read action available when further edits were durably staged', asy
   await act(async () => button('Read them').click());
   expect(reopen).toHaveBeenCalledOnce();
   expect(sends).toEqual([true]);
+});
+
+it('names waiting files and offers their read inside the conflict dialog', async () => {
+  const reopen = vi.fn();
+  const one = target([conflict], [PATH]);
+  await render(one, reopen);
+  vi.spyOn(one.queue, 'deferred').mockReturnValue(['docs/waiting.md']);
+  await act(async () => button('Send them to your account').click());
+  const dialog = document.body.querySelector('dialog[open]');
+  expect(dialog?.textContent).toContain('docs/waiting.md');
+  expect(dialog?.contains(button('Read them'))).toBe(true);
+  await act(async () => button('Read them').click());
+  expect(reopen).toHaveBeenCalledOnce();
+  expect(document.body.querySelector('dialog[open]')).toBeNull();
 });
 
 it.each([{ held: [] }, { held: [PATH] }])('offers a local retry after staging fails ($held)', async ({ held }) => {

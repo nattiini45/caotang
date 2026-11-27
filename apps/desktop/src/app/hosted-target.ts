@@ -16,7 +16,7 @@ export type HostedSaveState = (
   readonly waiting?: { readonly paths: readonly string[]; readonly persisted: boolean };
   readonly stageFailed?: true;
   readonly readOffered?: true;
-  readonly readFailed?: true;
+  readonly readFailed?: 'save' | 'queue';
 };
 
 export type HostedReplay =
@@ -34,7 +34,7 @@ export interface HostedQueuePort {
 }
 
 interface HostedBaseline {
-  changes(state: ProjectState, pictures: Pictures): Promise<readonly BasedChange[]>;
+  prepare(state: ProjectState, pictures: Pictures): Promise<{ readonly changes: readonly BasedChange[]; staged(): void }>;
   accepted(changes: readonly AcceptedChange[]): void;
 }
 
@@ -89,8 +89,8 @@ export class HostedTarget {
       (this.queue.persisted() || (this.queue.held().length === 0 && this.queue.deferred().length === 0));
   }
 
-  rereadRefused(): void {
-    this.#set({ ...this.#state, readFailed: true });
+  rereadRefused(reason: 'save' | 'queue'): void {
+    this.#set({ ...this.#state, readFailed: reason });
   }
 
   attach(session: HostedSaveSession): () => void {
@@ -125,8 +125,9 @@ export class HostedTarget {
       if (this.#baseline === null) return;
       const previous = this.#state;
       try {
-        const changes = await this.#baseline.changes(state, (await this.#assets?.()) ?? {});
-        this.queue.stage(changes, this.#unread);
+        const prepared = await this.#baseline.prepare(state, (await this.#assets?.()) ?? {});
+        this.queue.stage(prepared.changes, this.#unread);
+        prepared.staged();
         this.#stageFailed = false;
       } catch {
         this.#stageFailed = true;
