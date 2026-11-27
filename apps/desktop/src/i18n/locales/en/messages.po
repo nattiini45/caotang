@@ -504,7 +504,7 @@ msgstr "“{title}” is {words} words long. Check that no chapter heading was m
 msgid "“{title}” is hidden from the agent{tools}"
 msgstr "“{title}” is hidden from the agent{tools}"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "\"{title}\" is no longer in the binder."
 msgstr "\"{title}\" is no longer in the binder."
@@ -1773,7 +1773,7 @@ msgstr "{file} is too large to import as RTF: the import reads files up to {size
 msgid "{file}: {change, select, changed {changed} removed {removed} added {added} other {changed}}"
 msgstr "{file}: {change, select, changed {changed} removed {removed} added {added} other {changed}}"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "{file}: {kind, select, changed {changed} removed {removed} added {added} other {changed}}"
 msgstr "{file}: {kind, select, changed {changed} removed {removed} added {added} other {changed}}"
@@ -1815,7 +1815,7 @@ msgstr "{forms, plural, one {# form control} other {# form controls}} removed."
 msgid "{from} → {to}"
 msgstr "{from} → {to}"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "{hiddenLabels, plural, one {# more changed file label is not shown.} other {# more changed file labels are not shown.}}"
 msgstr "{hiddenLabels, plural, one {# more changed file label is not shown.} other {# more changed file labels are not shown.}}"
@@ -2265,7 +2265,7 @@ msgstr "{omittedContext} unchanged lines omitted."
 msgid "{omittedFolderLines} folder and {omittedTabLines} tab diff lines omitted; if you choose to replace the file, the full folder version is kept in .caotang-backup."
 msgstr "{omittedFolderLines} folder and {omittedTabLines} tab diff lines omitted; if you choose to replace the file, the full folder version is kept in .caotang-backup."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "{omittedPreviews, plural, one {Detailed comparisons for # more file are not shown to keep the question manageable.} other {Detailed comparisons for # more files are not shown to keep the question manageable.}}"
 msgstr "{omittedPreviews, plural, one {Detailed comparisons for # more file are not shown to keep the question manageable.} other {Detailed comparisons for # more files are not shown to keep the question manageable.}}"
@@ -3384,12 +3384,12 @@ msgstr "<0><1/></0> is paid off in <2/>"
 msgid "<0><1/></0> is paid off in <2/>: <3/>"
 msgstr "<0><1/></0> is paid off in <2/>: <3/>"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "<0>caotang.json</0> in this folder was changed by another program after Caotang last loaded or saved it, so nothing was written."
 msgstr "<0>caotang.json</0> in this folder was changed by another program after Caotang last loaded or saved it, so nothing was written."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "<0>caotang.json</0> in this folder was changed by another program while Caotang was saving it, so the folder now holds that program’s version."
 msgstr "<0>caotang.json</0> in this folder was changed by another program while Caotang was saving it, so the folder now holds that program’s version."
@@ -3414,7 +3414,7 @@ msgstr "<0>Turn Auto mode off</0>"
 msgid "| # | Time | Command | Summary | Issued by | Source | Undo group |"
 msgstr "| # | Time | Command | Summary | Issued by | Source | Undo group |"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "− In the folder · + In this tab"
 msgstr "− In the folder · + In this tab"
@@ -3838,12 +3838,12 @@ msgstr "A larger budget does not enlarge this model’s window. Choose a model w
 msgid "coherence.comic.coverageStaleDocument"
 msgstr "A line on page {page} was lettered from a script that is not the one this book uses. Letter the page again from the script this book uses."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "A lock file appeared in this folder while Caotang was saving, so another program, such as the Caotang MCP server, may have read the folder part way through the save. The save was written. Saving again now can overwrite what that program writes. Save again anyway?"
 msgstr "A lock file appeared in this folder while Caotang was saving, so another program, such as the Caotang MCP server, may have read the folder part way through the save. The save was written. Saving again now can overwrite what that program writes. Save again anyway?"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "A lock file in this folder says that another program, such as the Caotang MCP server, may be using it, or that server could not be paused for this save. Saving now can overwrite what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?"
 msgstr "A lock file in this folder says that another program, such as the Caotang MCP server, may be using it, or that server could not be paused for this save. Saving now can overwrite what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?"
@@ -5240,6 +5240,7 @@ msgid "Another agent action is active. Wait for it to finish, then try again."
 msgstr "Another agent action is active. Wait for it to finish, then try again."
 
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Another device saved these first"
 msgstr "Another device saved these first"
@@ -5258,12 +5259,12 @@ msgstr "Another import is still running."
 msgid "Another program changed a file in this folder after Caotang read the folder, so nothing was written. Close this, then open the folder again to see its current copy."
 msgstr "Another program changed a file in this folder after Caotang read the folder, so nothing was written. Close this, then open the folder again to see its current copy."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Another program changed these files in the folder while Caotang was saving, so the save stopped part way. The files before them were saved, and these were not:"
 msgstr "Another program changed these files in the folder while Caotang was saving, so the save stopped part way. The files before them were saved, and these were not:"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Another program changed these files in the folder while Caotang was saving. The save was written, and the folder now holds that program’s version of them:"
 msgstr "Another program changed these files in the folder while Caotang was saving. The save was written, and the folder now holds that program’s version of them:"
@@ -5277,7 +5278,7 @@ msgstr "Another program changed this folder after Caotang read it, so nothing wa
 msgid "Another program is already using this folder, such as an MCP server you started yourself. Stop it, then start this one."
 msgstr "Another program is already using this folder, such as an MCP server you started yourself. Stop it, then start this one."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Another program may be using this folder"
 msgstr "Another program may be using this folder"
@@ -5287,7 +5288,7 @@ msgstr "Another program may be using this folder"
 msgid "Another program may be using this folder: a lock file in it says so, and the Caotang MCP server may be writing this project too. Going ahead replaces caotang.json, so anything that program wrote could be lost. Go ahead anyway?"
 msgstr "Another program may be using this folder: a lock file in it says so, and the Caotang MCP server may be writing this project too. Going ahead replaces caotang.json, so anything that program wrote could be lost. Go ahead anyway?"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Another program removed <0>caotang.json</0> from this folder after Caotang last loaded or saved it, so nothing was written."
 msgstr "Another program removed <0>caotang.json</0> from this folder after Caotang last loaded or saved it, so nothing was written."
@@ -6310,7 +6311,10 @@ msgstr "Bring a project in"
 msgid "British spelling. Past tense, close third person on Mara. No semicolons in dialogue."
 msgstr "British spelling. Past tense, close third person on Mara. No semicolons in dialogue."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
+#. Interpolated values: storageSentence.
+#: apps/desktop/src/components/BrowserStorageBanner.tsx
 #: apps/desktop/src/components/PictureNotices.tsx
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Browser storage"
@@ -6331,8 +6335,8 @@ msgstr "Browser storage: persistent ✓"
 msgid "Browser storage: the browser has not said whether it keeps this project."
 msgstr "Browser storage: the browser has not said whether it keeps this project."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: storageSentence.
+#: apps/desktop/src/components/BrowserStorageBanner.tsx
 msgid "Browsers may remove stored data when a device runs short of space. Asking the browser to keep it lowers that risk, and the browser has not granted it here. {storageSentence} A bundle is the copy that does not depend on the browser."
 msgstr "Browsers may remove stored data when a device runs short of space. Asking the browser to keep it lowers that risk, and the browser has not granted it here. {storageSentence} A bundle is the copy that does not depend on the browser."
 
@@ -6648,7 +6652,7 @@ msgstr "Caotang could not tell which encoding to read it with"
 msgid "Caotang could not write the file you chose. Compile again and choose another place."
 msgstr "Caotang could not write the file you chose. Compile again and choose another place."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Caotang has no record of what this folder held when this project was last saved there, so it can’t tell which documents changed since. Saving writes this tab’s version over the folder’s documents. The folder’s version of each one it replaces is kept in <0>.caotang-backup</0> in the folder, and an older <1>caotang.json</1> is kept as a backup of its own, so if you need anything from it, copy it from there."
 msgstr "Caotang has no record of what this folder held when this project was last saved there, so it can’t tell which documents changed since. Saving writes this tab’s version over the folder’s documents. The folder’s version of each one it replaces is kept in <0>.caotang-backup</0> in the folder, and an older <1>caotang.json</1> is kept as a backup of its own, so if you need anything from it, copy it from there."
@@ -6926,12 +6930,12 @@ msgstr "changes"
 msgid "Changes"
 msgstr "Changes"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Changes for {file}"
 msgstr "Changes for {file}"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Changes for {file}, file {position} of {count}"
 msgstr "Changes for {file}, file {position} of {count}"
@@ -7409,7 +7413,7 @@ msgstr "Choose an image file for shot {number}"
 msgid "Choose another file, or export the picture again from the program that made it."
 msgstr "Choose another file, or export the picture again from the program that made it."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Choose another folder…"
 msgstr "Choose another folder…"
@@ -7635,7 +7639,7 @@ msgstr "Close panels"
 msgid "Close the agent ({shortcut}). A running turn keeps working."
 msgstr "Close the agent ({shortcut}). A running turn keeps working."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Close this project before opening another one from a link."
 msgstr "Close this project before opening another one from a link."
@@ -7645,6 +7649,7 @@ msgstr "Close this project before opening another one from a link."
 msgid "Close window"
 msgstr "Close window"
 
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
@@ -8754,7 +8759,7 @@ msgstr "Default"
 msgid "Default speaker"
 msgstr "Default speaker"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #. Interpolated values: calls
 #. Interpolated values: calls
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
@@ -8779,7 +8784,7 @@ msgctxt "keyboard key"
 msgid "Delete"
 msgstr "Delete"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Delete “{title}”?"
 msgstr "Delete “{title}”?"
@@ -8843,7 +8848,7 @@ msgstr "Delete this session?"
 msgid "Delete this task?"
 msgstr "Delete this task?"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Delete?"
 msgstr "Delete?"
@@ -8860,7 +8865,7 @@ msgstr "Delete…"
 msgid "Deleted"
 msgstr "Deleted"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Deleted “{title}”. Ctrl+Z restores it right after."
 msgstr "Deleted “{title}”. Ctrl+Z restores it right after."
@@ -9138,7 +9143,7 @@ msgstr "Discard run"
 msgid "Discard run from {at}"
 msgstr "Discard run from {at}"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Discard the changes and leave"
 msgstr "Discard the changes and leave"
@@ -9189,13 +9194,14 @@ msgstr "Disconnect"
 #. Agent panel copy. Interpolated values: message and restored are restore outcome sentences, step is a step or tool name, name is a context label or tool name, id is a context ref id.
 #. Background task and Inbox status. Counts describe drafts, calls, tokens or findings; titles and model labels are supplied text.
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#. Interpolated values: storageSentence.
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/BackgroundTasks.tsx
+#: apps/desktop/src/components/BrowserStorageBanner.tsx
 #: apps/desktop/src/components/EditorPane.tsx
 #: apps/desktop/src/components/Home.tsx
 #: apps/desktop/src/components/PictureNotices.tsx
@@ -10329,10 +10335,11 @@ msgstr "Export"
 msgid "Export {name} as a bundle"
 msgstr "Export {name} as a bundle"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #. Interpolated values: count, files
+#. Interpolated values: storageSentence.
 #. Modern interface: Scene info, the inspector as a popover from the title capsule.
+#: apps/desktop/src/components/BrowserStorageBanner.tsx
 #: apps/desktop/src/components/FolderChangeStatus.tsx
 #: apps/desktop/src/components/shell/modern/scene-info.tsx
 #: apps/desktop/src/components/StaleTabNotice.tsx
@@ -10467,7 +10474,7 @@ msgstr "Exported {file} ({files} files): {holds}."
 msgid "Exported {file}: {holds}."
 msgstr "Exported {file}: {holds}."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Exported {file}."
 msgstr "Exported {file}."
@@ -10479,7 +10486,7 @@ msgstr "Exported {file}."
 msgid "Exported files and folder copies are not deleted."
 msgstr "Exported files and folder copies are not deleted."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Exported the activity log as {file}."
 msgstr "Exported the activity log as {file}."
@@ -10625,7 +10632,7 @@ msgstr "Fields of shot {number}"
 msgid "File"
 msgstr "File"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "File {position} of {count} · − In the folder · + In this tab"
 msgstr "File {position} of {count} · − In the folder · + In this tab"
@@ -10937,7 +10944,7 @@ msgstr "Focus mode"
 msgid "Focus mode ({shortcut})"
 msgstr "Focus mode ({shortcut})"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Focus mode is on. The binder and inspector stay open, as set in "
 msgstr "Focus mode is on. The binder and inspector stay open, as set in "
@@ -12916,8 +12923,8 @@ msgstr "Layers"
 msgid "Layout"
 msgstr "Layout"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: storageSentence.
+#: apps/desktop/src/components/BrowserStorageBanner.tsx
 msgid "Learn why"
 msgstr "Learn why"
 
@@ -12988,7 +12995,7 @@ msgstr "Leave them out, and keep their text"
 msgid "Leave tools blank to match every tool. Use * for a wildcard. Export events use export.compile; save and turn events have no tool."
 msgstr "Leave tools blank to match every tool. Use * for a wildcard. Export events use export.compile; save and turn events have no tool."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Leave with proposed timeline changes?"
 msgstr "Leave with proposed timeline changes?"
@@ -16033,7 +16040,7 @@ msgstr "Open session {title}"
 msgid "Open the agent to check the request before trying again."
 msgstr "Open the agent to check the request before trying again."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Open the binder"
 msgstr "Open the binder"
@@ -19436,8 +19443,8 @@ msgstr "Saturday"
 
 #. Agent instructions copy. Interpolated values: title and name are note titles, path is a file path, used, sent, allowed and count are token counts.
 #. Agent instructions copy. Interpolated values: title and name are note titles, path is a file path, used, sent, allowed and count are token counts.
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #. Interpolated values: name
 #. Macro panel copy. Interpolated values: name is a macro's name, problem is why it cannot run, step and steps are step numbers and counts.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
@@ -19466,12 +19473,12 @@ msgstr "Save a memory note"
 msgid "Save after typing stops, in milliseconds ({DEBOUNCE_MIN_MS}–{DEBOUNCE_MAX_MS})"
 msgstr "Save after typing stops, in milliseconds ({DEBOUNCE_MIN_MS}–{DEBOUNCE_MAX_MS})"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Save anyway"
 msgstr "Save anyway"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Save as a new folder…"
 msgstr "Save as a new folder…"
@@ -19582,14 +19589,14 @@ msgstr "Save model hook"
 msgid "Save or open this project in a folder and allow write access first."
 msgstr "Save or open this project in a folder and allow write access first."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Save over it"
 msgstr "Save over it"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Save over them"
 msgstr "Save over them"
@@ -19678,8 +19685,8 @@ msgstr "Save to a folder"
 msgid "Save to folder"
 msgstr "Save to folder"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Save to the folder?"
 msgstr "Save to the folder?"
@@ -19761,6 +19768,7 @@ msgstr "Saved filters"
 msgid "Saved goal checks"
 msgstr "Saved goal checks"
 
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Saved here, not to your account."
@@ -19919,12 +19927,12 @@ msgstr "Saving a filter"
 msgid "harness.progress.memoryWrite.bare.active"
 msgstr "Saving a memory note"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Saving here replaces that project’s <0>caotang.json</0> and any of its documents that share an id with this one. Caotang keeps a backup of that <1>caotang.json</1>, and copies each document it replaces to <2>.caotang-backup</2> in the folder."
 msgstr "Saving here replaces that project’s <0>caotang.json</0> and any of its documents that share an id with this one. Caotang keeps a backup of that <1>caotang.json</1>, and copies each document it replaces to <2>.caotang-backup</2> in the folder."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Saving here writes <0>caotang.json</0> back into the folder from this tab, with the project as this tab holds it."
 msgstr "Saving here writes <0>caotang.json</0> back into the folder from this tab, with the project as this tab holds it."
@@ -19946,7 +19954,7 @@ msgstr "Saving the filter “{name}”"
 msgid "harness.progress.memoryWrite.active"
 msgstr "Saving the memory note “{title}”"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Saving to the folder…"
 msgstr "Saving to the folder…"
@@ -19961,7 +19969,7 @@ msgstr "Saving will not keep these constructs exactly:"
 msgid "Saving will re-style {count} {blocks, plural, one {block} other {blocks}} to Caotang’s Markdown spelling. The words stay the same."
 msgstr "Saving will re-style {count} {blocks, plural, one {block} other {blocks}} to Caotang’s Markdown spelling. The words stay the same."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Saving writes this tab’s version over them. The folder’s version is kept first, in <0>.caotang-backup</0> in the folder, so if you need anything from it, copy it from there."
 msgstr "Saving writes this tab’s version over them. The folder’s version is kept first, in <0>.caotang-backup</0> in the folder, so if you need anything from it, copy it from there."
@@ -19969,9 +19977,11 @@ msgstr "Saving writes this tab’s version over them. The folder’s version is 
 #. Interpolated values: calls
 #. Interpolated values: calls
 #. Interpolated values: fieldCount, fields, name, parts, times, unsaid
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/app/integrity-model.ts
 #: apps/desktop/src/components/EditorPane.tsx
+#: apps/desktop/src/components/HostedSaveNotice.tsx
 #: apps/desktop/src/components/RecurringTasks.tsx
 #: apps/desktop/src/components/TaskAllowanceDialog.tsx
 #: apps/desktop/src/media/screenplay-model.ts
@@ -20655,7 +20665,7 @@ msgstr "Setting up…"
 msgid "Settings"
 msgstr "Settings"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Settings › Writing"
 msgstr "Settings › Writing"
@@ -20896,7 +20906,7 @@ msgstr "Show older ({count} more)"
 msgid "Show on timeline"
 msgstr "Show on timeline"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Show review"
 msgstr "Show review"
@@ -21158,12 +21168,12 @@ msgstr "Soft budget"
 msgid "Some call outcomes were not saved before the interruption. Their allowance stays reserved; it is not reported as actual usage."
 msgstr "Some call outcomes were not saved before the interruption. Their allowance stays reserved; it is not reported as actual usage."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave."
 msgstr "Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Some changes have not reached the project folder, so the project stays open. Export a bundle to keep a copy."
 msgstr "Some changes have not reached the project folder, so the project stays open. Export a bundle to keep a copy."
@@ -21173,7 +21183,7 @@ msgstr "Some changes have not reached the project folder, so the project stays o
 msgid "Some changes were taken back in this tab, but they could not be saved. Keep this tab open and retry the failed save before restoring again."
 msgstr "Some changes were taken back in this tab, but they could not be saved. Keep this tab open and retry the failed save before restoring again."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Some documents in this folder changed since Caotang last saved them"
 msgstr "Some documents in this folder changed since Caotang last saved them"
@@ -21601,7 +21611,7 @@ msgid "Stop following {title}"
 msgstr "Stop following {title}"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/FindingsPanel.tsx
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Stop the review"
@@ -22285,7 +22295,7 @@ msgstr "That finding is no longer in the findings file, so there is nothing to f
 msgid "That folder does not hold a Caotang project, so nothing was opened."
 msgstr "That folder does not hold a Caotang project, so nothing was opened."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "That folder is not empty"
 msgstr "That folder is not empty"
@@ -22498,7 +22508,8 @@ msgstr "The {vendor} pack could not be built: {reason}. The export is held until
 msgid "The 1st (the default)"
 msgstr "The 1st (the default)"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the account copy"
 msgstr "the account copy"
@@ -22580,7 +22591,7 @@ msgstr "The agent has kept no notes yet."
 msgid "The agent has not run yet"
 msgstr "The agent has not run yet"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the agent instructions"
 msgstr "the agent instructions"
@@ -22845,7 +22856,7 @@ msgstr "the binder"
 msgid "The binder does not allow the scene there."
 msgstr "The binder does not allow the scene there."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "The binder filter hides \"{title}\". Clear the filter to see it."
 msgstr "The binder filter hides \"{title}\". Clear the filter to see it."
@@ -22912,7 +22923,7 @@ msgstr "The browser made a canvas that does not hold a picture of this size."
 msgid "The browser would not let the canvas be read."
 msgstr "The browser would not let the canvas be read."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "The bundle could not be made: {error}"
 msgstr "The bundle could not be made: {error}"
@@ -23268,7 +23279,7 @@ msgstr "The events and calendar dates became one World history page."
 msgid "The export could not be made: {reason}"
 msgstr "The export could not be made: {reason}"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the export dialog"
 msgstr "the export dialog"
@@ -23455,7 +23466,7 @@ msgstr "The flow in {where} runs out at line {line}: add a divert, a choice, or 
 msgid "The focused scene"
 msgstr "The focused scene"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "The folder “{folderName}” already has files in it, so nothing was saved there. A new folder for this project must be empty. Choose another folder, or make an empty one in the folder picker."
 msgstr "The folder “{folderName}” already has files in it, so nothing was saved there. A new folder for this project must be empty. Choose another folder, or make an empty one in the folder picker."
@@ -23662,7 +23673,7 @@ msgstr "The interface language changes straight away. The manuscript stays in it
 msgid "The interface language could not be loaded, so nothing changed. Check your connection and choose the language again."
 msgstr "The interface language could not be loaded, so nothing changed. Check your connection and choose the language again."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the item"
 msgstr "the item"
@@ -23835,7 +23846,7 @@ msgstr "The model review is complete: {added, plural, one {# finding} other {# f
 msgid "The model review is partial."
 msgstr "The model review is partial."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "The model review is running."
 msgstr "The model review is running."
@@ -24193,7 +24204,7 @@ msgstr "The project must stay open in this tab. Changed text, read access or mod
 msgid "The project no longer has this term, so this filter matches nothing."
 msgstr "The project no longer has this term, so this filter matches nothing."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the project panel"
 msgstr "the project panel"
@@ -24359,7 +24370,7 @@ msgstr "The replay’s prompt did not match the recording, so there is no record
 msgid "the reply cap of “{name}”"
 msgstr "the reply cap of “{name}”"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "The report’s read marker could not be saved. It may appear unread after reload."
 msgstr "The report’s read marker could not be saved. It may appear unread after reload."
@@ -24658,7 +24669,7 @@ msgstr "the scene is no longer in the binder"
 msgid "the scene it was placed after is not there any more"
 msgstr "the scene it was placed after is not there any more"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "The scene’s synopsis is not showing, so the chord could not open it."
 msgstr "The scene’s synopsis is not showing, so the chord could not open it."
@@ -24928,7 +24939,7 @@ msgstr "The skill “{folder}” was not taken: a file in it has an unsafe path 
 msgid "The skill could not be read: {reason}"
 msgstr "The skill could not be read: {reason}"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the Skills panel"
 msgstr "the Skills panel"
@@ -25068,7 +25079,7 @@ msgstr "the timeline"
 msgid "The timeline as a vector drawing, in the direction of the language you write in; above 2,000 scenes it shows chapters."
 msgstr "The timeline as a vector drawing, in the direction of the language you write in; above 2,000 scenes it shows chapters."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "The timeline has proposed changes that are not applied. Nothing has been written to the project. Cancel keeps them in the tray; leaving discards them."
 msgstr "The timeline has proposed changes that are not applied. Nothing has been written to the project. Cancel keeps them in the tray; leaving discards them."
@@ -25142,7 +25153,7 @@ msgstr "The turn stopped unexpectedly: {error}"
 msgid "The unreadable caotang.json is kept in the folder, under a name with the date, so nothing is lost."
 msgstr "The unreadable caotang.json is kept in the folder, under a name with the date, so nothing is lost."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "The unsaved text is too large to keep a spare copy in this browser, so a reload in the next moment could lose it."
 msgstr "The unsaved text is too large to keep a spare copy in this browser, so a reload in the next moment could lose it."
@@ -25188,7 +25199,7 @@ msgstr "The variable “{from}” has no letters or digits ink can use in a name
 msgid "The visible text is the same; only the file bytes or line endings differ."
 msgstr "The visible text is the same; only the file bytes or line endings differ."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the vocabulary editor"
 msgstr "the vocabulary editor"
@@ -25336,7 +25347,7 @@ msgstr "There is no screenplay scene or prose document to cover yet."
 msgid "There is nothing to apply: every change is out of date or left unchecked."
 msgstr "There is nothing to apply: every change is out of date or left unchecked."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "There is nothing to undo."
 msgstr "There is nothing to undo."
@@ -25513,7 +25524,7 @@ msgstr "This browser keeps “{project}”, and the folder “{folder}” holds 
 msgid "This browser will not keep the allowance on this machine, so the task stays offered when it is due."
 msgstr "This browser will not keep the allowance on this machine, so the task stays offered when it is due."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This browser would not keep a spare copy of the unsaved text, so a reload in the next moment could lose it."
 msgstr "This browser would not keep a spare copy of the unsaved text, so a reload in the next moment could lose it."
@@ -25682,22 +25693,22 @@ msgstr "This file is not text. It is kept with the skill and is part of what you
 msgid "This finding quotes no passage, so there is no text to fix. Fix it in the codex or the scene notes."
 msgstr "This finding quotes no passage, so there is no text to fix. Fix it in the codex or the scene notes."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This folder already holds another project"
 msgstr "This folder already holds another project"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This folder changed since Caotang last saved it"
 msgstr "This folder changed since Caotang last saved it"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This folder holds an earlier save of this project"
 msgstr "This folder holds an earlier save of this project"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This folder’s caotang.json was removed"
 msgstr "This folder’s caotang.json was removed"
@@ -25992,17 +26003,17 @@ msgstr "This provider documents no model list, so these are the models Caotang k
 msgid "This recording holds no model call kept whole, so there is no single request to re-send."
 msgstr "This recording holds no model call kept whole, so there is no single request to re-send."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This removes the item and its {words, plural, one {# word} other {# words}} from the project. You can undo it right after with Ctrl+Z."
 msgstr "This removes the item and its {words, plural, one {# word} other {# words}} from the project. You can undo it right after with Ctrl+Z."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This removes the item, the {descendants, plural, one {# item} other {# items}} inside it, and {words, plural, one {# word} other {# words}} across {documents, plural, one {# document} other {# documents}}. You can undo it right after with Ctrl+Z."
 msgstr "This removes the item, the {descendants, plural, one {# item} other {# items}} inside it, and {words, plural, one {# word} other {# words}} across {documents, plural, one {# document} other {# documents}}. You can undo it right after with Ctrl+Z."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This removes the item, the {descendants, plural, one {# item} other {# items}} inside it. You can undo it right after with Ctrl+Z."
 msgstr "This removes the item, the {descendants, plural, one {# item} other {# items}} inside it. You can undo it right after with Ctrl+Z."
@@ -26109,7 +26120,7 @@ msgstr "This scene has no day yet. Use Set day to give it one."
 msgid "This scene is empty. Switch to Source and write its heading, which starts with INT. or EXT."
 msgstr "This scene is empty. Switch to Source and write its heading, which starts with INT. or EXT."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This scene is in no folder, so it has no section. Make a folder in the binder and move the scene into it."
 msgstr "This scene is in no folder, so it has no section. Make a folder in the binder and move the scene into it."
@@ -26222,7 +26233,7 @@ msgstr "This step needs {calls} model {calls, plural, one {call} other {calls}},
 msgid "This summary is not sent to the model because the read rules changed. Start a new session to continue without this earlier memory."
 msgstr "This summary is not sent to the model because the read rules changed. Start a new session to continue without this earlier memory."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This tab cannot save: another tab has newer text for this project. Export a backup to keep the words in this tab."
 msgstr "This tab cannot save: another tab has newer text for this project. Export a backup to keep the words in this tab."
@@ -26510,7 +26521,7 @@ msgstr "Title page"
 msgid "To attach a picture to one paragraph, select the paragraph’s text in its document, then use Attach to this paragraph in the Pictures section of the Inspector."
 msgstr "To attach a picture to one paragraph, select the paragraph’s text in its document, then use Attach to this paragraph in the Pictures section of the Inspector."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "To see the folder’s newer copy, go to Projects and open the folder again: it opens as a separate project. Saving here writes <0>caotang.json</0> from this tab, and an older one that is there is kept as a backup."
 msgstr "To see the folder’s newer copy, go to Projects and open the folder again: it opens as a separate project. Saving here writes <0>caotang.json</0> from this tab, and an older one that is there is kept as a backup."
@@ -26520,7 +26531,7 @@ msgstr "To see the folder’s newer copy, go to Projects and open the folder aga
 msgid "Today"
 msgstr "Today"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Today’s target is met."
 msgstr "Today’s target is met."
@@ -28133,7 +28144,7 @@ msgstr "Write codex entries"
 msgid "harness.progress.dialogueApply.bare.content"
 msgstr "Write drafted dialogue"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Write it back"
 msgstr "Write it back"
@@ -28331,6 +28342,7 @@ msgid "You need to approve the rewrite yourself, even in Auto mode."
 msgstr "You need to approve the rewrite yourself, even in Auto mode."
 
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Your account has the changes."
 msgstr "Your account has the changes."
@@ -28372,6 +28384,7 @@ msgstr "Your instructions to the agent"
 msgid "Your later changes are in other parts of the project, so this can be taken back on its own and they stay. Restore takes them back too."
 msgstr "Your later changes are in other parts of the project, so this can be taken back on its own and they stay. Restore takes them back too."
 
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Your latest edits aren’t ready to send."
@@ -28448,13 +28461,13 @@ msgstr "Your typing could not be saved, so this card was not applied automatical
 msgid "your typing in “{title}”"
 msgstr "your typing in “{title}”"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: storageSentence.
+#: apps/desktop/src/components/BrowserStorageBanner.tsx
 msgid "Your words are kept in this browser, and the browser has not promised to keep them. A phone or tablet clears browser storage sooner than a computer when space runs short, and nothing syncs yet, so this copy is not your book’s only home. Export a backup often and keep it somewhere else."
 msgstr "Your words are kept in this browser, and the browser has not promised to keep them. A phone or tablet clears browser storage sooner than a computer when space runs short, and nothing syncs yet, so this copy is not your book’s only home. Export a backup often and keep it somewhere else."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: storageSentence.
+#: apps/desktop/src/components/BrowserStorageBanner.tsx
 msgid "Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you can open anywhere."
 msgstr "Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you can open anywhere."
 
