@@ -17,7 +17,7 @@ export function BrowserStorageBanner({ narrow, durability, onExport, onDismiss }
   const [explain, setExplain] = useState(false);
   const storageSentence = durabilitySentence(durability);
   return (
-    <div className="storage-banner" role="status" aria-label={t`Browser storage`} data-testid="storage-banner">
+    <div className="storage-banner notice-row" role="status" aria-label={t`Browser storage`} data-testid="storage-banner">
       <div>
         {narrow ? (
           <p>

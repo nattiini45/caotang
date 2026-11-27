@@ -91,6 +91,15 @@ for (const shell of ['classic', 'modern'] as const) test(`the ${shell} studio re
   const editor = page.getByRole('textbox', { name: 'Document text' });
   const status = page.getByTestId('save-state');
   const send = page.getByRole('button', { name: 'Send them to your account' });
+  const expectNoticeAbovePage = async () => {
+    const notices = page.getByTestId('modern-notices');
+    const title = page.getByRole('heading', { name: 'The Landing', exact: true });
+    await expect(title).toBeInViewport();
+    await expect.poll(async () => {
+      const [noticeBox, pageBox] = await Promise.all([notices.boundingBox(), page.getByRole('main').boundingBox()]);
+      return noticeBox !== null && pageBox !== null && noticeBox.y + noticeBox.height <= pageBox.y;
+    }).toBe(true);
+  };
   await expect(status).toHaveText('Your account has the changes.');
   await expect(page.getByTestId('storage-banner')).toHaveCount(0);
   await expect(page.getByText('All changes saved in this browser', { exact: true })).toHaveCount(0);
@@ -99,6 +108,7 @@ for (const shell of ['classic', 'modern'] as const) test(`the ${shell} studio re
   await expect(send).toBeVisible();
   await expect(status).toHaveText('Saved here, not to your account.');
   await expect(page.getByTestId('document-save-state')).toHaveCount(0);
+  if (shell === 'modern') await expectNoticeAbovePage();
   offline = false;
 
   await page.reload();
@@ -107,16 +117,30 @@ for (const shell of ['classic', 'modern'] as const) test(`the ${shell} studio re
   await expect(send).toBeVisible();
   await expect(status).toHaveText('Saved here, not to your account.');
   await send.click();
-  await expect(page.getByRole('button', { name: 'Read them' })).toBeVisible();
+  await page.getByRole('button', { name: 'Read them' }).click({ trial: true });
   await expect(editor).toHaveText(original);
   await expect(page.getByText('Your account has the changes.', { exact: true })).toHaveCount(1);
   await expect(status).toHaveCount(0);
+  if (shell === 'modern') await expectNoticeAbovePage();
   const screenshot = info.outputPath('hosted-send.png');
   await page.screenshot({ path: screenshot });
   await info.attach('Hosted send acknowledged', { path: screenshot, contentType: 'image/png' });
+  if (shell === 'modern') {
+    const wide = page.viewportSize()!;
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectNoticeAbovePage();
+    await page.getByRole('button', { name: 'Read them' }).click({ trial: true });
+    if (info.project.name === 'chromium') {
+      const narrow = info.outputPath('hosted-send-narrow.png');
+      await page.screenshot({ path: narrow });
+      await info.attach('Account confirmation above the page on a phone', { path: narrow, contentType: 'image/png' });
+    }
+    await page.setViewportSize(wide);
+  }
   await editor.fill(beforeRead);
   await expect(page.getByRole('status').filter({ hasText: /Read before sending these files: .*The Landing/ })).toBeVisible();
   await expect(send).not.toBeVisible();
+  if (shell === 'modern') await expectNoticeAbovePage();
   const waiting = info.outputPath('hosted-read-before-send.png');
   await page.screenshot({ path: waiting });
   await info.attach('A further edit waits for an account read', { path: waiting, contentType: 'image/png' });

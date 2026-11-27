@@ -3,7 +3,7 @@
 - 2026-11-23: Document imports carry deleted tracked-change text on the document's `deletions` table and the splitter lists each in the owning scene's notes (import-core.md §2.2, import-docx.md §4, import-odt.md §4); both Office readers escape Markdown metacharacters in prose, check the file's size before reading it, read text boxes wherever Word or ODF can nest them, and count every dropped decoration they name.
 # Decisions
 
-- [delegated 2026-11-27] An account save target owns the writing workspace's save confirmation. Browser-only persistence advice belongs to projects whose only copy is in the browser; pending account edits still say what is on this device and local write failures keep their recovery warning. [hosted.md §7.2; ui-modules.md §5.3]
+- [delegated 2026-11-27] An account save target owns the writing workspace's save confirmation. Browser-only persistence advice belongs to projects whose only copy is in the browser; pending account edits still say what is on this device and local write failures keep their recovery warning. Modern gives the account notice a row above the page so it cannot cover the document. [hosted.md §7.2; ui-modules.md §5.3; modern-interface.md §8.6]
 
 - [delegated 2026-11-27] A hosted frame accepts one authenticated project handoff. The editor keeps its existing account cache and save target; the reader mounts separately and holds no writable project connection or local manuscript copy. Changing the account, project or access mode requires a fresh frame. Why: hiding edit controls would still start the services that can change the account, and a late read must never repaint a locked frame. [hosted.md §2.7, §7]
 
