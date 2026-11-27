@@ -35,5 +35,8 @@
   "studio": "Account project studio",
   "offline": "The edit lease expired while offline. When you are back online, choose Send them to your account to regain the lease and send.",
   "sendLeaseHeld": "Another device is editing. Keep this window open or export a bundle. Try sending again after that device stops editing.",
-  "closeRefused": "Some changes are not safely stored. Keep this window open or choose Export bundle to keep a copy."
+  "closeRefused": "Some changes are not safely stored. Keep this window open until you send them or export a copy.",
+  "send": "Send them to your account",
+  "exportBundle": "Export bundle",
+  "exportFailed": "The bundle could not be exported. Keep this window open and try again."
 }

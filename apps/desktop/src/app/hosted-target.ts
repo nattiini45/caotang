@@ -46,6 +46,7 @@ export interface HostedSaveSession {
   };
   assets(): Promise<Pictures>;
   saved(): Promise<void>;
+  exportCopy?(): Promise<void>;
 }
 
 export { forgetHostedTarget, hostedTargetFor, installHostedTarget } from './hosted-target-registry.js';
@@ -57,6 +58,7 @@ export class HostedTarget {
   #detached: (() => void) | null = null;
   #assets: (() => Promise<Pictures>) | null = null;
   #flush: (() => Promise<void>) | null = null;
+  #exportCopy: (() => Promise<void>) | undefined;
   #baseline: HostedBaseline | null = null;
   #asked: ReadonlyMap<string, number> = new Map();
   #stageFailed = false;
@@ -106,6 +108,16 @@ export class HostedTarget {
     return this.queue.persisted() || (this.queue.held().length === 0 && this.queue.deferred().length === 0);
   }
 
+  async exportCopy(): Promise<boolean> {
+    if (!this.#exportCopy) return false;
+    try {
+      await this.#exportCopy();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   rereadRefused(reason: 'save' | 'queue'): void {
     this.#set({ ...this.#state, readFailed: reason });
   }
@@ -114,6 +126,7 @@ export class HostedTarget {
     this.detach();
     this.#assets = session.assets;
     this.#flush = session.saved;
+    this.#exportCopy = session.exportCopy;
     let writing = session.persistence.getStatus() === 'writing';
     const stop = session.persistence.subscribe(() => {
       const status = session.persistence.getStatus();
@@ -129,6 +142,7 @@ export class HostedTarget {
     this.#detached?.();
     this.#detached = null;
     this.#flush = null;
+    this.#exportCopy = undefined;
   }
 
   async settled(): Promise<void> {

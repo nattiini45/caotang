@@ -2,6 +2,8 @@ import type { HostedProjectHandoff } from '../app/hosted-receiver.js';
 import { createHostedProjectReceiver } from '../app/hosted-receiver.js';
 import { hostedTargetFor } from '../app/hosted-target-registry.js';
 import { ACCOUNT_ORIGIN, bridge, createAccountFetch } from './transport.js';
+import de from './copy.de.json';
+import en from './copy.en.json';
 import './studio.css';
 
 export interface AccountStudioHandoff {
@@ -23,14 +25,17 @@ const parentWindow = window.parent;
 const root = document.getElementById('root');
 if (root && parentWindow !== window && parentWindow.location.origin === ACCOUNT_ORIGIN && parentWindow.location.pathname === '/account/index.html') {
   const native = bridge(parentWindow);
+  const mount = parentWindow.document.getElementById('account-recovery-actions');
   if (native) {
     (window as AccountStudioWindow).closeAccountProject = async () => {
       if (closing) return false;
       closing = true;
       root.inert = true;
+      if (mount) mount.inert = true;
       const target = editing === undefined ? null : hostedTargetFor(editing);
       if (target && !await target.canLeave()) {
         root.inert = false;
+        if (mount) mount.inert = false;
         closing = false;
         return false;
       }
@@ -45,6 +50,7 @@ if (root && parentWindow !== window && parentWindow.location.origin === ACCOUNT_
         typeof handoff.scope !== 'string' || typeof handoff.language !== 'string') return;
       const account = handoff.account;
       const fetchAccount = createAccountFetch(native);
+      const recoveryCopy = handoff.language === 'de' ? de : en;
       try {
         receiver = createHostedProjectReceiver({ origin: handoff.origin, language: handoff.language, scope: handoff.scope, root,
           fetch: (input, init) => {
@@ -53,6 +59,8 @@ if (root && parentWindow !== window && parentWindow.location.origin === ACCOUNT_
             return fetchAccount(input, { ...init, headers });
           },
           beforeExplicitSend: async () => await (parentWindow as AccountHostWindow).renewAccountLease?.() ?? false,
+          ...(mount ? { desktopRecovery: { mount, warning: recoveryCopy.closeRefused, send: recoveryCopy.send,
+            exportBundle: recoveryCopy.exportBundle, exportFailed: recoveryCopy.exportFailed } } : {}),
           bootEditor: async (signal) => { signal.throwIfAborted(); await import('../main.js'); },
         });
         if (handoff.project?.mode === 'edit') editing = handoff.project.projectId;

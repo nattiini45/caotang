@@ -226,7 +226,10 @@ function AccountWindow({ native }: { readonly native: AccountBridge }) {
   if (active) return <div className="account-studio">
     <header>
       <Button className="button" disabled={busy} onClick={() => run(async () => { await leave(); })}>{words.projects}</Button>
-      {notice && <p role="status">{words[notice]}</p>}
+      <div className="account-recovery" data-recovery-notice={notice === 'closeRefused' || notice === 'sendLeaseHeld' || undefined}>
+        {notice && <p role="status">{words[notice]}</p>}
+        <div id="account-recovery-actions" />
+      </div>
     </header>
     <iframe ref={frame} src="./studio.html" title={words.studio} onLoad={() => frame.current?.contentWindow?.postMessage(active, ACCOUNT_ORIGIN)} />
   </div>;

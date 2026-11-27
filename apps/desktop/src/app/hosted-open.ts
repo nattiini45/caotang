@@ -17,6 +17,7 @@ import {
   type RuntimeStore,
 } from '@caotang/store';
 import { t } from '@lingui/core/macro';
+import { downloadBytes } from './download.js';
 import type { Opened } from './lifecycle.js';
 import { forgetHostedTarget, hostedTargetFor, installHostedTarget } from './hosted-target-registry.js';
 import type { HostedTarget } from './hosted-target.js';
@@ -80,7 +81,7 @@ export async function openHostedProject(
   source: HostedProjectSource,
   openTarget: (source: HostedProjectSource) => Promise<HostedTarget> = openHostedTargetLater,
 ): Promise<Opened> {
-  const { adopt, droppedFieldsOf, folderSessionsOf, leaseFor, linesNotHeld, noticesOf, openStored } = await import('./lifecycle.js');
+  const { adopt, droppedFieldsOf, exportBundle, folderSessionsOf, leaseFor, linesNotHeld, noticesOf, openStored } = await import('./lifecycle.js');
   const target = await openTarget(source);
   // Nothing the queue holds is sent here: opening a project reads it, and the writer is told what is still on this device with the one
   // action that would send it (hosted.md §7.2). An open that replayed on its own would write to the account without being asked.
@@ -124,6 +125,10 @@ export async function openHostedProject(
     persistence: opened.session.persistence,
     assets: () => opened.session.assets.snapshot(),
     saved: () => opened.session.saved(),
+    ...(source.desktopRecovery && { exportCopy: async () => {
+      const bundle = await exportBundle(store, opened.session);
+      downloadBytes(bundle.bytes, bundle.filename);
+    } }),
   });
   return opened;
 }

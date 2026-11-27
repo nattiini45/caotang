@@ -1,5 +1,5 @@
 import { setStorageScope } from './storage-scope.js';
-import { setHostedProject, type HostedProjectSource } from './studio-host.js';
+import { setHostedProject, type DesktopRecovery, type HostedProjectSource } from './studio-host.js';
 
 type ProjectIdentity = Pick<HostedProjectSource, 'projectId' | 'key'>;
 
@@ -15,6 +15,7 @@ interface ReceiverOptions {
   readonly fetch?: typeof fetch;
   readonly scope?: string;
   readonly beforeExplicitSend?: () => Promise<boolean>;
+  readonly desktopRecovery?: DesktopRecovery;
   readonly bootEditor: (signal: AbortSignal) => void | Promise<void>;
 }
 
@@ -42,7 +43,7 @@ function projectHandoff(value: unknown): HostedProjectHandoff {
   throw new HostedHandoffError('invalid-mode-or-device');
 }
 
-export function createHostedProjectReceiver({ origin, root, language, fetch, scope, beforeExplicitSend, bootEditor }: ReceiverOptions) {
+export function createHostedProjectReceiver({ origin, root, language, fetch, scope, beforeExplicitSend, desktopRecovery, bootEditor }: ReceiverOptions) {
   let url: URL;
   try {
     url = new URL(origin);
@@ -62,7 +63,7 @@ export function createHostedProjectReceiver({ origin, root, language, fetch, sco
       accepted = project.mode;
       if (project.mode === 'edit') {
         setStorageScope(scope ?? account);
-        setHostedProject({ origin, projectId: project.projectId, device: project.device, key: project.key, fetch, beforeExplicitSend });
+        setHostedProject({ origin, projectId: project.projectId, device: project.device, key: project.key, fetch, beforeExplicitSend, desktopRecovery });
         await bootEditor(controller.signal);
       } else {
         const { mountHostedReader } = await import('../hosted-reader/mount.js');

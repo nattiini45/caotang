@@ -16,6 +16,7 @@ import type { ProjectSession } from '../src/app/session.js';
 import { HostedSaveNotice } from '../src/components/HostedSaveNotice.js';
 import { HostedTarget, type HostedQueuePort, type HostedReplay } from '../src/app/hosted-target.js';
 import { forgetHostedTarget, installHostedTarget } from '../src/app/hosted-target-registry.js';
+import { setHostedProject } from '../src/app/studio-host.js';
 import { activateEnglish } from '../src/i18n/runtime.js';
 
 const DOC = 'n_LIGHTHOUSE';
@@ -83,6 +84,7 @@ afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
   forgetHostedTarget('p_lighthouse');
+  setHostedProject(null);
   Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal');
   Reflect.deleteProperty(HTMLDialogElement.prototype, 'close');
   vi.restoreAllMocks();
@@ -123,6 +125,40 @@ it('says the words are only in this tab when the queue could not be written, and
   expect(shown()).toContain('Closing this tab loses these changes.');
   expect(shown()).not.toContain('Saved here, not to your account.');
   expect(button('Send them to your account')).toBeTruthy();
+});
+
+it('puts one window warning and both recovery actions in the desktop header instead of the workspace', async () => {
+  const mount = document.createElement('header');
+  document.body.append(mount);
+  const exportCopy = vi.fn<() => Promise<boolean>>().mockResolvedValue(true);
+  const warning = 'Keep this window open until you send the changes or export a copy.';
+  const one = target([unavailable, accepted], [], false);
+  setHostedProject({
+    projectId: 'p_lighthouse', origin: 'https://account.example', key: {} as CryptoKey, device: 'desktop',
+    desktopRecovery: { mount, warning, send: 'Send them to your account', exportBundle: 'Export bundle', exportFailed: 'The bundle could not be exported.' },
+  });
+  vi.spyOn(one, 'exportCopy').mockImplementation(exportCopy);
+  try {
+    await one.rememberOpened(state, {});
+    installHostedTarget(one);
+    await act(async () => root.render(<I18nProvider i18n={i18n}>
+      <HostedSaveNotice session={session} localSaving={false} />
+      <HostedSaveNotice session={session} />
+    </I18nProvider>));
+    await act(async () => one.save(state));
+    expect(host.textContent).toBe('');
+    expect(mount.querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(mount.textContent).toContain(warning);
+    expect(shown()).not.toContain('Closing this tab');
+    expect(mount.contains(button('Export bundle'))).toBe(true);
+    expect(mount.contains(button('Send them to your account'))).toBe(true);
+    await act(async () => button('Export bundle').click());
+    expect(exportCopy).toHaveBeenCalledOnce();
+    await act(async () => button('Send them to your account').click());
+    expect(sends).toEqual([false, true]);
+  } finally {
+    mount.remove();
+  }
 });
 
 it('names the documents another device changed by their titles, never by their file names', async () => {

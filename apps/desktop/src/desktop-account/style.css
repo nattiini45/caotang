@@ -52,4 +52,6 @@ body {
 .account-studio { display: grid; grid-template-rows: auto minmax(0, 1fr); block-size: 100dvh; }
 .account-studio header { display: flex; align-items: center; flex-wrap: wrap; gap: 1em; padding: .5em 1em; background: var(--paper); border-block-end: 1px solid var(--line); }
 .account-studio header p { margin: 0; }
+.account-recovery, #account-recovery-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5em .75em; }
+#account-recovery-actions:empty, .account-recovery[data-recovery-notice] .account-recovery-warning { display: none; }
 .account-studio iframe { inline-size: 100%; block-size: 100%; border: 0; }
