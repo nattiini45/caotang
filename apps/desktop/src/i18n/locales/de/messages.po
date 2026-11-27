@@ -7647,6 +7647,7 @@ msgstr "Fenster schließen"
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Closing this tab loses these changes."
 msgstr "Wenn Sie diesen Tab schließen, gehen diese Änderungen verloren."
@@ -17753,6 +17754,7 @@ msgid "Read the user guide"
 msgstr "Benutzerhandbuch lesen"
 
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Read them"
 msgstr "Lesen"
@@ -19683,6 +19685,7 @@ msgstr "Token speichern"
 msgid "Save writing settings"
 msgstr "Schreib-Einstellungen speichern"
 
+#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Save your edits before reading the account copy."

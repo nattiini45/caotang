@@ -233,7 +233,7 @@ export async function hostedBaseline(
           [...state.declinedCodexFiles].some((name) => path === `codex/${name}`)) continue;
         changes.push({ path, bytes: null, base: versions.get(path) ?? 0 });
       }
-      const replaced = [];
+      const replaced: string[] = [];
       for (const { path } of [...changes]) {
         const old = legacy.get(path);
         if (old === undefined) continue;
