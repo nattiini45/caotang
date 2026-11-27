@@ -544,7 +544,7 @@ export function AgentPanel({
         }}
       />
     </Suspense></div> : null;
-  const oneTurnComposer = <div className="agent-one-turn-composer" hidden={goalShowing}>{intentForm}{inWindow ? null : contextControls}</div>;
+  const oneTurnComposer = <div className="agent-one-turn-composer" hidden={goalShowing}>{intentForm}{inWindow && snapshot.activeGoalId !== null ? null : contextControls}</div>;
   // The drawer is a named region of its own; the window is inside Modern's `aside` "Agent", which names it.
   const Root = inWindow ? 'div' : 'section';
   const recoveryAndOffers = <>
@@ -652,7 +652,7 @@ export function AgentPanel({
           {goalComposer}
           {inWindow ? sessionUsage : <>{oneTurnComposer}{sessionUsage}</>}
           <GoalRecovery agent={agent} goals={snapshot.goals.filter(goalInConversation)} unavailable={snapshot.goalUnavailable} activeGoalId={snapshot.activeGoalId} />
-          {inWindow ? contextControls : null}
+          {inWindow && snapshot.activeGoalId !== null ? contextControls : null}
 
           {oldInstruction !== null ? (
             <p className="agent-old-instruction" data-testid="agent-old-instruction">

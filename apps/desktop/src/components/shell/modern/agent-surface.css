@@ -1,7 +1,7 @@
 :root[data-shell='modern'] .modern-companion .agent-foot {
   display: flex;
   flex-direction: column;
-  flex: none;
+  flex: 0 1 auto;
   min-block-size: 0;
   padding: var(--space-2) var(--space-4);
 }
@@ -13,6 +13,15 @@
 :root[data-shell='modern'] .modern-companion .agent-foot .agent-intent {
   margin: 0;
   flex: none;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-foot .composer-context {
+  flex: 0 1 auto;
+  min-block-size: 0;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-foot .composer-context:empty {
+  display: none;
 }
 
 :root[data-shell='modern'] .modern-companion .agent-foot .agent-intent input,
@@ -30,6 +39,14 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--space-4) var(--space-5);
+}
+
+:root[data-shell='modern'] .modern-companion .agent:has(.agent-foot .composer-context:not(:empty)) .agent-body {
+  min-block-size: min(14rem, 27dvh);
+}
+
+:root[data-shell='modern'] .modern-companion .agent.is-goal-running .agent-body {
+  min-block-size: min(5.25rem, 27dvh);
 }
 
 @media (min-width: 1921px) {

@@ -16,11 +16,6 @@
   overflow-y: auto;
 }
 
-.agent.is-window .composer-context {
-  max-block-size: none;
-  overflow: visible;
-}
-
 .agent.is-window .agent-intent {
   display: grid;
   grid-template-columns: minmax(0, 1fr) repeat(3, auto);
