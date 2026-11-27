@@ -54,7 +54,7 @@ export function HostedSaveNotice({
   // A question the writer put off stays off for those paths: a new conflict asks anew.
   const [putOff, setPutOff] = useState('');
   if (summary !== undefined) {
-    if (target === null) return null;
+    if (target === null || (state.kind === 'stale' && !state.stageFailed && state.waiting === undefined)) return null;
     const pending = state.kind === 'unsaved' || state.waiting !== undefined;
     const saving = state.kind === 'saving' || (state.kind === 'idle' && summary === 'saving');
     const status = state.kind === 'conflict' ? 'conflict' : state.stageFailed || pending ? 'failed' : saving ? 'saving' : 'saved';

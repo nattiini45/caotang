@@ -109,7 +109,8 @@ for (const shell of ['classic', 'modern'] as const) test(`the ${shell} studio re
   await send.click();
   await expect(page.getByRole('button', { name: 'Read them' })).toBeVisible();
   await expect(editor).toHaveText(original);
-  await expect(status).toHaveText('Your account has the changes.');
+  await expect(page.getByText('Your account has the changes.', { exact: true })).toHaveCount(1);
+  await expect(status).toHaveCount(0);
   const screenshot = info.outputPath('hosted-send.png');
   await page.screenshot({ path: screenshot });
   await info.attach('Hosted send acknowledged', { path: screenshot, contentType: 'image/png' });
