@@ -272,8 +272,10 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
       state.changes.deletions += 1;
       if (local === 'moveFrom') state.changes.moves += 1;
       if (state.options.tracked === 'accept') continue;
+      const placementStart = state.imagePlacements.length;
       const text = renderRuns(child, state, inherited, false);
       if (state.options.tracked === 'keep') {
+        state.imagePlacements.length = placementStart;
         if (text.trim() !== '') {
           state.deletions.push({ blockIndex: state.blocks.length, text });
           // "Accept, and list what was deleted" means the scene's notes carry it: the comment list is the channel
@@ -383,7 +385,8 @@ function imageOf(image: XmlElement, state: WalkState, parents: ReadonlyMap<XmlEl
   state.imageTargets.set(ref, rel.target);
   if (!state.options.images) return '';
   state.imagePlacements.push({ ref, alt });
-  return `![${alt}](${ref})`;
+  const safeAlt = alt.replace(/[\\[\]]/g, (character) => `\\${character}`);
+  return `![${safeAlt}](${ref})`;
 }
 
 /** A drawing's text boxes and pictures walked once in document order; a fallback representation is not a second placement. */
@@ -542,7 +545,7 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
     const withEmpty: Signals = emptyRun === 0 ? signals : { ...signals, emptyBefore: emptyRun };
     if ((pageBreak || state.pageBreakInRuns) && state.blocks.length > 0) push({ kind: 'pagebreak' });
     const placements = state.imagePlacements.slice(placementStart);
-    if (placements.length > 0 && md.replace(/!\[[^\]]*\]\([^)]*\)/g, '').trim() === '') {
+    if (placements.length > 0 && md.replace(/!\[(?:\\.|[^\]\\])*\]\([^)]*\)/g, '').trim() === '') {
       for (const placement of placements) push({ kind: 'image', assetRef: placement.ref, alt: placement.alt });
       return;
     }

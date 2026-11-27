@@ -291,6 +291,31 @@ describe('notes, comments and pictures (#279)', () => {
     expect(read.value.document.assets?.map((asset) => asset.name)).toEqual(['first.png', 'second.png']);
   });
 
+  it('treats a bracketed picture alt text as a picture-only placement', async () => {
+    const body = '<w:p><w:r><w:drawing><wp:inline><a:graphic><a:graphicData><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="1" descr="Map [east]"/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId1"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+    const rels = '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/map.png"/>';
+    const read = await readDocx(docx({ body, rels, media: { 'map.png': PNG } }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.document.blocks.map((block) => block.kind)).toEqual(['image']);
+    expect(read.value.document.blocks[0]?.kind === 'image' ? read.value.document.blocks[0].alt : '').toBe('Map [east]');
+  });
+
+  it('does not emit a tracked-deleted picture as a live image block in keep mode', async () => {
+    const drawing = (id: string, alt: string): string =>
+      `<w:r><w:drawing><wp:inline><wp:docPr id="${id}" descr="${alt}"/><a:graphic><a:graphicData><a:blip r:embed="rId${id}"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+    const body = `<w:p><w:del>${drawing('1', 'Deleted picture')}</w:del>${drawing('2', 'Live picture')}</w:p>`;
+    const rels =
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/deleted.png"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/live.png"/>';
+    const read = await readDocx(docx({ body, rels, media: { 'deleted.png': PNG, 'live.png': PNG } }), { tracked: 'keep' });
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const images = read.value.document.blocks.filter((block) => block.kind === 'image');
+    expect(images.map((block) => (block.kind === 'image' ? block.alt : ''))).toEqual(['Live picture']);
+    expect(read.value.document.comments?.some((note) => note.md.includes('Deleted picture'))).toBe(true);
+  });
+
   it('keeps literal punctuation plain in a heading title and escaped only in its Markdown', async () => {
     const read = await readDocx(docx({ styles: STYLES, body: p('*door* [name](target)', 'Heading1') }));
     expect(read.ok).toBe(true);
