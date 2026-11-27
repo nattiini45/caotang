@@ -206,6 +206,26 @@ describe('the Kanka entities (#293)', () => {
     expect(missing.value.missingPictures).toBe(1);
   });
 
+  it('skips an unsupported picture as a named loss and imports the rest of the campaign', async () => {
+    const unsupported = Uint8Array.from(atob('R0lGODlhAQABAAAAACw='), (c) => c.charCodeAt(0));
+    const withGif = {
+      ...CAMPAIGN,
+      'characters/elena_11.json': (CAMPAIGN['characters/elena_11.json'] as string).replace('campaigns/1/elena.png', 'campaigns/1/elena.gif'),
+      'campaigns/1/elena.gif': unsupported,
+    };
+    const read = await readKanka(zipOf(withGif));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const page = read.value.pages.find((row) => row.entityId === 11)?.body ?? '';
+    expect(page).toContain('Elena maps the harbour');
+    expect(page).not.toContain('import:kanka-image-1');
+    expect(read.value.assetData.size).toBe(1);
+    expect(read.value.gallery?.body).toContain('Harbour at dawn');
+    const loss = read.value.losses.find((row) => row.code === 'image-unreadable');
+    expect(loss?.message).toContain('campaigns/1/elena.gif');
+    expect(loss?.message).toContain('not a PNG, JPEG or WebP');
+  });
+
   it('never lets a script’s text through, even when an entry is not readable HTML', async () => {
     const broken =
       '<p>Unclosed <b>bold<script>alert(1)</script><style>p{color:red}</style> and a stray </p> tag.' +

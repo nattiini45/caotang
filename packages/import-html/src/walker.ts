@@ -7,7 +7,7 @@
  * or WebAssembly anywhere in the chain.
  */
 
-import type { ImportBlock, LossWarning, Signals, Align } from '@caotang/import-core';
+import type { ImportBlock, ImportFootnote, LossWarning, Signals, Align } from '@caotang/import-core';
 import { readXml, isElement, attr, type XmlElement, type XmlNode } from '@caotang/import-read/xml';
 
 /** The HTML void elements, which a lenient export leaves unclosed; the XML reader needs them self-closed. */
@@ -128,6 +128,8 @@ export interface HtmlNoteRef {
 export interface HtmlNote {
   fragment: string;
   md: string;
+  /** The block index the aside sat before, so an unreferenced note can follow its own place in the text. */
+  blockIndex: number;
 }
 
 export interface HtmlWalkResult {
@@ -168,6 +170,8 @@ export interface HtmlWalkOptions {
    * rather than importing twice. They come back in `skipped` with the block index they sat before.
    */
   skip?: readonly string[];
+  /** The first footnote label this walk may use. A reader of several pages passes the next unused label, so labels never collide. */
+  firstNoteLabel?: number;
 }
 
 const BLOCK_TAGS = new Set(['p', 'div', 'section', 'article', 'header', 'footer', 'main', 'aside', 'blockquote', 'ul', 'ol', 'li', 'pre', 'table', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'figure', 'figcaption']);
@@ -255,6 +259,7 @@ export function htmlToBlocks(html: string, options: HtmlWalkOptions = {}): HtmlW
     noteLabels: new Map(),
     skip: options.skip ?? [],
     skipped: [],
+    firstNoteLabel: options.firstNoteLabel ?? 1,
   };
   countDropped(root, state.dropped);
   walkChildren(body, state, {}, {});
@@ -291,6 +296,7 @@ interface WalkState {
   noteLabels: Map<string, string>;
   skip: readonly string[];
   skipped: HtmlSkipped[];
+  firstNoteLabel: number;
 }
 
 /** Whether an element matches one of the reader's `.class` / `#id` skip selectors. */
@@ -415,7 +421,7 @@ function walkNode(node: XmlNode, state: WalkState, context: InlineContext, inher
   const semantic = semanticType(node);
   if (semantic.split(/\s+/).includes('footnote') || semantic.split(/\s+/).includes('doc-footnote')) {
     const md = inlineText(node, state, { ...context }).md.replace(/\s+/g, ' ').trim();
-    if (id !== undefined && md !== '') state.notes.push({ fragment: id, md });
+    if (id !== undefined && md !== '') state.notes.push({ fragment: id, md, blockIndex: state.blocks.length });
     state.pendingAnchors.length = 0;
     return;
   }
@@ -563,7 +569,7 @@ function inlineText(element: XmlElement, state: WalkState, context: InlineContex
         const fragment = href.slice(1);
         let label = state.noteLabels.get(fragment);
         if (label === undefined) {
-          label = String(state.noteLabels.size + 1);
+          label = String(state.firstNoteLabel + state.noteLabels.size);
           state.noteLabels.set(fragment, label);
         }
         state.noterefs.push({ fragment, label, blockIndex: state.blocks.length });
@@ -627,6 +633,43 @@ function tableText(element: XmlElement): string {
   // A table with no rows at all still keeps its words, rather than losing them.
   if (rows.length === 0) return textContent(element).replace(/\s+/g, ' ').trim();
   return rows.join('\n');
+}
+
+/**
+ * Join the walker's note references and note bodies into import footnotes. Notes are matched inside one walked page, so two
+ * pages may reuse the same element id without one definition overwriting the other. `firstUnreferencedLabel` is the reader's
+ * next unused label; labels already written into the text stay untouched.
+ */
+export function collectHtmlFootnotes(
+  noterefs: readonly HtmlNoteRef[],
+  notes: readonly HtmlNote[],
+  blockOffset = 0,
+  firstUnreferencedLabel = 1,
+): { footnotes: ImportFootnote[]; nextLabel: number } {
+  const byFragment = new Map<string, string>();
+  for (const note of notes) if (!byFragment.has(note.fragment)) byFragment.set(note.fragment, note.md);
+  let nextLabel = firstUnreferencedLabel;
+  for (const ref of noterefs) {
+    const label = Number(ref.label);
+    if (Number.isInteger(label) && label >= nextLabel) nextLabel = label + 1;
+  }
+
+  const footnotes: ImportFootnote[] = [];
+  const used = new Set<string>();
+  for (const ref of noterefs) {
+    if (used.has(ref.fragment)) continue;
+    const md = byFragment.get(ref.fragment);
+    if (md === undefined) continue;
+    used.add(ref.fragment);
+    footnotes.push({ blockIndex: ref.blockIndex + blockOffset, label: ref.label, md });
+  }
+  for (const note of notes) {
+    if (used.has(note.fragment)) continue;
+    used.add(note.fragment);
+    footnotes.push({ blockIndex: note.blockIndex + blockOffset, label: String(nextLabel), md: note.md });
+    nextLabel += 1;
+  }
+  return { footnotes, nextLabel };
 }
 
 function imageMarkdown(element: XmlElement, state: WalkState): string {

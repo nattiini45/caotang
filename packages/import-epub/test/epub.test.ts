@@ -237,6 +237,26 @@ describe('the EPUB reader (#296)', () => {
     expect(bodiesAfter).toContain('[^1]');
   });
 
+  it('keeps footnote labels unique when two spine documents reuse the same note id', async () => {
+    const read = await readEpub(
+      book({
+        files: {
+          'OEBPS/text/ch1.xhtml': page('<h1>Chapter One: The Landing</h1><p>The first claim<a epub:type="noteref" href="#fn1">1</a>.</p><aside epub:type="footnote" id="fn1">The first note.</aside>'),
+          'OEBPS/text/ch2.xhtml': page('<h1>Chapter Two: Salt</h1><p>The second claim<a epub:type="noteref" href="#fn1">1</a>.</p><aside epub:type="footnote" id="fn1">The second note.</aside>'),
+        },
+      }),
+    );
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const bodies = read.value.document.blocks.map((block) => (block.kind === 'para' ? block.md : ''));
+    expect(bodies).toContain('The first claim[^1].');
+    expect(bodies).toContain('The second claim[^2].');
+    expect(read.value.document.footnotes?.map((note) => [note.label, note.md])).toEqual([
+      ['1', 'The first note.'],
+      ['2', 'The second note.'],
+    ]);
+  });
+
   it('keeps the cover and a chapter picture with their bytes', async () => {
     const read = await readEpub(
       book({

@@ -39,8 +39,9 @@ pictures, and what it could not keep.
 Each spine item is read by the shared XHTML walker with its own `sourceUnit` and picture-ref namespace. Headings, `<hr>` and symbol
 paragraphs are the splitter's scene signals; emphasis, lists, blockquotes and code become Markdown; a table degrades to prose with a
 loss. Footnotes are the walker's: an `epub:type="noteref"` link becomes `[^n]` in the text and its `epub:type="footnote"` aside is
-written as the definition of the scene that holds the reference (decision 3). A note no reference points at follows its own block,
-and the splitter keeps it under "Unreferenced notes".
+written as the definition of the scene that holds the reference (decision 3). Labels are numbered across the whole book, so two
+spine items that both use `fn1` keep two distinct notes. A note no reference points at follows its own block, and the splitter keeps
+it under "Unreferenced notes".
 
 ## 5. Pictures
 

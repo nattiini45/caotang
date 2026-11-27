@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **EPUB and HTML imports keep every footnote apart.** Two chapters or pages that use the same footnote id in their own file no longer reuse the same `[^n]` number or lose one note, and HTML imports carry the notes they find instead of dropping them.
+- **A Kanka campaign import continues when one picture cannot be stored.** The picture is named in the report and skipped, while the entity, its page and the rest of the campaign still import.
 - **Desktop keeps account edits that could not be saved on this device.** Going back or a takeover leaves the editor open so you can export a copy. When you explicitly send after an offline lease expires, the app tries to regain the lease without taking over another device.
 - **The Modern toolbar stays in place when the window becomes narrow.** The wide-window sidebar animation no longer squeezes the project title during the resize.
 

@@ -7,7 +7,7 @@
  */
 
 import type { ImportAsset, ImportBlock, ImportDocument, ImportFootnote } from '@caotang/import-core';
-import { dropUnresolvedPictures, htmlToBlocks, pictureRefusal, type HtmlDropped, type PictureRefusal } from '@caotang/import-html';
+import { collectHtmlFootnotes, dropUnresolvedPictures, htmlToBlocks, pictureRefusal, type HtmlDropped, type PictureRefusal } from '@caotang/import-html';
 import { decodePlainText } from '@caotang/import-read/text';
 import { openZip, type ImportArchive } from '@caotang/import-read/zip';
 import type { XmlElement } from '@caotang/import-read/xml';
@@ -160,11 +160,10 @@ export async function readEpubArchive(archive: ImportArchive, options: EpubReadO
   const chapters: EpubChapter[] = [];
   const matter: EpubMatter[] = [];
   const dropped: HtmlDropped = { scripts: 0, styles: 0, iframes: 0, forms: 0, eventAttrs: 0, unsafeLinks: 0, media: 0 };
-  const notesByFragment = new Map<string, { md: string; blockIndex: number }>();
-  const noterefs: { fragment: string; label: string; blockIndex: number }[] = [];
   const targets = new Map<string, string>();
   const refused = new Map<string, PictureRefusal>();
   let spineItems = 0;
+  let nextNoteLabel = 1;
   let seenLinear = false;
   const skipped: EpubImport['skipped'] = [];
 
@@ -180,6 +179,7 @@ export async function readEpubArchive(archive: ImportArchive, options: EpubReadO
     const walked = htmlToBlocks(decoded.text, {
       unit: entry.href,
       refPrefix: `import:epub-image-${spineItems}-`,
+      firstNoteLabel: nextNoteLabel,
       ...(options.skip === undefined ? {} : { skip: options.skip }),
     });
     if (!walked.ok) return { ok: false, error: { kind: 'not-xml', message: walked.error.message } };
@@ -209,12 +209,10 @@ export async function readEpubArchive(archive: ImportArchive, options: EpubReadO
     dropped.unsafeLinks += walked.value.dropped.unsafeLinks;
     dropped.media += walked.value.dropped.media;
 
-    for (const ref of walked.value.noterefs) noterefs.push({ ...ref, blockIndex: ref.blockIndex + offset });
+    const collectedNotes = collectHtmlFootnotes(walked.value.noterefs, walked.value.notes, offset, nextNoteLabel);
+    footnotes.push(...collectedNotes.footnotes);
+    nextNoteLabel = collectedNotes.nextLabel;
     for (const region of walked.value.skipped) skipped.push({ unit: entry.href, selector: region.selector, blockIndex: region.blockIndex + offset, element: region.element });
-    for (const note of walked.value.notes) {
-      const anchor = walked.value.anchors.get(note.fragment);
-      notesByFragment.set(note.fragment, { md: note.md, blockIndex: (anchor ?? 0) + offset });
-    }
 
     for (const [ref, target] of walked.value.images) {
       targets.set(ref, target);
@@ -230,15 +228,6 @@ export async function readEpubArchive(archive: ImportArchive, options: EpubReadO
       assets.set(ref, { ref, name: resolved.name, bytes: resolved.bytes.length });
     }
   }
-
-  // Footnotes: the reference's block holds the definition; a note no reference points at follows its own block.
-  for (const ref of noterefs) {
-    const note = notesByFragment.get(ref.fragment);
-    if (note === undefined) continue;
-    footnotes.push({ blockIndex: ref.blockIndex, label: ref.label, md: note.md });
-    notesByFragment.delete(ref.fragment);
-  }
-  for (const note of notesByFragment.values()) footnotes.push({ blockIndex: note.blockIndex, label: String(footnotes.length + 1), md: note.md });
 
   let cover: EpubImport['cover'] = null;
   if (opf.coverHref !== null) {
