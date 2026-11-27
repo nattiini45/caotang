@@ -3,7 +3,7 @@
 - 2026-11-23: Document imports carry deleted tracked-change text on the document's `deletions` table and the splitter lists each in the owning scene's notes (import-core.md §2.2, import-docx.md §4, import-odt.md §4); both Office readers escape Markdown metacharacters in prose, check the file's size before reading it, read text boxes wherever Word or ODF can nest them, and count every dropped decoration they name.
 # Decisions
 
-- [delegated 2026-11-27] The Word reader escapes literal Markdown punctuation while keeping generated formatting, flattens text boxes nested in drawings or VML, keeps every picture placement of a picture-only paragraph in order, and names every unreadable member of a batch zip before confirmation. [import-docx.md §1, §3, §5]
+- [delegated 2026-11-27] The Word reader escapes literal Markdown punctuation while keeping generated formatting, flattens text boxes nested in drawings or VML, keeps every picture placement of a picture-only paragraph in order, and names every unreadable member of a batch zip before confirmation; if none can be read, the refusal names them. [import-docx.md §1, §3, §5]
 - [delegated 2026-11-27] Desktop account navigation and device takeovers keep an editing frame when pending edits cannot survive teardown. An explicit send may renew an expired lease without takeover, but reconnect alone does not send. [desktop.md §Account connector; hosted.md §2.8]
 
 - [delegated 2026-11-27] Modern ornaments follow a sliding sidebar only in the wide layout. Narrow ornaments use their safe-area insets immediately so a resize cannot briefly squeeze the title. [modern-interface.md §13]

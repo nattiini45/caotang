@@ -258,6 +258,36 @@ describe('notes, comments and pictures (#279)', () => {
     expect(read.value.document.assets?.map((asset) => asset.name)).toEqual(['first.png', 'second.png']);
   });
 
+  it('keeps literal punctuation plain in a heading title and escaped only in its Markdown', async () => {
+    const read = await readDocx(docx({ styles: STYLES, body: p('*door* [name](target)', 'Heading1') }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const heading = read.value.document.blocks[0];
+    expect(heading?.kind === 'heading' ? heading.text : '').toBe('*door* [name](target)');
+    expect(heading?.kind === 'heading' ? heading.md : '').toBe('# \\*door\\* \\[name\\](target)');
+  });
+
+  it('flattens grouped text boxes in document order', async () => {
+    const box = (text: string): string => `<w:txbxContent>${p(text)}</w:txbxContent>`;
+    const drawing = `<w:p><w:r><w:drawing><wp:inline><a:graphic><a:graphicData>${box('First box')}${box('Second box')}</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+    const read = await readDocx(docx({ body: drawing }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const para = read.value.document.blocks.find((block) => block.kind === 'para');
+    expect(para?.kind === 'para' ? para.text : '').toBe('First boxSecond box');
+  });
+
+  it('imports a picture inside a nested text box once', async () => {
+    const inner = '<w:r><w:drawing><wp:inline><wp:docPr id="1" descr="Boxed picture"/><a:graphic><a:graphicData><a:blip r:embed="rId1"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+    const outer = `<w:p><w:r><w:drawing><wp:inline><a:graphic><a:graphicData><w:txbxContent><w:p>${inner}</w:p></w:txbxContent></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+    const rels = '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/boxed.png"/>';
+    const read = await readDocx(docx({ body: outer, rels, media: { 'boxed.png': PNG } }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.document.blocks.filter((block) => block.kind === 'image')).toHaveLength(1);
+    expect(read.value.document.assets).toHaveLength(1);
+  });
+
   it('reads the core properties, a page break and underline as italics', async () => {
     const body = '<w:p><w:r><w:rPr><w:u w:val="single"/></w:rPr><w:t>underlined</w:t></w:r></w:p>' + p('After the break', undefined, '<w:pageBreakBefore/>');
     const read = await readDocx(docx({ body, core: '<dc:title>The Ninth Wave</dc:title><dc:creator>Mara Vale</dc:creator><dc:language>en</dc:language>' }));
@@ -312,5 +342,18 @@ describe('refusals and batches (#279)', () => {
     const skipped = batch.value.document.losses?.filter((loss) => loss.code === 'unsupported').map((loss) => loss.message ?? '') ?? [];
     expect(skipped.some((message) => message.includes('broken.docx'))).toBe(true);
     expect(skipped.some((message) => message.includes('not-word.docx'))).toBe(true);
+  });
+
+  it('names every member when no file in a batch zip can be read', async () => {
+    const notWord = rawZip([{ name: 'notes.txt', data: enc('not a Word file') }]);
+    const batch = await readDocxZip(rawZip([
+      { name: 'broken.docx', data: enc('these bytes are not a zip') },
+      { name: 'not-word.docx', data: notWord },
+    ]));
+    expect(batch.ok).toBe(false);
+    if (batch.ok) return;
+    expect(batch.error.kind).toBe('empty');
+    expect(batch.error.kind === 'empty' ? batch.error.message ?? '' : '').toContain('broken.docx');
+    expect(batch.error.kind === 'empty' ? batch.error.message ?? '' : '').toContain('not-word.docx');
   });
 });

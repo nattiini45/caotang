@@ -22,7 +22,7 @@ copied. There is no `eval`, `new Function` or WebAssembly in the chain, and the 
 
 A `.docx` that is not a zip, or a zip with no `word/document.xml`, is refused with a plain message. A zip **of** `.docx` files is
 read as a batch: one unit per file, so the splitter makes a chapter per file. A member that cannot be read, opened or parsed is
-named as a loss before confirmation, so an incomplete batch is never offered as complete.
+named as a loss before confirmation, so an incomplete batch is never offered as complete. When no member can be read, the refusal names every skipped file.
 
 ## 2. Paragraphs and signals
 
@@ -75,7 +75,7 @@ its own alt text. A batch gives each file its own ref namespace.
 
 A table becomes one paragraph per row, its cells joined with ` — `, with a `table` loss. Headers and footers are not read. Text
 boxes are listed as a loss with their text kept as a paragraph, whether the box is attached to a run or nested inside a Word
-drawing, VML shape or object.
+drawing, VML shape or object. Nested boxes flatten in document order, and a picture inside one is registered only once.
 
 ## 6. Safety and limits
 

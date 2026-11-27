@@ -87,7 +87,7 @@ export type DocxError =
   | { kind: 'not-docx' }
   | { kind: 'archive'; message: string }
   | { kind: 'not-xml'; message: string }
-  | { kind: 'empty' };
+  | { kind: 'empty'; message?: string };
 
 export type DocxResult = { ok: true; value: DocxImport } | { ok: false; error: DocxError };
 
@@ -108,14 +108,18 @@ function safeHref(href: string): boolean {
 /** Every descendant element with a local name, in document order. */
 function descendants(element: XmlElement, local: string): XmlElement[] {
   const found: XmlElement[] = [];
-  const stack: XmlElement[] = [element];
+  const stack: XmlElement[] = [];
+  for (let index = element.children.length - 1; index >= 0; index -= 1) {
+    const child = element.children[index];
+    if (child?.type === 'element') stack.push(child);
+  }
   while (stack.length > 0) {
     const current = stack.pop();
     if (current === undefined) break;
-    for (const child of current.children) {
-      if (child.type !== 'element') continue;
-      if (child.local === local) found.push(child);
-      stack.push(child);
+    if (current.local === local) found.push(current);
+    for (let index = current.children.length - 1; index >= 0; index -= 1) {
+      const child = current.children[index];
+      if (child?.type === 'element') stack.push(child);
     }
   }
   return found;
@@ -317,9 +321,24 @@ function nestedTextBoxes(element: XmlElement, state: WalkState, inherited: RunSt
   return descendants(element, 'txbxContent').map((box) => textBox(box, state, inherited, deleting)).join('');
 }
 
+/** Descendants with a local name, skipping anything inside a text box the recursive run renderer already owns. */
+function descendantsOutsideTextBoxes(element: XmlElement, local: string): XmlElement[] {
+  const found: XmlElement[] = [];
+  const walk = (current: XmlElement): void => {
+    for (const child of current.children) {
+      if (child.type !== 'element') continue;
+      if (child.local === 'txbxContent') continue;
+      if (child.local === local) found.push(child);
+      walk(child);
+    }
+  };
+  walk(element);
+  return found;
+}
+
 /** A drawing or a legacy picture: its ref, or nothing when it cannot come in. */
 function imageOf(element: XmlElement, state: WalkState): string {
-  const blip = descendants(element, 'blip')[0] ?? descendants(element, 'imagedata')[0];
+  const blip = descendantsOutsideTextBoxes(element, 'blip')[0] ?? descendantsOutsideTextBoxes(element, 'imagedata')[0];
   if (blip === undefined) return '';
   const id = attr(blip, 'embed', R) ?? attr(blip, 'id', R);
   const rel = id === undefined ? undefined : state.rels.get(id);
@@ -478,7 +497,8 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
       return;
     }
     if (heading !== null) {
-      push({ kind: 'heading', level: heading, text: md.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1'), md: `${'#'.repeat(heading)} ${md}`, src: withEmpty });
+      const text = md.replace(/(^|[^\\])\[((?:\\.|[^\x5d\\])*)\]\(([^)]*)\)/g, '$1$2').replace(/\\([\\*`[\]_~<&])/g, '$1');
+      push({ kind: 'heading', level: heading, text, md: `${'#'.repeat(heading)} ${md}`, src: withEmpty });
       return;
     }
     const safe = md.trim() === '#' ? md : escapeLineStarts(md);
@@ -644,6 +664,9 @@ export async function readDocxZip(bytes: Uint8Array, options: DocxOptions = {}):
     if (merged.author === '') merged.author = read.value.author;
     if (merged.language === '') merged.language = read.value.language;
   }
-  if (merged.document.blocks.length === 0) return { ok: false, error: { kind: 'empty' } };
+  if (merged.document.blocks.length === 0) {
+    const skipped = (merged.document.losses ?? []).map((loss) => loss.message ?? '').filter((message) => message !== '');
+    return { ok: false, error: { kind: 'empty', ...(skipped.length === 0 ? {} : { message: `No Word file in the batch could be read. ${skipped.join(' ')}` }) } };
+  }
   return { ok: true, value: merged };
 }
