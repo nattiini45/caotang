@@ -206,6 +206,61 @@ describe('the Kanka entities (#293)', () => {
     expect(missing.value.missingPictures).toBe(1);
   });
 
+  it('skips an unsupported picture as a named loss and imports the rest of the campaign', async () => {
+    const unsupported = Uint8Array.from(atob('R0lGODlhAQABAAAAACw='), (c) => c.charCodeAt(0));
+    const withGif = {
+      ...CAMPAIGN,
+      'characters/elena_11.json': (CAMPAIGN['characters/elena_11.json'] as string).replace('campaigns/1/elena.png', 'campaigns/1/elena.gif'),
+      'campaigns/1/elena.gif': unsupported,
+    };
+    const read = await readKanka(zipOf(withGif));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const page = read.value.pages.find((row) => row.entityId === 11)?.body ?? '';
+    expect(page).toContain('Elena maps the harbour');
+    expect(page).not.toContain('import:kanka-image-1');
+    expect(read.value.assetData.size).toBe(1);
+    expect(read.value.gallery?.body).toContain('Harbour at dawn');
+    const loss = read.value.losses.find((row) => row.code === 'image-unreadable');
+    expect(loss?.message).toContain('campaigns/1/elena.gif');
+    expect(loss?.message).toContain('not a PNG, JPEG or WebP');
+  });
+
+  it('removes an unsupported inline picture whose alt text holds a closing bracket', async () => {
+    const unsupported = Uint8Array.from(atob('R0lGODlhAQABAAAAACw='), (c) => c.charCodeAt(0));
+    const withInlineGif = {
+      ...CAMPAIGN,
+      'characters/elena_11.json': entity(11, 'Elena', {
+        entry: '<p>Before <img src="campaigns/1/inline.gif" alt="bracket]alt"/> after.</p>',
+      }),
+      'campaigns/1/inline.gif': unsupported,
+    };
+    const read = await readKanka(zipOf(withInlineGif));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const page = read.value.pages.find((row) => row.entityId === 11)?.body ?? '';
+    expect(page).toContain('Before  after.');
+    expect(page).not.toContain('import:kanka-entry-11-');
+    expect(page).not.toContain('bracket]alt');
+    expect(read.value.losses.some((row) => row.code === 'image-unreadable' && row.message?.includes('campaigns/1/inline.gif'))).toBe(true);
+  });
+
+  it('names an uppercase data URI as an embedded picture, not by its payload', async () => {
+    const withDataUri = {
+      ...CAMPAIGN,
+      'characters/elena_11.json': entity(11, 'Elena', {
+        entry: '<p>Before <img src="DATA:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="embedded"/> and <img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="other"/> after.</p>',
+      }),
+    };
+    const read = await readKanka(zipOf(withDataUri));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const loss = read.value.losses.find((row) => row.code === 'image-unreadable');
+    expect(loss?.message).toContain('an embedded picture');
+    expect(loss?.message).not.toContain('R0lGODlh');
+    expect(read.value.losses.filter((row) => row.code === 'image-unreadable' && row.message?.includes('an embedded picture'))).toHaveLength(2);
+  });
+
   it('never lets a script’s text through, even when an entry is not readable HTML', async () => {
     const broken =
       '<p>Unclosed <b>bold<script>alert(1)</script><style>p{color:red}</style> and a stray </p> tag.' +

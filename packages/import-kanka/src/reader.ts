@@ -5,7 +5,7 @@
  */
 
 import type { ImportAsset, LossWarning } from '@caotang/import-core';
-import type { HtmlDropped } from '@caotang/import-html';
+import { pictureRefusal, type HtmlDropped, type PictureRefusal } from '@caotang/import-html';
 import { decodePlainText } from '@caotang/import-read/text';
 import { openZip, type ImportArchive } from '@caotang/import-read/zip';
 
@@ -79,6 +79,12 @@ function dataUriBytes(target: string): Uint8Array | null {
 
 const isSvg = (path: string): boolean => /\.svgz?$/i.test(path);
 const fileName = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
+
+/** Remove the Markdown image for a ref; its alt text may itself hold escaped brackets. */
+function withoutImageRef(body: string, imageRef: string): string {
+  const ref = imageRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return body.replace(new RegExp(`!\\[(?:\\\\.|[^\\]\\\\])*\\]\\(${ref}\\)`, 'g'), '');
+}
 
 /** Read a Kanka export's bytes. */
 export async function readKanka(bytes: Uint8Array, options: KankaReadOptions = {}): Promise<KankaResult> {
@@ -157,8 +163,19 @@ export async function readKankaArchive(archive: ImportArchive, options: KankaRea
   let unresolvedMentions = 0;
   let pictureIndex = 0;
   const keywordOverflow: string[] = [];
+  const unsupportedPictures = new Set<string>();
+  const unsupportedPicturePaths = new Set<string>();
 
-  /** A picture from the zip, or null when it is not there or is an SVG. */
+  /** Name bytes the picture pipeline would refuse, once per picture, instead of letting them reject the whole import. */
+  const noteUnsupportedPicture = (name: string, why: PictureRefusal, identity = name): void => {
+    const key = `${identity}:${why}`;
+    if (unsupportedPictures.has(key)) return;
+    unsupportedPictures.add(key);
+    const reason = why === 'format' ? 'is not a PNG, JPEG or WebP picture' : 'is larger than a picture may be (16 MB and 50 megapixels)';
+    losses.push({ code: 'image-unreadable', message: `${name} ${reason}, so it is not imported; the rest of the campaign is kept.` });
+  };
+
+  /** A picture from the zip, or null when it is not there, is an SVG, or is bytes the picture store would refuse. */
   const zipPicture = async (path: string): Promise<Uint8Array | null> => {
     const clean = path.replace(/^\.?\//, '');
     if (isSvg(clean)) {
@@ -170,6 +187,12 @@ export async function readKankaArchive(archive: ImportArchive, options: KankaRea
     const bytes = await archive.read(clean);
     if (!bytes.ok) return null;
     usedPaths.add(clean);
+    const why = pictureRefusal(bytes.value);
+    if (why !== undefined) {
+      unsupportedPicturePaths.add(clean);
+      noteUnsupportedPicture(clean, why);
+      return null;
+    }
     return bytes.value;
   };
 
@@ -179,7 +202,7 @@ export async function readKankaArchive(archive: ImportArchive, options: KankaRea
     if (entity.imagePath !== '') {
       const data = await zipPicture(entity.imagePath);
       if (data !== null) picture = { ref, name: fileName(entity.imagePath), data };
-      else if (!isSvg(entity.imagePath)) missingPictures += 1;
+      else if (!isSvg(entity.imagePath) && !unsupportedPicturePaths.has(entity.imagePath.replace(/^\.?\//, ''))) missingPictures += 1;
     }
 
     const parts = entityPage(entity, {
@@ -202,8 +225,14 @@ export async function readKankaArchive(archive: ImportArchive, options: KankaRea
       const inline = dataUriBytes(target);
       const data = inline ?? (await zipPicture(target));
       if (data === null) {
-        if (!isSvg(target) && !/^https?:/i.test(target)) missingPictures += 1;
-        body = body.replace(new RegExp(`!\\[[^\\]]*\\]\\(${imageRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'), '');
+        if (!isSvg(target) && !/^https?:/i.test(target) && !unsupportedPicturePaths.has(target.replace(/^\.?\//, ''))) missingPictures += 1;
+        body = withoutImageRef(body, imageRef);
+        continue;
+      }
+      const why = pictureRefusal(data);
+      if (why !== undefined) {
+        noteUnsupportedPicture(/^data:/i.test(target) ? 'an embedded picture' : target, why, imageRef);
+        body = withoutImageRef(body, imageRef);
         continue;
       }
       assets.push({ ref: imageRef, name: fileName(target), bytes: data.length });
@@ -240,14 +269,14 @@ export async function readKankaArchive(archive: ImportArchive, options: KankaRea
       refusedSvg += 1;
       continue;
     }
-    const bytes = await archive.read(path);
-    if (!bytes.ok) continue;
+    const bytes = await zipPicture(path);
+    if (bytes === null) continue;
     const id = fileName(path).replace(/\.[^.]+$/, '');
     const meta = await json(`gallery/${id}.json`);
     const name = typeof meta === 'object' && meta !== null && 'name' in meta && typeof (meta as { name: unknown }).name === 'string' ? (meta as { name: string }).name : fileName(path);
     const ref = `import:kanka-image-${(pictureIndex += 1)}`;
-    assets.push({ ref, name: fileName(path), bytes: bytes.value.length });
-    assetData.set(ref, bytes.value);
+    assets.push({ ref, name: fileName(path), bytes: bytes.length });
+    assetData.set(ref, bytes);
     galleryLines.push(`![${name}](${ref})`, name);
   }
   const gallery = galleryLines.length === 0 ? null : { title: 'Campaign gallery', body: galleryLines.join('\n\n') };

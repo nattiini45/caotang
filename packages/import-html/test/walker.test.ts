@@ -252,8 +252,8 @@ describe('the XHTML walker (#299)', () => {
       { fragment: 'fn2', label: '2', blockIndex: 0 },
     ]);
     expect(out.value.notes).toEqual([
-      { fragment: 'fn1', md: 'The first note.' },
-      { fragment: 'fn2', md: 'The second note.' },
+      { fragment: 'fn1', md: 'The first note.', blockIndex: 1 },
+      { fragment: 'fn2', md: 'The second note.', blockIndex: 1 },
     ]);
   });
 

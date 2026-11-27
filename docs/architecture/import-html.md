@@ -75,8 +75,10 @@ the archive's for a zip. A pick past the cap is refused at once rather than allo
 check.
 
 `readHtmlFile` reads one page; `readHtmlZip` / `readHtmlArchive` read a Google Docs web-page zip (one `.html` plus its images), each
-page a `sourceUnit` with its own picture refs (`import:html-image-<page>-<n>`). The title is the page's `<title>`, else the file name. The zip is opened by `@caotang/import-read/zip`
-(`unzipSync` inside our own `'self'` Worker) with its size and entry-count caps and its zip-bomb guard.
+page a `sourceUnit` with its own picture refs (`import:html-image-<page>-<n>`). Footnote references and definitions the walker
+extracts reach the document's `footnotes` table; in an archive their labels are numbered across every page, so two pages that both
+use `fn1` keep two distinct notes. The title is the page's `<title>`, else the file name. The zip is opened by
+`@caotang/import-read/zip` (`unzipSync` inside our own `'self'` Worker) with its size and entry-count caps and its zip-bomb guard.
 
 ## 4. Safety and limits
 
