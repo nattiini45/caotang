@@ -10,7 +10,7 @@
   "author": "PawCommit Studio",
   "desktopName": "caotang.desktop",
   "scripts": {
-    "build": "tsc -p tsconfig.json && vite build && node scripts/mcp-bundle.mjs",
+    "build": "tsc -p tsconfig.json && vite build && node scripts/mcp-bundle.mjs && pnpm --filter @caotang/desktop build:account",
     "start": "pnpm build && install-electron && electron .",
     "test:smoke": "pnpm --filter @caotang/mcp-server build && pnpm build && install-electron && playwright test",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",

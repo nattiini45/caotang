@@ -271,10 +271,6 @@
   border-radius: var(--radius-control);
 }
 
-:root[data-shell='modern'] .modern-ornament-state:empty {
-  display: none;
-}
-
 /* ---- The top ornament (#306): the title capsule and ⋯. ---- */
 :root[data-shell='modern'] .modern-capsule.is-icon {
   flex-shrink: 0;

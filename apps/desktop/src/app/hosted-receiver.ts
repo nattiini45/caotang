@@ -13,6 +13,7 @@ interface ReceiverOptions {
   readonly root: HTMLElement;
   readonly language?: string;
   readonly fetch?: typeof fetch;
+  readonly scope?: string;
   readonly bootEditor: (signal: AbortSignal) => void | Promise<void>;
 }
 
@@ -40,7 +41,7 @@ function projectHandoff(value: unknown): HostedProjectHandoff {
   throw new HostedHandoffError('invalid-mode-or-device');
 }
 
-export function createHostedProjectReceiver({ origin, root, language, fetch, bootEditor }: ReceiverOptions) {
+export function createHostedProjectReceiver({ origin, root, language, fetch, scope, bootEditor }: ReceiverOptions) {
   let url: URL;
   try {
     url = new URL(origin);
@@ -55,17 +56,17 @@ export function createHostedProjectReceiver({ origin, root, language, fetch, boo
     async receive(account: unknown, value: unknown): Promise<void> {
       controller.signal.throwIfAborted();
       if (accepted !== undefined) throw new HostedHandoffError('already-accepted');
-      if (typeof account !== 'string' || !LABEL.test(account)) throw new HostedHandoffError('invalid-account');
+      if (typeof account !== 'string' || !LABEL.test(account) || (scope !== undefined && !LABEL.test(scope))) throw new HostedHandoffError('invalid-account');
       const project = projectHandoff(value);
       accepted = project.mode;
       if (project.mode === 'edit') {
-        setStorageScope(account);
+        setStorageScope(scope ?? account);
         setHostedProject({ origin, projectId: project.projectId, device: project.device, key: project.key, fetch });
         await bootEditor(controller.signal);
       } else {
         const { mountHostedReader } = await import('../hosted-reader/mount.js');
         controller.signal.throwIfAborted();
-        unmountReader = mountHostedReader(root, { account, origin, project, language, fetch, signal: controller.signal });
+        unmountReader = mountHostedReader(root, { account: scope ?? account, origin, project, language, fetch, signal: controller.signal });
       }
       controller.signal.throwIfAborted();
     },

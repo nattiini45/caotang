@@ -19,6 +19,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Open account projects in Caotang for desktop.** Enter the address of a compatible account server, approve the connection in your browser and unlock your projects. Choose read-only access or take over editing explicitly. Local projects and the public web build stay unchanged.
+
 - **An embedding shell can open an account project for reading.** The read-only studio shows the account's binder, prose and script source without opening the editor, starting the agent or touching the edits waiting on this browser. The standalone browser app still opens its own local projects as before.
 
 - **Offline edits to a hosted project wait for you to send them.** Reopening shows the account's copy and keeps your pending edits separate. Choose **Send them to your account** to send only the files you changed. If a send loses its reply, the next send checks what the account already accepted before it sends newer edits. If another device changed the same file, Caotang asks before replacing it and remembers your answer for that version. After a send, choose **Read them** to open the updated account copy. New edits to a file that was sent from an earlier session wait until you read it, while unrelated files can still be sent. If the browser couldn't keep the queue, don't close the tab without backing up your work.
