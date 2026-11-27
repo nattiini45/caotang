@@ -158,9 +158,11 @@
   font-size: 0;
 }
 
-:root[data-shell='modern'] .modern-companion .agent-head .agent-model {
-  order: 1;
-  flex-basis: 100%;
+@media (min-width: 960px) {
+  :root[data-shell='modern'] .modern-companion .agent-head .agent-model {
+    order: 1;
+    flex-basis: 100%;
+  }
 }
 
 /* Close is an icon: the ornaments' close stroke (icons.tsx) as a mask in the button's ink; the word stays its accessible name. */
