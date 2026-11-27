@@ -547,11 +547,7 @@ export function AgentPanel({
   const oneTurnComposer = <div className="agent-one-turn-composer" hidden={goalShowing}>{intentForm}{inWindow && snapshot.activeGoalId !== null ? null : contextControls}</div>;
   // The drawer is a named region of its own; the window is inside Modern's `aside` "Agent", which names it.
   const Root = inWindow ? 'div' : 'section';
-  const recoveryAndOffers = <>
-    <InterruptedRuns agent={agent} runs={snapshot.interrupted} busy={snapshot.busy} onResume={() => (open ? undefined : onToggle())} />
-    <GoalRecovery agent={agent} goals={snapshot.goals.filter((goal) => !goalInConversation(goal))} unavailable={snapshot.goalUnavailable} activeGoalId={snapshot.activeGoalId} compact={!open} onResume={() => (open ? undefined : onToggle())} />
-    <TaskOffers recurring={recurring} />
-  </>;
+  const interrupted = <InterruptedRuns agent={agent} runs={snapshot.interrupted} busy={snapshot.busy} onResume={() => (open ? undefined : onToggle())} />;
 
   return (
     <Root
@@ -643,11 +639,13 @@ export function AgentPanel({
         </p>
       </header>
 
-      {inWindow ? null : recoveryAndOffers}
+      {inWindow ? null : interrupted}
+      <GoalRecovery agent={agent} goals={snapshot.goals.filter((goal) => !goalInConversation(goal))} unavailable={snapshot.goalUnavailable} activeGoalId={snapshot.activeGoalId} compact={!open} onResume={() => (open ? undefined : onToggle())} />
+      {inWindow ? null : <TaskOffers recurring={recurring} />}
 
       {open ? (
         <div key={snapshot.sessionId} id="agent-body" className="agent-body">
-          {inWindow ? recoveryAndOffers : null}
+          {inWindow ? <>{interrupted}<TaskOffers recurring={recurring} /></> : null}
           {snapshot.goalDraft !== null && goalEntryBlocked ? <p className="form-message" role="status" data-testid="goal-draft-deferred">{t`A goal or turn is active. Wait for it to finish.`}</p> : null}
           {goalComposer}
           {inWindow ? sessionUsage : <>{oneTurnComposer}{sessionUsage}</>}
