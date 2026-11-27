@@ -80,6 +80,12 @@ function dataUriBytes(target: string): Uint8Array | null {
 const isSvg = (path: string): boolean => /\.svgz?$/i.test(path);
 const fileName = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
 
+/** Remove the Markdown image for a ref; its alt text may itself hold escaped brackets. */
+function withoutImageRef(body: string, imageRef: string): string {
+  const ref = imageRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return body.replace(new RegExp(`!\\[(?:\\\\.|[^\\]\\\\])*\\]\\(${ref}\\)`, 'g'), '');
+}
+
 /** Read a Kanka export's bytes. */
 export async function readKanka(bytes: Uint8Array, options: KankaReadOptions = {}): Promise<KankaResult> {
   const archive = await openZip(bytes);
@@ -220,13 +226,13 @@ export async function readKankaArchive(archive: ImportArchive, options: KankaRea
       const data = inline ?? (await zipPicture(target));
       if (data === null) {
         if (!isSvg(target) && !/^https?:/i.test(target) && !unsupportedPicturePaths.has(target.replace(/^\.?\//, ''))) missingPictures += 1;
-        body = body.replace(new RegExp(`!\\[[^\\]]*\\]\\(${imageRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'), '');
+        body = withoutImageRef(body, imageRef);
         continue;
       }
       const why = pictureRefusal(data);
       if (why !== undefined) {
         noteUnsupportedPicture(target.startsWith('data:') ? 'an embedded picture' : target, why);
-        body = body.replace(new RegExp(`!\\[[^\\]]*\\]\\(${imageRef.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'), '');
+        body = withoutImageRef(body, imageRef);
         continue;
       }
       assets.push({ ref: imageRef, name: fileName(target), bytes: data.length });

@@ -226,6 +226,25 @@ describe('the Kanka entities (#293)', () => {
     expect(loss?.message).toContain('not a PNG, JPEG or WebP');
   });
 
+  it('removes an unsupported inline picture whose alt text holds a closing bracket', async () => {
+    const unsupported = Uint8Array.from(atob('R0lGODlhAQABAAAAACw='), (c) => c.charCodeAt(0));
+    const withInlineGif = {
+      ...CAMPAIGN,
+      'characters/elena_11.json': entity(11, 'Elena', {
+        entry: '<p>Before <img src="campaigns/1/inline.gif" alt="bracket]alt"/> after.</p>',
+      }),
+      'campaigns/1/inline.gif': unsupported,
+    };
+    const read = await readKanka(zipOf(withInlineGif));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const page = read.value.pages.find((row) => row.entityId === 11)?.body ?? '';
+    expect(page).toContain('Before  after.');
+    expect(page).not.toContain('import:kanka-entry-11-');
+    expect(page).not.toContain('bracket]alt');
+    expect(read.value.losses.some((row) => row.code === 'image-unreadable' && row.message?.includes('campaigns/1/inline.gif'))).toBe(true);
+  });
+
   it('never lets a script’s text through, even when an entry is not readable HTML', async () => {
     const broken =
       '<p>Unclosed <b>bold<script>alert(1)</script><style>p{color:red}</style> and a stray </p> tag.' +
