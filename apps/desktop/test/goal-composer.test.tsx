@@ -21,6 +21,8 @@ const agent = createAgent({ allow: (step) => !step.confirm || approve });
 beforeEach(() => {
   activateEnglish();
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => Number(setTimeout(() => callback(performance.now()), 0)));
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout);
   Element.prototype.getAnimations = () => [];
   Element.prototype.scrollIntoView = () => undefined;
   Element.prototype.checkVisibility = () => true;

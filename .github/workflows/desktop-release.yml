@@ -328,6 +328,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Lint, typecheck, unit tests
+        env:
+          VITEST_MAX_WORKERS: ${{ matrix.target == 'mac-x64' && '2' || '' }}
         run: pnpm verify
 
       # electron-builder for this leg's own architecture (package:mac-arm64, package:mac-x64 or package:linux).
