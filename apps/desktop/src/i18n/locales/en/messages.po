@@ -7661,10 +7661,6 @@ msgid "Closing the window quits Caotang unless you turn this on. If the system t
 msgstr "Closing the window quits Caotang unless you turn this on. If the system tray is available, scheduled tasks can still run there."
 
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
-#. Interpolated values: files and waitingFiles are lists of document titles or file names.
-#. Interpolated values: files and waitingFiles are lists of document titles or file names.
-#. Interpolated values: files and waitingFiles are lists of document titles or file names.
-#. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Closing this tab loses these changes."
 msgstr "Closing this tab loses these changes."

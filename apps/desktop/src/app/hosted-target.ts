@@ -45,6 +45,8 @@ export interface HostedSaveSession {
     getStatus(): PersistenceStatus;
   };
   assets(): Promise<Pictures>;
+  saved(): Promise<void>;
+  exportCopy?(): Promise<void>;
 }
 
 export { forgetHostedTarget, hostedTargetFor, installHostedTarget } from './hosted-target-registry.js';
@@ -55,6 +57,8 @@ export class HostedTarget {
   #turn: Promise<unknown> = Promise.resolve();
   #detached: (() => void) | null = null;
   #assets: (() => Promise<Pictures>) | null = null;
+  #flush: (() => Promise<void>) | null = null;
+  #exportCopy: (() => Promise<void>) | undefined;
   #baseline: HostedBaseline | null = null;
   #asked: ReadonlyMap<string, number> = new Map();
   #stageFailed = false;
@@ -66,6 +70,7 @@ export class HostedTarget {
     readonly fs: EncryptedRemoteArtifactFs,
     readonly queue: HostedQueuePort,
     readonly baseline: (state: ProjectState, pictures: Pictures) => Promise<HostedBaseline>,
+    private readonly beforeExplicitSend?: () => Promise<boolean>,
   ) {}
 
   state(): HostedSaveState {
@@ -86,7 +91,31 @@ export class HostedTarget {
   canReread(): boolean {
     return !this.#stageFailed &&
       (this.#readOffered || this.#state.waiting !== undefined) &&
-      (this.queue.persisted() || (this.queue.held().length === 0 && this.queue.deferred().length === 0));
+      this.#queueCanSurvive();
+  }
+
+  async canLeave(): Promise<boolean> {
+    try {
+      await this.#flush?.();
+      await this.settled();
+      return !this.#stageFailed && this.#queueCanSurvive();
+    } catch {
+      return false;
+    }
+  }
+
+  #queueCanSurvive(): boolean {
+    return this.queue.persisted() || (this.queue.held().length === 0 && this.queue.deferred().length === 0);
+  }
+
+  async exportCopy(): Promise<boolean> {
+    if (!this.#exportCopy) return false;
+    try {
+      await this.#exportCopy();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   rereadRefused(reason: 'save' | 'queue'): void {
@@ -96,6 +125,8 @@ export class HostedTarget {
   attach(session: HostedSaveSession): () => void {
     this.detach();
     this.#assets = session.assets;
+    this.#flush = session.saved;
+    this.#exportCopy = session.exportCopy;
     let writing = session.persistence.getStatus() === 'writing';
     const stop = session.persistence.subscribe(() => {
       const status = session.persistence.getStatus();
@@ -110,6 +141,8 @@ export class HostedTarget {
   detach(): void {
     this.#detached?.();
     this.#detached = null;
+    this.#flush = null;
+    this.#exportCopy = undefined;
   }
 
   async settled(): Promise<void> {
@@ -154,7 +187,8 @@ export class HostedTarget {
 
   async sendQueued(): Promise<HostedSaveState> {
     return await this.#inTurn(async () => {
-      if (this.#state.kind === 'unsaved' && !this.#stageFailed && this.queue.held().length > 0) await this.#send(true);
+      if (this.#state.kind === 'unsaved' && !this.#stageFailed && this.queue.held().length > 0 &&
+        await (this.beforeExplicitSend?.() ?? true)) await this.#send(true);
       return this.#state;
     });
   }
@@ -164,7 +198,7 @@ export class HostedTarget {
     return await this.#inTurn(async () => {
       if (this.#state.kind !== 'conflict' || this.#stageFailed) return this.#state;
       const approved = new Map([...answer].filter(([path, version]) => this.#asked.get(path) === version));
-      if (approved.size > 0) await this.#send(true, approved);
+      if (approved.size > 0 && await (this.beforeExplicitSend?.() ?? true)) await this.#send(true, approved);
       return this.#state;
     });
   }

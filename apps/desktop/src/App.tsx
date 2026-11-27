@@ -270,7 +270,7 @@ export function App(): ReactNode {
         session={session}
         store={store}
         services={services}
-        onHome={goHome}
+        onHome={hostedProject()?.desktopRecovery?.onProjects ?? goHome}
         notice={shownNotice}
         startIntent={startIntent}
         saveToFolder={saveToFolder}

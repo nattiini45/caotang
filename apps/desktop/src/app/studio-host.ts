@@ -44,6 +44,17 @@ export interface HostedProjectSource {
   readonly device: string;
   readonly key: CryptoKey;
   readonly fetch?: typeof fetch | undefined;
+  readonly beforeExplicitSend?: (() => Promise<boolean>) | undefined;
+  readonly desktopRecovery?: DesktopRecovery | undefined;
+}
+
+export interface DesktopRecovery {
+  readonly mount: HTMLElement;
+  readonly onProjects: () => void;
+  readonly warning: string;
+  readonly send: string;
+  readonly exportBundle: string;
+  readonly exportFailed: string;
 }
 
 let host: StudioHost | null = null;
