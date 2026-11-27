@@ -182,6 +182,7 @@ interface AppSettings {
   };
   editor: { autosaveDebounceMs: number; /* default 800 */ focusModeHideRails: boolean; };
   ui: { language: 'system' | string };   // 'system' or a shipped tag; app-level only, never in a project (i18n §3.1)
+  closeToTray: boolean;                // desktop only, defaults off; desktop.md §The tray and scheduled task runs
   session: { dailyTargetWords?: number };
   agentSessions: { count: number; days: number }; // defaults 50 / 30, positive whole numbers within checkpoint control bounds
   context: { totalBudgetTokens: number; /* default 12k */ layerBudgets: Record<'L2'|'L4'|'L5', number>; };  // context-assembly §3 config exposure
@@ -215,6 +216,9 @@ MCP controls await their settings mutation, prevent repeated actions while savin
 | Data | storage location (read-only in browser), export/import entry points | — |
 
 *(§5.3: the Data section additionally carries the browser-storage persistence row + eviction-risk banner per the posture below.)*
+
+Settings has one vertical scroller for its content, with its Close button in a separate header. Removing a provider opens a UI SDK
+alert dialog that names the profile and explains that its stored key is removed too. No removal happens until confirmation.
 
 ### 5.3 Browser-storage persistence
 

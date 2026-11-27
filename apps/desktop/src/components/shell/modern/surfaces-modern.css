@@ -112,6 +112,10 @@
   overscroll-behavior: contain;
 }
 
+:root[data-shell='modern'] dialog.settings:modal {
+  overflow: clip;
+}
+
 :root[data-shell='modern'] dialog:where(:not(.modern-palette))::backdrop {
   background: var(--mat-veil, rgba(20, 19, 17, 0.35));
 }
@@ -370,7 +374,8 @@
   overflow-y: auto;
   /* Where the absolute notice sat: below the top ornament's floating band, centred in the room the page keeps. */
   margin-block-start: calc(var(--page-top) + var(--radius-ornament) + var(--space-6));
-  margin-inline: auto;
+  justify-self: center;
+  margin-inline: var(--area-start) var(--notice-end, var(--area-end));
 }
 
 :root[data-shell='modern'] .modern-stage:has(.notice-row) > .modern-page-area {
@@ -396,7 +401,7 @@
   inset-block-start: calc(var(--page-top) + var(--radius-ornament) + var(--space-6));
   inset-inline: var(--area-start) var(--area-end);
   margin-inline: auto;
-  inline-size: min(720px, calc(100% - var(--area-start) - var(--area-end) - 2 * var(--page-gutter)));
+  inline-size: min(720px, calc(100% - var(--area-start) - var(--notice-end, var(--area-end)) - 2 * var(--page-gutter)));
   display: flex;
   flex-direction: column;
   align-items: center;

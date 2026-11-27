@@ -67,6 +67,7 @@ export interface NativeShellState {
   readonly status: string;
   /** Whether a project is open, so the menu offers the project's own actions only then. */
   readonly project: boolean;
+  readonly trayNotice?: string;
 }
 
 export type SaveReply =

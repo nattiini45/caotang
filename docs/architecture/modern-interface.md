@@ -351,6 +351,12 @@ A popover, sheet or window grows out of the control that opened it and shrinks b
 
 One pure function, `modernLayout({ viewport, view, sidebar, agent, info })` (M5), returns the page, ornament, sidebar and window rectangles, as the concept's `layout()` does, so geometry is unit-tested and the components only apply it. The page shrinks before anything overlaps it. From 1,280 px down the agent window and a docked Scene info overlap the page as sheets at the inline-end edge with a scrim, instead of pushing it.
 
+Above 1,920 CSS px, the page and companion increase their requested widths with the viewport, within caps, using the same
+geometry to place them and reserve their space. The companion's header and composer do not scroll; the transcript takes the
+remaining height, and a goal form keeps its own header and actions outside its field scroller. Persistent notices sit in the
+page's column, clear of docked panels. At 1,200–1,280 CSS px they leave room for the agent sheet at the inline end; at 960–1,199 CSS px
+in windows taller than 640 px the agent sheet starts below the notice row.
+
 Built (M5, #306): `modernLayout` in `components/shell/modern/layout.ts` returns the page, the ornaments, the sidebar, the agent window and the docked Scene info in logical coordinates; the page is 780 px in Write, 1,120 px on the Board (and the timeline and pictures) and 1,000 px in the Codex; the sidebar (300 px) pushes; the agent window (400 px) and a docked Scene info (360 px) push above 1,280 px, stacked at the inline-end edge, and overlap as sheets at 1,280 px and below or when the page would drop below 480 px. Unit-tested at 960 to 1,920 px (`apps/desktop/test/modern-layout.test.ts`).
 
 ### 8.5 The binder tab bar and sidebar

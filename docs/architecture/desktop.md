@@ -16,7 +16,7 @@ The [development shell](../../apps/desktop-shell/README.md) in [epic #16](https:
 
 - Serve the build from the fixed origin `app://caotang/`; keep that origin stable because Chromium keys storage to it. Register the scheme before Electron is ready as standard, secure and Fetch/CORS-capable. Do not bypass CSP. Serve only built assets from a fixed directory, reject other hosts and paths outside that directory, and do not start a loopback server.
 - The renderer is sandboxed and context-isolated, with Node integration off and Chromium web security on. It never navigates to remote pages or creates arbitrary windows. Serve a CSP header alongside the unchanged HTML meta policy: scripts, styles and Workers are same-origin; no inline script, eval, embedded frames, objects or form submission. Deny framing with `frame-ancestors 'none'` in the header, where Chromium enforces it. Renderer data requests remain subject to Chromium's network rules, except the provider calls the main process makes for it (below); the keychain is still to come (#404).
-- The typed preload bridge exposes `window.caotangDesktop.version` and three namespaces under it: `folders` (the folder calls below), `net` (the provider port below) and `os` (the menu commands, the deep link's answer, the Save dialog, the system timezone and the window's tray state). The version is 6, and a page reads it before it reads a namespace, so a page and a shell from different builds each see only what both have. There is no generic Electron or IPC API. Only the studio URL can receive Electron permission for sanitized clipboard writes. Other permission requests, including browser file handles, are denied. Packaged-binary fuses and ASAR integrity belong to #401, not the unpacked smoke launcher.
+- The typed preload bridge exposes `window.caotangDesktop.version` and three namespaces under it: `folders` (the folder calls below), `net` (the provider port below) and `os` (the menu commands, the deep link's answer, the Save dialog, the system timezone and the window's tray state). The version is 7, and a page reads it before it reads a namespace, so a page and a shell from different builds each see only what both have. There is no generic Electron or IPC API. Only the studio URL can receive Electron permission for sanitized clipboard writes. Other permission requests, including browser file handles, are denied. Packaged-binary fuses and ASAR integrity belong to #401, not the unpacked smoke launcher.
 - The renderer is sandboxed and context-isolated, with Node integration off and Chromium web security on. It never navigates to remote pages or creates arbitrary windows. Serve a CSP header alongside the unchanged HTML meta policy: scripts, styles and Workers are same-origin; no inline script, eval, embedded frames, objects or form submission. Deny framing with `frame-ancestors 'none'` in the header, where Chromium enforces it. Renderer data requests remain subject to Chromium's network rules, except the provider and MCP calls the main process makes for it; keys and tokens live in the main process and the page never reads one.
 - The typed preload bridge exposes `window.caotangDesktop.version`, the narrow folder calls below and the provider port below. There is no generic Electron or IPC API. Only the studio URL can receive Electron permission for sanitized clipboard writes. Other permission requests, including browser file handles, are denied. Packaged-binary fuses and ASAR integrity belong to #401, not the unpacked smoke launcher.
 - Each Electron profile allows one instance. It restores the last normal window dimensions and maximized state, not the screen position, so changing monitors does not reopen the window off-screen.
@@ -103,7 +103,7 @@ its way out, and a decryption nobody waits for any more is still handled rather 
 Claimed after the wait, the cancel found no call to stop and was answered as though the call had never been made, and then
 the request went out for a writer who had already stopped it (#869).
 
-**What the page sees.** The preload bridge is version 6 and exposes `net` beside `folders`: `configure`, `start`, `abort`,
+**What the page sees.** The preload bridge's `net` namespace has: `configure`, `start`, `abort`,
 `onChunk`, `onEnd`. Every call is checked for the studio's own top frame at `app://caotang/`, so a child frame or another
 origin cannot use the port. A request's shape is checked before any socket opens, and `invalid` covers what the network stack would otherwise refuse on
 the way out: a header that names the connection, a body on a `GET`, a method the app never sends. A call stopped before it
@@ -200,10 +200,11 @@ honest reading a page has. No project format, schema or setting changes.
 
 ## The tray and scheduled task runs (#407)
 
-Closing the window **hides** it while a tray exists; the app keeps running, and Quit — the menu's, the tray's, or Cmd+Q/Ctrl+Q — is
-the only thing that ends it. The tray is made on the page's first publish, because its words are the page's, and until then closing
-the window ends the app as it did before there was a tray. A window that cannot be put back is worse than none, so when the tray
-cannot be made at all the shell keeps the old behaviour and lets the close end the app.
+Closing the window **quits** by default, including on macOS. In Settings › Appearance › Desktop window, a writer can opt to keep
+Caotang running in the system tray instead. The page publishes that preference and the localized first-hide message over the existing
+`os:publish` bridge (v7). The shell creates the tray only when enabled and only hides the window if the tray was created. Before the
+first hide it shows a native notice explaining how to reopen or quit. A flag in the shell's `window.json` remembers that notice.
+Quit — from the app menu, the tray, or Cmd+Q/Ctrl+Q — always quits.
 
 The hidden window's renderer keeps its timers: `backgroundThrottling` is off for it, so a hidden page is not a throttled tab. The
 page treats the tray-held window as running for its recurring tasks — the whole rule is `ticksCount` in `native-os.ts` — so the

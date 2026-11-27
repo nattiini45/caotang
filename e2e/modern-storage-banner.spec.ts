@@ -94,3 +94,54 @@ for (const width of [1280, 390]) {
     await expect(page.getByTestId('storage-banner').getByRole('button', { name: 'Ein Backup exportieren' })).toBeInViewport();
   });
 }
+
+test.describe('German Modern studio at 150% display scaling', () => {
+  test.use({ deviceScaleFactor: 1.5, reducedMotion: 'reduce' });
+
+  for (const [width, height] of [[1280, 800], [1600, 900], [1920, 1080], [3840, 2160]] as const) {
+    tagged(`keeps the banner, panel header and composer reachable at ${width}×${height}`, { tag: '@modern' }, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await germanProjectWithBanner(page);
+      await page.getByTestId('modern-bottom-ornament').getByRole('radio', { name: 'Bilder', exact: true }).click();
+      await page.getByTestId('modern-binder-bar').getByRole('button', { name: 'Binder', exact: true }).click();
+      await page.getByTestId('modern-sidebar').locator('.modern-sidebar-pin').click();
+      await page.keyboard.press('ControlOrMeta+j');
+      const panel = page.locator('#modern-companion');
+      await expect(panel.locator('.agent-foot')).toBeVisible();
+
+      const bounds = await page.evaluate(() => {
+        const box = (selector: string): DOMRect => {
+          const element = document.querySelector(selector);
+          if (element === null) throw new Error(`Missing ${selector}`);
+          return element.getBoundingClientRect();
+        };
+        const agent = box('#modern-companion');
+        const footer = box('.agent-foot');
+        const form = box('.agent-foot .agent-intent');
+        const nav = box('.modern-ornament.is-bottom');
+        const title = document.querySelector('.modern-title-name');
+        const banner = box('[data-testid="storage-banner"]');
+        return {
+          bannerClear: banner.left >= box('.modern-sidebar').right && (banner.right <= agent.left || banner.bottom <= agent.top),
+          titleFits: title !== null && title.scrollWidth <= title.clientWidth + 1,
+          footerInside: form.top >= footer.top && form.bottom <= footer.bottom && footer.bottom <= agent.bottom,
+          noNavOverlap: agent.left >= nav.right || agent.bottom <= nav.top,
+          chatWidth: agent.width,
+          pageWidth: box('.modern-page').width,
+        };
+      });
+      expect(bounds).toMatchObject({ bannerClear: true, titleFits: true, footerInside: true, noNavOverlap: true });
+      if (width === 3840) {
+        expect(bounds.chatWidth).toBeGreaterThan(700);
+        expect(bounds.pageWidth).toBeGreaterThan(1500);
+      }
+
+      const close = panel.getByTestId('agent-close');
+      const headerPosition = await close.boundingBox();
+      await panel.locator('.agent-body').evaluate((body) => { body.scrollTop = body.scrollHeight; });
+      expect(await close.boundingBox()).toEqual(headerPosition);
+      await close.click();
+      await expect(panel).toBeHidden();
+    });
+  }
+});

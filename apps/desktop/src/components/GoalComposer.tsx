@@ -160,6 +160,7 @@ export default function GoalComposer({ open, session, coherenceChecks, draft, un
   return <form className="goal-composer" ref={formRef} noValidate aria-labelledby={`${id}-title`} onKeyDown={ime.noteKey} onSubmit={submit}>
     <header className="goal-composer-heading">
       <h3 id={`${id}-title`}><Trans>Run toward a goal</Trans></h3>
+      <Button type="button" className="button" onClick={onClose}><Trans>Back to one turn</Trans></Button>
     </header>
     <div className="goal-composer-fields">
       <p className="goal-help"><Trans>Choose what must pass. Each turn keeps your permission mode and approval cards.</Trans></p>
@@ -279,7 +280,6 @@ export default function GoalComposer({ open, session, coherenceChecks, draft, un
       {error === null ? null : <p className="form-message is-error" role="alert">{formError(error)}</p>}
       <p id={`${id}-reason`} className="goal-help">{reason ?? t`The goal starts only when you choose Start the goal.`}</p>
       <div className="goal-composer-actions">
-        <Button type="button" className="button" onClick={onClose}><Trans>Back to one turn</Trans></Button>
         <Button type="submit" className="button is-primary goal-start" disabled={reason !== null} focusableWhenDisabled aria-describedby={`${id}-reason`} data-agent-confirm={t`Starts an agent goal that may call your model provider and change this project under your permission mode`}><Trans>Start the goal</Trans></Button>
       </div>
     </footer>

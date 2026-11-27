@@ -216,6 +216,7 @@ export interface AppSettings {
    * changing what the record means.
    */
   readonly interfaceLanguage: string;
+  readonly closeToTray: boolean;
   readonly provider: {
     /** The active profile's id, mirrored from the profile store. `null` when no profile exists yet. */
     readonly activeProfileId: string | null;
@@ -272,6 +273,7 @@ export type AgentEditMode = (typeof AGENT_EDIT_MODES)[number];
 
 export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
   interfaceLanguage: 'system',
+  closeToTray: false,
   provider: Object.freeze({ activeProfileId: null }),
   editor: Object.freeze({ autosaveDebounceMs: DEFAULT_DEBOUNCE_MS, focusModeHideRails: true, agentEditMode: 'ghost' as AgentEditMode }),
   session: Object.freeze({}),
@@ -291,6 +293,7 @@ export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
 export interface SettingsPatch {
   /** `'system'` or a catalogue tag. The switcher publishes this only after a successful activation. */
   readonly interfaceLanguage?: string;
+  readonly closeToTray?: boolean;
   /**
    * `roles` replaces the whole routing record: a role set to `'follow'` follows 'chat' again, and `null` (or an
    * empty record) clears every assignment, so each role follows the chat/active choice.
@@ -502,6 +505,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
 
   return {
     interfaceLanguage: normalizeInterfaceLanguage(source['interfaceLanguage']),
+    closeToTray: source['closeToTray'] === true,
     provider: {
       activeProfileId: typeof provider['activeProfileId'] === 'string' ? provider['activeProfileId'] : null,
       ...(roles === undefined ? {} : { roles }),
@@ -573,6 +577,7 @@ export function contextWarningOf(context: ContextSettings, locale: string = form
 export function applyPatch(current: AppSettings, patch: SettingsPatch): AppSettings {
   const next: Record<string, unknown> = {
     interfaceLanguage: patch.interfaceLanguage ?? current.interfaceLanguage,
+    closeToTray: patch.closeToTray ?? current.closeToTray,
     provider: { ...current.provider, ...(patch.provider ?? {}) },
     editor: { ...current.editor, ...(patch.editor ?? {}) },
     session: {

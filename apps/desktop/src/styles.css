@@ -11,6 +11,29 @@
   box-sizing: border-box;
 }
 
+:root {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-soft) transparent;
+}
+
+:root:has(dialog:modal) {
+  overflow: hidden;
+}
+
+:where(*) {
+  scrollbar-width: thin;
+}
+
+@media (forced-colors: active), (prefers-contrast: more) {
+  :root {
+    scrollbar-color: auto;
+  }
+
+  :root, :where(*) {
+    scrollbar-width: auto;
+  }
+}
+
 body {
   margin: 0;
   background: var(--paper);
@@ -2485,6 +2508,7 @@ dialog.confirm:has(.folder-file-preview) {
   height: min(800px, 92vh);
   max-height: none;
   padding: 0;
+  overflow: clip;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--raised);
@@ -2506,6 +2530,7 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex: none;
   padding: var(--space-5) var(--space-6);
   border-bottom: 1px solid var(--line);
 }
@@ -2520,6 +2545,7 @@ dialog.confirm:has(.folder-file-preview) {
   grid-template-columns: 170px minmax(0, 1fr);
   min-height: 0;
   flex: 1;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .settings-nav {
@@ -2549,6 +2575,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .settings-body {
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--space-6) 20px 28px;
 }
 

@@ -266,6 +266,7 @@
 :root[data-shell='modern'] .modern-ornament-state {
   display: inline-flex;
   align-items: center;
+  min-inline-size: 0;
   min-block-size: var(--target-min);
   padding-inline: var(--space-5);
   border-radius: var(--radius-control);
@@ -300,6 +301,7 @@
 
 :root[data-shell='modern'] .modern-title {
   position: relative;
+  flex-shrink: 0.35;
   gap: var(--space-3);
   max-inline-size: min(46ch, 52vw);
 }

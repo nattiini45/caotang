@@ -5,6 +5,9 @@
 
 /** The window's width beside the page, in CSS px. */
 export const COMPANION_WIDTH = 400;
+export function companionWidth(viewportWidth: number): number {
+  return Math.min(880, COMPANION_WIDTH + Math.round(Math.max(0, viewportWidth - 1920) * 0.28));
+}
 /** The gap between the window and the stage's edge, and between the window and the page. */
 export const COMPANION_GUTTER = 32;
 /** From this width down (inclusive) the window overlaps the page as a sheet with a scrim, instead of pushing it (§8.4). */
@@ -27,7 +30,7 @@ export function companionPlacement(viewportWidth: number): CompanionPlacement {
  * page, nothing as a sheet (it overlaps) or while closed. #306's `modernLayout` reads this for its `agent` input.
  */
 export function companionAreaEnd(viewportWidth: number, open: boolean): number {
-  return open && companionPlacement(viewportWidth) === 'beside' ? COMPANION_WIDTH + COMPANION_GUTTER : 0;
+  return open && companionPlacement(viewportWidth) === 'beside' ? companionWidth(viewportWidth) + COMPANION_GUTTER : 0;
 }
 
 /** A rectangle in viewport px, as `getBoundingClientRect` gives it. */

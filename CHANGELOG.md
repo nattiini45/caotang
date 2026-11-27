@@ -6,6 +6,11 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **The agent replies in the language you use.** The interface language is the fallback if there is no message from you. Manuscript text still follows the project language.
+- **The Modern agent panel keeps its prompt box and Close control visible.** Only the conversation scrolls, and the page and panel both grow on large displays. In smaller windows, the backup notice has its own space and doesn't sit behind the agent panel.
+- **The desktop window quits by default.** Keeping Caotang running in the system tray is opt-in in Settings › Appearance. The first time Caotang hides there, it tells you how to reopen or quit.
+- **Removing a provider asks first.** The confirmation names the profile and explains that removing it also deletes its stored key.
+
 - **Account projects show their account save state.** When an embedding host opens an account project, the studio says whether its changes reached the account or are still on this device. The browser-only persistence warning is shown only where it applies.
 
 - **A model server on your computer receives the key you entered, not a placeholder for it (#867).** In Caotang for desktop, Ollama, LM Studio and llama-server were called by the page, and a page can only hold a placeholder where a key kept in your computer's keychain goes, so a server that asks for a key refused every request as unauthorised even straight after you entered the right one. The app now makes that call itself, at that address on this computer only, and puts the key it keeps in place of the placeholder. A provider on any other machine is unchanged, and plain http is still allowed only to this computer.

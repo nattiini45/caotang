@@ -13,6 +13,8 @@ import { i18n, type MessageDescriptor } from '@lingui/core';
 import { msg, plural, t } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
+import { AlertDialog, AlertDialogClose, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from '@ui-sdk/react/alert-dialog';
+import { Checkbox, CheckboxIndicator } from '@ui-sdk/react/checkbox';
 import { isolate } from '@caotang/i18n';
 import {
   isLocalBase,
@@ -46,6 +48,7 @@ import {
 import { applyInterface, interfaceStatus, rememberInterface, subscribeInterface, type Interface } from '../app/interface.js';
 import { readModernPreferences, setModernPreference, type ModernPreferences } from '../app/modern-preferences.js';
 import { nativeEgressAvailable } from '../app/native-egress.js';
+import { canSetCloseToTray } from '../app/native-os.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import { developerLanguageExposure, languageRevision, subscribeLanguage, switchInterfaceLanguage } from '../i18n/language.js';
 import { sameLanguageSetting } from '../i18n/catalogues.js';
@@ -375,6 +378,9 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
   useEffect(() => providers.subscribeVerification(refresh), [providers]);
   const [adding, setAdding] = useState(() => providers.list().every((profile) => profile.kind === 'mock'));
   const [editing, setEditing] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<ProfileView | null>(null);
+  const removeTrigger = useRef<HTMLButtonElement | null>(null);
+  const providersHeading = useRef<HTMLHeadingElement>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<FormFeedback | null>(null);
   const profiles = providers.list();
@@ -395,9 +401,20 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
     }
   };
 
+  const remove = async (profile: ProfileView): Promise<void> => {
+    await providers.remove(profile.id);
+    if (editing === profile.id) setEditing(null);
+    setMessage({
+      text: t`Removed “${{ profile: isolate(profile.name) }}” and its stored key.`,
+      tone: 'info',
+    });
+    void services.settings.update({ provider: { activeProfileId: providers.active()?.id ?? null } });
+    providersHeading.current?.focus();
+  };
+
   return (
     <section className="settings-section" aria-labelledby="settings-providers" data-panel-state={busy ? 'working' : 'idle'}>
-      <h3 id="settings-providers">
+      <h3 ref={providersHeading} id="settings-providers" tabIndex={-1}>
         <Trans>Providers</Trans>
       </h3>
       <p className="muted">
@@ -498,18 +515,10 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                   className="button is-quiet is-danger"
                   disabled={busy}
                   aria-label={t`Remove ${{ profile: profile.name }}`}
-                  onClick={() =>
-                    void run(async () => {
-                      await providers.remove(profile.id);
-                      if (editing === profile.id) setEditing(null);
-                      setMessage({
-                        text: t`Removed “${{ profile: isolate(profile.name) }}”, and its key from this browser.`,
-                        tone: 'info',
-                      });
-                      const now = providers.active();
-                      if (now !== undefined) void services.settings.update({ provider: { activeProfileId: now.id } });
-                    })
-                  }
+                  onClick={(event) => {
+                    removeTrigger.current = event.currentTarget;
+                    setRemoving(profile);
+                  }}
                 >
                   <Trans>Remove</Trans>
                 </button>
@@ -518,6 +527,25 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
           );
         })}
       </ul>
+
+      <AlertDialog open={removing !== null} onOpenChange={(open, details) => {
+        if (open || removing === null) return;
+        setRemoving(null);
+        if (details.returnValue === 'confirm') void run(() => remove(removing));
+      }}>
+        <AlertDialogContent className="confirm" finalFocus={() => removeTrigger.current}>
+          <div className="confirm-body">
+            <AlertDialogTitle>{t`Remove provider “${{ profile: isolate(removing?.name ?? '') }}”?`}</AlertDialogTitle>
+            <AlertDialogDescription><Trans>This removes the provider profile and its stored key.</Trans></AlertDialogDescription>
+            <div className="confirm-actions">
+              <AlertDialogClose className="button"><Trans>Cancel</Trans></AlertDialogClose>
+              <AlertDialogClose className="button is-danger" value="confirm" data-agent-confirm={t`This removes the provider profile and its stored key.`}>
+                <Trans>Remove provider</Trans>
+              </AlertDialogClose>
+            </div>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {adding ? (
         <ProviderSetup
@@ -1055,6 +1083,7 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
   // status line a switch leaves behind. The radio inputs stay mounted across all three, so focus does not
   // move from the row the writer picked.
   const settings = useSyncExternalStore(services.settings.subscribe, services.settings.current);
+  const [trayError, setTrayError] = useState<string | null>(null);
   const revision = useSyncExternalStore(subscribeLanguage, languageRevision);
   const [status, setStatus] = useState<
     | { readonly kind: 'idle' }
@@ -1123,6 +1152,24 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
       <p className="muted">
         <Trans>The choice is kept in this browser. Until you choose, the page follows the system.</Trans>
       </p>
+      {canSetCloseToTray() ? (
+        <fieldset className="settings-radios">
+          <legend><Trans>Desktop window</Trans></legend>
+          <label className="settings-check">
+            <Checkbox className="mcp-hook-check" checked={settings.closeToTray} aria-describedby="close-to-tray-help"
+              onCheckedChange={(value) => {
+                setTrayError(null);
+                void services.settings.update({ closeToTray: value === true }, { publishAfterSave: true }).then(setTrayError);
+              }}
+            >
+              <CheckboxIndicator><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7" /></svg></CheckboxIndicator>
+            </Checkbox>
+            <span><Trans>Keep Caotang in the system tray when I close the window</Trans></span>
+          </label>
+          <p className="muted" id="close-to-tray-help"><Trans>Closing the window quits Caotang unless you turn this on. If the system tray is available, scheduled tasks can still run there.</Trans></p>
+          <FormMessage message={trayError === null ? null : { text: trayError, tone: 'error' }} />
+        </fieldset>
+      ) : null}
       <fieldset ref={shellChoices} className="settings-radios" data-state={shellStatus.kind} data-testid="interface-choice">
         <legend>{t`Interface`}</legend>
         <label className="check">

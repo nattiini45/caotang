@@ -18,6 +18,10 @@ export function osBridge(): NativeOsBridge | undefined {
   return bridge !== undefined && bridge.version >= 3 ? bridge.os : undefined;
 }
 
+export function canSetCloseToTray(): boolean {
+  return typeof window !== 'undefined' && (window.caotangDesktop?.version ?? 0) >= 7;
+}
+
 /** The commands the shell has sent since this page started: a native menu item, a link, or a folder the system handed over. */
 export function onNativeCommand(listener: (command: NativeCommand) => void): () => void {
   const bridge = osBridge();
@@ -148,16 +152,19 @@ export function nativeTrayStatus(facts: { readonly project: string | null; reado
 }
 
 /** What the shell needs from the page: the words, the tray's line, and whether a project is open. */
-export function nativeShellState(facts: { readonly project: string | null }): NativeShellState {
+export function nativeShellState(facts: { readonly project: string | null; readonly closeToTray?: boolean }): NativeShellState {
   return {
     labels: nativeLabels(),
     status: nativeTrayStatus({ project: facts.project, hiddenToTray: trayHidden }),
     project: facts.project !== null,
+    ...(facts.closeToTray !== true ? {} : {
+      trayNotice: t`Caotang is still running in the system tray. Use Open Caotang to bring it back, or Quit Caotang to stop it.`,
+    }),
   };
 }
 
 /** Publishes that state, and says nothing when it cannot: a shell that fails to hear it still works, with the menu it had. */
-export function publishNativeState(facts: { readonly project: string | null }): void {
+export function publishNativeState(facts: { readonly project: string | null; readonly closeToTray?: boolean }): void {
   const bridge = osBridge();
   if (bridge === undefined) return;
   void bridge.publish(nativeShellState(facts)).catch(() => undefined);
