@@ -195,7 +195,7 @@ test('locking a loading frame cancels the fetch without showing the project', as
     await response.wait;
   });
   await page.goto(fixture);
-  const failedRead = page.waitForEvent('requestfailed', (request) => request.url().startsWith(origin));
+  const failedRead = page.waitForEvent('requestfailed', (request) => new URL(request.url()).origin === origin);
   try {
     await read(page, project);
     await requestArrived.wait;
