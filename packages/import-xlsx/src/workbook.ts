@@ -41,14 +41,19 @@ async function part(archive: ImportArchive, path: string): Promise<{ ok: true; r
   return { ok: true, root: xml.document.root };
 }
 
+/** SpreadsheetML text with its `_xHHHH_` escapes undone. A literal sequence is stored as `_x005F_xHHHH_`, and one replacement pass reads it back as the literal. */
+export function xlsxString(text: string): string {
+  return text.replaceAll(/_x([0-9A-Fa-f]{4})_/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
+}
+
 /** A shared string: its own `t`, or every run's `t`, without the phonetic reading aids. */
 function stringOf(item: XmlElement): string {
   const own = kid(item, 't');
-  if (own !== undefined) return textOf(own);
+  if (own !== undefined) return xlsxString(textOf(own));
   return kids(item, 'r')
     .map((run) => kid(run, 't'))
     .filter((text): text is XmlElement => text !== undefined)
-    .map((text) => textOf(text))
+    .map((text) => xlsxString(textOf(text)))
     .join('');
 }
 
