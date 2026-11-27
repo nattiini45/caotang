@@ -135,6 +135,8 @@ Caotang is static files, so any static host can serve it: GitHub Pages, Netlify,
 
 Projects are kept per origin: a project made on one host does not appear on another. Export a bundle to move one.
 
+The static build does not open an account project on its own. An embedding shell can hand the studio an encrypted project to edit or open its separate read-only reader; see [the hosted project receiver](docs/architecture/hosted.md#27-receiving-a-hosted-project) for what the shell must supply.
+
 The build's `index.html` already carries its Content-Security-Policy in a `<meta>` tag. A host that can send headers can send the same policy as a header, and add the protections a `<meta>` tag cannot (`frame-ancestors`):
 
 ```

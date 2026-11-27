@@ -2,7 +2,7 @@
  * Live interface-language switching ([i18n.md §3.1, §3.3, §8.3](docs/architecture/i18n.md), I4).
  *
  * **Load, activate, publish.** A switch resolves the stored setting (`'system'` or a catalogue tag) to
- * a tag, loads that catalogue, and only then calls `i18n.activate`, records the tag for the formatter
+ * a tag, loads that catalogue, and only then activates it, records the tag for the formatter
  * decision, sets `<html lang dir>`, and finally publishes the preference to the settings store. A
  * catalogue that fails to load therefore leaves the active catalogue, the root attributes and the
  * stored preference exactly as they were; the picker shows the notice and nothing else changes.
@@ -183,8 +183,7 @@ const controller = createLanguageController({
   resolve: resolveSetting,
   load: (tag) => loadMessages(tag),
   activate: (tag, messages) => {
-    i18n.load(tag, messages);
-    i18n.activate(tag);
+    i18n.loadAndActivate({ locale: tag, messages });
     // Only now does the formatter decision see the new language (§4.1).
     setUiLocaleTag(tag);
   },

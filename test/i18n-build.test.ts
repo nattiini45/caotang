@@ -24,13 +24,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { directionOf, formatLocale } from '../packages/i18n/src/index.js';
 import linguiConfig from '../lingui.config.js';
+import { preloadCatalogues } from '../apps/desktop/src/i18n/preload-catalogues.js';
 import {
   activateCatalogue,
   activateEnglish,
   activeTag,
   catalogueForTag,
   loadMessages,
-  preloadCatalogues,
   PSEUDO_CATALOGUES,
   PseudoCatalogueUnavailableError,
   tagForCatalogueId,
