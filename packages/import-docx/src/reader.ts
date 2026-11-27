@@ -5,6 +5,7 @@
  */
 
 import type { ImportAsset, ImportBlock, ImportComment, ImportDocument, ImportFootnote, LossWarning, Signals } from '@caotang/import-core';
+import { escapeLineStarts } from '@caotang/import-core';
 import { attr, readXml, textOf, type XmlElement } from '@caotang/import-read/xml';
 import { openZip, type ImportArchive } from '@caotang/import-read/zip';
 
@@ -25,6 +26,7 @@ import {
   type DocxNote,
   type DocxRel,
   type DocxStyle,
+  escapeDocxInline,
 } from './parts.js';
 
 export type TrackedMode = 'accept' | 'reject' | 'keep';
@@ -86,7 +88,7 @@ export type DocxError =
   | { kind: 'not-docx' }
   | { kind: 'archive'; message: string }
   | { kind: 'not-xml'; message: string }
-  | { kind: 'empty' };
+  | { kind: 'empty'; message?: string };
 
 export type DocxResult = { ok: true; value: DocxImport } | { ok: false; error: DocxError };
 
@@ -107,14 +109,18 @@ function safeHref(href: string): boolean {
 /** Every descendant element with a local name, in document order. */
 function descendants(element: XmlElement, local: string): XmlElement[] {
   const found: XmlElement[] = [];
-  const stack: XmlElement[] = [element];
+  const stack: XmlElement[] = [];
+  for (let index = element.children.length - 1; index >= 0; index -= 1) {
+    const child = element.children[index];
+    if (child?.type === 'element') stack.push(child);
+  }
   while (stack.length > 0) {
     const current = stack.pop();
     if (current === undefined) break;
-    for (const child of current.children) {
-      if (child.type !== 'element') continue;
-      if (child.local === local) found.push(child);
-      stack.push(child);
+    if (current.local === local) found.push(current);
+    for (let index = current.children.length - 1; index >= 0; index -= 1) {
+      const child = current.children[index];
+      if (child?.type === 'element') stack.push(child);
     }
   }
   return found;
@@ -175,6 +181,8 @@ interface WalkState {
   assets: ImportAsset[];
   assetData: Map<string, Uint8Array>;
   imageTargets: Map<string, string>;
+  /** Each picture this paragraph has produced, in the order its runs were read. */
+  imagePlacements: { ref: string; alt: string }[];
   remoteImages: string[];
   changes: DocxChanges;
   dropped: DocxDropped;
@@ -196,7 +204,7 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
   let out = '';
   for (const child of element.children) {
     if (child.type === 'text') {
-      out += deleting ? '' : child.text;
+      out += deleting ? '' : escapeDocxInline(child.text);
       continue;
     }
     if (child.type !== 'element') continue;
@@ -209,12 +217,12 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
       let text = '';
       for (const part of child.children) {
         if (part.type === 'text') {
-          text += part.text;
+          text += escapeDocxInline(part.text);
           continue;
         }
         if (part.type !== 'element') continue;
         const name = part.ns === W ? part.local : '';
-        if (name === 't' || name === 'delText') text += textOf(part);
+        if (name === 't' || name === 'delText') text += escapeDocxInline(textOf(part));
         else if (name === 'tab') text += '\t';
         else if (name === 'br') {
           if (attr(part, 'type', W) === 'page') state.pageBreakInRuns = true;
@@ -244,11 +252,9 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
           }
           state.openComments.delete(id);
         } else if (name === 'drawing' || name === 'pict' || name === 'object') {
-          text += imageOf(part, state);
+          text += drawingContent(part, state, inherited, deleting);
         } else if (name === 'txbxContent') {
-          state.dropped.textBoxes += 1;
-          state.losses.push({ code: 'text-box', message: 'A text box was read as a paragraph.', blockIndex: state.blocks.length });
-          for (const paragraph of kids(part, 'p')) text += renderRuns(paragraph, state, inherited, deleting);
+          text += textBox(part, state, inherited, deleting);
         }
       }
       out += deleting ? '' : emphasise(text, { ...style, bold: style.bold || inherited.bold, italic: style.italic || inherited.italic, caps: style.caps || inherited.caps }, state.options.underlineAs);
@@ -266,8 +272,10 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
       state.changes.deletions += 1;
       if (local === 'moveFrom') state.changes.moves += 1;
       if (state.options.tracked === 'accept') continue;
+      const placementStart = state.imagePlacements.length;
       const text = renderRuns(child, state, inherited, false);
       if (state.options.tracked === 'keep') {
+        state.imagePlacements.length = placementStart;
         if (text.trim() !== '') {
           state.deletions.push({ blockIndex: state.blocks.length, text });
           // "Accept, and list what was deleted" means the scene's notes carry it: the comment list is the channel
@@ -303,15 +311,60 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
   return out;
 }
 
-/** A drawing or a legacy picture: its ref, or nothing when it cannot come in. */
-function imageOf(element: XmlElement, state: WalkState): string {
-  const blip = descendants(element, 'blip')[0] ?? descendants(element, 'imagedata')[0];
-  if (blip === undefined) return '';
-  const id = attr(blip, 'embed', R) ?? attr(blip, 'id', R);
+/** A text box flattened into the prose where its shape sits. */
+function textBox(element: XmlElement, state: WalkState, inherited: RunStyle, deleting: boolean): string {
+  state.dropped.textBoxes += 1;
+  state.losses.push({ code: 'text-box', message: 'A text box was read as a paragraph.', blockIndex: state.blocks.length });
+  return kids(element, 'p').map((paragraph) => renderRuns(paragraph, state, inherited, deleting)).join('\n\n');
+}
+
+/** The parent of every element below a drawing, so a picture can take the label of its own shape. */
+function parentMap(element: XmlElement): Map<XmlElement, XmlElement> {
+  const parents = new Map<XmlElement, XmlElement>();
+  const walk = (current: XmlElement): void => {
+    for (const child of current.children) {
+      if (child.type !== 'element') continue;
+      parents.set(child, current);
+      walk(child);
+    }
+  };
+  walk(element);
+  return parents;
+}
+
+/** The first picture element below a shape, in document order. */
+function firstImage(element: XmlElement): XmlElement | undefined {
+  for (const child of element.children) {
+    if (child.type !== 'element') continue;
+    if (child.local === 'blip' || child.local === 'imagedata') return child;
+    const found = firstImage(child);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+/** The alt text the shape owning this picture gives it, or an empty string. */
+function imageAlt(image: XmlElement, parents: ReadonlyMap<XmlElement, XmlElement>): string {
+  let current = image;
+  let parent = parents.get(current);
+  while (parent !== undefined) {
+    if (firstImage(parent) === image) {
+      const labelled = descendants(parent, 'docPr')[0] ?? descendants(parent, 'cNvPr')[0];
+      const alt = labelled === undefined ? '' : (attr(labelled, 'descr') ?? attr(labelled, 'title') ?? '');
+      if (alt !== '') return alt;
+    }
+    current = parent;
+    parent = parents.get(current);
+  }
+  return '';
+}
+
+/** A picture element: its ref, or nothing when it cannot come in. */
+function imageOf(image: XmlElement, state: WalkState, parents: ReadonlyMap<XmlElement, XmlElement>): string {
+  const id = attr(image, 'embed', R) ?? attr(image, 'id', R);
   const rel = id === undefined ? undefined : state.rels.get(id);
   if (rel === undefined) return '';
-  const docPr = descendants(element, 'docPr')[0];
-  const alt = docPr === undefined ? '' : (attr(docPr, 'descr') ?? attr(docPr, 'title') ?? '');
+  const alt = imageAlt(image, parents);
   if (/^https?:/i.test(rel.target)) {
     if (!state.remoteImages.includes(rel.target)) state.remoteImages.push(rel.target);
     return '';
@@ -331,7 +384,36 @@ function imageOf(element: XmlElement, state: WalkState): string {
   state.assets.push({ ref, name: rel.target.slice(rel.target.lastIndexOf('/') + 1) });
   state.imageTargets.set(ref, rel.target);
   if (!state.options.images) return '';
-  return `![${alt}](${ref})`;
+  state.imagePlacements.push({ ref, alt });
+  const safeAlt = alt.replace(/[\\[\]]/g, (character) => `\\${character}`);
+  return `![${safeAlt}](${ref})`;
+}
+
+/** A drawing's text boxes and pictures walked once in document order; a fallback representation is not a second placement. */
+function drawingContent(element: XmlElement, state: WalkState, inherited: RunStyle, deleting: boolean): string {
+  const parents = parentMap(element);
+  let out = '';
+  let lastTextBox = false;
+  const walk = (current: XmlElement): void => {
+    for (const child of current.children) {
+      if (child.type !== 'element') continue;
+      if (child.local === 'Fallback') continue;
+      if (child.local === 'txbxContent') {
+        if (lastTextBox) out += '\n\n';
+        out += textBox(child, state, inherited, deleting);
+        lastTextBox = true;
+        continue;
+      }
+      if (child.local === 'blip' || child.local === 'imagedata') {
+        out += imageOf(child, state, parents);
+        lastTextBox = false;
+        continue;
+      }
+      walk(child);
+    }
+  };
+  walk(element);
+  return out;
 }
 
 /** A paragraph's own properties: its style, its numbering, its breaks. */
@@ -375,6 +457,11 @@ function paragraphSignals(paragraph: XmlElement, state: WalkState, md: string): 
   return { signals, heading, list, quote: style?.quote === true, pageBreak, toc };
 }
 
+/** The writer's source prose without the backslashes added only to protect Markdown. */
+function plainSource(md: string): string {
+  return md.replace(/(^|[^\\])\[((?:\\.|[^\x5d\\])*)\]\(([^)]*)\)/g, '$1$2').replace(/\\([\\*`[\]_~<&])/g, '$1');
+}
+
 /** Read one opened `.docx` archive. */
 export async function readDocxArchive(archive: ImportArchive, options: DocxOptions = {}): Promise<DocxResult> {
   const documentEntry = archive.entry('word/document.xml');
@@ -414,6 +501,7 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
     assets: [],
     assetData: new Map(),
     imageTargets: new Map(),
+    imagePlacements: [],
     remoteImages: [],
     changes: { ...EMPTY_CHANGES },
     dropped: { ...EMPTY_DROPPED },
@@ -438,6 +526,7 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
 
   const paragraph = (element: XmlElement): void => {
     const sizeStart = state.sizes.length;
+    const placementStart = state.imagePlacements.length;
     state.pageBreakInRuns = false;
     const md = renderRuns(element, state, PLAIN, false).replace(/[ \t]+/g, ' ').trim();
     const own = state.sizes.slice(sizeStart).sort((a, b) => a - b);
@@ -455,21 +544,19 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
     }
     const withEmpty: Signals = emptyRun === 0 ? signals : { ...signals, emptyBefore: emptyRun };
     if ((pageBreak || state.pageBreakInRuns) && state.blocks.length > 0) push({ kind: 'pagebreak' });
-    const images = descendants(element, 'blip').length + descendants(element, 'imagedata').length;
-    if (images > 0 && md.replace(/!\[[^\]]*\]\([^)]*\)/g, '').trim() === '') {
-      const ref = state.assets[state.assets.length - 1]?.ref;
-      const alt = /!\[([^\]]*)\]/.exec(md)?.[1] ?? '';
-      if (ref !== undefined) {
-        push({ kind: 'image', assetRef: ref, alt });
-        return;
-      }
-    }
-    if (heading !== null) {
-      push({ kind: 'heading', level: heading, text: md.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1'), md: `${'#'.repeat(heading)} ${md}`, src: withEmpty });
+    const placements = state.imagePlacements.slice(placementStart);
+    if (placements.length > 0 && md.replace(/!\[(?:\\.|[^\]\\])*\]\([^)]*\)/g, '').trim() === '') {
+      for (const placement of placements) push({ kind: 'image', assetRef: placement.ref, alt: placement.alt });
       return;
     }
-    const body = list !== null ? `${list}${md}` : quote ? `> ${md}` : md;
-    push({ kind: 'para', md: body, text: md, src: withEmpty });
+    if (heading !== null) {
+      const text = plainSource(md);
+      push({ kind: 'heading', level: heading, text, md: `${'#'.repeat(heading)} ${md}`, src: withEmpty });
+      return;
+    }
+    const safe = md.trim() === '#' ? md : escapeLineStarts(md);
+    const body = list !== null ? `${list}${safe}` : quote ? `> ${safe}` : safe;
+    push({ kind: 'para', md: body, text: plainSource(md), src: withEmpty });
   };
 
   const table = (element: XmlElement): void => {
@@ -478,7 +565,10 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
     for (const row of rows) {
       const cells = kids(row, 'tc').map((cell) => kids(cell, 'p').map((p) => renderRuns(p, state, PLAIN, false).trim()).filter((text) => text !== '').join(' '));
       const md = cells.filter((cell) => cell !== '').join(' — ');
-      if (md !== '') push({ kind: 'para', md, text: md, src: { ...(state.options.unit === undefined ? {} : { sourceUnit: state.options.unit }) } });
+      if (md !== '') {
+        const safe = escapeLineStarts(md);
+        push({ kind: 'para', md: safe, text: plainSource(md), src: { ...(state.options.unit === undefined ? {} : { sourceUnit: state.options.unit }) } });
+      }
     }
   };
 
@@ -594,12 +684,24 @@ export async function readDocxZip(bytes: Uint8Array, options: DocxOptions = {}):
     remoteImages: [],
   };
   for (const [index, path] of files.entries()) {
+    const skip = (why: string): void => {
+      merged.document.losses?.push({ code: 'unsupported', message: `The Word file “${path}” ${why}, so it is skipped.` });
+    };
     const bytesIn = await outer.value.read(path);
-    if (!bytesIn.ok) continue;
+    if (!bytesIn.ok) {
+      skip('could not be read from the batch zip');
+      continue;
+    }
     const inner = await openZip(bytesIn.value);
-    if (!inner.ok) continue;
+    if (!inner.ok) {
+      skip('is not a readable zip file');
+      continue;
+    }
     const read = await readDocxArchive(inner.value, { ...options, unit: path, refPrefix: `import:docx-image-${index + 1}-` });
-    if (!read.ok) continue;
+    if (!read.ok) {
+      skip(read.error.kind === 'not-docx' ? 'is not a Word document' : read.error.kind === 'empty' ? 'has no importable text' : 'could not be read');
+      continue;
+    }
     const offset = merged.document.blocks.length;
     merged.document.blocks.push(...read.value.document.blocks);
     merged.document.footnotes?.push(...(read.value.document.footnotes ?? []).map((note) => ({ ...note, blockIndex: note.blockIndex + offset })));
@@ -615,6 +717,9 @@ export async function readDocxZip(bytes: Uint8Array, options: DocxOptions = {}):
     if (merged.author === '') merged.author = read.value.author;
     if (merged.language === '') merged.language = read.value.language;
   }
-  if (merged.document.blocks.length === 0) return { ok: false, error: { kind: 'empty' } };
+  if (merged.document.blocks.length === 0) {
+    const skipped = (merged.document.losses ?? []).map((loss) => loss.message ?? '').filter((message) => message !== '');
+    return { ok: false, error: { kind: 'empty', ...(skipped.length === 0 ? {} : { message: `No Word file in the batch contained importable text. ${skipped.join(' ')}` }) } };
+  }
   return { ok: true, value: merged };
 }

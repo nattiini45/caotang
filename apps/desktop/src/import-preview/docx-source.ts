@@ -32,7 +32,7 @@ export function docxErrorText(error: DocxError): string {
     case 'not-docx':
       return t`This is not a Word .docx file. In Word, choose Save As and the .docx format; a .doc file cannot be read.`;
     case 'empty':
-      return t`This Word file has no text.`;
+      return error.message ?? t`This Word file has no text.`;
     case 'not-xml':
     case 'archive':
       return error.message;

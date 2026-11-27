@@ -3,7 +3,24 @@
  * footnotes, endnotes, comments and the core properties. Each is read with the shared XML reader; nothing here runs.
  */
 
+import { escapeInline, escapeLineStarts } from '@caotang/import-core';
 import { attr, readXml, textOf, type XmlElement } from '@caotang/import-read/xml';
+
+/** Word text can arrive in fragments; escape every source character Markdown reads only in context, so fragments cannot join into syntax. */
+export function escapeDocxInline(text: string): string {
+  const escaped = escapeInline(text);
+  let out = '';
+  for (let index = 0; index < escaped.length; index += 1) {
+    const ch = escaped[index] as string;
+    if (ch === '\\' && index + 1 < escaped.length) {
+      out += ch + (escaped[index + 1] as string);
+      index += 1;
+      continue;
+    }
+    out += ch === '_' || ch === '~' || ch === '<' || ch === '&' ? `\\${ch}` : ch;
+  }
+  return out;
+}
 
 /** The WordprocessingML namespace every `w:` element is in. */
 export const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -211,7 +228,7 @@ function plainParagraph(paragraph: XmlElement): string {
   const walk = (element: XmlElement): void => {
     for (const child of element.children) {
       if (child.type === 'text') {
-        out += child.text;
+        out += escapeDocxInline(child.text);
         continue;
       }
       if (child.type !== 'element') continue;
@@ -228,7 +245,7 @@ function plainParagraph(paragraph: XmlElement): string {
     }
   };
   walk(paragraph);
-  return out.replace(/[ \t]+/g, ' ').trim();
+  return escapeLineStarts(out.replace(/[ \t]+/g, ' ').trim());
 }
 
 /** `docProps/core.xml`: the title and the creator. */

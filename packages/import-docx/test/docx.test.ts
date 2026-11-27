@@ -127,6 +127,40 @@ describe('the body (#279)', () => {
     expect(read.value.document.losses?.some((loss) => loss.code === 'table')).toBe(true);
     expect(read.value.dropped.textBoxes).toBe(1);
   });
+
+  it('keeps literal Markdown punctuation as prose beside real formatting, links and notes', async () => {
+    const literal = '<w:p><w:r><w:t xml:space="preserve"># Chapter *door* `code` [name](target)</w:t></w:r></w:p>';
+    const formatted =
+      '<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>bold</w:t></w:r>' +
+      '<w:hyperlink r:id="rId1"><w:r><w:t>good</w:t></w:r></w:hyperlink>' +
+      '<w:r><w:footnoteReference w:id="1"/></w:r></w:p>';
+    const footnotes = '<w:footnote w:id="1">' + p('The *note*.') + '</w:footnote>';
+    const rels = '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.com/" TargetMode="External"/>';
+    const read = await readDocx(docx({ body: literal + formatted, rels, footnotes }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const paras = read.value.document.blocks.filter((block) => block.kind === 'para');
+    expect(paras[0]?.kind === 'para' ? paras[0].md : '').toBe('\\# Chapter \\*door\\* \\`code\\` \\[name\\](target)');
+    expect(paras[0]?.kind === 'para' ? paras[0].text : '').toBe('# Chapter *door* `code` [name](target)');
+    expect(paras[1]?.kind === 'para' ? paras[1].md : '').toBe('**bold**[good](https://example.com/)[^1]');
+    expect(read.value.document.footnotes?.map((note) => [note.label, note.md])).toEqual([['1', 'The \\*note\\*.']]);
+  });
+
+  it('flattens text boxes nested in a Word drawing and in VML', async () => {
+    const drawingBox =
+      '<w:p><w:r><w:drawing><wp:inline><a:graphic><a:graphicData>' +
+      '<wps:txbx xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><w:txbxContent><w:p><w:r><w:t>Drawing box</w:t></w:r></w:p></w:txbxContent></wps:txbx>' +
+      '</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+    const vmlBox =
+      '<w:p><w:r><w:pict><v:shape xmlns:v="urn:schemas-microsoft-com:vml"><v:textbox><w:txbxContent><w:p><w:r><w:t>VML box</w:t></w:r></w:p></w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>';
+    const read = await readDocx(docx({ body: drawingBox + vmlBox }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const md = read.value.document.blocks.map((block) => (block.kind === 'para' ? block.md : ''));
+    expect(md).toEqual(['Drawing box', 'VML box']);
+    expect(read.value.dropped.textBoxes).toBe(2);
+    expect(read.value.document.losses?.filter((loss) => loss.code === 'text-box')).toHaveLength(2);
+  });
 });
 
 describe('tracked changes (#279)', () => {
@@ -206,6 +240,153 @@ describe('notes, comments and pictures (#279)', () => {
     expect(last?.kind === 'para' ? last.md : '').toBe('bad[good](https://example.com/)');
   });
 
+  it('keeps both pictures of a picture-only paragraph in order with their own alt text', async () => {
+    const imageRun = (id: string, alt: string): string =>
+      `<w:r><w:drawing><wp:inline><wp:docPr id="${id}" descr="${alt}"/><a:graphic><a:graphicData><a:blip r:embed="rId${id}"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+    const rels =
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/first.png"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/second.png"/>';
+    const body = `<w:p>${imageRun('1', 'First picture')}${imageRun('2', 'Second picture')}</w:p>`;
+    const read = await readDocx(docx({ body, rels, media: { 'first.png': PNG, 'second.png': PNG } }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const images = read.value.document.blocks.filter((block) => block.kind === 'image');
+    expect(images.map((block) => (block.kind === 'image' ? block.alt : ''))).toEqual(['First picture', 'Second picture']);
+    const refs = images.map((block) => (block.kind === 'image' ? block.assetRef : ''));
+    expect(refs[0]).not.toBe('');
+    expect(refs[1]).not.toBe('');
+    expect(refs[0]).not.toBe(refs[1]);
+    expect(read.value.document.assets?.map((asset) => asset.name)).toEqual(['first.png', 'second.png']);
+  });
+
+  it('keeps a grouped drawing’s text boxes and picture placements in document order', async () => {
+    const pic = (id: string, alt: string): string =>
+      `<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${id}" descr="${alt}"/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId${id}"/></pic:blipFill></pic:pic>`;
+    const boxed = '<wps:wsp xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wps:txbx><w:txbxContent><w:p><w:r><w:t>Grouped box</w:t></w:r></w:p></w:txbxContent></wps:txbx></wps:wsp>';
+    const group = `<wpg:wgp xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"><wpg:cNvGrpSpPr/><wpg:grpSpPr/>${pic('1', 'First grouped')}${boxed}${pic('2', 'Second grouped')}</wpg:wgp>`;
+    const body = `<w:p><w:r><w:drawing><wp:inline><a:graphic><a:graphicData>${group}</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+    const rels =
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/first.png"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/second.png"/>';
+    const read = await readDocx(docx({ body, rels, media: { 'first.png': PNG, 'second.png': PNG } }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const para = read.value.document.blocks[0];
+    expect(para?.kind === 'para' ? para.md : '').toBe('![First grouped](import:docx-image-1)Grouped box![Second grouped](import:docx-image-2)');
+  });
+
+  it('keeps every picture shape inside a grouped picture-only drawing', async () => {
+    const pic = (id: string, alt: string): string =>
+      `<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${id}" descr="${alt}"/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId${id}"/></pic:blipFill></pic:pic>`;
+    const group = `<wpg:wgp xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"><wpg:cNvGrpSpPr/><wpg:grpSpPr/>${pic('1', 'First grouped')}${pic('2', 'Second grouped')}</wpg:wgp>`;
+    const body = `<w:p><w:r><w:drawing><wp:inline><a:graphic><a:graphicData>${group}</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+    const rels =
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/first.png"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/second.png"/>';
+    const read = await readDocx(docx({ body, rels, media: { 'first.png': PNG, 'second.png': PNG } }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const images = read.value.document.blocks.filter((block) => block.kind === 'image');
+    expect(images.map((block) => (block.kind === 'image' ? block.alt : ''))).toEqual(['First grouped', 'Second grouped']);
+    expect(read.value.document.assets?.map((asset) => asset.name)).toEqual(['first.png', 'second.png']);
+  });
+
+  it('treats a bracketed picture alt text as a picture-only placement', async () => {
+    const body = '<w:p><w:r><w:drawing><wp:inline><a:graphic><a:graphicData><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="1" descr="Map [east]"/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId1"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+    const rels = '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/map.png"/>';
+    const read = await readDocx(docx({ body, rels, media: { 'map.png': PNG } }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.document.blocks.map((block) => block.kind)).toEqual(['image']);
+    expect(read.value.document.blocks[0]?.kind === 'image' ? read.value.document.blocks[0].alt : '').toBe('Map [east]');
+  });
+
+  it('does not emit a tracked-deleted picture as a live image block in keep mode', async () => {
+    const drawing = (id: string, alt: string): string =>
+      `<w:r><w:drawing><wp:inline><wp:docPr id="${id}" descr="${alt}"/><a:graphic><a:graphicData><a:blip r:embed="rId${id}"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+    const body = `<w:p><w:del>${drawing('1', 'Deleted picture')}</w:del>${drawing('2', 'Live picture')}</w:p>`;
+    const rels =
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/deleted.png"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/live.png"/>';
+    const read = await readDocx(docx({ body, rels, media: { 'deleted.png': PNG, 'live.png': PNG } }), { tracked: 'keep' });
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const images = read.value.document.blocks.filter((block) => block.kind === 'image');
+    expect(images.map((block) => (block.kind === 'image' ? block.alt : ''))).toEqual(['Live picture']);
+    expect(read.value.document.comments?.some((note) => note.md.includes('Deleted picture'))).toBe(true);
+  });
+
+  it('keeps literal punctuation plain in a heading title and escaped only in its Markdown', async () => {
+    const read = await readDocx(docx({ styles: STYLES, body: p('*door* [name](target)', 'Heading1') }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const heading = read.value.document.blocks[0];
+    expect(heading?.kind === 'heading' ? heading.text : '').toBe('*door* [name](target)');
+    expect(heading?.kind === 'heading' ? heading.md : '').toBe('# \\*door\\* \\[name\\](target)');
+  });
+
+  it('keeps entity-looking source text literal across Word text fragments', async () => {
+    const fragmented = '<w:p><w:r><w:t>&amp;amp</w:t><w:t>;</w:t></w:r></w:p>';
+    const read = await readDocx(docx({ body: fragmented }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const para = read.value.document.blocks[0];
+    expect(para?.kind === 'para' ? para.md : '').toBe('\\&amp;');
+    expect(para?.kind === 'para' ? para.text : '').toBe('&amp;');
+  });
+
+  it('keeps strike-looking source text literal across Word text fragments', async () => {
+    const fragmented = '<w:p><w:r><w:t>~</w:t><w:t>~deleted~</w:t><w:t>~</w:t></w:r></w:p>';
+    const read = await readDocx(docx({ body: fragmented }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const para = read.value.document.blocks[0];
+    expect(para?.kind === 'para' ? para.md : '').toBe('\\~\\~deleted\\~\\~');
+    expect(para?.kind === 'para' ? para.text : '').toBe('~~deleted~~');
+  });
+
+  it('keeps the boundary between paragraphs flattened out of one text box', async () => {
+    const textBox = `<w:p><w:r><w:txbxContent>${p('First.')}${p('Second.')}</w:txbxContent></w:r></w:p>`;
+    const read = await readDocx(docx({ body: textBox }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const para = read.value.document.blocks[0];
+    expect(para?.kind === 'para' ? para.md : '').toBe('First.\n\nSecond.');
+  });
+
+  it('flattens grouped text boxes in document order', async () => {
+    const box = (text: string): string => `<w:txbxContent>${p(text)}</w:txbxContent>`;
+    const drawing = `<w:p><w:r><w:drawing><wp:inline><a:graphic><a:graphicData>${box('First box')}${box('Second box')}</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+    const read = await readDocx(docx({ body: drawing }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const para = read.value.document.blocks.find((block) => block.kind === 'para');
+    expect(para?.kind === 'para' ? para.text : '').toBe('First box\n\nSecond box');
+  });
+
+  it('flattens a text box nested inside another text box once', async () => {
+    const innerBox = `<w:txbxContent>${p('Inner box')}</w:txbxContent>`;
+    const outerBox = `<w:txbxContent>${p('Outer box')}<w:p><w:r>${innerBox}</w:r></w:p></w:txbxContent>`;
+    const drawing = `<w:p><w:r><w:drawing><wp:inline><a:graphic><a:graphicData>${outerBox}</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+    const read = await readDocx(docx({ body: drawing }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const para = read.value.document.blocks.find((block) => block.kind === 'para');
+    expect(para?.kind === 'para' ? para.text : '').toBe('Outer box\n\nInner box');
+    expect(read.value.dropped.textBoxes).toBe(2);
+  });
+
+  it('imports a picture inside a nested text box once', async () => {
+    const inner = '<w:r><w:drawing><wp:inline><wp:docPr id="1" descr="Boxed picture"/><a:graphic><a:graphicData><a:blip r:embed="rId1"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+    const outer = `<w:p><w:r><w:drawing><wp:inline><a:graphic><a:graphicData><w:txbxContent><w:p>${inner}</w:p></w:txbxContent></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+    const rels = '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/boxed.png"/>';
+    const read = await readDocx(docx({ body: outer, rels, media: { 'boxed.png': PNG } }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.value.document.blocks.filter((block) => block.kind === 'image')).toHaveLength(1);
+    expect(read.value.document.assets).toHaveLength(1);
+  });
+
   it('reads the core properties, a page break and underline as italics', async () => {
     const body = '<w:p><w:r><w:rPr><w:u w:val="single"/></w:rPr><w:t>underlined</w:t></w:r></w:p>' + p('After the break', undefined, '<w:pageBreakBefore/>');
     const read = await readDocx(docx({ body, core: '<dc:title>The Ninth Wave</dc:title><dc:creator>Mara Vale</dc:creator><dc:language>en</dc:language>' }));
@@ -244,5 +425,57 @@ describe('refusals and batches (#279)', () => {
     expect([...units]).toEqual(['a.docx', 'b.docx']);
     const split = splitImport(batch.value.document);
     expect(split.tree.map((node) => node.title)).toEqual(['One', 'Two']);
+  });
+
+  it('names every unreadable member of a batch zip and keeps the readable files', async () => {
+    const good = docx({ styles: STYLES, body: p('Kept', 'Heading1') + p('The ferry came.') });
+    const notWord = rawZip([{ name: 'notes.txt', data: enc('not a Word file') }]);
+    const batch = await readDocxZip(rawZip([
+      { name: 'good.docx', data: good },
+      { name: 'broken.docx', data: enc('these bytes are not a zip') },
+      { name: 'not-word.docx', data: notWord },
+    ]));
+    expect(batch.ok).toBe(true);
+    if (!batch.ok) return;
+    expect(batch.value.document.blocks.some((block) => block.kind === 'heading')).toBe(true);
+    const skipped = batch.value.document.losses?.filter((loss) => loss.code === 'unsupported').map((loss) => loss.message ?? '') ?? [];
+    expect(skipped.some((message) => message.includes('broken.docx'))).toBe(true);
+    expect(skipped.some((message) => message.includes('not-word.docx'))).toBe(true);
+  });
+
+  it('names a valid empty member as having no importable text', async () => {
+    const batch = await readDocxZip(rawZip([
+      { name: 'empty.docx', data: docx({ body: '' }) },
+      { name: 'filled.docx', data: docx({ body: p('The ferry came.') }) },
+    ]));
+    expect(batch.ok).toBe(true);
+    if (!batch.ok) return;
+    expect(batch.value.document.blocks).toHaveLength(1);
+    const skipped = batch.value.document.losses?.filter((loss) => loss.code === 'unsupported').map((loss) => loss.message ?? '') ?? [];
+    expect(skipped.some((message) => message.includes('empty.docx') && message.includes('no importable text'))).toBe(true);
+    expect(skipped.some((message) => message.includes('empty.docx') && message.includes('could not be read'))).toBe(false);
+  });
+
+  it('says no batch member contained importable text when every valid member is empty', async () => {
+    const batch = await readDocxZip(rawZip([{ name: 'empty.docx', data: docx({ body: '' }) }]));
+    expect(batch.ok).toBe(false);
+    if (batch.ok) return;
+    const message = batch.error.kind === 'empty' ? batch.error.message ?? '' : '';
+    expect(message).toContain('contained importable text');
+    expect(message).toContain('empty.docx');
+    expect(message).not.toContain('could not be read');
+  });
+
+  it('names every member when no file in a batch zip can be read', async () => {
+    const notWord = rawZip([{ name: 'notes.txt', data: enc('not a Word file') }]);
+    const batch = await readDocxZip(rawZip([
+      { name: 'broken.docx', data: enc('these bytes are not a zip') },
+      { name: 'not-word.docx', data: notWord },
+    ]));
+    expect(batch.ok).toBe(false);
+    if (batch.ok) return;
+    expect(batch.error.kind).toBe('empty');
+    expect(batch.error.kind === 'empty' ? batch.error.message ?? '' : '').toContain('broken.docx');
+    expect(batch.error.kind === 'empty' ? batch.error.message ?? '' : '').toContain('not-word.docx');
   });
 });

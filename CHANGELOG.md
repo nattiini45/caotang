@@ -6,6 +6,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Word imports keep literal prose, nested text boxes, every picture and batch warnings.** Text such as `*door*` or a link written out in prose no longer becomes Markdown formatting, text boxes nested in a Word drawing or shape are read and reported, a paragraph with several pictures keeps them all in order with their own alt text, and a zip of Word files names every file it cannot read.
 - **EPUB and HTML imports keep every footnote apart.** Two chapters or pages that use the same footnote id in their own file no longer reuse the same `[^n]` number or lose one note, and HTML imports carry the notes they find instead of dropping them.
 - **A Kanka campaign import continues when one picture cannot be stored.** The picture is named in the report and skipped, while the entity, its page and the rest of the campaign still import.
 - **The agent replies in the language you use.** The interface language is the fallback if there is no message from you. Manuscript text still follows the project language.

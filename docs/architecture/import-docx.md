@@ -21,7 +21,8 @@ copied. There is no `eval`, `new Function` or WebAssembly in the chain, and the 
 | `docProps/core.xml` | title and creator |
 
 A `.docx` that is not a zip, or a zip with no `word/document.xml`, is refused with a plain message. A zip **of** `.docx` files is
-read as a batch: one unit per file, so the splitter makes a chapter per file.
+read as a batch: one unit per file, so the splitter makes a chapter per file. A member that cannot be read, opened or parsed is
+named as a loss before confirmation, so an incomplete batch is never offered as complete. When no member yields importable text, the refusal names every skipped file and its reason.
 
 ## 2. Paragraphs and signals
 
@@ -39,9 +40,11 @@ marked `toc` and counted; the splitter leaves it out.
 ## 3. Runs
 
 `w:t` is text (`xml:space="preserve"` keeps its spaces), `w:tab` a tab, `w:br` a line break, `w:br w:type="page"` a page break.
-Bold, italic and strike become Markdown; **underline becomes italics** by default and is counted (option: off). Small caps, fonts,
-colours, highlighting and indents are dropped and counted. `w:hyperlink` keeps its text and, when the target passes the safe-href
-rule (http, https, mailto or relative), its link; a `javascript:` target keeps the text only and is counted.
+Source text is escaped before it reaches Markdown, so literal `*door*`, backticks, `[name](target)` or a line-start marker stays
+prose; only the formatting the reader itself generates becomes Markdown. Bold, italic and strike become Markdown; **underline
+becomes italics** by default and is counted (option: off). Small caps, fonts, colours, highlighting and indents are dropped and
+counted. `w:hyperlink` keeps its text and, when the target passes the safe-href rule (http, https, mailto or relative), its link;
+a `javascript:` target keeps the text only and is counted.
 
 Lists: a paragraph with `w:numPr` becomes `- ` or `1. ` by its level's format, indented two spaces per level. A quote style
 (`Quote`, `Block Text`, `Intense Quote`) becomes `> `.
@@ -65,12 +68,15 @@ and its date.
 
 ## 5. Pictures, tables and what is dropped
 
-`w:drawing` (and legacy `w:pict`) resolve `r:embed` through the relationships to `word/media/…`. PNG, JPEG, GIF and WebP come in as
-`import:docx-image-<n>` with the alt text from `wp:docPr/@descr`; **EMF/WMF are listed and skipped**, and **SVG is refused** (the
-picture registry's rule). A batch gives each file its own ref namespace.
+`w:drawing` (and legacy `w:pict`) resolve `r:embed` through the relationships to `word/media/…`, including pictures inside a
+grouped drawing. PNG, JPEG, GIF and WebP come in as `import:docx-image-<n>` with the alt text from the picture shape's label
+(`wp:docPr` or `pic:cNvPr`); **EMF/WMF are listed and skipped**, and **SVG is refused** (the
+picture registry's rule). A paragraph holding only pictures emits every placement in document order, each reference paired with
+its own alt text. A batch gives each file its own ref namespace.
 
 A table becomes one paragraph per row, its cells joined with ` — `, with a `table` loss. Headers and footers are not read. Text
-boxes are listed as a loss with their text kept as a paragraph.
+boxes are listed as a loss with their text kept as a paragraph, whether the box is attached to a run or nested inside a Word
+drawing, VML shape or object. Nested boxes flatten in document order with their paragraph boundaries kept, and a picture inside one is registered only once.
 
 ## 6. Safety and limits
 
@@ -84,4 +90,5 @@ in the preview's `'self'` Worker with a timeout and Cancel. Every imported text 
 
 `packages/import-docx/test` builds synthetic `.docx` zips: heading styles and a `basedOn` chain, a Shunn manuscript (centred
 "Chapter One" and `#` breaks), a Google Docs export, German style names, a TOC field, tracked changes in all three modes, footnotes,
-endnotes, comments, a list, a quote, a table, a text box, a PNG, an EMF and an SVG, a `javascript:` link, and a batch zip.
+endnotes, comments, literal Markdown punctuation beside real formatting, a list, a quote, a table, direct and nested text boxes,
+a PNG, two pictures in one picture-only paragraph, grouped drawings with pictures and text boxes, an EMF and an SVG, a `javascript:` link, and a batch zip with unreadable members.
