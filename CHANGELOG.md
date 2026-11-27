@@ -7,7 +7,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 ### Fixed
 
 - **The agent replies in the language you use.** The interface language is the fallback if there is no message from you. Manuscript text still follows the project language.
-- **The Modern agent panel keeps its prompt box and Close control visible.** Only the conversation scrolls, and the page and panel both grow on large displays. In smaller windows, the backup notice has its own space and doesn't sit behind the agent panel.
+- **The Modern agent panel keeps its prompt box and Close control visible.** The conversation scrolls between them, and the page and panel both grow on large displays. In smaller windows, the backup notice has its own space and doesn't sit behind the agent panel.
 - **The desktop window quits by default.** Keeping Caotang running in the system tray is opt-in in Settings › Appearance. The first time Caotang hides there, it tells you how to reopen or quit.
 - **Removing a provider asks first.** The confirmation names the profile and explains that removing it also deletes its stored key.
 - **The Modern toolbar stays in place when the window becomes narrow.** The wide-window sidebar animation no longer squeezes the project title during the resize.
