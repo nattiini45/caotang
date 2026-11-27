@@ -86,6 +86,7 @@ packages/i18n/          interface locale, formatter locale, cached Intl formatte
 packages/import-core/   the import block model and the pure chapter and scene splitter every document reader shares (no DOM, no dependencies)
 packages/import-captions/ the SRT and WebVTT reader: timed text → cues → one AV script episode with declared durations and its losses (no DOM, no third-party dependencies)
 packages/import-table/    the RFC 4180 CSV/TSV reader and its codex/timeline column mapping (no DOM, no third-party dependencies)
+packages/import-xlsx/     the SpreadsheetML worksheet reader for table imports: shared strings, cached formula values, number-format dates and sheet choice on the shared zip/XML readers (no DOM, no third-party dependencies)
 packages/mcp-client/     MCP client (Streamable HTTP)
 packages/mcp-server/     Caotang as an MCP server (@caotang/mcp-server)
 packages/pdf-fonts/      what both PDFs share for their fallback fonts (byte checks, fontkit, CID writer, emoji)

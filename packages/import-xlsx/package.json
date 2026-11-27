@@ -1,0 +1,20 @@
+{
+  "name": "@caotang/import-xlsx",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "The Excel workbook reader for spreadsheet imports (#289): worksheet parts, shared strings, number formats and cached formula values on the shared zip/XML readers. No DOM and no third-party dependency.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@caotang/import-read": "workspace:*",
+    "@caotang/import-table": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}
