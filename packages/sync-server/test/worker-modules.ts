@@ -16,6 +16,7 @@ export function workerModules(appendToEntry = ''): { type: 'ESModule'; path: str
     { type: 'ESModule', path: 'src/account-key-record.js', contents: transpile('../src/account-key-record.ts') },
     { type: 'ESModule', path: 'src/account-vault.js', contents: transpile('../src/account-vault.ts') },
     { type: 'ESModule', path: 'src/accounts.js', contents: transpile('../src/accounts.ts') },
+    { type: 'ESModule', path: 'src/desktop-grant.js', contents: transpile('../src/desktop-grant.ts') },
     { type: 'ESModule', path: 'src/fingerprint.js', contents: transpile('../src/fingerprint.ts') },
     { type: 'ESModule', path: 'src/project-lease.js', contents: transpile('../src/project-lease.ts') },
     { type: 'ESModule', path: 'src/project-records.js', contents: transpile('../src/project-records.ts') },

@@ -1,5 +1,15 @@
 # Caotang for desktop
 
+## Account connector (specified)
+
+The installed app may connect to a compatible account server. The writer explicitly opens the account window and enters an HTTPS origin, or uses an origin supplied by their build. There is no default service address in the source and no connection on ordinary app startup. Changing the address ends the current account handoff before using the new origin. Existing local projects and folder writes stay in the local window and are never uploaded by connecting.
+
+The account client and studio are packaged code, not a page navigated to the server. The account window is isolated from the local window, has no folder, provider, MCP or general HTTP bridge, and cannot navigate to remote pages. The main process opens the system browser for sign-in; it does not embed a provider's login page. After browser approval, a short-lived, one-use grant installs a server session in the main process. The authorization flow and allowed requests are specified in [hosted.md §2.8](hosted.md#28-the-desktop-connector).
+
+The main process owns session credentials. Any session or remembered-device secret it persists goes into the existing native key vault, associated with exactly the confirmed origin. It cannot be read through the renderer's generic vault interface, placed in a project or bundle, or written to web storage. When a real OS key vault is unavailable, the app may connect for the current run but must not persist a credential; the writer signs in and unlocks again after quitting. The renderer sees account status, not the session secret. The encryption passphrase and recovery key remain separate from sign-in and are never sent to the server.
+
+The native account transport is limited to the pinned origin and the account endpoints used by the bundled client. It does not follow redirects, attach a credential to a URL, or give remote content a bridge. The native entry and its transport are not imported by the public web entry. A normal web build still has no account UI, no calls to an account server, and byte-identical CSP; the Classic and Modern first load does not grow.
+
 The [development shell](../../apps/desktop-shell/README.md) in [epic #16](https://github.com/nattiini45/caotang/issues/16) hosts the existing root-base Vite build from `apps/desktop/dist/`. The browser site, project format, storage schema and Vite output stay unchanged. This spec records the feasibility spike (#398), the shell (#400), the unsigned packages (#401), native project folders (#402), the watcher (#403), the keychain (#404), native provider calls (#405) and the project's own MCP server (#406).
 
 ## Runtime and trust boundary

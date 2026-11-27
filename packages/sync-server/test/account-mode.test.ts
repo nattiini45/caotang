@@ -1,5 +1,5 @@
 import { once } from 'node:events';
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { Log, LogLevel, Miniflare, Response } from 'miniflare';
 import type { Request as RuntimeRequest } from 'miniflare';
 import WebSocketClient from 'ws';
@@ -109,6 +109,61 @@ function signed(payload: object): string {
 }
 
 afterEach(async () => { await Promise.all(open.splice(0).map((instance) => instance.dispose())); });
+
+describe('desktop connection grants', () => {
+  it('requires browser approval on the same origin and issues one account session to the initiating app', async () => {
+    const h = await runtime({ DESKTOP_CONNECTOR: 'enabled' });
+    await h.invite('reader-one');
+    await h.invite('reader-two');
+    const browser = (await h.signIn('reader-one')).session!;
+    const otherBrowser = (await h.signIn('reader-two')).session!;
+    const verifier = randomBytes(32).toString('base64url');
+    const challenge = createHash('sha256').update(verifier).digest('base64url');
+    const post = (route: string, body: object, cookie?: string, origin = ORIGIN) =>
+      h.dispatch(`/v1/auth/desktop/${route}`, {
+        method: 'POST',
+        headers: { Origin: origin, 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) },
+        body: JSON.stringify(body),
+      });
+    const { code, connection } = await (await post('start', { challenge })).json() as { code: string; connection: string };
+    expect(code).toMatch(/^[2-9A-HJ-NP-Z]{8}$/);
+    const description = JSON.parse(Buffer.from(connection.split('.')[0]!, 'base64url').toString()) as { desktop: object };
+    expect(description.desktop).not.toHaveProperty('code');
+    expect(description.desktop).not.toHaveProperty('verifier');
+    expect((await post('redeem', { connection, verifier })).status).toBe(202);
+    expect((await post('approve', { connection, code })).status).toBe(401);
+    expect((await post('approve', { connection, code }, browser, 'https://other.example')).status).toBe(403);
+    expect((await post('approve', { connection, code: code === 'AAAAAAAA' ? 'BBBBBBBB' : 'AAAAAAAA' }, browser)).status).toBe(400);
+    expect((await post('approve', { connection, code }, browser)).status).toBe(204);
+    expect((await post('approve', { connection, code }, otherBrowser)).status).toBe(410);
+    expect((await post('redeem', { connection, verifier: randomBytes(32).toString('base64url') })).status).toBe(403);
+    const results = await Promise.all([post('redeem', { connection, verifier }), post('redeem', { connection, verifier })]);
+    expect(results.map((result) => result.status).sort()).toEqual([204, 410]);
+    const desktop = results.find((result) => result.status === 204)!.headers.getSetCookie()[0]!.split(';')[0]!;
+    expect(desktop).not.toBe(browser);
+    const session = await h.dispatch('/v1/session', { headers: { Cookie: desktop } });
+    expect(await session.json()).toEqual({ id: 'github:101', login: 'reader-one' });
+    expect((await post('approve', { connection, code }, desktop)).status).toBe(401);
+    expect((await post('approve', { connection, code }, browser)).status).toBe(410);
+
+    const canceled = await (await post('start', { challenge })).json() as { code: string; connection: string };
+    expect((await post('cancel', { connection: canceled.connection, verifier })).status).toBe(204);
+    expect((await post('approve', canceled, browser)).status).toBe(410);
+    const payload = Buffer.from(JSON.stringify({
+      purpose: 'desktop', origin: ORIGIN, expires: Date.now() - 1,
+      desktop: { id: crypto.randomUUID(), challenge },
+    })).toString('base64url');
+    const expired = `${payload}.${createHmac('sha256', SECRET).update(payload).digest('base64url')}`;
+    expect((await post('redeem', { connection: expired, verifier })).status).toBe(410);
+  });
+
+  it('does not accept desktop requests unless an account deployment opts in', async () => {
+    const h = await runtime();
+    expect((await h.dispatch('/v1/auth/desktop/start', {
+      method: 'POST', headers: { Origin: ORIGIN, 'Content-Type': 'application/json' }, body: '{}',
+    })).status).toBe(404);
+  });
+});
 
 describe('wrapped account key records', () => {
   it('applies the additive migration to existing accounts, elects one creator, and reads the winning record only for that account', async () => {

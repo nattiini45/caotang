@@ -2,6 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { accountKeyRecordRoute } from './account-key-record.js';
 import { accountVaultRoute } from './account-vault.js';
 import { AccountRegistry, type DurableAccount } from './accounts.js';
+import { forgetDesktopGrant, settleDesktopGrant, type DesktopGrantAction } from './desktop-grant.js';
 import { projectLeaseRoute } from './project-lease.js';
 import { projectRecordsRoute } from './project-records.js';
 import { StorageCoordinator, storageRoute, sweepQuota } from './storage.js';
@@ -20,10 +21,12 @@ export interface SyncServerBindings {
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
   SESSION_SECRET: string;
+  DESKTOP_CONNECTOR?: string;
 }
 
 type Identity = { id: string; login: string };
-type Ticket = { purpose: 'oauth' | 'session'; origin: string; expires: number; state?: string; verifier?: string; identity?: Identity; mode?: 'accounts'; account?: { id: string; revision: number } };
+type DesktopRequest = { id: string; challenge: string; codeTag: string };
+type Ticket = { purpose: 'oauth' | 'session' | 'desktop'; origin: string; expires: number; state?: string; verifier?: string; identity?: Identity; mode?: 'accounts'; account?: { id: string; revision: number }; desktop?: DesktopRequest; client?: 'desktop' };
 type HubAccount = { id: string; githubId: string; revision: number };
 type Admission = 'ok' | 'revoked' | 'unavailable';
 const SESSION_COOKIE = '__Host-caotang-session';
@@ -149,6 +152,81 @@ async function admit(env: SyncServerBindings, account: HubAccount): Promise<Admi
   }
 }
 
+const DESKTOP_PATH = '/v1/auth/desktop/';
+const DESKTOP_TTL = 5 * 60_000;
+const S256 = /^[A-Za-z0-9_-]{43}$/;
+const DESKTOP_CODE = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+
+async function desktopFields(request: Request): Promise<Record<string, unknown> | null> {
+  if (request.headers.get('Content-Type') !== 'application/json') return null;
+  try {
+    const data = await authenticationJson(new Response(request.body));
+    return data !== null && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
+async function desktopConnection(request: Request, action: string, env: SyncServerBindings): Promise<Response> {
+  if (env.DESKTOP_CONNECTOR !== 'enabled' || !accountMode(env)) return reply(404, 'This API route does not exist.');
+  if (request.method !== 'POST') return reply(405, 'Use POST for desktop sign-in.');
+  if (!['start', 'approve', 'redeem', 'cancel'].includes(action)) return reply(404, 'This API route does not exist.');
+  const fields = await desktopFields(request);
+  if (fields === null) return reply(400, 'Use a JSON connection request.');
+  if (action === 'start') {
+    const challenge = fields['challenge'];
+    if (typeof challenge !== 'string' || !S256.test(challenge)) return reply(400, 'Use a SHA-256 challenge.');
+    const id = crypto.randomUUID();
+    const code = [...crypto.getRandomValues(new Uint8Array(8))].map((value) => DESKTOP_CODE[value & 31]).join('');
+    const codeTag = base64url(new Uint8Array(await crypto.subtle.sign('HMAC', await signingKey(env.SESSION_SECRET), encoder.encode(`desktop:${id}:${code}`))));
+    const expires = Date.now() + DESKTOP_TTL;
+    const connection = await sign({ purpose: 'desktop', origin: env.PUBLIC_ORIGIN, expires,
+      desktop: { id, challenge, codeTag },
+    }, env);
+    return Response.json({ connection, code, expires }, { headers: { 'Cache-Control': 'no-store' } });
+  }
+  const connection = fields['connection'];
+  const pending = typeof connection === 'string' ? await verify(connection, 'desktop', env) : null;
+  const descriptor = pending?.desktop;
+  if (!pending || !descriptor) return reply(410, 'Start a new desktop connection.');
+  let change: DesktopGrantAction;
+  if (action === 'approve') {
+    const session = await verify(readCookie(request, SESSION_COOKIE), 'session', env);
+    if (!session?.account || !session.identity || session.client === 'desktop') return reply(401, 'Sign in in the browser to approve the connection.');
+    const code = fields['code'];
+    if (typeof code !== 'string' || !/^[2-9A-HJ-NP-Z]{8}$/.test(code) ||
+      !await crypto.subtle.verify('HMAC', await signingKey(env.SESSION_SECRET), decode(descriptor.codeTag), encoder.encode(`desktop:${descriptor.id}:${code}`))) {
+      return reply(400, 'Enter the code shown in the desktop app.');
+    }
+    const account = { id: session.account.id, githubId: session.identity.id, revision: session.account.revision };
+    const admission = await admit(env, account);
+    if (admission !== 'ok') return admission === 'revoked' ? reply(401, 'Sign in to continue.') : unavailable();
+    change = { kind: 'approve', account };
+  } else {
+    const verifier = fields['verifier'];
+    if (typeof verifier !== 'string' || !S256.test(verifier)) return reply(400, 'Use the verifier from the initiating app.');
+    const challenge = base64url(new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(verifier))));
+    if (challenge !== descriptor.challenge) return reply(403, 'This connection belongs to a different request.');
+    change = { kind: action === 'redeem' ? 'redeem' : 'cancel' };
+  }
+  try {
+    const outcome = await env.ACCOUNT_HUBS.getByName(`desktop-grant:${descriptor.id}`).desktopGrant(change, pending.expires);
+    if (outcome.kind === 'pending') return reply(202, 'Waiting for browser approval.');
+    if (outcome.kind === 'approved' || change.kind === 'cancel') return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
+    if (outcome.kind !== 'redeemed') return reply(410, 'Start a new desktop connection.');
+    const { id, githubId, revision } = outcome.account;
+    const account = await registry(env).session(id, githubId, revision);
+    if (account === null) return reply(401, 'Sign in to continue.');
+    const session = await sign({
+      purpose: 'session', origin: env.PUBLIC_ORIGIN, expires: Date.now() + 28_800_000, mode: 'accounts', client: 'desktop',
+      identity: { id: account.githubId, login: account.login }, account: { id: account.id, revision: account.revision },
+    }, env);
+    return new Response(null, { status: 204, headers: { 'Set-Cookie': cookie(SESSION_COOKIE, session, 28_800), 'Cache-Control': 'no-store' } });
+  } catch {
+    return unavailable();
+  }
+}
+
 async function startLogin(env: SyncServerBindings): Promise<Response> {
   const state = base64url(crypto.getRandomValues(new Uint8Array(32)));
   const verifier = base64url(crypto.getRandomValues(new Uint8Array(48)));
@@ -227,6 +305,7 @@ export default {
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && crossOrigin) return reply(403, 'This request must come from the app.');
     if (url.pathname === '/v1/auth/github') return request.method === 'GET' ? startLogin(env) : reply(405, 'Use GET to begin sign-in.');
     if (url.pathname === '/v1/auth/github/callback') return request.method === 'GET' ? finishLogin(request, env) : reply(405, 'Use GET to finish sign-in.');
+    if (url.pathname.startsWith(DESKTOP_PATH)) return desktopConnection(request, url.pathname.slice(DESKTOP_PATH.length), env);
     const ticket = await verify(readCookie(request, SESSION_COOKIE), 'session', env);
     if (!ticket) return reply(401, 'Sign in to continue.');
     if (url.pathname === '/v1/auth/logout' && (accountMode(env) || ticket.mode === 'accounts')) {
@@ -308,6 +387,10 @@ export class AccountHub extends DurableObject<SyncServerBindings> {
   constructor(ctx: DurableObjectState, env: SyncServerBindings) {
     super(ctx, env);
     if (!accountMode(env)) this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
+  }
+
+  async desktopGrant(action: DesktopGrantAction, expires: number) {
+    return settleDesktopGrant(this.ctx.storage, action, expires);
   }
 
   override async fetch(request: Request): Promise<Response> {
@@ -436,6 +519,7 @@ export class AccountHub extends DurableObject<SyncServerBindings> {
   }
 
   override async alarm(): Promise<void> {
+    if (await forgetDesktopGrant(this.ctx.storage)) return;
     const removed = new Set<string>();
     const sockets = await this.live(removed) ?? [];
     await this.schedule(this.publish(sockets, 'snapshot', new Set(), removed));
