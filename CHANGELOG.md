@@ -6,6 +6,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Word imports keep literal prose, nested text boxes, every picture and batch warnings.** Text such as `*door*` or a link written out in prose no longer becomes Markdown formatting, text boxes nested in a Word drawing or shape are read and reported, a paragraph with several pictures keeps them all in order with their own alt text, and a zip of Word files names every file it cannot read.
 - **Desktop keeps account edits that could not be saved on this device.** Going back or a takeover leaves the editor open so you can export a copy. When you explicitly send after an offline lease expires, the app tries to regain the lease without taking over another device.
 - **The Modern toolbar stays in place when the window becomes narrow.** The wide-window sidebar animation no longer squeezes the project title during the resize.
 

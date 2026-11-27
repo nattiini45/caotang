@@ -5,6 +5,7 @@
  */
 
 import type { ImportAsset, ImportBlock, ImportComment, ImportDocument, ImportFootnote, LossWarning, Signals } from '@caotang/import-core';
+import { escapeInline, escapeLineStarts } from '@caotang/import-core';
 import { attr, readXml, textOf, type XmlElement } from '@caotang/import-read/xml';
 import { openZip, type ImportArchive } from '@caotang/import-read/zip';
 
@@ -175,6 +176,8 @@ interface WalkState {
   assets: ImportAsset[];
   assetData: Map<string, Uint8Array>;
   imageTargets: Map<string, string>;
+  /** Each picture this paragraph has produced, in the order its runs were read. */
+  imagePlacements: { ref: string; alt: string }[];
   remoteImages: string[];
   changes: DocxChanges;
   dropped: DocxDropped;
@@ -196,7 +199,7 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
   let out = '';
   for (const child of element.children) {
     if (child.type === 'text') {
-      out += deleting ? '' : child.text;
+      out += deleting ? '' : escapeInline(child.text);
       continue;
     }
     if (child.type !== 'element') continue;
@@ -209,12 +212,12 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
       let text = '';
       for (const part of child.children) {
         if (part.type === 'text') {
-          text += part.text;
+          text += escapeInline(part.text);
           continue;
         }
         if (part.type !== 'element') continue;
         const name = part.ns === W ? part.local : '';
-        if (name === 't' || name === 'delText') text += textOf(part);
+        if (name === 't' || name === 'delText') text += escapeInline(textOf(part));
         else if (name === 'tab') text += '\t';
         else if (name === 'br') {
           if (attr(part, 'type', W) === 'page') state.pageBreakInRuns = true;
@@ -244,11 +247,10 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
           }
           state.openComments.delete(id);
         } else if (name === 'drawing' || name === 'pict' || name === 'object') {
+          text += nestedTextBoxes(part, state, inherited, deleting);
           text += imageOf(part, state);
         } else if (name === 'txbxContent') {
-          state.dropped.textBoxes += 1;
-          state.losses.push({ code: 'text-box', message: 'A text box was read as a paragraph.', blockIndex: state.blocks.length });
-          for (const paragraph of kids(part, 'p')) text += renderRuns(paragraph, state, inherited, deleting);
+          text += textBox(part, state, inherited, deleting);
         }
       }
       out += deleting ? '' : emphasise(text, { ...style, bold: style.bold || inherited.bold, italic: style.italic || inherited.italic, caps: style.caps || inherited.caps }, state.options.underlineAs);
@@ -303,6 +305,18 @@ function renderRuns(element: XmlElement, state: WalkState, inherited: RunStyle, 
   return out;
 }
 
+/** A text box flattened into the prose where its shape sits. */
+function textBox(element: XmlElement, state: WalkState, inherited: RunStyle, deleting: boolean): string {
+  state.dropped.textBoxes += 1;
+  state.losses.push({ code: 'text-box', message: 'A text box was read as a paragraph.', blockIndex: state.blocks.length });
+  return kids(element, 'p').map((paragraph) => renderRuns(paragraph, state, inherited, deleting)).join('');
+}
+
+/** Every text box nested anywhere under a drawing, a legacy picture or an object. */
+function nestedTextBoxes(element: XmlElement, state: WalkState, inherited: RunStyle, deleting: boolean): string {
+  return descendants(element, 'txbxContent').map((box) => textBox(box, state, inherited, deleting)).join('');
+}
+
 /** A drawing or a legacy picture: its ref, or nothing when it cannot come in. */
 function imageOf(element: XmlElement, state: WalkState): string {
   const blip = descendants(element, 'blip')[0] ?? descendants(element, 'imagedata')[0];
@@ -331,6 +345,7 @@ function imageOf(element: XmlElement, state: WalkState): string {
   state.assets.push({ ref, name: rel.target.slice(rel.target.lastIndexOf('/') + 1) });
   state.imageTargets.set(ref, rel.target);
   if (!state.options.images) return '';
+  state.imagePlacements.push({ ref, alt });
   return `![${alt}](${ref})`;
 }
 
@@ -414,6 +429,7 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
     assets: [],
     assetData: new Map(),
     imageTargets: new Map(),
+    imagePlacements: [],
     remoteImages: [],
     changes: { ...EMPTY_CHANGES },
     dropped: { ...EMPTY_DROPPED },
@@ -438,6 +454,7 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
 
   const paragraph = (element: XmlElement): void => {
     const sizeStart = state.sizes.length;
+    const placementStart = state.imagePlacements.length;
     state.pageBreakInRuns = false;
     const md = renderRuns(element, state, PLAIN, false).replace(/[ \t]+/g, ' ').trim();
     const own = state.sizes.slice(sizeStart).sort((a, b) => a - b);
@@ -455,20 +472,17 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
     }
     const withEmpty: Signals = emptyRun === 0 ? signals : { ...signals, emptyBefore: emptyRun };
     if ((pageBreak || state.pageBreakInRuns) && state.blocks.length > 0) push({ kind: 'pagebreak' });
-    const images = descendants(element, 'blip').length + descendants(element, 'imagedata').length;
-    if (images > 0 && md.replace(/!\[[^\]]*\]\([^)]*\)/g, '').trim() === '') {
-      const ref = state.assets[state.assets.length - 1]?.ref;
-      const alt = /!\[([^\]]*)\]/.exec(md)?.[1] ?? '';
-      if (ref !== undefined) {
-        push({ kind: 'image', assetRef: ref, alt });
-        return;
-      }
+    const placements = state.imagePlacements.slice(placementStart);
+    if (placements.length > 0 && md.replace(/!\[[^\]]*\]\([^)]*\)/g, '').trim() === '') {
+      for (const placement of placements) push({ kind: 'image', assetRef: placement.ref, alt: placement.alt });
+      return;
     }
     if (heading !== null) {
       push({ kind: 'heading', level: heading, text: md.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1'), md: `${'#'.repeat(heading)} ${md}`, src: withEmpty });
       return;
     }
-    const body = list !== null ? `${list}${md}` : quote ? `> ${md}` : md;
+    const safe = md.trim() === '#' ? md : escapeLineStarts(md);
+    const body = list !== null ? `${list}${safe}` : quote ? `> ${safe}` : safe;
     push({ kind: 'para', md: body, text: md, src: withEmpty });
   };
 
@@ -594,12 +608,24 @@ export async function readDocxZip(bytes: Uint8Array, options: DocxOptions = {}):
     remoteImages: [],
   };
   for (const [index, path] of files.entries()) {
+    const skip = (why: string): void => {
+      merged.document.losses?.push({ code: 'unsupported', message: `The Word file “${path}” ${why}, so it is skipped.` });
+    };
     const bytesIn = await outer.value.read(path);
-    if (!bytesIn.ok) continue;
+    if (!bytesIn.ok) {
+      skip('could not be read from the batch zip');
+      continue;
+    }
     const inner = await openZip(bytesIn.value);
-    if (!inner.ok) continue;
+    if (!inner.ok) {
+      skip('is not a readable zip file');
+      continue;
+    }
     const read = await readDocxArchive(inner.value, { ...options, unit: path, refPrefix: `import:docx-image-${index + 1}-` });
-    if (!read.ok) continue;
+    if (!read.ok) {
+      skip(read.error.kind === 'not-docx' ? 'is not a Word document' : 'could not be read');
+      continue;
+    }
     const offset = merged.document.blocks.length;
     merged.document.blocks.push(...read.value.document.blocks);
     merged.document.footnotes?.push(...(read.value.document.footnotes ?? []).map((note) => ({ ...note, blockIndex: note.blockIndex + offset })));

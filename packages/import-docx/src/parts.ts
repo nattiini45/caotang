@@ -3,6 +3,7 @@
  * footnotes, endnotes, comments and the core properties. Each is read with the shared XML reader; nothing here runs.
  */
 
+import { escapeInline, escapeLineStarts } from '@caotang/import-core';
 import { attr, readXml, textOf, type XmlElement } from '@caotang/import-read/xml';
 
 /** The WordprocessingML namespace every `w:` element is in. */
@@ -211,7 +212,7 @@ function plainParagraph(paragraph: XmlElement): string {
   const walk = (element: XmlElement): void => {
     for (const child of element.children) {
       if (child.type === 'text') {
-        out += child.text;
+        out += escapeInline(child.text);
         continue;
       }
       if (child.type !== 'element') continue;
@@ -228,7 +229,7 @@ function plainParagraph(paragraph: XmlElement): string {
     }
   };
   walk(paragraph);
-  return out.replace(/[ \t]+/g, ' ').trim();
+  return escapeLineStarts(out.replace(/[ \t]+/g, ' ').trim());
 }
 
 /** `docProps/core.xml`: the title and the creator. */
