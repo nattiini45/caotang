@@ -453,7 +453,6 @@ Die Arbeit des Agenten lesen:
 - **Aktivität.** Die Registerkarte **Aktivität** listet jede Änderung auf, markiert mit **Sie** oder **Agent**, und ein Aufruf eines externen Werkzeugs trägt ein **MCP**-Badge. **Rückgängig** macht eines davon rückgängig.
 
 ## Anweisungen und Gedächtnis des Agenten
-<!-- source: ba9699e8 -->
 
 Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
 
@@ -542,7 +541,7 @@ Bei **Prompt-Paket (Video)** wählen Sie die **Anbieter-Vorlage**, für die das 
 **Export-Bundle** ist keine Kompilierung. Es ist eine vollständige Kopie des Projekts, für Sicherungen. Lassen sich ungenutzte Bilddateien sicher entfernen, bietet es zuerst die unter [Die Bildtafel](#die-bildtafel) beschriebene Bereinigung an; Sie können immer exportieren, ohne etwas zu entfernen. **Als Markdown exportieren** im Tab **Aktivität** schreibt das Aktivitätsprotokoll als Datei.
 
 ## Caotang für Desktop
-<!-- source: 0f28392d -->
+<!-- source: c8bff9d8 -->
 
 Caotang für Desktop ist dasselbe Studio in einem eigenen Fenster. Das Programm bringt die Browser-Version selbst mit, für die Caotang gebaut ist; daher sieht das Studio auf jedem Computer, auf dem Sie es installieren, gleich aus und verhält sich gleich, und es kann einiges, was ein Browser-Tab nicht kann. [docs/INSTALL.md](INSTALL.md) ist die Installationsanleitung; dieser Abschnitt sagt, was drinnen anders ist.
 
@@ -552,7 +551,7 @@ Caotang für Desktop ist dasselbe Studio in einem eigenen Fenster. Das Programm 
 - **Das Programm kann Ihr Projekt über MCP bereitstellen.** Öffnen Sie ein Projekt aus seinem Ordner und wählen Sie **Einstellungen › MCP & Werkzeuge › Der Server dieses Projekts**; **Starten** stellt den Server über diesen Ordner unter einer Adresse bereit, die Ihr System auswählt, und mit einem Token, das die App erzeugt. **Adresse kopieren**, **Token kopieren** und **Konfiguration kopieren** geben Ihnen, was das Programm braucht, das das Projekt lesen soll. **Änderungen erlauben** ist aus, ein Host liest also und ändert nichts; schalten Sie es ein, damit ein Host dieselben Dateien schreibt wie Sie. Während Caotang speichert, ist dieser Server pausiert und lehnt Schreibvorgänge ab, damit ein Speichern und eine Änderung eines Hosts einander nie ersetzen.
 - **Menüs und Verknüpfungen.** Das Programm hat die Menüleiste Ihrer Plattform, in der Sprache der Oberfläche. **Datei** enthält **Neues Projekt…**, **Ordner öffnen…**, **Kompilieren…**, **Bündel exportieren…** und **Einstellungen…**, und Windows und Linux ergänzen **Hilfe › Über Caotang**; ein Eintrag ist nur aktiv, wenn er etwas tun kann. Ihre eigenen Tastenkürzel bleiben die der Seite: Das Menü nimmt Strg+O zum Öffnen eines Ordners und Strg+, für die Einstellungen und lässt Strg+N, Strg+Z und die übrigen dem Editor, sodass Rückgängig in einem Feld weiterhin Ihre Eingabe zurücknimmt. Eine Verknüpfung `caotang://project/<id>` öffnet ein Projekt, das diese Kopie schon kennt, und ebenso ein Ordner, den Sie dem Programm über **Öffnen mit** aus Ihrem Dateimanager übergeben; eine Verknüpfung kann niemals einen Pfad nennen. Solange ein Projekt geöffnet ist, wartet eine Verknüpfung oder ein Ordner von außen und sagt **Schließen Sie dieses Projekt, bevor Sie ein anderes über eine Verknüpfung öffnen.**
 - **Der Speichern-Dialog.** **Kompilieren…** schreibt die Datei dorthin, wo Sie sie wählen, über den Speichern-Dialog Ihres Computers, und ein abgebrochenes Speichern schreibt nichts. **Bündel exportieren…** lädt die Kopie weiterhin herunter, wie es ein Browser tut.
-- **Das Symbol im Infobereich.** Das Schließen des Fensters lässt Caotang weiterlaufen: **Caotang öffnen** im Infobereich holt es zurück, **Caotang beenden** beendet es. Eine wiederkehrende Aufgabe, die fällig wird, während das Fenster geschlossen ist, läuft weiter, und der Infobereich sagt das; Beenden stoppt sie. Auf einem Desktop ohne Infobereich beendet das Schließen des Fensters das Programm wie bisher.
+- **Das Symbol im Infobereich.** Wenn Sie das Fenster schließen, wird Caotang standardmäßig beendet. Soll es weiterlaufen, aktivieren Sie unter **Einstellungen › Erscheinungsbild** die Option **Caotang beim Schließen des Fensters im Infobereich weiterlaufen lassen**. Beim ersten Ausblenden weist Caotang Sie darauf hin. **Caotang öffnen** im Infobereich holt das Fenster zurück. **Caotang beenden** beendet die App und stoppt geplante Aufgaben. Ist kein Infobereich verfügbar, wird Caotang beim Schließen immer beendet.
 - **Heute ist der Tag Ihres Computers.** Das Tagesziel zählt den Tag in der Zeitzone Ihres Computers, und eine Aufgabe für 09:00 läuft um 09:00 nach Ihrer Uhr, nicht nach der Vorstellung der Seite.
 
 An der Arbeit selbst ändert sich nichts: Projektformat, Exporte, der Agent und seine Grenzen sind dieselben, es ist kein Konto nötig, und Caotang sendet weiterhin nichts irgendwohin außer an den Anbieter und die MCP-Server, die Sie einrichten. [SECURITY.md](../SECURITY.md) ist die eine Seite, die sagt, was das wahrt und wie Sie es prüfen können.

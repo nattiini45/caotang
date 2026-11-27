@@ -22,6 +22,7 @@ for (const shell of ['classic', 'modern'] as const) {
     await page.goto('/');
     const settings = await openSettings(page);
     const close = settings.getByRole('button', { name: 'Close', exact: true });
+    await close.click({ trial: true });
     const before = await close.boundingBox();
     const scroll = await settings.locator('.settings-body').evaluate((body) => {
       body.scrollTop = body.scrollHeight;
