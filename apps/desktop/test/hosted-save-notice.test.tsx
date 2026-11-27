@@ -161,6 +161,29 @@ it('puts one window warning and both recovery actions in the desktop header inst
   }
 });
 
+it('asks again instead of offering to send a postponed desktop conflict', async () => {
+  const mount = document.createElement('header');
+  document.body.append(mount);
+  const one = target([conflict], [], false);
+  setHostedProject({
+    projectId: 'p_lighthouse', origin: 'https://account.example', key: {} as CryptoKey, device: 'desktop',
+    desktopRecovery: { mount, onProjects: vi.fn(), warning: 'Keep this window open.', send: 'Send them to your account',
+      exportBundle: 'Export bundle', exportFailed: 'The bundle could not be exported.' },
+  });
+  try {
+    await render(one);
+    await act(async () => one.save(state));
+    await act(async () => button('Leave it for now').click());
+    expect(mount.textContent).not.toContain('Send them to your account');
+    expect(mount.contains(button('Ask me again'))).toBe(true);
+    await act(async () => button('Ask me again').click());
+    expect(shown()).toContain('Another device saved these first');
+    expect(sends).toEqual([false]);
+  } finally {
+    mount.remove();
+  }
+});
+
 it('names the documents another device changed by their titles, never by their file names', async () => {
   const one = target([conflict]);
   await render(one);
