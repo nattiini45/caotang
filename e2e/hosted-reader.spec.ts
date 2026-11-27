@@ -44,8 +44,7 @@ async function accountProject(mismatch = false) {
   addDocument(state, { id: script, parentId: 'research', title: 'The Signal', body: 'INT. LANTERN ROOM - NIGHT', now });
   state.manifest.tree.find((node) => node.id === script)!.kind = 'screenplay';
   const fs = await EncryptedRemoteArtifactFs.open({ store, projectId, projectKey: key });
-  if (mismatch) await fs.writeAtomic('caotang.json', JSON.stringify(state.manifest));
-  else expect((await saveProjectToAccount(fs, state)).kind).toBe('written');
+  expect((await saveProjectToAccount(fs, state)).kind).toBe('written');
   return { store, projectId, bytes: [...key.export()] };
 }
 
@@ -159,6 +158,8 @@ test('the frame rejects invalid edit handoffs, and valid edit boots with the acc
     const frame = window.testHostedReceiver;
     const key = await frame.projectKey(bytes);
     const wrongKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 128 }, false, ['encrypt']);
+    const disposition = (error: unknown) =>
+      error instanceof Error ? 'code' in error ? error.code : error.name : 'unexpected-rejection';
     const failures = [];
     for (const handoff of [
       { mode: 'edit', projectId, key },
@@ -166,22 +167,23 @@ test('the frame rejects invalid edit handoffs, and valid edit boots with the acc
       { mode: 'write', projectId, key, device: 'writer-one' },
       { mode: 'edit', projectId, key: wrongKey, device: 'writer-one' },
     ]) {
-      failures.push(await frame.receive(account, handoff).then(() => false, () => true));
+      failures.push(await frame.receive(account, handoff).then(() => 'accepted', disposition));
     }
     const before = frame.editorState();
     await frame.receive(account, { mode: 'edit', projectId, key, device: 'writer-one', origin: 'https://elsewhere.example' });
     const during = frame.editorState();
-    const refusedSwap = await frame.receive(account, { mode: 'read', projectId, key }).then(() => false, () => true);
+    const refusedSwap = await frame.receive(account, { mode: 'read', projectId, key }).then(() => 'accepted', disposition);
     frame.lock();
-    const refusedAfterLock = await frame.receive(account, { mode: 'edit', projectId, key, device: 'writer-one' }).then(() => false, () => true);
+    const refusedAfterLock = await frame.receive(account, { mode: 'edit', projectId, key, device: 'writer-one' })
+      .then(() => 'accepted', (error: unknown) => error instanceof Error ? error.name : 'unexpected-rejection');
     return { failures, before, during, refusedSwap, refusedAfterLock, after: frame.editorState() };
   }, { account, projectId: 'p_example', bytes: [...generateProjectKey().export()] });
   expect(result).toEqual({
-    failures: [true, true, true, true],
+    failures: ['invalid-mode-or-device', 'invalid-mode-or-device', 'invalid-mode-or-device', 'invalid-project'],
     before: { boots: 0, scope: null, project: null },
     during: { boots: 1, scope: account, project: { id: 'p_example', origin, device: 'writer-one', extractable: false } },
-    refusedSwap: true,
-    refusedAfterLock: true,
+    refusedSwap: 'already-accepted',
+    refusedAfterLock: 'AbortError',
     after: { boots: 1, scope: account, project: null },
   });
 });

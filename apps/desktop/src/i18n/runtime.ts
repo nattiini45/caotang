@@ -107,7 +107,7 @@ async function loadGerman(): Promise<Messages> {
  * The `import.meta.env.DEV` guard is static: Vite replaces it with `false` in the build, and the two
  * dynamic imports are then unreachable and absent from `dist/`.
  */
-export async function loadCatalogue(id: string): Promise<Messages> {
+export async function loadNonSourceCatalogue(id: string): Promise<Messages> {
   if (id === 'de') return loadGerman();
   if (import.meta.env.DEV) {
     if (id === 'pseudo-LOCALE') return (await import('./locales/pseudo-LOCALE/messages.po')).messages;
@@ -129,7 +129,7 @@ export function withEnglishFallback(messages: Messages): Messages {
 }
 
 async function messagesFor(id: string): Promise<Messages> {
-  return id === SOURCE_LOCALE_TAG ? enMessages : withEnglishFallback(await loadCatalogue(id));
+  return id === SOURCE_LOCALE_TAG ? enMessages : withEnglishFallback(await loadNonSourceCatalogue(id));
 }
 
 /**

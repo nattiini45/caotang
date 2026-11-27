@@ -40,7 +40,12 @@ function projectHandoff(value: unknown): HostedProjectHandoff {
 }
 
 export function createHostedProjectReceiver({ origin, root, language, bootEditor }: ReceiverOptions) {
-  const url = new URL(origin);
+  let url: URL;
+  try {
+    url = new URL(origin);
+  } catch {
+    throw new HostedHandoffError('invalid-origin');
+  }
   if (url.protocol !== 'https:' || url.origin !== origin) throw new HostedHandoffError('invalid-origin');
   const controller = new AbortController();
   let accepted: HostedProjectHandoff['mode'] | undefined;
