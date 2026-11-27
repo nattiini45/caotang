@@ -388,6 +388,12 @@ describe('the packaging legs run the gate', () => {
     expect(name).toContain('each case runs through a Miniflare Worker runtime');
   });
 
+  it('uses the same Vitest worker budget in both Windows gates', () => {
+    for (const job of [windows, jobBlock(ci, 'verify_windows')]) {
+      expect(job).toContain("VITEST_MAX_WORKERS: '2'");
+    }
+  });
+
   it('quotes any step name carrying what an unquoted YAML value cannot hold', () => {
     // Both files are parsed by GitHub before any job starts, and an unquoted value has two traps: `: ` would make it a mapping and
     // fail the run with no jobs at all, and ` #` silently ends the value there — a step would lose the issue it cites and nothing

@@ -99,6 +99,7 @@ jobs:
       - name: "Lint, typecheck and every unit suite, less sync-server account-mode, storage, server, quota, accounts, project-lease and project-records suites (each case runs through a Miniflare Worker runtime: #815, #820)"
         env:
           CAOTANG_SKIP_WORKER_SUITES: '1'
+          VITEST_MAX_WORKERS: '2'
         run: pnpm verify
 
       # Packages the app without an installer (--dir), and applies the electron fuses and the ASAR integrity data to the binary,

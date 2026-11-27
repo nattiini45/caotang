@@ -6,7 +6,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -14,6 +14,7 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import type { ElicitRequestParams, ElicitResult } from '@modelcontextprotocol/client';
 import { loadCoherence, parseCoherenceFile, saveCoherence, type CoherenceFile } from '@caotang/coherence';
 import { addDocument, addFolder, createEmptyManifest, createProjectState, readProject, writeProject, type ExportRecipe, type ProjectState } from '@caotang/store';
+import { writeProjectFixture } from '../../store/test/project-folder-fixture.js';
 
 import {
   NodeArtifactFs,
@@ -69,8 +70,6 @@ export async function seedProject(
   name: string,
   options: { readonly shot?: boolean; readonly shotAction?: string; readonly shotImage?: string; readonly dialogue?: boolean } = {},
 ): Promise<void> {
-  mkdirSync(root, { recursive: true });
-  const fs = new NodeArtifactFs(root);
   const state = createProjectState(createEmptyManifest(name, OPENED));
   addFolder(state, { parentId: 'manuscript', title: 'Chapter 1', now: OPENED, id: CHAPTER_ONE });
   addDocument(state, { parentId: CHAPTER_ONE, title: 'The Landing', body: LANDING_BODY, now: OPENED, id: LANDING, synopsis: 'Elena returns.' });
@@ -78,7 +77,7 @@ export async function seedProject(
   if (options.dialogue === true) {
     addDocument(state, { parentId: 'manuscript', title: 'The Tavern', type: 'dialogue', body: TAVERN_INK, now: OPENED, id: TAVERN });
   }
-  await writeProject(fs, state, { now: OPENED });
+  await writeProjectFixture(root, state, OPENED);
 }
 
 export const TAVERN = 'n_TAVERN0001';
@@ -418,9 +417,7 @@ export const FERRYMAN_BODY = '=== start ===\nThe ferryman nods.\n-> END\n';
  * A project a writer could have: prose, a screenplay scene and a dialogue container across two chapters, notes and keywords on a
  * document, and two codex entries. Binder order is Chapter 1 (The Landing, The Storm), Chapter 2 (Harbour, Ferryman).
  */
-export async function seedWriting(root: string): Promise<void> {
-  mkdirSync(root, { recursive: true });
-  const fs = new NodeArtifactFs(root);
+export async function seedWriting(root: string, extend?: (state: ProjectState) => void): Promise<void> {
   const state = createProjectState(createEmptyManifest('The Lighthouse Keeper', OPENED));
   addFolder(state, { parentId: 'manuscript', title: 'Chapter 1', now: OPENED, id: CHAPTER_ONE });
   addDocument(state, {
@@ -458,5 +455,6 @@ export async function seedWriting(root: string): Promise<void> {
     entry(KESTREL, 'Kestrel', 'other', 'The bird on the rail.', []),
     entry(ELENA, 'Elena', 'character', 'The keeper’s daughter, back after ten years.', ['Lena']),
   );
-  await writeProject(fs, state, { now: OPENED });
+  extend?.(state);
+  await writeProjectFixture(root, state, OPENED);
 }
