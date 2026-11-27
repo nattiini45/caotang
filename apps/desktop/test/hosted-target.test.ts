@@ -94,6 +94,32 @@ it('keeps the question if refreshing an answer fails, and holds subsequent local
   expect(await saving.keepMine()).toEqual({ kind: 'stale' });
 });
 
+it('honours an approval for the remaining path when a queued save shrinks the question', async () => {
+  const other = 'docs/b.md';
+  const { saving, send } = await target([path, other]);
+  send.mockResolvedValueOnce({ kind: 'conflict', versions: new Map([[path, 2], [other, 3]]) });
+  expect(await saving.sendQueued()).toMatchObject({ kind: 'conflict', paths: [path, other] });
+  vi.spyOn(saving.queue, 'held').mockReturnValueOnce([path]);
+  const writing = saving.save(state);
+  const approval = saving.keepMine();
+  await writing;
+  expect(await approval).toEqual({ kind: 'stale' });
+  expect(send).toHaveBeenLastCalledWith(true, new Map([[path, 2]]));
+});
+
+it('does not apply an earlier approval to a new version of the same file', async () => {
+  const { saving, send } = await target([path]);
+  send.mockResolvedValueOnce(conflict).mockResolvedValueOnce({ kind: 'conflict', versions: new Map([[path, 3]]) });
+  await saving.sendQueued();
+  const first = saving.keepMine();
+  const repeat = saving.keepMine();
+  await first;
+  expect(await repeat).toMatchObject({ kind: 'conflict', paths: [path] });
+  expect(send).toHaveBeenCalledTimes(2);
+  await saving.keepMine();
+  expect(send).toHaveBeenLastCalledWith(true, new Map([[path, 3]]));
+});
+
 it('a new save during a send is staged after the accepted batch, without replaying the old book', async () => {
   const { saving, send, accepted } = await target([path]);
   let finish!: () => void;

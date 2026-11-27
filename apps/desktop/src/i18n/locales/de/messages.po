@@ -17672,7 +17672,7 @@ msgstr "Lesen und genehmigen…"
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Read before sending these files: {waitingFiles}"
-msgstr "Lies diese Dateien, bevor du sie sendest: {waitingFiles}"
+msgstr "Lesen Sie diese Dateien, bevor Sie sie senden: {waitingFiles}"
 
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
@@ -19689,7 +19689,7 @@ msgstr "Schreib-Einstellungen speichern"
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Save your edits before reading the account copy."
-msgstr "Speichere deine Änderungen, bevor du die Kopie im Konto liest."
+msgstr "Speichern Sie Ihre Änderungen, bevor Sie die Kopie im Konto lesen."
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
@@ -28351,7 +28351,7 @@ msgstr "Ihre späteren Änderungen liegen in anderen Teilen des Projekts, daher 
 #. Interpolated values: files and waitingFiles are lists of document titles or file names.
 #: apps/desktop/src/components/HostedSaveNotice.tsx
 msgid "Your latest edits aren’t ready to send."
-msgstr "Deine neuesten Änderungen sind noch nicht zum Senden bereit."
+msgstr "Ihre neuesten Änderungen können noch nicht gesendet werden."
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words

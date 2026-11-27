@@ -212,7 +212,7 @@ An accepted write is not the same as a file the editor has read. If a replay sen
 | `unsaved` or `conflict` | the browser saves again | same | include new local changes without sending or borrowing a new base from the account |
 | any open state | the latest edit could not be staged | `unsaved` or `conflict` | keep earlier queued work and its durability; offer to retry preparing the latest edits rather than to send an older payload |
 | `unsaved` | the writer sends | `saving` | refresh the index, then try the held batch |
-| `conflict` | the writer keeps this device's text | `saving` | persist approval for only the paths and versions they were shown, even if another path now conflicts; any further movement asks again |
+| `conflict` | the writer keeps this device's text | `saving` | persist approval only for paths still eligible at the version shown; dropping another path from the question does not discard the remaining approvals, and any movement asks again |
 | `conflict` | the writer leaves it | `conflict` | neither write nor discard anything |
 | `stale` | the browser saves before reading a replayed file | `stale` or `unsaved` | retain newer edits to that file separately; offer to send any unrelated paths |
 | after an explicit send, with no unfinished local save and no in-memory-only edits | the writer reads the account again | `idle` or `unsaved` | reopen explicitly; any newer local edits remain queued and are never sent by the read |

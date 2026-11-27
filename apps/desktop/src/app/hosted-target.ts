@@ -138,7 +138,7 @@ export class HostedTarget {
       if (previous.kind === 'conflict') {
         const held = new Set(this.queue.held());
         const remaining = new Map([...this.#asked].filter(([path]) => held.has(path)));
-        if (remaining.size > 0) this.#conflict(remaining.size === this.#asked.size ? this.#asked : remaining);
+        if (remaining.size > 0) this.#conflict(remaining);
         else this.#unsaved();
       } else if (this.queue.held().length > 0) {
         if (previous.kind === 'idle') await this.#send(false);
@@ -161,7 +161,9 @@ export class HostedTarget {
   async keepMine(): Promise<HostedSaveState> {
     const answer = this.#asked;
     return await this.#inTurn(async () => {
-      if (this.#state.kind === 'conflict' && !this.#stageFailed && answer === this.#asked) await this.#send(true, answer);
+      if (this.#state.kind !== 'conflict' || this.#stageFailed) return this.#state;
+      const approved = new Map([...answer].filter(([path, version]) => this.#asked.get(path) === version));
+      if (approved.size > 0) await this.#send(true, approved);
       return this.#state;
     });
   }
