@@ -41,16 +41,32 @@ function nameOf(path: string, session: ProjectSession): string {
 export function HostedSaveNotice({
   session,
   onReopenAccount,
+  summary,
 }: {
   readonly session: ProjectSession;
   /** Reads the account again after an explicit send. */
   readonly onReopenAccount?: (() => void) | undefined;
+  readonly summary?: 'saved' | 'saving';
 }): ReactNode {
   const target = hostedTargetFor(session.projectId);
   const subscribe = useCallback((listener: () => void) => (target === null ? NOTHING : target.subscribe(listener)), [target]);
   const state = useSyncExternalStore(subscribe, () => target?.state() ?? IDLE);
   // A question the writer put off stays off for those paths: a new conflict asks anew.
   const [putOff, setPutOff] = useState('');
+  if (summary !== undefined) {
+    if (target === null) return null;
+    const pending = state.kind === 'unsaved' || state.waiting !== undefined;
+    const saving = state.kind === 'saving' || (state.kind === 'idle' && summary === 'saving');
+    const status = state.kind === 'conflict' ? 'conflict' : state.stageFailed || pending ? 'failed' : saving ? 'saving' : 'saved';
+    const persisted = state.kind === 'unsaved' ? state.persisted : state.waiting?.persisted;
+    return <span className={`save-state is-${status}`} role={status === 'saved' ? 'status' : undefined} data-testid="save-state" data-state={status}>
+      {state.stageFailed ? t`Your latest edits aren’t ready to send.`
+        : state.kind === 'conflict' ? t`Another device saved these first`
+        : pending ? persisted ? t`Saved here, not to your account.` : t`Closing this tab loses these changes.`
+        : saving ? t`Saving…`
+        : t`Your account has the changes.`}
+    </span>;
+  }
   if (target === null || state.kind === 'idle' || state.kind === 'saving') return null;
   if (state.stageFailed) return <p className="status-line" role="alert">
     <span><Trans>Your latest edits aren’t ready to send.</Trans></span>

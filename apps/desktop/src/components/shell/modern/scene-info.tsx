@@ -282,9 +282,9 @@ function SceneInfoPanel({
               <Trans>Progress</Trans>
             </h3>
             <TargetQuickSet progress={progress.target} onSetTarget={progress.setTarget} />
-            <p id={saveId} className="scene-info-save" data-testid="scene-info-save-state" data-state={progress.saveState}>
-              {save.text}
-              {save.offersBackup ? (
+            <p id={saveId} className="scene-info-save" data-testid="scene-info-save-state" data-state={save === null ? undefined : progress.saveState}>
+              {save === null ? regions.saveState : save.text}
+              {save?.offersBackup ? (
                 <>
                   {' '}
                   <button type="button" className="button is-quiet" onClick={progress.exportBackup}>
