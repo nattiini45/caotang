@@ -231,7 +231,7 @@ export async function readKankaArchive(archive: ImportArchive, options: KankaRea
       }
       const why = pictureRefusal(data);
       if (why !== undefined) {
-        noteUnsupportedPicture(target.startsWith('data:') ? 'an embedded picture' : target, why);
+        noteUnsupportedPicture(/^data:/i.test(target) ? 'an embedded picture' : target, why);
         body = withoutImageRef(body, imageRef);
         continue;
       }
