@@ -135,7 +135,7 @@ it('puts one window warning and both recovery actions in the desktop header inst
   const one = target([unavailable, accepted], [], false);
   setHostedProject({
     projectId: 'p_lighthouse', origin: 'https://account.example', key: {} as CryptoKey, device: 'desktop',
-    desktopRecovery: { mount, warning, send: 'Send them to your account', exportBundle: 'Export bundle', exportFailed: 'The bundle could not be exported.' },
+    desktopRecovery: { mount, onProjects: vi.fn(), warning, send: 'Send them to your account', exportBundle: 'Export bundle', exportFailed: 'The bundle could not be exported.' },
   });
   vi.spyOn(one, 'exportCopy').mockImplementation(exportCopy);
   try {

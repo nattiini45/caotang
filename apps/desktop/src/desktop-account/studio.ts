@@ -59,7 +59,8 @@ if (root && parentWindow !== window && parentWindow.location.origin === ACCOUNT_
             return fetchAccount(input, { ...init, headers });
           },
           beforeExplicitSend: async () => await (parentWindow as AccountHostWindow).renewAccountLease?.() ?? false,
-          ...(mount ? { desktopRecovery: { mount, warning: recoveryCopy.closeRefused, send: recoveryCopy.send,
+          ...(mount ? { desktopRecovery: { mount, onProjects: () => parentWindow.postMessage('account-project-back', ACCOUNT_ORIGIN),
+            warning: recoveryCopy.closeRefused, send: recoveryCopy.send,
             exportBundle: recoveryCopy.exportBundle, exportFailed: recoveryCopy.exportFailed } } : {}),
           bootEditor: async (signal) => { signal.throwIfAborted(); await import('../main.js'); },
         });

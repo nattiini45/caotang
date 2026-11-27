@@ -5,7 +5,7 @@ import './style.css';
 import { Button } from '@ui-sdk/react/button';
 import { Field, FieldDescription, FieldLabel } from '@ui-sdk/react/field';
 import { Input } from '@ui-sdk/react/input';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { importProjectKey, openProjectRecord, rotationPending, unlockAccountKeys, unwrapProjectKey, type AccountKeyRecord, type SecretKey } from '@caotang/crypto';
 import { RemoteSessionError, createHttpLease, createHttpProjectRegistry, type RemoteProjectRecord } from '@caotang/remote-store';
@@ -82,14 +82,6 @@ function AccountWindow({ native }: { readonly native: AccountBridge }) {
     return () => { delete host.renewAccountLease; };
   }, []);
 
-  useEffect(() => {
-    const failed = (event: MessageEvent<unknown>) => {
-      if (event.origin === ACCOUNT_ORIGIN && event.source === frame.current?.contentWindow && event.data === 'account-project-failed') setNotice('openFailed');
-    };
-    window.addEventListener('message', failed);
-    return () => window.removeEventListener('message', failed);
-  }, []);
-
   const run = async (action: () => Promise<void>, fallback: Problem = 'unavailable') => {
     if (busy) return;
     setBusy(true);
@@ -157,11 +149,11 @@ function AccountWindow({ native }: { readonly native: AccountBridge }) {
     }, 'wrongPassphrase');
   };
 
-  const leave = async (): Promise<boolean> => {
+  const leave = useCallback(async (): Promise<boolean> => {
     if (leaving.current) return leaving.current;
     const closing = (async () => {
       const target = frame.current?.contentWindow as AccountStudioWindow | null | undefined;
-      if (target && !await target.closeAccountProject?.()) {
+      if (target?.closeAccountProject && !await target.closeAccountProject()) {
         setNotice('closeRefused');
         return false;
       }
@@ -181,7 +173,17 @@ function AccountWindow({ native }: { readonly native: AccountBridge }) {
     leaving.current = closing;
     try { return await closing; }
     finally { leaving.current = null; }
-  };
+  }, []);
+
+  useEffect(() => {
+    const receive = (event: MessageEvent<unknown>) => {
+      if (event.origin !== ACCOUNT_ORIGIN || event.source !== frame.current?.contentWindow) return;
+      if (event.data === 'account-project-failed') setNotice('openFailed');
+      if (event.data === 'account-project-back') void leave();
+    };
+    window.addEventListener('message', receive);
+    return () => window.removeEventListener('message', receive);
+  }, [leave]);
 
   const open = (project: Project, mode: 'edit' | 'read', takeover = false) => run(async () => {
     if (!unlocked || !session) return;

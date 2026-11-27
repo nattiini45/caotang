@@ -50,6 +50,7 @@ export interface HostedProjectSource {
 
 export interface DesktopRecovery {
   readonly mount: HTMLElement;
+  readonly onProjects: () => void;
   readonly warning: string;
   readonly send: string;
   readonly exportBundle: string;
