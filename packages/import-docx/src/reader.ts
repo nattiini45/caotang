@@ -492,7 +492,10 @@ export async function readDocxArchive(archive: ImportArchive, options: DocxOptio
     for (const row of rows) {
       const cells = kids(row, 'tc').map((cell) => kids(cell, 'p').map((p) => renderRuns(p, state, PLAIN, false).trim()).filter((text) => text !== '').join(' '));
       const md = cells.filter((cell) => cell !== '').join(' — ');
-      if (md !== '') push({ kind: 'para', md, text: md, src: { ...(state.options.unit === undefined ? {} : { sourceUnit: state.options.unit }) } });
+      if (md !== '') {
+        const safe = escapeLineStarts(md);
+        push({ kind: 'para', md: safe, text: md, src: { ...(state.options.unit === undefined ? {} : { sourceUnit: state.options.unit }) } });
+      }
     }
   };
 
