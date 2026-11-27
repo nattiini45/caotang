@@ -4,7 +4,7 @@
  * two hold. The only device-local state a hosted project has is the queue of saves the account has not taken, and an open sends nothing.
  */
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { MemoryArtifactFs, MemoryIndexedDb, openRuntimeStore, writeProject, type ProjectState, type RuntimeStore } from '@caotang/store';
+import { MemoryArtifactFs, MemoryIndexedDb, listProjectIds, openRuntimeStore, writeProject, type ProjectState, type RuntimeStore } from '@caotang/store';
 
 import { setActiveAppDb } from '../src/app/app-db.js';
 import { type Opened } from '../src/app/lifecycle.js';
@@ -96,6 +96,7 @@ async function open(state: ProjectState = BOOK, holding: readonly string[] = [])
 /** The account's project with one document's kind changed, as another device's save would leave it. */
 function asScreenplay(): ProjectState {
   const state = project();
+  state.manifest.project.id = SOURCE.projectId;
   const node = state.manifest.tree.find((candidate) => candidate.id === IDS.sceneA);
   if (node !== undefined) node.kind = 'screenplay';
   state.documents.get(IDS.sceneA)!.body = 'INT. HARBOUR - NIGHT';
@@ -108,6 +109,15 @@ it('opens the account’s project under its own id, with its pictures', async ()
   expect(result.copiedFrom).toBeNull();
   expect(result.session.state.documents.get(IDS.sceneA)?.body).toBe('Four little words here');
   expect(Object.keys(await result.session.assets.snapshot())).toContain(COVER);
+});
+
+it('rejects a mismatched manifest without adopting another project or installing a save target', async () => {
+  const other = project();
+  expect(other.manifest.project.id).not.toBe(SOURCE.projectId);
+  const target = await targetFor(other);
+  await expect(openHostedProject(store, SOURCE, async () => target)).rejects.toThrow('Invalid hosted project manifest.');
+  expect(await listProjectIds(store)).toEqual([]);
+  expect(hostedTargetFor(SOURCE.projectId)).toBeNull();
 });
 
 it('reports a browser save refusal without closing the open editor', async () => {

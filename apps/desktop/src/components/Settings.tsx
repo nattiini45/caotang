@@ -51,7 +51,8 @@ import { developerLanguageExposure, languageRevision, subscribeLanguage, switchI
 import { sameLanguageSetting } from '../i18n/catalogues.js';
 import { useFormat } from '../i18n/use-format.js';
 import { readListedLanguages, recordListedLanguages } from '../i18n/listed-languages.js';
-import { activeTag, preloadCatalogues } from '../i18n/runtime.js';
+import { activeTag } from '../i18n/runtime.js';
+import { preloadCatalogues } from '../i18n/preload-catalogues.js';
 import { guideHref } from '../i18n/guide-links.js';
 import { languageChoices, type InterfaceLanguageStats } from '../i18n/picker.js';
 import languageStats from '../i18n/locales/stats.json';

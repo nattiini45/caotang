@@ -28,7 +28,6 @@ import { i18n, type Messages } from '@lingui/core';
 import { t } from '@lingui/core/macro';
 
 import {
-  INTERFACE_CATALOGUES,
   interfaceCatalogueForId,
   interfaceCatalogueForTag,
   pseudoCatalogues,
@@ -44,12 +43,6 @@ export const SOURCE_LOCALE_TAG = 'en';
 
 /** A catalogue the loader can resolve: its file/id name and the language tag it is activated under. */
 export type Catalogue = InterfaceCatalogue;
-
-/** A catalogue plus the loader that reaches it. */
-interface CatalogueEntry extends Catalogue {
-  /** Loads the compiled messages. English resolves from the entry immediately. */
-  readonly load: () => Promise<Messages>;
-}
 
 /** The pseudo catalogues and the valid root tags they stand for, for tests and the dev picker. */
 export const PSEUDO_CATALOGUES: readonly Catalogue[] = pseudoCatalogues();
@@ -71,16 +64,11 @@ export class PseudoCatalogueUnavailableError extends Error {
 }
 
 /** The table row for a tag, or a refusal. `dev` is injectable so a test can pin the production branch. */
-function entryForTag(tag: string, dev: boolean): CatalogueEntry {
+export function catalogueForTag(tag: string, dev: boolean = import.meta.env.DEV): Catalogue {
   const identity = interfaceCatalogueForTag(tag);
   if (identity === undefined) throw new UnknownCatalogueError(tag);
   if (identity.pseudo && !dev) throw new PseudoCatalogueUnavailableError(tag);
-  return { ...identity, load: () => loadCatalogue(identity.id) };
-}
-
-/** The catalogue for a tag, or a refusal. `dev` is injectable so a test can pin the production branch. */
-export function catalogueForTag(tag: string, dev: boolean = import.meta.env.DEV): Catalogue {
-  return entryForTag(tag, dev);
+  return identity;
 }
 
 /** The language tag a catalogue id stands for. Throws for an id this build does not name. */
@@ -100,15 +88,10 @@ let germanFailures = 0;
  * tests) there is no network to fail and the ordinary import is used throughout.
  */
 async function loadGerman(): Promise<Messages> {
-  if (germanFailures === 0 || deCatalogueUrl === undefined) {
-    try {
-      return (await import('./locales/de/messages.po')).messages;
-    } catch (error) {
-      germanFailures += 1;
-      throw error;
-    }
-  }
   try {
+    if (germanFailures === 0 || deCatalogueUrl === undefined) {
+      return (await import('./locales/de/messages.po')).messages;
+    }
     const url = new URL(deCatalogueUrl, import.meta.url);
     url.searchParams.set('retry', String(germanFailures));
     return ((await import(/* @vite-ignore */ url.href)) as { messages: Messages }).messages;
@@ -124,8 +107,7 @@ async function loadGerman(): Promise<Messages> {
  * The `import.meta.env.DEV` guard is static: Vite replaces it with `false` in the build, and the two
  * dynamic imports are then unreachable and absent from `dist/`.
  */
-async function loadCatalogue(id: string): Promise<Messages> {
-  if (id === 'en') return enMessages;
+export async function loadCatalogue(id: string): Promise<Messages> {
   if (id === 'de') return loadGerman();
   if (import.meta.env.DEV) {
     if (id === 'pseudo-LOCALE') return (await import('./locales/pseudo-LOCALE/messages.po')).messages;
@@ -146,24 +128,8 @@ export function withEnglishFallback(messages: Messages): Messages {
   return { ...enMessages, ...messages };
 }
 
-/**
- * Warms every non-English, non-pseudo catalogue the build ships, without activating one, and resolves
- * to the ids it loaded. The browser's module map is shared with the switch's own dynamic import, so a
- * catalogue loaded here resolves for the later switch from cache instead of the network. A warm that
- * fails is ignored — its id is absent — and the switch's `loadMessages` retries through `loadGerman`'s
- * fresh-URL path and owns the notice. Pseudo catalogues are never warmed — they exist only for
- * dev/test and are picked deliberately.
- */
-export function preloadCatalogues(): Promise<string[]> {
-  const loads = INTERFACE_CATALOGUES.filter((catalogue) => catalogue.id !== SOURCE_LOCALE_TAG && !catalogue.pseudo).map(
-    async (catalogue) => {
-      await loadCatalogue(catalogue.id);
-      return catalogue.id;
-    },
-  );
-  return Promise.allSettled(loads).then((results) =>
-    results.filter((result): result is PromiseFulfilledResult<string> => result.status === 'fulfilled').map((result) => result.value),
-  );
+async function messagesFor(id: string): Promise<Messages> {
+  return id === SOURCE_LOCALE_TAG ? enMessages : withEnglishFallback(await loadCatalogue(id));
 }
 
 /**
@@ -171,27 +137,24 @@ export function preloadCatalogues(): Promise<string[]> {
  * catalogue is merged over the compiled English one, so a missing message is an English sentence rather
  * than a raw id. The English catalogue itself resolves from its table row already in the entry.
  */
-export async function loadMessages(tag: string, dev: boolean = import.meta.env.DEV): Promise<Messages> {
-  const entry = entryForTag(tag, dev);
-  return withEnglishFallback(await entry.load());
+export async function loadMessages(tag: string, dev?: boolean): Promise<Messages> {
+  return messagesFor(catalogueForTag(tag, dev).id);
 }
 
 /**
  * Load a tag's catalogue, then activate it under its **tag** (§3.3: activation follows a successful
  * load). A failed load leaves the active locale untouched.
  */
-export async function activateCatalogue(tag: string, dev: boolean = import.meta.env.DEV): Promise<Catalogue> {
-  const entry = entryForTag(tag, dev);
-  const messages = await loadMessages(entry.tag, dev);
-  i18n.load(entry.tag, messages);
-  i18n.activate(entry.tag);
+export async function activateCatalogue(tag: string, dev?: boolean): Promise<Catalogue> {
+  const entry = catalogueForTag(tag, dev);
+  const messages = await messagesFor(entry.id);
+  i18n.loadAndActivate({ locale: entry.tag, messages });
   return entry;
 }
 
 /** Load and activate English before the first render. Called once, from the app entry. */
 export function activateEnglish(): void {
-  i18n.load(SOURCE_LOCALE_TAG, enMessages);
-  i18n.activate(SOURCE_LOCALE_TAG);
+  i18n.loadAndActivate({ locale: SOURCE_LOCALE_TAG, messages: enMessages });
 }
 
 /** The tag that is active now. The switcher publishes this to `<html lang>`; nothing here writes to the document. */

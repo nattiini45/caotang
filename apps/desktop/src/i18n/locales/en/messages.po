@@ -6140,6 +6140,7 @@ msgstr "Beyond the {limit}-document scope limit. Split the scope."
 #: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
 #: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
 #: apps/desktop/src/components/shell/modern/narrow-panels.tsx
+#: apps/desktop/src/hosted-reader/reader.tsx
 msgid "Binder"
 msgstr "Binder"
 
@@ -13303,6 +13304,7 @@ msgstr "Loading the picture…"
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #. The transcription review dialog. Interpolated values: file is a stored file name; current and total are the page position; second is the second read's word.
 #: apps/desktop/src/components/InspectorPictures.tsx
+#: apps/desktop/src/hosted-reader/reader.tsx
 #: apps/desktop/src/media/PictureBoard.tsx
 #: apps/desktop/src/media/TranscriptionReviewDialog.tsx
 msgid "Loading…"
@@ -13517,6 +13519,7 @@ msgstr "Manual"
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/components/Binder.tsx
+#: apps/desktop/src/hosted-reader/reader.tsx
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Manuscript"
 msgstr "Manuscript"
@@ -17684,6 +17687,10 @@ msgstr "Read it as"
 msgid "harness.progress.notesRead.bare.content"
 msgstr "Read notes"
 
+#: apps/desktop/src/hosted-reader/reader.tsx
+msgid "Read only"
+msgstr "Read only"
+
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.binderReadTree.content"
@@ -17908,6 +17915,7 @@ msgstr "Reading the project"
 
 #. Agent status sentences. Interpolated values: progress, total and cached are counts, call is a call number, cause is a reason.
 #: apps/desktop/src/app/agent-model.ts
+#: apps/desktop/src/hosted-reader/reader.tsx
 msgid "Reading the project"
 msgstr "Reading the project"
 
@@ -18695,6 +18703,7 @@ msgstr "Required for completion. A negative review can lead to another iteration
 #. Binder row labels. Interpolated values: access is an access level's name, from is the node the rule was set on, title is a row's title.
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/components/Binder.tsx
+#: apps/desktop/src/hosted-reader/reader.tsx
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Research"
 msgstr "Research"
@@ -21090,6 +21099,7 @@ msgstr "Skip to the Agenda"
 
 #. Modern interface: the stage and the page.
 #: apps/desktop/src/components/shell/modern/modern-shell.tsx
+#: apps/desktop/src/hosted-reader/reader.tsx
 msgid "Skip to the page"
 msgstr "Skip to the page"
 
@@ -23309,6 +23319,7 @@ msgstr "The file could not be read as plain text."
 msgid "The file could not be read for a preview: {reason}"
 msgstr "The file could not be read for a preview: {reason}"
 
+#: apps/desktop/src/hosted-reader/reader.tsx
 #: apps/desktop/src/media/picture-import-host.ts
 msgid "The file could not be read."
 msgstr "The file could not be read."
@@ -25873,6 +25884,10 @@ msgstr "This plan used skill instructions or outside text. Switch to Ask and sta
 msgid "This project"
 msgstr "This project"
 
+#: apps/desktop/src/hosted-reader/reader.tsx
+msgid "This project could not be read."
+msgstr "This project could not be read."
+
 #. Interpolated values: count, path, reason
 #: apps/desktop/src/app/lifecycle.ts
 msgid "This project defines {count} hooks. Review them in Settings › Hooks."
@@ -25887,6 +25902,10 @@ msgstr "This project defines one hook. Review it in Settings › Hooks."
 #: apps/desktop/src/components/AgentInstructionsPanel.tsx
 msgid "This project has an AGENTS.md and no CAOTANG.md, so the agent reads AGENTS.md. Saving here writes a CAOTANG.md, which the agent then reads instead; AGENTS.md is left as it is."
 msgstr "This project has an AGENTS.md and no CAOTANG.md, so the agent reads AGENTS.md. Saving here writes a CAOTANG.md, which the agent then reads instead; AGENTS.md is left as it is."
+
+#: apps/desktop/src/hosted-reader/reader.tsx
+msgid "This project has no documents to read."
+msgstr "This project has no documents to read."
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
@@ -26719,6 +26738,7 @@ msgstr "Trusted for reads. Lets read-only tools run without asking, and only too
 #: apps/desktop/src/components/InkGate.tsx
 #: apps/desktop/src/components/lazy-view.tsx
 #: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/hosted-reader/reader.tsx
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 #: apps/desktop/src/media/picture-hooks.tsx
 msgid "Try again"
