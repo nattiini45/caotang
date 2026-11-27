@@ -117,6 +117,13 @@ describe('readXlsx', () => {
     ]);
   });
 
+  it('keeps an out-of-range date serial as its number instead of throwing', async () => {
+    const book = xlsx([{ name: 'Dates', rows: [[cell('A1', '1e300', undefined, 1), cell('B1', '-1', undefined, 1), cell('C1', '2958465', undefined, 1)]] }], { styles: DATE_STYLES });
+    const read = await readXlsx(book);
+    expect(read.ok).toBe(true);
+    if (read.ok) expect(read.value.rows[0]?.cells).toEqual(['1e+300', '-1', '9999-12-31']);
+  });
+
   it('reads the chosen sheet and refuses one the workbook does not hold', async () => {
     const book = xlsx([
       { name: 'Bible', rows: [[cell('A1', '0', 's')], [cell('A2', '1', 's')]] },

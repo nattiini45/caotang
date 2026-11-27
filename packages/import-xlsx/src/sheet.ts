@@ -129,7 +129,8 @@ export function sheetGrid(bytes: Uint8Array, workbook: XlsxWorkbook, path: strin
       else {
         const style = Number(attr(cell, 's') ?? '0');
         const serial = Number(raw);
-        if (isDateStyle(workbook, style) && Number.isFinite(serial)) {
+        const newestSerial = workbook.date1904 ? 2_957_003 : 2_958_465;
+        if (isDateStyle(workbook, style) && Number.isFinite(serial) && serial >= 0 && serial < newestSerial + 1) {
           const reading = serialDate(serial, workbook.date1904);
           if (reading.time) times += 1;
           text = reading.date;
