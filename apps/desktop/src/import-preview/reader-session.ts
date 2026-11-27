@@ -16,7 +16,7 @@ import type { RtfReadResult, RtfdReadResult } from '@caotang/import-rtf';
 import type { ReaderOpen, ReaderRead, ReaderResult, SerializableRtfResult } from './reader-protocol.js';
 
 type State =
-  | { readonly reader: 'text' | 'captions' | 'rtf' | 'inklewriter' | 'highland'; readonly bytes: Uint8Array }
+  | { readonly reader: 'text' | 'captions' | 'table' | 'rtf' | 'inklewriter' | 'highland'; readonly bytes: Uint8Array }
   | { readonly reader: 'rtfd'; readonly archive: ImportArchive }
   | { readonly reader: 'html'; readonly bytes: Uint8Array; readonly fileName: string }
   | { readonly reader: 'html-archive'; readonly archive: ImportArchive }
@@ -36,7 +36,7 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
   let state: State | null = null;
 
   const open = async (req: ReaderOpen): Promise<void> => {
-    if (req.reader === 'text' || req.reader === 'captions' || req.reader === 'rtf' || req.reader === 'inklewriter' || req.reader === 'highland') {
+    if (req.reader === 'text' || req.reader === 'captions' || req.reader === 'table' || req.reader === 'rtf' || req.reader === 'inklewriter' || req.reader === 'highland') {
       state = { reader: req.reader, bytes: req.bytes };
       return;
     }
@@ -90,6 +90,19 @@ export function createReaderSession(): (req: ReaderOpen | ReaderRead) => Promise
       return {
         kind: 'captions',
         result: { status: 'read', encoding: decoded.encoding, guessed: decoded.guessed, candidates: decoded.candidates, parse: parseCaptions(decoded.text) },
+      };
+    }
+    if (req.reader === 'table') {
+      if (state.reader !== 'table') throw new Error('The import reader is not a table reader.');
+      const { decodePlainText, normalisePlainText } = await import('@caotang/import-read/text');
+      const { parseTableText } = await import('@caotang/import-table');
+      const decoded = decodePlainText(state.bytes, req.encoding === undefined ? {} : { encoding: req.encoding });
+      if (decoded.status !== 'decoded') return { kind: 'table', result: { status: 'undecoded', decode: decoded } };
+      const text = normalisePlainText(decoded.text).text;
+      const parse = parseTableText(text, req.delimiter === undefined ? {} : { delimiter: req.delimiter });
+      return {
+        kind: 'table',
+        result: { status: 'read', encoding: decoded.encoding, guessed: decoded.guessed, candidates: decoded.candidates, parse },
       };
     }
     if (req.reader === 'inklewriter') {

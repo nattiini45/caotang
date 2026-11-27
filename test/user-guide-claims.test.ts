@@ -706,7 +706,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(read('docs/decisions.md')).toMatch(/hooks/i);
   });
 
-  it('says the AI tool’s codex import is capped at 20 and the app’s own is one step without that cap, whose window is not built', () => {
+  it('says the AI tool’s codex import is capped at 20 and the app’s own is one step without that cap, whose table window is built', () => {
     // The agent's tool keeps its cap (codex-import.ts), and the writer's batch command is the app's alone (codex.md §7.1).
     expect(read('packages/harness/src/tools/codex-import.ts')).toContain('const CODEX_IMPORT_MAX = 20;');
     expect(COMMAND_REGISTRY['codex.importBatch'].descriptor.agentRisk).toBe('never');
@@ -715,7 +715,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(guide).toContain('The limit of 20 is this tool\'s: an import you run in Caotang itself is one step with no such limit');
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
     expect(notYet).toContain('- **Importing codex entries in the app.**');
-    expect(notYet).toContain('The import window that offers this for a CSV file, a wiki export or another writing app is not built yet');
+    expect(notYet).toContain('A wiki export or another writing app is not built yet');
     expect(changelog).toContain(`adds up to ${codexImportCommands.CODEX_IMPORT_BATCH_MAX.toLocaleString('en-GB')} codex entries`);
     expect(read('docs/architecture/codex.md')).toContain('### 7.1 The writer\'s batch import (`codex.importBatch`)');
   });
@@ -729,7 +729,7 @@ describe('the import preview (#267)', () => {
     expect(read('apps/desktop/src/components/TweeImportDialog.tsx')).toContain('tweePreviewSource(');
     expect(guide).toContain('- **The import preview.** An import that brings in a whole book shows it first as a proposed binder beside its text');
     expect(guide).toContain('one **Undo** takes all of it back, pictures and codex entries included');
-    expect(guide).toContain('**Import Twee**, **Import Inklewriter**, **Import Highland**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import captions…**, **Import Word…**, **Import OpenDocument…**, **Import HTML…**, **Import EPUB…**, **Import AO3…** and **Import Kanka…** open it.');
+    expect(guide).toContain('**Import Twee**, **Import Inklewriter**, **Import Highland**, **Import plain text…**, **Import RTF…**, **Import RTFD…**, **Import captions…**, **Import CSV/TSV…**, **Import Word…**, **Import OpenDocument…**, **Import HTML…**, **Import EPUB…**, **Import AO3…** and **Import Kanka…** open it.');
     expect(guide).toContain('**Import Inklewriter** reads an Inklewriter story export');
     expect(read('apps/desktop/src/components/ScriptImport.tsx')).toContain('inklewriterPreviewSource');
     expect(guide).toContain('**Import RTFD…** an `.rtfd` package');
@@ -762,10 +762,14 @@ describe('the import preview (#267)', () => {
     expect(manuscript).toContain("await import('../import-preview/rtf-source.js')");
     expect(manuscript).toContain('rtfdPreviewSource');
     expect(manuscript).toContain("await import('../import-preview/html-source.js')");
+    expect(manuscript).toContain("await import('../import-preview/table-source.js')");
+    expect(guide).toContain('- **Import CSV/TSV…** reads a spreadsheet-style `.csv`, `.tsv` or delimited `.txt` file');
+    expect(read('docs/i18n/de/USER-GUIDE.md')).toContain('- **CSV/TSV importieren…** liest eine tabellarische `.csv`-, `.tsv`- oder begrenzte `.txt`-Datei');
+    expect(read('docs/architecture/import-table.md')).toContain('the writer chooses what the rows become and what each column means');
     expect(manuscript).toContain('htmlZipPreviewSource');
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<ManuscriptImportActions />');
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, captions, Word, OpenDocument, HTML, EPUB, AO3 and Kanka imports open the preview');
+    expect(notYet).toContain('the Twee, plain-text, RTF, RTFD, captions, CSV/TSV, Word, OpenDocument, HTML, EPUB, AO3 and Kanka imports open the preview');
     expect(notYet).not.toContain('There is no **Import RTF** command yet');
     expect(changelog).toContain('**One import preview for every structured import.**');
     expect(read('docs/architecture/import-preview.md')).toContain('## 5. The commit: `binder.importTree`');

@@ -189,7 +189,13 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
   const shown = useMemo(() => (plan === null ? [] : applyEdits(plan.tree, edits)), [plan, edits]);
   const rows = useMemo(() => visibleRows(shown, collapsed), [shown, collapsed]);
   const extraScan = useMemo(() => (ready ? (source.scanExtra?.() ?? []) : []), [ready, source]);
-  const codexRows: readonly PreviewCodexRow[] = useMemo(() => (ready ? (source.codexRows?.() ?? []) : []), [ready, source]);
+  // A source's rows can depend on the settings (the CSV/TSV import's mode and column roles), and readVersion lands the
+  // Worker read they are mapped from, so both are inputs even though the source method hides that dependency.
+  const codexRows: readonly PreviewCodexRow[] = useMemo(() => {
+    void settings;
+    void readVersion;
+    return ready ? (source.codexRows?.() ?? []) : [];
+  }, [ready, source, settings, readVersion]);
   const held = useMemo(() => (session.state.manifest.codex ?? []).flatMap((entry) => [entry.name, ...entry.aliases]), [session.state.manifest.codex]);
   const colliding = useMemo(() => collisions(codexRows, held), [codexRows, held]);
   // What each codex row will do, the same answers Import sends: a row that starts skipped is not imported text.
@@ -399,6 +405,28 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
               />
             </div>
 
+            {source.grid === undefined || plan === null ? null : (
+              <section className="import-preview-section" aria-label={t`Rows`}>
+                <h3><Trans>Rows</Trans></h3>
+                <table className="import-preview-table import-preview-grid">
+                  <thead>
+                    <tr>
+                      {source.grid(settings).columns.map((column) => (
+                        <th key={column.key}>
+                          <div>{column.label}</div>
+                          {column.chipId === undefined || column.options === undefined ? null : (
+                            <select aria-label={t`Column ${{ column: column.label }} becomes`} value={column.value} onChange={(event) => askRule(column.chipId as string, event.currentTarget.value)}>
+                              {column.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                            </select>
+                          )}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>{source.grid(settings).rows.map((row, index) => <tr key={index}>{row.map((cellValue, cellIndex) => <td key={cellIndex}>{cellValue}</td>)}</tr>)}</tbody>
+                </table>
+              </section>
+            )}
             {fields.length === 0 ? null : (
               <section className="import-preview-section" aria-label={t`Fields`}>
                 <h3><Trans>Fields</Trans></h3>

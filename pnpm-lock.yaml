@@ -351,6 +351,9 @@ importers:
       '@caotang/import-rtf':
         specifier: workspace:*
         version: link:../../packages/import-rtf
+      '@caotang/import-table':
+        specifier: workspace:*
+        version: link:../../packages/import-table
       '@caotang/machine':
         specifier: workspace:*
         version: link:../../packages/machine
@@ -1114,6 +1117,8 @@ importers:
       '@caotang/import-read':
         specifier: workspace:*
         version: link:../import-read
+
+  packages/import-table: {}
 
   packages/machine: {}
 

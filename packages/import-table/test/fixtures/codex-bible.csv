@@ -1,0 +1,3 @@
+Name,Aliases,Type,Description,Long text,Tags,Include policy,Image file,Relation to mentor,Detail: color
+Ada,"A.;The Countess",person,"line one
+line two","Analytical engines",math;inventor,private,ada.png,student,green

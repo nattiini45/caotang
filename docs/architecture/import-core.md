@@ -92,7 +92,7 @@ Shown in the preview, never fixed by the splitter: `chapter-short` (< 100 words)
 ## 5. What is not built
 
 - The other readers (DOCX, RTF and Scrivener, Markdown, EPUB, ODT, HTML). Each emits `ImportDocument` and is a lazy chunk (#31).
-- A prologue or epilogue the splitter names (`storyPart`) is not committed: `binder.importTree` writes no scene metadata.
+- A prologue or epilogue the splitter names (`storyPart`) is not committed by the splitter source. `binder.importTree` itself can carry scene metadata for a source whose format declares it, as the CSV/TSV timeline import does ([import-table.md](import-table.md) §4).
 - Committing the tree. The splitter emits Part folders holding chapter folders; the binder allows them once #269 lands. Until then a caller can use `parts: 'flatten'`.
 
 ### 5.1 The splitter source (built, #267)

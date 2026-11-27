@@ -22,6 +22,7 @@
  */
 
 import type { CodexImportBatchEntry, CodexImportPage, CommandDescriptor, ValidationNode, ValidationSnapshot } from './command.js';
+import type { SceneMetaRecord } from './coherence.js';
 import { codexImportBatch } from './descriptors-codex-import.js';
 import { CHAPTERLESS_DOCUMENT_REFUSAL, KEYWORD_CHARS_MAX, KEYWORDS_MAX, NOTES_MAX, SYNOPSIS_MAX } from './descriptors.js';
 import { ok, type CommandError, type PerOpFailure, type Result } from './result.js';
@@ -42,6 +43,12 @@ export const IMPORT_TREE_TERM_CHARS_MAX = 64;
 /** A picture's `ref`: a reader's token, never a path, so the rewrite of `](ref` cannot touch anything else. */
 export const IMPORT_TREE_REF_PATTERN = /^import:[A-Za-z0-9._/-]{1,120}$/;
 
+/** Scene declarations an import carries. `locations` are codex entries the scene is attached to; they are not coherence declarations. */
+export type ImportTreeSceneMeta = Pick<SceneMetaRecord, 'pov' | 'dayOffset' | 'durationDays' | 'expectedPresent' | 'threads' | 'storyPart' | 'mainStory'> & {
+  /** Codex entry ids or pending imported-entry refs for the scene's locations, after validation. */
+  locations?: string[];
+};
+
 /** One node of the tree, as the preview hands it over. */
 export type ImportTreeNode = {
   type: 'folder' | 'document';
@@ -61,6 +68,8 @@ export type ImportTreeNode = {
    * show or a storyboard. Absent: a prose document, or a plain folder.
    */
   kind?: 'screenplay' | 'av-script' | 'comic-script' | 'show' | 'storyboard';
+  /** Timeline declarations a document starts with (CSV/TSV scene imports). POV and participants may name a codex entry; validate rewrites them to entry ids or pending imported-entry refs. A thread payoff may name a pending imported document. */
+  sceneMeta?: ImportTreeSceneMeta;
 };
 
 /** The kinds a tree document may carry, paired with `binder.create`'s document kinds (descriptors.ts `pairCreateKind`). */
@@ -82,7 +91,8 @@ export type ImportTreeParams = {
   pictures?: ImportTreePicture[];
 };
 
-const NODE_KEYS = ['type', 'title', 'parent', 'place', 'body', 'synopsis', 'keywords', 'status', 'label', 'notes', 'kind'] as const;
+const NODE_KEYS = ['type', 'title', 'parent', 'place', 'body', 'synopsis', 'keywords', 'status', 'label', 'notes', 'kind', 'sceneMeta'] as const;
+const SCENE_META_KEYS = ['pov', 'dayOffset', 'durationDays', 'expectedPresent', 'threads', 'storyPart', 'mainStory', 'locations'] as const;
 const PICTURE_KEYS = ['ref', 'stagingId', 'alt', 'caption'] as const;
 const CODEX_KEYS = ['entries', 'pages'] as const;
 const VOCABULARY_KEYS = ['statuses', 'labels'] as const;
@@ -241,6 +251,32 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
         }
       }
 
+      const sceneMeta = raw['sceneMeta'];
+      if (sceneMeta !== undefined) {
+        if (type !== 'document') fail('a folder holds no scene declarations', 'sceneMeta');
+        else if (!isRecord(sceneMeta)) fail('sceneMeta must be an object of scene declarations', 'sceneMeta');
+        else {
+          const extra = Object.keys(sceneMeta).find((key) => !(SCENE_META_KEYS as readonly string[]).includes(key));
+          if (extra !== undefined) fail(`sceneMeta.${extra} is not a declaration an import carries`, `sceneMeta.${extra}`, `valid fields are ${SCENE_META_KEYS.join(', ')}`);
+          const day = sceneMeta['dayOffset'];
+          if (day !== undefined && (!(typeof day === 'number') || !Number.isInteger(day) || day < -10_000_000 || day > 10_000_000)) fail('dayOffset must be a whole number of days between -10,000,000 and 10,000,000', 'sceneMeta.dayOffset');
+          const duration = sceneMeta['durationDays'];
+          if (duration !== undefined && (!(typeof duration === 'number') || !Number.isInteger(duration) || duration < 0)) fail('durationDays must be a whole number of days of zero or more', 'sceneMeta.durationDays');
+          if (sceneMeta['pov'] !== undefined && (typeof sceneMeta['pov'] !== 'string' || sceneMeta['pov'].trim() === '')) fail('pov must name a codex entry', 'sceneMeta.pov');
+          const expected = sceneMeta['expectedPresent'];
+          if (expected !== undefined && (!Array.isArray(expected) || expected.some((item) => typeof item !== 'string' || item.trim() === ''))) fail('expectedPresent must be a list of codex entry names or ids', 'sceneMeta.expectedPresent');
+          const storyPart = sceneMeta['storyPart'];
+          if (storyPart !== undefined && storyPart !== 'prologue' && storyPart !== 'epilogue') fail('storyPart must be "prologue" or "epilogue"', 'sceneMeta.storyPart');
+          if (sceneMeta['mainStory'] !== undefined && sceneMeta['mainStory'] !== true) fail('mainStory can only be true', 'sceneMeta.mainStory');
+          if (storyPart !== undefined && sceneMeta['mainStory'] === true) fail('storyPart and mainStory cannot both be declared', 'sceneMeta');
+          const locations = sceneMeta['locations'];
+          if (locations !== undefined && (!Array.isArray(locations) || locations.some((item) => typeof item !== 'string' || item.trim() === ''))) fail('locations must be a list of codex entry names or ids', 'sceneMeta.locations');
+          const threads = sceneMeta['threads'];
+          if (threads !== undefined && (!Array.isArray(threads) || threads.some((thread) => !isRecord(thread) || typeof thread['id'] !== 'string' || thread['id'].trim() === '' || typeof thread['payoff'] !== 'string' || thread['payoff'].trim() === ''))) fail('threads must be {id, payoff, note?} records', 'sceneMeta.threads');
+        }
+      }
+
+
       nodes.push({
         type: type === 'document' ? 'document' : 'folder',
         title: typeof title === 'string' ? title : '',
@@ -253,6 +289,7 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
         ...(typeof label === 'string' ? { label } : {}),
         ...(typeof notes === 'string' ? { notes } : {}),
         ...(kind === 'screenplay' || kind === 'av-script' || kind === 'comic-script' || kind === 'show' || kind === 'storyboard' ? { kind } : {}),
+        ...(isRecord(sceneMeta) ? { sceneMeta: sceneMeta as ImportTreeNode['sceneMeta'] } : {}),
       });
     }
     if (text > IMPORT_TREE_TEXT_MAX) {
@@ -331,6 +368,81 @@ export const binderImportTree: CommandDescriptor<ImportTreeParams> = {
           }),
           ...(checked.value.pages === undefined ? {} : { pages: checked.value.pages }),
         };
+      }
+    }
+
+    // Scene declarations name people and payoff scenes as the writer knows them. Rewrite every one to an existing id or a
+    // pending ref of this import, after the codex rows have passed their own batch validation, so apply never guesses.
+    if (failures.length === 0 && nodes.some((node) => node.sceneMeta !== undefined)) {
+      if (snapshot.coherence === undefined) {
+        failures.push({ target: 'nodes', code: 'invalid-params', message: 'scene declarations need the project coherence file, which is not open' });
+      } else {
+        const entries = snapshot.manifest.codex ?? [];
+        const imported = codex?.entries ?? [];
+        const entryRef = (value: string): string | undefined => {
+          const exact = entries.find((entry) => entry.id === value);
+          if (exact !== undefined) return exact.id;
+          const key = value.trim().toLowerCase();
+          const held = entries.find((entry) => entry.name.trim().toLowerCase() === key || (entry.aliases ?? []).some((alias) => alias.trim().toLowerCase() === key));
+          if (held !== undefined) return held.id;
+          const index = imported.findIndex((entry) => entry.name.trim().toLowerCase() === key || (entry.aliases ?? []).some((alias) => alias.trim().toLowerCase() === key));
+          return index < 0 ? undefined : `${PENDING_IMPORT_PREFIX}codex:${index}`;
+        };
+        const documentRef = (value: string): string | undefined => {
+          if (snapshot.documents.has(value) || snapshot.manifest.tree.some((node) => node.id === value && node.type === 'document')) return value;
+          if (!value.startsWith(PENDING_IMPORT_PREFIX)) return undefined;
+          const index = Number(value.slice(PENDING_IMPORT_PREFIX.length));
+          return Number.isInteger(index) && nodes[index]?.type === 'document' ? value : undefined;
+        };
+        for (const [index, node] of nodes.entries()) {
+          const meta = node.sceneMeta;
+          if (meta === undefined) continue;
+          const target = `nodes[${index}].sceneMeta`;
+          const next: NonNullable<ImportTreeNode['sceneMeta']> = {};
+          if (meta.dayOffset !== undefined) next.dayOffset = meta.dayOffset;
+          if (meta.durationDays !== undefined) next.durationDays = meta.durationDays;
+          if (meta.storyPart !== undefined) next.storyPart = meta.storyPart;
+          if (meta.mainStory === true) next.mainStory = true;
+          if (meta.pov !== undefined) {
+            const resolved = entryRef(meta.pov);
+            if (resolved !== undefined) next.pov = resolved;
+          }
+          if (meta.expectedPresent !== undefined) {
+            const resolved: string[] = [];
+            for (const value of meta.expectedPresent) {
+              const ref = entryRef(value);
+              if (ref !== undefined && !resolved.includes(ref)) resolved.push(ref);
+            }
+            if (resolved.length > 0) next.expectedPresent = resolved;
+          }
+          if (meta.locations !== undefined) {
+            const resolved: string[] = [];
+            for (const value of meta.locations) {
+              const ref = entryRef(value);
+              if (ref !== undefined && !resolved.includes(ref)) resolved.push(ref);
+            }
+            if (resolved.length > 0) next.locations = resolved;
+          }
+          if (meta.threads !== undefined) {
+            const threads: NonNullable<NonNullable<ImportTreeNode['sceneMeta']>['threads']> = [];
+            for (const thread of meta.threads) {
+              const payoff = documentRef(thread.payoff);
+              if (payoff === undefined) {
+                failures.push({ target: `${target}.threads`, code: 'invalid-params', message: `${target}.threads payoff for "${thread.id}" names no document` });
+                continue;
+              }
+              if (payoff === `${PENDING_IMPORT_PREFIX}${index}`) {
+                failures.push({ target: `${target}.threads`, code: 'invalid-params', message: `${target}.threads "${thread.id}" cannot be paid off by the scene that sets it up` });
+                continue;
+              }
+              threads.push({ id: thread.id, payoff, ...(thread.note === undefined ? {} : { note: thread.note }) });
+            }
+            if (threads.length > 0) next.threads = threads;
+          }
+          const revised: ImportTreeNode = { ...node, sceneMeta: next };
+          if (Object.keys(next).length === 0) delete revised.sceneMeta;
+          nodes[index] = revised;
+        }
       }
     }
 

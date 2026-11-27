@@ -4,6 +4,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ## Unreleased
 
+### Added
+
+- **CSV/TSV import (#288).** **Import CSV/TSV…** reads a spreadsheet-style `.csv`, `.tsv` or delimited `.txt` through the shared preview in one undo step. You choose whether rows become codex entries or timeline scenes, see the first twenty rows, and map each column yourself; the mapping is remembered for the same column layout. Codex rows keep aliases, types, keywords, include policy, descriptions and long text on research pages, with unknown type words kept as keywords. Timeline rows keep folder hierarchy, day offsets and durations, POV, participants, locations, summaries and plot threads; Caotang timeline CSV exports round-trip, including negative days. Dates are ISO, `Day N`, integers, or a day/month or month/day order you choose explicitly. A standalone table cannot supply image bytes or typed relations, so those cells are preserved as research-page text and reported. UTF-8 and UTF-16 files are read locally in the import Worker.
+
 ### Fixed
 
 - **Word imports keep literal prose, nested text boxes, every picture and batch warnings.** Text such as `*door*` or a link written out in prose no longer becomes Markdown formatting, text boxes nested in a Word drawing or shape are read and reported, a paragraph with several pictures keeps them all in order with their own alt text, and a zip of Word files names every file it cannot read.
